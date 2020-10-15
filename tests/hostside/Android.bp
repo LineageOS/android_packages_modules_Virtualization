@@ -17,6 +17,34 @@ kernel_version = "5.4"
 kernel_target_stem = ":kernel_prebuilts-" + kernel_version
 vendor_ramdisk_target_stem = ":cf_prebuilts_initramfs-" + kernel_version
 
+// JAR containing all virtualization host-side tests.
+java_test_host {
+    name: "VirtualizationHostTestCases",
+    srcs: ["java/**/*.java"],
+    test_suites: ["device-tests"],
+    libs: ["tradefed"],
+    data: [
+        ":virt_hostside_tests_kernel",
+        ":virt_hostside_tests_initramfs-arm64",
+        ":virt_hostside_tests_initramfs-x86_64",
+    ],
+}
+
+// Give kernel images unique file names.
+genrule {
+    name: "virt_hostside_tests_kernel",
+    srcs: [
+        kernel_target_stem + "-arm64",
+        kernel_target_stem + "-x86_64",
+    ],
+    out: [
+        "virt_hostside_tests_kernel-arm64",
+        "virt_hostside_tests_kernel-x86_64",
+    ],
+    tool_files: ["scripts/place_files.sh"],
+    cmd: "$(location scripts/place_files.sh) $(in) -- $(out)",
+}
+
 // Ramdisk containing /init and test binaries/resources needed inside guest.
 genrule {
     name: "virt_hostside_tests_initramfs_base",
