@@ -1,0 +1,14 @@
+rust_binary {
+    name: "virtmanager",
+    crate_name: "virtmanager",
+    srcs: ["src/main.rs"],
+    edition: "2018",
+    rustlibs: [
+        "android.system.virtmanager-rust",
+        "libenv_logger",
+        "liblog_rust",
+        "libserde_json",
+        "libserde",
+        "libanyhow",
+    ],
+}
