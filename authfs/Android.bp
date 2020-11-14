@@ -1,0 +1,31 @@
+rust_defaults {
+    name: "authfs_defaults",
+    crate_name: "authfs",
+    srcs: [
+        "src/lib.rs",
+    ],
+    edition: "2018",
+    rustlibs: [
+        "liblibc",
+    ],
+    host_supported: true,
+    clippy_lints: "android",
+}
+
+rust_library {
+    name: "libauthfs",
+    defaults: ["authfs_defaults"],
+}
+
+rust_test_host {
+    name: "authfs_host_test_src_lib",
+    test_suites: ["general-tests"],
+    defaults: ["authfs_defaults"],
+}
+
+// TODO(victorhsieh): Enable the test once "undefined symbol: _Unwind_Resume" is fixed, then add to
+// TEST_MAPPING.
+//rust_test {
+//    name: "authfs_device_test_src_lib",
+//    defaults: ["authfs_defaults"],
+//}
