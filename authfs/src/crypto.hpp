@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-//! This crate provides a FUSE-based, non-generic filesystem that I/O is authenticated. This
-//! filesystem assumes the storage layer is not trusted, e.g. file is provided by an untrusted VM,
-//! and the content can't be simply trusted. The filesystem can use its public key to verify a
-//! (read-only) file against its associated fs-verity signature by a trusted party. With the Merkle
-//! tree, each read of file block can be verified individually.
-//!
-//! The implementation is not finished.
+#ifndef AUTHFS_OPENSSL_WRAPPER_H
+#define AUTHFS_OPENSSL_WRAPPER_H
 
-mod crypto;
-mod reader;
+#include <openssl/sha.h>
+
+#endif  // AUTHFS_OPENSSL_WRAPPER_H
