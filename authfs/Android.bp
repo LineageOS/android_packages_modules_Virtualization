@@ -6,10 +6,27 @@ rust_defaults {
     ],
     edition: "2018",
     rustlibs: [
+        "libauthfs_crypto_bindgen",
         "liblibc",
+        "libthiserror",
     ],
     host_supported: true,
+    shared_libs: ["libcrypto"],
     clippy_lints: "android",
+}
+
+// TODO(b/172687320): remove once there is a canonical bindgen.
+rust_bindgen {
+    name: "libauthfs_crypto_bindgen",
+    wrapper_src: "src/crypto.hpp",
+    crate_name: "authfs_crypto_bindgen",
+    source_stem: "bindings",
+    shared_libs: [
+        "libcrypto",
+    ],
+    bindgen_flags: ["--size_t-is-usize"],
+    cflags: ["-D BORINGSSL_NO_CXX"],
+    host_supported: true,
 }
 
 rust_library {
