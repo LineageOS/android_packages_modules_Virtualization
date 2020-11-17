@@ -6,6 +6,7 @@ rust_defaults {
     ],
     edition: "2018",
     rustlibs: [
+        "libanyhow",
         "libauthfs_crypto_bindgen",
         "liblibc",
         "libthiserror",
