@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#![allow(dead_code)]
-
 use std::mem::MaybeUninit;
 
 use thiserror::Error;
