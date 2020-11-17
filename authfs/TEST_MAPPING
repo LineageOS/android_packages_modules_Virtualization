@@ -1,8 +1,0 @@
-{
-  "presubmit": [
-    {
-      "name": "authfs_host_test_src_lib",
-      "host": true
-    }
-  ]
-}
