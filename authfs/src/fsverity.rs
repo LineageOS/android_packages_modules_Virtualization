@@ -14,16 +14,25 @@
  * limitations under the License.
  */
 
+use libc::EIO;
 use std::io;
 use thiserror::Error;
 
+use crate::auth::Authenticator;
 use crate::crypto::{CryptoError, Sha256Hasher};
 use crate::reader::ReadOnlyDataByChunk;
 
 const ZEROS: [u8; 4096] = [0u8; 4096];
 
+// The size of `struct fsverity_formatted_digest` in Linux with SHA-256.
+const SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256: usize = 12 + Sha256Hasher::HASH_SIZE;
+
 #[derive(Error, Debug)]
 pub enum FsverityError {
+    #[error("Cannot verify a signature")]
+    BadSignature,
+    #[error("Insufficient data, only got {0}")]
+    InsufficientData(usize),
     #[error("Cannot verify a block")]
     CannotVerify,
     #[error("I/O error")]
@@ -43,7 +52,6 @@ fn hash_with_padding(chunk: &[u8], pad_to: usize) -> Result<HashBuffer, CryptoEr
     Sha256Hasher::new()?.update(&chunk)?.update(&ZEROS[..padding_size])?.finalize()
 }
 
-#[allow(dead_code)]
 fn verity_check<T: ReadOnlyDataByChunk>(
     chunk: &[u8],
     chunk_index: u64,
@@ -123,9 +131,90 @@ fn fsverity_walk<'a, T: ReadOnlyDataByChunk>(
     }))
 }
 
+fn build_fsverity_formatted_digest(
+    root_hash: &HashBuffer,
+    file_size: u64,
+) -> Result<[u8; SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256], CryptoError> {
+    let desc_hash = Sha256Hasher::new()?
+        .update(&1u8.to_le_bytes())? // version
+        .update(&1u8.to_le_bytes())? // hash_algorithm
+        .update(&12u8.to_le_bytes())? // log_blocksize
+        .update(&0u8.to_le_bytes())? // salt_size
+        .update(&0u32.to_le_bytes())? // sig_size
+        .update(&file_size.to_le_bytes())? // data_size
+        .update(root_hash)? // root_hash, first 32 bytes
+        .update(&[0u8; 32])? // root_hash, last 32 bytes
+        .update(&[0u8; 32])? // salt
+        .update(&[0u8; 32])? // reserved
+        .update(&[0u8; 32])? // reserved
+        .update(&[0u8; 32])? // reserved
+        .update(&[0u8; 32])? // reserved
+        .update(&[0u8; 16])? // reserved
+        .finalize()?;
+
+    let mut fsverity_digest = [0u8; SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256];
+    fsverity_digest[0..8].copy_from_slice(b"FSVerity");
+    fsverity_digest[8..10].copy_from_slice(&1u16.to_le_bytes());
+    fsverity_digest[10..12].copy_from_slice(&32u16.to_le_bytes());
+    fsverity_digest[12..].copy_from_slice(&desc_hash);
+    Ok(fsverity_digest)
+}
+
+pub struct FsverityChunkedFileReader<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> {
+    chunked_file: F,
+    file_size: u64,
+    merkle_tree: M,
+    root_hash: HashBuffer,
+}
+
+impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> FsverityChunkedFileReader<F, M> {
+    #[allow(dead_code)]
+    pub fn new<A: Authenticator>(
+        authenticator: &A,
+        chunked_file: F,
+        file_size: u64,
+        sig: Vec<u8>,
+        merkle_tree: M,
+    ) -> Result<FsverityChunkedFileReader<F, M>, FsverityError> {
+        // TODO(victorhsieh): Use generic constant directly once supported. No need to assert
+        // afterward.
+        let mut buf = [0u8; 4096];
+        assert_eq!(buf.len() as u64, M::CHUNK_SIZE);
+        let size = merkle_tree.read_chunk(0, &mut buf)?;
+        if buf.len() != size {
+            return Err(FsverityError::InsufficientData(size));
+        }
+        let root_hash = Sha256Hasher::new()?.update(&buf[..])?.finalize()?;
+        let fsverity_digest = build_fsverity_formatted_digest(&root_hash, file_size)?;
+        let valid = authenticator.verify(&sig, &fsverity_digest)?;
+        if valid {
+            Ok(FsverityChunkedFileReader { chunked_file, file_size, merkle_tree, root_hash })
+        } else {
+            Err(FsverityError::BadSignature)
+        }
+    }
+}
+
+impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> ReadOnlyDataByChunk
+    for FsverityChunkedFileReader<F, M>
+{
+    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
+        debug_assert!(buf.len() as u64 >= Self::CHUNK_SIZE);
+        let size = self.chunked_file.read_chunk(chunk_index, buf)?;
+        let root_hash = verity_check(&buf[..size], chunk_index, self.file_size, &self.merkle_tree)
+            .map_err(|_| io::Error::from_raw_os_error(EIO))?;
+        if root_hash != self.root_hash {
+            Err(io::Error::from_raw_os_error(EIO))
+        } else {
+            Ok(size)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::auth::FakeAuthenticator;
     use crate::reader::ReadOnlyDataByChunk;
     use anyhow::Result;
 
@@ -137,12 +226,19 @@ mod tests {
     fn fsverity_verify_full_read_4k() -> Result<()> {
         let file = &include_bytes!("../testdata/input.4k")[..];
         let merkle_tree = &include_bytes!("../testdata/input.4k.merkle_dump")[..];
-
-        let mut buf = [0u8; 4096];
+        let sig = include_bytes!("../testdata/input.4k.fsv_sig").to_vec();
+        let authenticator = FakeAuthenticator::always_succeed();
+        let verified_file = FsverityChunkedFileReader::new(
+            &authenticator,
+            file,
+            file.len() as u64,
+            sig,
+            merkle_tree,
+        )?;
 
         for i in 0..total_chunk_number(file.len() as u64) {
-            let size = file.read_chunk(i, &mut buf[..])?;
-            assert!(verity_check(&buf[..size], i, file.len() as u64, &merkle_tree).is_ok());
+            let mut buf = [0u8; 4096];
+            assert!(verified_file.read_chunk(i, &mut buf[..]).is_ok());
         }
         Ok(())
     }
@@ -151,11 +247,19 @@ mod tests {
     fn fsverity_verify_full_read_4k1() -> Result<()> {
         let file = &include_bytes!("../testdata/input.4k1")[..];
         let merkle_tree = &include_bytes!("../testdata/input.4k1.merkle_dump")[..];
+        let sig = include_bytes!("../testdata/input.4k1.fsv_sig").to_vec();
+        let authenticator = FakeAuthenticator::always_succeed();
+        let verified_file = FsverityChunkedFileReader::new(
+            &authenticator,
+            file,
+            file.len() as u64,
+            sig,
+            merkle_tree,
+        )?;
 
-        let mut buf = [0u8; 4096];
         for i in 0..total_chunk_number(file.len() as u64) {
-            let size = file.read_chunk(i, &mut buf[..])?;
-            assert!(verity_check(&buf[..size], i, file.len() as u64, &merkle_tree).is_ok());
+            let mut buf = [0u8; 4096];
+            assert!(verified_file.read_chunk(i, &mut buf[..]).is_ok());
         }
         Ok(())
     }
@@ -164,11 +268,19 @@ mod tests {
     fn fsverity_verify_full_read_4m() -> Result<()> {
         let file = &include_bytes!("../testdata/input.4m")[..];
         let merkle_tree = &include_bytes!("../testdata/input.4m.merkle_dump")[..];
+        let sig = include_bytes!("../testdata/input.4m.fsv_sig").to_vec();
+        let authenticator = FakeAuthenticator::always_succeed();
+        let verified_file = FsverityChunkedFileReader::new(
+            &authenticator,
+            file,
+            file.len() as u64,
+            sig,
+            merkle_tree,
+        )?;
 
-        let mut buf = [0u8; 4096];
         for i in 0..total_chunk_number(file.len() as u64) {
-            let size = file.read_chunk(i, &mut buf[..])?;
-            assert!(verity_check(&buf[..size], i, file.len() as u64, &merkle_tree).is_ok());
+            let mut buf = [0u8; 4096];
+            assert!(verified_file.read_chunk(i, &mut buf[..]).is_ok());
         }
         Ok(())
     }
@@ -178,6 +290,15 @@ mod tests {
         let file = &include_bytes!("../testdata/input.4m")[..];
         // First leaf node is corrupted.
         let merkle_tree = &include_bytes!("../testdata/input.4m.merkle_dump.bad")[..];
+        let sig = include_bytes!("../testdata/input.4m.fsv_sig").to_vec();
+        let authenticator = FakeAuthenticator::always_succeed();
+        let verified_file = FsverityChunkedFileReader::new(
+            &authenticator,
+            file,
+            file.len() as u64,
+            sig,
+            merkle_tree,
+        )?;
 
         // A lowest broken node (a 4K chunk that contains 128 sha256 hashes) will fail the read
         // failure of the underlying chunks, but not before or after.
@@ -185,11 +306,26 @@ mod tests {
         let num_hashes = 4096 / 32;
         let last_index = num_hashes;
         for i in 0..last_index {
-            let size = file.read_chunk(i, &mut buf[..])?;
-            assert!(verity_check(&buf[..size], i, file.len() as u64, &merkle_tree).is_err());
+            assert!(verified_file.read_chunk(i, &mut buf[..]).is_err());
         }
-        let size = file.read_chunk(last_index, &mut buf[..])?;
-        assert!(verity_check(&buf[..size], last_index, file.len() as u64, &merkle_tree).is_ok());
+        assert!(verified_file.read_chunk(last_index, &mut buf[..]).is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_signature() -> Result<()> {
+        let authenticator = FakeAuthenticator::always_fail();
+        let file = &include_bytes!("../testdata/input.4m")[..];
+        let merkle_tree = &include_bytes!("../testdata/input.4m.merkle_dump")[..];
+        let sig = include_bytes!("../testdata/input.4m.fsv_sig").to_vec();
+        assert!(FsverityChunkedFileReader::new(
+            &authenticator,
+            file,
+            file.len() as u64,
+            sig,
+            merkle_tree
+        )
+        .is_err());
         Ok(())
     }
 }
