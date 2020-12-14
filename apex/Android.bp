@@ -1,0 +1,24 @@
+apex {
+    name: "com.android.virt",
+
+    // TODO(jiyong): make it updatable
+    // updatable: true,
+
+    manifest: "manifest.json",
+
+    key: "com.android.virt.key",
+    certificate: ":com.android.virt.certificate",
+
+    min_sdk_version: "S",
+}
+
+apex_key {
+    name: "com.android.virt.key",
+    public_key: "com.android.virt.avbpubkey",
+    private_key: "com.android.virt.pem",
+}
+
+android_app_certificate {
+    name: "com.android.virt.certificate",
+    certificate: "com.android.virt",
+}
