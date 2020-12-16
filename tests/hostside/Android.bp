@@ -28,6 +28,9 @@ java_test_host {
         ":virt_hostside_tests_initramfs-arm64",
         ":virt_hostside_tests_initramfs-x86_64",
     ],
+    required: [
+        "virt_hostside_tests_vsock_server",
+    ],
 }
 
 // Give kernel images unique file names.
@@ -56,9 +59,11 @@ genrule {
     out: ["initramfs.lz4"],
     srcs: [
         ":virt_hostside_tests_guest_init",
+        ":virt_hostside_tests_vsock_client",
     ],
     cmd: "$(location scripts/place_files.sh) $(in) -- " +
         "$(genDir)/root/init " +
+        "$(genDir)/root/bin/vsock_client " +
         "&& $(location mkbootfs) $(genDir)/root | $(location lz4) -fq - $(out)",
 }
 
