@@ -35,6 +35,7 @@
         <option name="push-file" key="virt_hostside_tests_initramfs-arm64" value="/data/local/tmp/virt-test/arm64/initramfs" />
         <option name="push-file" key="virt_hostside_tests_kernel-x86_64" value="/data/local/tmp/virt-test/x86_64/kernel" />
         <option name="push-file" key="virt_hostside_tests_initramfs-x86_64" value="/data/local/tmp/virt-test/x86_64/initramfs" />
+        <option name="push-file" key="virt_hostside_tests_vsock_server" value="/data/local/tmp/virt-test" />
     </target_preparer>
 
     <!-- Root currently needed to run CrosVM.
