@@ -1,0 +1,92 @@
+// Copyright (C) 2020 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+kernel_version = "5.4"
+
+kernel_target_stem = ":kernel_prebuilts-" + kernel_version
+vendor_ramdisk_target_stem = ":cf_prebuilts_initramfs-" + kernel_version
+
+// JAR containing all virtualization host-side tests.
+java_test_host {
+    name: "VirtualizationHostTestCases",
+    srcs: ["java/**/*.java"],
+    test_suites: ["device-tests"],
+    libs: ["tradefed"],
+    data: [
+        ":virt_hostside_tests_kernel",
+        ":virt_hostside_tests_initramfs-arm64",
+        ":virt_hostside_tests_initramfs-x86_64",
+    ],
+    required: [
+        "virt_hostside_tests_vsock_server",
+    ],
+}
+
+// Give kernel images unique file names.
+genrule {
+    name: "virt_hostside_tests_kernel",
+    srcs: [
+        kernel_target_stem + "-arm64",
+        kernel_target_stem + "-x86_64",
+    ],
+    out: [
+        "virt_hostside_tests_kernel-arm64",
+        "virt_hostside_tests_kernel-x86_64",
+    ],
+    tool_files: ["scripts/place_files.sh"],
+    cmd: "$(location scripts/place_files.sh) $(in) -- $(out)",
+}
+
+// Ramdisk containing /init and test binaries/resources needed inside guest.
+genrule {
+    name: "virt_hostside_tests_initramfs_base",
+    tools: [
+        "mkbootfs",
+        "lz4",
+    ],
+    tool_files: ["scripts/place_files.sh"],
+    out: ["initramfs.lz4"],
+    srcs: [
+        ":virt_hostside_tests_guest_init",
+        ":virt_hostside_tests_vsock_client",
+    ],
+    cmd: "$(location scripts/place_files.sh) $(in) -- " +
+        "$(genDir)/root/init " +
+        "$(genDir)/root/bin/vsock_client " +
+        "&& $(location mkbootfs) $(genDir)/root | $(location lz4) -fq - $(out)",
+}
+
+// Default rule for producing a combined base + vendor ramdisk.
+genrule_defaults {
+    name: "virt_hostside_tests_initramfs_concat",
+    srcs: [":virt_hostside_tests_initramfs_base"],
+    tools: ["lz4"],
+    cmd: "cat $(in) | $(location lz4) -dfq - $(out)",
+}
+
+// Combined base + vendor ramdisk for arm64.
+genrule {
+    name: "virt_hostside_tests_initramfs-arm64",
+    defaults: ["virt_hostside_tests_initramfs_concat"],
+    srcs: [vendor_ramdisk_target_stem + "-arm64"],
+    out: ["virt_hostside_tests_initramfs-arm64"],
+}
+
+// Combined base + vendor ramdisk for x86_64.
+genrule {
+    name: "virt_hostside_tests_initramfs-x86_64",
+    defaults: ["virt_hostside_tests_initramfs_concat"],
+    srcs: [vendor_ramdisk_target_stem + "-x86_64"],
+    out: ["virt_hostside_tests_initramfs-x86_64"],
+}
