@@ -9,6 +9,15 @@ apex {
     key: "com.android.virt.key",
     certificate: ":com.android.virt.certificate",
 
+    arch: {
+        arm64: {
+            binaries: [
+                // crosvm is disabled for x86 device targets.
+                "crosvm",
+            ],
+        },
+    },
+
     min_sdk_version: "S",
 }
 
