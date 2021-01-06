@@ -9,10 +9,15 @@ apex {
     key: "com.android.virt.key",
     certificate: ":com.android.virt.certificate",
 
+    // crosvm is enabled for only 64-bit targets on device
     arch: {
         arm64: {
             binaries: [
-                // crosvm is disabled for x86 device targets.
+                "crosvm",
+            ],
+        },
+        x86_64: {
+            binaries: [
                 "crosvm",
             ],
         },
