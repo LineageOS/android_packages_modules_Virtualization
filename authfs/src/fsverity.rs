@@ -19,6 +19,7 @@ use std::io;
 use thiserror::Error;
 
 use crate::auth::Authenticator;
+use crate::common::divide_roundup;
 use crate::crypto::{CryptoError, Sha256Hasher};
 use crate::reader::ReadOnlyDataByChunk;
 
@@ -42,10 +43,6 @@ pub enum FsverityError {
 }
 
 type HashBuffer = [u8; Sha256Hasher::HASH_SIZE];
-
-fn divide_roundup(dividend: u64, divisor: u64) -> u64 {
-    (dividend + divisor - 1) / divisor
-}
 
 fn hash_with_padding(chunk: &[u8], pad_to: usize) -> Result<HashBuffer, CryptoError> {
     let padding_size = pad_to - chunk.len();
@@ -168,7 +165,6 @@ pub struct FsverityChunkedFileReader<F: ReadOnlyDataByChunk, M: ReadOnlyDataByCh
 }
 
 impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> FsverityChunkedFileReader<F, M> {
-    #[allow(dead_code)]
     pub fn new<A: Authenticator>(
         authenticator: &A,
         chunked_file: F,
