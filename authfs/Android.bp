@@ -2,18 +2,25 @@ rust_defaults {
     name: "authfs_defaults",
     crate_name: "authfs",
     srcs: [
-        "src/lib.rs",
+        "src/main.rs",
     ],
     edition: "2018",
     rustlibs: [
         "libanyhow",
         "libauthfs_crypto_bindgen",
+        "libcfg_if",
+        "libfuse_rust",
         "liblibc",
+        "libstructopt",
         "libthiserror",
     ],
     host_supported: true,
     shared_libs: ["libcrypto"],
     clippy_lints: "android",
+
+    // libfuse_rust currently has only the 64-bit variant (or more broadly speaking, the whole
+    // crosvm projects). Limit the build to 64 bits since we won't need 32 bits anyway.
+    compile_multilib: "64",
 }
 
 // TODO(b/172687320): remove once there is a canonical bindgen.
@@ -30,8 +37,8 @@ rust_bindgen {
     host_supported: true,
 }
 
-rust_library {
-    name: "libauthfs",
+rust_binary {
+    name: "authfs",
     defaults: ["authfs_defaults"],
 }
 
