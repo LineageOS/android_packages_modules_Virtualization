@@ -88,11 +88,11 @@ fn log128_ceil(num: u64) -> Option<u64> {
 /// offset of the child node's hash. It is up to the iterator user to use the node and hash,
 /// e.g. for the actual verification.
 #[allow(clippy::needless_collect)]
-fn fsverity_walk<'a, T: ReadOnlyDataByChunk>(
+fn fsverity_walk<T: ReadOnlyDataByChunk>(
     chunk_index: u64,
     file_size: u64,
-    merkle_tree: &'a T,
-) -> Result<impl Iterator<Item = Result<([u8; 4096], usize), FsverityError>> + 'a, FsverityError> {
+    merkle_tree: &T,
+) -> Result<impl Iterator<Item = Result<([u8; 4096], usize), FsverityError>> + '_, FsverityError> {
     let hashes_per_node = T::CHUNK_SIZE / Sha256Hasher::HASH_SIZE as u64;
     let hash_pages = divide_roundup(file_size, hashes_per_node * T::CHUNK_SIZE);
     debug_assert_eq!(hashes_per_node, 128u64);
