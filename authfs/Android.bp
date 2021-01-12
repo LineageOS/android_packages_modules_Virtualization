@@ -17,10 +17,7 @@ rust_defaults {
     host_supported: true,
     shared_libs: ["libcrypto"],
     clippy_lints: "android",
-
-    // libfuse_rust currently has only the 64-bit variant (or more broadly speaking, the whole
-    // crosvm projects). Limit the build to 64 bits since we won't need 32 bits anyway.
-    compile_multilib: "64",
+    defaults: ["crosvm_defaults"],
 }
 
 // TODO(b/172687320): remove once there is a canonical bindgen.
