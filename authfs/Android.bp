@@ -21,7 +21,6 @@ rust_defaults {
         },
     },
     shared_libs: ["libcrypto"],
-    clippy_lints: "android",
     defaults: ["crosvm_defaults"],
 }
 
