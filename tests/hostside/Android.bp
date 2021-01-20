@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-kernel_version = "5.4"
+kernel_version = "5.10"
 
 kernel_target_stem = ":kernel_prebuilts-" + kernel_version
 vendor_ramdisk_target_stem = ":cf_prebuilts_initramfs-" + kernel_version
