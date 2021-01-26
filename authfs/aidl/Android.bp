@@ -1,0 +1,10 @@
+aidl_interface {
+    name: "authfs_aidl_interface",
+    unstable: true,
+    srcs: ["com/android/virt/fs/*.aidl"],
+    backend: {
+        rust: {
+            enabled: true,
+        },
+    },
+}
