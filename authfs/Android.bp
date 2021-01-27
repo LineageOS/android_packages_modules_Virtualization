@@ -14,7 +14,6 @@ rust_defaults {
         "libstructopt",
         "libthiserror",
     ],
-    host_supported: true,
     target: {
         darwin: {
             enabled: false,
@@ -35,17 +34,10 @@ rust_bindgen {
     ],
     bindgen_flags: ["--size_t-is-usize"],
     cflags: ["-D BORINGSSL_NO_CXX"],
-    host_supported: true,
 }
 
 rust_binary {
     name: "authfs",
-    defaults: ["authfs_defaults"],
-}
-
-rust_test_host {
-    name: "authfs_host_test_src_lib",
-    test_suites: ["general-tests"],
     defaults: ["authfs_defaults"],
 }
 
