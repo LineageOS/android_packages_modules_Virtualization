@@ -1,0 +1,9 @@
+android_filesystem {
+    name: "microdroid",
+    use_avb: true,
+    avb_private_key: "microdroid.pem",
+    avb_algorithm: "SHA256_RSA4096",
+    deps: [
+        "init_second_stage",
+    ],
+}
