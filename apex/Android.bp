@@ -23,6 +23,7 @@ apex {
         },
     },
     binaries: ["assemble_cvd"],
+    filesystems: ["microdroid"],
 }
 
 apex_key {
