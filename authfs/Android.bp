@@ -41,9 +41,8 @@ rust_binary {
     defaults: ["authfs_defaults"],
 }
 
-// TODO(victorhsieh): Enable the test once "undefined symbol: _Unwind_Resume" is fixed, then add to
-// TEST_MAPPING.
 rust_test {
     name: "authfs_device_test_src_lib",
     defaults: ["authfs_defaults"],
+    test_suites: ["device-tests"],
 }
