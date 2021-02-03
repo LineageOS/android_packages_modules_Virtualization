@@ -15,7 +15,7 @@
 kernel_version = "5.10"
 
 kernel_target_stem = ":kernel_prebuilts-" + kernel_version
-vendor_ramdisk_target_stem = ":cf_prebuilts_initramfs-" + kernel_version
+vendor_ramdisk_target_stem = ":virt_device_prebuilts_initramfs-" + kernel_version
 
 // JAR containing all virtualization host-side tests.
 java_test_host {
