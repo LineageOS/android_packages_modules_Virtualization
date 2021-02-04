@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 kernel_version = "5.10"
 
 kernel_target_stem = ":kernel_prebuilts-" + kernel_version
