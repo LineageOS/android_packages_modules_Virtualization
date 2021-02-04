@@ -18,8 +18,8 @@ package {
 
 kernel_version = "5.10"
 
-kernel_target_stem = ":kernel_prebuilts-" + kernel_version
-vendor_ramdisk_target_stem = ":virt_device_prebuilts_initramfs-" + kernel_version
+kernel_stem = "kernel_prebuilts-" + kernel_version
+kernel_modules_stem = "virt_device_prebuilts_kernel_modules-" + kernel_version
 
 // JAR containing all virtualization host-side tests.
 java_test_host {
@@ -29,81 +29,46 @@ java_test_host {
     libs: ["tradefed"],
     data: [
         ":virt_hostside_tests_kernel",
-        ":virt_hostside_tests_initramfs-arm64",
-        ":virt_hostside_tests_initramfs-x86_64",
-        ":vm_config.arm64.json",
-        ":vm_config.x86_64.json",
+        ":virt_hostside_tests_initramfs",
+        ":virt_hostside_tests_vm_config",
     ],
     required: [
         "virt_hostside_tests_vsock_server",
     ],
 }
 
-// Give kernel images unique file names.
-genrule {
+prebuilt_etc {
     name: "virt_hostside_tests_kernel",
-    srcs: [
-        kernel_target_stem + "-arm64",
-        kernel_target_stem + "-x86_64",
-    ],
-    out: [
-        "virt_hostside_tests_kernel-arm64",
-        "virt_hostside_tests_kernel-x86_64",
-    ],
-    tool_files: ["scripts/place_files.sh"],
-    cmd: "$(location scripts/place_files.sh) $(in) -- $(out)",
+    src: "nofile",
+    arch: {
+        arm64: {
+            src: ":" + kernel_stem + "-arm64",
+        },
+        x86_64: {
+            src: ":" + kernel_stem + "-x86_64",
+        },
+    },
 }
 
 // Copy config files to output directory so that AndroidTest.xml can copy them to the device.
 filegroup {
-    name: "vm_config.arm64.json",
-    srcs: ["vm_config.arm64.json"],
+    name: "virt_hostside_tests_vm_config",
+    srcs: ["vm_config.json"],
 }
 
-filegroup {
-    name: "vm_config.x86_64.json",
-    srcs: ["vm_config.x86_64.json"],
-}
-
-// Ramdisk containing /init and test binaries/resources needed inside guest.
-genrule {
-    name: "virt_hostside_tests_initramfs_base",
-    tools: [
-        "mkbootfs",
-        "lz4",
+android_filesystem {
+    name: "virt_hostside_tests_initramfs",
+    arch: {
+        arm64: {
+            deps: [kernel_modules_stem + "-arm64"],
+        },
+        x86_64: {
+            deps: [kernel_modules_stem + "-x86_64"],
+        },
+    },
+    deps: [
+        "virt_hostside_tests_guest_init",
+        "virt_hostside_tests_vsock_client",
     ],
-    tool_files: ["scripts/place_files.sh"],
-    out: ["initramfs.lz4"],
-    srcs: [
-        ":virt_hostside_tests_guest_init",
-        ":virt_hostside_tests_vsock_client",
-    ],
-    cmd: "$(location scripts/place_files.sh) $(in) -- " +
-        "$(genDir)/root/init " +
-        "$(genDir)/root/bin/vsock_client " +
-        "&& $(location mkbootfs) $(genDir)/root | $(location lz4) -fq - $(out)",
-}
-
-// Default rule for producing a combined base + vendor ramdisk.
-genrule_defaults {
-    name: "virt_hostside_tests_initramfs_concat",
-    srcs: [":virt_hostside_tests_initramfs_base"],
-    tools: ["lz4"],
-    cmd: "cat $(in) | $(location lz4) -dfq - $(out)",
-}
-
-// Combined base + vendor ramdisk for arm64.
-genrule {
-    name: "virt_hostside_tests_initramfs-arm64",
-    defaults: ["virt_hostside_tests_initramfs_concat"],
-    srcs: [vendor_ramdisk_target_stem + "-arm64"],
-    out: ["virt_hostside_tests_initramfs-arm64"],
-}
-
-// Combined base + vendor ramdisk for x86_64.
-genrule {
-    name: "virt_hostside_tests_initramfs-x86_64",
-    defaults: ["virt_hostside_tests_initramfs_concat"],
-    srcs: [vendor_ramdisk_target_stem + "-x86_64"],
-    out: ["virt_hostside_tests_initramfs-x86_64"],
+    type: "cpio",
 }

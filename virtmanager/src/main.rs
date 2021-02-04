@@ -179,6 +179,8 @@ fn run_vm(config: &VmConfig, cid: Cid) -> Result<Child, io::Error> {
     if let Some(params) = &config.params {
         command.arg("--params").arg(params);
     }
+    // TODO(jiyong): Don't redirect console to the host syslog
+    command.arg("--serial=type=syslog");
     command.arg(&config.kernel);
     info!("Running {:?}", command);
     // TODO: Monitor child process, and remove from VM map if it dies.
