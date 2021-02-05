@@ -6,4 +6,5 @@ android_filesystem {
     deps: [
         "init_second_stage",
     ],
+    file_contexts: "microdroid_file_contexts",
 }
