@@ -12,3 +12,25 @@ android_filesystem {
     ],
     file_contexts: "microdroid_file_contexts",
 }
+
+bootimg {
+    name: "microdroid_vendor_boot-5.10",
+    ramdisk_module: "microdroid_ramdisk-5.10",
+    dtb_prebuilt: "dummy_dtb.img",
+    header_version: "3",
+    vendor_boot: true,
+    partition_name: "vendor_boot",
+}
+
+android_filesystem {
+    name: "microdroid_ramdisk-5.10",
+    arch: {
+        arm64: {
+            deps: ["virt_device_prebuilts_kernel_modules-5.10-arm64"],
+        },
+        x86_64: {
+            deps: ["virt_device_prebuilts_kernel_modules-5.10-x86_64"],
+        },
+    },
+    type: "compressed_cpio",
+}
