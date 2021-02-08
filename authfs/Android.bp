@@ -49,4 +49,16 @@ rust_test {
     name: "authfs_device_test_src_lib",
     defaults: ["authfs_defaults"],
     test_suites: ["device-tests"],
+    data: [
+        "testdata/input.4k",
+        "testdata/input.4k.fsv_sig",
+        "testdata/input.4k.merkle_dump",
+        "testdata/input.4k1",
+        "testdata/input.4k1.fsv_sig",
+        "testdata/input.4k1.merkle_dump",
+        "testdata/input.4m",
+        "testdata/input.4m.fsv_sig",
+        "testdata/input.4m.merkle_dump",
+        "testdata/input.4m.merkle_dump.bad",
+    ],
 }
