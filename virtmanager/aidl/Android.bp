@@ -1,0 +1,17 @@
+aidl_interface {
+    name: "android.system.virtmanager",
+    srcs: ["**/*.aidl"],
+    // TODO(qwandor): Consider changing this to false, unless we have a Java wrapper.
+    unstable: true,
+    backend: {
+        java: {
+            sdk_version: "module_current",
+        },
+        cpp: {
+            enabled: true,
+        },
+        rust: {
+            enabled: true,
+        },
+    },
+}
