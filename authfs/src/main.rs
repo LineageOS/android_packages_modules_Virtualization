@@ -120,9 +120,8 @@ fn new_config_local_verified_file(
 }
 
 fn new_config_local_unverified_file(file_path: &PathBuf) -> Result<FileConfig> {
-    let file = File::open(file_path)?;
-    let file_size = file.metadata()?.len();
-    let file_reader = ChunkedFileReader::new(file)?;
+    let file_reader = ChunkedFileReader::new(File::open(file_path)?)?;
+    let file_size = file_reader.len();
     Ok(FileConfig::LocalUnverifiedFile(file_reader, file_size))
 }
 
