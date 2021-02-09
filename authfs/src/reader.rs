@@ -54,6 +54,10 @@ impl ChunkedFileReader {
         let size = file.metadata()?.len();
         Ok(ChunkedFileReader { file, size })
     }
+
+    pub fn len(&self) -> u64 {
+        self.size
+    }
 }
 
 impl ReadOnlyDataByChunk for ChunkedFileReader {
@@ -65,55 +69,57 @@ impl ReadOnlyDataByChunk for ChunkedFileReader {
     }
 }
 
-impl ReadOnlyDataByChunk for &[u8] {
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> Result<usize> {
-        debug_assert!(buf.len() as u64 >= Self::CHUNK_SIZE);
-        let chunk = &self.chunks(Self::CHUNK_SIZE as usize).nth(chunk_index as usize).unwrap();
-        buf[..chunk.len()].copy_from_slice(&chunk);
-        Ok(chunk.len())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env::temp_dir;
 
-    fn test_reading_more_than_4kb_data<T: ReadOnlyDataByChunk>(
-        reader: T,
-        data_size: u64,
-    ) -> Result<()> {
+    #[test]
+    fn test_read_4k_file() -> Result<()> {
+        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4k")?)?;
         let mut buf = [0u8; 4096];
-        assert_eq!(reader.read_chunk(0, &mut buf)?, 4096);
-        let last_index = (data_size + 4095) / 4096 - 1;
-        assert_eq!(reader.read_chunk(last_index, &mut buf)?, (data_size % 4096) as usize);
+        let size = file_reader.read_chunk(0, &mut buf)?;
+        assert_eq!(size, buf.len());
         Ok(())
     }
 
-    // TODO(victorhsieh): test ChunkedFileReader once there is a way to access testdata in the test
-    // environement.
-
     #[test]
-    fn test_read_in_memory_data() -> Result<()> {
-        let data = &[1u8; 5000][..];
-        test_reading_more_than_4kb_data(data, data.len() as u64)
-    }
-
-    #[test]
-    #[should_panic]
-    #[allow(unused_must_use)]
-    fn test_read_in_memory_empty_data() {
-        let data = &[][..]; // zero length slice
+    fn test_read_4k1_file() -> Result<()> {
+        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4k1")?)?;
         let mut buf = [0u8; 4096];
-        data.read_chunk(0, &mut buf); // should panic
+        let size = file_reader.read_chunk(0, &mut buf)?;
+        assert_eq!(size, buf.len());
+        let size = file_reader.read_chunk(1, &mut buf)?;
+        assert_eq!(size, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_4m_file() -> Result<()> {
+        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4m")?)?;
+        for index in 0..file_reader.len() / 4096 {
+            let mut buf = [0u8; 4096];
+            let size = file_reader.read_chunk(index, &mut buf)?;
+            assert_eq!(size, buf.len());
+        }
+        Ok(())
     }
 
     #[test]
     #[should_panic]
-    #[allow(unused_must_use)]
     fn test_read_beyond_file_size() {
-        let data = &[1u8; 5000][..];
+        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4k").unwrap()).unwrap();
         let mut buf = [0u8; 4096];
-        let last_index_plus_1 = (data.len() + 4095) / 4096;
-        data.read_chunk(last_index_plus_1 as u64, &mut buf); // should panic
+        let _ = file_reader.read_chunk(1u64, &mut buf); // should panic
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_read_empty_file() {
+        let mut temp_file = temp_dir();
+        temp_file.push("authfs_test_empty_file");
+        let file_reader = ChunkedFileReader::new(File::create(temp_file).unwrap()).unwrap();
+        let mut buf = [0u8; 4096];
+        let _ = file_reader.read_chunk(0, &mut buf); // should panic
     }
 }
