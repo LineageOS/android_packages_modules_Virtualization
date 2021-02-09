@@ -211,89 +211,93 @@ impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> ReadOnlyDataByChunk
 mod tests {
     use super::*;
     use crate::auth::FakeAuthenticator;
-    use crate::reader::ReadOnlyDataByChunk;
+    use crate::reader::{ChunkedFileReader, ReadOnlyDataByChunk};
     use anyhow::Result;
+    use std::fs::File;
+    use std::io::Read;
+
+    type LocalFsverityChunkedFileReader =
+        FsverityChunkedFileReader<ChunkedFileReader, ChunkedFileReader>;
 
     fn total_chunk_number(file_size: u64) -> u64 {
         (file_size + 4095) / 4096
     }
 
+    // Returns a reader with fs-verity verification and the file size.
+    fn new_reader_with_fsverity(
+        content_path: &str,
+        merkle_tree_path: &str,
+        signature_path: &str,
+    ) -> Result<(LocalFsverityChunkedFileReader, u64)> {
+        let file_reader = ChunkedFileReader::new(File::open(content_path)?)?;
+        let file_size = file_reader.len();
+        let merkle_tree = ChunkedFileReader::new(File::open(merkle_tree_path)?)?;
+        let mut sig = Vec::new();
+        let _ = File::open(signature_path)?.read_to_end(&mut sig)?;
+        let authenticator = FakeAuthenticator::always_succeed();
+        Ok((
+            FsverityChunkedFileReader::new(
+                &authenticator,
+                file_reader,
+                file_size,
+                sig,
+                merkle_tree,
+            )?,
+            file_size,
+        ))
+    }
+
     #[test]
     fn fsverity_verify_full_read_4k() -> Result<()> {
-        let file = &include_bytes!("../testdata/input.4k")[..];
-        let merkle_tree = &include_bytes!("../testdata/input.4k.merkle_dump")[..];
-        let sig = include_bytes!("../testdata/input.4k.fsv_sig").to_vec();
-        let authenticator = FakeAuthenticator::always_succeed();
-        let verified_file = FsverityChunkedFileReader::new(
-            &authenticator,
-            file,
-            file.len() as u64,
-            sig,
-            merkle_tree,
+        let (file_reader, file_size) = new_reader_with_fsverity(
+            "testdata/input.4k",
+            "testdata/input.4k.merkle_dump",
+            "testdata/input.4k.fsv_sig",
         )?;
 
-        for i in 0..total_chunk_number(file.len() as u64) {
+        for i in 0..total_chunk_number(file_size) {
             let mut buf = [0u8; 4096];
-            assert!(verified_file.read_chunk(i, &mut buf[..]).is_ok());
+            assert!(file_reader.read_chunk(i, &mut buf[..]).is_ok());
         }
         Ok(())
     }
 
     #[test]
     fn fsverity_verify_full_read_4k1() -> Result<()> {
-        let file = &include_bytes!("../testdata/input.4k1")[..];
-        let merkle_tree = &include_bytes!("../testdata/input.4k1.merkle_dump")[..];
-        let sig = include_bytes!("../testdata/input.4k1.fsv_sig").to_vec();
-        let authenticator = FakeAuthenticator::always_succeed();
-        let verified_file = FsverityChunkedFileReader::new(
-            &authenticator,
-            file,
-            file.len() as u64,
-            sig,
-            merkle_tree,
+        let (file_reader, file_size) = new_reader_with_fsverity(
+            "testdata/input.4k1",
+            "testdata/input.4k1.merkle_dump",
+            "testdata/input.4k1.fsv_sig",
         )?;
 
-        for i in 0..total_chunk_number(file.len() as u64) {
+        for i in 0..total_chunk_number(file_size) {
             let mut buf = [0u8; 4096];
-            assert!(verified_file.read_chunk(i, &mut buf[..]).is_ok());
+            assert!(file_reader.read_chunk(i, &mut buf[..]).is_ok());
         }
         Ok(())
     }
 
     #[test]
     fn fsverity_verify_full_read_4m() -> Result<()> {
-        let file = &include_bytes!("../testdata/input.4m")[..];
-        let merkle_tree = &include_bytes!("../testdata/input.4m.merkle_dump")[..];
-        let sig = include_bytes!("../testdata/input.4m.fsv_sig").to_vec();
-        let authenticator = FakeAuthenticator::always_succeed();
-        let verified_file = FsverityChunkedFileReader::new(
-            &authenticator,
-            file,
-            file.len() as u64,
-            sig,
-            merkle_tree,
+        let (file_reader, file_size) = new_reader_with_fsverity(
+            "testdata/input.4m",
+            "testdata/input.4m.merkle_dump",
+            "testdata/input.4m.fsv_sig",
         )?;
 
-        for i in 0..total_chunk_number(file.len() as u64) {
+        for i in 0..total_chunk_number(file_size) {
             let mut buf = [0u8; 4096];
-            assert!(verified_file.read_chunk(i, &mut buf[..]).is_ok());
+            assert!(file_reader.read_chunk(i, &mut buf[..]).is_ok());
         }
         Ok(())
     }
 
     #[test]
     fn fsverity_verify_bad_merkle_tree() -> Result<()> {
-        let file = &include_bytes!("../testdata/input.4m")[..];
-        // First leaf node is corrupted.
-        let merkle_tree = &include_bytes!("../testdata/input.4m.merkle_dump.bad")[..];
-        let sig = include_bytes!("../testdata/input.4m.fsv_sig").to_vec();
-        let authenticator = FakeAuthenticator::always_succeed();
-        let verified_file = FsverityChunkedFileReader::new(
-            &authenticator,
-            file,
-            file.len() as u64,
-            sig,
-            merkle_tree,
+        let (file_reader, _) = new_reader_with_fsverity(
+            "testdata/input.4m",
+            "testdata/input.4m.merkle_dump.bad", // First leaf node is corrupted.
+            "testdata/input.4m.fsv_sig",
         )?;
 
         // A lowest broken node (a 4K chunk that contains 128 sha256 hashes) will fail the read
@@ -302,22 +306,23 @@ mod tests {
         let num_hashes = 4096 / 32;
         let last_index = num_hashes;
         for i in 0..last_index {
-            assert!(verified_file.read_chunk(i, &mut buf[..]).is_err());
+            assert!(file_reader.read_chunk(i, &mut buf[..]).is_err());
         }
-        assert!(verified_file.read_chunk(last_index, &mut buf[..]).is_ok());
+        assert!(file_reader.read_chunk(last_index, &mut buf[..]).is_ok());
         Ok(())
     }
 
     #[test]
     fn invalid_signature() -> Result<()> {
         let authenticator = FakeAuthenticator::always_fail();
-        let file = &include_bytes!("../testdata/input.4m")[..];
-        let merkle_tree = &include_bytes!("../testdata/input.4m.merkle_dump")[..];
+        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4m")?)?;
+        let file_size = file_reader.len();
+        let merkle_tree = ChunkedFileReader::new(File::open("testdata/input.4m.merkle_dump")?)?;
         let sig = include_bytes!("../testdata/input.4m.fsv_sig").to_vec();
         assert!(FsverityChunkedFileReader::new(
             &authenticator,
-            file,
-            file.len() as u64,
+            file_reader,
+            file_size,
             sig,
             merkle_tree
         )
