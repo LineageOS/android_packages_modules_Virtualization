@@ -20,7 +20,7 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
 };
-use android_system_virtmanager::binder::{self, add_service, Interface, StatusCode};
+use android_system_virtmanager::binder::{self, add_service, Interface, StatusCode, Strong};
 use anyhow::{Context, Error};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
@@ -73,7 +73,7 @@ impl IVirtManager for VirtManager {
     /// Create and start a new VM with the given configuration, assigning it the next available CID.
     ///
     /// Returns a binder `IVirtualMachine` object referring to it, as a handle for the client.
-    fn startVm(&self, config_path: &str) -> binder::Result<Box<dyn IVirtualMachine>> {
+    fn startVm(&self, config_path: &str) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let state = &mut *self.state.lock().unwrap();
         let cid = state.next_cid;
         let child = start_vm(config_path, cid)?;
@@ -90,9 +90,9 @@ struct VirtualMachine {
 }
 
 impl VirtualMachine {
-    fn create(instance: Arc<VmInstance>) -> Box<dyn IVirtualMachine> {
+    fn create(instance: Arc<VmInstance>) -> Strong<dyn IVirtualMachine> {
         let binder = VirtualMachine { instance };
-        Box::new(BnVirtualMachine::new_binder(binder))
+        BnVirtualMachine::new_binder(binder)
     }
 }
 
