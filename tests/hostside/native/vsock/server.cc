@@ -26,15 +26,21 @@
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
 #include "android-base/unique_fd.h"
+#include "android/system/virtmanager/IVirtManager.h"
+#include "android/system/virtmanager/IVirtualMachine.h"
+#include "binder/IServiceManager.h"
 
+using namespace android;
 using namespace android::base;
+using namespace android::system::virtmanager;
 
 int main(int argc, const char *argv[]) {
     unsigned int port;
-    if (argc != 2 || !ParseUint(argv[1], &port)) {
-        LOG(ERROR) << "Usage: " << argv[0] << " <port>";
+    if (argc != 3 || !ParseUint(argv[1], &port)) {
+        LOG(ERROR) << "Usage: " << argv[0] << " <port> <vm_config.json>";
         return EXIT_FAILURE;
     }
+    String16 vm_config(argv[2]);
 
     unique_fd server_fd(TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM, 0)));
     if (server_fd < 0) {
@@ -60,6 +66,27 @@ int main(int argc, const char *argv[]) {
         PLOG(ERROR) << "listen";
         return EXIT_FAILURE;
     }
+
+    LOG(INFO) << "Getting Virt Manager";
+    sp<IVirtManager> virt_manager;
+    status_t err = getService<IVirtManager>(String16("android.system.virtmanager"), &virt_manager);
+    if (err != 0) {
+        LOG(ERROR) << "Error getting Virt Manager from Service Manager: " << err;
+        return EXIT_FAILURE;
+    }
+    sp<IVirtualMachine> vm;
+    binder::Status status = virt_manager->startVm(vm_config, &vm);
+    if (!status.isOk()) {
+        LOG(ERROR) << "Error starting VM: " << status;
+        return EXIT_FAILURE;
+    }
+    int32_t cid;
+    status = vm->getCid(&cid);
+    if (!status.isOk()) {
+        LOG(ERROR) << "Error getting CID: " << status;
+        return EXIT_FAILURE;
+    }
+    LOG(INFO) << "VM starting with CID " << cid;
 
     LOG(INFO) << "Accepting connection...";
     struct sockaddr_vm client_sa;

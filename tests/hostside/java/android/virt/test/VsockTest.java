@@ -18,7 +18,6 @@ package android.virt.test;
 
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.util.CommandResult;
-import com.android.tradefed.util.CommandStatus;
 
 import org.junit.Test;
 
@@ -33,21 +32,30 @@ public class VsockTest extends VirtTestCase {
     private static final int      RETRIES = 0;
 
     private static final Integer  HOST_CID = 2;
-    private static final Integer  GUEST_CID = 42;
     private static final Integer  GUEST_PORT = 45678;
     private static final String   TEST_MESSAGE = "HelloWorld";
 
     private static final String   CLIENT_PATH = "bin/vsock_client";
     private static final String   SERVER_TARGET = "virt_hostside_tests_vsock_server";
+    private static final String   VIRT_MANAGER_COMMAND = "virtmanager";
 
     @Test
     public void testVsockServer() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         final String serverPath = getDevicePathForTestBinary(SERVER_TARGET);
-        final String serverCmd = createCommand(serverPath, GUEST_PORT);
+        final String vmConfigPath = getDevicePathForTestBinary("vm_config.json");
+        final String serverCmd = createCommand(serverPath, GUEST_PORT, vmConfigPath);
         final String clientCmd = createCommand(CLIENT_PATH, HOST_CID, GUEST_PORT, TEST_MESSAGE);
-        final String vmCmd = getVmCommand(clientCmd, GUEST_CID);
+
+        // Start Virt Manager. This will eventually be a system service, but for now we run it
+        // manually.
+        Future<?> virtManagerTask = executor.submit(() -> {
+            CommandResult res = getDevice().executeShellV2Command(
+                    VIRT_MANAGER_COMMAND, TIMEOUT, TIMEOUT_UNIT, RETRIES);
+            CLog.d(res.getStdout());
+            return null;
+        });
 
         // Start server in Android that listens for vsock connections.
         // It will receive a message from a client in the guest VM.
@@ -57,27 +65,6 @@ public class VsockTest extends VirtTestCase {
             assertEquals(TEST_MESSAGE, res.getStdout().trim());
             return null;
         });
-
-        // Run VM that will connect to the server and send a message to it.
-        Future<?> vmTask = executor.submit(() -> {
-            CommandResult res = getDevice().executeShellV2Command(
-                    vmCmd, TIMEOUT, TIMEOUT_UNIT, RETRIES);
-            CLog.d(res.getStdout()); // print VMM output into host_log
-            assertEquals(CommandStatus.SUCCESS, res.getStatus());
-            return null;
-        });
-
-        // Wait for the VMM to finish sending the message.
-        try {
-            vmTask.get(TIMEOUT, TIMEOUT_UNIT);
-        } catch (Throwable ex) {
-            // The VMM either exited with a non-zero code or it timed out.
-            // Kill the server process, the test has failed.
-            // Note: executeShellV2Command cannot be interrupted. This will wait
-            // until `serverTask` times out.
-            executor.shutdownNow();
-            throw ex;
-        }
 
         // Wait for the server to finish processing the message.
         serverTask.get(TIMEOUT, TIMEOUT_UNIT);
