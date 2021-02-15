@@ -24,7 +24,9 @@
         <!-- Kernel has vhost-vsock enabled. -->
         <option name="run-command" value="ls /dev/vhost-vsock" />
         <!-- CrosVM is installed. -->
-        <option name="run-command" value="which crosvm" />
+        <option name="run-command" value="ls /apex/com.android.virt/bin/crosvm" />
+        <!-- Virt Manager is installed. -->
+        <option name="run-command" value="which virtmanager" />
     </target_preparer>
 
     <!-- Push test binaries to the device. -->
@@ -33,8 +35,10 @@
         <option name="abort-on-push-failure" value="true" />
         <option name="push-file" key="virt_hostside_tests_kernel-arm64" value="/data/local/tmp/virt-test/arm64/kernel" />
         <option name="push-file" key="virt_hostside_tests_initramfs-arm64" value="/data/local/tmp/virt-test/arm64/initramfs" />
+        <option name="push-file" key="vm_config.arm64.json" value="/data/local/tmp/virt-test/arm64/vm_config.json" />
         <option name="push-file" key="virt_hostside_tests_kernel-x86_64" value="/data/local/tmp/virt-test/x86_64/kernel" />
         <option name="push-file" key="virt_hostside_tests_initramfs-x86_64" value="/data/local/tmp/virt-test/x86_64/initramfs" />
+        <option name="push-file" key="vm_config.x86_64.json" value="/data/local/tmp/virt-test/x86_64/vm_config.json" />
         <option name="push-file" key="virt_hostside_tests_vsock_server" value="/data/local/tmp/virt-test" />
     </target_preparer>
 
