@@ -10,6 +10,7 @@ android_filesystem {
     deps: [
         "init_second_stage",
     ],
+    base_dir: "system",
     file_contexts: "microdroid_file_contexts",
 }
 
