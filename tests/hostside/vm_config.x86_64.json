@@ -1,0 +1,5 @@
+{
+  "kernel": "/data/local/tmp/virt-test/x86_64/kernel",
+  "initrd": "/data/local/tmp/virt-test/x86_64/initramfs",
+  "params": "bin/vsock_client 2 45678 HelloWorld"
+}

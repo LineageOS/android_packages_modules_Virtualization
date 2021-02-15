@@ -34,6 +34,7 @@ use std::sync::{Arc, Mutex};
 const FIRST_GUEST_CID: Cid = 10;
 
 const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtmanager";
+const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 type Cid = u32;
@@ -169,7 +170,7 @@ fn load_vm_config(path: &str) -> Result<VmConfig, Error> {
 
 /// Start an instance of `crosvm` to manage a new VM.
 fn run_vm(config: &VmConfig, cid: Cid) -> Result<Child, io::Error> {
-    let mut command = Command::new("crosvm");
+    let mut command = Command::new(CROSVM_PATH);
     // TODO(qwandor): Remove --disable-sandbox.
     command.arg("run").arg("--disable-sandbox").arg("--cid").arg(cid.to_string());
     if let Some(initrd) = &config.initrd {
