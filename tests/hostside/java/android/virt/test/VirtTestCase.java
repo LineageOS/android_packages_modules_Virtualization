@@ -27,10 +27,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 
 public abstract class VirtTestCase extends DeviceTestCase implements IAbiReceiver {
-
     private static final String DEVICE_DIR = "/data/local/tmp/virt-test";
-
-    private static final int CID_RESERVED = 2;
 
     private IAbi mAbi;
 
@@ -70,34 +67,6 @@ public abstract class VirtTestCase extends DeviceTestCase implements IAbiReceive
             }
         }
         return String.join(" ", strings);
-    }
-
-    protected String getVmCommand(String guestCmd, Integer cid) throws Exception {
-        ArrayList<String> cmd = new ArrayList<>();
-
-        cmd.add("crosvm");
-        cmd.add("run");
-
-        cmd.add("--disable-sandbox");
-
-        if (cid != null) {
-            if (cid > CID_RESERVED) {
-                cmd.add("--cid");
-                cmd.add(cid.toString());
-            } else {
-                throw new IllegalArgumentException("Invalid CID " + cid);
-            }
-        }
-
-        cmd.add("--initrd");
-        cmd.add(getDevicePathForTestBinary("initramfs"));
-
-        cmd.add("--params");
-        cmd.add(String.format("'%s'", guestCmd));
-
-        cmd.add(getDevicePathForTestBinary("kernel"));
-
-        return String.join(" ", cmd);
     }
 
     @Override

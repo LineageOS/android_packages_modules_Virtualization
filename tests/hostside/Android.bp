@@ -31,6 +31,8 @@ java_test_host {
         ":virt_hostside_tests_kernel",
         ":virt_hostside_tests_initramfs-arm64",
         ":virt_hostside_tests_initramfs-x86_64",
+        ":vm_config.arm64.json",
+        ":vm_config.x86_64.json",
     ],
     required: [
         "virt_hostside_tests_vsock_server",
@@ -50,6 +52,17 @@ genrule {
     ],
     tool_files: ["scripts/place_files.sh"],
     cmd: "$(location scripts/place_files.sh) $(in) -- $(out)",
+}
+
+// Copy config files to output directory so that AndroidTest.xml can copy them to the device.
+filegroup {
+    name: "vm_config.arm64.json",
+    srcs: ["vm_config.arm64.json"],
+}
+
+filegroup {
+    name: "vm_config.x86_64.json",
+    srcs: ["vm_config.x86_64.json"],
 }
 
 // Ramdisk containing /init and test binaries/resources needed inside guest.

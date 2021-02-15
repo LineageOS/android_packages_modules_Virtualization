@@ -19,11 +19,13 @@ package {
 cc_test {
     name: "virt_hostside_tests_vsock_server",
     srcs: ["server.cc"],
-    static_libs: [
+    shared_libs: [
+        "android.system.virtmanager-cpp",
         "libbase",
+        "libbinder",
         "liblog",
+        "libutils",
     ],
-    static_executable: true,
     test_suites: ["device-tests"],
 }
 
