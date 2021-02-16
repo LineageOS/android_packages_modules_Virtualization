@@ -31,12 +31,10 @@ public class VsockTest extends VirtTestCase {
     private static final TimeUnit TIMEOUT_UNIT = TimeUnit.MINUTES;
     private static final int      RETRIES = 0;
 
-    private static final Integer  HOST_CID = 2;
     private static final Integer  GUEST_PORT = 45678;
     private static final String   TEST_MESSAGE = "HelloWorld";
 
-    private static final String   CLIENT_PATH = "bin/vsock_client";
-    private static final String   SERVER_TARGET = "virt_hostside_tests_vsock_server";
+    private static final String   SERVER_TARGET = "vsock_server";
     private static final String   VIRT_MANAGER_COMMAND = "virtmanager";
 
     @Test
@@ -46,7 +44,6 @@ public class VsockTest extends VirtTestCase {
         final String serverPath = getDevicePathForTestBinary(SERVER_TARGET);
         final String vmConfigPath = getDevicePathForTestBinary("vm_config.json");
         final String serverCmd = createCommand(serverPath, GUEST_PORT, vmConfigPath);
-        final String clientCmd = createCommand(CLIENT_PATH, HOST_CID, GUEST_PORT, TEST_MESSAGE);
 
         // Start Virt Manager. This will eventually be a system service, but for now we run it
         // manually.
