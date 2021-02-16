@@ -11,4 +11,5 @@ rust_binary {
         "libserde",
         "libanyhow",
     ],
+    apex_available: ["com.android.virt"],
 }

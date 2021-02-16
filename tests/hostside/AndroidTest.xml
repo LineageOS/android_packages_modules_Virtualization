@@ -26,7 +26,7 @@
         <!-- CrosVM is installed. -->
         <option name="run-command" value="ls /apex/com.android.virt/bin/crosvm" />
         <!-- Virt Manager is installed. -->
-        <option name="run-command" value="which virtmanager" />
+        <option name="run-command" value="ls /apex/com.android.virt/bin/virtmanager" />
     </target_preparer>
 
     <!-- Push test binaries to the device. -->
