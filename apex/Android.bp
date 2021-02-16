@@ -6,7 +6,7 @@ apex {
     name: "com.android.virt",
 
     // TODO(jiyong): make it updatable
-    // updatable: true,
+    updatable: false,
 
     manifest: "manifest.json",
 
