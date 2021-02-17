@@ -19,33 +19,22 @@ package android.virt.test;
 import static org.junit.Assert.*;
 
 import com.android.tradefed.testtype.DeviceTestCase;
-import com.android.tradefed.testtype.IAbi;
-import com.android.tradefed.testtype.IAbiReceiver;
 
 import org.junit.Before;
 
 import java.util.ArrayList;
 
-public abstract class VirtTestCase extends DeviceTestCase implements IAbiReceiver {
-    private static final String DEVICE_DIR = "/data/local/tmp/virt-test";
+public abstract class VirtTestCase extends DeviceTestCase {
 
-    private IAbi mAbi;
+    private static final String DEVICE_DIR = "/data/local/tmp/virt-test";
 
     @Before
     public void setUp() throws Exception {
         getDevice().waitForDeviceAvailable();
     }
 
-    private String getAbiName() {
-        String name = mAbi.getName();
-        if ("arm64-v8a".equals(name)) {
-            name = "arm64";
-        }
-        return name;
-    }
-
     protected String getDevicePathForTestBinary(String targetName) throws Exception {
-        String path = String.format("%s/%s/%s", DEVICE_DIR, getAbiName(), targetName);
+        String path = String.format("%s/%s", DEVICE_DIR, targetName);
         if (!getDevice().doesFileExist(path)) {
             throw new IllegalArgumentException(String.format(
                     "Binary for target %s not found on device at \"%s\"", targetName, path));
@@ -69,8 +58,4 @@ public abstract class VirtTestCase extends DeviceTestCase implements IAbiReceive
         return String.join(" ", strings);
     }
 
-    @Override
-    public void setAbi(IAbi abi) {
-        mAbi = abi;
-    }
 }

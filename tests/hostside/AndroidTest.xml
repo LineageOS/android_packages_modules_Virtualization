@@ -33,13 +33,10 @@
     <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
         <option name="cleanup" value="true" />
         <option name="abort-on-push-failure" value="true" />
-        <option name="push-file" key="virt_hostside_tests_kernel-arm64" value="/data/local/tmp/virt-test/arm64/kernel" />
-        <option name="push-file" key="virt_hostside_tests_initramfs-arm64" value="/data/local/tmp/virt-test/arm64/initramfs" />
-        <option name="push-file" key="vm_config.arm64.json" value="/data/local/tmp/virt-test/arm64/vm_config.json" />
-        <option name="push-file" key="virt_hostside_tests_kernel-x86_64" value="/data/local/tmp/virt-test/x86_64/kernel" />
-        <option name="push-file" key="virt_hostside_tests_initramfs-x86_64" value="/data/local/tmp/virt-test/x86_64/initramfs" />
-        <option name="push-file" key="vm_config.x86_64.json" value="/data/local/tmp/virt-test/x86_64/vm_config.json" />
-        <option name="push-file" key="virt_hostside_tests_vsock_server" value="/data/local/tmp/virt-test" />
+        <option name="push-file" key="vm_config.json" value="/data/local/tmp/virt-test/vm_config.json" />
+        <option name="push-file" key="virt_hostside_tests_kernel" value="/data/local/tmp/virt-test/kernel" />
+        <option name="push-file" key="virt_hostside_tests_initramfs.img" value="/data/local/tmp/virt-test/initramfs" />
+        <option name="push-file" key="vsock_server" value="/data/local/tmp/virt-test/vsock_server" />
     </target_preparer>
 
     <!-- Root currently needed to run CrosVM.
