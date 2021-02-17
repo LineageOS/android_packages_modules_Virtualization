@@ -35,7 +35,8 @@ end. The `host_log_*.zip` file should contain the output of individual commands 
 [CrosVM](https://android.googlesource.com/platform/external/crosvm/) is a Rust-based Virtual Machine
 Monitor (VMM) originally built for ChromeOS and ported to Android.
 
-It is not installed in `release` builds of Android but you will find it in `userdebug` and `eng`
+It is not installed in regular Android builds (yet!), but it's installed in the
+VIM3L (yukawa) build, as part of the `com.android.virt` APEX.
 builds.
 
 ### Spawning your own VMs
@@ -46,31 +47,33 @@ device is attached over ADB, you can run:
 $ adb root
 $ adb push <kernel> /data/local/tmp/kernel
 $ adb push <ramdisk> /data/local/tmp/ramdisk
-$ adb shell crosvm run --initrd /data/local/tmp/ramdisk /data/local/tmp/kernel
+$ adb shell /apex/com.android.virt/bin/crosvm run --initrd /data/local/tmp/ramdisk /data/local/tmp/kernel
 ```
 
-### Syncing system files
+### Building and updating CrosVM
 
-When you're developing CrosVM, it is handy to update the system files using `adb sync` instead of
-flashing the device each time. It requires root and mounting the system image as writable.
+You can update CrosVM by updating the `com.android.virt` APEX where CrosVM is
+in. If your device already has `com.android.virt` (e.g. VIM3L),
 
-If you're using the emulator (goldfish), the following instructions will only work if it was
-started with `-writable-system`.
+``` shell
+$ m com.android.virt
+$ adb install out/target/product/<device_name>/system/apex/com.android.virt.apex
+$ adb reboot
+```
 
-First, disable verity checks on your device, reboot and remount the system partition.
-This is only needed once:
+If it doesn't have the APEX yet, you first need to place it manually to the
+system partition.
+
 ``` shell
 $ adb root
 $ adb disable-verity
 $ adb reboot
 $ adb wait-for-device root
 $ adb remount
+$ m com.android.virt
+$ adb sync
+$ adb reboot
 ```
 
-Now (re-)build CrosVM and sync the system files:
-``` shell
-$ m crosvm
-$ adb shell stop
-$ adb sync
-$ adb shell start
-```
+Once the APEX is in `/system/apex`, you can use `adb install` to update it
+further.
