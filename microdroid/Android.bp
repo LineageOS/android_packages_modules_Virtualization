@@ -2,6 +2,35 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+microdroid_rootdirs = [
+    "dev",
+    "proc",
+    "sys",
+
+    // TODO(b/180267599): clean up unnecessary partition mount points
+    "system",
+    "system_ext",
+    "vendor",
+    "vendor_dlkm",
+    "product",
+    "odm",
+    "odm_dlkm",
+    "debug_ramdisk",
+    "mnt",
+
+    "apex",
+    "linkerconfig",
+    "second_stage_resources",
+    "postinstall",
+]
+
+microdroid_symlinks = [
+    {
+        target: "/sys/kernel/debug",
+        name: "d",
+    },
+]
+
 android_filesystem {
     name: "microdroid",
     use_avb: true,
@@ -10,6 +39,9 @@ android_filesystem {
     deps: [
         "init_second_stage",
     ],
+    base_dir: "system",
+    dirs: microdroid_rootdirs,
+    symlinks: microdroid_symlinks,
     file_contexts: "microdroid_file_contexts",
 }
 
