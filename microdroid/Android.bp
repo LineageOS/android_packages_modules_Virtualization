@@ -2,6 +2,13 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+microdroid_shell_and_utilities = [
+    "reboot",
+    "sh",
+    "toolbox",
+    "toybox",
+]
+
 microdroid_rootdirs = [
     "dev",
     "proc",
@@ -38,11 +45,40 @@ android_filesystem {
     avb_algorithm: "SHA256_RSA4096",
     deps: [
         "init_second_stage",
-    ],
+        "microdroid_init_rc",
+        "libbinder",
+        "libstdc++",
+        "logcat",
+        "logd",
+        "run-as",
+        "secilc",
+        "adbd",
+        "apexd",
+        "debuggerd",
+        "linker",
+        "servicemanager",
+        "tombstoned",
+        "cgroups.json",
+    ] + microdroid_shell_and_utilities,
+    multilib: {
+        common: {
+            deps: [
+                "com.android.runtime",
+            ],
+        },
+    },
     base_dir: "system",
     dirs: microdroid_rootdirs,
     symlinks: microdroid_symlinks,
     file_contexts: "microdroid_file_contexts",
+}
+
+prebuilt_etc {
+    name: "microdroid_init_rc",
+    filename: "init.rc",
+    src: "init.rc",
+    relative_install_path: "init/hw",
+    installable: false, // avoid collision with system partition's init.rc
 }
 
 bootimg {
