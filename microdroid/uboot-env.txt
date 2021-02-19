@@ -1,0 +1,8 @@
+# Static u-boot environment variables for microdroid. See b/180481192
+
+bootcmd=boot_android virtio -
+
+# 0:2 is the misc partition
+bootdevice=0:2
+bootdelay=0
+fdtaddr=0x80000000
