@@ -35,7 +35,7 @@ public class VsockTest extends VirtTestCase {
     private static final String   TEST_MESSAGE = "HelloWorld";
 
     private static final String   SERVER_TARGET = "vsock_server";
-    private static final String   VIRT_MANAGER_COMMAND = "virtmanager";
+    private static final String   VIRT_MANAGER_COMMAND = "/apex/com.android.virt/bin/virtmanager";
 
     @Test
     public void testVsockServer() throws Exception {
