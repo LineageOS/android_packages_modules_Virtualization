@@ -112,3 +112,17 @@ android_filesystem {
     },
     type: "compressed_cpio",
 }
+
+prebuilt_etc {
+    name: "microdroid_uboot_env",
+    src: ":microdroid_uboot_env_gen",
+    filename: "uboot_env.img",
+}
+
+genrule {
+    name: "microdroid_uboot_env_gen",
+    tools: ["mkenvimage_host"],
+    srcs: ["uboot-env.txt"],
+    out: ["output.img"],
+    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
+}
