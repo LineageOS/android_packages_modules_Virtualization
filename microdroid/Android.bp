@@ -92,16 +92,64 @@ prebuilt_etc {
 }
 
 bootimg {
-    name: "microdroid_vendor_boot-5.10",
+    name: "microdroid_boot-5.10",
     ramdisk_module: "microdroid_ramdisk-5.10",
+    enabled: false,
+    arch: {
+        arm64: {
+            kernel_prebuilt: ":kernel_prebuilts-5.10-arm64",
+            enabled: true,
+        },
+        x86_64: {
+            kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
+            enabled: true,
+        },
+    },
+    // TODO(jiyong): change the name to init, cause it's confusing
+    cmdline: "rdinit=/bin/init_vendor",
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "3",
-    vendor_boot: true,
-    partition_name: "vendor_boot",
+    partition_name: "boot",
 }
 
 android_filesystem {
     name: "microdroid_ramdisk-5.10",
+    deps: [
+        "init_first_stage_soong",
+    ],
+    dirs: [
+        "dev",
+        "proc",
+        "sys",
+
+        // TODO(jiyong): remove these
+        "mnt",
+        "debug_ramdisk",
+        "second_stage_resources",
+    ],
+    type: "compressed_cpio",
+}
+
+bootimg {
+    name: "microdroid_vendor_boot-5.10",
+    ramdisk_module: "microdroid_vendor_ramdisk-5.10",
+    dtb_prebuilt: "dummy_dtb.img",
+    header_version: "3",
+    vendor_boot: true,
+    partition_name: "vendor_boot",
+    enabled: false,
+    arch: {
+        arm64: {
+            enabled: true,
+        },
+        x86_64: {
+            enabled: true,
+        },
+    },
+}
+
+android_filesystem {
+    name: "microdroid_vendor_ramdisk-5.10",
     arch: {
         arm64: {
             deps: ["virt_device_prebuilts_kernel_modules-5.10-arm64"],
