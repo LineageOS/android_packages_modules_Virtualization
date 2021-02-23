@@ -42,7 +42,8 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
     BnVirtFdService, IVirtFdService, ERROR_IO, ERROR_UNKNOWN_FD, MAX_REQUESTING_DATA,
 };
 use authfs_aidl_interface::binder::{
-    add_service, ExceptionCode, Interface, ProcessState, Result as BinderResult, Status, Strong,
+    add_service, ExceptionCode, Interface, ProcessState, Result as BinderResult, Status,
+    StatusCode, Strong,
 };
 
 const SERVICE_NAME: &str = "authfs_fd_server";
@@ -70,37 +71,40 @@ fn validate_and_cast_size(size: i32) -> Result<usize, Status> {
     }
 }
 
-/// Configuration of a read-only file to serve by this server. The file is supposed to be verifiable
-/// with the associated fs-verity metadata.
-struct ReadonlyFdConfig {
-    /// The file to read from. fs-verity metadata can be retrieved from this file's FD.
-    file: File,
+/// Configuration of a file descriptor to be served/exposed/shared.
+enum FdConfig {
+    /// A read-only file to serve by this server. The file is supposed to be verifiable with the
+    /// associated fs-verity metadata.
+    Readonly {
+        /// The file to read from. fs-verity metadata can be retrieved from this file's FD.
+        file: File,
 
-    /// Alternative Merkle tree stored in another file.
-    alt_merkle_file: Option<File>,
+        /// Alternative Merkle tree stored in another file.
+        alt_merkle_tree: Option<File>,
 
-    /// Alternative signature stored in another file.
-    alt_signature_file: Option<File>,
+        /// Alternative signature stored in another file.
+        alt_signature: Option<File>,
+    },
+
+    /// A readable/writable file to serve by this server. This backing file should just be a
+    /// regular file and does not have any specific property.
+    ReadWrite(File),
 }
 
 struct FdService {
-    /// A pool of read-only files
-    fd_pool: BTreeMap<i32, ReadonlyFdConfig>,
+    /// A pool of opened files, may be readonly or read-writable.
+    fd_pool: BTreeMap<i32, FdConfig>,
 }
 
 impl FdService {
-    pub fn new_binder(fd_pool: BTreeMap<i32, ReadonlyFdConfig>) -> Strong<dyn IVirtFdService> {
+    pub fn new_binder(fd_pool: BTreeMap<i32, FdConfig>) -> Strong<dyn IVirtFdService> {
         let result = BnVirtFdService::new_binder(FdService { fd_pool });
         result.as_binder().set_requesting_sid(false);
         result
     }
 
-    fn get_file_config(&self, id: i32) -> BinderResult<&ReadonlyFdConfig> {
+    fn get_file_config(&self, id: i32) -> BinderResult<&FdConfig> {
         self.fd_pool.get(&id).ok_or_else(|| Status::from(ERROR_UNKNOWN_FD))
-    }
-
-    fn get_file(&self, id: i32) -> BinderResult<&File> {
-        Ok(&self.get_file_config(id)?.file)
     }
 }
 
@@ -111,38 +115,88 @@ impl IVirtFdService for FdService {
         let size: usize = validate_and_cast_size(size)?;
         let offset: u64 = validate_and_cast_offset(offset)?;
 
-        read_into_buf(self.get_file(id)?, size, offset).map_err(|e| {
-            error!("readFile: read error: {}", e);
-            Status::from(ERROR_IO)
-        })
+        match self.get_file_config(id)? {
+            FdConfig::Readonly { file, .. } | FdConfig::ReadWrite(file) => {
+                read_into_buf(&file, size, offset).map_err(|e| {
+                    error!("readFile: read error: {}", e);
+                    Status::from(ERROR_IO)
+                })
+            }
+        }
     }
 
     fn readFsverityMerkleTree(&self, id: i32, offset: i64, size: i32) -> BinderResult<Vec<u8>> {
         let size: usize = validate_and_cast_size(size)?;
         let offset: u64 = validate_and_cast_offset(offset)?;
 
-        if let Some(file) = &self.get_file_config(id)?.alt_merkle_file {
-            read_into_buf(&file, size, offset).map_err(|e| {
-                error!("readFsverityMerkleTree: read error: {}", e);
-                Status::from(ERROR_IO)
-            })
-        } else {
-            // TODO(victorhsieh) retrieve from the fd when the new ioctl is ready
-            Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Not implemented yet"))
+        match &self.get_file_config(id)? {
+            FdConfig::Readonly { alt_merkle_tree, .. } => {
+                if let Some(file) = &alt_merkle_tree {
+                    read_into_buf(&file, size, offset).map_err(|e| {
+                        error!("readFsverityMerkleTree: read error: {}", e);
+                        Status::from(ERROR_IO)
+                    })
+                } else {
+                    // TODO(victorhsieh) retrieve from the fd when the new ioctl is ready
+                    Err(new_binder_exception(
+                        ExceptionCode::UNSUPPORTED_OPERATION,
+                        "Not implemented yet",
+                    ))
+                }
+            }
+            FdConfig::ReadWrite(_file) => {
+                // For a writable file, Merkle tree is not expected to be served since Auth FS
+                // doesn't trust it anyway. Auth FS may keep the Merkle tree privately for its own
+                // use.
+                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
+            }
         }
     }
 
     fn readFsveritySignature(&self, id: i32) -> BinderResult<Vec<u8>> {
-        if let Some(file) = &self.get_file_config(id)?.alt_signature_file {
-            // Supposedly big enough buffer size to store signature.
-            let size = MAX_REQUESTING_DATA as usize;
-            read_into_buf(&file, size, 0).map_err(|e| {
-                error!("readFsveritySignature: read error: {}", e);
-                Status::from(ERROR_IO)
-            })
-        } else {
-            // TODO(victorhsieh) retrieve from the fd when the new ioctl is ready
-            Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Not implemented yet"))
+        match &self.get_file_config(id)? {
+            FdConfig::Readonly { alt_signature, .. } => {
+                if let Some(file) = &alt_signature {
+                    // Supposedly big enough buffer size to store signature.
+                    let size = MAX_REQUESTING_DATA as usize;
+                    read_into_buf(&file, size, 0).map_err(|e| {
+                        error!("readFsveritySignature: read error: {}", e);
+                        Status::from(ERROR_IO)
+                    })
+                } else {
+                    // TODO(victorhsieh) retrieve from the fd when the new ioctl is ready
+                    Err(new_binder_exception(
+                        ExceptionCode::UNSUPPORTED_OPERATION,
+                        "Not implemented yet",
+                    ))
+                }
+            }
+            FdConfig::ReadWrite(_file) => {
+                // There is no signature for a writable file.
+                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
+            }
+        }
+    }
+
+    fn writeFile(&self, id: i32, buf: &[u8], offset: i64) -> BinderResult<i32> {
+        match &self.get_file_config(id)? {
+            FdConfig::Readonly { .. } => Err(StatusCode::INVALID_OPERATION.into()),
+            FdConfig::ReadWrite(file) => {
+                let offset: u64 = offset.try_into().map_err(|_| {
+                    new_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT, "Invalid offset")
+                })?;
+                // Check buffer size just to make `as i32` safe below.
+                if buf.len() > i32::MAX as usize {
+                    return Err(new_binder_exception(
+                        ExceptionCode::ILLEGAL_ARGUMENT,
+                        "Buffer size is too big",
+                    ));
+                }
+                Ok(file.write_at(buf, offset).map_err(|e| {
+                    error!("writeFile: write error: {}", e);
+                    Status::from(ERROR_IO)
+                })? as i32)
+            }
         }
     }
 }
@@ -169,29 +223,42 @@ fn fd_to_file(fd: i32) -> Result<File> {
     Ok(unsafe { File::from_raw_fd(fd) })
 }
 
-fn parse_arg_ro_fds(arg: &str) -> Result<(i32, ReadonlyFdConfig)> {
+fn parse_arg_ro_fds(arg: &str) -> Result<(i32, FdConfig)> {
     let result: Result<Vec<i32>, _> = arg.split(':').map(|x| x.parse::<i32>()).collect();
     let fds = result?;
     if fds.len() > 3 {
         bail!("Too many options: {}", arg);
     }
-
     Ok((
         fds[0],
-        ReadonlyFdConfig {
+        FdConfig::Readonly {
             file: fd_to_file(fds[0])?,
-            alt_merkle_file: fds.get(1).map(|fd| fd_to_file(*fd)).transpose()?,
-            alt_signature_file: fds.get(2).map(|fd| fd_to_file(*fd)).transpose()?,
+            // Alternative Merkle tree, if provided
+            alt_merkle_tree: fds.get(1).map(|fd| fd_to_file(*fd)).transpose()?,
+            // Alternative signature, if provided
+            alt_signature: fds.get(2).map(|fd| fd_to_file(*fd)).transpose()?,
         },
     ))
 }
 
-fn parse_args() -> Result<BTreeMap<i32, ReadonlyFdConfig>> {
+fn parse_arg_rw_fds(arg: &str) -> Result<(i32, FdConfig)> {
+    let fd = arg.parse::<i32>()?;
+    let file = fd_to_file(fd)?;
+    if file.metadata()?.len() > 0 {
+        bail!("File is expected to be empty");
+    }
+    Ok((fd, FdConfig::ReadWrite(file)))
+}
+
+fn parse_args() -> Result<BTreeMap<i32, FdConfig>> {
     #[rustfmt::skip]
     let matches = clap::App::new("fd_server")
         .arg(clap::Arg::with_name("ro-fds")
              .long("ro-fds")
-             .required(true)
+             .multiple(true)
+             .number_of_values(1))
+        .arg(clap::Arg::with_name("rw-fds")
+             .long("rw-fds")
              .multiple(true)
              .number_of_values(1))
         .get_matches();
@@ -203,10 +270,20 @@ fn parse_args() -> Result<BTreeMap<i32, ReadonlyFdConfig>> {
             fd_pool.insert(fd, config);
         }
     }
+    if let Some(args) = matches.values_of("rw-fds") {
+        for arg in args {
+            let (fd, config) = parse_arg_rw_fds(arg)?;
+            fd_pool.insert(fd, config);
+        }
+    }
     Ok(fd_pool)
 }
 
 fn main() -> Result<()> {
+    android_logger::init_once(
+        android_logger::Config::default().with_tag("fd_server").with_min_level(log::Level::Debug),
+    );
+
     let fd_pool = parse_args()?;
 
     ProcessState::start_thread_pool();

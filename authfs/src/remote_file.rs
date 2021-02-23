@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::common::CHUNK_SIZE;
 use crate::reader::ReadOnlyDataByChunk;
+use crate::writer::RandomWrite;
 
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService;
 use authfs_aidl_interface::binder::Strong;
@@ -36,6 +37,23 @@ pub mod server {
     }
 }
 
+fn remote_read_chunk(
+    service: &Arc<Mutex<VirtFdService>>,
+    remote_fd: i32,
+    chunk_index: u64,
+    mut buf: &mut [u8],
+) -> io::Result<usize> {
+    let offset = i64::try_from(chunk_index * CHUNK_SIZE)
+        .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+
+    let chunk = service
+        .lock()
+        .unwrap()
+        .readFile(remote_fd, offset, buf.len() as i32)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
+    buf.write(&chunk)
+}
+
 pub struct RemoteChunkedFileReader {
     // This needs to have Sync trait to be used in fuse::worker::start_message_loop.
     service: Arc<Mutex<VirtFdService>>,
@@ -49,17 +67,8 @@ impl RemoteChunkedFileReader {
 }
 
 impl ReadOnlyDataByChunk for RemoteChunkedFileReader {
-    fn read_chunk(&self, chunk_index: u64, mut buf: &mut [u8]) -> io::Result<usize> {
-        let offset = i64::try_from(chunk_index * CHUNK_SIZE)
-            .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
-
-        let service = Arc::clone(&self.service);
-        let chunk = service
-            .lock()
-            .unwrap()
-            .readFile(self.file_fd, offset, buf.len() as i32)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
-        buf.write(&chunk)
+    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
+        remote_read_chunk(&self.service, self.file_fd, chunk_index, buf)
     }
 }
 
@@ -81,12 +90,45 @@ impl ReadOnlyDataByChunk for RemoteFsverityMerkleTreeReader {
         let offset = i64::try_from(chunk_index * CHUNK_SIZE)
             .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
 
-        let service = Arc::clone(&self.service);
-        let chunk = service
+        let chunk = self
+            .service
             .lock()
             .unwrap()
             .readFsverityMerkleTree(self.file_fd, offset, buf.len() as i32)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
         buf.write(&chunk)
+    }
+}
+
+pub struct RemoteFileEditor {
+    // This needs to have Sync trait to be used in fuse::worker::start_message_loop.
+    service: Arc<Mutex<VirtFdService>>,
+    file_fd: i32,
+}
+
+impl RemoteFileEditor {
+    #[allow(dead_code)]
+    pub fn new(service: Arc<Mutex<VirtFdService>>, file_fd: i32) -> Self {
+        RemoteFileEditor { service, file_fd }
+    }
+}
+
+impl RandomWrite for RemoteFileEditor {
+    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
+        let offset =
+            i64::try_from(offset).map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+        let size = self
+            .service
+            .lock()
+            .unwrap()
+            .writeFile(self.file_fd, &buf, offset)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
+        Ok(size as usize) // within range because size is supposed to <= buf.len(), which is a usize
+    }
+}
+
+impl ReadOnlyDataByChunk for RemoteFileEditor {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
+        remote_read_chunk(&self.service, self.file_fd, chunk_index, buf)
     }
 }
