@@ -158,7 +158,28 @@ android_filesystem {
             deps: ["virt_device_prebuilts_kernel_modules-5.10-x86_64"],
         },
     },
+    deps: [
+        "microdroid_fstab",
+    ],
+    base_dir: "first_stage_ramdisk",
     type: "compressed_cpio",
+    symlinks: [
+        {
+            target: "etc/fstab",
+            name: "first_stage_ramdisk/fstab.microdroid",
+        },
+        {
+            target: "first_stage_ramdisk/lib",
+            name: "lib",
+        },
+    ],
+}
+
+prebuilt_etc {
+    name: "microdroid_fstab",
+    src: "fstab",
+    filename: "fstab",
+    installable: false,
 }
 
 prebuilt_etc {
