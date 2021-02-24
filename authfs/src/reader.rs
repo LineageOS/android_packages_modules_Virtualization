@@ -20,14 +20,11 @@ use std::fs::File;
 use std::io::Result;
 use std::os::unix::fs::FileExt;
 
-use crate::common::COMMON_PAGE_SIZE;
+use crate::common::CHUNK_SIZE;
 
 /// A trait for reading data by chunks. The data is assumed readonly and has fixed length. Chunks
 /// can be read by specifying the chunk index. Only the last chunk may have incomplete chunk size.
 pub trait ReadOnlyDataByChunk {
-    /// Default chunk size.
-    const CHUNK_SIZE: u64 = COMMON_PAGE_SIZE;
-
     /// Read the `chunk_index`-th chunk to `buf`. Each slice/chunk has size `CHUNK_SIZE` except for
     /// the last one, which can be an incomplete chunk. `buf` is currently required to be large
     /// enough to hold a full chunk of data. Reading beyond the file size (including empty file)
@@ -35,10 +32,10 @@ pub trait ReadOnlyDataByChunk {
     fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> Result<usize>;
 }
 
-fn chunk_index_to_range(size: u64, chunk_size: u64, chunk_index: u64) -> Result<(u64, u64)> {
-    let start = chunk_index * chunk_size;
+fn chunk_index_to_range(size: u64, chunk_index: u64) -> Result<(u64, u64)> {
+    let start = chunk_index * CHUNK_SIZE;
     assert!(start < size);
-    let end = std::cmp::min(size, start + chunk_size);
+    let end = std::cmp::min(size, start + CHUNK_SIZE);
     Ok((start, end))
 }
 
@@ -62,8 +59,8 @@ impl ChunkedFileReader {
 
 impl ReadOnlyDataByChunk for ChunkedFileReader {
     fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> Result<usize> {
-        debug_assert!(buf.len() as u64 >= Self::CHUNK_SIZE);
-        let (start, end) = chunk_index_to_range(self.size, Self::CHUNK_SIZE, chunk_index)?;
+        debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
+        let (start, end) = chunk_index_to_range(self.size, chunk_index)?;
         let size = (end - start) as usize;
         self.file.read_at(&mut buf[..size], start)
     }

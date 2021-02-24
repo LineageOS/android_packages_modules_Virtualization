@@ -19,11 +19,11 @@ use std::io;
 use thiserror::Error;
 
 use crate::auth::Authenticator;
-use crate::common::divide_roundup;
+use crate::common::{divide_roundup, CHUNK_SIZE};
 use crate::crypto::{CryptoError, Sha256Hasher};
 use crate::reader::ReadOnlyDataByChunk;
 
-const ZEROS: [u8; 4096] = [0u8; 4096];
+const ZEROS: [u8; CHUNK_SIZE as usize] = [0u8; CHUNK_SIZE as usize];
 
 // The size of `struct fsverity_formatted_digest` in Linux with SHA-256.
 const SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256: usize = 12 + Sha256Hasher::HASH_SIZE;
@@ -60,7 +60,7 @@ fn verity_check<T: ReadOnlyDataByChunk>(
     // beyone the file size, including empty file.
     assert_ne!(file_size, 0);
 
-    let chunk_hash = hash_with_padding(&chunk, T::CHUNK_SIZE as usize)?;
+    let chunk_hash = hash_with_padding(&chunk, CHUNK_SIZE as usize)?;
 
     fsverity_walk(chunk_index, file_size, merkle_tree)?.try_fold(
         chunk_hash,
@@ -71,7 +71,7 @@ fn verity_check<T: ReadOnlyDataByChunk>(
             if actual_hash != expected_hash {
                 return Err(FsverityError::CannotVerify);
             }
-            Ok(hash_with_padding(&merkle_chunk, T::CHUNK_SIZE as usize)?)
+            Ok(hash_with_padding(&merkle_chunk, CHUNK_SIZE as usize)?)
         },
     )
 }
@@ -93,18 +93,18 @@ fn fsverity_walk<T: ReadOnlyDataByChunk>(
     file_size: u64,
     merkle_tree: &T,
 ) -> Result<impl Iterator<Item = Result<([u8; 4096], usize), FsverityError>> + '_, FsverityError> {
-    let hashes_per_node = T::CHUNK_SIZE / Sha256Hasher::HASH_SIZE as u64;
-    let hash_pages = divide_roundup(file_size, hashes_per_node * T::CHUNK_SIZE);
+    let hashes_per_node = CHUNK_SIZE / Sha256Hasher::HASH_SIZE as u64;
+    let hash_pages = divide_roundup(file_size, hashes_per_node * CHUNK_SIZE);
     debug_assert_eq!(hashes_per_node, 128u64);
     let max_level = log128_ceil(hash_pages).expect("file should not be empty") as u32;
     let root_to_leaf_steps = (0..=max_level)
         .rev()
         .map(|x| {
             let leaves_per_hash = hashes_per_node.pow(x);
-            let leaves_size_per_hash = T::CHUNK_SIZE * leaves_per_hash;
+            let leaves_size_per_hash = CHUNK_SIZE * leaves_per_hash;
             let leaves_size_per_node = leaves_size_per_hash * hashes_per_node;
             let nodes_at_level = divide_roundup(file_size, leaves_size_per_node);
-            let level_size = nodes_at_level * T::CHUNK_SIZE;
+            let level_size = nodes_at_level * CHUNK_SIZE;
             let offset_in_level = (chunk_index / leaves_per_hash) * Sha256Hasher::HASH_SIZE as u64;
             (level_size, offset_in_level)
         })
@@ -115,8 +115,8 @@ fn fsverity_walk<T: ReadOnlyDataByChunk>(
             Some(global_hash_offset)
         })
         .map(|global_hash_offset| {
-            let chunk_index = global_hash_offset / T::CHUNK_SIZE;
-            let hash_offset_in_chunk = (global_hash_offset % T::CHUNK_SIZE) as usize;
+            let chunk_index = global_hash_offset / CHUNK_SIZE;
+            let hash_offset_in_chunk = (global_hash_offset % CHUNK_SIZE) as usize;
             (chunk_index, hash_offset_in_chunk)
         })
         .collect::<Vec<_>>();
@@ -172,10 +172,7 @@ impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> FsverityChunkedFileReader<F
         sig: Vec<u8>,
         merkle_tree: M,
     ) -> Result<FsverityChunkedFileReader<F, M>, FsverityError> {
-        // TODO(victorhsieh): Use generic constant directly once supported. No need to assert
-        // afterward.
-        let mut buf = [0u8; 4096];
-        assert_eq!(buf.len() as u64, M::CHUNK_SIZE);
+        let mut buf = [0u8; CHUNK_SIZE as usize];
         let size = merkle_tree.read_chunk(0, &mut buf)?;
         if buf.len() != size {
             return Err(FsverityError::InsufficientData(size));
@@ -195,7 +192,7 @@ impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> ReadOnlyDataByChunk
     for FsverityChunkedFileReader<F, M>
 {
     fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
-        debug_assert!(buf.len() as u64 >= Self::CHUNK_SIZE);
+        debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
         let size = self.chunked_file.read_chunk(chunk_index, buf)?;
         let root_hash = verity_check(&buf[..size], chunk_index, self.file_size, &self.merkle_tree)
             .map_err(|_| io::Error::from_raw_os_error(EIO))?;
