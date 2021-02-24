@@ -1,6 +1,10 @@
 # Static u-boot environment variables for microdroid. See b/180481192
 
+# Boot the device following the Android boot procedure
 bootcmd=boot_android virtio -
+
+# Kernel commandlines
+bootargs=rdinit=/bin/init_vendor panic=-1 androidboot.first_stage_console=1 androidboot.hardware=microdroid androidboot.boot_devices=10000.pci
 
 # 0:2 is the misc partition
 bootdevice=0:2
