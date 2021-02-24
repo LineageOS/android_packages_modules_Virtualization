@@ -1,1 +1,1 @@
-/dev/block/by-name/super /system ext4 noatime,ro,errors=panic wait,first_stage_mount
+system /system ext4 noatime,ro,errors=panic wait,first_stage_mount,logical
