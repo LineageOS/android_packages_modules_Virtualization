@@ -21,11 +21,11 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMach
     BnVirtualMachine, IVirtualMachine,
 };
 use android_system_virtmanager::binder::{self, add_service, Interface, StatusCode, Strong};
-use anyhow::{Context, Error};
+use anyhow::{bail, Context, Error};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{self, BufReader};
+use std::io::BufReader;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 
@@ -42,9 +42,19 @@ type Cid = u32;
 /// Configuration for a particular VM to be started.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct VmConfig {
-    kernel: String,
+    kernel: Option<String>,
     initrd: Option<String>,
     params: Option<String>,
+    bootloader: Option<String>,
+    #[serde(default)]
+    disks: Vec<DiskImage>,
+}
+
+/// A disk image to be made available to the VM.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+struct DiskImage {
+    image: String,
+    writable: bool,
 }
 
 fn main() {
@@ -169,20 +179,35 @@ fn load_vm_config(path: &str) -> Result<VmConfig, Error> {
 }
 
 /// Start an instance of `crosvm` to manage a new VM.
-fn run_vm(config: &VmConfig, cid: Cid) -> Result<Child, io::Error> {
+fn run_vm(config: &VmConfig, cid: Cid) -> Result<Child, Error> {
+    if config.bootloader.is_none() && config.kernel.is_none() {
+        bail!("VM must have either a bootloader or a kernel image.");
+    }
+    if config.bootloader.is_some() && (config.kernel.is_some() || config.initrd.is_some()) {
+        bail!("Can't have both bootloader and kernel/initrd image.");
+    }
+
     let mut command = Command::new(CROSVM_PATH);
     // TODO(qwandor): Remove --disable-sandbox.
     command.arg("run").arg("--disable-sandbox").arg("--cid").arg(cid.to_string());
+    // TODO(jiyong): Don't redirect console to the host syslog
+    command.arg("--serial=type=syslog");
+    if let Some(bootloader) = &config.bootloader {
+        command.arg("--bios").arg(bootloader);
+    }
     if let Some(initrd) = &config.initrd {
         command.arg("--initrd").arg(initrd);
     }
     if let Some(params) = &config.params {
         command.arg("--params").arg(params);
     }
-    // TODO(jiyong): Don't redirect console to the host syslog
-    command.arg("--serial=type=syslog");
-    command.arg(&config.kernel);
+    for disk in &config.disks {
+        command.arg(if disk.writable { "--rwdisk" } else { "--disk" }).arg(&disk.image);
+    }
+    if let Some(kernel) = &config.kernel {
+        command.arg(kernel);
+    }
     info!("Running {:?}", command);
     // TODO: Monitor child process, and remove from VM map if it dies.
-    command.spawn()
+    Ok(command.spawn()?)
 }
