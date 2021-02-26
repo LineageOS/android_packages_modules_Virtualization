@@ -47,7 +47,6 @@ fn hash_all_pages(source: &[Sha256Hash]) -> Result<Vec<Sha256Hash>, CryptoError>
         .collect()
 }
 
-#[allow(dead_code)]
 impl MerkleLeaves {
     /// Creates a `MerkleLeaves` instance with empty data.
     pub fn new() -> Self {

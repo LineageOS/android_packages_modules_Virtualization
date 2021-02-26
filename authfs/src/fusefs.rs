@@ -29,7 +29,7 @@ use std::time::Duration;
 use fuse::filesystem::{Context, DirEntry, DirectoryIterator, Entry, FileSystem, ZeroCopyWriter};
 use fuse::mount::MountOption;
 
-use crate::common::{divide_roundup, CHUNK_SIZE};
+use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::fsverity::FsverityChunkedFileReader;
 use crate::reader::{ChunkedFileReader, ReadOnlyDataByChunk};
 use crate::remote_file::{RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader};
@@ -111,35 +111,6 @@ fn create_stat(ino: libc::ino_t, file_size: u64) -> io::Result<libc::stat64> {
     Ok(st)
 }
 
-/// An iterator that generates (offset, size) for a chunked read operation, where offset is the
-/// global file offset, and size is the amount of read from the offset.
-struct ChunkReadIter {
-    remaining: usize,
-    offset: u64,
-}
-
-impl ChunkReadIter {
-    pub fn new(remaining: usize, offset: u64) -> Self {
-        ChunkReadIter { remaining, offset }
-    }
-}
-
-impl Iterator for ChunkReadIter {
-    type Item = (u64, usize);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 {
-            return None;
-        }
-        let chunk_data_size =
-            std::cmp::min(self.remaining, (CHUNK_SIZE - self.offset % CHUNK_SIZE) as usize);
-        let retval = (self.offset, chunk_data_size);
-        self.offset += chunk_data_size as u64;
-        self.remaining = self.remaining.saturating_sub(chunk_data_size);
-        Some(retval)
-    }
-}
-
 fn offset_to_chunk_index(offset: u64) -> u64 {
     offset / CHUNK_SIZE
 }
@@ -153,7 +124,7 @@ fn read_chunks<W: io::Write, T: ReadOnlyDataByChunk>(
 ) -> io::Result<usize> {
     let remaining = file_size.saturating_sub(offset);
     let size_to_read = std::cmp::min(size as usize, remaining as usize);
-    let total = ChunkReadIter::new(size_to_read, offset).try_fold(
+    let total = ChunkedSizeIter::new(size_to_read, offset, CHUNK_SIZE as usize).try_fold(
         0,
         |total, (current_offset, planned_data_size)| {
             // TODO(victorhsieh): There might be a non-trivial way to avoid this copy. For example,
@@ -324,28 +295,4 @@ pub fn loop_forever(
         max_read,
         AuthFs::new(file_pool, max_write),
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn collect_chunk_read_iter(remaining: usize, offset: u64) -> Vec<(u64, usize)> {
-        ChunkReadIter::new(remaining, offset).collect::<Vec<_>>()
-    }
-
-    #[test]
-    fn test_chunk_read_iter() {
-        assert_eq!(collect_chunk_read_iter(4096, 0), [(0, 4096)]);
-        assert_eq!(collect_chunk_read_iter(8192, 0), [(0, 4096), (4096, 4096)]);
-        assert_eq!(collect_chunk_read_iter(8192, 4096), [(4096, 4096), (8192, 4096)]);
-
-        assert_eq!(
-            collect_chunk_read_iter(16384, 1),
-            [(1, 4095), (4096, 4096), (8192, 4096), (12288, 4096), (16384, 1)]
-        );
-
-        assert_eq!(collect_chunk_read_iter(0, 0), []);
-        assert_eq!(collect_chunk_read_iter(0, 100), []);
-    }
 }

@@ -42,6 +42,7 @@ mod fsverity;
 mod fusefs;
 mod reader;
 mod remote_file;
+mod writer;
 
 use auth::FakeAuthenticator;
 use fsverity::FsverityChunkedFileReader;
