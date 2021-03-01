@@ -32,6 +32,7 @@ use fuse::mount::MountOption;
 use crate::common::{divide_roundup, COMMON_PAGE_SIZE};
 use crate::fsverity::FsverityChunkedFileReader;
 use crate::reader::{ChunkedFileReader, ReadOnlyDataByChunk};
+use crate::remote_file::{RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader};
 
 // We're reading the backing file by chunk, so setting the block size to be the same.
 const BLOCK_SIZE: usize = COMMON_PAGE_SIZE as usize;
@@ -41,6 +42,9 @@ const DEFAULT_METADATA_TIMEOUT: std::time::Duration = Duration::from_secs(5);
 pub type Inode = u64;
 type Handle = u64;
 
+type RemoteFsverityChunkedFileReader =
+    FsverityChunkedFileReader<RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader>;
+
 // A debug only type where everything are stored as local files.
 type FileBackedFsverityChunkedFileReader =
     FsverityChunkedFileReader<ChunkedFileReader, ChunkedFileReader>;
@@ -48,6 +52,8 @@ type FileBackedFsverityChunkedFileReader =
 pub enum FileConfig {
     LocalVerifiedFile(FileBackedFsverityChunkedFileReader, u64),
     LocalUnverifiedFile(ChunkedFileReader, u64),
+    RemoteVerifiedFile(RemoteFsverityChunkedFileReader, u64),
+    RemoteUnverifiedFile(RemoteChunkedFileReader, u64),
 }
 
 struct AuthFs {
@@ -204,7 +210,9 @@ impl FileSystem for AuthFs {
         let inode = num.parse::<Inode>().map_err(|_| io::Error::from_raw_os_error(libc::ENOENT))?;
         let st = match self.get_file_config(&inode)? {
             FileConfig::LocalVerifiedFile(_, file_size)
-            | FileConfig::LocalUnverifiedFile(_, file_size) => create_stat(inode, *file_size)?,
+            | FileConfig::LocalUnverifiedFile(_, file_size)
+            | FileConfig::RemoteUnverifiedFile(_, file_size)
+            | FileConfig::RemoteVerifiedFile(_, file_size) => create_stat(inode, *file_size)?,
         };
         Ok(Entry {
             inode,
@@ -224,7 +232,9 @@ impl FileSystem for AuthFs {
         Ok((
             match self.get_file_config(&inode)? {
                 FileConfig::LocalVerifiedFile(_, file_size)
-                | FileConfig::LocalUnverifiedFile(_, file_size) => create_stat(inode, *file_size)?,
+                | FileConfig::LocalUnverifiedFile(_, file_size)
+                | FileConfig::RemoteUnverifiedFile(_, file_size)
+                | FileConfig::RemoteVerifiedFile(_, file_size) => create_stat(inode, *file_size)?,
             },
             DEFAULT_METADATA_TIMEOUT,
         ))
@@ -239,13 +249,13 @@ impl FileSystem for AuthFs {
         // Since file handle is not really used in later operations (which use Inode directly),
         // return None as the handle..
         match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedFile(_, _) => {
+            FileConfig::LocalVerifiedFile(_, _) | FileConfig::RemoteVerifiedFile(_, _) => {
                 check_access_mode(flags, libc::O_RDONLY)?;
                 // Once verified, and only if verified, the file content can be cached. This is not
                 // really needed for a local file, but is the behavior of RemoteVerifiedFile later.
                 Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
             }
-            FileConfig::LocalUnverifiedFile(_, _) => {
+            FileConfig::LocalUnverifiedFile(_, _) | FileConfig::RemoteUnverifiedFile(_, _) => {
                 check_access_mode(flags, libc::O_RDONLY)?;
                 // Do not cache the content. This type of file is supposed to be verified using
                 // dm-verity. The filesystem mount over dm-verity already is already cached, so use
@@ -271,6 +281,12 @@ impl FileSystem for AuthFs {
                 read_chunks(w, file, *file_size, offset, size)
             }
             FileConfig::LocalUnverifiedFile(file, file_size) => {
+                read_chunks(w, file, *file_size, offset, size)
+            }
+            FileConfig::RemoteVerifiedFile(file, file_size) => {
+                read_chunks(w, file, *file_size, offset, size)
+            }
+            FileConfig::RemoteUnverifiedFile(file, file_size) => {
                 read_chunks(w, file, *file_size, offset, size)
             }
         }
