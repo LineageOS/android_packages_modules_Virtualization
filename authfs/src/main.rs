@@ -27,11 +27,12 @@
 //! Regardless of the actual file name, the exposed file names through AuthFS are currently integer,
 //! e.g. /mountpoint/42.
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
 
 mod auth;
@@ -40,17 +41,34 @@ mod crypto;
 mod fsverity;
 mod fusefs;
 mod reader;
+mod remote_file;
 
 use auth::FakeAuthenticator;
 use fsverity::FsverityChunkedFileReader;
 use fusefs::{FileConfig, Inode};
 use reader::ChunkedFileReader;
+use remote_file::{RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader};
 
 #[derive(StructOpt)]
-struct Options {
+struct Args {
     /// Mount point of AuthFS.
     #[structopt(parse(from_os_str))]
     mount_point: PathBuf,
+
+    /// A verifiable read-only file. Can be multiple.
+    ///
+    /// For example, `--remote-verified-file 5:10:1234:/path/to/cert` tells the filesystem to
+    /// associate entry 5 with a remote file 10 of size 1234 bytes, and need to be verified against
+    /// the /path/to/cert.
+    #[structopt(long, parse(try_from_str = parse_remote_verified_file_option))]
+    remote_verified_file: Vec<RemoteVerifiedFileConfig>,
+
+    /// An unverifiable read-only file. Can be multiple.
+    ///
+    /// For example, `--remote-unverified-file 5:10:1234` tells the filesystem to associate entry 5
+    /// with a remote file 10 of size 1234 bytes.
+    #[structopt(long, parse(try_from_str = parse_remote_unverified_file_option))]
+    remote_unverified_file: Vec<RemoteUnverifiedFileConfig>,
 
     /// Debug only. A readonly file to be protected by fs-verity. Can be multiple.
     #[structopt(long, parse(try_from_str = parse_local_verified_file_option))]
@@ -61,28 +79,91 @@ struct Options {
     local_unverified_file: Vec<LocalUnverifiedFileConfig>,
 }
 
+struct RemoteVerifiedFileConfig {
+    ino: Inode,
+
+    /// ID to refer to the remote file.
+    remote_id: i32,
+
+    /// Expected size of the remote file. Necessary for signature check and Merkle tree
+    /// verification.
+    file_size: u64,
+
+    /// Certificate to verify the authenticity of the file's fs-verity signature.
+    /// TODO(170494765): Implement PKCS#7 signature verification.
+    _certificate_path: PathBuf,
+}
+
+struct RemoteUnverifiedFileConfig {
+    ino: Inode,
+
+    /// ID to refer to the remote file.
+    remote_id: i32,
+
+    /// Expected size of the remote file.
+    file_size: u64,
+}
+
 struct LocalVerifiedFileConfig {
     ino: Inode,
+
+    /// Local path of the backing file.
     file_path: PathBuf,
+
+    /// Local path of the backing file's fs-verity Merkle tree dump.
     merkle_tree_dump_path: PathBuf,
+
+    /// Local path of fs-verity signature for the backing file.
     signature_path: PathBuf,
+
+    /// Certificate to verify the authenticity of the file's fs-verity signature.
+    /// TODO(170494765): Implement PKCS#7 signature verification.
+    _certificate_path: PathBuf,
 }
 
 struct LocalUnverifiedFileConfig {
     ino: Inode,
+
+    /// Local path of the backing file.
     file_path: PathBuf,
 }
 
-fn parse_local_verified_file_option(option: &str) -> Result<LocalVerifiedFileConfig> {
+fn parse_remote_verified_file_option(option: &str) -> Result<RemoteVerifiedFileConfig> {
     let strs: Vec<&str> = option.split(':').collect();
     if strs.len() != 4 {
         bail!("Invalid option: {}", option);
     }
+    Ok(RemoteVerifiedFileConfig {
+        ino: strs[0].parse::<Inode>()?,
+        remote_id: strs[1].parse::<i32>()?,
+        file_size: strs[2].parse::<u64>()?,
+        _certificate_path: PathBuf::from(strs[3]),
+    })
+}
+
+fn parse_remote_unverified_file_option(option: &str) -> Result<RemoteUnverifiedFileConfig> {
+    let strs: Vec<&str> = option.split(':').collect();
+    if strs.len() != 3 {
+        bail!("Invalid option: {}", option);
+    }
+    Ok(RemoteUnverifiedFileConfig {
+        ino: strs[0].parse::<Inode>()?,
+        remote_id: strs[1].parse::<i32>()?,
+        file_size: strs[2].parse::<u64>()?,
+    })
+}
+
+fn parse_local_verified_file_option(option: &str) -> Result<LocalVerifiedFileConfig> {
+    let strs: Vec<&str> = option.split(':').collect();
+    if strs.len() != 5 {
+        bail!("Invalid option: {}", option);
+    }
     Ok(LocalVerifiedFileConfig {
-        ino: strs[0].parse::<Inode>().unwrap(),
+        ino: strs[0].parse::<Inode>()?,
         file_path: PathBuf::from(strs[1]),
         merkle_tree_dump_path: PathBuf::from(strs[2]),
         signature_path: PathBuf::from(strs[3]),
+        _certificate_path: PathBuf::from(strs[4]),
     })
 }
 
@@ -92,9 +173,37 @@ fn parse_local_unverified_file_option(option: &str) -> Result<LocalUnverifiedFil
         bail!("Invalid option: {}", option);
     }
     Ok(LocalUnverifiedFileConfig {
-        ino: strs[0].parse::<Inode>().unwrap(),
+        ino: strs[0].parse::<Inode>()?,
         file_path: PathBuf::from(strs[1]),
     })
+}
+
+fn new_config_remote_verified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
+    let service = remote_file::server::get_local_service();
+    let signature = service
+        .readFsveritySignature(remote_id)
+        .map_err(|e| anyhow!("Failed to read signature: {}", e.get_description()))?;
+
+    let service = Arc::new(Mutex::new(service));
+    let authenticator = FakeAuthenticator::always_succeed();
+    Ok(FileConfig::RemoteVerifiedFile(
+        FsverityChunkedFileReader::new(
+            &authenticator,
+            RemoteChunkedFileReader::new(Arc::clone(&service), remote_id),
+            file_size,
+            signature,
+            RemoteFsverityMerkleTreeReader::new(Arc::clone(&service), remote_id),
+        )?,
+        file_size,
+    ))
+}
+
+fn new_config_remote_unverified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
+    let file_reader = RemoteChunkedFileReader::new(
+        Arc::new(Mutex::new(remote_file::server::get_local_service())),
+        remote_id,
+    );
+    Ok(FileConfig::RemoteUnverifiedFile(file_reader, file_size))
 }
 
 fn new_config_local_verified_file(
@@ -125,8 +234,22 @@ fn new_config_local_unverified_file(file_path: &PathBuf) -> Result<FileConfig> {
     Ok(FileConfig::LocalUnverifiedFile(file_reader, file_size))
 }
 
-fn prepare_file_pool(args: &Options) -> Result<BTreeMap<Inode, FileConfig>> {
+fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
+
+    for config in &args.remote_verified_file {
+        file_pool.insert(
+            config.ino,
+            new_config_remote_verified_file(config.remote_id, config.file_size)?,
+        );
+    }
+
+    for config in &args.remote_unverified_file {
+        file_pool.insert(
+            config.ino,
+            new_config_remote_unverified_file(config.remote_id, config.file_size)?,
+        );
+    }
 
     for config in &args.local_verified_file {
         file_pool.insert(
@@ -147,8 +270,8 @@ fn prepare_file_pool(args: &Options) -> Result<BTreeMap<Inode, FileConfig>> {
 }
 
 fn main() -> Result<()> {
-    let args = Options::from_args();
+    let args = Args::from_args();
     let file_pool = prepare_file_pool(&args)?;
     fusefs::loop_forever(file_pool, &args.mount_point)?;
-    Ok(())
+    bail!("Unexpected exit after the handler loop")
 }
