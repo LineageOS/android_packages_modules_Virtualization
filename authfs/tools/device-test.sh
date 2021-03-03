@@ -6,19 +6,27 @@
 #
 # Setup:
 # $ adb push testdata/input.4m* /data/local/tmp
+# $ adb push tools/device-test.sh /data/local/tmp/
 #
 # Shell 1:
-# $ adb shell 'cd /data/local/tmp && exec 9</system/bin/sh 8<input.4m 7<input.4m.merkle_dump 6<input.4m.fsv_sig 5<input.4m 4<input.4m.merkle_dump.bad 3<input.4m.fsv_sig fd_server --ro-fds 9 --ro-fds 8:7:6 --ro-fds 5:4:3'
+# $ adb shell /data/local/tmp/device-test.sh --run-fd-server
 #
 # Shell 2:
-# $ adb push tools/device-test.sh /data/local/tmp/ && adb shell /data/local/tmp/device-test.sh
+# $ adb shell /data/local/tmp/device-test.sh
+
+cd /data/local/tmp
+cat /dev/null > output
+
+if [[ $1 == "--run-fd-server" ]]; then
+  exec 9</system/bin/sh 8<input.4m 7<input.4m.merkle_dump 6<input.4m \
+    5<input.4m.merkle_dump.bad 4<input.4m.fsv_sig 3<>output \
+    fd_server --ro-fds 9 --ro-fds 8:7:4 --ro-fds 6:5:4 --rw-fds 3
+fi
 
 # Run with -u to enter new namespace.
 if [[ $1 == "-u" ]]; then
   exec unshare -mUr $0
 fi
-
-cd /data/local/tmp
 
 MOUNTPOINT=/data/local/tmp/authfs
 trap "umount ${MOUNTPOINT}" EXIT;
@@ -39,7 +47,8 @@ authfs \
   --local-ro-file-unverified 5:/system/bin/sh \
   --remote-ro-file-unverified 6:9:${size} \
   --remote-ro-file 7:8:${size2}:/dev/null \
-  --remote-ro-file 8:5:${size2}:/dev/null \
+  --remote-ro-file 8:6:${size2}:/dev/null \
+  --remote-new-rw-file 9:3 \
   &
 sleep 0.1
 
@@ -54,6 +63,9 @@ md5sum ${MOUNTPOINT}/5 /system/bin/sh
 md5sum ${MOUNTPOINT}/6
 echo
 md5sum ${MOUNTPOINT}/7 input.4m
+echo
+cat input.4m > ${MOUNTPOINT}/9
+md5sum ${MOUNTPOINT}/9 output
 echo
 echo Checking error cases...
 cat /data/local/tmp/authfs/8 2>&1 |grep -q ": I/O error" || echo "Failed to catch the problem"

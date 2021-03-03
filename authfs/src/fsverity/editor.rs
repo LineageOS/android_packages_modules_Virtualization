@@ -75,7 +75,6 @@ pub struct VerifiedFileEditor<F: ReadOnlyDataByChunk + RandomWrite> {
     merkle_tree: Arc<RwLock<MerkleLeaves>>,
 }
 
-#[allow(dead_code)]
 impl<F: ReadOnlyDataByChunk + RandomWrite> VerifiedFileEditor<F> {
     /// Wraps a supposedly new file for integrity protection.
     pub fn new(file: F) -> Self {
@@ -83,6 +82,7 @@ impl<F: ReadOnlyDataByChunk + RandomWrite> VerifiedFileEditor<F> {
     }
 
     /// Calculates the fs-verity digest of the current file.
+    #[allow(dead_code)]
     pub fn calculate_fsverity_digest(&self) -> io::Result<Sha256Hash> {
         let merkle_tree = self.merkle_tree.read().unwrap();
         merkle_tree.calculate_fsverity_digest().map_err(|e| io::Error::new(io::ErrorKind::Other, e))
@@ -141,6 +141,10 @@ impl<F: ReadOnlyDataByChunk + RandomWrite> VerifiedFileEditor<F> {
                 merkle_tree,
             )
         }
+    }
+
+    pub fn size(&self) -> u64 {
+        self.merkle_tree.read().unwrap().file_size()
     }
 }
 

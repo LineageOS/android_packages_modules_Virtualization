@@ -97,7 +97,6 @@ pub struct RemoteFileEditor {
 }
 
 impl RemoteFileEditor {
-    #[allow(dead_code)]
     pub fn new(service: Arc<Mutex<VirtFdService>>, file_fd: i32) -> Self {
         RemoteFileEditor { service, file_fd }
     }

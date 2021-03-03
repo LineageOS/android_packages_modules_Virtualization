@@ -26,12 +26,18 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::time::Duration;
 
-use fuse::filesystem::{Context, DirEntry, DirectoryIterator, Entry, FileSystem, ZeroCopyWriter};
+use fuse::filesystem::{
+    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, ZeroCopyReader,
+    ZeroCopyWriter,
+};
 use fuse::mount::MountOption;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
-use crate::file::{LocalFileReader, ReadOnlyDataByChunk, RemoteFileReader, RemoteMerkleTreeReader};
-use crate::fsverity::VerifiedFileReader;
+use crate::file::{
+    LocalFileReader, RandomWrite, ReadOnlyDataByChunk, RemoteFileEditor, RemoteFileReader,
+    RemoteMerkleTreeReader,
+};
+use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
 
 const DEFAULT_METADATA_TIMEOUT: std::time::Duration = Duration::from_secs(5);
 
@@ -43,6 +49,7 @@ pub enum FileConfig {
     LocalUnverifiedReadonlyFile(LocalFileReader, u64),
     RemoteVerifiedReadonlyFile(VerifiedFileReader<RemoteFileReader, RemoteMerkleTreeReader>, u64),
     RemoteUnverifiedReadonlyFile(RemoteFileReader, u64),
+    RemoteVerifiedNewFile(VerifiedFileEditor<RemoteFileEditor>),
 }
 
 struct AuthFs {
@@ -84,11 +91,20 @@ cfg_if::cfg_if! {
     }
 }
 
-fn create_stat(ino: libc::ino_t, file_size: u64) -> io::Result<libc::stat64> {
+enum FileMode {
+    ReadOnly,
+    ReadWrite,
+}
+
+fn create_stat(ino: libc::ino_t, file_size: u64, file_mode: FileMode) -> io::Result<libc::stat64> {
     let mut st = unsafe { MaybeUninit::<libc::stat64>::zeroed().assume_init() };
 
     st.st_ino = ino;
-    st.st_mode = libc::S_IFREG | libc::S_IRUSR | libc::S_IRGRP | libc::S_IROTH;
+    st.st_mode = match file_mode {
+        // Until needed, let's just grant the owner access.
+        FileMode::ReadOnly => libc::S_IFREG | libc::S_IRUSR,
+        FileMode::ReadWrite => libc::S_IFREG | libc::S_IRUSR | libc::S_IWUSR,
+    };
     st.st_dev = 0;
     st.st_nlink = 1;
     st.st_uid = 0;
@@ -160,6 +176,12 @@ impl FileSystem for AuthFs {
         self.max_write
     }
 
+    fn init(&self, _capable: FsOptions) -> io::Result<FsOptions> {
+        // Enable writeback cache for better performance especially since our bandwidth to the
+        // backend service is limited.
+        Ok(FsOptions::WRITEBACK_CACHE)
+    }
+
     fn lookup(&self, _ctx: Context, _parent: Inode, name: &CStr) -> io::Result<Entry> {
         // Only accept file name that looks like an integrer. Files in the pool are simply exposed
         // by their inode number. Also, there is currently no directory structure.
@@ -173,7 +195,10 @@ impl FileSystem for AuthFs {
             | FileConfig::LocalUnverifiedReadonlyFile(_, file_size)
             | FileConfig::RemoteUnverifiedReadonlyFile(_, file_size)
             | FileConfig::RemoteVerifiedReadonlyFile(_, file_size) => {
-                create_stat(inode, *file_size)?
+                create_stat(inode, *file_size, FileMode::ReadOnly)?
+            }
+            FileConfig::RemoteVerifiedNewFile(file) => {
+                create_stat(inode, file.size(), FileMode::ReadWrite)?
             }
         };
         Ok(Entry {
@@ -197,7 +222,10 @@ impl FileSystem for AuthFs {
                 | FileConfig::LocalUnverifiedReadonlyFile(_, file_size)
                 | FileConfig::RemoteUnverifiedReadonlyFile(_, file_size)
                 | FileConfig::RemoteVerifiedReadonlyFile(_, file_size) => {
-                    create_stat(inode, *file_size)?
+                    create_stat(inode, *file_size, FileMode::ReadOnly)?
+                }
+                FileConfig::RemoteVerifiedNewFile(file) => {
+                    create_stat(inode, file.size(), FileMode::ReadWrite)?
                 }
             },
             DEFAULT_METADATA_TIMEOUT,
@@ -229,6 +257,11 @@ impl FileSystem for AuthFs {
                 // direct I/O here to avoid double cache.
                 Ok((None, fuse::sys::OpenOptions::DIRECT_IO))
             }
+            FileConfig::RemoteVerifiedNewFile(_) => {
+                // No need to check access modes since all the modes are allowed to the
+                // read-writable file.
+                Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
+            }
         }
     }
 
@@ -256,6 +289,33 @@ impl FileSystem for AuthFs {
             FileConfig::RemoteUnverifiedReadonlyFile(file, file_size) => {
                 read_chunks(w, file, *file_size, offset, size)
             }
+            FileConfig::RemoteVerifiedNewFile(file) => {
+                // Note that with FsOptions::WRITEBACK_CACHE, it's possible for the kernel to
+                // request a read even if the file is open with O_WRONLY.
+                read_chunks(w, file, file.size(), offset, size)
+            }
+        }
+    }
+
+    fn write<R: io::Read + ZeroCopyReader>(
+        &self,
+        _ctx: Context,
+        inode: Self::Inode,
+        _handle: Self::Handle,
+        mut r: R,
+        size: u32,
+        offset: u64,
+        _lock_owner: Option<u64>,
+        _delayed_write: bool,
+        _flags: u32,
+    ) -> io::Result<usize> {
+        match self.get_file_config(&inode)? {
+            FileConfig::RemoteVerifiedNewFile(file) => {
+                let mut buf = vec![0; size as usize];
+                r.read_exact(&mut buf)?;
+                file.write_at(&buf, offset)
+            }
+            _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
         }
     }
 }

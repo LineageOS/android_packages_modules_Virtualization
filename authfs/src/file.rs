@@ -2,7 +2,7 @@ mod local_file;
 mod remote_file;
 
 pub use local_file::LocalFileReader;
-pub use remote_file::{RemoteFileReader, RemoteMerkleTreeReader};
+pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 
 use std::io;
 

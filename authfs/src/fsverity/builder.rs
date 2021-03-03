@@ -53,6 +53,11 @@ impl MerkleLeaves {
         Self { leaves: Vec::new(), file_size: 0 }
     }
 
+    /// Gets size of the file represented by `MerkleLeaves`.
+    pub fn file_size(&self) -> u64 {
+        self.file_size
+    }
+
     /// Updates the hash of the `index`-th leaf, and increase the size to `size_at_least` if the
     /// current size is smaller.
     pub fn update_hash(&mut self, index: usize, hash: &Sha256Hash, size_at_least: u64) {
