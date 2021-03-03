@@ -53,7 +53,24 @@ future, this shall be done via [`virtmanager`](../virtmanager/).
 
 ```
 $ adb shell 'HOME=/data/local/tmp; /apex/com.android.virt/bin/assemble_cvd < /dev/null'
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --disable-sandbox --bios=bootloader --serial=type=stdout --disk=cuttlefish_runtime/composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=cuttlefish_runtime/composite.img'
 ```
 
-At this moment, this doesn't boot to the shell, but to the second-stage init.
+The CID in `--cid` parameter can be anything greater than 2 (`VMADDR_CID_HOST`).
+
+## ADB
+
+```
+$ adb forward tcp:8000 vsock:5:5555
+$ adb connect localhost:8000
+```
+
+`5` in `vsock:5` should match with the CID number that was given to `crosvm`.
+`5555` must be the value. `8000` however can be any port in the development
+machine.
+
+Done. Now you can log into microdroid. Have fun!
+
+```
+$ adb -s localhost:8000 shell
+```
