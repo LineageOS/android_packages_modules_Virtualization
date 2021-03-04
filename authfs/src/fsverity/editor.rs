@@ -55,36 +55,16 @@
 use std::io;
 use std::sync::{Arc, RwLock};
 
+use super::builder::MerkleLeaves;
 use crate::common::{ChunkedSizeIter, CHUNK_SIZE};
 use crate::crypto::{CryptoError, Sha256Hash, Sha256Hasher};
-use crate::fsverity::MerkleLeaves;
-use crate::reader::ReadOnlyDataByChunk;
+use crate::file::{RandomWrite, ReadOnlyDataByChunk};
 
 // Implement the conversion from `CryptoError` to `io::Error` just to avoid manual error type
 // mapping below.
 impl From<CryptoError> for io::Error {
     fn from(error: CryptoError) -> Self {
         io::Error::new(io::ErrorKind::Other, error)
-    }
-}
-
-/// A trait to write a buffer to the destination at a given offset. The implementation does not
-/// necessarily own or maintain the destination state.
-pub trait RandomWrite {
-    /// Writes `buf` to the destination at `offset`. Returns the written size, which may not be the
-    /// full buffer.
-    fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize>;
-
-    /// Writes the full `buf` to the destination at `offset`.
-    fn write_all_at(&self, buf: &[u8], offset: u64) -> io::Result<()> {
-        let mut input_offset = 0;
-        let mut output_offset = offset;
-        while input_offset < buf.len() {
-            let size = self.write_at(&buf[input_offset..], output_offset)?;
-            input_offset += size;
-            output_offset += size as u64;
-        }
-        Ok(())
     }
 }
 
@@ -247,18 +227,18 @@ mod tests {
     use std::cell::RefCell;
     use std::convert::TryInto;
 
-    struct InMemoryWriter {
+    struct InMemoryEditor {
         data: RefCell<Vec<u8>>,
         fail_read: bool,
     }
 
-    impl InMemoryWriter {
-        pub fn new() -> InMemoryWriter {
-            InMemoryWriter { data: RefCell::new(Vec::new()), fail_read: false }
+    impl InMemoryEditor {
+        pub fn new() -> InMemoryEditor {
+            InMemoryEditor { data: RefCell::new(Vec::new()), fail_read: false }
         }
     }
 
-    impl RandomWrite for InMemoryWriter {
+    impl RandomWrite for InMemoryEditor {
         fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
             let begin: usize =
                 offset.try_into().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
@@ -271,7 +251,7 @@ mod tests {
         }
     }
 
-    impl ReadOnlyDataByChunk for InMemoryWriter {
+    impl ReadOnlyDataByChunk for InMemoryEditor {
         fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
             debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
 
@@ -296,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_writer() -> Result<()> {
-        let writer = InMemoryWriter::new();
+        let writer = InMemoryEditor::new();
         let buf = [1; 4096];
         assert_eq!(writer.data.borrow().len(), 0);
 
@@ -313,7 +293,7 @@ mod tests {
     #[test]
     fn test_verified_writer_no_write() -> Result<()> {
         // Verify fs-verity hash without any write.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(
             file.calculate_fsverity_digest()?,
             to_u8_vec("3d248ca542a24fc62d1c43b916eae5016878e2533c88238480b26128a1f1af95")
@@ -325,7 +305,7 @@ mod tests {
     #[test]
     fn test_verified_writer_from_zero() -> Result<()> {
         // Verify a write of a full chunk.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 4096], 0)?, 4096);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -334,7 +314,7 @@ mod tests {
         );
 
         // Verify a write of across multiple chunks.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 4097], 0)?, 4097);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -343,7 +323,7 @@ mod tests {
         );
 
         // Verify another write of across multiple chunks.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 10000], 0)?, 10000);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -356,7 +336,7 @@ mod tests {
     #[test]
     fn test_verified_writer_unaligned() -> Result<()> {
         // Verify small, unaligned write beyond EOF.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 5], 3)?, 5);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -365,7 +345,7 @@ mod tests {
         );
 
         // Verify bigger, unaligned write beyond EOF.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 6000], 4000)?, 6000);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -378,7 +358,7 @@ mod tests {
     #[test]
     fn test_verified_writer_with_hole() -> Result<()> {
         // Verify an aligned write beyond EOF with holes.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 4096], 4096)?, 4096);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -387,7 +367,7 @@ mod tests {
         );
 
         // Verify an unaligned write beyond EOF with holes.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 5000], 6000)?, 5000);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -396,7 +376,7 @@ mod tests {
         );
 
         // Just another example with a small write.
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 5], 16381)?, 5);
         assert_eq!(
             file.calculate_fsverity_digest()?,
@@ -408,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_verified_writer_various_writes() -> Result<()> {
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 2048], 0)?, 2048);
         assert_eq!(file.write_at(&[1; 2048], 4096 + 2048)?, 2048);
         assert_eq!(
@@ -448,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_verified_writer_inconsistent_read() -> Result<()> {
-        let file = VerifiedFileEditor::new(InMemoryWriter::new());
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(file.write_at(&[1; 8192], 0)?, 8192);
 
         // Replace the expected hash of the first/0-th chunk. An incomplete write will fail when it
@@ -478,7 +458,7 @@ mod tests {
 
     #[test]
     fn test_verified_writer_failed_read_back() -> Result<()> {
-        let mut writer = InMemoryWriter::new();
+        let mut writer = InMemoryEditor::new();
         writer.fail_read = true;
         let file = VerifiedFileEditor::new(writer);
         assert_eq!(file.write_at(&[1; 8192], 0)?, 8192);

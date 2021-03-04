@@ -33,13 +33,13 @@ echo "Mounting authfs in background ..."
 # certificate.
 authfs \
   ${MOUNTPOINT} \
-  --local-verified-file 2:input.4m:input.4m.merkle_dump:input.4m.fsv_sig:/dev/null \
-  --local-verified-file 3:input.4k1:input.4k1.merkle_dump:input.4k1.fsv_sig:/dev/null \
-  --local-verified-file 4:input.4k:input.4k.merkle_dump:input.4k.fsv_sig:/dev/null \
-  --local-unverified-file 5:/system/bin/sh \
-  --remote-unverified-file 6:9:${size} \
-  --remote-verified-file 7:8:${size2}:/dev/null \
-  --remote-verified-file 8:5:${size2}:/dev/null \
+  --local-ro-file 2:input.4m:input.4m.merkle_dump:input.4m.fsv_sig:/dev/null \
+  --local-ro-file 3:input.4k1:input.4k1.merkle_dump:input.4k1.fsv_sig:/dev/null \
+  --local-ro-file 4:input.4k:input.4k.merkle_dump:input.4k.fsv_sig:/dev/null \
+  --local-ro-file-unverified 5:/system/bin/sh \
+  --remote-ro-file-unverified 6:9:${size} \
+  --remote-ro-file 7:8:${size2}:/dev/null \
+  --remote-ro-file 8:5:${size2}:/dev/null \
   &
 sleep 0.1
 

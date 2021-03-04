@@ -19,23 +19,13 @@ use std::io;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
+use super::{RandomWrite, ReadOnlyDataByChunk};
 use crate::common::CHUNK_SIZE;
-use crate::reader::ReadOnlyDataByChunk;
-use crate::writer::RandomWrite;
 
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService;
 use authfs_aidl_interface::binder::Strong;
 
 type VirtFdService = Strong<dyn IVirtFdService::IVirtFdService>;
-
-pub mod server {
-    // TODO(victorhsieh): use remote binder.
-    pub fn get_local_service() -> super::VirtFdService {
-        let service_name = "authfs_fd_server";
-        authfs_aidl_interface::binder::get_interface(&service_name)
-            .expect("Cannot reach authfs_fd_server binder service")
-    }
-}
 
 fn remote_read_chunk(
     service: &Arc<Mutex<VirtFdService>>,
@@ -54,38 +44,38 @@ fn remote_read_chunk(
     buf.write(&chunk)
 }
 
-pub struct RemoteChunkedFileReader {
+pub struct RemoteFileReader {
     // This needs to have Sync trait to be used in fuse::worker::start_message_loop.
     service: Arc<Mutex<VirtFdService>>,
     file_fd: i32,
 }
 
-impl RemoteChunkedFileReader {
+impl RemoteFileReader {
     pub fn new(service: Arc<Mutex<VirtFdService>>, file_fd: i32) -> Self {
-        RemoteChunkedFileReader { service, file_fd }
+        RemoteFileReader { service, file_fd }
     }
 }
 
-impl ReadOnlyDataByChunk for RemoteChunkedFileReader {
+impl ReadOnlyDataByChunk for RemoteFileReader {
     fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
         remote_read_chunk(&self.service, self.file_fd, chunk_index, buf)
     }
 }
 
-pub struct RemoteFsverityMerkleTreeReader {
+pub struct RemoteMerkleTreeReader {
     // This needs to be a Sync to be used in fuse::worker::start_message_loop.
     // TODO(victorhsieh): change to Strong<> once binder supports it.
     service: Arc<Mutex<VirtFdService>>,
     file_fd: i32,
 }
 
-impl RemoteFsverityMerkleTreeReader {
+impl RemoteMerkleTreeReader {
     pub fn new(service: Arc<Mutex<VirtFdService>>, file_fd: i32) -> Self {
-        RemoteFsverityMerkleTreeReader { service, file_fd }
+        RemoteMerkleTreeReader { service, file_fd }
     }
 }
 
-impl ReadOnlyDataByChunk for RemoteFsverityMerkleTreeReader {
+impl ReadOnlyDataByChunk for RemoteMerkleTreeReader {
     fn read_chunk(&self, chunk_index: u64, mut buf: &mut [u8]) -> io::Result<usize> {
         let offset = i64::try_from(chunk_index * CHUNK_SIZE)
             .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;

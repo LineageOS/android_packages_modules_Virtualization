@@ -30,27 +30,19 @@ use fuse::filesystem::{Context, DirEntry, DirectoryIterator, Entry, FileSystem, 
 use fuse::mount::MountOption;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
-use crate::fsverity::FsverityChunkedFileReader;
-use crate::reader::{ChunkedFileReader, ReadOnlyDataByChunk};
-use crate::remote_file::{RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader};
+use crate::file::{LocalFileReader, ReadOnlyDataByChunk, RemoteFileReader, RemoteMerkleTreeReader};
+use crate::fsverity::VerifiedFileReader;
 
 const DEFAULT_METADATA_TIMEOUT: std::time::Duration = Duration::from_secs(5);
 
 pub type Inode = u64;
 type Handle = u64;
 
-type RemoteFsverityChunkedFileReader =
-    FsverityChunkedFileReader<RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader>;
-
-// A debug only type where everything are stored as local files.
-type FileBackedFsverityChunkedFileReader =
-    FsverityChunkedFileReader<ChunkedFileReader, ChunkedFileReader>;
-
 pub enum FileConfig {
-    LocalVerifiedFile(FileBackedFsverityChunkedFileReader, u64),
-    LocalUnverifiedFile(ChunkedFileReader, u64),
-    RemoteVerifiedFile(RemoteFsverityChunkedFileReader, u64),
-    RemoteUnverifiedFile(RemoteChunkedFileReader, u64),
+    LocalVerifiedReadonlyFile(VerifiedFileReader<LocalFileReader, LocalFileReader>, u64),
+    LocalUnverifiedReadonlyFile(LocalFileReader, u64),
+    RemoteVerifiedReadonlyFile(VerifiedFileReader<RemoteFileReader, RemoteMerkleTreeReader>, u64),
+    RemoteUnverifiedReadonlyFile(RemoteFileReader, u64),
 }
 
 struct AuthFs {
@@ -177,10 +169,12 @@ impl FileSystem for AuthFs {
         // be static.
         let inode = num.parse::<Inode>().map_err(|_| io::Error::from_raw_os_error(libc::ENOENT))?;
         let st = match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedFile(_, file_size)
-            | FileConfig::LocalUnverifiedFile(_, file_size)
-            | FileConfig::RemoteUnverifiedFile(_, file_size)
-            | FileConfig::RemoteVerifiedFile(_, file_size) => create_stat(inode, *file_size)?,
+            FileConfig::LocalVerifiedReadonlyFile(_, file_size)
+            | FileConfig::LocalUnverifiedReadonlyFile(_, file_size)
+            | FileConfig::RemoteUnverifiedReadonlyFile(_, file_size)
+            | FileConfig::RemoteVerifiedReadonlyFile(_, file_size) => {
+                create_stat(inode, *file_size)?
+            }
         };
         Ok(Entry {
             inode,
@@ -199,10 +193,12 @@ impl FileSystem for AuthFs {
     ) -> io::Result<(libc::stat64, Duration)> {
         Ok((
             match self.get_file_config(&inode)? {
-                FileConfig::LocalVerifiedFile(_, file_size)
-                | FileConfig::LocalUnverifiedFile(_, file_size)
-                | FileConfig::RemoteUnverifiedFile(_, file_size)
-                | FileConfig::RemoteVerifiedFile(_, file_size) => create_stat(inode, *file_size)?,
+                FileConfig::LocalVerifiedReadonlyFile(_, file_size)
+                | FileConfig::LocalUnverifiedReadonlyFile(_, file_size)
+                | FileConfig::RemoteUnverifiedReadonlyFile(_, file_size)
+                | FileConfig::RemoteVerifiedReadonlyFile(_, file_size) => {
+                    create_stat(inode, *file_size)?
+                }
             },
             DEFAULT_METADATA_TIMEOUT,
         ))
@@ -215,15 +211,18 @@ impl FileSystem for AuthFs {
         flags: u32,
     ) -> io::Result<(Option<Self::Handle>, fuse::sys::OpenOptions)> {
         // Since file handle is not really used in later operations (which use Inode directly),
-        // return None as the handle..
+        // return None as the handle.
         match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedFile(_, _) | FileConfig::RemoteVerifiedFile(_, _) => {
+            FileConfig::LocalVerifiedReadonlyFile(_, _)
+            | FileConfig::RemoteVerifiedReadonlyFile(_, _) => {
                 check_access_mode(flags, libc::O_RDONLY)?;
                 // Once verified, and only if verified, the file content can be cached. This is not
-                // really needed for a local file, but is the behavior of RemoteVerifiedFile later.
+                // really needed for a local file, but is the behavior of RemoteVerifiedReadonlyFile
+                // later.
                 Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
             }
-            FileConfig::LocalUnverifiedFile(_, _) | FileConfig::RemoteUnverifiedFile(_, _) => {
+            FileConfig::LocalUnverifiedReadonlyFile(_, _)
+            | FileConfig::RemoteUnverifiedReadonlyFile(_, _) => {
                 check_access_mode(flags, libc::O_RDONLY)?;
                 // Do not cache the content. This type of file is supposed to be verified using
                 // dm-verity. The filesystem mount over dm-verity already is already cached, so use
@@ -245,16 +244,16 @@ impl FileSystem for AuthFs {
         _flags: u32,
     ) -> io::Result<usize> {
         match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedFile(file, file_size) => {
+            FileConfig::LocalVerifiedReadonlyFile(file, file_size) => {
                 read_chunks(w, file, *file_size, offset, size)
             }
-            FileConfig::LocalUnverifiedFile(file, file_size) => {
+            FileConfig::LocalUnverifiedReadonlyFile(file, file_size) => {
                 read_chunks(w, file, *file_size, offset, size)
             }
-            FileConfig::RemoteVerifiedFile(file, file_size) => {
+            FileConfig::RemoteVerifiedReadonlyFile(file, file_size) => {
                 read_chunks(w, file, *file_size, offset, size)
             }
-            FileConfig::RemoteUnverifiedFile(file, file_size) => {
+            FileConfig::RemoteUnverifiedReadonlyFile(file, file_size) => {
                 read_chunks(w, file, *file_size, offset, size)
             }
         }
