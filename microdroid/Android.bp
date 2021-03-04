@@ -46,6 +46,7 @@ android_filesystem {
     deps: [
         "init_second_stage",
         "microdroid_init_rc",
+        "ueventd.rc",
         "libbinder",
         "libstdc++",
         "logcat",
