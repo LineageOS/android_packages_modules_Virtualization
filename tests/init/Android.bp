@@ -16,32 +16,15 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-cc_test {
-    name: "virt_hostside_tests_vsock_server",
-    srcs: ["server.cc"],
-    static_libs: [
-        // The existence of the library in the system partition is not guaranteed.
-        // Let's have our own copy of it.
-        "android.system.virtmanager-cpp",
-    ],
-    shared_libs: [
-        "libbase",
-        "libbinder",
-        "liblog",
-        "libutils",
-    ],
-    test_suites: ["device-tests"],
-    stem: "vsock_server",
-}
-
 cc_binary {
-    name: "virt_hostside_tests_vsock_client",
-    srcs: ["client.cc"],
-    static_libs: [
-        "libbase",
-        "liblog",
-    ],
+    name: "virt_test_guest_init",
+    srcs: ["main.cc"],
     static_executable: true,
     installable: false,
-    stem: "vsock_client",
+    static_libs: [
+        "libbase",
+        "liblog",
+        "libmodprobe",
+    ],
+    stem: "init",
 }
