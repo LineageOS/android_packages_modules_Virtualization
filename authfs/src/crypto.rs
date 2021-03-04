@@ -26,12 +26,20 @@ pub enum CryptoError {
 
 use authfs_crypto_bindgen::{SHA256_Final, SHA256_Init, SHA256_Update, SHA256_CTX};
 
+pub type Sha256Hash = [u8; Sha256Hasher::HASH_SIZE];
+
 pub struct Sha256Hasher {
     ctx: SHA256_CTX,
 }
 
 impl Sha256Hasher {
     pub const HASH_SIZE: usize = 32;
+
+    pub const HASH_OF_4096_ZEROS: [u8; Self::HASH_SIZE] = [
+        0xad, 0x7f, 0xac, 0xb2, 0x58, 0x6f, 0xc6, 0xe9, 0x66, 0xc0, 0x04, 0xd7, 0xd1, 0xd1, 0x6b,
+        0x02, 0x4f, 0x58, 0x05, 0xff, 0x7c, 0xb4, 0x7c, 0x7a, 0x85, 0xda, 0xbd, 0x8b, 0x48, 0x89,
+        0x2c, 0xa7,
+    ];
 
     pub fn new() -> Result<Sha256Hasher, CryptoError> {
         // Safe assuming the crypto FFI should initialize the uninitialized `ctx`, which is
@@ -56,6 +64,17 @@ impl Sha256Hasher {
         } else {
             Ok(self)
         }
+    }
+
+    pub fn update_from<I, T>(&mut self, iter: I) -> Result<&mut Self, CryptoError>
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<[u8]>,
+    {
+        for data in iter {
+            self.update(data.as_ref())?;
+        }
+        Ok(self)
     }
 
     pub fn finalize(&mut self) -> Result<[u8; Self::HASH_SIZE], CryptoError> {
@@ -91,6 +110,13 @@ mod tests {
             .finalize()?;
         let s: String = to_hex_string(&hash);
         assert_eq!(s, "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81");
+        Ok(())
+    }
+
+    #[test]
+    fn sha256_of_4096_zeros() -> Result<(), CryptoError> {
+        let hash = Sha256Hasher::new()?.update(&[0u8; 4096])?.finalize()?;
+        assert_eq!(hash, Sha256Hasher::HASH_OF_4096_ZEROS);
         Ok(())
     }
 }
