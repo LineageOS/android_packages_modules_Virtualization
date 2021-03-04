@@ -26,66 +26,43 @@
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
 #include "android-base/unique_fd.h"
-#include "android/system/virtmanager/IVirtManager.h"
-#include "android/system/virtmanager/IVirtualMachine.h"
-#include "binder/IServiceManager.h"
 
-using namespace android;
+#include "virt/VirtualizationTest.h"
+
 using namespace android::base;
-using namespace android::system::virtmanager;
 
-int main(int argc, const char *argv[]) {
-    unsigned int port;
-    if (argc != 3 || !ParseUint(argv[1], &port)) {
-        LOG(ERROR) << "Usage: " << argv[0] << " <port> <vm_config.json>";
-        return EXIT_FAILURE;
-    }
-    String16 vm_config(argv[2]);
+namespace virt {
+
+static constexpr int kGuestPort = 45678;
+static constexpr const char kVmConfigPath[] = "/data/local/tmp/virt-test/vsock_config.json";
+static constexpr const char kTestMessage[] = "HelloWorld";
+
+TEST_F(VirtualizationTest, TestVsock) {
+    binder::Status status;
 
     unique_fd server_fd(TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM, 0)));
-    if (server_fd < 0) {
-        PLOG(ERROR) << "socket";
-        return EXIT_FAILURE;
-    }
+    ASSERT_GE(server_fd, 0) << strerror(errno);
 
     struct sockaddr_vm server_sa = (struct sockaddr_vm){
             .svm_family = AF_VSOCK,
-            .svm_port = port,
+            .svm_port = kGuestPort,
             .svm_cid = VMADDR_CID_ANY,
     };
 
     int ret = TEMP_FAILURE_RETRY(bind(server_fd, (struct sockaddr *)&server_sa, sizeof(server_sa)));
-    if (ret != 0) {
-        PLOG(ERROR) << "bind";
-        return EXIT_FAILURE;
-    }
+    ASSERT_EQ(ret, 0) << strerror(errno);
 
-    LOG(INFO) << "Listening on port " << port << "...";
+    LOG(INFO) << "Listening on port " << kGuestPort << "...";
     ret = TEMP_FAILURE_RETRY(listen(server_fd, 1));
-    if (ret != 0) {
-        PLOG(ERROR) << "listen";
-        return EXIT_FAILURE;
-    }
+    ASSERT_EQ(ret, 0) << strerror(errno);
 
-    LOG(INFO) << "Getting Virt Manager";
-    sp<IVirtManager> virt_manager;
-    status_t err = getService<IVirtManager>(String16("android.system.virtmanager"), &virt_manager);
-    if (err != 0) {
-        LOG(ERROR) << "Error getting Virt Manager from Service Manager: " << err;
-        return EXIT_FAILURE;
-    }
     sp<IVirtualMachine> vm;
-    binder::Status status = virt_manager->startVm(vm_config, &vm);
-    if (!status.isOk()) {
-        LOG(ERROR) << "Error starting VM: " << status;
-        return EXIT_FAILURE;
-    }
+    status = mVirtManager->startVm(String16(kVmConfigPath), &vm);
+    ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
+
     int32_t cid;
     status = vm->getCid(&cid);
-    if (!status.isOk()) {
-        LOG(ERROR) << "Error getting CID: " << status;
-        return EXIT_FAILURE;
-    }
+    ASSERT_TRUE(status.isOk()) << "Error getting CID: " << status;
     LOG(INFO) << "VM starting with CID " << cid;
 
     LOG(INFO) << "Accepting connection...";
@@ -93,22 +70,15 @@ int main(int argc, const char *argv[]) {
     socklen_t client_sa_len = sizeof(client_sa);
     unique_fd client_fd(
             TEMP_FAILURE_RETRY(accept(server_fd, (struct sockaddr *)&client_sa, &client_sa_len)));
-    if (client_fd < 0) {
-        PLOG(ERROR) << "accept";
-        return EXIT_FAILURE;
-    }
+    ASSERT_GE(client_fd, 0) << strerror(errno);
     LOG(INFO) << "Connection from CID " << client_sa.svm_cid << " on port " << client_sa.svm_port;
 
     LOG(INFO) << "Reading message from the client...";
     std::string msg;
-    if (!ReadFdToString(client_fd, &msg)) {
-        PLOG(ERROR) << "ReadFdToString";
-        return EXIT_FAILURE;
-    }
+    ASSERT_TRUE(ReadFdToString(client_fd, &msg));
 
-    // Print the received message to stdout.
-    std::cout << msg << std::endl;
-
-    LOG(INFO) << "Exiting...";
-    return EXIT_SUCCESS;
+    LOG(INFO) << "Received message: " << msg;
+    ASSERT_EQ(msg, kTestMessage);
 }
+
+} // namespace virt

@@ -21,24 +21,51 @@ kernel_version = "5.10"
 kernel_stem = "kernel_prebuilts-" + kernel_version
 kernel_modules_stem = "virt_device_prebuilts_kernel_modules-" + kernel_version
 
-// JAR containing all virtualization host-side tests.
-java_test_host {
-    name: "VirtualizationHostTestCases",
-    srcs: ["java/**/*.java"],
+cc_test {
+    name: "VirtualizationTestCases",
     test_suites: ["device-tests"],
-    libs: ["tradefed"],
-    data: [
-        ":virt_hostside_tests_kernel",
-        ":virt_hostside_tests_initramfs",
-        ":virt_hostside_tests_vm_config",
+    srcs: [
+        "common.cc",
+        "vsock_test.cc",
     ],
-    required: [
-        "virt_hostside_tests_vsock_server",
+    local_include_dirs: ["include"],
+    data: [
+        ":virt_test_kernel",
+        ":virt_test_initramfs",
+        "vsock_config.json",
+    ],
+    static_libs: [
+        // The existence of the library in the system partition is not guaranteed.
+        // Let's have our own copy of it.
+        "android.system.virtmanager-cpp",
+    ],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "liblog",
+        "libutils",
     ],
 }
 
+cc_defaults {
+    name: "virt_test_guest_binary",
+    static_libs: [
+        "libbase",
+        "liblog",
+    ],
+    static_executable: true,
+    installable: false,
+}
+
+cc_binary {
+    name: "virt_test_vsock_guest",
+    srcs: ["vsock_guest.cc"],
+    stem: "vsock_client",
+    defaults: ["virt_test_guest_binary"],
+}
+
 prebuilt_etc {
-    name: "virt_hostside_tests_kernel",
+    name: "virt_test_kernel",
     src: "nofile",
     arch: {
         arm64: {
@@ -50,14 +77,8 @@ prebuilt_etc {
     },
 }
 
-// Copy config files to output directory so that AndroidTest.xml can copy them to the device.
-filegroup {
-    name: "virt_hostside_tests_vm_config",
-    srcs: ["vm_config.json"],
-}
-
 android_filesystem {
-    name: "virt_hostside_tests_initramfs",
+    name: "virt_test_initramfs",
     arch: {
         arm64: {
             deps: [kernel_modules_stem + "-arm64"],
@@ -67,8 +88,8 @@ android_filesystem {
         },
     },
     deps: [
-        "virt_hostside_tests_guest_init",
-        "virt_hostside_tests_vsock_client",
+        "virt_test_guest_init",
+        "virt_test_vsock_guest",
     ],
     type: "cpio",
 }
