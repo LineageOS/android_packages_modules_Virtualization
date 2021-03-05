@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-pub const COMMON_PAGE_SIZE: u64 = 4096;
+/// Common block and page size in Linux.
+pub const CHUNK_SIZE: u64 = 4096;
 
 pub fn divide_roundup(dividend: u64, divisor: u64) -> u64 {
     (dividend + divisor - 1) / divisor
