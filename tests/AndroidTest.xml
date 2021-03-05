@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 
-<configuration description="Config for Virtualization host tests">
+<configuration description="Config for Virtualization tests">
 
     <!-- Basic checks that the device has all the prerequisites. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
@@ -33,18 +33,27 @@
     <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
         <option name="cleanup" value="true" />
         <option name="abort-on-push-failure" value="true" />
-        <option name="push-file" key="vm_config.json" value="/data/local/tmp/virt-test/vm_config.json" />
-        <option name="push-file" key="virt_hostside_tests_kernel" value="/data/local/tmp/virt-test/kernel" />
-        <option name="push-file" key="virt_hostside_tests_initramfs.img" value="/data/local/tmp/virt-test/initramfs" />
-        <option name="push-file" key="vsock_server" value="/data/local/tmp/virt-test/vsock_server" />
+        <option name="push-file" key="VirtualizationTestCases" value="/data/local/tmp/virt-test/VirtualizationTestCases" />
+        <option name="push-file" key="virt_test_kernel"        value="/data/local/tmp/virt-test/kernel" />
+        <option name="push-file" key="virt_test_initramfs.img" value="/data/local/tmp/virt-test/initramfs" />
+        <option name="push-file" key="vsock_config.json"       value="/data/local/tmp/virt-test/vsock_config.json" />
     </target_preparer>
 
     <!-- Root currently needed to run CrosVM.
          TODO: Give sufficient permissions to the adb shell user (b/171240450). -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
-    <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
-        <option name="jar" value="VirtualizationHostTestCases.jar" />
-        <option name="runtime-hint" value="2m" />
+    <!-- Run Virt Manager for the duration of the test.
+         TODO: Run Virt Manager as a system service. -->
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="throw-if-cmd-fail" value="true" />
+        <option name="run-bg-command" value="/apex/com.android.virt/bin/virtmanager" />
+    </target_preparer>
+
+    <test class="com.android.tradefed.testtype.GTest" >
+        <option name="native-test-device-path" value="/data/local/tmp/virt-test" />
+        <option name="module-name" value="VirtualizationTestCases" />
+        <!-- test-timeout unit is ms, value = 2 minutes -->
+        <option name="native-test-timeout" value="120000" />
     </test>
 </configuration>
