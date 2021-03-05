@@ -19,6 +19,7 @@ use std::io;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
+use crate::common::CHUNK_SIZE;
 use crate::reader::ReadOnlyDataByChunk;
 
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService;
@@ -49,7 +50,7 @@ impl RemoteChunkedFileReader {
 
 impl ReadOnlyDataByChunk for RemoteChunkedFileReader {
     fn read_chunk(&self, chunk_index: u64, mut buf: &mut [u8]) -> io::Result<usize> {
-        let offset = i64::try_from(chunk_index * Self::CHUNK_SIZE)
+        let offset = i64::try_from(chunk_index * CHUNK_SIZE)
             .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
 
         let service = Arc::clone(&self.service);
@@ -77,7 +78,7 @@ impl RemoteFsverityMerkleTreeReader {
 
 impl ReadOnlyDataByChunk for RemoteFsverityMerkleTreeReader {
     fn read_chunk(&self, chunk_index: u64, mut buf: &mut [u8]) -> io::Result<usize> {
-        let offset = i64::try_from(chunk_index * Self::CHUNK_SIZE)
+        let offset = i64::try_from(chunk_index * CHUNK_SIZE)
             .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
 
         let service = Arc::clone(&self.service);

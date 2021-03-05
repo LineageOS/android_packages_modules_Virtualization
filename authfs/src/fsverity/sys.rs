@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
-mod builder;
-mod common;
-mod sys;
-mod verifier;
+/// Magic used in fs-verity digest
+pub const FS_VERITY_MAGIC: &[u8; 8] = b"FSVerity";
 
-pub use self::builder::MerkleLeaves;
-pub use self::verifier::FsverityChunkedFileReader;
+/// fs-verity version that we are using
+pub const FS_VERITY_VERSION: u8 = 1;
+
+/// Hash algorithm to use from linux/fsverity.h
+pub const FS_VERITY_HASH_ALG_SHA256: u8 = 1;
+
+/// Log 2 of the block size (only 4096 is supported now)
+pub const FS_VERITY_LOG_BLOCKSIZE: u8 = 12;
