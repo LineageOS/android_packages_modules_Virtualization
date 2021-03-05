@@ -1,1 +1,2 @@
 system /system ext4 noatime,ro,errors=panic wait,first_stage_mount,logical
+vendor /vendor ext4 noatime,ro,errors=panic wait,first_stage_mount,logical
