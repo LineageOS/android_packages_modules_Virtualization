@@ -29,13 +29,10 @@ use std::time::Duration;
 use fuse::filesystem::{Context, DirEntry, DirectoryIterator, Entry, FileSystem, ZeroCopyWriter};
 use fuse::mount::MountOption;
 
-use crate::common::{divide_roundup, COMMON_PAGE_SIZE};
+use crate::common::{divide_roundup, CHUNK_SIZE};
 use crate::fsverity::FsverityChunkedFileReader;
 use crate::reader::{ChunkedFileReader, ReadOnlyDataByChunk};
 use crate::remote_file::{RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader};
-
-// We're reading the backing file by chunk, so setting the block size to be the same.
-const BLOCK_SIZE: usize = COMMON_PAGE_SIZE as usize;
 
 const DEFAULT_METADATA_TIMEOUT: std::time::Duration = Duration::from_secs(5);
 
@@ -89,9 +86,9 @@ fn check_access_mode(flags: u32, mode: libc::c_int) -> io::Result<()> {
 
 cfg_if::cfg_if! {
     if #[cfg(all(target_arch = "aarch64", target_pointer_width = "64"))] {
-        fn blk_size() -> libc::c_int { BLOCK_SIZE as libc::c_int }
+        fn blk_size() -> libc::c_int { CHUNK_SIZE as libc::c_int }
     } else {
-        fn blk_size() -> libc::c_long { BLOCK_SIZE as libc::c_long }
+        fn blk_size() -> libc::c_long { CHUNK_SIZE as libc::c_long }
     }
 }
 
@@ -135,7 +132,7 @@ impl Iterator for ChunkReadIter {
             return None;
         }
         let chunk_data_size =
-            std::cmp::min(self.remaining, BLOCK_SIZE - (self.offset % BLOCK_SIZE as u64) as usize);
+            std::cmp::min(self.remaining, (CHUNK_SIZE - self.offset % CHUNK_SIZE) as usize);
         let retval = (self.offset, chunk_data_size);
         self.offset += chunk_data_size as u64;
         self.remaining = self.remaining.saturating_sub(chunk_data_size);
@@ -144,7 +141,7 @@ impl Iterator for ChunkReadIter {
 }
 
 fn offset_to_chunk_index(offset: u64) -> u64 {
-    offset / BLOCK_SIZE as u64
+    offset / CHUNK_SIZE
 }
 
 fn read_chunks<W: io::Write, T: ReadOnlyDataByChunk>(
@@ -163,13 +160,13 @@ fn read_chunks<W: io::Write, T: ReadOnlyDataByChunk>(
             // instead of accepting a buffer, the writer could expose the final destination buffer
             // for the reader to write to. It might not be generally applicable though, e.g. with
             // virtio transport, the buffer may not be continuous.
-            let mut buf = [0u8; BLOCK_SIZE];
+            let mut buf = [0u8; CHUNK_SIZE as usize];
             let read_size = file.read_chunk(offset_to_chunk_index(current_offset), &mut buf)?;
             if read_size < planned_data_size {
                 return Err(io::Error::from_raw_os_error(libc::ENODATA));
             }
 
-            let begin = (current_offset % BLOCK_SIZE as u64) as usize;
+            let begin = (current_offset % CHUNK_SIZE) as usize;
             let end = begin + planned_data_size;
             let s = w.write(&buf[begin..end])?;
             if s != planned_data_size {
