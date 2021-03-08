@@ -4,7 +4,7 @@
 bootcmd=boot_android virtio 0#misc
 
 # Kernel commandlines
-bootargs=rdinit=/bin/init_vendor panic=-1 androidboot.first_stage_console=1 androidboot.hardware=microdroid androidboot.boot_devices=10000.pci androidboot.selinux=permissive
+bootargs=rdinit=/bin/init_vendor panic=-1 printk.devkmsg=on androidboot.first_stage_console=1 androidboot.hardware=microdroid androidboot.boot_devices=10000.pci androidboot.selinux=permissive
 
 bootdelay=0
 fdtaddr=0x80000000
