@@ -153,9 +153,17 @@ bootimg {
         },
     },
     // TODO(jiyong): change the name to init, cause it's confusing
-    cmdline: "rdinit=/bin/init_vendor",
+    cmdline: "rdinit=/bin/init_vendor " +
+        "panic=-1 " +
+        // TODO(b/181936135) make the ratelimiting conditional; ratelimiting on prod build
+        "printk.devkmsg=on " +
+        "androidboot.first_stage_console=1 " +
+        "androidboot.hardware=microdroid " +
+        "androidboot.boot_devices=10000.pci " +
+        // TODO(b/181747352) remove this to enforce selinux
+        "androidboot.selinux=permissive",
     dtb_prebuilt: "dummy_dtb.img",
-    header_version: "3",
+    header_version: "4",
     partition_name: "boot",
 }
 
@@ -181,7 +189,7 @@ bootimg {
     name: "microdroid_vendor_boot-5.10",
     ramdisk_module: "microdroid_vendor_ramdisk-5.10",
     dtb_prebuilt: "dummy_dtb.img",
-    header_version: "3",
+    header_version: "4",
     vendor_boot: true,
     partition_name: "vendor_boot",
     enabled: false,
