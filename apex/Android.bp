@@ -29,6 +29,7 @@ apex {
     binaries: [
         "assemble_cvd",
         "virtmanager",
+        "vm",
     ],
     filesystems: ["microdroid"],
 }
