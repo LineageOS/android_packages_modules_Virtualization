@@ -52,7 +52,7 @@ Create the composite image using `assemble_cvd` and run it via `crosvm`. In the
 future, this shall be done via [`virtmanager`](../virtmanager/).
 
 ```
-$ adb shell 'HOME=/data/local/tmp; /apex/com.android.virt/bin/assemble_cvd < /dev/null'
+$ adb shell 'HOME=/data/local/tmp; PATH=$PATH:/apex/com.android.virt/bin; assemble_cvd < /dev/null'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=cuttlefish_runtime/composite.img'
 ```
 
