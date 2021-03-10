@@ -27,7 +27,7 @@
 //! Regardless of the actual file name, the exposed file names through AuthFS are currently integer,
 //! e.g. /mountpoint/42.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Context, Result};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -180,9 +180,7 @@ fn parse_local_unverified_file_option(option: &str) -> Result<LocalUnverifiedFil
 
 fn new_config_remote_verified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
     let service = remote_file::server::get_local_service();
-    let signature = service
-        .readFsveritySignature(remote_id)
-        .map_err(|e| anyhow!("Failed to read signature: {}", e.get_description()))?;
+    let signature = service.readFsveritySignature(remote_id).context("Failed to read signature")?;
 
     let service = Arc::new(Mutex::new(service));
     let authenticator = FakeAuthenticator::always_succeed();
