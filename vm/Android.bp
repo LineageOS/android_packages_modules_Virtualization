@@ -1,0 +1,16 @@
+rust_binary {
+    name: "vm",
+    crate_name: "vm",
+    srcs: ["src/main.rs"],
+    edition: "2018",
+    rustlibs: [
+        "android.system.virtmanager-rust",
+        "libanyhow",
+        "libbinder_rs",
+        "libenv_logger",
+        "liblog_rust",
+    ],
+    apex_available: [
+        "com.android.virt",
+    ],
+}
