@@ -14,14 +14,8 @@ microdroid_rootdirs = [
     "proc",
     "sys",
 
-    // TODO(b/180267599): clean up unnecessary partition mount points
     "system",
-    "system_ext",
     "vendor",
-    "vendor_dlkm",
-    "product",
-    "odm",
-    "odm_dlkm",
     "debug_ramdisk",
     "mnt",
 
