@@ -14,7 +14,7 @@
 
 //! Implementation of the AIDL interface of the Virt Manager.
 
-use crate::config::load_vm_config;
+use crate::config::VmConfig;
 use crate::crosvm::VmInstance;
 use crate::{Cid, FIRST_GUEST_CID};
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
@@ -141,7 +141,7 @@ impl Default for State {
 /// Start a new VM instance from the given VM config filename. This assumes the VM is not already
 /// running.
 fn start_vm(config_path: &str, cid: Cid) -> binder::Result<VmInstance> {
-    let config = load_vm_config(config_path).map_err(|e| {
+    let config = VmConfig::load(config_path).map_err(|e| {
         error!("Failed to load VM config {}: {:?}", config_path, e);
         StatusCode::BAD_VALUE
     })?;
