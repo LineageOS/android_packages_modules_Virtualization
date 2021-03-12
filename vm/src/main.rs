@@ -35,31 +35,40 @@ fn main() -> Result<(), Error> {
     if args.len() < 2 {
         eprintln!("Usage:");
         eprintln!("  {} run <vm_config.json>", args[0]);
+        eprintln!("  {} list", args[0]);
         exit(1);
     }
 
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
 
+    let virt_manager = get_interface(VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER)
+        .context("Failed to find Virt Manager service")?;
+
     match args[1].as_ref() {
-        "run" if args.len() == 3 => command_run(&args[2]),
+        "run" if args.len() == 3 => command_run(virt_manager, &args[2]),
+        "list" if args.len() == 2 => command_list(virt_manager),
         command => bail!("Invalid command '{}' or wrong number of arguments", command),
     }
 }
 
 /// Run a VM from the given configuration file.
-fn command_run(config_filename: &str) -> Result<(), Error> {
-    let virt_manager: Strong<dyn IVirtManager> =
-        get_interface(VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER)
-            .with_context(|| "Failed to find Virt Manager service")?;
-    let vm = virt_manager.startVm(config_filename).with_context(|| "Failed to start VM")?;
-    let cid = vm.getCid().with_context(|| "Failed to get CID")?;
+fn command_run(virt_manager: Strong<dyn IVirtManager>, config_filename: &str) -> Result<(), Error> {
+    let vm = virt_manager.startVm(config_filename).context("Failed to start VM")?;
+    let cid = vm.getCid().context("Failed to get CID")?;
     println!("Started VM from {} with CID {}.", config_filename, cid);
 
     // Wait until the VM dies. If we just returned immediately then the IVirtualMachine Binder
     // object would be dropped and the VM would be killed.
     wait_for_death(&mut vm.as_binder())?;
     println!("VM died");
+    Ok(())
+}
+
+/// List the VMs currently running.
+fn command_list(virt_manager: Strong<dyn IVirtManager>) -> Result<(), Error> {
+    let vms = virt_manager.debugListVms().context("Failed to get list of VMs")?;
+    println!("Running VMs: {:#?}", vms);
     Ok(())
 }
 
