@@ -15,7 +15,14 @@
  */
 package android.system.virtmanager;
 
-interface IVirtualMachine {
-    /** Get the CID allocated to the VM. */
-    int getCid();
+/** Information about a running VM, for debug purposes only. */
+parcelable VirtualMachineDebugInfo {
+    /** The CID assigned to the VM. */
+    int cid;
+
+    /**
+     * The filename of the config file used to start the VM. This may have changed since it was
+     * read so it shouldn't be trusted; it is only stored for debugging purposes.
+     */
+    String configPath;
 }
