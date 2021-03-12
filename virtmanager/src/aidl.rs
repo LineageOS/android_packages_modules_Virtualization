@@ -21,11 +21,16 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
 };
-use android_system_virtmanager::binder::{self, Interface, StatusCode, Strong};
+use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
+use android_system_virtmanager::binder::{self, Interface, StatusCode, Strong, ThreadState};
 use log::error;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtmanager";
+
+// TODO(qwandor): Use PermissionController once it is available to Rust.
+/// Only processes running with one of these UIDs are allowed to call debug methods.
+const DEBUG_ALLOWED_UIDS: [u32; 2] = [0, 2000];
 
 /// Implementation of `IVirtManager`, the entry point of the AIDL service.
 #[derive(Debug, Default)]
@@ -42,11 +47,38 @@ impl IVirtManager for VirtManager {
     fn startVm(&self, config_path: &str) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let state = &mut *self.state.lock().unwrap();
         let cid = state.next_cid;
-        let instance = start_vm(config_path, cid)?;
+        let instance = Arc::new(start_vm(config_path, cid)?);
         // TODO(qwandor): keep track of which CIDs are currently in use so that we can reuse them.
         state.next_cid = state.next_cid.checked_add(1).ok_or(StatusCode::UNKNOWN_ERROR)?;
-        Ok(VirtualMachine::create(Arc::new(instance)))
+        state.add_vm(Arc::downgrade(&instance));
+        Ok(VirtualMachine::create(instance))
     }
+
+    /// Get a list of all currently running VMs. This method is only intended for debug purposes,
+    /// and as such is only permitted from the shell user.
+    fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
+        if !debug_access_allowed() {
+            return Err(StatusCode::PERMISSION_DENIED.into());
+        }
+
+        let state = &mut *self.state.lock().unwrap();
+        let vms = state.vms();
+        let cids = vms
+            .into_iter()
+            .map(|vm| VirtualMachineDebugInfo {
+                cid: vm.cid as i32,
+                configPath: vm.config_path.clone(),
+            })
+            .collect();
+        Ok(cids)
+    }
+}
+
+/// Check whether the caller of the current Binder method is allowed to call debug methods.
+fn debug_access_allowed() -> bool {
+    let uid = ThreadState::get_calling_uid();
+    log::trace!("Debug method call from UID {}.", uid);
+    DEBUG_ALLOWED_UIDS.contains(&uid)
 }
 
 /// Implementation of the AIDL `IVirtualMachine` interface. Used as a handle to a VM.
@@ -73,12 +105,36 @@ impl IVirtualMachine for VirtualMachine {
 /// The mutable state of the Virt Manager. There should only be one instance of this struct.
 #[derive(Debug)]
 struct State {
+    /// The next available unused CID.
     next_cid: Cid,
+
+    /// The VMs which have been started. When VMs are started a weak reference is added to this list
+    /// while a strong reference is returned to the caller over Binder. Once all copies of the
+    /// Binder client are dropped the weak reference here will become invalid, and will be removed
+    /// from the list opportunistically the next time `add_vm` is called.
+    vms: Vec<Weak<VmInstance>>,
+}
+
+impl State {
+    /// Get a list of VMs which are currently running.
+    fn vms(&self) -> Vec<Arc<VmInstance>> {
+        // Attempt to upgrade the weak pointers to strong pointers.
+        self.vms.iter().filter_map(Weak::upgrade).collect()
+    }
+
+    /// Add a new VM to the list.
+    fn add_vm(&mut self, vm: Weak<VmInstance>) {
+        // Garbage collect any entries from the stored list which no longer exist.
+        self.vms.retain(|vm| vm.strong_count() > 0);
+
+        // Actually add the new VM.
+        self.vms.push(vm);
+    }
 }
 
 impl Default for State {
     fn default() -> Self {
-        State { next_cid: FIRST_GUEST_CID }
+        State { next_cid: FIRST_GUEST_CID, vms: vec![] }
     }
 }
 
@@ -89,7 +145,7 @@ fn start_vm(config_path: &str, cid: Cid) -> binder::Result<VmInstance> {
         error!("Failed to load VM config {}: {:?}", config_path, e);
         StatusCode::BAD_VALUE
     })?;
-    Ok(VmInstance::start(&config, cid).map_err(|e| {
+    Ok(VmInstance::start(&config, cid, config_path).map_err(|e| {
         error!("Failed to start VM {}: {:?}", config_path, e);
         StatusCode::UNKNOWN_ERROR
     })?)
