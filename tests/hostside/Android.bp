@@ -1,0 +1,27 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+java_test_host {
+    name: "MicrodroidHostTestCases",
+    srcs: ["java/**/*.java"],
+    test_suites: ["device-tests"],
+    libs: ["tradefed"],
+    data: [
+        ":microdroid_super",
+        ":microdroid_boot-5.10",
+        ":microdroid_vendor_boot-5.10",
+        ":microdroid_uboot_env",
+        ":cuttlefish_crosvm_bootloader",
+        ":MicrodroidHostTestCase_EmptyImage",
+    ],
+}
+
+genrule {
+    name: "MicrodroidHostTestCase_EmptyImage",
+    tools: ["mke2fs"],
+    out: ["empty.img"],
+    cmd: "dd if=/dev/zero of=$(out) bs=4k count=600 &&" +
+        "$(location mke2fs) -t ext4 $(out)",
+    visibility: ["//visibility:private"],
+}
