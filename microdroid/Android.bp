@@ -138,15 +138,15 @@ logical_partition {
 bootimg {
     name: "microdroid_boot-5.10",
     ramdisk_module: "microdroid_ramdisk-5.10",
-    enabled: false,
+    // We don't have kernel for arm and x86. But Soong demands one when it builds for
+    // arm or x86 target. Satisfy that by providing an empty file as the kernel.
+    kernel_prebuilt: "empty_kernel",
     arch: {
         arm64: {
             kernel_prebuilt: ":kernel_prebuilts-5.10-arm64",
-            enabled: true,
         },
         x86_64: {
             kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
-            enabled: true,
         },
     },
     // TODO(jiyong): change the name to init, cause it's confusing
@@ -189,15 +189,6 @@ bootimg {
     header_version: "4",
     vendor_boot: true,
     partition_name: "vendor_boot",
-    enabled: false,
-    arch: {
-        arm64: {
-            enabled: true,
-        },
-        x86_64: {
-            enabled: true,
-        },
-    },
 }
 
 android_filesystem {
