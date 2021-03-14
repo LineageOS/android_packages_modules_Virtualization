@@ -56,10 +56,11 @@ android_filesystem {
         "tombstoned",
         "cgroups.json",
 
-        // These two files are temporary and only for test.
+        // These files are temporary and only for test.
         // TODO(b/178993690): migrate cil files to Soong
         "microdroid_plat_sepolicy.cil",
         "microdroid_plat_mapping_file",
+        "microdroid_plat_sepolicy_and_mapping.sha256",
     ] + microdroid_shell_and_utilities,
     multilib: {
         common: {
@@ -94,6 +95,8 @@ android_filesystem {
         "microdroid_plat_sepolicy_vers.txt",
         "microdroid_vendor_sepolicy.cil",
         "microdroid_plat_pub_versioned.cil",
+        "microdroid_precompiled_sepolicy",
+        "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
     ],
     avb_private_key: "microdroid.pem",
     avb_algorithm: "SHA256_RSA4096",
@@ -243,4 +246,53 @@ genrule {
     srcs: ["uboot-env.txt"],
     out: ["output.img"],
     cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
+}
+
+genrule {
+    name: "microdroid_plat_sepolicy_and_mapping.sha256_gen",
+    srcs: [
+        ":microdroid_plat_sepolicy.cil",
+        ":microdroid_plat_mapping_file",
+    ],
+    out: ["plat_sepolicy_and_mapping.sha256"],
+    cmd: "cat $(in) | sha256sum | cut -d' ' -f1 > $(out)",
+}
+
+// sepolicy sha256 for system
+prebuilt_etc {
+    name: "microdroid_plat_sepolicy_and_mapping.sha256",
+    src: ":microdroid_plat_sepolicy_and_mapping.sha256_gen",
+    filename: "plat_sepolicy_and_mapping.sha256",
+    relative_install_path: "selinux",
+    installable: false,
+}
+
+// sepolicy sha256 for vendor (filename differs)
+prebuilt_etc {
+    name: "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
+    src: ":microdroid_plat_sepolicy_and_mapping.sha256_gen",
+    filename: "precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
+    relative_install_path: "selinux",
+    installable: false,
+}
+
+genrule {
+    name: "microdroid_precompiled_sepolicy_gen",
+    tools: ["secilc"],
+    srcs: [
+        ":microdroid_plat_sepolicy.cil",
+        ":microdroid_plat_mapping_file",
+        ":microdroid_plat_pub_versioned.cil",
+        ":microdroid_vendor_sepolicy.cil",
+    ],
+    out: ["precompiled_sepolicy"],
+    cmd: "$(location secilc) -m -M true -G -c 30 $(in) -o $(out) -f /dev/null",
+}
+
+prebuilt_etc {
+    name: "microdroid_precompiled_sepolicy",
+    src: ":microdroid_precompiled_sepolicy_gen",
+    filename: "precompiled_sepolicy",
+    relative_install_path: "selinux",
+    installable: false,
 }
