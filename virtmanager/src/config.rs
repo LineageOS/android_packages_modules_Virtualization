@@ -49,6 +49,13 @@ impl VmConfig {
         }
         Ok(())
     }
+
+    /// Load the configuration for a VM from the given JSON file.
+    pub fn load(path: &str) -> Result<VmConfig, Error> {
+        let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
+        let buffered = BufReader::new(file);
+        Ok(serde_json::from_reader(buffered)?)
+    }
 }
 
 /// A disk image to be made available to the VM.
@@ -58,11 +65,4 @@ pub struct DiskImage {
     pub image: String,
     /// Whether this disk should be writable by the VM.
     pub writable: bool,
-}
-
-/// Load the configuration for the VM with the given ID from a JSON file.
-pub fn load_vm_config(path: &str) -> Result<VmConfig, Error> {
-    let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
-    let buffered = BufReader::new(file);
-    Ok(serde_json::from_reader(buffered)?)
 }
