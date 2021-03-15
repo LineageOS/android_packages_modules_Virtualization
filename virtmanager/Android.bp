@@ -9,7 +9,7 @@ rust_binary {
     edition: "2018",
     rustlibs: [
         "android.system.virtmanager-rust",
-        "libenv_logger",
+        "libandroid_logger",
         "liblog_rust",
         "libserde_json",
         "libserde",
