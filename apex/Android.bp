@@ -17,17 +17,20 @@ apex {
     arch: {
         arm64: {
             binaries: [
+                "authfs", // TODO(victorhsieh): move to microdroid once we can run the test in VM.
                 "crosvm",
             ],
         },
         x86_64: {
             binaries: [
+                "authfs", // TODO(victorhsieh): move to microdroid once we can run the test in VM.
                 "crosvm",
             ],
         },
     },
     binaries: [
         "assemble_cvd",
+        "fd_server",
         "virtmanager",
         "vm",
     ],
