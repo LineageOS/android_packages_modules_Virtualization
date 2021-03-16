@@ -35,7 +35,7 @@ use std::os::unix::fs::FileExt;
 use std::os::unix::io::FromRawFd;
 
 use anyhow::{bail, Context, Result};
-use binder::IBinder; // TODO(178852354): remove once set_requesting_sid is exposed in the API.
+use binder::IBinderInternal; // TODO(178852354): remove once set_requesting_sid is exposed in the API.
 use log::{debug, error};
 
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
