@@ -84,7 +84,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         // Run assemble_cvd to create composite.img
         getDevice().executeShellCommand("HOME=" + TEST_ROOT + "; "
                 + "PATH=$PATH:" + VIRT_APEX + "bin; "
-                + VIRT_APEX + "bin/assemble_cvd < /dev/null");
+                + VIRT_APEX + "bin/assemble_cvd -protected_vm < /dev/null");
 
         // Make sure that composite.img is created
         final String compositeImg = TEST_ROOT + "cuttlefish_runtime/composite.img";
