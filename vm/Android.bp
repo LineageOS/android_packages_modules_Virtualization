@@ -12,6 +12,7 @@ rust_binary {
         "libanyhow",
         "libbinder_rs",
         "libenv_logger",
+        "liblibc",
         "liblog_rust",
     ],
     apex_available: [
