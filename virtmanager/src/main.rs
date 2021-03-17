@@ -33,9 +33,9 @@ const LOG_TAG: &str = "VirtManager";
 type Cid = u32;
 
 fn main() {
-    android_logger::init_once(android_logger::Config::default().with_tag(LOG_TAG).with_min_level(
-        if env!("TARGET_BUILD_VARIANT") == "user" { Level::Info } else { Level::Trace },
-    ));
+    android_logger::init_once(
+        android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Trace),
+    );
 
     let virt_manager = VirtManager::default();
     let virt_manager = BnVirtManager::new_binder(virt_manager);
