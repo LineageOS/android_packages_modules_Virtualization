@@ -75,8 +75,8 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         pushFile("microdroid_vendor_boot-5.10.img", "vendor_boot.img");
         pushFile("uboot_env.img", "cuttlefish_runtime.1/uboot_env.img");
         pushFile("empty.img", "userdata.img");
-        pushFile("empty.img", "vbmeta.img");
-        pushFile("empty.img", "vbmeta_system.img");
+        pushFile("microdroid_vbmeta.img", "vbmeta.img");
+        pushFile("microdroid_vbmeta_system.img", "vbmeta_system.img");
         pushFile("empty.img", "cache.img");
         getDevice().executeShellCommand("mkdir -p " + TEST_ROOT + "etc/cvd_config");
         getDevice().pushString("{}", TEST_ROOT + "etc/cvd_config/cvd_config_phone.json");
