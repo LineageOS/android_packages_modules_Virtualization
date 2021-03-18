@@ -292,3 +292,34 @@ prebuilt_etc {
     relative_install_path: "selinux",
     installable: false,
 }
+
+vbmeta {
+    name: "microdroid_vbmeta",
+    partition_name: "vbmeta",
+    private_key: "microdroid.pem",
+    partitions: [
+        "microdroid_vendor",
+        "microdroid_vendor_boot-5.10",
+    ],
+    chained_partitions: [
+        {
+            name: "vbmeta_system",
+            rollback_index_location: 1,
+            private_key: "microdroid.pem",
+        },
+        {
+            name: "boot",
+            rollback_index_location: 2,
+            private_key: "microdroid.pem",
+        },
+    ],
+}
+
+vbmeta {
+    name: "microdroid_vbmeta_system",
+    partition_name: "vbmeta_system",
+    private_key: "microdroid.pem",
+    partitions: [
+        "microdroid",
+    ],
+}
