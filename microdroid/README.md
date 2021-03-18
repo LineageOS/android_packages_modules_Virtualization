@@ -22,6 +22,8 @@ $ m microdroid_super
 $ m microdroid_boot-5.10
 $ m microdroid_vendor_boot-5.10
 $ m microdroid_uboot_env
+$ m microdroid_vbmeta
+$ m microdroid_vbmeta_system
 ```
 
 ## Installing
@@ -34,6 +36,8 @@ $ adb push device/google/cuttlefish_prebuilts/bootloader/crosvm_aarch64/u-boot.b
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_super.img /data/local/tmp/super.img
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_boot-5.10.img /data/local/tmp/boot.img
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vendor_boot-5.10.img /data/local/tmp/vendor_boot.img
+$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vbmeta.img /data/local/tmp/vbmeta.img
+$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vbmeta_system.img /data/local/tmp/vbmeta_system.img
 $ adb shell mkdir /data/local/tmp/cuttlefish_runtime.1/
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/uboot_env.img /data/local/tmp/cuttlefish_runtime.1/
 $ adb shell mkdir -p /data/local/tmp/etc/cvd_config
@@ -41,8 +45,6 @@ $ adb shell 'echo "{}" > /data/local/tmp/etc/cvd_config/cvd_config_phone.json'
 $ dd if=/dev/zero of=empty.img bs=4k count=600
 $ mkfs.ext4 -F empty.img
 $ adb push empty.img /data/local/tmp/userdata.img
-$ adb push empty.img /data/local/tmp/vbmeta.img
-$ adb push empty.img /data/local/tmp/vbmeta_system.img
 $ adb push empty.img /data/local/tmp/cache.img
 ```
 
