@@ -17,12 +17,17 @@
 mod sync;
 
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
-use android_system_virtmanager::binder::{get_interface, ProcessState, Strong};
+use android_system_virtmanager::binder::{
+    get_interface, ParcelFileDescriptor, ProcessState, Strong,
+};
 use anyhow::{bail, Context, Error};
 // TODO: Import these via android_system_virtmanager::binder once https://r.android.com/1619403 is
 // submitted.
 use binder::{DeathRecipient, IBinder};
 use std::env;
+use std::fs::File;
+use std::io;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::process::exit;
 use sync::AtomicFlag;
 
@@ -54,7 +59,9 @@ fn main() -> Result<(), Error> {
 
 /// Run a VM from the given configuration file.
 fn command_run(virt_manager: Strong<dyn IVirtManager>, config_filename: &str) -> Result<(), Error> {
-    let vm = virt_manager.startVm(config_filename).context("Failed to start VM")?;
+    let stdout_file = ParcelFileDescriptor::new(duplicate_stdout()?);
+    let vm =
+        virt_manager.startVm(config_filename, Some(&stdout_file)).context("Failed to start VM")?;
     let cid = vm.getCid().context("Failed to get CID")?;
     println!("Started VM from {} with CID {}.", config_filename, cid);
 
@@ -84,4 +91,19 @@ fn wait_for_death(binder: &mut impl IBinder) -> Result<(), Error> {
     binder.link_to_death(&mut death_recipient)?;
     dead.wait();
     Ok(())
+}
+
+/// Safely duplicate the standard output file descriptor.
+fn duplicate_stdout() -> io::Result<File> {
+    let stdout_fd = io::stdout().as_raw_fd();
+    // Safe because this just duplicates a file descriptor which we know to be valid, and we check
+    // for an error.
+    let dup_fd = unsafe { libc::dup(stdout_fd) };
+    if dup_fd < 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        // Safe because we have just duplicated the file descriptor so we own it, and `from_raw_fd`
+        // takes ownership of it.
+        Ok(unsafe { File::from_raw_fd(dup_fd) })
+    }
 }
