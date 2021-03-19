@@ -21,6 +21,7 @@
 #include <linux/vm_sockets.h>
 
 #include <iostream>
+#include <optional>
 
 #include "android-base/file.h"
 #include "android-base/logging.h"
@@ -57,7 +58,7 @@ TEST_F(VirtualizationTest, TestVsock) {
     ASSERT_EQ(ret, 0) << strerror(errno);
 
     sp<IVirtualMachine> vm;
-    status = mVirtManager->startVm(String16(kVmConfigPath), &vm);
+    status = mVirtManager->startVm(String16(kVmConfigPath), std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
 
     int32_t cid;
