@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
+use std::cmp::min;
 use std::fs::File;
-use std::io::Result;
+use std::io;
 use std::os::unix::fs::FileExt;
 
-use super::ReadOnlyDataByChunk;
+use super::{ChunkBuffer, ReadByChunk};
 use crate::common::CHUNK_SIZE;
-
-fn chunk_index_to_range(size: u64, chunk_index: u64) -> Result<(u64, u64)> {
-    let start = chunk_index * CHUNK_SIZE;
-    assert!(start < size);
-    let end = std::cmp::min(size, start + CHUNK_SIZE);
-    Ok((start, end))
-}
 
 /// A read-only file that can be read by chunks.
 pub struct LocalFileReader {
@@ -36,7 +30,7 @@ pub struct LocalFileReader {
 
 impl LocalFileReader {
     /// Creates a `LocalFileReader` to read from for the specified `path`.
-    pub fn new(file: File) -> Result<LocalFileReader> {
+    pub fn new(file: File) -> io::Result<LocalFileReader> {
         let size = file.metadata()?.len();
         Ok(LocalFileReader { file, size })
     }
@@ -46,12 +40,17 @@ impl LocalFileReader {
     }
 }
 
-impl ReadOnlyDataByChunk for LocalFileReader {
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> Result<usize> {
-        debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
-        let (start, end) = chunk_index_to_range(self.size, chunk_index)?;
-        let size = (end - start) as usize;
-        self.file.read_at(&mut buf[..size], start)
+impl ReadByChunk for LocalFileReader {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
+        let start = chunk_index * CHUNK_SIZE;
+        if start >= self.size {
+            return Ok(0);
+        }
+        let end = min(self.size, start + CHUNK_SIZE);
+        let read_size = (end - start) as usize;
+        debug_assert!(read_size <= buf.len());
+        self.file.read_exact_at(&mut buf[..read_size], start)?;
+        Ok(read_size)
     }
 }
 
@@ -61,7 +60,7 @@ mod tests {
     use std::env::temp_dir;
 
     #[test]
-    fn test_read_4k_file() -> Result<()> {
+    fn test_read_4k_file() -> io::Result<()> {
         let file_reader = LocalFileReader::new(File::open("testdata/input.4k")?)?;
         let mut buf = [0u8; 4096];
         let size = file_reader.read_chunk(0, &mut buf)?;
@@ -70,7 +69,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_4k1_file() -> Result<()> {
+    fn test_read_4k1_file() -> io::Result<()> {
         let file_reader = LocalFileReader::new(File::open("testdata/input.4k1")?)?;
         let mut buf = [0u8; 4096];
         let size = file_reader.read_chunk(0, &mut buf)?;
@@ -81,7 +80,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_4m_file() -> Result<()> {
+    fn test_read_4m_file() -> io::Result<()> {
         let file_reader = LocalFileReader::new(File::open("testdata/input.4m")?)?;
         for index in 0..file_reader.len() / 4096 {
             let mut buf = [0u8; 4096];
@@ -92,20 +91,22 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn test_read_beyond_file_size() {
+    fn test_read_beyond_file_size() -> io::Result<()> {
         let file_reader = LocalFileReader::new(File::open("testdata/input.4k").unwrap()).unwrap();
         let mut buf = [0u8; 4096];
-        let _ = file_reader.read_chunk(1u64, &mut buf); // should panic
+        let size = file_reader.read_chunk(1u64, &mut buf)?;
+        assert_eq!(size, 0);
+        Ok(())
     }
 
     #[test]
-    #[should_panic]
-    fn test_read_empty_file() {
+    fn test_read_empty_file() -> io::Result<()> {
         let mut temp_file = temp_dir();
         temp_file.push("authfs_test_empty_file");
         let file_reader = LocalFileReader::new(File::create(temp_file).unwrap()).unwrap();
         let mut buf = [0u8; 4096];
-        let _ = file_reader.read_chunk(0, &mut buf); // should panic
+        let size = file_reader.read_chunk(0, &mut buf)?;
+        assert_eq!(size, 0);
+        Ok(())
     }
 }
