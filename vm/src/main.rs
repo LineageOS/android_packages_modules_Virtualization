@@ -42,6 +42,15 @@ enum Opt {
         /// Path to VM config JSON
         #[structopt(parse(from_os_str))]
         config: PathBuf,
+
+        /// Detach VM from the terminal and run in the background
+        #[structopt(short, long)]
+        daemonize: bool,
+    },
+    /// Stop a virtual machine running in the background
+    Stop {
+        /// CID of the virtual machine
+        cid: u32,
     },
     /// List running virtual machines
     List,
@@ -58,24 +67,44 @@ fn main() -> Result<(), Error> {
         .context("Failed to find Virt Manager service")?;
 
     match opt {
-        Opt::Run { config } => command_run(virt_manager, &config),
+        Opt::Run { config, daemonize } => command_run(virt_manager, &config, daemonize),
+        Opt::Stop { cid } => command_stop(virt_manager, cid),
         Opt::List => command_list(virt_manager),
     }
 }
 
 /// Run a VM from the given configuration file.
-fn command_run(virt_manager: Strong<dyn IVirtManager>, config_path: &PathBuf) -> Result<(), Error> {
+fn command_run(
+    virt_manager: Strong<dyn IVirtManager>,
+    config_path: &PathBuf,
+    daemonize: bool,
+) -> Result<(), Error> {
     let config_filename = config_path.to_str().context("Failed to parse VM config path")?;
     let stdout_file = ParcelFileDescriptor::new(duplicate_stdout()?);
-    let vm =
-        virt_manager.startVm(config_filename, Some(&stdout_file)).context("Failed to start VM")?;
+    let stdout = if daemonize { None } else { Some(&stdout_file) };
+    let vm = virt_manager.startVm(config_filename, stdout).context("Failed to start VM")?;
+
     let cid = vm.getCid().context("Failed to get CID")?;
     println!("Started VM from {} with CID {}.", config_filename, cid);
 
-    // Wait until the VM dies. If we just returned immediately then the IVirtualMachine Binder
-    // object would be dropped and the VM would be killed.
-    wait_for_death(&mut vm.as_binder())?;
-    println!("VM died");
+    if daemonize {
+        // Pass the VM reference back to Virt Manager and have it hold it in the background.
+        virt_manager.debugHoldVmRef(&*vm).context("Failed to pass VM to Virt Manager")
+    } else {
+        // Wait until the VM dies. If we just returned immediately then the IVirtualMachine Binder
+        // object would be dropped and the VM would be killed.
+        wait_for_death(&mut vm.as_binder())?;
+        println!("VM died");
+        Ok(())
+    }
+}
+
+/// Retrieve reference to a previously daemonized VM and stop it.
+fn command_stop(virt_manager: Strong<dyn IVirtManager>, cid: u32) -> Result<(), Error> {
+    virt_manager
+        .debugDropVmRef(cid as i32)
+        .context("Failed to get VM from Virt Manager")?
+        .context("CID does not correspond to a running background VM")?;
     Ok(())
 }
 

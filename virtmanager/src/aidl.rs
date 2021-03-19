@@ -17,6 +17,7 @@
 use crate::config::VmConfig;
 use crate::crosvm::VmInstance;
 use crate::{Cid, FIRST_GUEST_CID};
+use ::binder::FromIBinder; // TODO(dbrazdil): remove once b/182890877 is fixed
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
@@ -82,6 +83,33 @@ impl IVirtManager for VirtManager {
             .collect();
         Ok(cids)
     }
+
+    /// Hold a strong reference to a VM in Virt Manager. This method is only intended for debug
+    /// purposes, and as such is only permitted from the shell user.
+    fn debugHoldVmRef(&self, vmref: &dyn IVirtualMachine) -> binder::Result<()> {
+        if !debug_access_allowed() {
+            return Err(StatusCode::PERMISSION_DENIED.into());
+        }
+
+        // Workaround for b/182890877.
+        let vm: Strong<dyn IVirtualMachine> = FromIBinder::try_from(vmref.as_binder()).unwrap();
+
+        let state = &mut *self.state.lock().unwrap();
+        state.debug_hold_vm(vm);
+        Ok(())
+    }
+
+    /// Drop reference to a VM that is being held by Virt Manager. Returns the reference if VM was
+    /// found and None otherwise. This method is only intended for debug purposes, and as such is
+    /// only permitted from the shell user.
+    fn debugDropVmRef(&self, cid: i32) -> binder::Result<Option<Strong<dyn IVirtualMachine>>> {
+        if !debug_access_allowed() {
+            return Err(StatusCode::PERMISSION_DENIED.into());
+        }
+
+        let state = &mut *self.state.lock().unwrap();
+        Ok(state.debug_drop_vm(cid))
+    }
 }
 
 /// Check whether the caller of the current Binder method is allowed to call debug methods.
@@ -123,6 +151,10 @@ struct State {
     /// Binder client are dropped the weak reference here will become invalid, and will be removed
     /// from the list opportunistically the next time `add_vm` is called.
     vms: Vec<Weak<VmInstance>>,
+
+    /// Vector of strong VM references held on behalf of users that cannot hold them themselves.
+    /// This is only used for debugging purposes.
+    debug_held_vms: Vec<Strong<dyn IVirtualMachine>>,
 }
 
 impl State {
@@ -140,11 +172,22 @@ impl State {
         // Actually add the new VM.
         self.vms.push(vm);
     }
+
+    /// Store a strong VM reference.
+    fn debug_hold_vm(&mut self, vm: Strong<dyn IVirtualMachine>) {
+        self.debug_held_vms.push(vm);
+    }
+
+    /// Retrieve and remove a strong VM reference.
+    fn debug_drop_vm(&mut self, cid: i32) -> Option<Strong<dyn IVirtualMachine>> {
+        let pos = self.debug_held_vms.iter().position(|vm| vm.getCid() == Ok(cid))?;
+        Some(self.debug_held_vms.swap_remove(pos))
+    }
 }
 
 impl Default for State {
     fn default() -> Self {
-        State { next_cid: FIRST_GUEST_CID, vms: vec![] }
+        State { next_cid: FIRST_GUEST_CID, vms: vec![], debug_held_vms: vec![] }
     }
 }
 
