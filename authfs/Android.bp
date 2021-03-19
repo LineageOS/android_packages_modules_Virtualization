@@ -52,7 +52,13 @@ rust_test {
     name: "authfs_device_test_src_lib",
     defaults: ["authfs_defaults"],
     test_suites: ["device-tests"],
-    data: [
+    data: [":authfs_test_files"],
+}
+
+filegroup {
+    name: "authfs_test_files",
+    srcs: [
+        "testdata/cert.der",
         "testdata/input.4k",
         "testdata/input.4k.fsv_sig",
         "testdata/input.4k.merkle_dump",
