@@ -1,0 +1,11 @@
+java_test_host {
+    name: "AuthFsHostTest",
+    srcs: ["java/**/*.java"],
+    libs: [
+        "tradefed",
+        "compatibility-tradefed",
+        "compatibility-host-util",
+    ],
+    test_suites: ["general-tests"],
+    data: [":authfs_test_files"],
+}
