@@ -45,4 +45,10 @@ interface IVirtFdService {
 
     /** Returns the fs-verity signature of the given file ID. */
     byte[] readFsveritySignature(int id);
+
+    /**
+     * Writes the buffer to the given file ID from the file's offset. Returns the number of bytes
+     * written.
+     */
+    int writeFile(int id, in byte[] buf, long offset);
 }
