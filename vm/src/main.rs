@@ -18,12 +18,9 @@ mod sync;
 
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
 use android_system_virtmanager::binder::{
-    get_interface, ParcelFileDescriptor, ProcessState, Strong,
+    get_interface, DeathRecipient, IBinder, ParcelFileDescriptor, ProcessState, Strong,
 };
 use anyhow::{Context, Error};
-// TODO: Import these via android_system_virtmanager::binder once https://r.android.com/1619403 is
-// submitted.
-use binder::{DeathRecipient, IBinder};
 use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
