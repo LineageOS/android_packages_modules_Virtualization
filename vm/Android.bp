@@ -10,7 +10,6 @@ rust_binary {
     rustlibs: [
         "android.system.virtmanager-rust",
         "libanyhow",
-        "libbinder_rs",
         "libenv_logger",
         "liblibc",
         "liblog_rust",
