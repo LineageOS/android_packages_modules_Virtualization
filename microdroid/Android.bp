@@ -59,7 +59,6 @@ android_filesystem {
 
         // These files are temporary and only for test.
         // TODO(b/178993690): migrate cil files to Soong
-        "microdroid_plat_sepolicy.cil",
         "microdroid_plat_mapping_file",
         "microdroid_plat_sepolicy_and_mapping.sha256",
     ] + microdroid_shell_and_utilities,
@@ -67,6 +66,7 @@ android_filesystem {
         common: {
             deps: [
                 "com.android.runtime",
+                "plat_sepolicy.cil",
                 "plat_file_contexts",
                 "plat_hwservice_contexts",
                 "plat_property_contexts",
@@ -247,7 +247,7 @@ genrule {
 genrule {
     name: "microdroid_plat_sepolicy_and_mapping.sha256_gen",
     srcs: [
-        ":microdroid_plat_sepolicy.cil",
+        ":plat_sepolicy.cil",
         ":microdroid_plat_mapping_file",
     ],
     out: ["plat_sepolicy_and_mapping.sha256"],
@@ -276,7 +276,7 @@ genrule {
     name: "microdroid_precompiled_sepolicy_gen",
     tools: ["secilc"],
     srcs: [
-        ":microdroid_plat_sepolicy.cil",
+        ":plat_sepolicy.cil",
         ":microdroid_plat_mapping_file",
         ":microdroid_plat_pub_versioned.cil",
         ":microdroid_vendor_sepolicy.cil",
