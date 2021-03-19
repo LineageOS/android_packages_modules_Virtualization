@@ -14,6 +14,7 @@ rust_binary {
         "libenv_logger",
         "liblibc",
         "liblog_rust",
+        "libstructopt",
     ],
     apex_available: [
         "com.android.virt",
