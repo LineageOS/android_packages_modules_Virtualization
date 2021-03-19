@@ -178,7 +178,7 @@ mod tests {
     use crate::auth::FakeAuthenticator;
     use crate::file::{LocalFileReader, ReadOnlyDataByChunk};
     use anyhow::Result;
-    use std::fs::File;
+    use std::fs::{self, File};
     use std::io::Read;
 
     type LocalVerifiedFileReader = VerifiedFileReader<LocalFileReader, LocalFileReader>;
@@ -276,7 +276,7 @@ mod tests {
         let file_reader = LocalFileReader::new(File::open("testdata/input.4m")?)?;
         let file_size = file_reader.len();
         let merkle_tree = LocalFileReader::new(File::open("testdata/input.4m.merkle_dump")?)?;
-        let sig = include_bytes!("../../testdata/input.4m.fsv_sig").to_vec();
+        let sig = fs::read("testdata/input.4m.fsv_sig")?;
         assert!(VerifiedFileReader::new(&authenticator, file_reader, file_size, sig, merkle_tree)
             .is_err());
         Ok(())
