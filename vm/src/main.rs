@@ -20,29 +20,36 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager
 use android_system_virtmanager::binder::{
     get_interface, ParcelFileDescriptor, ProcessState, Strong,
 };
-use anyhow::{bail, Context, Error};
+use anyhow::{Context, Error};
 // TODO: Import these via android_system_virtmanager::binder once https://r.android.com/1619403 is
 // submitted.
 use binder::{DeathRecipient, IBinder};
-use std::env;
 use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
-use std::process::exit;
+use std::path::PathBuf;
+use structopt::clap::AppSettings;
+use structopt::StructOpt;
 use sync::AtomicFlag;
 
 const VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtmanager";
 
+#[derive(StructOpt)]
+#[structopt(no_version, global_settings = &[AppSettings::DisableVersion])]
+enum Opt {
+    /// Run a virtual machine
+    Run {
+        /// Path to VM config JSON
+        #[structopt(parse(from_os_str))]
+        config: PathBuf,
+    },
+    /// List running virtual machines
+    List,
+}
+
 fn main() -> Result<(), Error> {
     env_logger::init();
-
-    let args: Vec<_> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage:");
-        eprintln!("  {} run <vm_config.json>", args[0]);
-        eprintln!("  {} list", args[0]);
-        exit(1);
-    }
+    let opt = Opt::from_args();
 
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
@@ -50,15 +57,15 @@ fn main() -> Result<(), Error> {
     let virt_manager = get_interface(VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER)
         .context("Failed to find Virt Manager service")?;
 
-    match args[1].as_ref() {
-        "run" if args.len() == 3 => command_run(virt_manager, &args[2]),
-        "list" if args.len() == 2 => command_list(virt_manager),
-        command => bail!("Invalid command '{}' or wrong number of arguments", command),
+    match opt {
+        Opt::Run { config } => command_run(virt_manager, &config),
+        Opt::List => command_list(virt_manager),
     }
 }
 
 /// Run a VM from the given configuration file.
-fn command_run(virt_manager: Strong<dyn IVirtManager>, config_filename: &str) -> Result<(), Error> {
+fn command_run(virt_manager: Strong<dyn IVirtManager>, config_path: &PathBuf) -> Result<(), Error> {
+    let config_filename = config_path.to_str().context("Failed to parse VM config path")?;
     let stdout_file = ParcelFileDescriptor::new(duplicate_stdout()?);
     let vm =
         virt_manager.startVm(config_filename, Some(&stdout_file)).context("Failed to start VM")?;
