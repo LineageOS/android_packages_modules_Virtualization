@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,12 @@
  * limitations under the License.
  */
 
-//! A module for reading data by chunks.
-
 use std::fs::File;
 use std::io::Result;
 use std::os::unix::fs::FileExt;
 
+use super::ReadOnlyDataByChunk;
 use crate::common::CHUNK_SIZE;
-
-/// A trait for reading data by chunks. The data is assumed readonly and has fixed length. Chunks
-/// can be read by specifying the chunk index. Only the last chunk may have incomplete chunk size.
-pub trait ReadOnlyDataByChunk {
-    /// Read the `chunk_index`-th chunk to `buf`. Each slice/chunk has size `CHUNK_SIZE` except for
-    /// the last one, which can be an incomplete chunk. `buf` is currently required to be large
-    /// enough to hold a full chunk of data. Reading beyond the file size (including empty file)
-    /// will crash.
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> Result<usize>;
-}
 
 fn chunk_index_to_range(size: u64, chunk_index: u64) -> Result<(u64, u64)> {
     let start = chunk_index * CHUNK_SIZE;
@@ -40,16 +29,16 @@ fn chunk_index_to_range(size: u64, chunk_index: u64) -> Result<(u64, u64)> {
 }
 
 /// A read-only file that can be read by chunks.
-pub struct ChunkedFileReader {
+pub struct LocalFileReader {
     file: File,
     size: u64,
 }
 
-impl ChunkedFileReader {
-    /// Creates a `ChunkedFileReader` to read from for the specified `path`.
-    pub fn new(file: File) -> Result<ChunkedFileReader> {
+impl LocalFileReader {
+    /// Creates a `LocalFileReader` to read from for the specified `path`.
+    pub fn new(file: File) -> Result<LocalFileReader> {
         let size = file.metadata()?.len();
-        Ok(ChunkedFileReader { file, size })
+        Ok(LocalFileReader { file, size })
     }
 
     pub fn len(&self) -> u64 {
@@ -57,7 +46,7 @@ impl ChunkedFileReader {
     }
 }
 
-impl ReadOnlyDataByChunk for ChunkedFileReader {
+impl ReadOnlyDataByChunk for LocalFileReader {
     fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> Result<usize> {
         debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
         let (start, end) = chunk_index_to_range(self.size, chunk_index)?;
@@ -73,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_read_4k_file() -> Result<()> {
-        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4k")?)?;
+        let file_reader = LocalFileReader::new(File::open("testdata/input.4k")?)?;
         let mut buf = [0u8; 4096];
         let size = file_reader.read_chunk(0, &mut buf)?;
         assert_eq!(size, buf.len());
@@ -82,7 +71,7 @@ mod tests {
 
     #[test]
     fn test_read_4k1_file() -> Result<()> {
-        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4k1")?)?;
+        let file_reader = LocalFileReader::new(File::open("testdata/input.4k1")?)?;
         let mut buf = [0u8; 4096];
         let size = file_reader.read_chunk(0, &mut buf)?;
         assert_eq!(size, buf.len());
@@ -93,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_read_4m_file() -> Result<()> {
-        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4m")?)?;
+        let file_reader = LocalFileReader::new(File::open("testdata/input.4m")?)?;
         for index in 0..file_reader.len() / 4096 {
             let mut buf = [0u8; 4096];
             let size = file_reader.read_chunk(index, &mut buf)?;
@@ -105,7 +94,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_read_beyond_file_size() {
-        let file_reader = ChunkedFileReader::new(File::open("testdata/input.4k").unwrap()).unwrap();
+        let file_reader = LocalFileReader::new(File::open("testdata/input.4k").unwrap()).unwrap();
         let mut buf = [0u8; 4096];
         let _ = file_reader.read_chunk(1u64, &mut buf); // should panic
     }
@@ -115,7 +104,7 @@ mod tests {
     fn test_read_empty_file() {
         let mut temp_file = temp_dir();
         temp_file.push("authfs_test_empty_file");
-        let file_reader = ChunkedFileReader::new(File::create(temp_file).unwrap()).unwrap();
+        let file_reader = LocalFileReader::new(File::create(temp_file).unwrap()).unwrap();
         let mut buf = [0u8; 4096];
         let _ = file_reader.read_chunk(0, &mut buf); // should panic
     }

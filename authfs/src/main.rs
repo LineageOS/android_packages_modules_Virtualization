@@ -38,16 +38,14 @@ use structopt::StructOpt;
 mod auth;
 mod common;
 mod crypto;
+mod file;
 mod fsverity;
 mod fusefs;
-mod reader;
-mod remote_file;
 
 use auth::FakeAuthenticator;
-use fsverity::FsverityChunkedFileReader;
+use file::{LocalFileReader, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
+use fsverity::{VerifiedFileEditor, VerifiedFileReader};
 use fusefs::{FileConfig, Inode};
-use reader::ChunkedFileReader;
-use remote_file::{RemoteChunkedFileReader, RemoteFsverityMerkleTreeReader};
 
 #[derive(StructOpt)]
 struct Args {
@@ -55,31 +53,38 @@ struct Args {
     #[structopt(parse(from_os_str))]
     mount_point: PathBuf,
 
-    /// A verifiable read-only file. Can be multiple.
+    /// A read-only remote file with integrity check. Can be multiple.
     ///
     /// For example, `--remote-verified-file 5:10:1234:/path/to/cert` tells the filesystem to
     /// associate entry 5 with a remote file 10 of size 1234 bytes, and need to be verified against
     /// the /path/to/cert.
-    #[structopt(long, parse(try_from_str = parse_remote_verified_file_option))]
-    remote_verified_file: Vec<RemoteVerifiedFileConfig>,
+    #[structopt(long, parse(try_from_str = parse_remote_ro_file_option))]
+    remote_ro_file: Vec<OptionRemoteRoFile>,
 
-    /// An unverifiable read-only file. Can be multiple.
+    /// A read-only remote file without integrity check. Can be multiple.
     ///
     /// For example, `--remote-unverified-file 5:10:1234` tells the filesystem to associate entry 5
     /// with a remote file 10 of size 1234 bytes.
-    #[structopt(long, parse(try_from_str = parse_remote_unverified_file_option))]
-    remote_unverified_file: Vec<RemoteUnverifiedFileConfig>,
+    #[structopt(long, parse(try_from_str = parse_remote_ro_file_unverified_option))]
+    remote_ro_file_unverified: Vec<OptionRemoteRoFileUnverified>,
 
-    /// Debug only. A readonly file to be protected by fs-verity. Can be multiple.
-    #[structopt(long, parse(try_from_str = parse_local_verified_file_option))]
-    local_verified_file: Vec<LocalVerifiedFileConfig>,
+    /// A new read-writable remote file with integrity check. Can be multiple.
+    ///
+    /// For example, `--remote-new-verified-file 12:34` tells the filesystem to associate entry 12
+    /// with a remote file 34.
+    #[structopt(long, parse(try_from_str = parse_remote_new_rw_file_option))]
+    remote_new_rw_file: Vec<OptionRemoteRwFile>,
 
-    /// Debug only. An unverified read-only file. Can be multiple.
-    #[structopt(long, parse(try_from_str = parse_local_unverified_file_option))]
-    local_unverified_file: Vec<LocalUnverifiedFileConfig>,
+    /// Debug only. A read-only local file with integrity check. Can be multiple.
+    #[structopt(long, parse(try_from_str = parse_local_file_ro_option))]
+    local_ro_file: Vec<OptionLocalFileRo>,
+
+    /// Debug only. A read-only local file without integrity check. Can be multiple.
+    #[structopt(long, parse(try_from_str = parse_local_ro_file_unverified_ro_option))]
+    local_ro_file_unverified: Vec<OptionLocalRoFileUnverified>,
 }
 
-struct RemoteVerifiedFileConfig {
+struct OptionRemoteRoFile {
     ino: Inode,
 
     /// ID to refer to the remote file.
@@ -94,7 +99,7 @@ struct RemoteVerifiedFileConfig {
     _certificate_path: PathBuf,
 }
 
-struct RemoteUnverifiedFileConfig {
+struct OptionRemoteRoFileUnverified {
     ino: Inode,
 
     /// ID to refer to the remote file.
@@ -104,7 +109,14 @@ struct RemoteUnverifiedFileConfig {
     file_size: u64,
 }
 
-struct LocalVerifiedFileConfig {
+struct OptionRemoteRwFile {
+    ino: Inode,
+
+    /// ID to refer to the remote file.
+    remote_id: i32,
+}
+
+struct OptionLocalFileRo {
     ino: Inode,
 
     /// Local path of the backing file.
@@ -121,19 +133,19 @@ struct LocalVerifiedFileConfig {
     _certificate_path: PathBuf,
 }
 
-struct LocalUnverifiedFileConfig {
+struct OptionLocalRoFileUnverified {
     ino: Inode,
 
     /// Local path of the backing file.
     file_path: PathBuf,
 }
 
-fn parse_remote_verified_file_option(option: &str) -> Result<RemoteVerifiedFileConfig> {
+fn parse_remote_ro_file_option(option: &str) -> Result<OptionRemoteRoFile> {
     let strs: Vec<&str> = option.split(':').collect();
     if strs.len() != 4 {
         bail!("Invalid option: {}", option);
     }
-    Ok(RemoteVerifiedFileConfig {
+    Ok(OptionRemoteRoFile {
         ino: strs[0].parse::<Inode>()?,
         remote_id: strs[1].parse::<i32>()?,
         file_size: strs[2].parse::<u64>()?,
@@ -141,24 +153,35 @@ fn parse_remote_verified_file_option(option: &str) -> Result<RemoteVerifiedFileC
     })
 }
 
-fn parse_remote_unverified_file_option(option: &str) -> Result<RemoteUnverifiedFileConfig> {
+fn parse_remote_ro_file_unverified_option(option: &str) -> Result<OptionRemoteRoFileUnverified> {
     let strs: Vec<&str> = option.split(':').collect();
     if strs.len() != 3 {
         bail!("Invalid option: {}", option);
     }
-    Ok(RemoteUnverifiedFileConfig {
+    Ok(OptionRemoteRoFileUnverified {
         ino: strs[0].parse::<Inode>()?,
         remote_id: strs[1].parse::<i32>()?,
         file_size: strs[2].parse::<u64>()?,
     })
 }
 
-fn parse_local_verified_file_option(option: &str) -> Result<LocalVerifiedFileConfig> {
+fn parse_remote_new_rw_file_option(option: &str) -> Result<OptionRemoteRwFile> {
+    let strs: Vec<&str> = option.split(':').collect();
+    if strs.len() != 2 {
+        bail!("Invalid option: {}", option);
+    }
+    Ok(OptionRemoteRwFile {
+        ino: strs[0].parse::<Inode>().unwrap(),
+        remote_id: strs[1].parse::<i32>().unwrap(),
+    })
+}
+
+fn parse_local_file_ro_option(option: &str) -> Result<OptionLocalFileRo> {
     let strs: Vec<&str> = option.split(':').collect();
     if strs.len() != 5 {
         bail!("Invalid option: {}", option);
     }
-    Ok(LocalVerifiedFileConfig {
+    Ok(OptionLocalFileRo {
         ino: strs[0].parse::<Inode>()?,
         file_path: PathBuf::from(strs[1]),
         merkle_tree_dump_path: PathBuf::from(strs[2]),
@@ -167,92 +190,95 @@ fn parse_local_verified_file_option(option: &str) -> Result<LocalVerifiedFileCon
     })
 }
 
-fn parse_local_unverified_file_option(option: &str) -> Result<LocalUnverifiedFileConfig> {
+fn parse_local_ro_file_unverified_ro_option(option: &str) -> Result<OptionLocalRoFileUnverified> {
     let strs: Vec<&str> = option.split(':').collect();
     if strs.len() != 2 {
         bail!("Invalid option: {}", option);
     }
-    Ok(LocalUnverifiedFileConfig {
+    Ok(OptionLocalRoFileUnverified {
         ino: strs[0].parse::<Inode>()?,
         file_path: PathBuf::from(strs[1]),
     })
 }
 
 fn new_config_remote_verified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
-    let service = remote_file::server::get_local_service();
+    let service = file::get_local_binder();
     let signature = service.readFsveritySignature(remote_id).context("Failed to read signature")?;
 
     let service = Arc::new(Mutex::new(service));
     let authenticator = FakeAuthenticator::always_succeed();
-    Ok(FileConfig::RemoteVerifiedFile(
-        FsverityChunkedFileReader::new(
+    Ok(FileConfig::RemoteVerifiedReadonlyFile(
+        VerifiedFileReader::new(
             &authenticator,
-            RemoteChunkedFileReader::new(Arc::clone(&service), remote_id),
+            RemoteFileReader::new(Arc::clone(&service), remote_id),
             file_size,
             signature,
-            RemoteFsverityMerkleTreeReader::new(Arc::clone(&service), remote_id),
+            RemoteMerkleTreeReader::new(Arc::clone(&service), remote_id),
         )?,
         file_size,
     ))
 }
 
 fn new_config_remote_unverified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
-    let file_reader = RemoteChunkedFileReader::new(
-        Arc::new(Mutex::new(remote_file::server::get_local_service())),
-        remote_id,
-    );
-    Ok(FileConfig::RemoteUnverifiedFile(file_reader, file_size))
+    let file_reader =
+        RemoteFileReader::new(Arc::new(Mutex::new(file::get_local_binder())), remote_id);
+    Ok(FileConfig::RemoteUnverifiedReadonlyFile(file_reader, file_size))
 }
 
-fn new_config_local_verified_file(
+fn new_config_local_ro_file(
     protected_file: &PathBuf,
     merkle_tree_dump: &PathBuf,
     signature: &PathBuf,
 ) -> Result<FileConfig> {
     let file = File::open(&protected_file)?;
     let file_size = file.metadata()?.len();
-    let file_reader = ChunkedFileReader::new(file)?;
-    let merkle_tree_reader = ChunkedFileReader::new(File::open(merkle_tree_dump)?)?;
+    let file_reader = LocalFileReader::new(file)?;
+    let merkle_tree_reader = LocalFileReader::new(File::open(merkle_tree_dump)?)?;
     let authenticator = FakeAuthenticator::always_succeed();
     let mut sig = Vec::new();
     let _ = File::open(signature)?.read_to_end(&mut sig)?;
-    let file_reader = FsverityChunkedFileReader::new(
-        &authenticator,
-        file_reader,
-        file_size,
-        sig,
-        merkle_tree_reader,
-    )?;
-    Ok(FileConfig::LocalVerifiedFile(file_reader, file_size))
+    let file_reader =
+        VerifiedFileReader::new(&authenticator, file_reader, file_size, sig, merkle_tree_reader)?;
+    Ok(FileConfig::LocalVerifiedReadonlyFile(file_reader, file_size))
 }
 
-fn new_config_local_unverified_file(file_path: &PathBuf) -> Result<FileConfig> {
-    let file_reader = ChunkedFileReader::new(File::open(file_path)?)?;
+fn new_config_local_ro_file_unverified(file_path: &PathBuf) -> Result<FileConfig> {
+    let file_reader = LocalFileReader::new(File::open(file_path)?)?;
     let file_size = file_reader.len();
-    Ok(FileConfig::LocalUnverifiedFile(file_reader, file_size))
+    Ok(FileConfig::LocalUnverifiedReadonlyFile(file_reader, file_size))
+}
+
+fn new_config_remote_new_verified_file(remote_id: i32) -> Result<FileConfig> {
+    let remote_file =
+        RemoteFileEditor::new(Arc::new(Mutex::new(file::get_local_binder())), remote_id);
+    Ok(FileConfig::RemoteVerifiedNewFile(VerifiedFileEditor::new(remote_file)))
 }
 
 fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
 
-    for config in &args.remote_verified_file {
+    for config in &args.remote_ro_file {
         file_pool.insert(
             config.ino,
             new_config_remote_verified_file(config.remote_id, config.file_size)?,
         );
     }
 
-    for config in &args.remote_unverified_file {
+    for config in &args.remote_ro_file_unverified {
         file_pool.insert(
             config.ino,
             new_config_remote_unverified_file(config.remote_id, config.file_size)?,
         );
     }
 
-    for config in &args.local_verified_file {
+    for config in &args.remote_new_rw_file {
+        file_pool.insert(config.ino, new_config_remote_new_verified_file(config.remote_id)?);
+    }
+
+    for config in &args.local_ro_file {
         file_pool.insert(
             config.ino,
-            new_config_local_verified_file(
+            new_config_local_ro_file(
                 &config.file_path,
                 &config.merkle_tree_dump_path,
                 &config.signature_path,
@@ -260,8 +286,8 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
         );
     }
 
-    for config in &args.local_unverified_file {
-        file_pool.insert(config.ino, new_config_local_unverified_file(&config.file_path)?);
+    for config in &args.local_ro_file_unverified {
+        file_pool.insert(config.ino, new_config_local_ro_file_unverified(&config.file_path)?);
     }
 
     Ok(file_pool)

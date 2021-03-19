@@ -47,11 +47,15 @@ fn hash_all_pages(source: &[Sha256Hash]) -> Result<Vec<Sha256Hash>, CryptoError>
         .collect()
 }
 
-#[allow(dead_code)]
 impl MerkleLeaves {
     /// Creates a `MerkleLeaves` instance with empty data.
     pub fn new() -> Self {
         Self { leaves: Vec::new(), file_size: 0 }
+    }
+
+    /// Gets size of the file represented by `MerkleLeaves`.
+    pub fn file_size(&self) -> u64 {
+        self.file_size
     }
 
     /// Updates the hash of the `index`-th leaf, and increase the size to `size_at_least` if the
