@@ -58,7 +58,7 @@ use std::sync::{Arc, RwLock};
 use super::builder::MerkleLeaves;
 use crate::common::{ChunkedSizeIter, CHUNK_SIZE};
 use crate::crypto::{CryptoError, Sha256Hash, Sha256Hasher};
-use crate::file::{RandomWrite, ReadOnlyDataByChunk};
+use crate::file::{ChunkBuffer, RandomWrite, ReadByChunk};
 
 // Implement the conversion from `CryptoError` to `io::Error` just to avoid manual error type
 // mapping below.
@@ -70,12 +70,12 @@ impl From<CryptoError> for io::Error {
 
 /// VerifiedFileEditor provides an integrity layer to an underlying read-writable file, which may
 /// not be stored in a trusted environment. Only new, empty files are currently supported.
-pub struct VerifiedFileEditor<F: ReadOnlyDataByChunk + RandomWrite> {
+pub struct VerifiedFileEditor<F: ReadByChunk + RandomWrite> {
     file: F,
     merkle_tree: Arc<RwLock<MerkleLeaves>>,
 }
 
-impl<F: ReadOnlyDataByChunk + RandomWrite> VerifiedFileEditor<F> {
+impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
     /// Wraps a supposedly new file for integrity protection.
     pub fn new(file: F) -> Self {
         Self { file, merkle_tree: Arc::new(RwLock::new(MerkleLeaves::new())) }
@@ -148,7 +148,7 @@ impl<F: ReadOnlyDataByChunk + RandomWrite> VerifiedFileEditor<F> {
     }
 }
 
-impl<F: ReadOnlyDataByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
+impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
     fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
         // Since we don't need to support 32-bit CPU, make an assert to make conversion between
         // u64 and usize easy below. Otherwise, we need to check `divide_roundup(offset + buf.len()
@@ -214,8 +214,8 @@ impl<F: ReadOnlyDataByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F>
     }
 }
 
-impl<F: ReadOnlyDataByChunk + RandomWrite> ReadOnlyDataByChunk for VerifiedFileEditor<F> {
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
+impl<F: ReadByChunk + RandomWrite> ReadByChunk for VerifiedFileEditor<F> {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
         self.file.read_chunk(chunk_index, buf)
     }
 }
@@ -255,10 +255,8 @@ mod tests {
         }
     }
 
-    impl ReadOnlyDataByChunk for InMemoryEditor {
-        fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
-            debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
-
+    impl ReadByChunk for InMemoryEditor {
+        fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
             if self.fail_read {
                 return Err(io::Error::new(io::ErrorKind::Other, "test!"));
             }

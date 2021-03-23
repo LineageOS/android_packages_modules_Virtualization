@@ -22,7 +22,7 @@ use super::sys::{FS_VERITY_HASH_ALG_SHA256, FS_VERITY_MAGIC};
 use crate::auth::Authenticator;
 use crate::common::{divide_roundup, CHUNK_SIZE};
 use crate::crypto::{CryptoError, Sha256Hasher};
-use crate::file::ReadOnlyDataByChunk;
+use crate::file::{ChunkBuffer, ReadByChunk};
 
 const ZEROS: [u8; CHUNK_SIZE as usize] = [0u8; CHUNK_SIZE as usize];
 
@@ -36,14 +36,14 @@ fn hash_with_padding(chunk: &[u8], pad_to: usize) -> Result<HashBuffer, CryptoEr
     Sha256Hasher::new()?.update(&chunk)?.update(&ZEROS[..padding_size])?.finalize()
 }
 
-fn verity_check<T: ReadOnlyDataByChunk>(
+fn verity_check<T: ReadByChunk>(
     chunk: &[u8],
     chunk_index: u64,
     file_size: u64,
     merkle_tree: &T,
 ) -> Result<HashBuffer, FsverityError> {
     // The caller should not be able to produce a chunk at the first place if `file_size` is 0. The
-    // current implementation expects to crash when a `ReadOnlyDataByChunk` implementation reads
+    // current implementation expects to crash when a `ReadByChunk` implementation reads
     // beyond the file size, including empty file.
     assert_ne!(file_size, 0);
 
@@ -68,7 +68,7 @@ fn verity_check<T: ReadOnlyDataByChunk>(
 /// offset of the child node's hash. It is up to the iterator user to use the node and hash,
 /// e.g. for the actual verification.
 #[allow(clippy::needless_collect)]
-fn fsverity_walk<T: ReadOnlyDataByChunk>(
+fn fsverity_walk<T: ReadByChunk>(
     chunk_index: u64,
     file_size: u64,
     merkle_tree: &T,
@@ -125,14 +125,14 @@ fn build_fsverity_formatted_digest(
     Ok(formatted_digest)
 }
 
-pub struct VerifiedFileReader<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> {
+pub struct VerifiedFileReader<F: ReadByChunk, M: ReadByChunk> {
     chunked_file: F,
     file_size: u64,
     merkle_tree: M,
     root_hash: HashBuffer,
 }
 
-impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> VerifiedFileReader<F, M> {
+impl<F: ReadByChunk, M: ReadByChunk> VerifiedFileReader<F, M> {
     pub fn new<A: Authenticator>(
         authenticator: &A,
         chunked_file: F,
@@ -156,11 +156,8 @@ impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> VerifiedFileReader<F, M> {
     }
 }
 
-impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> ReadOnlyDataByChunk
-    for VerifiedFileReader<F, M>
-{
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
-        debug_assert!(buf.len() as u64 >= CHUNK_SIZE);
+impl<F: ReadByChunk, M: ReadByChunk> ReadByChunk for VerifiedFileReader<F, M> {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
         let size = self.chunked_file.read_chunk(chunk_index, buf)?;
         let root_hash = verity_check(&buf[..size], chunk_index, self.file_size, &self.merkle_tree)
             .map_err(|_| io::Error::from_raw_os_error(EIO))?;
@@ -176,7 +173,7 @@ impl<F: ReadOnlyDataByChunk, M: ReadOnlyDataByChunk> ReadOnlyDataByChunk
 mod tests {
     use super::*;
     use crate::auth::FakeAuthenticator;
-    use crate::file::{LocalFileReader, ReadOnlyDataByChunk};
+    use crate::file::{LocalFileReader, ReadByChunk};
     use anyhow::Result;
     use std::fs::{self, File};
     use std::io::Read;
@@ -215,7 +212,7 @@ mod tests {
 
         for i in 0..total_chunk_number(file_size) {
             let mut buf = [0u8; 4096];
-            assert!(file_reader.read_chunk(i, &mut buf[..]).is_ok());
+            assert!(file_reader.read_chunk(i, &mut buf).is_ok());
         }
         Ok(())
     }
@@ -230,7 +227,7 @@ mod tests {
 
         for i in 0..total_chunk_number(file_size) {
             let mut buf = [0u8; 4096];
-            assert!(file_reader.read_chunk(i, &mut buf[..]).is_ok());
+            assert!(file_reader.read_chunk(i, &mut buf).is_ok());
         }
         Ok(())
     }
@@ -245,7 +242,7 @@ mod tests {
 
         for i in 0..total_chunk_number(file_size) {
             let mut buf = [0u8; 4096];
-            assert!(file_reader.read_chunk(i, &mut buf[..]).is_ok());
+            assert!(file_reader.read_chunk(i, &mut buf).is_ok());
         }
         Ok(())
     }
@@ -264,9 +261,9 @@ mod tests {
         let num_hashes = 4096 / 32;
         let last_index = num_hashes;
         for i in 0..last_index {
-            assert!(file_reader.read_chunk(i, &mut buf[..]).is_err());
+            assert!(file_reader.read_chunk(i, &mut buf).is_err());
         }
-        assert!(file_reader.read_chunk(last_index, &mut buf[..]).is_ok());
+        assert!(file_reader.read_chunk(last_index, &mut buf).is_ok());
         Ok(())
     }
 
