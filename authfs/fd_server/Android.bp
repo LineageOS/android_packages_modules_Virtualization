@@ -13,6 +13,7 @@ rust_binary {
         "libclap",
         "liblibc",
         "liblog_rust",
+        "libnix",
     ],
     apex_available: ["com.android.virt"],
 }
