@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+use std::cmp::min;
 use std::convert::TryFrom;
 use std::io;
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use super::{RandomWrite, ReadOnlyDataByChunk};
+use super::{ChunkBuffer, RandomWrite, ReadByChunk};
 use crate::common::CHUNK_SIZE;
 
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService;
@@ -31,7 +31,7 @@ fn remote_read_chunk(
     service: &Arc<Mutex<VirtFdService>>,
     remote_fd: i32,
     chunk_index: u64,
-    mut buf: &mut [u8],
+    buf: &mut ChunkBuffer,
 ) -> io::Result<usize> {
     let offset = i64::try_from(chunk_index * CHUNK_SIZE)
         .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
@@ -41,7 +41,8 @@ fn remote_read_chunk(
         .unwrap()
         .readFile(remote_fd, offset, buf.len() as i32)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
-    buf.write(&chunk)
+    buf.copy_from_slice(&chunk);
+    Ok(min(buf.len(), chunk.len()))
 }
 
 pub struct RemoteFileReader {
@@ -56,8 +57,8 @@ impl RemoteFileReader {
     }
 }
 
-impl ReadOnlyDataByChunk for RemoteFileReader {
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
+impl ReadByChunk for RemoteFileReader {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
         remote_read_chunk(&self.service, self.file_fd, chunk_index, buf)
     }
 }
@@ -75,8 +76,8 @@ impl RemoteMerkleTreeReader {
     }
 }
 
-impl ReadOnlyDataByChunk for RemoteMerkleTreeReader {
-    fn read_chunk(&self, chunk_index: u64, mut buf: &mut [u8]) -> io::Result<usize> {
+impl ReadByChunk for RemoteMerkleTreeReader {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
         let offset = i64::try_from(chunk_index * CHUNK_SIZE)
             .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
 
@@ -86,7 +87,8 @@ impl ReadOnlyDataByChunk for RemoteMerkleTreeReader {
             .unwrap()
             .readFsverityMerkleTree(self.file_fd, offset, buf.len() as i32)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
-        buf.write(&chunk)
+        buf.copy_from_slice(&chunk);
+        Ok(min(buf.len(), chunk.len()))
     }
 }
 
@@ -116,8 +118,8 @@ impl RandomWrite for RemoteFileEditor {
     }
 }
 
-impl ReadOnlyDataByChunk for RemoteFileEditor {
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize> {
+impl ReadByChunk for RemoteFileEditor {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
         remote_read_chunk(&self.service, self.file_fd, chunk_index, buf)
     }
 }

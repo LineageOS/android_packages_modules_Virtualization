@@ -34,7 +34,7 @@ use fuse::mount::MountOption;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
-    LocalFileReader, RandomWrite, ReadOnlyDataByChunk, RemoteFileEditor, RemoteFileReader,
+    LocalFileReader, RandomWrite, ReadByChunk, RemoteFileEditor, RemoteFileReader,
     RemoteMerkleTreeReader,
 };
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
@@ -138,7 +138,7 @@ fn offset_to_chunk_index(offset: u64) -> u64 {
     offset / CHUNK_SIZE
 }
 
-fn read_chunks<W: io::Write, T: ReadOnlyDataByChunk>(
+fn read_chunks<W: io::Write, T: ReadByChunk>(
     mut w: W,
     file: &T,
     file_size: u64,

@@ -6,6 +6,8 @@ pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader
 
 use std::io;
 
+use crate::common::CHUNK_SIZE;
+
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService;
 use authfs_aidl_interface::binder::{get_interface, Strong};
 
@@ -15,14 +17,15 @@ pub fn get_local_binder() -> Strong<dyn IVirtFdService::IVirtFdService> {
     get_interface(&service_name).expect("Cannot reach authfs_fd_server binder service")
 }
 
-/// A trait for reading data by chunks. The data is assumed readonly and has fixed length. Chunks
-/// can be read by specifying the chunk index. Only the last chunk may have incomplete chunk size.
-pub trait ReadOnlyDataByChunk {
-    /// Read the `chunk_index`-th chunk to `buf`. Each slice/chunk has size `CHUNK_SIZE` except for
-    /// the last one, which can be an incomplete chunk. `buf` is currently required to be large
-    /// enough to hold a full chunk of data. Reading beyond the file size (including empty file)
-    /// will crash.
-    fn read_chunk(&self, chunk_index: u64, buf: &mut [u8]) -> io::Result<usize>;
+pub type ChunkBuffer = [u8; CHUNK_SIZE as usize];
+
+/// A trait for reading data by chunks. Chunks can be read by specifying the chunk index. Only the
+/// last chunk may have incomplete chunk size.
+pub trait ReadByChunk {
+    /// Reads the `chunk_index`-th chunk to a `ChunkBuffer`. Returns the size read, which has to be
+    /// `CHUNK_SIZE` except for the last incomplete chunk. Reading beyond the file size (including
+    /// empty file) should return 0.
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize>;
 }
 
 /// A trait to write a buffer to the destination at a given offset. The implementation does not
