@@ -25,6 +25,8 @@
 //! [1] Since the remote binder is not ready, this currently implementation uses local binder
 //!     first.
 
+mod fsverity;
+
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
@@ -32,7 +34,7 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io;
 use std::os::unix::fs::FileExt;
-use std::os::unix::io::FromRawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 
 use anyhow::{bail, Context, Result};
 use binder::IBinderInternal; // TODO(178852354): remove once set_requesting_sid is exposed in the API.
@@ -130,18 +132,22 @@ impl IVirtFdService for FdService {
         let offset: u64 = validate_and_cast_offset(offset)?;
 
         match &self.get_file_config(id)? {
-            FdConfig::Readonly { alt_merkle_tree, .. } => {
-                if let Some(file) = &alt_merkle_tree {
-                    read_into_buf(&file, size, offset).map_err(|e| {
+            FdConfig::Readonly { file, alt_merkle_tree, .. } => {
+                if let Some(tree_file) = &alt_merkle_tree {
+                    read_into_buf(&tree_file, size, offset).map_err(|e| {
                         error!("readFsverityMerkleTree: read error: {}", e);
                         Status::from(ERROR_IO)
                     })
                 } else {
-                    // TODO(victorhsieh) retrieve from the fd when the new ioctl is ready
-                    Err(new_binder_exception(
-                        ExceptionCode::UNSUPPORTED_OPERATION,
-                        "Not implemented yet",
-                    ))
+                    let mut buf = vec![0; size];
+                    let s = fsverity::read_merkle_tree(file.as_raw_fd(), offset, &mut buf)
+                        .map_err(|e| {
+                            error!("readFsverityMerkleTree: failed to retrieve merkle tree: {}", e);
+                            Status::from(e.raw_os_error().unwrap_or(ERROR_IO))
+                        })?;
+                    debug_assert!(s <= buf.len(), "Shouldn't return more bytes than asked");
+                    buf.truncate(s);
+                    Ok(buf)
                 }
             }
             FdConfig::ReadWrite(_file) => {
@@ -155,20 +161,24 @@ impl IVirtFdService for FdService {
 
     fn readFsveritySignature(&self, id: i32) -> BinderResult<Vec<u8>> {
         match &self.get_file_config(id)? {
-            FdConfig::Readonly { alt_signature, .. } => {
-                if let Some(file) = &alt_signature {
+            FdConfig::Readonly { file, alt_signature, .. } => {
+                if let Some(sig_file) = &alt_signature {
                     // Supposedly big enough buffer size to store signature.
                     let size = MAX_REQUESTING_DATA as usize;
-                    read_into_buf(&file, size, 0).map_err(|e| {
+                    let offset = 0;
+                    read_into_buf(&sig_file, size, offset).map_err(|e| {
                         error!("readFsveritySignature: read error: {}", e);
                         Status::from(ERROR_IO)
                     })
                 } else {
-                    // TODO(victorhsieh) retrieve from the fd when the new ioctl is ready
-                    Err(new_binder_exception(
-                        ExceptionCode::UNSUPPORTED_OPERATION,
-                        "Not implemented yet",
-                    ))
+                    let mut buf = vec![0; MAX_REQUESTING_DATA as usize];
+                    let s = fsverity::read_signature(file.as_raw_fd(), &mut buf).map_err(|e| {
+                        error!("readFsverityMerkleTree: failed to retrieve merkle tree: {}", e);
+                        Status::from(e.raw_os_error().unwrap_or(ERROR_IO))
+                    })?;
+                    debug_assert!(s <= buf.len(), "Shouldn't return more bytes than asked");
+                    buf.truncate(s);
+                    Ok(buf)
                 }
             }
             FdConfig::ReadWrite(_file) => {
