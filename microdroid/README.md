@@ -55,7 +55,7 @@ future, this shall be done via [`virtmanager`](../virtmanager/).
 
 ```
 $ adb shell 'HOME=/data/local/tmp; PATH=$PATH:/apex/com.android.virt/bin; assemble_cvd -protected_vm < /dev/null'
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=cuttlefish_runtime/composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=cuttlefish_runtime/os_composite.img'
 ```
 
 The CID in `--cid` parameter can be anything greater than 2 (`VMADDR_CID_HOST`).
