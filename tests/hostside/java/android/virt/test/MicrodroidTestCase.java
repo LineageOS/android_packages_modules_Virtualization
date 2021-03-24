@@ -81,13 +81,13 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         getDevice().executeShellCommand("mkdir -p " + TEST_ROOT + "etc/cvd_config");
         getDevice().pushString("{}", TEST_ROOT + "etc/cvd_config/cvd_config_phone.json");
 
-        // Run assemble_cvd to create composite.img
+        // Run assemble_cvd to create os_composite.img
         getDevice().executeShellCommand("HOME=" + TEST_ROOT + "; "
                 + "PATH=$PATH:" + VIRT_APEX + "bin; "
                 + VIRT_APEX + "bin/assemble_cvd -protected_vm < /dev/null");
 
-        // Make sure that composite.img is created
-        final String compositeImg = TEST_ROOT + "cuttlefish_runtime/composite.img";
+        // Make sure that os_composite.img is created
+        final String compositeImg = TEST_ROOT + "cuttlefish_runtime/os_composite.img";
         CommandResult result = getDevice().executeShellV2Command("du -b " + compositeImg);
         assertThat(result.getExitCode(), is(0));
         assertThat(result.getStdout(), is(not("")));
@@ -102,7 +102,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         + "--disable-sandbox "
                         + "--bios=bootloader "
                         + "--serial=type=syslog "
-                        + "--disk=cuttlefish_runtime/composite.img");
+                        + "--disk=cuttlefish_runtime/os_composite.img");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
