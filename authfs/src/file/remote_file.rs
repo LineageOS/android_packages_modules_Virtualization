@@ -41,8 +41,9 @@ fn remote_read_chunk(
         .unwrap()
         .readFile(remote_fd, offset, buf.len() as i32)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
-    buf.copy_from_slice(&chunk);
-    Ok(min(buf.len(), chunk.len()))
+    let size = min(buf.len(), chunk.len());
+    buf[..size].copy_from_slice(&chunk[..size]);
+    Ok(size)
 }
 
 pub struct RemoteFileReader {
@@ -87,8 +88,9 @@ impl ReadByChunk for RemoteMerkleTreeReader {
             .unwrap()
             .readFsverityMerkleTree(self.file_fd, offset, buf.len() as i32)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
-        buf.copy_from_slice(&chunk);
-        Ok(min(buf.len(), chunk.len()))
+        let size = min(buf.len(), chunk.len());
+        buf[..size].copy_from_slice(&chunk[..size]);
+        Ok(size)
     }
 }
 
