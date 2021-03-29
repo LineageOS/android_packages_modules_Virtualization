@@ -35,6 +35,8 @@ apex {
         "vm",
     ],
     filesystems: ["microdroid"],
+    prebuilts: ["com.android.virt.init.rc"],
+    file_contexts: ":com.android.virt-file_contexts",
 }
 
 apex_key {
@@ -46,4 +48,10 @@ apex_key {
 android_app_certificate {
     name: "com.android.virt.certificate",
     certificate: "com.android.virt",
+}
+
+prebuilt_etc {
+    name: "com.android.virt.init.rc",
+    src: "virtmanager.rc",
+    filename: "init.rc",
 }
