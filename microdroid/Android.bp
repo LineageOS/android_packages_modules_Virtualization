@@ -157,9 +157,7 @@ bootimg {
         "printk.devkmsg=on " +
         "androidboot.first_stage_console=1 " +
         "androidboot.hardware=microdroid " +
-        "androidboot.boot_devices=10000.pci " +
-        // TODO(b/181747352) remove this to enforce selinux
-        "androidboot.selinux=permissive",
+        "androidboot.boot_devices=10000.pci ",
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "4",
     partition_name: "boot",
