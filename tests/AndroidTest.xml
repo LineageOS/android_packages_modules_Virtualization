@@ -47,7 +47,7 @@
          TODO: Run Virt Manager as a system service. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
-        <option name="run-bg-command" value="/apex/com.android.virt/bin/virtmanager" />
+        <option name="run-command" value="start virtmanager" />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.GTest" >
