@@ -121,21 +121,14 @@ logical_partition {
     sparse: true,
     // TODO(b/181107248): remove this hard-coded value
     size: "104857600",
-    groups: [
+    default_group: [
         {
-            name: "mygroup",
-            // TODO(b/181107248): remove this hard-coded value
-            size: "80000000",
-            partitions: [
-                {
-                    name: "system",
-                    filesystem: ":microdroid",
-                },
-                {
-                    name: "vendor",
-                    filesystem: ":microdroid_vendor",
-                },
-            ],
+            name: "system",
+            filesystem: ":microdroid",
+        },
+        {
+            name: "vendor",
+            filesystem: ":microdroid_vendor",
         },
     ],
 }
