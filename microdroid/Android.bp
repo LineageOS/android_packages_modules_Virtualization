@@ -57,16 +57,14 @@ android_filesystem {
         "tombstoned",
         "cgroups.json",
 
-        // These files are temporary and only for test.
-        // TODO(b/178993690): migrate cil files to Soong
-        "microdroid_plat_mapping_file",
-        "microdroid_plat_sepolicy_and_mapping.sha256",
+        "plat_sepolicy_and_mapping.sha256",
     ] + microdroid_shell_and_utilities,
     multilib: {
         common: {
             deps: [
                 "com.android.runtime",
                 "plat_sepolicy.cil",
+                "plat_mapping_file",
                 "plat_file_contexts",
                 "plat_hwservice_contexts",
                 "plat_property_contexts",
@@ -94,11 +92,17 @@ android_filesystem {
     use_avb: true,
     deps: [
         "microdroid_plat_sepolicy_vers.txt",
-        "microdroid_vendor_sepolicy.cil",
-        "microdroid_plat_pub_versioned.cil",
         "microdroid_precompiled_sepolicy",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
     ],
+    multilib: {
+        common: {
+            deps: [
+                "microdroid_vendor_sepolicy.cil",
+                "microdroid_plat_pub_versioned.cil",
+            ],
+        },
+    },
     avb_private_key: "microdroid.pem",
     avb_algorithm: "SHA256_RSA4096",
     file_contexts: "microdroid_vendor_file_contexts",
@@ -242,29 +246,10 @@ genrule {
     cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
 }
 
-genrule {
-    name: "microdroid_plat_sepolicy_and_mapping.sha256_gen",
-    srcs: [
-        ":plat_sepolicy.cil",
-        ":microdroid_plat_mapping_file",
-    ],
-    out: ["plat_sepolicy_and_mapping.sha256"],
-    cmd: "cat $(in) | sha256sum | cut -d' ' -f1 > $(out)",
-}
-
-// sepolicy sha256 for system
-prebuilt_etc {
-    name: "microdroid_plat_sepolicy_and_mapping.sha256",
-    src: ":microdroid_plat_sepolicy_and_mapping.sha256_gen",
-    filename: "plat_sepolicy_and_mapping.sha256",
-    relative_install_path: "selinux",
-    installable: false,
-}
-
-// sepolicy sha256 for vendor (filename differs)
+// sepolicy sha256 for vendor
 prebuilt_etc {
     name: "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
-    src: ":microdroid_plat_sepolicy_and_mapping.sha256_gen",
+    src: ":plat_sepolicy_and_mapping.sha256_gen",
     filename: "precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
     relative_install_path: "selinux",
     installable: false,
@@ -275,7 +260,7 @@ genrule {
     tools: ["secilc"],
     srcs: [
         ":plat_sepolicy.cil",
-        ":microdroid_plat_mapping_file",
+        ":plat_mapping_file",
         ":microdroid_plat_pub_versioned.cil",
         ":microdroid_vendor_sepolicy.cil",
     ],
