@@ -19,10 +19,4 @@ package android.system.virtmanager;
 parcelable VirtualMachineDebugInfo {
     /** The CID assigned to the VM. */
     int cid;
-
-    /**
-     * The filename of the config file used to start the VM. This may have changed since it was
-     * read so it shouldn't be trusted; it is only stored for debugging purposes.
-     */
-    String configPath;
 }
