@@ -77,9 +77,12 @@ fn command_run(
     daemonize: bool,
 ) -> Result<(), Error> {
     let config_filename = config_path.to_str().context("Failed to parse VM config path")?;
+    let config_file = ParcelFileDescriptor::new(
+        File::open(config_filename).context("Failed to open config file")?,
+    );
     let stdout_file = ParcelFileDescriptor::new(duplicate_stdout()?);
     let stdout = if daemonize { None } else { Some(&stdout_file) };
-    let vm = virt_manager.startVm(config_filename, stdout).context("Failed to start VM")?;
+    let vm = virt_manager.startVm(&config_file, stdout).context("Failed to start VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
     println!("Started VM from {} with CID {}.", config_filename, cid);

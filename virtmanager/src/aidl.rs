@@ -50,7 +50,7 @@ impl IVirtManager for VirtManager {
     /// Returns a binder `IVirtualMachine` object referring to it, as a handle for the client.
     fn startVm(
         &self,
-        config_path: &str,
+        config_fd: &ParcelFileDescriptor,
         log_fd: Option<&ParcelFileDescriptor>,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let state = &mut *self.state.lock().unwrap();
@@ -58,7 +58,7 @@ impl IVirtManager for VirtManager {
         let log_fd = log_fd
             .map(|fd| fd.as_ref().try_clone().map_err(|_| StatusCode::UNKNOWN_ERROR))
             .transpose()?;
-        let instance = Arc::new(start_vm(config_path, cid, log_fd)?);
+        let instance = Arc::new(start_vm(config_fd.as_ref(), cid, log_fd)?);
         // TODO(qwandor): keep track of which CIDs are currently in use so that we can reuse them.
         state.next_cid = state.next_cid.checked_add(1).ok_or(StatusCode::UNKNOWN_ERROR)?;
         state.add_vm(Arc::downgrade(&instance));
@@ -74,13 +74,8 @@ impl IVirtManager for VirtManager {
 
         let state = &mut *self.state.lock().unwrap();
         let vms = state.vms();
-        let cids = vms
-            .into_iter()
-            .map(|vm| VirtualMachineDebugInfo {
-                cid: vm.cid as i32,
-                configPath: vm.config_path.clone(),
-            })
-            .collect();
+        let cids =
+            vms.into_iter().map(|vm| VirtualMachineDebugInfo { cid: vm.cid as i32 }).collect();
         Ok(cids)
     }
 
@@ -193,13 +188,13 @@ impl Default for State {
 
 /// Start a new VM instance from the given VM config filename. This assumes the VM is not already
 /// running.
-fn start_vm(config_path: &str, cid: Cid, log_fd: Option<File>) -> binder::Result<VmInstance> {
-    let config = VmConfig::load(config_path).map_err(|e| {
-        error!("Failed to load VM config {}: {:?}", config_path, e);
+fn start_vm(config_file: &File, cid: Cid, log_fd: Option<File>) -> binder::Result<VmInstance> {
+    let config = VmConfig::load(config_file).map_err(|e| {
+        error!("Failed to load VM config from {:?}: {:?}", config_file, e);
         StatusCode::BAD_VALUE
     })?;
-    Ok(VmInstance::start(&config, cid, config_path, log_fd).map_err(|e| {
-        error!("Failed to start VM {}: {:?}", config_path, e);
+    Ok(VmInstance::start(&config, cid, log_fd).map_err(|e| {
+        error!("Failed to start VM from {:?}: {:?}", config_file, e);
         StatusCode::UNKNOWN_ERROR
     })?)
 }
