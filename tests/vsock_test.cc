@@ -27,10 +27,10 @@
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
 #include "android-base/unique_fd.h"
-
 #include "virt/VirtualizationTest.h"
 
 using namespace android::base;
+using namespace android::os;
 
 namespace virt {
 
@@ -58,7 +58,9 @@ TEST_F(VirtualizationTest, TestVsock) {
     ASSERT_EQ(ret, 0) << strerror(errno);
 
     sp<IVirtualMachine> vm;
-    status = mVirtManager->startVm(String16(kVmConfigPath), std::nullopt, &vm);
+    unique_fd vm_config_fd(open(kVmConfigPath, O_RDONLY | O_CLOEXEC));
+    status =
+            mVirtManager->startVm(ParcelFileDescriptor(std::move(vm_config_fd)), std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
 
     int32_t cid;
