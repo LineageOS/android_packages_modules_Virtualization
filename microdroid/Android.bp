@@ -35,7 +35,7 @@ microdroid_symlinks = [
 android_filesystem {
     name: "microdroid",
     use_avb: true,
-    avb_private_key: "microdroid.pem",
+    avb_private_key: ":avb_testkey_rsa4096",
     avb_algorithm: "SHA256_RSA4096",
     partition_name: "system",
     deps: [
@@ -103,7 +103,7 @@ android_filesystem {
             ],
         },
     },
-    avb_private_key: "microdroid.pem",
+    avb_private_key: ":avb_testkey_rsa4096",
     avb_algorithm: "SHA256_RSA4096",
     file_contexts: "microdroid_vendor_file_contexts",
 }
@@ -166,7 +166,7 @@ bootimg {
     header_version: "4",
     partition_name: "boot",
     use_avb: true,
-    avb_private_key: "microdroid.pem",
+    avb_private_key: ":avb_testkey_rsa4096",
 }
 
 android_filesystem {
@@ -195,7 +195,7 @@ bootimg {
     vendor_boot: true,
     partition_name: "vendor_boot",
     use_avb: true,
-    avb_private_key: "microdroid.pem",
+    avb_private_key: ":avb_testkey_rsa4096",
 }
 
 android_filesystem {
@@ -279,7 +279,7 @@ prebuilt_etc {
 vbmeta {
     name: "microdroid_vbmeta",
     partition_name: "vbmeta",
-    private_key: "microdroid.pem",
+    private_key: ":avb_testkey_rsa4096",
     partitions: [
         "microdroid_vendor",
         "microdroid_vendor_boot-5.10",
@@ -288,12 +288,12 @@ vbmeta {
         {
             name: "vbmeta_system",
             rollback_index_location: 1,
-            private_key: "microdroid.pem",
+            private_key: ":avb_testkey_rsa4096",
         },
         {
             name: "boot",
             rollback_index_location: 2,
-            private_key: "microdroid.pem",
+            private_key: ":avb_testkey_rsa4096",
         },
     ],
 }
@@ -301,7 +301,7 @@ vbmeta {
 vbmeta {
     name: "microdroid_vbmeta_system",
     partition_name: "vbmeta_system",
-    private_key: "microdroid.pem",
+    private_key: ":avb_testkey_rsa4096",
     partitions: [
         "microdroid",
     ],
