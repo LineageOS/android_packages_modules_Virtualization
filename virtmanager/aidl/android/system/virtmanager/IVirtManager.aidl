@@ -23,7 +23,8 @@ interface IVirtManager {
      * Start the VM with the given config file, and return a handle to it. If `logFd` is provided
      * then console logs from the VM will be sent to it.
      */
-    IVirtualMachine startVm(String configPath, in @nullable ParcelFileDescriptor logFd);
+    IVirtualMachine startVm(
+            in ParcelFileDescriptor configFd, in @nullable ParcelFileDescriptor logFd);
 
     /**
      * Get a list of all currently running VMs. This method is only intended for debug purposes,
