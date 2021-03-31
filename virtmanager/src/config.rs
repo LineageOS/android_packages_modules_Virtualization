@@ -14,7 +14,7 @@
 
 //! Function and types for VM configuration.
 
-use anyhow::{bail, Context, Error};
+use anyhow::{bail, Error};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
@@ -51,8 +51,7 @@ impl VmConfig {
     }
 
     /// Load the configuration for a VM from the given JSON file.
-    pub fn load(path: &str) -> Result<VmConfig, Error> {
-        let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
+    pub fn load(file: &File) -> Result<VmConfig, Error> {
         let buffered = BufReader::new(file);
         Ok(serde_json::from_reader(buffered)?)
     }
