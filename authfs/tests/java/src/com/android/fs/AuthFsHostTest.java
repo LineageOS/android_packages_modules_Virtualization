@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.platform.test.annotations.RootPermissionTest;
 
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
@@ -53,7 +54,10 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     private static final String AUTHFS_BIN = "/apex/com.android.virt/bin/authfs";
 
     /** Plenty of time for authfs to get ready */
-    private static final int TIME_BUDGET_AUTHFS_SETUP = 1500;  // ms
+    private static final int AUTHFS_INIT_TIMEOUT_MS = 1500;
+
+    /** FUSE's magic from statfs(2) */
+    private static final String FUSE_SUPER_MAGIC_HEX = "65735546";
 
     private ITestDevice mDevice;
     private ExecutorService mThreadPool;
@@ -68,7 +72,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void tearDown() throws DeviceNotAvailableException {
         mDevice.executeShellV2Command("killall authfs fd_server");
         mDevice.executeShellV2Command("umount " + MOUNT_DIR);
-        mDevice.executeShellV2Command("rm -f " + TEST_DIR);
+        mDevice.executeShellV2Command("rm -f " + TEST_DIR + "/output");
     }
 
     @Test
@@ -81,7 +85,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 + " --local-ro-file 5:input.4k1:input.4k1.merkle_dump:input.4k1.fsv_sig:cert.der"
                 + " --local-ro-file 6:input.4k:input.4k.merkle_dump:input.4k.fsv_sig:cert.der"
         );
-        Thread.sleep(TIME_BUDGET_AUTHFS_SETUP);
 
         // Action
         String actualHashUnverified4m = computeFileHashInGuest(MOUNT_DIR + "/3");
@@ -111,7 +114,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         runAuthFsInBackground(
                 "--remote-ro-file-unverified 10:6:4194304 --remote-ro-file 11:3:4194304:cert.der"
         );
-        Thread.sleep(TIME_BUDGET_AUTHFS_SETUP);
 
         // Action
         String actualHashUnverified4m = computeFileHashInGuest(MOUNT_DIR + "/10");
@@ -138,7 +140,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         runAuthFsInBackground(
                 "--remote-ro-file 10:3:4096:cert.der --remote-ro-file 11:6:4097:cert.der"
         );
-        Thread.sleep(TIME_BUDGET_AUTHFS_SETUP);
 
         // Action
         String actualHash4k = computeFileHashInGuest(MOUNT_DIR + "/10");
@@ -161,7 +162,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 "--ro-fds 3:4:5"
         );
         runAuthFsInBackground("--remote-ro-file 10:3:4096:cert.der");
-        Thread.sleep(TIME_BUDGET_AUTHFS_SETUP);
 
         // Verify
         assertFalse(copyFileInGuest(MOUNT_DIR + "/10", "/dev/null"));
@@ -173,7 +173,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         // Setup
         runFdServerInBackground("3<>output", "--rw-fds 3");
         runAuthFsInBackground("--remote-new-rw-file 20:3");
-        Thread.sleep(TIME_BUDGET_AUTHFS_SETUP);
 
         // Action
         String srcPath = "/system/bin/linker";
@@ -195,9 +194,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testWriteFailedIfDetectsTampering()
             throws DeviceNotAvailableException, InterruptedException {
         // Setup
-        runFdServerInBackground("3<>/output", "--rw-fds 3");
+        runFdServerInBackground("3<>output", "--rw-fds 3");
         runAuthFsInBackground("--remote-new-rw-file 20:3");
-        Thread.sleep(TIME_BUDGET_AUTHFS_SETUP);
 
         String srcPath = "/system/bin/linker";
         String destPath = MOUNT_DIR + "/20";
@@ -249,6 +247,17 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         }
     }
 
+    private void throwDowncastedException(Exception e) throws DeviceNotAvailableException {
+        if (e instanceof DeviceNotAvailableException) {
+            throw (DeviceNotAvailableException) e;
+        } else {
+            // Convert the broad Exception into an unchecked exception to avoid polluting all other
+            // methods. waitFor throws Exception because the callback, Callable#call(), has a
+            // signature to throw an Exception.
+            throw new RuntimeException(e);
+        }
+    }
+
     private void runAuthFsInBackground(String flags) throws DeviceNotAvailableException {
         String cmd = "cd " + TEST_DIR + " && " + AUTHFS_BIN + " " + MOUNT_DIR + " " + flags;
 
@@ -261,6 +270,11 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 throw new RuntimeException(e);
             }
         });
+        try {
+            PollingCheck.waitFor(AUTHFS_INIT_TIMEOUT_MS, () -> isRemoteDirectoryOnFuse(MOUNT_DIR));
+        } catch (Exception e) {
+            throwDowncastedException(e);
+        }
     }
 
     private void runFdServerInBackground(String execParamsForOpeningFds, String flags)
@@ -276,6 +290,11 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private boolean isRemoteDirectoryOnFuse(String path) throws DeviceNotAvailableException {
+        String fs_type = expectRemoteCommandToSucceed("stat -f -c '%t' " + path);
+        return FUSE_SUPER_MAGIC_HEX.equals(fs_type);
     }
 
     private String expectRemoteCommandToSucceed(String cmd) throws DeviceNotAvailableException {
