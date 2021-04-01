@@ -19,4 +19,13 @@ package android.system.virtmanager;
 parcelable VirtualMachineDebugInfo {
     /** The CID assigned to the VM. */
     int cid;
+    /** The UID of the process which requested the VM. */
+    int requester_uid;
+    /** The SID of the process which requested the VM. */
+    @nullable String requester_sid;
+    /**
+     * The PID of the process which requested the VM. Note that this process may no longer exist and
+     * the PID may have been reused for a different process, so this should not be trusted.
+     */
+    int requester_pid;
 }
