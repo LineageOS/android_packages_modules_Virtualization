@@ -39,10 +39,7 @@ fn hash_all_pages(source: &[Sha256Hash]) -> Result<Vec<Sha256Hash>, CryptoError>
         .chunks(HASH_PER_PAGE)
         .map(|chunk| {
             let padding_bytes = (HASH_PER_PAGE - chunk.len()) * HASH_SIZE;
-            Ok(Sha256Hasher::new()?
-                .update_from(chunk)?
-                .update(&vec![0u8; padding_bytes])?
-                .finalize()?)
+            Sha256Hasher::new()?.update_from(chunk)?.update(&vec![0u8; padding_bytes])?.finalize()
         })
         .collect()
 }
