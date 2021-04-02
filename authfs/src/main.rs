@@ -31,7 +31,7 @@ use anyhow::{bail, Context, Result};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
 
@@ -225,9 +225,9 @@ fn new_config_remote_unverified_file(remote_id: i32, file_size: u64) -> Result<F
 }
 
 fn new_config_local_ro_file(
-    protected_file: &PathBuf,
-    merkle_tree_dump: &PathBuf,
-    signature: &PathBuf,
+    protected_file: &Path,
+    merkle_tree_dump: &Path,
+    signature: &Path,
 ) -> Result<FileConfig> {
     let file = File::open(&protected_file)?;
     let file_size = file.metadata()?.len();
@@ -241,7 +241,7 @@ fn new_config_local_ro_file(
     Ok(FileConfig::LocalVerifiedReadonlyFile { reader, file_size })
 }
 
-fn new_config_local_ro_file_unverified(file_path: &PathBuf) -> Result<FileConfig> {
+fn new_config_local_ro_file_unverified(file_path: &Path) -> Result<FileConfig> {
     let reader = LocalFileReader::new(File::open(file_path)?)?;
     let file_size = reader.len();
     Ok(FileConfig::LocalUnverifiedReadonlyFile { reader, file_size })
