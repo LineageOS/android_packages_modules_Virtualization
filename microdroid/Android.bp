@@ -119,8 +119,7 @@ prebuilt_etc {
 logical_partition {
     name: "microdroid_super",
     sparse: true,
-    // TODO(b/181107248): remove this hard-coded value
-    size: "104857600",
+    size: "auto",
     default_group: [
         {
             name: "system",
