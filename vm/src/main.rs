@@ -24,7 +24,7 @@ use anyhow::{Context, Error};
 use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 use sync::AtomicFlag;
@@ -73,7 +73,7 @@ fn main() -> Result<(), Error> {
 /// Run a VM from the given configuration file.
 fn command_run(
     virt_manager: Strong<dyn IVirtManager>,
-    config_path: &PathBuf,
+    config_path: &Path,
     daemonize: bool,
 ) -> Result<(), Error> {
     let config_filename = config_path.to_str().context("Failed to parse VM config path")?;
