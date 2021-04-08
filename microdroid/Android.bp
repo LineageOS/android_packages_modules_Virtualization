@@ -225,6 +225,41 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "microdroid_bootloader",
+    src: ":microdroid_bootloader_gen",
+    filename: "microdroid_bootloader",
+}
+
+// See external/avb/avbtool.py
+// MAX_VBMETA_SIZE=64KB, MAX_FOOTER_SIZE=4KB
+avb_hash_footer_kb = "68"
+
+genrule {
+    name: "microdroid_bootloader_gen",
+    tools: ["avbtool"],
+    srcs: [
+        ":cuttlefish_crosvm_bootloader",
+        ":avb_testkey_rsa4096",
+    ],
+    out: ["bootloader-signed"],
+    // 1. Copy the input to the output becaise avbtool modifies --image in
+    // place.
+    // 2. Check if the file is big enough. For arm and x86 we have fake
+    // bootloader file whose size is 1. It can't pass avbtool.
+    // 3. Add the hash footer. The partition size is set to (image size + 68KB)
+    // rounded up to 4KB boundary.
+    cmd: "cp $(location :cuttlefish_crosvm_bootloader) $(out) && " +
+        "if [ $$(stat --format=%s $(out)) -gt 4096 ]; then " +
+        "$(location avbtool) add_hash_footer " +
+        "--algorithm SHA256_RSA4096 " +
+        "--partition_name bootloader " +
+        "--key $(location :avb_testkey_rsa4096) " +
+        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
+        "--image $(out)" +
+        "; fi",
+}
+
+prebuilt_etc {
     name: "microdroid_uboot_env",
     src: ":microdroid_uboot_env_gen",
     filename: "uboot_env.img",
