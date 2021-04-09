@@ -1,0 +1,48 @@
+{
+  "partitions": [
+    {
+      "label": "uboot_env",
+      "path": "uboot_env.img"
+    },
+    {
+      "label": "misc",
+      "path": "misc.img"
+    },
+    {
+      "label": "boot_a",
+      "path": "boot.img"
+    },
+    {
+      "label": "boot_b",
+      "path": "boot.img"
+    },
+    {
+      "label": "vendor_boot_a",
+      "path": "vendor_boot.img"
+    },
+    {
+      "label": "vendor_boot_b",
+      "path": "vendor_boot.img"
+    },
+    {
+      "label": "vbmeta_a",
+      "path": "vbmeta.img"
+    },
+    {
+      "label": "vbmeta_b",
+      "path": "vbmeta.img"
+    },
+    {
+      "label": "vbmeta_system_a",
+      "path": "vbmeta_system.img"
+    },
+    {
+      "label": "vbmeta_system_b",
+      "path": "vbmeta_system.img"
+    },
+    {
+      "label": "super",
+      "path": "super.img"
+    }
+  ]
+}
