@@ -24,6 +24,7 @@ $ m microdroid_vendor_boot-5.10
 $ m microdroid_uboot_env
 $ m microdroid_vbmeta
 $ m microdroid_vbmeta_system
+$ m microdroid_cdisk.json
 ```
 
 ## Installing
@@ -38,14 +39,10 @@ $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_boot-5.10.img /data/local/
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vendor_boot-5.10.img /data/local/tmp/vendor_boot.img
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vbmeta.img /data/local/tmp/vbmeta.img
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vbmeta_system.img /data/local/tmp/vbmeta_system.img
-$ adb shell mkdir /data/local/tmp/cuttlefish_runtime.1/
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/uboot_env.img /data/local/tmp/cuttlefish_runtime.1/
-$ adb shell mkdir -p /data/local/tmp/etc/cvd_config
-$ adb shell 'echo "{}" > /data/local/tmp/etc/cvd_config/cvd_config_phone.json'
-$ dd if=/dev/zero of=empty.img bs=4k count=600
-$ mkfs.ext4 -F empty.img
-$ adb push empty.img /data/local/tmp/userdata.img
-$ adb push empty.img /data/local/tmp/cache.img
+$ adb push $ANDROID_PRODUCT_OUT/system/etc/uboot_env.img /data/local/tmp
+$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_cdisk.json /data/local/tmp
+$ dd if=/dev/zero of=misc.img bs=4k count=256
+$ adb push misc.img /data/local/tmp/
 ```
 
 ## Running
@@ -54,8 +51,8 @@ Create the composite image using `assemble_cvd` and run it via `crosvm`. In the
 future, this shall be done via [`virtmanager`](../virtmanager/).
 
 ```
-$ adb shell 'HOME=/data/local/tmp; PATH=$PATH:/apex/com.android.virt/bin; assemble_cvd -protected_vm < /dev/null'
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=cuttlefish_runtime/os_composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk microdroid_cdisk.json os_composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=os_composite.img'
 ```
 
 The CID in `--cid` parameter can be anything greater than 2 (`VMADDR_CID_HOST`).

@@ -69,44 +69,44 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     @Test
     public void testMicrodroidBoots() throws Exception {
         // Prepare input files
+        pushFile("microdroid_cdisk.json", "microdroid_cdisk.json");
         pushFile("u-boot.bin", "bootloader");
         pushFile("microdroid_super.img", "super.img");
         pushFile("microdroid_boot-5.10.img", "boot.img");
         pushFile("microdroid_vendor_boot-5.10.img", "vendor_boot.img");
-        pushFile("uboot_env.img", "cuttlefish_runtime.1/uboot_env.img");
-        pushFile("empty.img", "userdata.img");
+        pushFile("uboot_env.img", "uboot_env.img");
+        pushFile("misc.img", "misc.img");
         pushFile("microdroid_vbmeta.img", "vbmeta.img");
         pushFile("microdroid_vbmeta_system.img", "vbmeta_system.img");
-        pushFile("empty.img", "cache.img");
-        getDevice().executeShellCommand("mkdir -p " + TEST_ROOT + "etc/cvd_config");
-        getDevice().pushString("{}", TEST_ROOT + "etc/cvd_config/cvd_config_phone.json");
 
-        // Run assemble_cvd to create os_composite.img
-        getDevice().executeShellCommand("HOME=" + TEST_ROOT + "; "
-                + "PATH=$PATH:" + VIRT_APEX + "bin; "
-                + VIRT_APEX + "bin/assemble_cvd -protected_vm < /dev/null");
+        // Create os_composite.img
+        String makeOsCompositeCmd =
+                String.format(
+                        "cd %s; %sbin/mk_cdisk microdroid_cdisk.json os_composite.img",
+                        TEST_ROOT, VIRT_APEX);
+        getDevice().executeShellCommand(makeOsCompositeCmd);
 
         // Make sure that os_composite.img is created
-        final String compositeImg = TEST_ROOT + "cuttlefish_runtime/os_composite.img";
+        final String compositeImg = TEST_ROOT + "/os_composite.img";
         CommandResult result = getDevice().executeShellV2Command("du -b " + compositeImg);
         assertThat(result.getExitCode(), is(0));
         assertThat(result.getStdout(), is(not("")));
 
         // Start microdroid using crosvm
         ExecutorService executor = Executors.newFixedThreadPool(1);
-        executor.execute(() -> {
-            try {
-                getDevice().executeShellV2Command("cd " + TEST_ROOT + "; "
-                        + VIRT_APEX + "bin/crosvm run "
-                        + "--cid=" + TEST_VM_CID + " "
-                        + "--disable-sandbox "
-                        + "--bios=bootloader "
-                        + "--serial=type=syslog "
-                        + "--disk=cuttlefish_runtime/os_composite.img");
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
+        String runMicrodroidCmd =
+                String.format(
+                        "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
+                                + " --serial=type=syslog --disk=os_composite.img",
+                        TEST_ROOT, VIRT_APEX, TEST_VM_CID);
+        executor.execute(
+                () -> {
+                    try {
+                        getDevice().executeShellV2Command(runMicrodroidCmd);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
         // .. and wait for microdroid to boot
         // TODO(jiyong): don't wait too long. We can wait less by monitoring log from microdroid
         Thread.sleep(MICRODROID_BOOT_TIMEOUT_MILLIS);
