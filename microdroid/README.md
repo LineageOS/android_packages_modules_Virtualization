@@ -21,6 +21,7 @@ $ choosecombo 1 aosp_arm64 userdebug // actually, any arm64-based target is ok
 $ m microdroid_super
 $ m microdroid_boot-5.10
 $ m microdroid_vendor_boot-5.10
+$ m microdroid_bootloader
 $ m microdroid_uboot_env
 $ m microdroid_vbmeta
 $ m microdroid_vbmeta_system
@@ -33,7 +34,7 @@ Push the built files to the device. In addition to that, some other files have
 to be manually created, for now. In the future, you won't need these.
 
 ```
-$ adb push device/google/cuttlefish_prebuilts/bootloader/crosvm_aarch64/u-boot.bin /data/local/tmp/bootloader
+$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_bootloader /data/local/tmp/bootloader
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_super.img /data/local/tmp/super.img
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_boot-5.10.img /data/local/tmp/boot.img
 $ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vendor_boot-5.10.img /data/local/tmp/vendor_boot.img
