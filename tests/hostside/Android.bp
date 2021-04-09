@@ -13,7 +13,7 @@ java_test_host {
         ":microdroid_boot-5.10",
         ":microdroid_vendor_boot-5.10",
         ":microdroid_uboot_env",
-        ":cuttlefish_crosvm_bootloader",
+        ":microdroid_bootloader",
         ":MicrodroidHostTestCase_misc",
         ":microdroid_vbmeta",
         ":microdroid_vbmeta_system",
