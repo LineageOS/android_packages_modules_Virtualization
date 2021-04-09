@@ -29,7 +29,7 @@ apex {
         },
     },
     binaries: [
-        "assemble_cvd",
+        "mk_cdisk",
         "fd_server",
         "virtmanager",
         "vm",
