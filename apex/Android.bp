@@ -20,11 +20,25 @@ apex {
                 "authfs", // TODO(victorhsieh): move to microdroid once we can run the test in VM.
                 "crosvm",
             ],
+            filesystems: [
+                "microdroid_super",
+                "microdroid_boot-5.10",
+                "microdroid_vendor_boot-5.10",
+                "microdroid_vbmeta",
+                "microdroid_vbmeta_system",
+            ],
         },
         x86_64: {
             binaries: [
                 "authfs", // TODO(victorhsieh): move to microdroid once we can run the test in VM.
                 "crosvm",
+            ],
+            filesystems: [
+                "microdroid_super",
+                "microdroid_boot-5.10",
+                "microdroid_vendor_boot-5.10",
+                "microdroid_vbmeta",
+                "microdroid_vbmeta_system",
             ],
         },
     },
@@ -34,8 +48,12 @@ apex {
         "virtmanager",
         "vm",
     ],
-    filesystems: ["microdroid"],
-    prebuilts: ["com.android.virt.init.rc"],
+    prebuilts: [
+        "com.android.virt.init.rc",
+        "microdroid_cdisk.json",
+        "microdroid_uboot_env",
+        "microdroid_bootloader",
+    ],
     file_contexts: ":com.android.virt-file_contexts",
 }
 
