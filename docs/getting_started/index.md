@@ -16,15 +16,14 @@ Virtualization source code and relevant tests are located in
 [packages/modules/Virtualization](https://android.googlesource.com/platform/packages/modules/Virtualization)
 of the AOSP repository.
 
-### Host-side tests
+### Device-side tests
 
-These are tests where the test driver runs on the "host" (your computer) and it issues commands to
-the "target" (the connected device or emulator) over ADB. The tests spawn guest VMs and test
-different aspects of the architecture.
+The tests spawn guest VMs and test different aspects of the architecture.
 
 You can build and run them with:
-``` shell
-atest VirtualizationHostTestCases
+
+```shell
+atest VirtualizationTestCases
 ```
 
 If you run into problems, inspect the logs produced by `atest`. Their location is printed at the
@@ -35,36 +34,47 @@ end. The `host_log_*.zip` file should contain the output of individual commands 
 [CrosVM](https://android.googlesource.com/platform/external/crosvm/) is a Rust-based Virtual Machine
 Monitor (VMM) originally built for ChromeOS and ported to Android.
 
-It is not installed in regular Android builds (yet!), but it's installed in the
-VIM3L (yukawa) build, as part of the `com.android.virt` APEX.
-builds.
+It is not installed in regular Android builds (yet!), but it's installed in the VIM3L (yukawa)
+build, as part of the `com.android.virt` APEX.
 
 ### Spawning your own VMs
 
-You can spawn your own VMs by running CrosVM directly on a rooted KVM-enabled device. If your
-device is attached over ADB, you can run:
-``` shell
+You can spawn your own VMs by passing a JSON config file to the Virt Manager via the `vm` tool on a
+rooted KVM-enabled device. If your device is attached over ADB, you can run:
+
+```shell
+$ cat > vm_config.json
+{
+  "kernel": "/data/local/tmp/kernel",
+  "initrd": "/data/local/tmp/ramdisk",
+  "params": "rdinit=/bin/init"
+}
 $ adb root
 $ adb push <kernel> /data/local/tmp/kernel
 $ adb push <ramdisk> /data/local/tmp/ramdisk
-$ adb shell /apex/com.android.virt/bin/crosvm run --initrd /data/local/tmp/ramdisk /data/local/tmp/kernel
+$ adb push vm_config.json /data/local/tmp/vm_config.json
+$ adb shell "start virtmanager"
+$ adb shell "/apex/com.android.virt/bin/vm run /data/local/tmp/vm_config.json"
 ```
 
-### Building and updating CrosVM
+The `vm` command also has other subcommands for debugging; run `/apex/com.android.virt/bin/vm help`
+for details.
 
-You can update CrosVM by updating the `com.android.virt` APEX where CrosVM is
-in. If your device already has `com.android.virt` (e.g. VIM3L),
+### Building and updating CrosVM and Virt Manager
 
-``` shell
-$ m com.android.virt
-$ adb install out/target/product/<device_name>/system/apex/com.android.virt.apex
+You can update CrosVM and the Virt Manager service by updating the `com.android.virt` APEX. If your
+device already has `com.android.virt` (e.g. VIM3L):
+
+```shell
+$ TARGET_BUILD_APPS="com.android.virt" m
+$ adb install $ANDROID_PRODUCT_OUT/system/apex/com.android.virt.apex
 $ adb reboot
 ```
 
 If it doesn't have the APEX yet, you first need to place it manually to the
 system partition.
 
-``` shell
+```shell
 $ adb root
 $ adb disable-verity
 $ adb reboot
