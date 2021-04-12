@@ -2,47 +2,58 @@
   "partitions": [
     {
       "label": "uboot_env",
-      "path": "uboot_env.img"
+      "path": "uboot_env.img",
+      "read_only": true
     },
     {
       "label": "misc",
-      "path": "misc.img"
+      "path": "misc.img",
+      "read_only": true
     },
     {
       "label": "boot_a",
-      "path": "boot.img"
+      "path": "boot.img",
+      "read_only": true
     },
     {
       "label": "boot_b",
-      "path": "boot.img"
+      "path": "boot.img",
+      "read_only": true
     },
     {
       "label": "vendor_boot_a",
-      "path": "vendor_boot.img"
+      "path": "vendor_boot.img",
+      "read_only": true
     },
     {
       "label": "vendor_boot_b",
-      "path": "vendor_boot.img"
+      "path": "vendor_boot.img",
+      "read_only": true
     },
     {
       "label": "vbmeta_a",
-      "path": "vbmeta.img"
+      "path": "vbmeta.img",
+      "read_only": true
     },
     {
       "label": "vbmeta_b",
-      "path": "vbmeta.img"
+      "path": "vbmeta.img",
+      "read_only": true
     },
     {
       "label": "vbmeta_system_a",
-      "path": "vbmeta_system.img"
+      "path": "vbmeta_system.img",
+      "read_only": true
     },
     {
       "label": "vbmeta_system_b",
-      "path": "vbmeta_system.img"
+      "path": "vbmeta_system.img",
+      "read_only": true
     },
     {
       "label": "super",
-      "path": "super.img"
+      "path": "super.img",
+      "read_only": true
     }
   ]
 }
