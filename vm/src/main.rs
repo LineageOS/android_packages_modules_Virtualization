@@ -89,7 +89,7 @@ fn command_run(
 
     if daemonize {
         // Pass the VM reference back to Virt Manager and have it hold it in the background.
-        virt_manager.debugHoldVmRef(&*vm).context("Failed to pass VM to Virt Manager")
+        virt_manager.debugHoldVmRef(&vm).context("Failed to pass VM to Virt Manager")
     } else {
         // Wait until the VM dies. If we just returned immediately then the IVirtualMachine Binder
         // object would be dropped and the VM would be killed.
