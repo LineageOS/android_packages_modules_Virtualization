@@ -17,7 +17,6 @@
 use crate::config::VmConfig;
 use crate::crosvm::VmInstance;
 use crate::{Cid, FIRST_GUEST_CID};
-use ::binder::FromIBinder; // TODO(dbrazdil): remove once b/182890877 is fixed
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
@@ -107,16 +106,13 @@ impl IVirtManager for VirtManager {
 
     /// Hold a strong reference to a VM in Virt Manager. This method is only intended for debug
     /// purposes, and as such is only permitted from the shell user.
-    fn debugHoldVmRef(&self, vmref: &dyn IVirtualMachine) -> binder::Result<()> {
+    fn debugHoldVmRef(&self, vmref: &Strong<dyn IVirtualMachine>) -> binder::Result<()> {
         if !debug_access_allowed() {
             return Err(StatusCode::PERMISSION_DENIED.into());
         }
 
-        // Workaround for b/182890877.
-        let vm: Strong<dyn IVirtualMachine> = FromIBinder::try_from(vmref.as_binder()).unwrap();
-
         let state = &mut *self.state.lock().unwrap();
-        state.debug_hold_vm(vm);
+        state.debug_hold_vm(vmref.clone());
         Ok(())
     }
 
