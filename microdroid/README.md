@@ -10,49 +10,31 @@ intended to host headless & native workloads only.
 You need a VIM3L board. Instructions for building Android for the target, and
 flashing the image can be found [here](../docs/getting_started/yukawa.md).
 
-Then you build microdroid. Note that the instruction below is very likely to
-change in the future, because this is in active development. For example, the
-`microdroid_*` modules will eventually be included in the `com.android.virt`
-APEX, which is already in the `yukawa` (VIM3L) target.
+Then you install `com.android.virt` APEX. All files needed to run microdroid are
+included in the APEX, which is already in the `yukawa` (VIM3L) target. You can
+of course build and install the APEX manually.
 
 ```
 $ source build/envsetup.sh
 $ choosecombo 1 aosp_arm64 userdebug // actually, any arm64-based target is ok
-$ m microdroid_super
-$ m microdroid_boot-5.10
-$ m microdroid_vendor_boot-5.10
-$ m microdroid_bootloader
-$ m microdroid_uboot_env
-$ m microdroid_vbmeta
-$ m microdroid_vbmeta_system
-$ m microdroid_cdisk.json
-```
-
-## Installing
-
-Push the built files to the device. In addition to that, some other files have
-to be manually created, for now. In the future, you won't need these.
-
-```
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_bootloader /data/local/tmp/bootloader
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_super.img /data/local/tmp/super.img
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_boot-5.10.img /data/local/tmp/boot.img
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vendor_boot-5.10.img /data/local/tmp/vendor_boot.img
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vbmeta.img /data/local/tmp/vbmeta.img
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_vbmeta_system.img /data/local/tmp/vbmeta_system.img
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/uboot_env.img /data/local/tmp
-$ adb push $ANDROID_PRODUCT_OUT/system/etc/microdroid_cdisk.json /data/local/tmp
-$ dd if=/dev/zero of=misc.img bs=4k count=256
-$ adb push misc.img /data/local/tmp/
+$ m com.android.virt
+$ adb install $ANDROID_PRODUCT_OUT/system/apex/com.android.virt.apex
+$ adb reboot
 ```
 
 ## Running
 
-Create the composite image using `assemble_cvd` and run it via `crosvm`. In the
-future, this shall be done via [`virtmanager`](../virtmanager/).
+Copy the artifacts to the temp directory, create the composite image using
+`mk_cdisk`, and run it via `crosvm`. For now, some other files have to be
+manually created. In the future, you won't need these, and this shall be done
+via [`virtmanager`](../virtmanager/).
 
 ```
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk microdroid_cdisk.json os_composite.img'
+$ adb shell 'cp /apex/com.android.virt/etc/microdroid_bootloader /data/local/tmp/bootloader'
+$ adb shell 'cp /apex/com.android.virt/etc/fs/*.img /data/local/tmp'
+$ adb shell 'cp /apex/com.android.virt/etc/uboot_env.img /data/local/tmp'
+$ adb shell 'dd if=/dev/zero of=/data/local/tmp/misc.img bs=4k count=256'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk.json os_composite.img'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=os_composite.img'
 ```
 

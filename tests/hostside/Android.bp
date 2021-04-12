@@ -7,22 +7,4 @@ java_test_host {
     srcs: ["java/**/*.java"],
     test_suites: ["device-tests"],
     libs: ["tradefed"],
-    data: [
-        ":microdroid_cdisk.json",
-        ":microdroid_super",
-        ":microdroid_boot-5.10",
-        ":microdroid_vendor_boot-5.10",
-        ":microdroid_uboot_env",
-        ":microdroid_bootloader",
-        ":MicrodroidHostTestCase_misc",
-        ":microdroid_vbmeta",
-        ":microdroid_vbmeta_system",
-    ],
-}
-
-genrule {
-    name: "MicrodroidHostTestCase_misc",
-    out: ["misc.img"],
-    cmd: "dd if=/dev/zero of=$(out) bs=4k count=256",
-    visibility: ["//visibility:private"],
 }

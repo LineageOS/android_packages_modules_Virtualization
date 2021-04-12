@@ -30,9 +30,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,17 +41,6 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
     private static final long MICRODROID_BOOT_TIMEOUT_MILLIS = 15000;
-
-    private void pushFile(String localName, String remoteName) {
-        try {
-            File localFile = getTestInformation().getDependencyFile(localName, false);
-            Path remotePath = Paths.get(TEST_ROOT, remoteName);
-            getDevice().executeShellCommand("mkdir -p " + remotePath.getParent());
-            getDevice().pushFile(localFile, remotePath.toString());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private String executeCommand(String cmd) {
         final long defaultCommandTimeoutMillis = 1000; // 1 sec
@@ -69,21 +55,21 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     @Test
     public void testMicrodroidBoots() throws Exception {
         // Prepare input files
-        pushFile("microdroid_cdisk.json", "microdroid_cdisk.json");
-        pushFile("microdroid_bootloader", "bootloader");
-        pushFile("microdroid_super.img", "super.img");
-        pushFile("microdroid_boot-5.10.img", "boot.img");
-        pushFile("microdroid_vendor_boot-5.10.img", "vendor_boot.img");
-        pushFile("uboot_env.img", "uboot_env.img");
-        pushFile("misc.img", "misc.img");
-        pushFile("microdroid_vbmeta.img", "vbmeta.img");
-        pushFile("microdroid_vbmeta_system.img", "vbmeta_system.img");
+        String prepareImagesCmd =
+                String.format(
+                        "mkdir -p %s; cd %s; "
+                                + "cp %setc/microdroid_bootloader bootloader && "
+                                + "cp %setc/fs/*.img . && "
+                                + "cp %setc/uboot_env.img . && "
+                                + "dd if=/dev/zero of=misc.img bs=4k count=256",
+                        TEST_ROOT, TEST_ROOT, VIRT_APEX, VIRT_APEX, VIRT_APEX);
+        getDevice().executeShellCommand(prepareImagesCmd);
 
         // Create os_composite.img
         String makeOsCompositeCmd =
                 String.format(
-                        "cd %s; %sbin/mk_cdisk microdroid_cdisk.json os_composite.img",
-                        TEST_ROOT, VIRT_APEX);
+                        "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk.json os_composite.img",
+                        TEST_ROOT, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(makeOsCompositeCmd);
 
         // Make sure that os_composite.img is created
