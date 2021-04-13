@@ -1,11 +1,6 @@
 {
   "partitions": [
     {
-      "label": "uboot_env",
-      "path": "uboot_env.img",
-      "read_only": true
-    },
-    {
       "label": "misc",
       "path": "misc.img",
       "read_only": true
