@@ -65,16 +65,23 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         TEST_ROOT, TEST_ROOT, VIRT_APEX, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(prepareImagesCmd);
 
-        // Create os_composite.img
+        // Create os_composite.img and env_composite.img
         String makeOsCompositeCmd =
                 String.format(
                         "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk.json os_composite.img",
                         TEST_ROOT, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(makeOsCompositeCmd);
+        String makeEnvCompositeCmd =
+                String.format(
+                        "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk_env.json env_composite.img",
+                        TEST_ROOT, VIRT_APEX, VIRT_APEX);
+        getDevice().executeShellCommand(makeEnvCompositeCmd);
 
-        // Make sure that os_composite.img is created
+        // Make sure that the composite images are created
         final String compositeImg = TEST_ROOT + "/os_composite.img";
-        CommandResult result = getDevice().executeShellV2Command("du -b " + compositeImg);
+        final String envCompositeImg = TEST_ROOT + "/env_composite.img";
+        CommandResult result =
+                getDevice().executeShellV2Command("du -b " + compositeImg + " " + envCompositeImg);
         assertThat(result.getExitCode(), is(0));
         assertThat(result.getStdout(), is(not("")));
 
@@ -83,7 +90,8 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         String runMicrodroidCmd =
                 String.format(
                         "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
-                                + " --serial=type=syslog --disk=os_composite.img",
+                                + " --serial=type=syslog --disk=os_composite.img"
+                                + " --disk=env_composite.img",
                         TEST_ROOT, VIRT_APEX, TEST_VM_CID);
         executor.execute(
                 () -> {
