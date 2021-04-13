@@ -96,9 +96,9 @@ impl IVirtManager for VirtManager {
             .into_iter()
             .map(|vm| VirtualMachineDebugInfo {
                 cid: vm.cid as i32,
-                requester_uid: vm.requester_uid as i32,
-                requester_sid: vm.requester_sid.clone(),
-                requester_pid: vm.requester_pid,
+                requesterUid: vm.requester_uid as i32,
+                requesterSid: vm.requester_sid.clone(),
+                requesterPid: vm.requester_pid,
             })
             .collect();
         Ok(cids)
