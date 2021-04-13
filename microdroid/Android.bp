@@ -338,3 +338,8 @@ prebuilt_etc {
     name: "microdroid_cdisk.json",
     src: "microdroid_cdisk.json",
 }
+
+prebuilt_etc {
+    name: "microdroid_cdisk_env.json",
+    src: "microdroid_cdisk_env.json",
+}
