@@ -9,7 +9,6 @@ rust_binary {
         "authfs_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",
-        "libbinder_rs",
         "libclap",
         "liblibc",
         "liblog_rust",

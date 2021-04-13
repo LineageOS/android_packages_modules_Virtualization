@@ -20,7 +20,7 @@ mod crosvm;
 
 use crate::aidl::{VirtManager, BINDER_SERVICE_IDENTIFIER};
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::BnVirtManager;
-use android_system_virtmanager::binder::{add_service, ProcessState};
+use android_system_virtmanager::binder::{add_service, BinderFeatures, ProcessState};
 use log::{info, Level};
 
 /// The first CID to assign to a guest VM managed by the Virt Manager. CIDs lower than this are
@@ -38,7 +38,7 @@ fn main() {
     );
 
     let virt_manager = VirtManager::default();
-    let virt_manager = BnVirtManager::new_binder(virt_manager);
+    let virt_manager = BnVirtManager::new_binder(virt_manager, BinderFeatures::default());
     add_service(BINDER_SERVICE_IDENTIFIER, virt_manager.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();

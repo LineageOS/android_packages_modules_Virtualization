@@ -37,15 +37,14 @@ use std::os::unix::fs::FileExt;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 
 use anyhow::{bail, Context, Result};
-use binder::IBinderInternal; // TODO(178852354): remove once set_requesting_sid is exposed in the API.
 use log::{debug, error};
 
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
     BnVirtFdService, IVirtFdService, ERROR_IO, ERROR_UNKNOWN_FD, MAX_REQUESTING_DATA,
 };
 use authfs_aidl_interface::binder::{
-    add_service, ExceptionCode, Interface, ProcessState, Result as BinderResult, Status,
-    StatusCode, Strong,
+    add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Result as BinderResult,
+    Status, StatusCode, Strong,
 };
 
 const SERVICE_NAME: &str = "authfs_fd_server";
@@ -100,9 +99,7 @@ struct FdService {
 
 impl FdService {
     pub fn new_binder(fd_pool: BTreeMap<i32, FdConfig>) -> Strong<dyn IVirtFdService> {
-        let result = BnVirtFdService::new_binder(FdService { fd_pool });
-        result.as_binder().set_requesting_sid(false);
-        result
+        BnVirtFdService::new_binder(FdService { fd_pool }, BinderFeatures::default())
     }
 
     fn get_file_config(&self, id: i32) -> BinderResult<&FdConfig> {
