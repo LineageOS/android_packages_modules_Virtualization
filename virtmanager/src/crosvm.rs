@@ -14,12 +14,17 @@
 
 //! Functions for running instances of `crosvm`.
 
+use crate::aidl::VirtualMachineCallbacks;
 use crate::config::VmConfig;
 use crate::Cid;
 use anyhow::Error;
-use log::{debug, error, info};
+use log::{error, info};
+use shared_child::SharedChild;
 use std::fs::File;
-use std::process::{Child, Command};
+use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
@@ -27,7 +32,7 @@ const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 #[derive(Debug)]
 pub struct VmInstance {
     /// The crosvm child process.
-    child: Child,
+    child: SharedChild,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
     /// The UID of the process which requested the VM.
@@ -37,18 +42,30 @@ pub struct VmInstance {
     /// The PID of the process which requested the VM. Note that this process may no longer exist
     /// and the PID may have been reused for a different process, so this should not be trusted.
     pub requester_pid: i32,
+    /// Whether the VM is still running.
+    running: AtomicBool,
+    /// Callbacks to clients of the VM.
+    pub callbacks: VirtualMachineCallbacks,
 }
 
 impl VmInstance {
     /// Create a new `VmInstance` for the given process.
     fn new(
-        child: Child,
+        child: SharedChild,
         cid: Cid,
         requester_uid: u32,
         requester_sid: Option<String>,
         requester_pid: i32,
     ) -> VmInstance {
-        VmInstance { child, cid, requester_uid, requester_sid, requester_pid }
+        VmInstance {
+            child,
+            cid,
+            requester_uid,
+            requester_sid,
+            requester_pid,
+            running: AtomicBool::new(true),
+            callbacks: Default::default(),
+        }
     }
 
     /// Start an instance of `crosvm` to manage a new VM. The `crosvm` instance will be killed when
@@ -60,29 +77,46 @@ impl VmInstance {
         requester_uid: u32,
         requester_sid: Option<String>,
         requester_pid: i32,
-    ) -> Result<VmInstance, Error> {
+    ) -> Result<Arc<VmInstance>, Error> {
         let child = run_vm(config, cid, log_fd)?;
-        Ok(VmInstance::new(child, cid, requester_uid, requester_sid, requester_pid))
-    }
-}
+        let instance =
+            Arc::new(VmInstance::new(child, cid, requester_uid, requester_sid, requester_pid));
 
-impl Drop for VmInstance {
-    fn drop(&mut self) {
-        debug!("Dropping {:?}", self);
+        let instance_clone = instance.clone();
+        thread::spawn(move || {
+            instance_clone.monitor();
+        });
+
+        Ok(instance)
+    }
+
+    /// Wait for the crosvm child process to finish, then mark the VM as no longer running and call
+    /// any callbacks.
+    fn monitor(&self) {
+        match self.child.wait() {
+            Err(e) => error!("Error waiting for crosvm instance to die: {}", e),
+            Ok(status) => info!("crosvm exited with status {}", status),
+        }
+        self.running.store(false, Ordering::Release);
+        self.callbacks.callback_on_died(self.cid);
+    }
+
+    /// Return whether `crosvm` is still running the VM.
+    pub fn running(&self) -> bool {
+        self.running.load(Ordering::Acquire)
+    }
+
+    /// Kill the crosvm instance.
+    pub fn kill(&self) {
         // TODO: Talk to crosvm to shutdown cleanly.
         if let Err(e) = self.child.kill() {
             error!("Error killing crosvm instance: {}", e);
-        }
-        // We need to wait on the process after killing it to avoid zombies.
-        match self.child.wait() {
-            Err(e) => error!("Error waiting for crosvm instance to die: {}", e),
-            Ok(status) => info!("Crosvm exited with status {}", status),
         }
     }
 }
 
 /// Start an instance of `crosvm` to manage a new VM.
-fn run_vm(config: &VmConfig, cid: Cid, log_fd: Option<File>) -> Result<Child, Error> {
+fn run_vm(config: &VmConfig, cid: Cid, log_fd: Option<File>) -> Result<SharedChild, Error> {
     config.validate()?;
 
     let mut command = Command::new(CROSVM_PATH);
@@ -110,6 +144,5 @@ fn run_vm(config: &VmConfig, cid: Cid, log_fd: Option<File>) -> Result<Child, Er
         command.arg(kernel);
     }
     info!("Running {:?}", command);
-    // TODO: Monitor child process, and remove from VM map if it dies.
-    Ok(command.spawn()?)
+    Ok(SharedChild::spawn(&mut command)?)
 }
