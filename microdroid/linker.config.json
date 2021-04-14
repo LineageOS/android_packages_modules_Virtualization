@@ -1,0 +1,17 @@
+{
+  // TODO(b/185391776): Automate the list for microdroid
+  "provideLibs": [
+    "libadbd_auth.so",
+    "libadbd_fs.so",
+    "libc.so",
+    "libcgrouprc.so",
+    "libdl.so",
+    "libdl_android.so",
+    "liblog.so",
+    "libm.so",
+    "libselinux.so",
+    "libstdc++.so",
+    "libvndksupport.so",
+    "libz.so"
+  ]
+}
