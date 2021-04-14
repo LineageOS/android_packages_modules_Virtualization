@@ -106,7 +106,14 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         Thread.sleep(MICRODROID_BOOT_TIMEOUT_MILLIS);
 
         // Connect to microdroid and read a system property from there
-        executeCommand("adb forward tcp:" + TEST_VM_ADB_PORT + " vsock:" + TEST_VM_CID + ":5555");
+        executeCommand(
+                "adb -s "
+                        + getDevice().getSerialNumber()
+                        + " forward tcp:"
+                        + TEST_VM_ADB_PORT
+                        + " vsock:"
+                        + TEST_VM_CID
+                        + ":5555");
         executeCommand("adb connect " + MICRODROID_SERIAL);
         String prop = executeCommand("adb -s " + MICRODROID_SERIAL + " shell getprop ro.hardware");
         assertThat(prop, is("microdroid"));
