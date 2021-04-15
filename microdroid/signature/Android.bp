@@ -1,0 +1,49 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_defaults {
+    name: "microdroid_signature_default",
+    host_supported: true,
+    srcs: [
+        "microdroid_signature.proto",
+        "signature.cc",
+    ],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+    export_include_dirs: ["include"],
+}
+
+cc_library_static {
+    name: "lib_microdroid_signature_proto_lite",
+    recovery_available: true,
+    proto: {
+        export_proto_headers: true,
+        type: "lite",
+    },
+    defaults: ["microdroid_signature_default"],
+    apex_available: [
+        "com.android.virt",
+    ],
+}
+
+cc_binary {
+    name: "mk_microdroid_signature",
+    srcs: [
+        "mk_microdroid_signature.cc",
+    ],
+    shared_libs: [
+        "libbase",
+        "liblog",
+    ],
+    static_libs: [
+        "lib_microdroid_signature_proto_lite",
+        "libjsoncpp",
+        "libprotobuf-cpp-lite",
+    ],
+    apex_available: [
+        "com.android.virt",
+    ],
+}

@@ -43,8 +43,9 @@ apex {
         },
     },
     binaries: [
-        "mk_cdisk",
         "fd_server",
+        "mk_cdisk",
+        "mk_microdroid_signature",
         "virtmanager",
         "vm",
     ],
