@@ -57,6 +57,8 @@ android_filesystem {
         "servicemanager",
         "tombstoned",
         "cgroups.json",
+        "public.libraries.android.txt",
+        "microdroid_linker_config",
 
         "plat_sepolicy_and_mapping.sha256",
     ] + microdroid_shell_and_utilities,
@@ -376,4 +378,29 @@ prebuilt_etc {
 prebuilt_etc {
     name: "microdroid_cdisk_env.json",
     src: "microdroid_cdisk_env.json",
+}
+
+// TODO(b/185391776) generate at build time
+linker_config {
+    name: "microdroid_system_provide",
+    src: "linker.config.json",
+    installable: false,
+}
+
+genrule {
+    name: "microdroid_linker_config_gen",
+    tools: ["conv_linker_config"],
+    srcs: [
+        ":system_linker_config",
+        ":microdroid_system_provide",
+    ],
+    out: ["linker.config.pb"],
+    cmd: "$(location conv_linker_config) merge -o $(out) -i $(location :system_linker_config) -i $(location :microdroid_system_provide)",
+}
+
+prebuilt_etc {
+    name: "microdroid_linker_config",
+    src: ":microdroid_linker_config_gen",
+    filename: "linker.config.pb",
+    installable: false,
 }
