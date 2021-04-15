@@ -13,9 +13,6 @@ import /init.environ.rc
 # Cgroups are mounted right before early-init using list from /etc/cgroups.json
 on early-init
     start ueventd
-    setprop ro.apex.updatable true
-    setprop ro.debuggable 1
-    setprop ro.adb.secure 0
 
     # Generate ld.config.txt
     exec -- /system/bin/bootstrap/linkerconfig --target /linkerconfig

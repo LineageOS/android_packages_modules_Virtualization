@@ -41,6 +41,7 @@ android_filesystem {
     deps: [
         "init_second_stage",
         "microdroid_init_rc",
+        "microdroid_build_prop",
         "ueventd.rc",
         "libbinder",
         "libstdc++",
@@ -85,6 +86,13 @@ prebuilt_etc {
     src: "init.rc",
     relative_install_path: "init/hw",
     installable: false, // avoid collision with system partition's init.rc
+}
+
+prebuilt_root {
+    name: "microdroid_build_prop",
+    filename: "build.prop",
+    src: "build.prop",
+    installable: false,
 }
 
 android_filesystem {
