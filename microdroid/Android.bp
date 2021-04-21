@@ -379,10 +379,3 @@ prebuilt_etc {
     name: "microdroid_cdisk_env.json",
     src: "microdroid_cdisk_env.json",
 }
-
-// TODO(b/185391776) generate at build time
-linker_config {
-    name: "microdroid_system_provide",
-    src: "linker.config.json",
-    installable: false,
-}
