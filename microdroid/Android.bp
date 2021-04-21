@@ -32,7 +32,7 @@ microdroid_symlinks = [
     },
 ]
 
-android_filesystem {
+android_system_image {
     name: "microdroid",
     use_avb: true,
     avb_private_key: ":avb_testkey_rsa4096",
@@ -58,7 +58,6 @@ android_filesystem {
         "tombstoned",
         "cgroups.json",
         "public.libraries.android.txt",
-        "microdroid_linker_config",
 
         "plat_sepolicy_and_mapping.sha256",
     ] + microdroid_shell_and_utilities,
@@ -76,6 +75,7 @@ android_filesystem {
             ],
         },
     },
+    linker_config_src: "linker.config.json",
     base_dir: "system",
     dirs: microdroid_rootdirs,
     symlinks: microdroid_symlinks,
@@ -384,23 +384,5 @@ prebuilt_etc {
 linker_config {
     name: "microdroid_system_provide",
     src: "linker.config.json",
-    installable: false,
-}
-
-genrule {
-    name: "microdroid_linker_config_gen",
-    tools: ["conv_linker_config"],
-    srcs: [
-        ":system_linker_config",
-        ":microdroid_system_provide",
-    ],
-    out: ["linker.config.pb"],
-    cmd: "$(location conv_linker_config) merge -o $(out) -i $(location :system_linker_config) -i $(location :microdroid_system_provide)",
-}
-
-prebuilt_etc {
-    name: "microdroid_linker_config",
-    src: ":microdroid_linker_config_gen",
-    filename: "linker.config.pb",
     installable: false,
 }
