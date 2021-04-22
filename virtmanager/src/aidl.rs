@@ -24,7 +24,7 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMach
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachineCallback::IVirtualMachineCallback;
 use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
 use android_system_virtmanager::binder::{
-    self, Interface, ParcelFileDescriptor, StatusCode, Strong, ThreadState,
+    self, BinderFeatures, Interface, ParcelFileDescriptor, StatusCode, Strong, ThreadState,
 };
 use log::{debug, error};
 use std::ffi::CStr;
@@ -139,7 +139,7 @@ struct VirtualMachine {
 impl VirtualMachine {
     fn create(instance: Arc<VmInstance>) -> Strong<dyn IVirtualMachine> {
         let binder = VirtualMachine { instance };
-        BnVirtualMachine::new_binder(binder)
+        BnVirtualMachine::new_binder(binder, BinderFeatures::default())
     }
 }
 
