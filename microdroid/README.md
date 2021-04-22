@@ -36,7 +36,8 @@ $ adb shell 'cp /apex/com.android.virt/etc/uboot_env.img /data/local/tmp'
 $ adb shell 'dd if=/dev/zero of=/data/local/tmp/misc.img bs=4k count=256'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk.json os_composite.img'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_env.json env_composite.img'
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=os_composite.img --disk=env_composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=os_composite.img --disk=env_composite.img --disk=payload.img'
 ```
 
 The CID in `--cid` parameter can be anything greater than 2 (`VMADDR_CID_HOST`).
