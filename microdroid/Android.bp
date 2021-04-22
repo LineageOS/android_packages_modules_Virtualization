@@ -49,7 +49,11 @@ android_system_image {
         "logd",
         "run-as",
         "secilc",
-        "adbd",
+
+        // "com.android.adbd" requires these,
+        "libadbd_auth",
+        "libadbd_fs",
+
         "apexd",
         "debuggerd",
         "linker",
@@ -378,4 +382,9 @@ prebuilt_etc {
 prebuilt_etc {
     name: "microdroid_cdisk_env.json",
     src: "microdroid_cdisk_env.json",
+}
+
+prebuilt_etc {
+    name: "microdroid_payload.json",
+    src: "microdroid_payload.json",
 }
