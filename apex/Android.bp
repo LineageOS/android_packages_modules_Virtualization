@@ -44,15 +44,19 @@ apex {
     },
     binaries: [
         "fd_server",
-        "mk_cdisk",
-        "mk_microdroid_signature",
         "virtmanager",
         "vm",
+
+        // tools to create composite images
+        "mk_cdisk",
+        "mk_microdroid_signature",
+        "mk_payload",
     ],
     prebuilts: [
         "com.android.virt.init.rc",
         "microdroid_cdisk.json",
         "microdroid_cdisk_env.json",
+        "microdroid_payload.json",
         "microdroid_uboot_env",
         "microdroid_bootloader",
     ],

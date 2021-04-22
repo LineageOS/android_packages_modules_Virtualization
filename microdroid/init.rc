@@ -105,6 +105,8 @@ on post-fs
 
     perform_apex_config
 
+    exec_start derive_sdk
+
     start adbd
 
 service ueventd /system/bin/ueventd
@@ -121,13 +123,6 @@ service console /system/bin/sh
     group shell log readproc
     seclabel u:r:shell:s0
     setenv HOSTNAME console
-
-# TODO(b/181093750): remove these after adding apex support
-service adbd /system/bin/adbd --root_seclabel=u:r:su:s0
-    class core
-    socket adbd seqpacket 660 system system
-    disabled
-    seclabel u:r:adbd:s0
 
 on fs
     write /dev/event-log-tags "# content owned by logd
