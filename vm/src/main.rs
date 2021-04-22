@@ -22,7 +22,8 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMach
     BnVirtualMachineCallback, IVirtualMachineCallback,
 };
 use android_system_virtmanager::binder::{
-    get_interface, DeathRecipient, IBinder, ParcelFileDescriptor, ProcessState, Strong,
+    get_interface, BinderFeatures, DeathRecipient, IBinder, ParcelFileDescriptor, ProcessState,
+    Strong,
 };
 use android_system_virtmanager::binder::{Interface, Result as BinderResult};
 use anyhow::{Context, Error};
@@ -105,8 +106,10 @@ fn command_run(
 /// Wait until the given VM or the VirtManager itself dies.
 fn wait_for_vm(vm: Strong<dyn IVirtualMachine>) -> Result<(), Error> {
     let dead = AtomicFlag::default();
-    let callback =
-        BnVirtualMachineCallback::new_binder(VirtualMachineCallback { dead: dead.clone() });
+    let callback = BnVirtualMachineCallback::new_binder(
+        VirtualMachineCallback { dead: dead.clone() },
+        BinderFeatures::default(),
+    );
     vm.registerCallback(&callback)?;
     let death_recipient = wait_for_death(&mut vm.as_binder(), dead.clone())?;
     dead.wait();
