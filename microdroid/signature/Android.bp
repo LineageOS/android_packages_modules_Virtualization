@@ -56,3 +56,31 @@ cc_binary {
         "com.android.virt",
     ],
 }
+
+cc_binary {
+    name: "mk_payload",
+    srcs: [
+        "mk_payload.cc",
+    ],
+    shared_libs: [
+        "libbase",
+        "libcuttlefish_fs",
+        "libcuttlefish_utils",
+        "liblog",
+        "libz",
+    ],
+    static_libs: [
+        "lib_microdroid_signature_proto_lite",
+        "libcdisk_spec",
+        "libext2_uuid",
+        "libimage_aggregator",
+        "libjsoncpp",
+        "libprotobuf-cpp-lite",
+        "libsparse",
+        "libxml2",
+    ],
+    generated_sources: ["apex-info-list"],
+    apex_available: [
+        "com.android.virt",
+    ],
+}
