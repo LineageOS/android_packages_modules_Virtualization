@@ -65,7 +65,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         TEST_ROOT, TEST_ROOT, VIRT_APEX, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(prepareImagesCmd);
 
-        // Create os_composite.img and env_composite.img
+        // Create os_composite.img, env_composite.img, and payload.img
         String makeOsCompositeCmd =
                 String.format(
                         "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk.json os_composite.img",
@@ -76,12 +76,21 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk_env.json env_composite.img",
                         TEST_ROOT, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(makeEnvCompositeCmd);
+        String makePayloadCompositeCmd =
+                String.format(
+                        "cd %s; %sbin/mk_payload %setc/microdroid_payload.json payload.img",
+                        TEST_ROOT, VIRT_APEX, VIRT_APEX);
+        getDevice().executeShellCommand(makePayloadCompositeCmd);
 
         // Make sure that the composite images are created
-        final String compositeImg = TEST_ROOT + "/os_composite.img";
+        final String osCompositeImg = TEST_ROOT + "/os_composite.img";
         final String envCompositeImg = TEST_ROOT + "/env_composite.img";
+        final String payloadCompositeImg = TEST_ROOT + "/payload.img";
         CommandResult result =
-                getDevice().executeShellV2Command("du -b " + compositeImg + " " + envCompositeImg);
+                getDevice().executeShellV2Command(
+                        "du -b " + osCompositeImg + " "
+                                 + envCompositeImg + " "
+                                 + payloadCompositeImg);
         assertThat(result.getExitCode(), is(0));
         assertThat(result.getStdout(), is(not("")));
 
@@ -91,7 +100,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 String.format(
                         "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
                                 + " --serial=type=syslog --disk=os_composite.img"
-                                + " --disk=env_composite.img",
+                                + " --disk=env_composite.img --disk=payload.img",
                         TEST_ROOT, VIRT_APEX, TEST_VM_CID);
         executor.execute(
                 () -> {
