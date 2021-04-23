@@ -30,6 +30,10 @@ microdroid_symlinks = [
         target: "/sys/kernel/debug",
         name: "d",
     },
+    {
+        target: "/system/etc",
+        name: "etc",
+    },
 ]
 
 android_system_image {
