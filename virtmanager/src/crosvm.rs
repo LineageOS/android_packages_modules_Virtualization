@@ -38,10 +38,10 @@ pub struct VmInstance {
     /// The UID of the process which requested the VM.
     pub requester_uid: u32,
     /// The SID of the process which requested the VM.
-    pub requester_sid: Option<String>,
+    pub requester_sid: String,
     /// The PID of the process which requested the VM. Note that this process may no longer exist
     /// and the PID may have been reused for a different process, so this should not be trusted.
-    pub requester_pid: i32,
+    pub requester_debug_pid: i32,
     /// Whether the VM is still running.
     running: AtomicBool,
     /// Callbacks to clients of the VM.
@@ -54,15 +54,15 @@ impl VmInstance {
         child: SharedChild,
         cid: Cid,
         requester_uid: u32,
-        requester_sid: Option<String>,
-        requester_pid: i32,
+        requester_sid: String,
+        requester_debug_pid: i32,
     ) -> VmInstance {
         VmInstance {
             child,
             cid,
             requester_uid,
             requester_sid,
-            requester_pid,
+            requester_debug_pid,
             running: AtomicBool::new(true),
             callbacks: Default::default(),
         }
@@ -75,12 +75,17 @@ impl VmInstance {
         cid: Cid,
         log_fd: Option<File>,
         requester_uid: u32,
-        requester_sid: Option<String>,
-        requester_pid: i32,
+        requester_sid: String,
+        requester_debug_pid: i32,
     ) -> Result<Arc<VmInstance>, Error> {
         let child = run_vm(config, cid, log_fd)?;
-        let instance =
-            Arc::new(VmInstance::new(child, cid, requester_uid, requester_sid, requester_pid));
+        let instance = Arc::new(VmInstance::new(
+            child,
+            cid,
+            requester_uid,
+            requester_sid,
+            requester_debug_pid,
+        ));
 
         let instance_clone = instance.clone();
         thread::spawn(move || {
