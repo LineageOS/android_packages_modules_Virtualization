@@ -24,7 +24,7 @@ parcelable VirtualMachineDebugInfo {
     int requesterUid;
 
     /** The SID of the process which requested the VM. */
-    @nullable String requesterSid;
+    String requesterSid;
 
     /**
      * The PID of the process which requested the VM. Note that this process may no longer exist and
