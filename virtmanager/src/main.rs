@@ -38,7 +38,10 @@ fn main() {
     );
 
     let virt_manager = VirtManager::default();
-    let virt_manager = BnVirtManager::new_binder(virt_manager, BinderFeatures::default());
+    let virt_manager = BnVirtManager::new_binder(
+        virt_manager,
+        BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
+    );
     add_service(BINDER_SERVICE_IDENTIFIER, virt_manager.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();
