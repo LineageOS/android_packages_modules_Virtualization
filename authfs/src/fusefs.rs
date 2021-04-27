@@ -257,27 +257,19 @@ impl FileSystem for AuthFs {
         // return None as the handle.
         match self.get_file_config(&inode)? {
             FileConfig::LocalVerifiedReadonlyFile { .. }
-            | FileConfig::RemoteVerifiedReadonlyFile { .. } => {
-                check_access_mode(flags, libc::O_RDONLY)?;
-                // Once verified, and only if verified, the file content can be cached. This is not
-                // really needed for a local file, but is the behavior of RemoteVerifiedReadonlyFile
-                // later.
-                Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
-            }
-            FileConfig::LocalUnverifiedReadonlyFile { .. }
+            | FileConfig::LocalUnverifiedReadonlyFile { .. }
+            | FileConfig::RemoteVerifiedReadonlyFile { .. }
             | FileConfig::RemoteUnverifiedReadonlyFile { .. } => {
                 check_access_mode(flags, libc::O_RDONLY)?;
-                // Do not cache the content. This type of file is supposed to be verified using
-                // dm-verity. The filesystem mount over dm-verity already is already cached, so use
-                // direct I/O here to avoid double cache.
-                Ok((None, fuse::sys::OpenOptions::DIRECT_IO))
             }
             FileConfig::RemoteVerifiedNewFile { .. } => {
                 // No need to check access modes since all the modes are allowed to the
                 // read-writable file.
-                Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
             }
         }
+        // Always cache the file content. There is currently no need to support direct I/O or avoid
+        // the cache buffer. Memory mapping is only possible with cache enabled.
+        Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
     }
 
     fn read<W: io::Write + ZeroCopyWriter>(
