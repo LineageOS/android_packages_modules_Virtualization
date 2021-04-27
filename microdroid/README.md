@@ -34,13 +34,14 @@ $ adb shell 'cp /apex/com.android.virt/etc/microdroid_bootloader /data/local/tmp
 $ adb shell 'cp /apex/com.android.virt/etc/fs/*.img /data/local/tmp'
 $ adb shell 'cp /apex/com.android.virt/etc/uboot_env.img /data/local/tmp'
 $ adb shell 'dd if=/dev/zero of=/data/local/tmp/misc.img bs=4k count=256'
-$ adb shell 'dd if=/dev/zero of=/data/local/tmp/userdata.img bs=4k count=25600'
+$ adb shell 'dd if=/dev/zero of=/data/local/tmp/userdata.img bs=1 count=0 seek=4G'
 $ adb shell 'mkfs.ext4 /data/local/tmp/userdata.img'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk.json os_composite.img'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_env.json env_composite.img'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_userdata.json userdata_composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm create_qcow2 --backing_file=userdata_composite.img userdata_composite.qcow2'
 $ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=os_composite.img --disk=env_composite.img --disk=payload.img --rwdisk=userdata_composite.img'
+$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/crosvm run --cid=5 --disable-sandbox --bios=bootloader --serial=type=stdout --disk=os_composite.img --disk=env_composite.img --disk=payload.img --rwdisk=userdata_composite.qcow2'
 ```
 
 The CID in `--cid` parameter can be anything greater than 2 (`VMADDR_CID_HOST`).
