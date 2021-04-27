@@ -23,6 +23,7 @@ import static org.junit.Assert.assertThat;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
+import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 
 import org.junit.After;
@@ -30,6 +31,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -145,6 +148,24 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         executeCommand("adb connect " + MICRODROID_SERIAL);
         String prop = executeCommand("adb -s " + MICRODROID_SERIAL + " shell getprop ro.hardware");
         assertThat(prop, is("microdroid"));
+
+        // Test writing to /data partition
+        File tmpFile = FileUtil.createTempFile("test", ".txt");
+        tmpFile.deleteOnExit();
+        FileWriter writer = new FileWriter(tmpFile);
+        writer.write("MicrodroidTest");
+        writer.close();
+
+        executeCommand(
+                "adb -s "
+                        + MICRODROID_SERIAL
+                        + " push "
+                        + tmpFile.getPath()
+                        + " /data/local/tmp/test.txt");
+        String catResult =
+                executeCommand(
+                        "adb -s " + MICRODROID_SERIAL + " shell cat /data/local/tmp/test.txt");
+        assertThat(catResult, is("MicrodroidTest"));
 
         // Shutdown microdroid
         executeCommand("adb -s localhost:" + TEST_VM_ADB_PORT + " shell reboot");
