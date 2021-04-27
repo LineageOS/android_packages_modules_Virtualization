@@ -15,6 +15,7 @@
  */
 
 use anyhow::Result;
+use log::{debug, warn};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::ffi::CStr;
@@ -27,8 +28,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use fuse::filesystem::{
-    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, ZeroCopyReader,
-    ZeroCopyWriter,
+    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, SetattrValid,
+    ZeroCopyReader, ZeroCopyWriter,
 };
 use fuse::mount::MountOption;
 
@@ -257,27 +258,19 @@ impl FileSystem for AuthFs {
         // return None as the handle.
         match self.get_file_config(&inode)? {
             FileConfig::LocalVerifiedReadonlyFile { .. }
-            | FileConfig::RemoteVerifiedReadonlyFile { .. } => {
-                check_access_mode(flags, libc::O_RDONLY)?;
-                // Once verified, and only if verified, the file content can be cached. This is not
-                // really needed for a local file, but is the behavior of RemoteVerifiedReadonlyFile
-                // later.
-                Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
-            }
-            FileConfig::LocalUnverifiedReadonlyFile { .. }
+            | FileConfig::LocalUnverifiedReadonlyFile { .. }
+            | FileConfig::RemoteVerifiedReadonlyFile { .. }
             | FileConfig::RemoteUnverifiedReadonlyFile { .. } => {
                 check_access_mode(flags, libc::O_RDONLY)?;
-                // Do not cache the content. This type of file is supposed to be verified using
-                // dm-verity. The filesystem mount over dm-verity already is already cached, so use
-                // direct I/O here to avoid double cache.
-                Ok((None, fuse::sys::OpenOptions::DIRECT_IO))
             }
             FileConfig::RemoteVerifiedNewFile { .. } => {
                 // No need to check access modes since all the modes are allowed to the
                 // read-writable file.
-                Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
             }
         }
+        // Always cache the file content. There is currently no need to support direct I/O or avoid
+        // the cache buffer. Memory mapping is only possible with cache enabled.
+        Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
     }
 
     fn read<W: io::Write + ZeroCopyWriter>(
@@ -329,6 +322,54 @@ impl FileSystem for AuthFs {
                 let mut buf = vec![0; size as usize];
                 r.read_exact(&mut buf)?;
                 editor.write_at(&buf, offset)
+            }
+            _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
+        }
+    }
+
+    fn setattr(
+        &self,
+        _ctx: Context,
+        inode: Inode,
+        attr: libc::stat64,
+        _handle: Option<Handle>,
+        valid: SetattrValid,
+    ) -> io::Result<(libc::stat64, Duration)> {
+        match self.get_file_config(&inode)? {
+            FileConfig::RemoteVerifiedNewFile { editor } => {
+                // Initialize the default stat.
+                let mut new_attr = create_stat(inode, editor.size(), FileMode::ReadWrite)?;
+                // `valid` indicates what fields in `attr` are valid. Update to return correctly.
+                if valid.contains(SetattrValid::SIZE) {
+                    // st_size is i64, but the cast should be safe since kernel should not give a
+                    // negative size.
+                    debug_assert!(attr.st_size >= 0);
+                    new_attr.st_size = attr.st_size;
+                    editor.resize(attr.st_size as u64)?;
+                }
+
+                if valid.contains(SetattrValid::MODE) {
+                    warn!("Changing st_mode is not currently supported");
+                    return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                }
+                if valid.contains(SetattrValid::UID) {
+                    warn!("Changing st_uid is not currently supported");
+                    return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                }
+                if valid.contains(SetattrValid::GID) {
+                    warn!("Changing st_gid is not currently supported");
+                    return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                }
+                if valid.contains(SetattrValid::CTIME) {
+                    debug!("Ignoring ctime change as authfs does not maintain timestamp currently");
+                }
+                if valid.intersects(SetattrValid::ATIME | SetattrValid::ATIME_NOW) {
+                    debug!("Ignoring atime change as authfs does not maintain timestamp currently");
+                }
+                if valid.intersects(SetattrValid::MTIME | SetattrValid::MTIME_NOW) {
+                    debug!("Ignoring mtime change as authfs does not maintain timestamp currently");
+                }
+                Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
             }
             _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
         }
