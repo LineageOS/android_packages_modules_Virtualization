@@ -18,6 +18,7 @@ microdroid_rootdirs = [
     "vendor",
     "debug_ramdisk",
     "mnt",
+    "data",
 
     "apex",
     "linkerconfig",
@@ -109,6 +110,7 @@ android_filesystem {
     name: "microdroid_vendor",
     use_avb: true,
     deps: [
+        "microdroid_fstab",
         "microdroid_plat_sepolicy_vers.txt",
         "microdroid_precompiled_sepolicy",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
@@ -386,6 +388,11 @@ prebuilt_etc {
 prebuilt_etc {
     name: "microdroid_cdisk_env.json",
     src: "microdroid_cdisk_env.json",
+}
+
+prebuilt_etc {
+    name: "microdroid_cdisk_userdata.json",
+    src: "microdroid_cdisk_userdata.json",
 }
 
 prebuilt_etc {
