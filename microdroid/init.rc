@@ -115,6 +115,19 @@ on post-fs-data
     mount_all /vendor/etc/fstab --late
     restorecon /data
 
+    mkdir /data/vendor 0771 root root encryption=Require
+    mkdir /data/vendor_ce 0771 root root encryption=None
+    mkdir /data/vendor_de 0771 root root encryption=None
+    mkdir /data/vendor/hardware 0771 root root
+
+    # Start tombstoned early to be able to store tombstones.
+    mkdir /data/anr 0775 system system encryption=Require
+    mkdir /data/tombstones 0771 system system encryption=Require
+    mkdir /data/vendor/tombstones 0771 root root
+    mkdir /data/vendor/tombstones/wifi 0771 wifi wifi
+
+    start tombstoned
+
 service ueventd /system/bin/ueventd
     class core
     critical
