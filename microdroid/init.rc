@@ -78,6 +78,8 @@ on late-init
     # some services can be started.
     trigger late-fs
 
+    trigger post-fs-data
+
     # Load persist properties and override properties (if enabled) from /data.
     trigger load_persist_props_action
 
@@ -108,6 +110,10 @@ on post-fs
     exec_start derive_sdk
 
     start adbd
+
+on post-fs-data
+    mount_all /vendor/etc/fstab --late
+    restorecon /data
 
 service ueventd /system/bin/ueventd
     class core
