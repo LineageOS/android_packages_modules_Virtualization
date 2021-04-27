@@ -128,6 +128,11 @@ on post-fs-data
 
     start tombstoned
 
+    # For security reasons, /data/local/tmp should always be empty.
+    # Do not place files or directories in /data/local/tmp
+    mkdir /data/local 0751 root root encryption=Require
+    mkdir /data/local/tmp 0771 shell shell
+
 service ueventd /system/bin/ueventd
     class core
     critical
