@@ -30,6 +30,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -61,11 +64,13 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                                 + "cp %setc/microdroid_bootloader bootloader && "
                                 + "cp %setc/fs/*.img . && "
                                 + "cp %setc/uboot_env.img . && "
-                                + "dd if=/dev/zero of=misc.img bs=4k count=256",
+                                + "dd if=/dev/zero of=misc.img bs=4k count=256 && "
+                                + "dd if=/dev/zero of=userdata.img bs=4k count=25600 && "
+                                + "mkfs.ext4 userdata.img",
                         TEST_ROOT, TEST_ROOT, VIRT_APEX, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(prepareImagesCmd);
 
-        // Create os_composite.img, env_composite.img, and payload.img
+        // Create os_composite.img, env_composite.img, userdata.img, and payload.img
         String makeOsCompositeCmd =
                 String.format(
                         "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk.json os_composite.img",
@@ -76,6 +81,12 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk_env.json env_composite.img",
                         TEST_ROOT, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(makeEnvCompositeCmd);
+        String makeDataCompositeCmd =
+                String.format(
+                        "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk_userdata.json"
+                                + " userdata_composite.img",
+                        TEST_ROOT, VIRT_APEX, VIRT_APEX);
+        getDevice().executeShellCommand(makeDataCompositeCmd);
         String makePayloadCompositeCmd =
                 String.format(
                         "cd %s; %sbin/mk_payload %setc/microdroid_payload.json payload.img",
@@ -83,14 +94,15 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         getDevice().executeShellCommand(makePayloadCompositeCmd);
 
         // Make sure that the composite images are created
-        final String osCompositeImg = TEST_ROOT + "/os_composite.img";
-        final String envCompositeImg = TEST_ROOT + "/env_composite.img";
-        final String payloadCompositeImg = TEST_ROOT + "/payload.img";
+        final List<String> compositeImages =
+                new ArrayList<>(
+                        Arrays.asList(
+                                TEST_ROOT + "/os_composite.img",
+                                TEST_ROOT + "/env_composite.img",
+                                TEST_ROOT + "/userdata_composite.img",
+                                TEST_ROOT + "/payload.img"));
         CommandResult result =
-                getDevice().executeShellV2Command(
-                        "du -b " + osCompositeImg + " "
-                                 + envCompositeImg + " "
-                                 + payloadCompositeImg);
+                getDevice().executeShellV2Command("du -b " + String.join(" ", compositeImages));
         assertThat(result.getExitCode(), is(0));
         assertThat(result.getStdout(), is(not("")));
 
@@ -100,7 +112,8 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 String.format(
                         "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
                                 + " --serial=type=syslog --disk=os_composite.img"
-                                + " --disk=env_composite.img --disk=payload.img",
+                                + " --disk=env_composite.img --disk=payload.img"
+                                + " --rwdisk=userdata_composite.img",
                         TEST_ROOT, VIRT_APEX, TEST_VM_CID);
         executor.execute(
                 () -> {
