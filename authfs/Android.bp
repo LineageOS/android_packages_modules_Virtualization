@@ -11,11 +11,13 @@ rust_defaults {
     edition: "2018",
     rustlibs: [
         "authfs_aidl_interface-rust",
+        "libandroid_logger",
         "libanyhow",
         "libauthfs_crypto_bindgen",
         "libcfg_if",
         "libfuse_rust",
         "liblibc",
+        "liblog_rust",
         "libstructopt",
         "libthiserror",
     ],
