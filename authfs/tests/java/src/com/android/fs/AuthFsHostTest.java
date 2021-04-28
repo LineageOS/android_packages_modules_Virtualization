@@ -182,12 +182,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
         // Verify
         String expectedHash = computeFileHashInGuest(srcPath);
-        String actualHash = computeFileHash(backendPath);
-        assertEquals("Inconsistent file hash on the backend storage", expectedHash, actualHash);
-
-        String actualHashFromAuthFs = computeFileHashInGuest(destPath);
-        assertEquals("Inconsistent file hash when reads from authfs", expectedHash,
-                actualHashFromAuthFs);
+        expectBackingFileConsistency(destPath, backendPath, expectedHash);
     }
 
     @Test
@@ -222,6 +217,49 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 "dd if=/dev/zero of=" + destPath + " bs=1 count=1024 skip=8192");
     }
 
+    @Test
+    public void testFileResize() throws DeviceNotAvailableException, InterruptedException {
+        // Setup
+        runFdServerInBackground("3<>output", "--rw-fds 3");
+        runAuthFsInBackground("--remote-new-rw-file 20:3");
+        String outputPath = MOUNT_DIR + "/20";
+        String backendPath = TEST_DIR + "/output";
+
+        // Action & Verify
+        expectRemoteCommandToSucceed(
+                "yes $'\\x01' | tr -d '\\n' | dd bs=1 count=10000 of=" + outputPath);
+        assertEquals(getFileSizeInBytes(outputPath), 10000);
+        expectBackingFileConsistency(
+                outputPath,
+                backendPath,
+                "684ad25fdc2bbb80cbc910dd1bde6d5499ccf860ca6ee44704b77ec445271353");
+
+        resizeFile(outputPath, 15000);
+        assertEquals(getFileSizeInBytes(outputPath), 15000);
+        expectBackingFileConsistency(
+                outputPath,
+                backendPath,
+                "567c89f62586e0d33369157afdfe99a2fa36cdffb01e91dcdc0b7355262d610d");
+
+        resizeFile(outputPath, 5000);
+        assertEquals(getFileSizeInBytes(outputPath), 5000);
+        expectBackingFileConsistency(
+                outputPath,
+                backendPath,
+                "e53130831c13dabff71d5d1797e3aaa467b4b7d32b3b8782c4ff03d76976f2aa");
+    }
+
+    private void expectBackingFileConsistency(
+            String authFsPath, String backendPath, String expectedHash)
+            throws DeviceNotAvailableException {
+        String hashOnAuthFs = computeFileHashInGuest(authFsPath);
+        assertEquals("File hash is different to expectation", expectedHash, hashOnAuthFs);
+
+        String hashOfBackingFile = computeFileHash(backendPath);
+        assertEquals(
+                "Inconsistent file hash on the backend storage", hashOnAuthFs, hashOfBackingFile);
+    }
+
     // TODO(b/178874539): This does not really run in the guest VM.  Send the shell command to the
     // guest VM when authfs works across VM boundary.
     private String computeFileHashInGuest(String path) throws DeviceNotAvailableException {
@@ -245,6 +283,14 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
             CLog.e("Unrecognized output by sha256sum: " + result);
             return "";
         }
+    }
+
+    private void resizeFile(String path, long size) throws DeviceNotAvailableException {
+        expectRemoteCommandToSucceed("truncate -c -s " + size + " " + path);
+    }
+
+    private long getFileSizeInBytes(String path) throws DeviceNotAvailableException {
+        return Long.parseLong(expectRemoteCommandToSucceed("stat -c '%s' " + path));
     }
 
     private void throwDowncastedException(Exception e) throws DeviceNotAvailableException {
