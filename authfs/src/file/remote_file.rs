@@ -118,6 +118,17 @@ impl RandomWrite for RemoteFileEditor {
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
         Ok(size as usize) // within range because size is supposed to <= buf.len(), which is a usize
     }
+
+    fn resize(&self, size: u64) -> io::Result<()> {
+        let size =
+            i64::try_from(size).map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+        self.service
+            .lock()
+            .unwrap()
+            .resize(self.file_fd, size)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
+        Ok(())
+    }
 }
 
 impl ReadByChunk for RemoteFileEditor {

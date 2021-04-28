@@ -51,4 +51,7 @@ interface IVirtFdService {
      * written.
      */
     int writeFile(int id, in byte[] buf, long offset);
+
+    /** Resizes the file backed by the given file ID to the new size. */
+    void resize(int id, long size);
 }
