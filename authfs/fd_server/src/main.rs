@@ -206,6 +206,24 @@ impl IVirtFdService for FdService {
             }
         }
     }
+
+    fn resize(&self, id: i32, size: i64) -> BinderResult<()> {
+        match &self.get_file_config(id)? {
+            FdConfig::Readonly { .. } => Err(StatusCode::INVALID_OPERATION.into()),
+            FdConfig::ReadWrite(file) => {
+                if size < 0 {
+                    return Err(new_binder_exception(
+                        ExceptionCode::ILLEGAL_ARGUMENT,
+                        "Invalid size to resize to",
+                    ));
+                }
+                file.set_len(size as u64).map_err(|e| {
+                    error!("resize: set_len error: {}", e);
+                    Status::from(ERROR_IO)
+                })
+            }
+        }
+    }
 }
 
 fn read_into_buf(file: &File, max_size: usize, offset: u64) -> io::Result<Vec<u8>> {
