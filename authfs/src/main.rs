@@ -82,6 +82,10 @@ struct Args {
     /// Debug only. A read-only local file without integrity check. Can be multiple.
     #[structopt(long, parse(try_from_str = parse_local_ro_file_unverified_ro_option))]
     local_ro_file_unverified: Vec<OptionLocalRoFileUnverified>,
+
+    /// Enable debugging features.
+    #[structopt(long)]
+    debug: bool,
 }
 
 struct OptionRemoteRoFile {
@@ -294,6 +298,12 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
 
 fn main() -> Result<()> {
     let args = Args::from_args();
+
+    let log_level = if args.debug { log::Level::Debug } else { log::Level::Info };
+    android_logger::init_once(
+        android_logger::Config::default().with_tag("authfs").with_min_level(log_level),
+    );
+
     let file_pool = prepare_file_pool(&args)?;
     fusefs::loop_forever(file_pool, &args.mount_point)?;
     bail!("Unexpected exit after the handler loop")
