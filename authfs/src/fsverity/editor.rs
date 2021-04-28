@@ -68,6 +68,13 @@ impl From<CryptoError> for io::Error {
     }
 }
 
+fn debug_assert_usize_is_u64() {
+    // Since we don't need to support 32-bit CPU, make an assert to make conversion between
+    // u64 and usize easy below. Otherwise, we need to check `divide_roundup(offset + buf.len()
+    // <= usize::MAX` or handle `TryInto` errors.
+    debug_assert!(usize::MAX as u64 == u64::MAX, "Only 64-bit arch is supported");
+}
+
 /// VerifiedFileEditor provides an integrity layer to an underlying read-writable file, which may
 /// not be stored in a trusted environment. Only new, empty files are currently supported.
 pub struct VerifiedFileEditor<F: ReadByChunk + RandomWrite> {
@@ -150,10 +157,7 @@ impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
 
 impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
     fn write_at(&self, buf: &[u8], offset: u64) -> io::Result<usize> {
-        // Since we don't need to support 32-bit CPU, make an assert to make conversion between
-        // u64 and usize easy below. Otherwise, we need to check `divide_roundup(offset + buf.len()
-        // <= usize::MAX` or handle `TryInto` errors.
-        debug_assert!(usize::MAX as u64 == u64::MAX, "Only 64-bit arch is supported");
+        debug_assert_usize_is_u64();
 
         // The write range may not be well-aligned with the chunk boundary. There are various cases
         // to deal with:
@@ -212,6 +216,42 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
         }
         Ok(buf.len())
     }
+
+    fn resize(&self, size: u64) -> io::Result<()> {
+        debug_assert_usize_is_u64();
+
+        let mut merkle_tree = self.merkle_tree.write().unwrap();
+        // In case when we are truncating the file, we may need to recalculate the hash of the (new)
+        // last chunk. Since the content is provided by the untrusted backend, we need to read the
+        // data back first, verify it, then override the truncated portion with 0-padding for
+        // hashing. As an optimization, we only need to read the data back if the new size isn't a
+        // multiple of CHUNK_SIZE (since the hash is already correct).
+        //
+        // The same thing does not need to happen when the size is growing. Since the new extended
+        // data is always 0, we can just resize the `MerkleLeaves`, where a new hash is always
+        // calculated from 4096 zeros.
+        if size < merkle_tree.file_size() && size % CHUNK_SIZE > 0 {
+            let new_tail_size = (size % CHUNK_SIZE) as usize;
+            let chunk_index = size / CHUNK_SIZE;
+            if new_tail_size > 0 {
+                let mut buf: ChunkBuffer = [0; CHUNK_SIZE as usize];
+                let s = self.read_chunk(chunk_index, &mut buf)?;
+                debug_assert!(new_tail_size <= s);
+
+                let zeros = vec![0; CHUNK_SIZE as usize - new_tail_size];
+                let new_hash = Sha256Hasher::new()?
+                    .update(&buf[..new_tail_size])?
+                    .update(&zeros)?
+                    .finalize()?;
+                merkle_tree.update_hash(chunk_index as usize, &new_hash, size);
+            }
+        }
+
+        self.file.resize(size)?;
+        merkle_tree.resize(size as usize);
+
+        Ok(())
+    }
 }
 
 impl<F: ReadByChunk + RandomWrite> ReadByChunk for VerifiedFileEditor<F> {
@@ -252,6 +292,13 @@ mod tests {
             }
             self.data.borrow_mut().as_mut_slice()[begin..end].copy_from_slice(&buf);
             Ok(buf.len())
+        }
+
+        fn resize(&self, size: u64) -> io::Result<()> {
+            let size: usize =
+                size.try_into().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            self.data.borrow_mut().resize(size, 0);
+            Ok(())
         }
     }
 
@@ -467,6 +514,88 @@ mod tests {
 
         // When a read back is needed, a read failure will fail to write.
         assert!(file.write_at(&[1; 1], 2048).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_resize_to_same_size() -> Result<()> {
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
+        assert_eq!(file.write_at(&[1; 2048], 0)?, 2048);
+
+        assert!(file.resize(2048).is_ok());
+        assert_eq!(file.size(), 2048);
+
+        assert_eq!(
+            file.calculate_fsverity_digest()?,
+            to_u8_vec("fef1b4f19bb7a2cd944d7cdee44d1accb12726389ca5b0f61ac0f548ae40876f")
+                .as_slice()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_resize_to_grow() -> Result<()> {
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
+        assert_eq!(file.write_at(&[1; 2048], 0)?, 2048);
+
+        // Resize should grow with 0s.
+        assert!(file.resize(4096).is_ok());
+        assert_eq!(file.size(), 4096);
+
+        assert_eq!(
+            file.calculate_fsverity_digest()?,
+            to_u8_vec("9e0e2745c21e4e74065240936d2047340d96a466680c3c9d177b82433e7a0bb1")
+                .as_slice()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_resize_to_shrink() -> Result<()> {
+        let file = VerifiedFileEditor::new(InMemoryEditor::new());
+        assert_eq!(file.write_at(&[1; 4096], 0)?, 4096);
+
+        // Truncate.
+        file.resize(2048)?;
+        assert_eq!(file.size(), 2048);
+
+        assert_eq!(
+            file.calculate_fsverity_digest()?,
+            to_u8_vec("fef1b4f19bb7a2cd944d7cdee44d1accb12726389ca5b0f61ac0f548ae40876f")
+                .as_slice()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_resize_to_shrink_with_read_failure() -> Result<()> {
+        let mut writer = InMemoryEditor::new();
+        writer.fail_read = true;
+        let file = VerifiedFileEditor::new(writer);
+        assert_eq!(file.write_at(&[1; 4096], 0)?, 4096);
+
+        // A truncate needs a read back. If the read fail, the resize should fail.
+        assert!(file.resize(2048).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_resize_to_shirink_to_chunk_boundary() -> Result<()> {
+        let mut writer = InMemoryEditor::new();
+        writer.fail_read = true;
+        let file = VerifiedFileEditor::new(writer);
+        assert_eq!(file.write_at(&[1; 8192], 0)?, 8192);
+
+        // Truncate to a chunk boundary. A read error doesn't matter since we won't need to
+        // recalcuate the leaf hash.
+        file.resize(4096)?;
+        assert_eq!(file.size(), 4096);
+
+        assert_eq!(
+            file.calculate_fsverity_digest()?,
+            to_u8_vec("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af")
+                .as_slice()
+        );
         Ok(())
     }
 

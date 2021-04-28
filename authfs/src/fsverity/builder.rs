@@ -15,7 +15,7 @@
  */
 
 use super::common::{build_fsverity_digest, merkle_tree_height, FsverityError};
-use crate::common::CHUNK_SIZE;
+use crate::common::{divide_roundup, CHUNK_SIZE};
 use crate::crypto::{CryptoError, Sha256Hash, Sha256Hasher};
 
 const HASH_SIZE: usize = Sha256Hasher::HASH_SIZE;
@@ -53,6 +53,19 @@ impl MerkleLeaves {
     /// Gets size of the file represented by `MerkleLeaves`.
     pub fn file_size(&self) -> u64 {
         self.file_size
+    }
+
+    /// Grows the `MerkleLeaves` to the new file size. To keep the consistency, if any new leaves
+    /// are added, the leaves/hashes are as if the extended content is all zero.
+    ///
+    /// However, when the change shrinks the leaf number, `MerkleLeaves` does not know if the hash
+    /// of the last chunk has changed, or what the new value should be. As the result, it is up to
+    /// the caller to fix the last leaf if needed.
+    pub fn resize(&mut self, new_file_size: usize) {
+        let new_file_size = new_file_size as u64;
+        let leaves_size = divide_roundup(new_file_size, CHUNK_SIZE);
+        self.leaves.resize(leaves_size as usize, Sha256Hasher::HASH_OF_4096_ZEROS);
+        self.file_size = new_file_size;
     }
 
     /// Updates the hash of the `index`-th leaf, and increase the size to `size_at_least` if the
@@ -193,6 +206,41 @@ mod tests {
             to_u8_vec("7d3c0d2e1dc54230b20ed875f5f3a4bd3f9873df601936b3ca8127d4db3548f3"),
             tree.calculate_fsverity_digest()?
         );
+        Ok(())
+    }
+
+    #[test]
+    fn merkle_tree_grow_leaves() -> Result<()> {
+        let mut tree = MerkleLeaves::new();
+        tree.update_hash(0, &[42; HASH_SIZE], CHUNK_SIZE); // fake hash of a CHUNK_SIZE block
+
+        // Grows the leaves
+        tree.resize(4096 * 3 - 100);
+
+        assert!(tree.is_index_valid(0));
+        assert!(tree.is_index_valid(1));
+        assert!(tree.is_index_valid(2));
+        assert!(!tree.is_index_valid(3));
+        assert!(tree.is_consistent(1, &Sha256Hasher::HASH_OF_4096_ZEROS));
+        assert!(tree.is_consistent(2, &Sha256Hasher::HASH_OF_4096_ZEROS));
+        Ok(())
+    }
+
+    #[test]
+    fn merkle_tree_shrink_leaves() -> Result<()> {
+        let mut tree = MerkleLeaves::new();
+        tree.update_hash(0, &[42; HASH_SIZE], CHUNK_SIZE);
+        tree.update_hash(0, &[42; HASH_SIZE], CHUNK_SIZE * 3);
+
+        // Shrink the leaves
+        tree.resize(CHUNK_SIZE as usize * 2 - 100);
+
+        assert!(tree.is_index_valid(0));
+        assert!(tree.is_index_valid(1));
+        assert!(!tree.is_index_valid(2));
+        // The second chunk is a hole and full of zero. When shrunk, with zero padding, the hash
+        // happens to be consistent to a full-zero chunk.
+        assert!(tree.is_consistent(1, &Sha256Hasher::HASH_OF_4096_ZEROS));
         Ok(())
     }
 

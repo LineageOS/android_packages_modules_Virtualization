@@ -49,4 +49,7 @@ pub trait RandomWrite {
         }
         Ok(())
     }
+
+    /// Resizes the file to the new size.
+    fn resize(&self, size: u64) -> io::Result<()>;
 }
