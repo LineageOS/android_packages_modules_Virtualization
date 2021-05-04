@@ -14,7 +14,6 @@
 
 //! Implementation of the AIDL interface of the Virt Manager.
 
-use crate::config::VmConfig;
 use crate::crosvm::VmInstance;
 use crate::{Cid, FIRST_GUEST_CID};
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
@@ -22,12 +21,12 @@ use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMach
     BnVirtualMachine, IVirtualMachine,
 };
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachineCallback::IVirtualMachineCallback;
+use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineConfig::VirtualMachineConfig;
 use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
 use android_system_virtmanager::binder::{
     self, BinderFeatures, Interface, ParcelFileDescriptor, StatusCode, Strong, ThreadState,
 };
 use log::{debug, error};
-use std::fs::File;
 use std::sync::{Arc, Mutex, Weak};
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtmanager";
@@ -50,7 +49,7 @@ impl IVirtManager for VirtManager {
     /// Returns a binder `IVirtualMachine` object referring to it, as a handle for the client.
     fn startVm(
         &self,
-        config_fd: &ParcelFileDescriptor,
+        config: &VirtualMachineConfig,
         log_fd: Option<&ParcelFileDescriptor>,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let state = &mut *self.state.lock().unwrap();
@@ -74,14 +73,18 @@ impl IVirtManager for VirtManager {
         })?;
         let requester_debug_pid = ThreadState::get_calling_pid();
         let cid = state.allocate_cid()?;
-        let instance = start_vm(
-            config_fd.as_ref(),
+        let instance = VmInstance::start(
+            config,
             cid,
             log_fd,
             requester_uid,
             requester_sid,
             requester_debug_pid,
-        )?;
+        )
+        .map_err(|e| {
+            error!("Failed to start VM with config {:?}: {:?}", config, e);
+            StatusCode::UNKNOWN_ERROR
+        })?;
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
     }
@@ -260,25 +263,4 @@ impl Default for State {
     fn default() -> Self {
         State { next_cid: FIRST_GUEST_CID, vms: vec![], debug_held_vms: vec![] }
     }
-}
-
-/// Start a new VM instance from the given VM config file. This assumes the VM is not already
-/// running.
-fn start_vm(
-    config_file: &File,
-    cid: Cid,
-    log_fd: Option<File>,
-    requester_uid: u32,
-    requester_sid: String,
-    requester_debug_pid: i32,
-) -> binder::Result<Arc<VmInstance>> {
-    let config = VmConfig::load(config_file).map_err(|e| {
-        error!("Failed to load VM config from {:?}: {:?}", config_file, e);
-        StatusCode::BAD_VALUE
-    })?;
-    Ok(VmInstance::start(&config, cid, log_fd, requester_uid, requester_sid, requester_debug_pid)
-        .map_err(|e| {
-        error!("Failed to start VM from {:?}: {:?}", config_file, e);
-        StatusCode::UNKNOWN_ERROR
-    })?)
 }
