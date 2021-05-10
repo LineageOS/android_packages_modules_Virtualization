@@ -67,7 +67,7 @@ $ adb shell 'mkfs.ext4 /data/local/tmp/microdroid/userdata.img'
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk.json os_composite.img'
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_env.json env_composite.img'
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_userdata.json userdata_composite.img'
-$ adb shell '/apex/com.android.virt/bin/crosvm create_qcow2 --backing_file=/data/local/tmp/microdroid/userdata_composite.img /data/local/tmp/microdroid/userdata_composite.$ qcow2'
+$ adb shell '/apex/com.android.virt/bin/crosvm create_qcow2 --backing_file=/data/local/tmp/microdroid/userdata_composite.img /data/local/tmp/microdroid/userdata_composite.qcow2'
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
 $ adb shell 'chmod go+r /data/local/tmp/microdroid/*-header.img /data/local/tmp/microdroid/*-footer.img'
 $ adb push microdroid.json /data/local/tmp/microdroid/microdroid.json
