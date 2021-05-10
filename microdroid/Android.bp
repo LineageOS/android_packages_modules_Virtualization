@@ -168,7 +168,9 @@ bootimg {
             kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
             cmdline: microdroid_boot_cmdline +
                 "pci=noacpi " +
-                "androidboot.boot_devices=pci0000:00/0000:00:01.0",
+                "androidboot.boot_devices=pci0000:00/0000:00:01.0," + // os
+                "pci0000:00/0000:00:03.0," + // payload
+                "pci0000:00/0000:00:04.0", // userdata
         },
     },
     dtb_prebuilt: "dummy_dtb.img",
