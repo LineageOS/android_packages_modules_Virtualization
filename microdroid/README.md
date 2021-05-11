@@ -51,9 +51,9 @@ Create a config file, `microdroid.json`:
 ```
 
 Copy the artifacts to the temp directory, create the composite image using
-`mk_cdisk`, copy the VM config file, and run it via `vm`. For now, some other
-files have to be manually created. In the future, you won't need these, and this
-shall be done via [`virtmanager`](../virtmanager/).
+`mk_cdisk` and copy the VM config file. For now, some other files have to be
+manually created. In the future, you won't need these, and this shall be done
+via [`virtmanager`](../virtmanager/).
 
 ```sh
 $ adb root
@@ -71,6 +71,16 @@ $ adb shell '/apex/com.android.virt/bin/crosvm create_qcow2 --backing_file=/data
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
 $ adb shell 'chmod go+r /data/local/tmp/microdroid/*-header.img /data/local/tmp/microdroid/*-footer.img'
 $ adb push microdroid.json /data/local/tmp/microdroid/microdroid.json
+```
+
+Ensure SELinux is in permissive mode to allow virtmanager and crosvm to open
+files from `/data/local/tmp`. Opening files from this directory is
+neverallow-ed and file descriptors should be passed instead but, before that is
+supported, `adb shell setenforce 0` will put the device in permissive mode.
+
+Now, run the VM and look for `adbd` starting in the logs.
+
+```sh
 $ adb shell "start virtmanager"
 $ adb shell "RUST_BACKTRACE=1 RUST_LOG=trace /apex/com.android.virt/bin/vm run /data/local/tmp/microdroid/microdroid.json"
 ```
