@@ -124,14 +124,15 @@ impl ZipFuse {
         self.inode_table.get(inode).ok_or_else(ebadf)
     }
 
+    // TODO(jiyong) remove this. Right now this is needed to do the nlink_t to u64 conversion below
+    // on aosp_x86_64 target. That however is a useless conversion on other targets.
+    #[allow(clippy::useless_conversion)]
     fn stat_from(&self, inode: Inode) -> io::Result<libc::stat64> {
         let inode_data = self.find_inode(inode)?;
         let mut st = unsafe { std::mem::MaybeUninit::<libc::stat64>::zeroed().assume_init() };
         st.st_dev = 0;
-        st.st_nlink = if inode_data.is_dir() {
-            // 2 is for . and ..
-            // unwrap is safe because of the `is_dir` check.
-            2 + inode_data.get_directory().unwrap().len() as libc::nlink_t
+        st.st_nlink = if let Some(directory) = inode_data.get_directory() {
+            (2 + directory.len() as libc::nlink_t).into()
         } else {
             1
         };
