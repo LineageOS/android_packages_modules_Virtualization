@@ -26,11 +26,10 @@ use fuse::filesystem::*;
 use fuse::mount::*;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString, OsStr};
+use std::ffi::{CStr, CString};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Read;
-use std::os::unix::ffi::OsStrExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::sync::Mutex;
@@ -159,7 +158,6 @@ impl fuse::filesystem::FileSystem for ZipFuse {
     fn lookup(&self, _ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<Entry> {
         let inode = self.find_inode(parent)?;
         let directory = inode.get_directory().ok_or_else(ebadf)?;
-        let name = OsStr::from_bytes(name.to_bytes());
         let entry = directory.get(name);
         match entry {
             Some(e) => Ok(Entry {
