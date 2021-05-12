@@ -59,6 +59,9 @@ android_system_image {
         "libadbd_auth",
         "libadbd_fs",
 
+        // "com.android.art" requires
+        "heapprofd_client_api",
+
         "apexd",
         "debuggerd",
         "linker",
