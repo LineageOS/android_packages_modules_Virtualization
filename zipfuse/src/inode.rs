@@ -15,8 +15,9 @@
  */
 use anyhow::{anyhow, bail, Result};
 use std::collections::HashMap;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{CStr, CString};
 use std::io;
+use std::os::unix::ffi::OsStrExt;
 
 /// `InodeTable` is a table of `InodeData` indexed by `Inode`.
 #[derive(Debug)]
@@ -51,7 +52,7 @@ type ZipIndex = usize;
 /// can be used to retrieve `ZipFile` that provides access to the content of the file.
 #[derive(Debug)]
 enum InodeDataData {
-    Directory(HashMap<OsString, DirectoryEntry>),
+    Directory(HashMap<CString, DirectoryEntry>),
     File(ZipIndex),
 }
 
@@ -72,7 +73,7 @@ impl InodeData {
         matches!(&self.data, InodeDataData::Directory(_))
     }
 
-    pub fn get_directory(&self) -> Option<&HashMap<OsString, DirectoryEntry>> {
+    pub fn get_directory(&self) -> Option<&HashMap<CString, DirectoryEntry>> {
         match &self.data {
             InodeDataData::Directory(hash) => Some(hash),
             _ => None,
@@ -101,7 +102,7 @@ impl InodeData {
         }
     }
 
-    fn add_to_directory(&mut self, name: OsString, entry: DirectoryEntry) {
+    fn add_to_directory(&mut self, name: CString, entry: DirectoryEntry) {
         match &mut self.data {
             InodeDataData::Directory(hashtable) => {
                 let existing = hashtable.insert(name, entry);
@@ -138,7 +139,7 @@ impl InodeTable {
 
     /// Finds the inode number of a file named `name` in the `parent` inode. The `parent` inode
     /// must exist and be a directory.
-    fn find(&self, parent: Inode, name: &OsStr) -> Option<Inode> {
+    fn find(&self, parent: Inode, name: &CStr) -> Option<Inode> {
         let data = self.get(parent).unwrap();
         match data.get_directory().unwrap().get(name) {
             Some(DirectoryEntry { inode, .. }) => Some(*inode),
@@ -148,17 +149,15 @@ impl InodeTable {
 
     // Adds the inode `data` to the inode table and also links it to the `parent` inode as a file
     // named `name`. The `parent` inode must exist and be a directory.
-    fn add(&mut self, parent: Inode, name: &OsStr, data: InodeData) -> Inode {
-        assert!(self.find(parent, name).is_none());
+    fn add(&mut self, parent: Inode, name: CString, data: InodeData) -> Inode {
+        assert!(self.find(parent, &name).is_none());
 
         let kind = if data.is_dir() { InodeKind::Directory } else { InodeKind::File };
         // Add the inode to the table
         let inode = self.put(data);
 
         // ... and then register it to the directory of the parent inode
-        self.get_mut(parent)
-            .unwrap()
-            .add_to_directory(OsString::from(name), DirectoryEntry { inode, kind });
+        self.get_mut(parent).unwrap().add_to_directory(name, DirectoryEntry { inode, kind });
         inode
     }
 
@@ -195,7 +194,8 @@ impl InodeTable {
 
                 // The happy path; the inode for `name` is already in the `parent` inode. Move on
                 // to the next path element.
-                if let Some(found) = table.find(parent, name) {
+                let name = CString::new(name.as_bytes()).unwrap();
+                if let Some(found) = table.find(parent, &name) {
                     parent = found;
                     // Update the mode if this is a directory leaf.
                     if !is_file && is_leaf {
@@ -245,7 +245,8 @@ mod tests {
     }
 
     fn check_dir(it: &InodeTable, parent: Inode, name: &str) -> Inode {
-        let inode = it.find(parent, &OsString::from(name));
+        let name = CString::new(name.as_bytes()).unwrap();
+        let inode = it.find(parent, &name);
         assert!(inode.is_some());
         let inode = inode.unwrap();
         let inode_data = it.get(inode);
@@ -257,7 +258,8 @@ mod tests {
     }
 
     fn check_file<'a>(it: &'a InodeTable, parent: Inode, name: &str) -> &'a InodeData {
-        let inode = it.find(parent, &OsString::from(name));
+        let name = CString::new(name.as_bytes()).unwrap();
+        let inode = it.find(parent, &name);
         assert!(inode.is_some());
         let inode = inode.unwrap();
         let inode_data = it.get(inode);
