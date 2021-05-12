@@ -46,14 +46,60 @@ Create a config file, `microdroid.json`:
 
 ```json
 {
-  "bootloader": "/data/local/tmp/microdroid/bootloader",
+  "bootloader": "/apex/com.android.virt/etc/microdroid_bootloader",
   "disks": [
     {
-      "image": "/data/local/tmp/microdroid/os_composite.img",
+      "partitions": [
+        {
+          "label": "misc",
+          "path": "/data/local/tmp/microdroid/misc.img"
+        },
+        {
+          "label": "boot_a",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
+        },
+        {
+          "label": "boot_b",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
+        },
+        {
+          "label": "vendor_boot_a",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
+        },
+        {
+          "label": "vendor_boot_b",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
+        },
+        {
+          "label": "vbmeta_a",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
+        },
+        {
+          "label": "vbmeta_b",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
+        },
+        {
+          "label": "vbmeta_system_a",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
+        },
+        {
+          "label": "vbmeta_system_b",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
+        },
+        {
+          "label": "super",
+          "path": "/apex/com.android.virt/etc/fs/microdroid_super.img"
+        }
+      ],
       "writable": false
     },
     {
-      "image": "/data/local/tmp/microdroid/env_composite.img",
+      "partitions": [
+        {
+          "label": "uboot_env",
+          "path": "/apex/com.android.virt/etc/uboot_env.img"
+        }
+      ],
       "writable": false
     },
     {
@@ -61,7 +107,13 @@ Create a config file, `microdroid.json`:
       "writable": false
     },
     {
-      "image": "/data/local/tmp/microdroid/userdata_composite.img",
+      "partitions": [
+        {
+          "label": "userdata",
+          "path": "/data/local/tmp/microdroid/userdata.img",
+          "writable": true
+        }
+      ],
       "writable": true
     }
   ]
@@ -76,16 +128,10 @@ via [`virtualizationservice`](../virtualizationservice/).
 ```sh
 $ adb root
 $ adb shell 'mkdir /data/local/tmp/microdroid'
-$ adb shell 'cp /apex/com.android.virt/etc/microdroid_bootloader /data/local/tmp/microdroid/bootloader'
-$ adb shell 'cp /apex/com.android.virt/etc/fs/*.img /data/local/tmp/microdroid'
-$ adb shell 'cp /apex/com.android.virt/etc/uboot_env.img /data/local/tmp/microdroid'
 $ adb shell 'dd if=/dev/zero of=/data/local/tmp/microdroid/misc.img bs=4k count=256'
 $ adb shell 'dd if=/dev/zero of=/data/local/tmp/microdroid/userdata.img bs=1 count=0 seek=4G'
-$ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk.json os_composite.img'
-$ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_env.json env_composite.img'
-$ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_cdisk /apex/com.android.virt/etc/microdroid_cdisk_userdata.json userdata_composite.img'
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
-$ adb shell 'chmod go+r /data/local/tmp/microdroid/*-header.img /data/local/tmp/microdroid/*-footer.img /data/local/tmp/microdroid/payload.img.*'
+$ adb shell 'chmod go+r /data/local/tmp/microdroid/payload*'
 $ adb push microdroid.json /data/local/tmp/microdroid/microdroid.json
 ```
 

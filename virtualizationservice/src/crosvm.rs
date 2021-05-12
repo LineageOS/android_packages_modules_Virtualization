@@ -16,19 +16,37 @@
 
 use crate::aidl::VirtualMachineCallbacks;
 use crate::Cid;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig;
-use anyhow::{bail, Context, Error};
+use anyhow::{bail, Error};
 use command_fds::{CommandFdExt, FdMapping};
 use log::{debug, error, info};
 use shared_child::SharedChild;
-use std::fs::File;
+use std::fs::{remove_dir_all, File};
 use std::os::unix::io::AsRawFd;
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
+
+/// Configuration for a VM to run with crosvm.
+#[derive(Debug)]
+pub struct CrosvmConfig<'a> {
+    pub cid: Cid,
+    pub bootloader: Option<&'a File>,
+    pub kernel: Option<&'a File>,
+    pub initrd: Option<&'a File>,
+    pub disks: Vec<DiskFile>,
+    pub params: Option<String>,
+}
+
+/// A disk image to pass to crosvm for a VM.
+#[derive(Debug)]
+pub struct DiskFile {
+    pub image: File,
+    pub writable: bool,
+}
 
 /// Information about a particular instance of a VM which is running.
 #[derive(Debug)]
@@ -37,6 +55,8 @@ pub struct VmInstance {
     child: SharedChild,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
+    /// Directory of temporary files used by the VM while it is running.
+    pub temporary_directory: PathBuf,
     /// The UID of the process which requested the VM.
     pub requester_uid: u32,
     /// The SID of the process which requested the VM.
@@ -55,6 +75,7 @@ impl VmInstance {
     fn new(
         child: SharedChild,
         cid: Cid,
+        temporary_directory: PathBuf,
         requester_uid: u32,
         requester_sid: String,
         requester_debug_pid: i32,
@@ -62,6 +83,7 @@ impl VmInstance {
         VmInstance {
             child,
             cid,
+            temporary_directory,
             requester_uid,
             requester_sid,
             requester_debug_pid,
@@ -73,17 +95,19 @@ impl VmInstance {
     /// Start an instance of `crosvm` to manage a new VM. The `crosvm` instance will be killed when
     /// the `VmInstance` is dropped.
     pub fn start(
-        config: &VirtualMachineConfig,
-        cid: Cid,
+        config: &CrosvmConfig,
         log_fd: Option<File>,
+        composite_disk_mappings: &[FdMapping],
+        temporary_directory: PathBuf,
         requester_uid: u32,
         requester_sid: String,
         requester_debug_pid: i32,
     ) -> Result<Arc<VmInstance>, Error> {
-        let child = run_vm(config, cid, log_fd)?;
+        let child = run_vm(config, log_fd, composite_disk_mappings)?;
         let instance = Arc::new(VmInstance::new(
             child,
-            cid,
+            config.cid,
+            temporary_directory,
             requester_uid,
             requester_sid,
             requester_debug_pid,
@@ -106,6 +130,11 @@ impl VmInstance {
         }
         self.running.store(false, Ordering::Release);
         self.callbacks.callback_on_died(self.cid);
+
+        // Delete temporary files.
+        if let Err(e) = remove_dir_all(&self.temporary_directory) {
+            error!("Error removing temporary directory {:?}: {:?}", self.temporary_directory, e);
+        }
     }
 
     /// Return whether `crosvm` is still running the VM.
@@ -124,15 +153,15 @@ impl VmInstance {
 
 /// Start an instance of `crosvm` to manage a new VM.
 fn run_vm(
-    config: &VirtualMachineConfig,
-    cid: Cid,
+    config: &CrosvmConfig,
     log_fd: Option<File>,
+    composite_disk_mappings: &[FdMapping],
 ) -> Result<SharedChild, Error> {
     validate_config(config)?;
 
     let mut command = Command::new(CROSVM_PATH);
     // TODO(qwandor): Remove --disable-sandbox.
-    command.arg("run").arg("--disable-sandbox").arg("--cid").arg(cid.to_string());
+    command.arg("run").arg("--disable-sandbox").arg("--cid").arg(config.cid.to_string());
 
     if let Some(log_fd) = log_fd {
         command.stdout(log_fd);
@@ -142,14 +171,14 @@ fn run_vm(
     }
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
-    let mut fd_mappings = vec![];
+    let mut fd_mappings = composite_disk_mappings.to_vec();
 
     if let Some(bootloader) = &config.bootloader {
-        command.arg("--bios").arg(add_fd_mapping(&mut fd_mappings, bootloader.as_ref()));
+        command.arg("--bios").arg(add_fd_mapping(&mut fd_mappings, bootloader));
     }
 
     if let Some(initrd) = &config.initrd {
-        command.arg("--initrd").arg(add_fd_mapping(&mut fd_mappings, initrd.as_ref()));
+        command.arg("--initrd").arg(add_fd_mapping(&mut fd_mappings, initrd));
     }
 
     if let Some(params) = &config.params {
@@ -157,15 +186,13 @@ fn run_vm(
     }
 
     for disk in &config.disks {
-        command.arg(if disk.writable { "--rwdisk" } else { "--disk" }).arg(add_fd_mapping(
-            &mut fd_mappings,
-            // TODO(b/187187765): This shouldn't be an Option.
-            disk.image.as_ref().context("Invalid disk image file descriptor")?.as_ref(),
-        ));
+        command
+            .arg(if disk.writable { "--rwdisk" } else { "--disk" })
+            .arg(add_fd_mapping(&mut fd_mappings, &disk.image));
     }
 
     if let Some(kernel) = &config.kernel {
-        command.arg(add_fd_mapping(&mut fd_mappings, kernel.as_ref()));
+        command.arg(add_fd_mapping(&mut fd_mappings, kernel));
     }
 
     debug!("Setting mappings {:?}", fd_mappings);
@@ -177,7 +204,7 @@ fn run_vm(
 }
 
 /// Ensure that the configuration has a valid combination of fields set, or return an error if not.
-fn validate_config(config: &VirtualMachineConfig) -> Result<(), Error> {
+fn validate_config(config: &CrosvmConfig) -> Result<(), Error> {
     if config.bootloader.is_none() && config.kernel.is_none() {
         bail!("VM must have either a bootloader or a kernel image.");
     }
