@@ -1,0 +1,12 @@
+aidl_interface {
+    name: "compos_aidl_interface",
+    unstable: true,
+    srcs: [
+        "com/android/compos/*.aidl",
+    ],
+    backend: {
+        rust: {
+            enabled: true,
+        },
+    },
+}
