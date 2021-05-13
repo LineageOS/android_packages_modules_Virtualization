@@ -23,8 +23,8 @@ Build Android for the board:
 $ . build/envsetup.sh
 $ lunch yukawa-userdebug
 $ export TARGET_VIM3L=true
-$ export TARGET_KERNEL_USE=5.4
-$ m -j$(nproc)
+$ export TARGET_KERNEL_USE=5.10
+$ m
 ```
 
 Flash your device and reboot.
