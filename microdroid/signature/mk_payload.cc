@@ -36,16 +36,19 @@ using android::base::Dirname;
 using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Result;
+using android::base::unique_fd;
 using android::microdroid::ApexSignature;
+using android::microdroid::ApkSignature;
 using android::microdroid::MicrodroidSignature;
 using android::microdroid::WriteMicrodroidSignature;
 
 using com::android::apex::ApexInfoList;
 using com::android::apex::readApexInfoList;
 
+using cuttlefish::AlignToPartitionSize;
 using cuttlefish::CreateCompositeDisk;
-using cuttlefish::ImagePartition;
 using cuttlefish::kLinuxFilesystem;
+using cuttlefish::MultipleImagePartition;
 
 Result<uint32_t> GetFileSize(const std::string& path) {
     struct stat st;
@@ -82,11 +85,18 @@ struct ApexConfig {
     std::optional<std::string> root_digest;
 };
 
+struct ApkConfig {
+    std::string name;
+    // TODO(jooyung): find path/idsig with name
+    std::string path;
+};
+
 struct Config {
     std::string dirname; // config file's direname to resolve relative paths in the config
 
     std::vector<std::string> system_apexes;
     std::vector<ApexConfig> apexes;
+    std::optional<ApkConfig> apk;
 };
 
 #define DO(expr) \
@@ -100,7 +110,8 @@ Result<void> ParseJson(const Json::Value& value, std::string& s) {
     return {};
 }
 
-Result<void> ParseJson(const Json::Value& value, std::optional<std::string>& s) {
+template <typename T>
+Result<void> ParseJson(const Json::Value& value, std::optional<T>& s) {
     if (value.isNull()) {
         s.reset();
         return {};
@@ -117,6 +128,12 @@ Result<void> ParseJson(const Json::Value& value, ApexConfig& apex_config) {
     return {};
 }
 
+Result<void> ParseJson(const Json::Value& value, ApkConfig& apk_config) {
+    DO(ParseJson(value["name"], apk_config.name));
+    DO(ParseJson(value["path"], apk_config.path));
+    return {};
+}
+
 template <typename T>
 Result<void> ParseJson(const Json::Value& values, std::vector<T>& parsed) {
     for (const Json::Value& value : values) {
@@ -130,6 +147,7 @@ Result<void> ParseJson(const Json::Value& values, std::vector<T>& parsed) {
 Result<void> ParseJson(const Json::Value& value, Config& config) {
     DO(ParseJson(value["system_apexes"], config.system_apexes));
     DO(ParseJson(value["apexes"], config.apexes));
+    DO(ParseJson(value["apk"], config.apk));
     return {};
 }
 
@@ -207,31 +225,84 @@ Result<void> MakeSignature(const Config& config, const std::string& filename) {
         }
     }
 
+    if (config.apk.has_value()) {
+        ApkSignature* apk_signature = signature.mutable_apk();
+        apk_signature->set_name(config.apk->name);
+        apk_signature->set_payload_partition_name("microdroid-apk");
+        // TODO(jooyung): set idsig partition as well
+    }
+
     std::ofstream out(filename);
     return WriteMicrodroidSignature(signature, out);
 }
 
+Result<void> GenerateFiller(const std::string& file_path, const std::string& filler_path) {
+    auto file_size = GetFileSize(file_path);
+    if (!file_size.ok()) {
+        return file_size.error();
+    }
+    auto disk_size = AlignToPartitionSize(*file_size + sizeof(uint32_t));
+
+    unique_fd fd(TEMP_FAILURE_RETRY(open(filler_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600)));
+    if (fd.get() == -1) {
+        return ErrnoError() << "open(" << filler_path << ") failed.";
+    }
+    uint32_t size = htobe32(static_cast<uint32_t>(*file_size));
+    if (ftruncate(fd.get(), disk_size - *file_size) == -1) {
+        return ErrnoError() << "ftruncate(" << filler_path << ") failed.";
+    }
+    if (lseek(fd.get(), -sizeof(size), SEEK_END) == -1) {
+        return ErrnoError() << "lseek(" << filler_path << ") failed.";
+    }
+    if (write(fd.get(), &size, sizeof(size)) <= 0) {
+        return ErrnoError() << "write(" << filler_path << ") failed.";
+    }
+    return {};
+}
+
 Result<void> MakePayload(const Config& config, const std::string& signature_file,
                          const std::string& output_file) {
-    std::vector<ImagePartition> partitions;
+    std::vector<MultipleImagePartition> partitions;
 
     // put signature at the first partition
-    partitions.push_back(ImagePartition{
+    partitions.push_back(MultipleImagePartition{
             .label = "signature",
-            .image_file_path = signature_file,
+            .image_file_paths = {signature_file},
             .type = kLinuxFilesystem,
             .read_only = true,
     });
 
-    // put apexes at the subsequent partitions
-    for (size_t i = 0; i < config.apexes.size(); i++) {
-        const auto& apex_config = config.apexes[i];
-        partitions.push_back(ImagePartition{
-                .label = "payload_apex_" + std::to_string(i),
-                .image_file_path = apex_config.path,
+    int filler_count = 0;
+    auto add_partition = [&](auto partition_name, auto file_path) -> Result<void> {
+        std::string filler_path = output_file + "." + std::to_string(filler_count++);
+        if (auto ret = GenerateFiller(file_path, filler_path); !ret.ok()) {
+            return ret.error();
+        }
+        partitions.push_back(MultipleImagePartition{
+                .label = partition_name,
+                .image_file_paths = {file_path, filler_path},
                 .type = kLinuxFilesystem,
                 .read_only = true,
         });
+        return {};
+    };
+
+    // put apexes at the subsequent partitions with "size" filler
+    for (size_t i = 0; i < config.apexes.size(); i++) {
+        const auto& apex_config = config.apexes[i];
+        std::string apex_path = ToAbsolute(apex_config.path, config.dirname);
+        if (auto ret = add_partition("microdroid-apex-" + std::to_string(i), apex_path);
+            !ret.ok()) {
+            return ret.error();
+        }
+    }
+    // put apk with "size" filler if necessary.
+    // TODO(jooyung): partition name("microdroid-apk") is TBD
+    if (config.apk.has_value()) {
+        std::string apk_path = ToAbsolute(config.apk->path, config.dirname);
+        if (auto ret = add_partition("microdroid-apk", apk_path); !ret.ok()) {
+            return ret.error();
+        }
     }
 
     const std::string gpt_header = AppendFileName(output_file, "-header");
