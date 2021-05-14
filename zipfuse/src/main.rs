@@ -30,6 +30,7 @@ use std::ffi::{CStr, CString};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Read;
+use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::sync::Mutex;
@@ -286,7 +287,7 @@ impl fuse::filesystem::FileSystem for ZipFuse {
             }
             open_dirs.insert(handle, OpenDirBuf { open_count: 1, buf: buf.into_boxed_slice() });
         }
-        Ok((Some(handle), fuse::filesystem::OpenOptions::empty()))
+        Ok((Some(handle), fuse::filesystem::OpenOptions::CACHE_DIR))
     }
 
     fn releasedir(
@@ -324,8 +325,18 @@ impl fuse::filesystem::FileSystem for ZipFuse {
         }
         let buf = &odb.buf;
         let start = offset as usize;
-        let end = start + size as usize;
-        let end = std::cmp::min(end, buf.len());
+
+        // Estimate the size of each entry will take space in the buffer. See
+        // external/crosvm/fuse/src/server.rs#add_dirent
+        let mut estimate: usize = 0; // estimated number of bytes we will be writing
+        let mut end = start; // index in `buf`
+        while estimate < size as usize && end < buf.len() {
+            let dirent_size = size_of::<fuse::sys::Dirent>();
+            let name_size = buf[end].0.to_bytes().len();
+            estimate += (dirent_size + name_size + 7) & !7; // round to 8 byte boundary
+            end += 1;
+        }
+
         let mut new_buf = Vec::with_capacity(end - start);
         // The portion of `buf` is *copied* to the iterator. This is not ideal, but inevitable
         // because the `name` field in `fuse::filesystem::DirEntry` is `&CStr` not `CString`.
@@ -364,7 +375,7 @@ impl fuse::filesystem::DirectoryIterator for DirIter {
 mod tests {
     use anyhow::{bail, Result};
     use nix::sys::statfs::{statfs, FsType};
-    use std::collections::HashSet;
+    use std::collections::BTreeSet;
     use std::fs;
     use std::fs::File;
     use std::io::Write;
@@ -456,7 +467,7 @@ mod tests {
         assert_eq!(content, read_data.unwrap().as_slice());
     }
 
-    fn check_dir(root: &Path, dir: &str, files: &[&str], dirs: &[&str]) {
+    fn check_dir<S: AsRef<str>>(root: &Path, dir: &str, files: &[S], dirs: &[S]) {
         let dir_path = root.join(dir);
         assert!(dir_path.exists());
 
@@ -470,8 +481,8 @@ mod tests {
         assert!(iter.is_ok());
 
         let iter = iter.unwrap();
-        let mut actual_files = HashSet::new();
-        let mut actual_dirs = HashSet::new();
+        let mut actual_files = BTreeSet::new();
+        let mut actual_dirs = BTreeSet::new();
         for de in iter {
             let entry = de.unwrap();
             let path = entry.path();
@@ -481,8 +492,10 @@ mod tests {
                 actual_files.insert(path.strip_prefix(&dir_path).unwrap().to_path_buf());
             }
         }
-        let expected_files: HashSet<PathBuf> = files.iter().map(|&s| PathBuf::from(s)).collect();
-        let expected_dirs: HashSet<PathBuf> = dirs.iter().map(|&s| PathBuf::from(s)).collect();
+        let expected_files: BTreeSet<PathBuf> =
+            files.iter().map(|s| PathBuf::from(s.as_ref())).collect();
+        let expected_dirs: BTreeSet<PathBuf> =
+            dirs.iter().map(|s| PathBuf::from(s.as_ref())).collect();
 
         assert_eq!(expected_files, actual_files);
         assert_eq!(expected_dirs, actual_dirs);
@@ -493,7 +506,7 @@ mod tests {
         run_test(
             |_| {},
             |root| {
-                check_dir(root, "", &[], &[]);
+                check_dir::<String>(root, "", &[], &[]);
             },
         );
     }
@@ -520,7 +533,7 @@ mod tests {
             },
             |root| {
                 check_dir(root, "", &[], &["dir"]);
-                check_dir(root, "dir", &[], &[]);
+                check_dir::<String>(root, "dir", &[], &[]);
             },
         );
     }
@@ -564,11 +577,11 @@ mod tests {
             |root| {
                 check_dir(root, "", &["foo", "bar"], &["a", "x"]);
                 check_dir(root, "a", &[], &["b1", "b2"]);
-                check_dir(root, "a/b1", &[], &[]);
+                check_dir::<String>(root, "a/b1", &[], &[]);
                 check_dir(root, "a/b2", &["c1"], &["c2"]);
                 check_dir(root, "a/b2/c2", &["d1", "d2", "d3"], &[]);
                 check_dir(root, "x", &["y1", "y2"], &["y3"]);
-                check_dir(root, "x/y3", &[], &[]);
+                check_dir::<String>(root, "x/y3", &[], &[]);
                 check_file(root, "a/b2/c1", &[]);
                 check_file(root, "a/b2/c2/d1", &[]);
                 check_file(root, "a/b2/c2/d2", &[]);
@@ -592,6 +605,30 @@ mod tests {
             |root| {
                 let data = vec![10; 2 << 20];
                 check_file(root, "foo", &data);
+            },
+        );
+    }
+
+    #[test]
+    fn large_dir() {
+        const NUM_FILES: usize = 1 << 10;
+        run_test(
+            |zip| {
+                let opt = FileOptions::default();
+                // create 1K files. Each file has a name of length 100. So total size is at least
+                // 100KB, which is bigger than the readdir buffer size of 4K.
+                for i in 0..NUM_FILES {
+                    zip.start_file(format!("dir/{:0100}", i), opt).unwrap();
+                }
+            },
+            |root| {
+                let dirs_expected: Vec<_> = (0..NUM_FILES).map(|i| format!("{:0100}", i)).collect();
+                check_dir(
+                    root,
+                    "dir",
+                    dirs_expected.iter().map(|s| s.as_str()).collect::<Vec<&str>>().as_slice(),
+                    &[],
+                );
             },
         );
     }
