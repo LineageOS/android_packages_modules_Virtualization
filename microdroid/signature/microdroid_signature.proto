@@ -25,6 +25,8 @@ message MicrodroidSignature {
   // Lists the signature information of the payload apexes.
   // The payload apexes are mapped to the partitions following the signature partition.
   repeated ApexSignature apexes = 2;
+
+  ApkSignature apk = 3;
 }
 
 message ApexSignature {
@@ -43,4 +45,13 @@ message ApexSignature {
   // Optional.
   // When specified, the root digest of the apex should match with it.
   string rootDigest = 4;
+}
+
+message ApkSignature {
+  // Required.
+  // The name of APK.
+  string name = 1;
+
+  string payload_partition_name = 2;
+  string idsig_partition_name = 3;
 }
