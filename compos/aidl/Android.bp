@@ -11,6 +11,9 @@ aidl_interface {
     backend: {
         rust: {
             enabled: true,
+            apex_available: [
+                "com.android.compos",
+            ],
         },
     },
 }
