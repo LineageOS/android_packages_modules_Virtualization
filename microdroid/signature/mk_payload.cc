@@ -36,6 +36,7 @@ using android::base::Dirname;
 using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Result;
+using android::base::unique_fd;
 using android::microdroid::ApexSignature;
 using android::microdroid::MicrodroidSignature;
 using android::microdroid::WriteMicrodroidSignature;
@@ -43,9 +44,10 @@ using android::microdroid::WriteMicrodroidSignature;
 using com::android::apex::ApexInfoList;
 using com::android::apex::readApexInfoList;
 
+using cuttlefish::AlignToPartitionSize;
 using cuttlefish::CreateCompositeDisk;
-using cuttlefish::ImagePartition;
 using cuttlefish::kLinuxFilesystem;
+using cuttlefish::MultipleImagePartition;
 
 Result<uint32_t> GetFileSize(const std::string& path) {
     struct stat st;
@@ -211,24 +213,53 @@ Result<void> MakeSignature(const Config& config, const std::string& filename) {
     return WriteMicrodroidSignature(signature, out);
 }
 
+Result<void> GenerateFiller(const std::string& file_path, const std::string& filler_path) {
+    auto file_size = GetFileSize(file_path);
+    if (!file_size.ok()) {
+        return file_size.error();
+    }
+    auto disk_size = AlignToPartitionSize(*file_size + sizeof(uint32_t));
+
+    unique_fd fd(TEMP_FAILURE_RETRY(open(filler_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600)));
+    if (fd.get() == -1) {
+        return ErrnoError() << "open(" << filler_path << ") failed.";
+    }
+    uint32_t size = htobe32(static_cast<uint32_t>(*file_size));
+    if (ftruncate(fd.get(), disk_size - *file_size) == -1) {
+        return ErrnoError() << "ftruncate(" << filler_path << ") failed.";
+    }
+    if (lseek(fd.get(), -sizeof(size), SEEK_END) == -1) {
+        return ErrnoError() << "lseek(" << filler_path << ") failed.";
+    }
+    if (write(fd.get(), &size, sizeof(size)) <= 0) {
+        return ErrnoError() << "write(" << filler_path << ") failed.";
+    }
+    return {};
+}
+
 Result<void> MakePayload(const Config& config, const std::string& signature_file,
                          const std::string& output_file) {
-    std::vector<ImagePartition> partitions;
+    std::vector<MultipleImagePartition> partitions;
 
     // put signature at the first partition
-    partitions.push_back(ImagePartition{
+    partitions.push_back(MultipleImagePartition{
             .label = "signature",
-            .image_file_path = signature_file,
+            .image_file_paths = {signature_file},
             .type = kLinuxFilesystem,
             .read_only = true,
     });
 
-    // put apexes at the subsequent partitions
+    // put apexes at the subsequent partitions with "size" filler
     for (size_t i = 0; i < config.apexes.size(); i++) {
         const auto& apex_config = config.apexes[i];
-        partitions.push_back(ImagePartition{
-                .label = "payload_apex_" + std::to_string(i),
-                .image_file_path = apex_config.path,
+        std::string apex_path = ToAbsolute(apex_config.path, config.dirname);
+        std::string filler_path = output_file + "." + std::to_string(i);
+        if (auto ret = GenerateFiller(apex_path, filler_path); !ret.ok()) {
+            return ret.error();
+        }
+        partitions.push_back(MultipleImagePartition{
+                .label = "microdroid-apex-" + std::to_string(i),
+                .image_file_paths = {apex_path, filler_path},
                 .type = kLinuxFilesystem,
                 .read_only = true,
         });
