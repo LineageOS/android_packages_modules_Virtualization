@@ -39,25 +39,6 @@ cc_library_static {
 }
 
 cc_binary {
-    name: "mk_microdroid_signature",
-    srcs: [
-        "mk_microdroid_signature.cc",
-    ],
-    shared_libs: [
-        "libbase",
-        "liblog",
-    ],
-    static_libs: [
-        "lib_microdroid_signature_proto_lite",
-        "libjsoncpp",
-        "libprotobuf-cpp-lite",
-    ],
-    apex_available: [
-        "com.android.virt",
-    ],
-}
-
-cc_binary {
     name: "mk_payload",
     srcs: [
         "mk_payload.cc",
