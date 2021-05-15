@@ -19,10 +19,12 @@ package android.virt.test;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeThat;
 
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
+import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 
@@ -38,18 +40,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidTestCase extends BaseHostJUnit4Test {
     private static final String TEST_ROOT = "/data/local/tmp/virt/";
     private static final String VIRT_APEX = "/apex/com.android.virt/";
-    private static final int TEST_VM_CID = 5;
+    private static final int TEST_VM_CID = 10;
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
-    private static final long MICRODROID_BOOT_TIMEOUT_MILLIS = 15000;
+    // This is really slow on GCE (2m 40s) but fast on localhost or actual Android phones (< 10s)
+    // Set the maximum timeout value big enough.
+    private static final long MICRODROID_BOOT_TIMEOUT_MINUTES = 5;
 
     private String executeCommand(String cmd) {
-        final long defaultCommandTimeoutMillis = 1000; // 1 sec
+        final long defaultCommandTimeoutMillis = 3000; // 3 sec. Can be slow on GCE
         return executeCommand(defaultCommandTimeoutMillis, cmd);
     }
 
@@ -122,7 +127,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
                                 + " --serial=type=syslog --disk=os_composite.img"
                                 + " --disk=env_composite.img --disk=payload.img"
-                                + " --rwdisk=userdata_composite.qcow2",
+                                + " --rwdisk=userdata_composite.qcow2 &",
                         TEST_ROOT, VIRT_APEX, TEST_VM_CID);
         executor.execute(
                 () -> {
@@ -132,9 +137,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         throw new RuntimeException(e);
                     }
                 });
-        // .. and wait for microdroid to boot
-        // TODO(jiyong): don't wait too long. We can wait less by monitoring log from microdroid
-        Thread.sleep(MICRODROID_BOOT_TIMEOUT_MILLIS);
+        waitForMicrodroidBoot(MICRODROID_BOOT_TIMEOUT_MINUTES);
 
         // Connect to microdroid and read a system property from there
         executeCommand(
@@ -171,13 +174,44 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         executeCommand("adb -s localhost:" + TEST_VM_ADB_PORT + " shell reboot");
     }
 
+    private void waitForMicrodroidBoot(long timeoutMinutes) throws Exception {
+        // Wait for a specific log from logd
+        // TODO(jiyong): use a more reasonable marker
+        final String pattern = "logd:\\ logd\\ reinit";
+        getDevice()
+                .executeShellV2Command(
+                        "logcat --regex=\"" + pattern + "\" -m 1",
+                        timeoutMinutes,
+                        TimeUnit.MINUTES);
+    }
+
+    private void skipIfFail(String command) throws Exception {
+        assumeThat(
+                getDevice().executeShellV2Command(command).getStatus(), is(CommandStatus.SUCCESS));
+    }
+
+    @Before
+    public void testIfDeviceIsCapable() throws Exception {
+        // Checks the preconditions to run microdroid. If the condition is not satisfied
+        // don't run the test (instead of failing)
+        skipIfFail("ls /dev/kvm");
+        skipIfFail("ls /dev/vhost-vsock");
+        skipIfFail("ls /apex/com.android.virt/bin/crosvm");
+    }
+
     @Before
     public void setUp() throws Exception {
+        // kill stale crosvm processes
+        getDevice().executeShellV2Command("killall crosvm");
+
         // delete the test root
         getDevice().executeShellCommand("rm -rf " + TEST_ROOT);
 
         // disconnect from microdroid
         executeCommand("adb disconnect " + MICRODROID_SERIAL);
+
+        // clear the log
+        getDevice().executeShellV2Command("logcat -c");
     }
 
     @After
