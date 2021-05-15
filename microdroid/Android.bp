@@ -49,6 +49,7 @@ android_system_image {
         "microdroid_build_prop",
         "ueventd.rc",
         "libbinder",
+        "libbinder_ndk",
         "libstdc++",
         "logcat",
         "logd",
