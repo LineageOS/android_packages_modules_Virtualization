@@ -87,6 +87,11 @@ android_system_image {
                 "plat_keystore2_key_contexts",
             ],
         },
+        lib64: {
+            deps: [
+                "zipfuse",
+            ],
+        },
     },
     linker_config_src: "linker.config.json",
     base_dir: "system",
