@@ -632,4 +632,26 @@ mod tests {
             },
         );
     }
+
+    #[test]
+    fn supports_deflate() {
+        let test_dir = tempfile::TempDir::new().unwrap();
+        let zip_path = test_dir.path().join("test.zip");
+        let mut zip_file = File::create(&zip_path).unwrap();
+        zip_file.write_all(include_bytes!("../testdata/test.zip")).unwrap();
+
+        let mnt_path = test_dir.path().join("mnt");
+        assert!(fs::create_dir(&mnt_path).is_ok());
+
+        start_fuse(&zip_path, &mnt_path);
+
+        // Give some time for the fuse to boot up
+        assert!(wait_for_mount(&mnt_path).is_ok());
+
+        check_dir(&mnt_path, "", &[], &["dir"]);
+        check_dir(&mnt_path, "dir", &["file1", "file2"], &[]);
+        check_file(&mnt_path, "dir/file1", include_bytes!("../testdata/dir/file1"));
+        check_file(&mnt_path, "dir/file2", include_bytes!("../testdata/dir/file2"));
+        assert!(nix::mount::umount2(&mnt_path, nix::mount::MntFlags::empty()).is_ok());
+    }
 }
