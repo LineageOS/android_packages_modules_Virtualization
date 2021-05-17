@@ -16,6 +16,7 @@
 
 package android.virt.test;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
@@ -170,8 +171,16 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 is("MicrodroidTest"));
 
         assertThat(
-                executeCommandOnMicrodroid("shell ls /system/bin/zipfuse"),
-                is("/system/bin/zipfuse"));
+                executeCommandOnMicrodroid("shell ls /dev/block/by-name/microdroid-apk"),
+                is("/dev/block/by-name/microdroid-apk"));
+
+        assertThat(
+                executeCommandOnMicrodroid("shell mount"),
+                containsString("zipfuse on /mnt/apk type fuse.zipfuse"));
+
+        assertThat(
+                executeCommandOnMicrodroid("shell ls /mnt/apk/classes.dex"),
+                is("/mnt/apk/classes.dex"));
 
         // Shutdown microdroid
         executeCommand("adb -s localhost:" + TEST_VM_ADB_PORT + " shell reboot");

@@ -26,6 +26,7 @@ rust_defaults {
 rust_binary {
     name: "zipfuse",
     defaults: ["zipfuse.defaults"],
+    init_rc: ["zipfuse.rc"],
 }
 
 rust_test {
