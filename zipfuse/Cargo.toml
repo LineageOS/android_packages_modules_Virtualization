@@ -12,3 +12,7 @@ libc = "0.2"
 zip = "0.5"
 tempfile = "3.2"
 nix = "0.20"
+
+[dev-dependencies]
+loopdev = "0.2"
+scopeguard = "1.1"
