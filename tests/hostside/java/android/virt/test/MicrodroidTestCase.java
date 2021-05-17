@@ -63,6 +63,11 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         return result.getStdout().trim(); // remove the trailing whitespace including newline
     }
 
+    private String executeCommandOnMicrodroid(String cmd) {
+        cmd = "adb -s " + MICRODROID_SERIAL + " " + cmd;
+        return executeCommand(cmd);
+    }
+
     @Test
     public void testMicrodroidBoots() throws Exception {
         // Prepare input files
@@ -149,7 +154,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         + TEST_VM_CID
                         + ":5555");
         executeCommand("adb connect " + MICRODROID_SERIAL);
-        String prop = executeCommand("adb -s " + MICRODROID_SERIAL + " shell getprop ro.hardware");
+        String prop = executeCommandOnMicrodroid("shell getprop ro.hardware");
         assertThat(prop, is("microdroid"));
 
         // Test writing to /data partition
@@ -159,16 +164,14 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         writer.write("MicrodroidTest");
         writer.close();
 
-        executeCommand(
-                "adb -s "
-                        + MICRODROID_SERIAL
-                        + " push "
-                        + tmpFile.getPath()
-                        + " /data/local/tmp/test.txt");
-        String catResult =
-                executeCommand(
-                        "adb -s " + MICRODROID_SERIAL + " shell cat /data/local/tmp/test.txt");
-        assertThat(catResult, is("MicrodroidTest"));
+        executeCommandOnMicrodroid("push " + tmpFile.getPath() + " /data/local/tmp/test.txt");
+        assertThat(
+                executeCommandOnMicrodroid("shell cat /data/local/tmp/test.txt"),
+                is("MicrodroidTest"));
+
+        assertThat(
+                executeCommandOnMicrodroid("shell ls /system/bin/zipfuse"),
+                is("/system/bin/zipfuse"));
 
         // Shutdown microdroid
         executeCommand("adb -s localhost:" + TEST_VM_ADB_PORT + " shell reboot");
