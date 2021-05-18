@@ -15,6 +15,7 @@ rust_binary {
         "libnix",
         "libscopeguard",
     ],
+    prefer_rlib: true,
     apex_available: [
         "com.android.compos",
     ],
@@ -31,6 +32,7 @@ rust_binary {
         "liblog_rust",
         "libminijail_rust",
     ],
+    prefer_rlib: true,
     apex_available: [
         "com.android.compos",
     ],
@@ -48,6 +50,7 @@ rust_binary {
         "libnix",
         "libscopeguard",
     ],
+    prefer_rlib: true,
     apex_available: [
         "com.android.compos",
     ],
