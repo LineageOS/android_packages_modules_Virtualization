@@ -34,4 +34,10 @@ apex {
 
     // TODO(victorhsieh): make it updatable
     updatable: false,
+
+    binaries: [
+        "compsvc",
+        "compsvc_worker",
+        "pvm_exec",
+    ],
 }

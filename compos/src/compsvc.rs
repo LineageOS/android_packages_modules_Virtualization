@@ -43,8 +43,7 @@ use compos_aidl_interface::binder::{
 };
 
 const SERVICE_NAME: &str = "compsvc";
-// TODO(b/161470604): Move the executable into an apex.
-const WORKER_BIN: &str = "/system/bin/compsvc_worker";
+const WORKER_BIN: &str = "/apex/com.android.compos/bin/compsvc_worker";
 // TODO: Replace with a valid directory setup in the VM.
 const AUTHFS_MOUNTPOINT: &str = "/data/local/tmp/authfs_mnt";
 
