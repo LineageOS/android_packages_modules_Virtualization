@@ -16,7 +16,7 @@
 
 use crate::aidl::VirtualMachineCallbacks;
 use crate::Cid;
-use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineConfig::VirtualMachineConfig;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig;
 use anyhow::{bail, Context, Error};
 use command_fds::{CommandFdExt, FdMapping};
 use log::{debug, error, info};

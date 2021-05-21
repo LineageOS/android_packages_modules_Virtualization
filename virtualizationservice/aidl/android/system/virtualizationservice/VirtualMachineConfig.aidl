@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtmanager;
+package android.system.virtualizationservice;
 
-import android.system.virtmanager.DiskImage;
+import android.system.virtualizationservice.DiskImage;
 
 /** Configuration for running a VM. */
 parcelable VirtualMachineConfig {

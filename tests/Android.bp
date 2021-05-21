@@ -36,7 +36,7 @@ cc_test {
     static_libs: [
         // The existence of the library in the system partition is not guaranteed.
         // Let's have our own copy of it.
-        "android.system.virtmanager-cpp",
+        "android.system.virtualizationservice-cpp",
     ],
     shared_libs: [
         "libbase",

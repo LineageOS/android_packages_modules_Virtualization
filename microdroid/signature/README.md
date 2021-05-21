@@ -49,6 +49,7 @@ when the apex is read in microdroid as /dev/block/vdc2,
 ### `mk_payload`
 
 `mk_payload` creates a payload image.
+
 ```
 $ cat payload_config.json
 {
@@ -78,4 +79,4 @@ payload.img.1
 ...
 ```
 
-In the future, [VirtManager](../../virtmanager) will handle this.
+In the future, [VirtualizationService](../../virtualizationservice) will handle this.
