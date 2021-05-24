@@ -12,26 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Function and types for VM configuration.
+//! Struct for VM configuration.
 
-use anyhow::{bail, Error};
+use android_system_virtmanager::{
+    aidl::android::system::virtmanager::DiskImage::DiskImage as AidlDiskImage,
+    aidl::android::system::virtmanager::VirtualMachineConfig::VirtualMachineConfig,
+    binder::ParcelFileDescriptor,
+};
+use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::BufReader;
+use std::path::{Path, PathBuf};
 
 /// Configuration for a particular VM to be started.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct VmConfig {
     /// The filename of the kernel image, if any.
-    pub kernel: Option<String>,
+    pub kernel: Option<PathBuf>,
     /// The filename of the initial ramdisk for the kernel, if any.
-    pub initrd: Option<String>,
+    pub initrd: Option<PathBuf>,
     /// Parameters to pass to the kernel. As far as the VMM and boot protocol are concerned this is
     /// just a string, but typically it will contain multiple parameters separated by spaces.
     pub params: Option<String>,
     /// The bootloader to use. If this is supplied then the kernel and initrd must not be supplied;
     /// the bootloader is instead responsibly for loading the kernel from one of the disks.
-    pub bootloader: Option<String>,
+    pub bootloader: Option<PathBuf>,
     /// Disk images to be made available to the VM.
     #[serde(default)]
     pub disks: Vec<DiskImage>,
@@ -50,10 +56,33 @@ impl VmConfig {
         Ok(())
     }
 
-    /// Load the configuration for a VM from the given JSON file.
+    /// Load the configuration for a VM from the given JSON file, and check that it is valid.
     pub fn load(file: &File) -> Result<VmConfig, Error> {
         let buffered = BufReader::new(file);
-        Ok(serde_json::from_reader(buffered)?)
+        let config: VmConfig = serde_json::from_reader(buffered)?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    /// Convert the `VmConfig` to a [`VirtualMachineConfig`] which can be passed to the Virt
+    /// Manager.
+    pub fn to_parcelable(&self) -> Result<VirtualMachineConfig, Error> {
+        Ok(VirtualMachineConfig {
+            kernel: maybe_open_parcel_file(&self.kernel)?,
+            initrd: maybe_open_parcel_file(&self.initrd)?,
+            params: self.params.clone(),
+            bootloader: maybe_open_parcel_file(&self.bootloader)?,
+            disks: self
+                .disks
+                .iter()
+                .map(|disk| {
+                    Ok(AidlDiskImage {
+                        writable: disk.writable,
+                        image: Some(open_parcel_file(&disk.image, disk.writable)?),
+                    })
+                })
+                .collect::<Result<_, Error>>()?,
+        })
     }
 }
 
@@ -61,7 +90,25 @@ impl VmConfig {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DiskImage {
     /// The filename of the disk image.
-    pub image: String,
+    pub image: PathBuf,
     /// Whether this disk should be writable by the VM.
     pub writable: bool,
+}
+
+/// Try to open the given file and wrap it in a [`ParcelFileDescriptor`].
+fn open_parcel_file(filename: &Path, writable: bool) -> Result<ParcelFileDescriptor, Error> {
+    Ok(ParcelFileDescriptor::new(
+        OpenOptions::new()
+            .read(true)
+            .write(writable)
+            .open(filename)
+            .with_context(|| format!("Failed to open {:?}", filename))?,
+    ))
+}
+
+/// If the given filename is `Some`, try to open it and wrap it in a [`ParcelFileDescriptor`].
+fn maybe_open_parcel_file(
+    filename: &Option<PathBuf>,
+) -> Result<Option<ParcelFileDescriptor>, Error> {
+    filename.as_deref().map(|filename| open_parcel_file(filename, false)).transpose()
 }
