@@ -51,6 +51,10 @@ apex {
         "mk_cdisk",
         "mk_payload",
     ],
+    apps: [
+        // TODO(jiyong): remove this when microdroid_payload.json is created by virt manager
+        "MicrodroidTestApp",
+    ],
     prebuilts: [
         "com.android.virt.init.rc",
         "microdroid_cdisk.json",
