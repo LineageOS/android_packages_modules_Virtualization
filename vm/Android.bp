@@ -13,6 +13,8 @@ rust_binary {
         "libenv_logger",
         "liblibc",
         "liblog_rust",
+        "libserde_json",
+        "libserde",
         "libstructopt",
     ],
     apex_available: [

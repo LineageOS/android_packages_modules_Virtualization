@@ -16,6 +16,7 @@
 package android.system.virtmanager;
 
 import android.system.virtmanager.IVirtualMachine;
+import android.system.virtmanager.VirtualMachineConfig;
 import android.system.virtmanager.VirtualMachineDebugInfo;
 
 interface IVirtManager {
@@ -24,7 +25,7 @@ interface IVirtManager {
      * then console logs from the VM will be sent to it.
      */
     IVirtualMachine startVm(
-            in ParcelFileDescriptor configFd, in @nullable ParcelFileDescriptor logFd);
+            in VirtualMachineConfig config, in @nullable ParcelFileDescriptor logFd);
 
     /**
      * Get a list of all currently running VMs. This method is only intended for debug purposes,

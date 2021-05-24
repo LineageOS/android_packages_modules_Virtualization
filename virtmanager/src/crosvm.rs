@@ -15,12 +15,14 @@
 //! Functions for running instances of `crosvm`.
 
 use crate::aidl::VirtualMachineCallbacks;
-use crate::config::VmConfig;
 use crate::Cid;
-use anyhow::Error;
-use log::{error, info};
+use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineConfig::VirtualMachineConfig;
+use anyhow::{bail, Context, Error};
+use command_fds::{CommandFdExt, FdMapping};
+use log::{debug, error, info};
 use shared_child::SharedChild;
 use std::fs::File;
+use std::os::unix::io::AsRawFd;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -71,7 +73,7 @@ impl VmInstance {
     /// Start an instance of `crosvm` to manage a new VM. The `crosvm` instance will be killed when
     /// the `VmInstance` is dropped.
     pub fn start(
-        config: &VmConfig,
+        config: &VirtualMachineConfig,
         cid: Cid,
         log_fd: Option<File>,
         requester_uid: u32,
@@ -121,33 +123,74 @@ impl VmInstance {
 }
 
 /// Start an instance of `crosvm` to manage a new VM.
-fn run_vm(config: &VmConfig, cid: Cid, log_fd: Option<File>) -> Result<SharedChild, Error> {
-    config.validate()?;
+fn run_vm(
+    config: &VirtualMachineConfig,
+    cid: Cid,
+    log_fd: Option<File>,
+) -> Result<SharedChild, Error> {
+    validate_config(config)?;
 
     let mut command = Command::new(CROSVM_PATH);
     // TODO(qwandor): Remove --disable-sandbox.
     command.arg("run").arg("--disable-sandbox").arg("--cid").arg(cid.to_string());
+
     if let Some(log_fd) = log_fd {
         command.stdout(log_fd);
     } else {
         // Ignore console output.
         command.arg("--serial=type=sink");
     }
+
+    // Keep track of what file descriptors should be mapped to the crosvm process.
+    let mut fd_mappings = vec![];
+
     if let Some(bootloader) = &config.bootloader {
-        command.arg("--bios").arg(bootloader);
+        command.arg("--bios").arg(add_fd_mapping(&mut fd_mappings, bootloader.as_ref()));
     }
+
     if let Some(initrd) = &config.initrd {
-        command.arg("--initrd").arg(initrd);
+        command.arg("--initrd").arg(add_fd_mapping(&mut fd_mappings, initrd.as_ref()));
     }
+
     if let Some(params) = &config.params {
         command.arg("--params").arg(params);
     }
+
     for disk in &config.disks {
-        command.arg(if disk.writable { "--rwdisk" } else { "--disk" }).arg(&disk.image);
+        command.arg(if disk.writable { "--rwdisk" } else { "--disk" }).arg(add_fd_mapping(
+            &mut fd_mappings,
+            // TODO(b/187187765): This shouldn't be an Option.
+            disk.image.as_ref().context("Invalid disk image file descriptor")?.as_ref(),
+        ));
     }
+
     if let Some(kernel) = &config.kernel {
-        command.arg(kernel);
+        command.arg(add_fd_mapping(&mut fd_mappings, kernel.as_ref()));
     }
+
+    debug!("Setting mappings {:?}", fd_mappings);
+    command.fd_mappings(fd_mappings)?;
+
     info!("Running {:?}", command);
-    Ok(SharedChild::spawn(&mut command)?)
+    let result = SharedChild::spawn(&mut command)?;
+    Ok(result)
+}
+
+/// Ensure that the configuration has a valid combination of fields set, or return an error if not.
+fn validate_config(config: &VirtualMachineConfig) -> Result<(), Error> {
+    if config.bootloader.is_none() && config.kernel.is_none() {
+        bail!("VM must have either a bootloader or a kernel image.");
+    }
+    if config.bootloader.is_some() && (config.kernel.is_some() || config.initrd.is_some()) {
+        bail!("Can't have both bootloader and kernel/initrd image.");
+    }
+    Ok(())
+}
+
+/// Adds a mapping for `file` to `fd_mappings`, and returns a string of the form "/proc/self/fd/N"
+/// where N is the file descriptor for the child process.
+fn add_fd_mapping(fd_mappings: &mut Vec<FdMapping>, file: &File) -> String {
+    let fd = file.as_raw_fd();
+    fd_mappings.push(FdMapping { parent_fd: fd, child_fd: fd });
+    format!("/proc/self/fd/{}", fd)
 }

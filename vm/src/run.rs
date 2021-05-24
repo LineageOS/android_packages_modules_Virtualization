@@ -14,6 +14,7 @@
 
 //! Command to run a VM.
 
+use crate::config::VmConfig;
 use crate::sync::AtomicFlag;
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
 use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::IVirtualMachine;
@@ -36,16 +37,15 @@ pub fn command_run(
     config_path: &Path,
     daemonize: bool,
 ) -> Result<(), Error> {
-    let config_filename = config_path.to_str().context("Failed to parse VM config path")?;
-    let config_file = ParcelFileDescriptor::new(
-        File::open(config_filename).context("Failed to open config file")?,
-    );
-    let stdout_file = ParcelFileDescriptor::new(duplicate_stdout()?);
-    let stdout = if daemonize { None } else { Some(&stdout_file) };
-    let vm = virt_manager.startVm(&config_file, stdout).context("Failed to start VM")?;
+    let config_file = File::open(config_path).context("Failed to open config file")?;
+    let config =
+        VmConfig::load(&config_file).context("Failed to parse config file")?.to_parcelable()?;
+    let stdout =
+        if daemonize { None } else { Some(ParcelFileDescriptor::new(duplicate_stdout()?)) };
+    let vm = virt_manager.startVm(&config, stdout.as_ref()).context("Failed to start VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
-    println!("Started VM from {} with CID {}.", config_filename, cid);
+    println!("Started VM from {:?} with CID {}.", config_path, cid);
 
     if daemonize {
         // Pass the VM reference back to Virt Manager and have it hold it in the background.
