@@ -36,7 +36,6 @@
         <option name="push-file" key="VirtualizationTestCases" value="/data/local/tmp/virt-test/VirtualizationTestCases" />
         <option name="push-file" key="virt_test_kernel"        value="/data/local/tmp/virt-test/kernel" />
         <option name="push-file" key="virt_test_initramfs.img" value="/data/local/tmp/virt-test/initramfs" />
-        <option name="push-file" key="vsock_config.json"       value="/data/local/tmp/virt-test/vsock_config.json" />
     </target_preparer>
 
     <!-- Root currently needed to run CrosVM.

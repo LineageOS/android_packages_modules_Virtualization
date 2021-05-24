@@ -27,6 +27,7 @@
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
 #include "android-base/unique_fd.h"
+#include "android/system/virtmanager/VirtualMachineConfig.h"
 #include "virt/VirtualizationTest.h"
 
 using namespace android::base;
@@ -35,7 +36,9 @@ using namespace android::os;
 namespace virt {
 
 static constexpr int kGuestPort = 45678;
-static constexpr const char kVmConfigPath[] = "/data/local/tmp/virt-test/vsock_config.json";
+static constexpr const char kVmKernelPath[] = "/data/local/tmp/virt-test/kernel";
+static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initramfs";
+static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
 
 TEST_F(VirtualizationTest, TestVsock) {
@@ -57,10 +60,13 @@ TEST_F(VirtualizationTest, TestVsock) {
     ret = TEMP_FAILURE_RETRY(listen(server_fd, 1));
     ASSERT_EQ(ret, 0) << strerror(errno);
 
+    VirtualMachineConfig config;
+    config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
+    config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
+    config.params = String16(kVmParams);
+
     sp<IVirtualMachine> vm;
-    unique_fd vm_config_fd(open(kVmConfigPath, O_RDONLY | O_CLOEXEC));
-    status =
-            mVirtManager->startVm(ParcelFileDescriptor(std::move(vm_config_fd)), std::nullopt, &vm);
+    status = mVirtManager->startVm(config, std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
 
     int32_t cid;
