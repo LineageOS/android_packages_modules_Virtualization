@@ -11,11 +11,10 @@ rust_binary {
     rustlibs: [
         "android.system.virtmanager-rust",
         "libandroid_logger",
-        "liblog_rust",
-        "libserde_json",
-        "libserde",
-        "libshared_child",
         "libanyhow",
+        "libcommand_fds",
+        "liblog_rust",
+        "libshared_child",
     ],
     apex_available: ["com.android.virt"],
 }

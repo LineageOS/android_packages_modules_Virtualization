@@ -32,7 +32,6 @@ cc_test {
     data: [
         ":virt_test_kernel",
         ":virt_test_initramfs",
-        "vsock_config.json",
     ],
     static_libs: [
         // The existence of the library in the system partition is not guaranteed.
