@@ -366,6 +366,7 @@
 /system/bin/migrate_legacy_obb_data\.sh u:object_r:migrate_legacy_obb_data_exec:s0
 /system/bin/android\.frameworks\.automotive\.display@1\.0-service u:object_r:automotive_display_service_exec:s0
 /system/bin/snapuserd            u:object_r:snapuserd_exec:s0
+/system/bin/zipfuse              u:object_r:zipfuse_exec:s0
 
 #############################
 # Vendor files
