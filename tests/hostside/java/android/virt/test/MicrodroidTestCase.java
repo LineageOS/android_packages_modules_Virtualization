@@ -178,9 +178,15 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 executeCommandOnMicrodroid("shell mount"),
                 containsString("zipfuse on /mnt/apk type fuse.zipfuse"));
 
+        final String libPath = "/mnt/apk/lib/x86_64/MicrodroidTestNativeLib.so";
         assertThat(
-                executeCommandOnMicrodroid("shell ls /mnt/apk/classes.dex"),
-                is("/mnt/apk/classes.dex"));
+                executeCommandOnMicrodroid("shell ls " + libPath),
+                is(libPath));
+
+        assertThat(
+                executeCommandOnMicrodroid("shell /system/bin/microdroid_launcher " + libPath
+                    + " arg1 arg2"),
+                is("Hello Microdroid " + libPath + " arg1 arg2"));
 
         // Shutdown microdroid
         executeCommand("adb -s localhost:" + TEST_VM_ADB_PORT + " shell reboot");
