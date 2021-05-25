@@ -178,14 +178,16 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 executeCommandOnMicrodroid("shell mount"),
                 containsString("zipfuse on /mnt/apk type fuse.zipfuse"));
 
-        final String libPath = "/mnt/apk/lib/x86_64/MicrodroidTestNativeLib.so";
-        assertThat(
-                executeCommandOnMicrodroid("shell ls " + libPath),
-                is(libPath));
+        final String[] abiList =
+                executeCommandOnMicrodroid("shell getprop ro.product.cpu.abilist").split(",");
+        assertThat(abiList.length, is(1));
+
+        final String libPath = "/mnt/apk/lib/" + abiList[0] + "/MicrodroidTestNativeLib.so";
+        assertThat(executeCommandOnMicrodroid("shell ls " + libPath), is(libPath));
 
         assertThat(
-                executeCommandOnMicrodroid("shell /system/bin/microdroid_launcher " + libPath
-                    + " arg1 arg2"),
+                executeCommandOnMicrodroid(
+                        "shell /system/bin/microdroid_launcher " + libPath + " arg1 arg2"),
                 is("Hello Microdroid " + libPath + " arg1 arg2"));
 
         // Shutdown microdroid
