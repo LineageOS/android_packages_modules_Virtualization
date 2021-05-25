@@ -45,8 +45,9 @@ android_system_image {
     partition_name: "system",
     deps: [
         "init_second_stage",
-        "microdroid_init_rc",
         "microdroid_build_prop",
+        "microdroid_init_rc",
+        "microdroid_launcher",
         "ueventd.rc",
         "libbinder",
         "libbinder_ndk",
@@ -112,7 +113,29 @@ prebuilt_root {
     name: "microdroid_build_prop",
     filename: "build.prop",
     src: "build.prop",
+    arch: {
+        x86_64: {
+            src: ":microdroid_build_prop_gen_x86_64",
+        },
+        arm64: {
+            src: ":microdroid_build_prop_gen_arm64",
+        },
+    },
     installable: false,
+}
+
+genrule {
+    name: "microdroid_build_prop_gen_x86_64",
+    srcs: ["build.prop"],
+    out: ["build.prop.out"],
+    cmd: "cp $(in) $(out); echo ro.product.cpu.abilist=x86_64 >> $(out)",
+}
+
+genrule {
+    name: "microdroid_build_prop_gen_arm64",
+    srcs: ["build.prop"],
+    out: ["build.prop.out"],
+    cmd: "cp $(in) $(out); echo ro.product.cpu.abilist=arm64-v8a >> $(out)",
 }
 
 android_filesystem {
