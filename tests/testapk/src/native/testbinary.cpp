@@ -15,6 +15,15 @@
  */
 #include <stdio.h>
 
-void say_hello() {
-    printf("Hello Microdroid\n");
+extern "C" int android_native_main(int argc, char* argv[]) {
+    printf("Hello Microdroid ");
+    for (int i = 0; i < argc; i++) {
+        printf("%s", argv[i]);
+        bool last = i == (argc - 1);
+        if (!last) {
+            printf(" ");
+        }
+    }
+    printf("\n");
+    return 0;
 }
