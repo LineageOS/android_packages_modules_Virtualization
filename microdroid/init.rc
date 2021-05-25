@@ -37,6 +37,9 @@ on early-init
     # Generate linker config based on apex mounted in bootstrap namespace
     update_linker_config
 
+    mkdir /mnt/apk 0755 system system
+    start zipfuse
+
 on init
     # Mount binderfs
     mkdir /dev/binderfs
