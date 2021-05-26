@@ -39,7 +39,7 @@ build, as part of the `com.android.virt` APEX.
 
 ### Spawning your own VMs
 
-You can spawn your own VMs by passing a JSON config file to the Virt Manager via the `vm` tool on a
+You can spawn your own VMs by passing a JSON config file to the VirtualizationService via the `vm` tool on a
 rooted KVM-enabled device. If your device is attached over ADB, you can run:
 
 ```shell
@@ -53,16 +53,16 @@ $ adb root
 $ adb push <kernel> /data/local/tmp/kernel
 $ adb push <ramdisk> /data/local/tmp/ramdisk
 $ adb push vm_config.json /data/local/tmp/vm_config.json
-$ adb shell "start virtmanager"
+$ adb shell "start virtualizationservice"
 $ adb shell "/apex/com.android.virt/bin/vm run /data/local/tmp/vm_config.json"
 ```
 
 The `vm` command also has other subcommands for debugging; run `/apex/com.android.virt/bin/vm help`
 for details.
 
-### Building and updating CrosVM and Virt Manager
+### Building and updating CrosVM and VirtualizationService
 
-You can update CrosVM and the Virt Manager service by updating the `com.android.virt` APEX. If your
+You can update CrosVM and the VirtualizationService by updating the `com.android.virt` APEX. If your
 device already has `com.android.virt` (e.g. VIM3L):
 
 ```shell

@@ -12,38 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Implementation of the AIDL interface of the Virt Manager.
+//! Implementation of the AIDL interface of the VirtualizationService.
 
 use crate::crosvm::VmInstance;
 use crate::{Cid, FIRST_GUEST_CID};
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::{
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
 };
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachineCallback::IVirtualMachineCallback;
-use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineConfig::VirtualMachineConfig;
-use android_system_virtmanager::aidl::android::system::virtmanager::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
-use android_system_virtmanager::binder::{
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachineCallback::IVirtualMachineCallback;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
+use android_system_virtualizationservice::binder::{
     self, BinderFeatures, Interface, ParcelFileDescriptor, StatusCode, Strong, ThreadState,
 };
 use log::{debug, error};
 use std::sync::{Arc, Mutex, Weak};
 
-pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtmanager";
+pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 // TODO(qwandor): Use PermissionController once it is available to Rust.
 /// Only processes running with one of these UIDs are allowed to call debug methods.
 const DEBUG_ALLOWED_UIDS: [u32; 2] = [0, 2000];
 
-/// Implementation of `IVirtManager`, the entry point of the AIDL service.
+/// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
 #[derive(Debug, Default)]
-pub struct VirtManager {
+pub struct VirtualizationService {
     state: Mutex<State>,
 }
 
-impl Interface for VirtManager {}
+impl Interface for VirtualizationService {}
 
-impl IVirtManager for VirtManager {
+impl IVirtualizationService for VirtualizationService {
     /// Create and start a new VM with the given configuration, assigning it the next available CID.
     ///
     /// Returns a binder `IVirtualMachine` object referring to it, as a handle for the client.
@@ -111,8 +111,8 @@ impl IVirtManager for VirtManager {
         Ok(cids)
     }
 
-    /// Hold a strong reference to a VM in Virt Manager. This method is only intended for debug
-    /// purposes, and as such is only permitted from the shell user.
+    /// Hold a strong reference to a VM in VirtualizationService. This method is only intended for
+    /// debug purposes, and as such is only permitted from the shell user.
     fn debugHoldVmRef(&self, vmref: &Strong<dyn IVirtualMachine>) -> binder::Result<()> {
         if !debug_access_allowed() {
             return Err(StatusCode::PERMISSION_DENIED.into());
@@ -123,9 +123,9 @@ impl IVirtManager for VirtManager {
         Ok(())
     }
 
-    /// Drop reference to a VM that is being held by Virt Manager. Returns the reference if VM was
-    /// found and None otherwise. This method is only intended for debug purposes, and as such is
-    /// only permitted from the shell user.
+    /// Drop reference to a VM that is being held by VirtualizationService. Returns the reference if
+    /// the VM was found and None otherwise. This method is only intended for debug purposes, and as
+    /// such is only permitted from the shell user.
     fn debugDropVmRef(&self, cid: i32) -> binder::Result<Option<Strong<dyn IVirtualMachine>>> {
         if !debug_access_allowed() {
             return Err(StatusCode::PERMISSION_DENIED.into());
@@ -206,7 +206,8 @@ impl VirtualMachineCallbacks {
     }
 }
 
-/// The mutable state of the Virt Manager. There should only be one instance of this struct.
+/// The mutable state of the VirtualizationService. There should only be one instance of this
+/// struct.
 #[derive(Debug)]
 struct State {
     /// The next available unused CID.

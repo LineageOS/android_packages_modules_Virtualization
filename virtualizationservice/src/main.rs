@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Android Virt Manager
+//! Android VirtualizationService
 
 mod aidl;
 mod crosvm;
 
-use crate::aidl::{VirtManager, BINDER_SERVICE_IDENTIFIER};
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::BnVirtManager;
-use android_system_virtmanager::binder::{add_service, BinderFeatures, ProcessState};
+use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER};
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
+use android_system_virtualizationservice::binder::{add_service, BinderFeatures, ProcessState};
 use log::{info, Level};
 
-/// The first CID to assign to a guest VM managed by the Virt Manager. CIDs lower than this are
-/// reserved for the host or other usage.
+/// The first CID to assign to a guest VM managed by the VirtualizationService. CIDs lower than this
+/// are reserved for the host or other usage.
 const FIRST_GUEST_CID: Cid = 10;
 
-const LOG_TAG: &str = "VirtManager";
+const LOG_TAG: &str = "VirtualizationService";
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 type Cid = u32;
@@ -36,8 +36,8 @@ fn main() {
         android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Trace),
     );
 
-    let virt_manager = VirtManager::default();
-    let virt_manager = BnVirtManager::new_binder(
+    let virt_manager = VirtualizationService::default();
+    let virt_manager = BnVirtualizationService::new_binder(
         virt_manager,
         BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
     );

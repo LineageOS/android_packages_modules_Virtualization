@@ -8,7 +8,7 @@ rust_binary {
     srcs: ["src/main.rs"],
     edition: "2018",
     rustlibs: [
-        "android.system.virtmanager-rust",
+        "android.system.virtualizationservice-rust",
         "libanyhow",
         "libenv_logger",
         "liblibc",

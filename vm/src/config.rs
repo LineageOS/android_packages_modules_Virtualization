@@ -14,9 +14,9 @@
 
 //! Struct for VM configuration.
 
-use android_system_virtmanager::{
-    aidl::android::system::virtmanager::DiskImage::DiskImage as AidlDiskImage,
-    aidl::android::system::virtmanager::VirtualMachineConfig::VirtualMachineConfig,
+use android_system_virtualizationservice::{
+    aidl::android::system::virtualizationservice::DiskImage::DiskImage as AidlDiskImage,
+    aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig,
     binder::ParcelFileDescriptor,
 };
 use anyhow::{bail, Context, Error};

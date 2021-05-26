@@ -44,7 +44,7 @@ apex {
     },
     binaries: [
         "fd_server",
-        "virtmanager",
+        "virtualizationservice",
         "vm",
 
         // tools to create composite images
@@ -80,6 +80,6 @@ android_app_certificate {
 
 prebuilt_etc {
     name: "com.android.virt.init.rc",
-    src: "virtmanager.rc",
+    src: "virtualizationservice.rc",
     filename: "init.rc",
 }

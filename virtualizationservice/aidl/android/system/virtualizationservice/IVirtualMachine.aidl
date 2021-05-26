@@ -13,13 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtmanager;
+package android.system.virtualizationservice;
 
-/** A disk image to be made available to the VM. */
-parcelable DiskImage {
-    /** The disk image. */
-    ParcelFileDescriptor image;
+import android.system.virtualizationservice.IVirtualMachineCallback;
 
-    /** Whether this disk should be writable by the VM. */
-    boolean writable;
+interface IVirtualMachine {
+    /** Get the CID allocated to the VM. */
+    int getCid();
+
+    /** Returns true if the VM is still running, or false if it has exited for any reason. */
+    boolean isRunning();
+
+    /**
+     * Register a Binder object to get callbacks when the state of the VM changes, such as if it
+     * dies.
+     */
+    void registerCallback(IVirtualMachineCallback callback);
 }
