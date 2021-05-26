@@ -5,7 +5,7 @@ on-device virtual machines. It is built from the same source code as the regular
 Android, but it is much smaller; no system server, no HALs, no GUI, etc. It is
 intended to host headless & native workloads only.
 
-## Building
+## Building (VIM3L)
 
 You need a VIM3L board. Instructions for building Android for the target, and
 flashing the image can be found [here](../docs/getting_started/yukawa.md).
@@ -17,7 +17,25 @@ of course build and install the APEX manually.
 ```sh
 $ source build/envsetup.sh
 $ choosecombo 1 aosp_arm64 userdebug // actually, any arm64-based target is ok
-$ m com.android.virt
+$ TARGET_BUILD_APPS=com.android.virt m
+$ adb install $ANDROID_PRODUCT_OUT/system/apex/com.android.virt.apex
+$ adb reboot
+```
+
+## Building (Cloud Android)
+
+You may use Cloud Android (cuttlefish) as well. Instructions for running a
+cuttlefish device on your workstation can be found
+[here](https://android.googlesource.com/device/google/cuttlefish/).
+
+The `aosp_cf_x86_64_phone` target already includes the `com.android.virt` APEX.
+So you don't need to build the APEX separately. If you want to rebuild the APEX
+and install it to cuttlefish,
+
+```sh
+$ source build/envsetup.sh
+$ choosecombo 1 aosp_cf_x86_64_phone userdebug
+$ TARGET_BUILD_APPS=com.android.virt m
 $ adb install $ANDROID_PRODUCT_OUT/system/apex/com.android.virt.apex
 $ adb reboot
 ```
