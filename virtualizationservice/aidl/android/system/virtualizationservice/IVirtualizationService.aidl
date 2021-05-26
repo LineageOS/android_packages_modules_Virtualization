@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtmanager;
+package android.system.virtualizationservice;
 
-import android.system.virtmanager.IVirtualMachine;
-import android.system.virtmanager.VirtualMachineConfig;
-import android.system.virtmanager.VirtualMachineDebugInfo;
+import android.system.virtualizationservice.IVirtualMachine;
+import android.system.virtualizationservice.VirtualMachineConfig;
+import android.system.virtualizationservice.VirtualMachineDebugInfo;
 
-interface IVirtManager {
+interface IVirtualizationService {
     /**
      * Start the VM with the given config file, and return a handle to it. If `logFd` is provided
      * then console logs from the VM will be sent to it.
@@ -34,15 +34,15 @@ interface IVirtManager {
     VirtualMachineDebugInfo[] debugListVms();
 
     /**
-     * Hold a strong reference to a VM in Virt Manager. This method is only intended for debug
-     * purposes, and as such is only permitted from the shell user.
+     * Hold a strong reference to a VM in VirtualizationService. This method is only intended for
+     * debug purposes, and as such is only permitted from the shell user.
      */
     void debugHoldVmRef(IVirtualMachine vm);
 
     /**
-     * Drop reference to a VM that is being held by Virt Manager. Returns the reference if VM was
-     * found and null otherwise. This method is only intended for debug purposes, and as such is
-     * only permitted from the shell user.
+     * Drop reference to a VM that is being held by VirtualizationService. Returns the reference if
+     * VM was found and null otherwise. This method is only intended for debug purposes, and as such
+     * is only permitted from the shell user.
      */
     @nullable IVirtualMachine debugDropVmRef(int cid);
 }

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtmanager;
+package android.system.virtualizationservice;
 
 /** Information about a running VM, for debug purposes only. */
 parcelable VirtualMachineDebugInfo {

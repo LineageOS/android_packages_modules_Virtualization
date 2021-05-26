@@ -13,20 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtmanager;
+package android.system.virtualizationservice;
 
-import android.system.virtmanager.IVirtualMachine;
+/** A disk image to be made available to the VM. */
+parcelable DiskImage {
+    /** The disk image. */
+    ParcelFileDescriptor image;
 
-/**
- * An object which a client may register with the Virt Manager to get callbacks about the state of
- * a particular VM.
- */
-oneway interface IVirtualMachineCallback {
-    /**
-     * Called when the VM dies.
-     *
-     * Note that this will not be called if the Virt Manager itself dies, so you should also use
-     * `link_to_death` to handle that.
-     */
-    void onDied(int cid);
+    /** Whether this disk should be writable by the VM. */
+    boolean writable;
 }

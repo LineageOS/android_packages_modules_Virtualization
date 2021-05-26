@@ -16,15 +16,15 @@
 
 use crate::config::VmConfig;
 use crate::sync::AtomicFlag;
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachine::IVirtualMachine;
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtualMachineCallback::{
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::IVirtualMachine;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachineCallback::{
     BnVirtualMachineCallback, IVirtualMachineCallback,
 };
-use android_system_virtmanager::binder::{
+use android_system_virtualizationservice::binder::{
     BinderFeatures, DeathRecipient, IBinder, ParcelFileDescriptor, Strong,
 };
-use android_system_virtmanager::binder::{Interface, Result as BinderResult};
+use android_system_virtualizationservice::binder::{Interface, Result as BinderResult};
 use anyhow::{Context, Error};
 use std::fs::File;
 use std::io;
@@ -33,7 +33,7 @@ use std::path::Path;
 
 /// Run a VM from the given configuration file.
 pub fn command_run(
-    virt_manager: Strong<dyn IVirtManager>,
+    virt_manager: Strong<dyn IVirtualizationService>,
     config_path: &Path,
     daemonize: bool,
 ) -> Result<(), Error> {
@@ -48,16 +48,17 @@ pub fn command_run(
     println!("Started VM from {:?} with CID {}.", config_path, cid);
 
     if daemonize {
-        // Pass the VM reference back to Virt Manager and have it hold it in the background.
-        virt_manager.debugHoldVmRef(&vm).context("Failed to pass VM to Virt Manager")
+        // Pass the VM reference back to VirtualizationService and have it hold it in the
+        // background.
+        virt_manager.debugHoldVmRef(&vm).context("Failed to pass VM to VirtualizationService")
     } else {
-        // Wait until the VM or VirtManager dies. If we just returned immediately then the
+        // Wait until the VM or VirtualizationService dies. If we just returned immediately then the
         // IVirtualMachine Binder object would be dropped and the VM would be killed.
         wait_for_vm(vm)
     }
 }
 
-/// Wait until the given VM or the VirtManager itself dies.
+/// Wait until the given VM or the VirtualizationService itself dies.
 fn wait_for_vm(vm: Strong<dyn IVirtualMachine>) -> Result<(), Error> {
     let dead = AtomicFlag::default();
     let callback = BnVirtualMachineCallback::new_binder(
@@ -78,7 +79,7 @@ fn wait_for_vm(vm: Strong<dyn IVirtualMachine>) -> Result<(), Error> {
 /// If the returned DeathRecipient is dropped then this will no longer do anything.
 fn wait_for_death(binder: &mut impl IBinder, dead: AtomicFlag) -> Result<DeathRecipient, Error> {
     let mut death_recipient = DeathRecipient::new(move || {
-        println!("VirtManager died");
+        println!("VirtualizationService died");
         dead.raise();
     });
     binder.link_to_death(&mut death_recipient)?;
