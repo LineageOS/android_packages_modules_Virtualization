@@ -56,6 +56,8 @@ android_system_image {
         "logd",
         "run-as",
         "secilc",
+        "mke2fs",
+        "e2fsdroid",
 
         // "com.android.adbd" requires these,
         "libadbd_auth",

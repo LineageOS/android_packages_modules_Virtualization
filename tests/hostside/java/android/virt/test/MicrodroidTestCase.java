@@ -101,12 +101,6 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                                 + " userdata_composite.img",
                         TEST_ROOT, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(makeDataCompositeCmd);
-        String makeDataCompositeQcow2Cmd =
-                String.format(
-                        "cd %s; %sbin/crosvm create_qcow2 --backing_file=userdata_composite.img"
-                                + " userdata_composite.qcow2",
-                        TEST_ROOT, VIRT_APEX);
-        getDevice().executeShellCommand(makeDataCompositeQcow2Cmd);
         String makePayloadCompositeCmd =
                 String.format(
                         "cd %s; %sbin/mk_payload %setc/microdroid_payload.json payload.img",
@@ -119,7 +113,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         Arrays.asList(
                                 TEST_ROOT + "/os_composite.img",
                                 TEST_ROOT + "/env_composite.img",
-                                TEST_ROOT + "/userdata_composite.qcow2",
+                                TEST_ROOT + "/userdata_composite.img",
                                 TEST_ROOT + "/payload.img"));
         CommandResult result =
                 getDevice().executeShellV2Command("du -b " + String.join(" ", compositeImages));
@@ -133,7 +127,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
                                 + " --serial=type=syslog --disk=os_composite.img"
                                 + " --disk=env_composite.img --disk=payload.img"
-                                + " --rwdisk=userdata_composite.qcow2 &",
+                                + " --rwdisk=userdata_composite.img &",
                         TEST_ROOT, VIRT_APEX, TEST_VM_CID);
         executor.execute(
                 () -> {
