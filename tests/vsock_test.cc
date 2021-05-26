@@ -27,7 +27,7 @@
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
 #include "android-base/unique_fd.h"
-#include "android/system/virtmanager/VirtualMachineConfig.h"
+#include "android/system/virtualizationservice/VirtualMachineConfig.h"
 #include "virt/VirtualizationTest.h"
 
 using namespace android::base;
@@ -66,7 +66,7 @@ TEST_F(VirtualizationTest, TestVsock) {
     config.params = String16(kVmParams);
 
     sp<IVirtualMachine> vm;
-    status = mVirtManager->startVm(config, std::nullopt, &vm);
+    status = mVirtualizationService->startVm(config, std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
 
     int32_t cid;

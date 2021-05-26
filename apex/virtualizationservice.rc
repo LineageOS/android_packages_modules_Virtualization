@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-service virtmanager /apex/com.android.virt/bin/virtmanager
+service virtualizationservice /apex/com.android.virt/bin/virtualizationservice
     class main
-    user virtmanager
-    group virtmanager
+    user virtualizationservice
+    group virtualizationservice
     disabled

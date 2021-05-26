@@ -18,15 +18,15 @@ mod config;
 mod run;
 mod sync;
 
-use android_system_virtmanager::aidl::android::system::virtmanager::IVirtManager::IVirtManager;
-use android_system_virtmanager::binder::{get_interface, ProcessState, Strong};
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
+use android_system_virtualizationservice::binder::{get_interface, ProcessState, Strong};
 use anyhow::{Context, Error};
 use run::command_run;
 use std::path::PathBuf;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-const VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtmanager";
+const VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 #[derive(StructOpt)]
 #[structopt(no_version, global_settings = &[AppSettings::DisableVersion])]
@@ -58,7 +58,7 @@ fn main() -> Result<(), Error> {
     ProcessState::start_thread_pool();
 
     let virt_manager = get_interface(VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER)
-        .context("Failed to find Virt Manager service")?;
+        .context("Failed to find VirtualizationService")?;
 
     match opt {
         Opt::Run { config, daemonize } => command_run(virt_manager, &config, daemonize),
@@ -68,16 +68,16 @@ fn main() -> Result<(), Error> {
 }
 
 /// Retrieve reference to a previously daemonized VM and stop it.
-fn command_stop(virt_manager: Strong<dyn IVirtManager>, cid: u32) -> Result<(), Error> {
+fn command_stop(virt_manager: Strong<dyn IVirtualizationService>, cid: u32) -> Result<(), Error> {
     virt_manager
         .debugDropVmRef(cid as i32)
-        .context("Failed to get VM from Virt Manager")?
+        .context("Failed to get VM from VirtualizationService")?
         .context("CID does not correspond to a running background VM")?;
     Ok(())
 }
 
 /// List the VMs currently running.
-fn command_list(virt_manager: Strong<dyn IVirtManager>) -> Result<(), Error> {
+fn command_list(virt_manager: Strong<dyn IVirtualizationService>) -> Result<(), Error> {
     let vms = virt_manager.debugListVms().context("Failed to get list of VMs")?;
     println!("Running VMs: {:#?}", vms);
     Ok(())

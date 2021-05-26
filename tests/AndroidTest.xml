@@ -25,8 +25,8 @@
         <option name="run-command" value="ls /dev/vhost-vsock" />
         <!-- CrosVM is installed. -->
         <option name="run-command" value="ls /apex/com.android.virt/bin/crosvm" />
-        <!-- Virt Manager is installed. -->
-        <option name="run-command" value="ls /apex/com.android.virt/bin/virtmanager" />
+        <!-- VirtualizationService is installed. -->
+        <option name="run-command" value="ls /apex/com.android.virt/bin/virtualizationservice" />
     </target_preparer>
 
     <!-- Push test binaries to the device. -->
@@ -42,11 +42,11 @@
          TODO: Give sufficient permissions to the adb shell user (b/171240450). -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
-    <!-- Run Virt Manager for the duration of the test.
-         TODO: Run Virt Manager as a system service. -->
+    <!-- Run VirtualizationService for the duration of the test.
+         TODO: Run VirtualizationService as a system service. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
-        <option name="run-command" value="start virtmanager" />
+        <option name="run-command" value="start virtualizationservice" />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.GTest" >
