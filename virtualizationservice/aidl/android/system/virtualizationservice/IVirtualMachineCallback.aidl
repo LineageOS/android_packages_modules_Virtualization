@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtmanager;
+package android.system.virtualizationservice;
 
-import android.system.virtmanager.IVirtualMachineCallback;
+import android.system.virtualizationservice.IVirtualMachine;
 
-interface IVirtualMachine {
-    /** Get the CID allocated to the VM. */
-    int getCid();
-
-    /** Returns true if the VM is still running, or false if it has exited for any reason. */
-    boolean isRunning();
-
+/**
+ * An object which a client may register with the VirtualizationService to get callbacks about the
+ * state of a particular VM.
+ */
+oneway interface IVirtualMachineCallback {
     /**
-     * Register a Binder object to get callbacks when the state of the VM changes, such as if it
-     * dies.
+     * Called when the VM dies.
+     *
+     * Note that this will not be called if the VirtualizationService itself dies, so you should
+     * also use `link_to_death` to handle that.
      */
-    void registerCallback(IVirtualMachineCallback callback);
+    void onDied(int cid);
 }

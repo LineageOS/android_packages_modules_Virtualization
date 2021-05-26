@@ -3,13 +3,13 @@ package {
 }
 
 rust_binary {
-    name: "virtmanager",
-    crate_name: "virtmanager",
+    name: "virtualizationservice",
+    crate_name: "virtualizationservice",
     srcs: ["src/main.rs"],
     edition: "2018",
     prefer_rlib: true,
     rustlibs: [
-        "android.system.virtmanager-rust",
+        "android.system.virtualizationservice-rust",
         "libandroid_logger",
         "libanyhow",
         "libcommand_fds",
