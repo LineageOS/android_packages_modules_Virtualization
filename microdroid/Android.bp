@@ -260,7 +260,7 @@ android_filesystem {
     type: "compressed_cpio",
     symlinks: [
         {
-            target: "etc/fstab",
+            target: "etc/fstab.microdroid",
             name: "first_stage_ramdisk/fstab.microdroid",
         },
         {
@@ -272,8 +272,8 @@ android_filesystem {
 
 prebuilt_etc {
     name: "microdroid_fstab",
-    src: "fstab",
-    filename: "fstab",
+    src: "fstab.microdroid",
+    filename: "fstab.microdroid",
     installable: false,
 }
 
