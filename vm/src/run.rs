@@ -33,7 +33,7 @@ use std::path::Path;
 
 /// Run a VM from the given configuration file.
 pub fn command_run(
-    virt_manager: Strong<dyn IVirtualizationService>,
+    service: Strong<dyn IVirtualizationService>,
     config_path: &Path,
     daemonize: bool,
 ) -> Result<(), Error> {
@@ -42,7 +42,7 @@ pub fn command_run(
         VmConfig::load(&config_file).context("Failed to parse config file")?.to_parcelable()?;
     let stdout =
         if daemonize { None } else { Some(ParcelFileDescriptor::new(duplicate_stdout()?)) };
-    let vm = virt_manager.startVm(&config, stdout.as_ref()).context("Failed to start VM")?;
+    let vm = service.startVm(&config, stdout.as_ref()).context("Failed to start VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
     println!("Started VM from {:?} with CID {}.", config_path, cid);
@@ -50,7 +50,7 @@ pub fn command_run(
     if daemonize {
         // Pass the VM reference back to VirtualizationService and have it hold it in the
         // background.
-        virt_manager.debugHoldVmRef(&vm).context("Failed to pass VM to VirtualizationService")
+        service.debugHoldVmRef(&vm).context("Failed to pass VM to VirtualizationService")
     } else {
         // Wait until the VM or VirtualizationService dies. If we just returned immediately then the
         // IVirtualMachine Binder object would be dropped and the VM would be killed.

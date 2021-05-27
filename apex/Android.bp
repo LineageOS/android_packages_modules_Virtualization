@@ -52,7 +52,8 @@ apex {
         "mk_payload",
     ],
     apps: [
-        // TODO(jiyong): remove this when microdroid_payload.json is created by virt manager
+        // TODO(jiyong): remove this when microdroid_payload.json is created by
+        // VirtualizationService.
         "MicrodroidTestApp",
     ],
     prebuilts: [
