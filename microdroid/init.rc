@@ -114,8 +114,17 @@ on post-fs
 
     start adbd
 
+on late-fs
+    mount_all /vendor/etc/fstab.microdroid --late
+
 on post-fs-data
-    mount_all /vendor/etc/fstab --late
+    mark_post_data
+
+    # We chown/chmod /data again so because mount is run as root + defaults
+    chown system system /data
+    chmod 0771 /data
+
+    # We restorecon /data in case the userdata partition has been reset.
     restorecon /data
 
     mkdir /data/vendor 0771 root root encryption=Require
