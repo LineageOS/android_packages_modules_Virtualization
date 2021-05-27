@@ -2,3 +2,7 @@
 ro.apex.updatable=true
 ro.debuggable=1
 ro.adb.secure=0
+
+# TODO(b/189164487): support build related properties
+ro.build.version.release=11
+ro.build.version.security_patch=2021-07-05
