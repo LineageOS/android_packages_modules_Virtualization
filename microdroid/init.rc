@@ -110,6 +110,9 @@ on post-fs
 
     perform_apex_config
 
+    # TODO(b/185991357) start this earlier
+    start microdroid_manager
+
     exec_start derive_sdk
 
     start adbd

@@ -1,0 +1,4 @@
+service microdroid_manager /system/bin/microdroid_manager
+    disabled
+    # TODO(jooyung) remove this when microdroid_manager becomes a daemon
+    oneshot

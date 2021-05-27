@@ -97,6 +97,7 @@ struct Config {
     std::vector<std::string> system_apexes;
     std::vector<ApexConfig> apexes;
     std::optional<ApkConfig> apk;
+    std::optional<std::string> payload_config_path;
 };
 
 #define DO(expr) \
@@ -120,6 +121,16 @@ Result<void> ParseJson(const Json::Value& value, std::optional<T>& s) {
     return ParseJson(value, *s);
 }
 
+template <typename T>
+Result<void> ParseJson(const Json::Value& values, std::vector<T>& parsed) {
+    for (const Json::Value& value : values) {
+        T t;
+        DO(ParseJson(value, t));
+        parsed.push_back(std::move(t));
+    }
+    return {};
+}
+
 Result<void> ParseJson(const Json::Value& value, ApexConfig& apex_config) {
     DO(ParseJson(value["name"], apex_config.name));
     DO(ParseJson(value["path"], apex_config.path));
@@ -134,20 +145,11 @@ Result<void> ParseJson(const Json::Value& value, ApkConfig& apk_config) {
     return {};
 }
 
-template <typename T>
-Result<void> ParseJson(const Json::Value& values, std::vector<T>& parsed) {
-    for (const Json::Value& value : values) {
-        T t;
-        DO(ParseJson(value, t));
-        parsed.push_back(std::move(t));
-    }
-    return {};
-}
-
 Result<void> ParseJson(const Json::Value& value, Config& config) {
     DO(ParseJson(value["system_apexes"], config.system_apexes));
     DO(ParseJson(value["apexes"], config.apexes));
     DO(ParseJson(value["apk"], config.apk));
+    DO(ParseJson(value["payload_config_path"], config.payload_config_path));
     return {};
 }
 
@@ -230,6 +232,10 @@ Result<void> MakeSignature(const Config& config, const std::string& filename) {
         apk_signature->set_name(config.apk->name);
         apk_signature->set_payload_partition_name("microdroid-apk");
         // TODO(jooyung): set idsig partition as well
+    }
+
+    if (config.payload_config_path.has_value()) {
+        *signature.mutable_payload_config_path() = config.payload_config_path.value();
     }
 
     std::ofstream out(filename);
