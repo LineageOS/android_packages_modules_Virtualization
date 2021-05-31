@@ -177,7 +177,9 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         assertThat(abiList.length, is(1));
 
         final String libPath = "/mnt/apk/lib/" + abiList[0] + "/MicrodroidTestNativeLib.so";
-        assertThat(executeCommandOnMicrodroid("shell ls " + libPath), is(libPath));
+        assertThat(
+                executeCommandOnMicrodroid("shell ls -Z " + libPath),
+                is("u:object_r:system_file:s0 " + libPath));
 
         assertThat(
                 executeCommandOnMicrodroid(
