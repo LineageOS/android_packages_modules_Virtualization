@@ -14,9 +14,11 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
-use crate::crosvm::VmInstance;
+use crate::composite::make_composite_image;
+use crate::crosvm::{CrosvmConfig, DiskFile, VmInstance};
 use crate::{Cid, FIRST_GUEST_CID};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DiskImage::DiskImage;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
 };
@@ -26,10 +28,17 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::binder::{
     self, BinderFeatures, Interface, ParcelFileDescriptor, StatusCode, Strong, ThreadState,
 };
-use log::{debug, error};
+use command_fds::FdMapping;
+use log::{debug, error, warn};
+use std::fs::{File, create_dir};
+use std::os::unix::io::AsRawFd;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
+
+/// Directory in which to write disk image files used while running VMs.
+const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
 
 // TODO(qwandor): Use PermissionController once it is available to Rust.
 /// Only processes running with one of these UIDs are allowed to call debug methods.
@@ -53,30 +62,63 @@ impl IVirtualizationService for VirtualizationService {
         log_fd: Option<&ParcelFileDescriptor>,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let state = &mut *self.state.lock().unwrap();
-        let log_fd = log_fd
-            .map(|fd| fd.as_ref().try_clone().map_err(|_| StatusCode::UNKNOWN_ERROR))
-            .transpose()?;
+        let log_fd = log_fd.map(clone_file).transpose()?;
         let requester_uid = ThreadState::get_calling_uid();
-        let requester_sid = ThreadState::with_calling_sid(|sid| {
-            if let Some(sid) = sid {
-                match sid.to_str() {
-                    Ok(sid) => Ok(sid.to_owned()),
-                    Err(e) => {
-                        error!("SID was not valid UTF-8: {:?}", e);
-                        Err(StatusCode::BAD_VALUE)
-                    }
-                }
-            } else {
-                error!("Missing SID on startVm");
-                Err(StatusCode::UNKNOWN_ERROR)
-            }
-        })?;
+        let requester_sid = get_calling_sid()?;
         let requester_debug_pid = ThreadState::get_calling_pid();
         let cid = state.allocate_cid()?;
-        let instance = VmInstance::start(
-            config,
+
+        // Counter to generate unique IDs for temporary image files.
+        let mut next_temporary_image_id = 0;
+        // Files which are referred to from composite images. These must be mapped to the crosvm
+        // child process, and not closed before it is started.
+        let mut indirect_files = vec![];
+
+        // Make directory for temporary files.
+        let temporary_directory: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
+        create_dir(&temporary_directory).map_err(|e| {
+            error!(
+                "Failed to create temporary directory {:?} for VM files: {:?}",
+                temporary_directory, e
+            );
+            StatusCode::UNKNOWN_ERROR
+        })?;
+
+        // Assemble disk images if needed.
+        let disks = config
+            .disks
+            .iter()
+            .map(|disk| {
+                assemble_disk_image(
+                    disk,
+                    &temporary_directory,
+                    &mut next_temporary_image_id,
+                    &mut indirect_files,
+                )
+            })
+            .collect::<Result<Vec<DiskFile>, _>>()?;
+
+        // Actually start the VM.
+        let crosvm_config = CrosvmConfig {
             cid,
+            bootloader: as_asref(&config.bootloader),
+            kernel: as_asref(&config.kernel),
+            initrd: as_asref(&config.initrd),
+            disks,
+            params: config.params.to_owned(),
+        };
+        let composite_disk_mappings: Vec<_> = indirect_files
+            .iter()
+            .map(|file| {
+                let fd = file.as_raw_fd();
+                FdMapping { parent_fd: fd, child_fd: fd }
+            })
+            .collect();
+        let instance = VmInstance::start(
+            &crosvm_config,
             log_fd,
+            &composite_disk_mappings,
+            temporary_directory,
             requester_uid,
             requester_sid,
             requester_debug_pid,
@@ -102,6 +144,7 @@ impl IVirtualizationService for VirtualizationService {
             .into_iter()
             .map(|vm| VirtualMachineDebugInfo {
                 cid: vm.cid as i32,
+                temporaryDirectory: vm.temporary_directory.to_string_lossy().to_string(),
                 requesterUid: vm.requester_uid as i32,
                 requesterSid: vm.requester_sid.clone(),
                 requesterPid: vm.requester_debug_pid,
@@ -134,6 +177,72 @@ impl IVirtualizationService for VirtualizationService {
         let state = &mut *self.state.lock().unwrap();
         Ok(state.debug_drop_vm(cid))
     }
+}
+
+/// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
+///
+/// This may involve assembling a composite disk from a set of partition images.
+fn assemble_disk_image(
+    disk: &DiskImage,
+    temporary_directory: &Path,
+    next_temporary_image_id: &mut u64,
+    indirect_files: &mut Vec<File>,
+) -> Result<DiskFile, StatusCode> {
+    let image = if !disk.partitions.is_empty() {
+        if disk.image.is_some() {
+            warn!("DiskImage {:?} contains both image and partitions.", disk);
+            return Err(StatusCode::BAD_VALUE);
+        }
+
+        let composite_image_filename =
+            make_composite_image_filename(temporary_directory, next_temporary_image_id);
+        let (image, partition_files) =
+            make_composite_image(&disk.partitions, &composite_image_filename).map_err(|e| {
+                error!("Failed to make composite image with config {:?}: {:?}", disk, e);
+                StatusCode::UNKNOWN_ERROR
+            })?;
+
+        // Pass the file descriptors for the various partition files to crosvm when it
+        // is run.
+        indirect_files.extend(partition_files);
+
+        image
+    } else if let Some(image) = &disk.image {
+        clone_file(image)?
+    } else {
+        warn!("DiskImage {:?} didn't contain image or partitions.", disk);
+        return Err(StatusCode::BAD_VALUE);
+    };
+
+    Ok(DiskFile { image, writable: disk.writable })
+}
+
+/// Generates a unique filename to use for a composite disk image.
+fn make_composite_image_filename(
+    temporary_directory: &Path,
+    next_temporary_image_id: &mut u64,
+) -> PathBuf {
+    let id = *next_temporary_image_id;
+    *next_temporary_image_id += 1;
+    temporary_directory.join(format!("composite-{}.img", id))
+}
+
+/// Gets the calling SID of the current Binder thread.
+fn get_calling_sid() -> Result<String, StatusCode> {
+    ThreadState::with_calling_sid(|sid| {
+        if let Some(sid) = sid {
+            match sid.to_str() {
+                Ok(sid) => Ok(sid.to_owned()),
+                Err(e) => {
+                    error!("SID was not valid UTF-8: {:?}", e);
+                    Err(StatusCode::BAD_VALUE)
+                }
+            }
+        } else {
+            error!("Missing SID on startVm");
+            Err(StatusCode::UNKNOWN_ERROR)
+        }
+    })
 }
 
 /// Check whether the caller of the current Binder method is allowed to call debug methods.
@@ -264,4 +373,14 @@ impl Default for State {
     fn default() -> Self {
         State { next_cid: FIRST_GUEST_CID, vms: vec![], debug_held_vms: vec![] }
     }
+}
+
+/// Converts an `&Option<T>` to an `Option<U>` where `T` implements `AsRef<U>`.
+fn as_asref<T: AsRef<U>, U>(option: &Option<T>) -> Option<&U> {
+    option.as_ref().map(|t| t.as_ref())
+}
+
+/// Converts a `&ParcelFileDescriptor` to a `File` by cloning the file.
+fn clone_file(file: &ParcelFileDescriptor) -> Result<File, StatusCode> {
+    file.as_ref().try_clone().map_err(|_| StatusCode::UNKNOWN_ERROR)
 }
