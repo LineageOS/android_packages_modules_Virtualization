@@ -15,18 +15,14 @@
  */
 package android.system.virtualizationservice;
 
-import android.system.virtualizationservice.Partition;
+/** A partition to be assembled into a composite image. */
+parcelable Partition {
+    /** A label for the partition. */
+    String label;
 
-/** A disk image to be made available to the VM. */
-parcelable DiskImage {
-    /**
-     * The disk image, if it already exists. Exactly one of this and `partitions` must be specified.
-     */
-    @nullable ParcelFileDescriptor image;
+    /** The backing file descriptor of the partition image. */
+    ParcelFileDescriptor image;
 
-    /** Whether this disk should be writable by the VM. */
+    /** Whether the partition should be writable by the VM. */
     boolean writable;
-
-    /** Partition images to be assembled into a composite image. */
-    Partition[] partitions;
 }
