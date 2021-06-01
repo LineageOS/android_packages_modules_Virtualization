@@ -15,6 +15,7 @@
 //! Android VirtualizationService
 
 mod aidl;
+mod composite;
 mod crosvm;
 
 use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER};

@@ -16,6 +16,7 @@
 
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::DiskImage::DiskImage as AidlDiskImage,
+    aidl::android::system::virtualizationservice::Partition::Partition as AidlPartition,
     aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig,
     binder::ParcelFileDescriptor,
 };
@@ -53,6 +54,11 @@ impl VmConfig {
         if self.bootloader.is_some() && (self.kernel.is_some() || self.initrd.is_some()) {
             bail!("Can't have both bootloader and kernel/initrd image.");
         }
+        for disk in &self.disks {
+            if disk.image.is_none() == disk.partitions.is_empty() {
+                bail!("Exactly one of image and partitions must be specified. (Was {:?}.)", disk);
+            }
+        }
         Ok(())
     }
 
@@ -68,20 +74,11 @@ impl VmConfig {
     /// Manager.
     pub fn to_parcelable(&self) -> Result<VirtualMachineConfig, Error> {
         Ok(VirtualMachineConfig {
-            kernel: maybe_open_parcel_file(&self.kernel)?,
-            initrd: maybe_open_parcel_file(&self.initrd)?,
+            kernel: maybe_open_parcel_file(&self.kernel, false)?,
+            initrd: maybe_open_parcel_file(&self.initrd, false)?,
             params: self.params.clone(),
-            bootloader: maybe_open_parcel_file(&self.bootloader)?,
-            disks: self
-                .disks
-                .iter()
-                .map(|disk| {
-                    Ok(AidlDiskImage {
-                        writable: disk.writable,
-                        image: Some(open_parcel_file(&disk.image, disk.writable)?),
-                    })
-                })
-                .collect::<Result<_, Error>>()?,
+            bootloader: maybe_open_parcel_file(&self.bootloader, false)?,
+            disks: self.disks.iter().map(DiskImage::to_parcelable).collect::<Result<_, Error>>()?,
         })
     }
 }
@@ -89,10 +86,50 @@ impl VmConfig {
 /// A disk image to be made available to the VM.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DiskImage {
-    /// The filename of the disk image.
-    pub image: PathBuf,
+    /// The filename of the disk image, if it already exists. Exactly one of this and `partitions`
+    /// must be specified.
+    #[serde(default)]
+    pub image: Option<PathBuf>,
+    /// A set of partitions to be assembled into a composite image.
+    #[serde(default)]
+    pub partitions: Vec<Partition>,
     /// Whether this disk should be writable by the VM.
     pub writable: bool,
+}
+
+impl DiskImage {
+    fn to_parcelable(&self) -> Result<AidlDiskImage, Error> {
+        let partitions =
+            self.partitions.iter().map(Partition::to_parcelable).collect::<Result<_, Error>>()?;
+        Ok(AidlDiskImage {
+            image: maybe_open_parcel_file(&self.image, self.writable)?,
+            writable: self.writable,
+            partitions,
+        })
+    }
+}
+
+// TODO: Share this type with virtualizationservice::composite::config.
+/// A partition for a disk image to be made available to the VM.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Partition {
+    /// A label for the partition.
+    pub label: String,
+    /// The filename of the partition image.
+    pub path: PathBuf,
+    /// Whether the partition should be writable.
+    #[serde(default)]
+    pub writable: bool,
+}
+
+impl Partition {
+    fn to_parcelable(&self) -> Result<AidlPartition, Error> {
+        Ok(AidlPartition {
+            image: Some(open_parcel_file(&self.path, self.writable)?),
+            writable: self.writable,
+            label: self.label.to_owned(),
+        })
+    }
 }
 
 /// Try to open the given file and wrap it in a [`ParcelFileDescriptor`].
@@ -109,6 +146,7 @@ fn open_parcel_file(filename: &Path, writable: bool) -> Result<ParcelFileDescrip
 /// If the given filename is `Some`, try to open it and wrap it in a [`ParcelFileDescriptor`].
 fn maybe_open_parcel_file(
     filename: &Option<PathBuf>,
+    writable: bool,
 ) -> Result<Option<ParcelFileDescriptor>, Error> {
-    filename.as_deref().map(|filename| open_parcel_file(filename, false)).transpose()
+    filename.as_deref().map(|filename| open_parcel_file(filename, writable)).transpose()
 }
