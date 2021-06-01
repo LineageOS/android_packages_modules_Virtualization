@@ -22,7 +22,9 @@
 #include <android/binder_process.h>
 #include <keymaster/soft_keymaster_logger.h>
 
-using aidl::android::hardware::security::keymint::AndroidKeyMintDevice;
+#include "MicrodroidKeyMintDevice.h"
+
+using aidl::android::hardware::security::keymint::MicrodroidKeyMintDevice;
 using aidl::android::hardware::security::keymint::SecurityLevel;
 
 template <typename T, class... Args>
@@ -41,8 +43,8 @@ int main() {
     // the pool size to 1.
     ABinderProcess_setThreadPoolMaxThreadCount(0);
     // Add Keymint Service
-    std::shared_ptr<AndroidKeyMintDevice> keyMint =
-            addService<AndroidKeyMintDevice>(SecurityLevel::SOFTWARE);
+    std::shared_ptr<MicrodroidKeyMintDevice> keyMint =
+            addService<MicrodroidKeyMintDevice>(SecurityLevel::SOFTWARE);
 
     // VMs cannot implement the Secure Clock Service
     // addService<AndroidSecureClock>(keyMint);
