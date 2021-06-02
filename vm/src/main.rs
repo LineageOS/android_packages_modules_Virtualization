@@ -26,7 +26,8 @@ use std::path::PathBuf;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-const VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
+const VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER: &str =
+    "android.system.virtualizationservice";
 
 #[derive(StructOpt)]
 #[structopt(no_version, global_settings = &[AppSettings::DisableVersion])]
@@ -57,19 +58,19 @@ fn main() -> Result<(), Error> {
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
 
-    let virt_manager = get_interface(VIRT_MANAGER_BINDER_SERVICE_IDENTIFIER)
+    let service = get_interface(VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER)
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::Run { config, daemonize } => command_run(virt_manager, &config, daemonize),
-        Opt::Stop { cid } => command_stop(virt_manager, cid),
-        Opt::List => command_list(virt_manager),
+        Opt::Run { config, daemonize } => command_run(service, &config, daemonize),
+        Opt::Stop { cid } => command_stop(service, cid),
+        Opt::List => command_list(service),
     }
 }
 
 /// Retrieve reference to a previously daemonized VM and stop it.
-fn command_stop(virt_manager: Strong<dyn IVirtualizationService>, cid: u32) -> Result<(), Error> {
-    virt_manager
+fn command_stop(service: Strong<dyn IVirtualizationService>, cid: u32) -> Result<(), Error> {
+    service
         .debugDropVmRef(cid as i32)
         .context("Failed to get VM from VirtualizationService")?
         .context("CID does not correspond to a running background VM")?;
@@ -77,8 +78,8 @@ fn command_stop(virt_manager: Strong<dyn IVirtualizationService>, cid: u32) -> R
 }
 
 /// List the VMs currently running.
-fn command_list(virt_manager: Strong<dyn IVirtualizationService>) -> Result<(), Error> {
-    let vms = virt_manager.debugListVms().context("Failed to get list of VMs")?;
+fn command_list(service: Strong<dyn IVirtualizationService>) -> Result<(), Error> {
+    let vms = service.debugListVms().context("Failed to get list of VMs")?;
     println!("Running VMs: {:#?}", vms);
     Ok(())
 }
