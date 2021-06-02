@@ -69,14 +69,25 @@ android_system_image {
 
         "apexd",
         "debuggerd",
+        "e2fsck",
+        "keystore2",
         "linker",
         "linkerconfig",
         "servicemanager",
         "tombstoned",
+        "tune2fs",
+        "vdc",
+        "vold",
+        "wait_for_keymaster",
         "cgroups.json",
         "public.libraries.android.txt",
 
+        // TODO(b/185767624): remove hidl after full keymint support
+        "hwservicemanager",
+
         "plat_sepolicy_and_mapping.sha256",
+        "microdroid_compatibility_matrix",
+        "microdroid_manifest",
     ] + microdroid_shell_and_utilities,
     multilib: {
         common: {
@@ -145,9 +156,12 @@ android_filesystem {
     name: "microdroid_vendor",
     use_avb: true,
     deps: [
+        "android.hardware.security.keymint-service",
         "microdroid_fstab",
         "microdroid_precompiled_sepolicy",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
+        "microdroid_vendor_manifest",
+        "microdroid_vendor_compatibility_matrix",
     ],
     multilib: {
         common: {
@@ -427,4 +441,36 @@ prebuilt_etc {
 prebuilt_etc {
     name: "microdroid_payload.json",
     src: "microdroid_payload.json",
+}
+
+prebuilt_etc {
+    name: "microdroid_vendor_manifest",
+    src: "microdroid_vendor_manifest.xml",
+    filename: "manifest.xml",
+    relative_install_path: "vintf",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_vendor_compatibility_matrix",
+    src: "microdroid_vendor_compatibility_matrix.xml",
+    filename: "compatibility_matrix.xml",
+    relative_install_path: "vintf",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_compatibility_matrix",
+    src: "microdroid_compatibility_matrix.xml",
+    filename: "compatibility_matrix.current.xml",
+    relative_install_path: "vintf",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_manifest",
+    src: "microdroid_manifest.xml",
+    filename: "manifest.xml",
+    relative_install_path: "vintf",
+    installable: false,
 }
