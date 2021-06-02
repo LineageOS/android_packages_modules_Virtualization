@@ -27,6 +27,8 @@ message MicrodroidSignature {
   repeated ApexSignature apexes = 2;
 
   ApkSignature apk = 3;
+
+  string payload_config_path = 4;
 }
 
 message ApexSignature {
