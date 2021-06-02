@@ -12,6 +12,9 @@ import /init.environ.rc
 
 # Cgroups are mounted right before early-init using list from /etc/cgroups.json
 on early-init
+    # set RLIMIT_NICE to allow priorities from 19 to -20
+    setrlimit nice 40 40
+
     # in microdroid, we don't use "bootstrap" mount namespace
     # because APEXes are passed from host and are available
     # from the start. We don't need to wait till /data is ready.
@@ -96,12 +99,21 @@ on late-init
     trigger early-boot
     trigger boot
 
+on early-fs
+    start vold
+
 on post-fs
     # Once everything is setup, no need to modify /.
     # The bind+remount combination allows this to work in containers.
     mount rootfs rootfs / remount bind ro nodev
 
+    start keystore2
+
 on late-fs
+    start vendor.keymint-default
+
+    exec_start wait_for_keymaster
+
     mount_all /vendor/etc/fstab.microdroid --late
 
 on post-fs-data
@@ -113,6 +125,9 @@ on post-fs-data
 
     # We restorecon /data in case the userdata partition has been reset.
     restorecon /data
+
+    # Make sure we have the device encryption key.
+    installkey /data
 
     mkdir /data/vendor 0771 root root encryption=Require
     mkdir /data/vendor_ce 0771 root root encryption=None
@@ -126,6 +141,25 @@ on post-fs-data
     mkdir /data/vendor/tombstones 0771 root root
 
     start tombstoned
+
+    # set up keystore directory structure first so that we can end early boot
+    # and start apexd
+    mkdir /data/misc 01771 system misc encryption=Require
+    mkdir /data/misc/keystore 0700 keystore keystore
+    # work around b/183668221
+    restorecon /data/misc /data/misc/keystore
+
+    # Boot level 30
+    # odsign signing keys have MAX_BOOT_LEVEL=30
+    # This is currently the earliest boot level, but we start at 30
+    # to leave room for earlier levels.
+    setprop keystore.boot_level 30
+
+    # Now that /data is mounted and we have created /data/misc/keystore,
+    # we can tell keystore to stop allowing use of early-boot keys,
+    # and access its database for the first time to support creation and
+    # use of MAX_BOOT_LEVEL keys.
+    exec - system system -- /system/bin/vdc keymaster earlyBootEnded
 
     # For security reasons, /data/local/tmp should always be empty.
     # Do not place files or directories in /data/local/tmp
@@ -156,3 +190,5 @@ on fs
 on property:sys.boot_completed=1
     start logd-auditctl
 
+on property:vold.decrypt=trigger_post_fs_data
+    trigger post-fs-data
