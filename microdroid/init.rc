@@ -48,6 +48,9 @@ on init
 
     start servicemanager
 
+    # TODO(b/185767624): remove hidl after full keymint support
+    start hwservicemanager
+
     start adbd
 
     # TODO(b/186396070) microdroid_manager starts zipfuse if necessary
