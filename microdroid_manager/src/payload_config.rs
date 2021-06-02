@@ -16,8 +16,13 @@
 
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
 use std::io;
+use std::path::Path;
+use std::time::Duration;
+
+use crate::ioutil;
+
+const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct VmPayloadConfig {
@@ -33,9 +38,9 @@ pub struct Task {
 }
 
 impl VmPayloadConfig {
-    pub fn load_from(path: &str) -> io::Result<VmPayloadConfig> {
-        info!("loading config from {}...", path);
-        let file = File::open(path)?;
+    pub fn load_from(path: &Path) -> io::Result<VmPayloadConfig> {
+        info!("loading config from {:?}...", path);
+        let file = ioutil::wait_for_file(path, WAIT_TIMEOUT)?;
         Ok(serde_json::from_reader(file)?)
     }
 }
