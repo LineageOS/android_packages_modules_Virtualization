@@ -1,0 +1,6 @@
+{
+  "task": {
+    "command": "echo",
+    "args": ["hello", "microdroid"]
+  }
+}
