@@ -37,12 +37,12 @@ fn main() {
         android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Trace),
     );
 
-    let virt_manager = VirtualizationService::default();
-    let virt_manager = BnVirtualizationService::new_binder(
-        virt_manager,
+    let service = VirtualizationService::default();
+    let service = BnVirtualizationService::new_binder(
+        service,
         BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
     );
-    add_service(BINDER_SERVICE_IDENTIFIER, virt_manager.as_binder()).unwrap();
+    add_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();
 }
