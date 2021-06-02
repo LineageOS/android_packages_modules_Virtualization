@@ -38,6 +38,14 @@ cc_library_static {
     ],
 }
 
+rust_protobuf {
+    name: "libmicrodroid_signature_proto_rust",
+    crate_name: "microdroid_signature",
+    protos: ["microdroid_signature.proto"],
+    source_stem: "microdroid_signature",
+    host_supported: true,
+}
+
 cc_binary {
     name: "mk_payload",
     srcs: [
