@@ -1,0 +1,21 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_binary {
+    name: "microdroid_manager",
+    crate_name: "microdroid_manager",
+    srcs: ["src/main.rs"],
+    edition: "2018",
+    prefer_rlib: true,
+    rustlibs: [
+        "libandroid_logger",
+        "libanyhow",
+        "liblog_rust",
+        "libmicrodroid_signature_proto_rust",
+        "libprotobuf",
+        "libserde_json",
+        "libserde",
+    ],
+    init_rc: ["microdroid_manager.rc"],
+}

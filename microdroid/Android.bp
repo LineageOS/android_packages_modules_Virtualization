@@ -48,6 +48,7 @@ android_system_image {
         "microdroid_build_prop",
         "microdroid_init_rc",
         "microdroid_launcher",
+        "microdroid_manager",
         "ueventd.rc",
         "libbinder",
         "libbinder_ndk",
