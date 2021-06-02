@@ -6,5 +6,6 @@
   "apk": {
     "name": "com.android.microdroid.test",
     "path": "/apex/com.android.virt/app/MicrodroidTestApp/MicrodroidTestApp.apk"
-  }
+  },
+  "payload_config_path": "/mnt/apk/assets/vm_config.json"
 }
