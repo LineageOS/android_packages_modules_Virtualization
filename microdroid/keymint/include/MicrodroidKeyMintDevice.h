@@ -19,6 +19,7 @@
 #include <aidl/android/hardware/security/keymint/BnKeyMintDevice.h>
 #include <aidl/android/hardware/security/keymint/BnKeyMintOperation.h>
 #include <aidl/android/hardware/security/keymint/HardwareAuthToken.h>
+#include <keymaster/android_keymaster_utils.h>
 
 namespace keymaster {
 class AndroidKeymaster;
@@ -34,7 +35,7 @@ using secureclock::TimeStampToken;
 
 class MicrodroidKeyMintDevice : public BnKeyMintDevice {
 public:
-    MicrodroidKeyMintDevice();
+    explicit MicrodroidKeyMintDevice(::keymaster::KeymasterKeyBlob& rootKey);
     virtual ~MicrodroidKeyMintDevice();
 
     ScopedAStatus getHardwareInfo(KeyMintHardwareInfo* info) override;

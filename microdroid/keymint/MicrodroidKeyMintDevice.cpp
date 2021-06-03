@@ -17,14 +17,16 @@
 #define LOG_TAG "android.hardware.security.keymint-impl"
 #include "MicrodroidKeyMintDevice.h"
 
+#include <AndroidKeyMintOperation.h>
+#include <KeyMintUtils.h>
 #include <aidl/android/hardware/security/keymint/ErrorCode.h>
 #include <android-base/logging.h>
 #include <keymaster/android_keymaster.h>
 #include <keymaster/contexts/pure_soft_keymaster_context.h>
 #include <keymaster/keymaster_configuration.h>
 
-#include "AndroidKeyMintOperation.h"
-#include "KeyMintUtils.h"
+#include "MicrodroidKeyMintDevice.h"
+#include "MicrodroidKeymasterContext.h"
 
 namespace aidl::android::hardware::security::keymint {
 
@@ -195,11 +197,10 @@ void addClientAndAppData(const std::vector<uint8_t>& appId, const std::vector<ui
 
 constexpr size_t kOperationTableSize = 16;
 
-MicrodroidKeyMintDevice::MicrodroidKeyMintDevice()
+MicrodroidKeyMintDevice::MicrodroidKeyMintDevice(::keymaster::KeymasterKeyBlob& rootKey)
       : impl_(new ::keymaster::AndroidKeymaster(
                 [&]() -> auto {
-                    auto context = new PureSoftKeymasterContext(KmVersion::KEYMINT_1,
-                                                                KM_SECURITY_LEVEL_SOFTWARE);
+                    auto context = new MicrodroidKeymasterContext(KmVersion::KEYMINT_1, rootKey);
                     context->SetSystemVersion(::keymaster::GetOsVersion(),
                                               ::keymaster::GetOsPatchlevel());
                     return context;
