@@ -14,5 +14,6 @@ rust_binary {
         "liblog_rust",
         "libnix",
     ],
+    prefer_rlib: true,
     apex_available: ["com.android.virt"],
 }
