@@ -21,6 +21,7 @@ rust_defaults {
         "libstructopt",
         "libthiserror",
     ],
+    prefer_rlib: true,
     target: {
         darwin: {
             enabled: false,
