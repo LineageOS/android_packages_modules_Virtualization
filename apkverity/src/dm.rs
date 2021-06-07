@@ -126,11 +126,21 @@ impl DmIoctl {
 /// handle to "/dev/mapper/control".
 pub struct DeviceMapper(File);
 
+#[cfg(not(target_os = "android"))]
+const MAPPER_CONTROL: &str = "/dev/mapper/control";
+#[cfg(not(target_os = "android"))]
+const MAPPER_DEV_ROOT: &str = "/dev/mapper";
+
+#[cfg(target_os = "android")]
+const MAPPER_CONTROL: &str = "/dev/device-mapper";
+#[cfg(target_os = "android")]
+const MAPPER_DEV_ROOT: &str = "/dev/block/mapper";
+
 impl DeviceMapper {
     /// Constructs a new `DeviceMapper` entrypoint. This is essentially the same as opening
     /// "/dev/mapper/control".
     pub fn new() -> Result<DeviceMapper> {
-        let f = OpenOptions::new().read(true).write(true).open("/dev/mapper/control")?;
+        let f = OpenOptions::new().read(true).write(true).open(MAPPER_CONTROL)?;
         Ok(DeviceMapper(f))
     }
 
@@ -162,7 +172,7 @@ impl DeviceMapper {
         dm_dev_suspend(&self, &mut data)?;
 
         // Step 4: wait unti the device is created and return the device path
-        let path = Path::new("/dev/mapper").join(&name);
+        let path = Path::new(MAPPER_DEV_ROOT).join(&name);
         wait_for_path(&path)?;
         Ok(path)
     }

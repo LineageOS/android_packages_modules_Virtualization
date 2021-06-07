@@ -153,12 +153,9 @@ fn read_sized_array(r: &mut dyn Read) -> Result<Box<[u8]>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::util::hexstring_from;
     use crate::*;
     use std::io::Cursor;
-
-    fn hexstring_from(s: &[u8]) -> String {
-        s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
-    }
 
     #[test]
     fn parse_idsig_file() {
