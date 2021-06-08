@@ -41,20 +41,15 @@ use sys::*;
 pub use verity::*;
 
 nix::ioctl_readwrite!(_dm_dev_create, DM_IOCTL, Cmd::DM_DEV_CREATE, DmIoctl);
-nix::ioctl_readwrite!(_dm_dev_remove, DM_IOCTL, Cmd::DM_DEV_REMOVE, DmIoctl);
 nix::ioctl_readwrite!(_dm_dev_suspend, DM_IOCTL, Cmd::DM_DEV_SUSPEND, DmIoctl);
 nix::ioctl_readwrite!(_dm_table_load, DM_IOCTL, Cmd::DM_TABLE_LOAD, DmIoctl);
+#[cfg(test)]
+nix::ioctl_readwrite!(_dm_dev_remove, DM_IOCTL, Cmd::DM_DEV_REMOVE, DmIoctl);
 
 fn dm_dev_create(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
     // SAFETY: `ioctl` is copied into the kernel. It modifies the state in the kernel, not the
     // state of this process in any way.
     Ok(unsafe { _dm_dev_create(dm.0.as_raw_fd(), ioctl) }?)
-}
-
-fn dm_dev_remove(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
-    // SAFETY: `ioctl` is copied into the kernel. It modifies the state in the kernel, not the
-    // state of this process in any way.
-    Ok(unsafe { _dm_dev_remove(dm.0.as_raw_fd(), ioctl) }?)
 }
 
 fn dm_dev_suspend(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
@@ -67,6 +62,13 @@ fn dm_table_load(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
     // SAFETY: `ioctl` is copied into the kernel. It modifies the state in the kernel, not the
     // state of this process in any way.
     Ok(unsafe { _dm_table_load(dm.0.as_raw_fd(), ioctl) }?)
+}
+
+#[cfg(test)]
+fn dm_dev_remove(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
+    // SAFETY: `ioctl` is copied into the kernel. It modifies the state in the kernel, not the
+    // state of this process in any way.
+    Ok(unsafe { _dm_dev_remove(dm.0.as_raw_fd(), ioctl) }?)
 }
 
 // `DmTargetSpec` is the header of the data structure for a device-mapper target. When doing the
@@ -90,7 +92,7 @@ impl DmTargetSpec {
 
     fn as_u8_slice(&self) -> &[u8; size_of::<Self>()] {
         // SAFETY: lifetime of the output reference isn't changed.
-        unsafe { std::mem::transmute::<&Self, &[u8; size_of::<Self>()]>(&self) }
+        unsafe { &*(&self as *const &Self as *const [u8; size_of::<Self>()]) }
     }
 }
 
@@ -116,7 +118,7 @@ impl DmIoctl {
 
     fn as_u8_slice(&self) -> &[u8; size_of::<Self>()] {
         // SAFETY: lifetime of the output reference isn't changed.
-        unsafe { std::mem::transmute::<&Self, &[u8; size_of::<Self>()]>(&self) }
+        unsafe { &*(&self as *const &Self as *const [u8; size_of::<Self>()]) }
     }
 }
 
@@ -150,8 +152,8 @@ impl DeviceMapper {
         data.flags |= Flag::DM_READONLY_FLAG;
 
         let mut payload = Vec::with_capacity(payload_size);
-        payload.extend_from_slice(&data.as_u8_slice()[..]);
-        payload.extend_from_slice(&target.as_u8_slice()[..]);
+        payload.extend_from_slice(data.as_u8_slice());
+        payload.extend_from_slice(target.as_u8_slice());
         dm_table_load(&self, payload.as_mut_ptr() as *mut DmIoctl)?;
 
         // Step 3: activate the device (note: the term 'suspend' might be misleading, but it
@@ -166,6 +168,7 @@ impl DeviceMapper {
     }
 
     /// Removes a mapper device
+    #[cfg(test)]
     pub fn delete_device_deferred(&self, name: &str) -> Result<()> {
         let mut data = DmIoctl::new(&name)?;
         data.flags |= Flag::DM_DEFERRED_REMOVE;
