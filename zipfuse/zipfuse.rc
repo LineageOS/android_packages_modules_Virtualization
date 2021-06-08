@@ -1,2 +1,2 @@
-service zipfuse /system/bin/zipfuse /dev/block/by-name/microdroid-apk /mnt/apk
+service zipfuse /system/bin/zipfuse -o fscontext=u:object_r:zipfusefs:s0,context=u:object_r:system_file:s0 /dev/block/by-name/microdroid-apk /mnt/apk
     disabled
