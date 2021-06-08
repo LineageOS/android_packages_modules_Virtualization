@@ -15,6 +15,9 @@
 -->
 
 <configuration description="Config for Virtualization tests">
+    <!-- virtualizationservice doesn't have access to shell_data_file. Instead of giving it
+      a test-only permission, run it without selinux -->
+    <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer"/>
 
     <!-- Basic checks that the device has all the prerequisites. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
