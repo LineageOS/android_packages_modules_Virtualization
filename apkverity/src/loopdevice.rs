@@ -85,6 +85,12 @@ pub fn attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
     }
 }
 
+#[cfg(not(target_os = "android"))]
+const LOOP_DEV_PREFIX: &str = "/dev/loop";
+
+#[cfg(target_os = "android")]
+const LOOP_DEV_PREFIX: &str = "/dev/block/loop";
+
 fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<PathBuf> {
     // Get a free loop device
     wait_for_path(LOOP_CONTROL)?;
@@ -112,12 +118,12 @@ fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
     // happens only during test. DirectIO-on-loop-over-loop makes the outer loop device
     // unaccessible.
     #[cfg(test)]
-    if path.as_ref().to_str().unwrap().starts_with("/dev/loop") {
+    if path.as_ref().to_str().unwrap().starts_with(LOOP_DEV_PREFIX) {
         config.info.lo_flags.remove(Flag::LO_FLAGS_DIRECT_IO);
     }
 
     // Configure the loop device to attach the backing file
-    let device_path = format!("/dev/loop{}", num);
+    let device_path = format!("{}{}", LOOP_DEV_PREFIX, num);
     wait_for_path(&device_path)?;
     let device_file = OpenOptions::new()
         .read(true)
