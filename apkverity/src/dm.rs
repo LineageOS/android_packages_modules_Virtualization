@@ -34,7 +34,6 @@ use std::io::Write;
 use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
-use uuid::Uuid;
 
 mod sys;
 mod verity;
@@ -138,7 +137,7 @@ impl DeviceMapper {
     pub fn create_device(&self, name: &str, target: &DmVerityTarget) -> Result<PathBuf> {
         // Step 1: create an empty device
         let mut data = DmIoctl::new(&name)?;
-        data.set_uuid(&uuid())?;
+        data.set_uuid(&uuid()?)?;
         dm_dev_create(&self, &mut data)?;
 
         // Step 2: load table onto the device
@@ -176,10 +175,14 @@ impl DeviceMapper {
 }
 
 /// Used to derive a UUID that uniquely identifies a device mapper device when creating it.
-// TODO(jiyong): the v4 is a randomly generated UUID. We might want another version of UUID (e.g.
-// v3) where we can specify the namespace so that we can easily identify UUID's created for this
-// purpose. For now, this random UUID is fine because we are expected to have only "one" instance
-// of dm-verity device in Microdroid.
-fn uuid() -> String {
-    String::from(Uuid::new_v4().to_hyphenated().encode_lower(&mut Uuid::encode_buffer()))
+fn uuid() -> Result<String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    use uuid::v1::{Context, Timestamp};
+    use uuid::Uuid;
+
+    let context = Context::new(0);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+    let ts = Timestamp::from_unix(&context, now.as_secs(), now.subsec_nanos());
+    let uuid = Uuid::new_v1(ts, "apkver".as_bytes())?;
+    Ok(String::from(uuid.to_hyphenated().encode_lower(&mut Uuid::encode_buffer())))
 }
