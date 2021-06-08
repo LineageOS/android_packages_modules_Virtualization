@@ -24,7 +24,9 @@
 mod sys;
 
 use anyhow::{Context, Result};
+use data_model::DataInit;
 use std::fs::{File, OpenOptions};
+use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -106,8 +108,9 @@ fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
         .read(true)
         .open(&path)
         .context(format!("failed to open {:?}", path.as_ref()))?;
-    // SAFETY: zero initialized C structs is safe
-    let mut config = unsafe { std::mem::MaybeUninit::<loop_config>::zeroed().assume_init() };
+    // safe because the size of the array is the same as the size of the struct
+    let mut config: loop_config =
+        *DataInit::from_mut_slice(&mut [0; size_of::<loop_config>()]).unwrap();
     config.fd = backing_file.as_raw_fd() as u32;
     config.block_size = 4096;
     config.info.lo_offset = offset;

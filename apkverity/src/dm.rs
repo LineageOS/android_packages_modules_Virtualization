@@ -29,6 +29,7 @@
 use crate::util::*;
 
 use anyhow::Result;
+use data_model::DataInit;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::size_of;
@@ -74,6 +75,7 @@ fn dm_dev_remove(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
 // `DmTargetSpec` is the header of the data structure for a device-mapper target. When doing the
 // ioctl, one of more `DmTargetSpec` (and its body) are appened to the `DmIoctl` struct.
 #[repr(C)]
+#[derive(Copy, Clone)]
 struct DmTargetSpec {
     sector_start: u64,
     length: u64, // number of 512 sectors
@@ -82,24 +84,22 @@ struct DmTargetSpec {
     target_type: [u8; DM_MAX_TYPE_NAME],
 }
 
+// SAFETY: C struct is safe to be initialized from raw data
+unsafe impl DataInit for DmTargetSpec {}
+
 impl DmTargetSpec {
     fn new(target_type: &str) -> Result<Self> {
-        // SAFETY: zero initialized C struct is safe
-        let mut spec = unsafe { std::mem::MaybeUninit::<Self>::zeroed().assume_init() };
+        // safe because the size of the array is the same as the size of the struct
+        let mut spec: Self = *DataInit::from_mut_slice(&mut [0; size_of::<Self>()]).unwrap();
         spec.target_type.as_mut().write_all(target_type.as_bytes())?;
         Ok(spec)
-    }
-
-    fn as_u8_slice(&self) -> &[u8; size_of::<Self>()] {
-        // SAFETY: lifetime of the output reference isn't changed.
-        unsafe { &*(&self as *const &Self as *const [u8; size_of::<Self>()]) }
     }
 }
 
 impl DmIoctl {
     fn new(name: &str) -> Result<DmIoctl> {
-        // SAFETY: zero initialized C struct is safe
-        let mut data = unsafe { std::mem::MaybeUninit::<Self>::zeroed().assume_init() };
+        // safe because the size of the array is the same as the size of the struct
+        let mut data: Self = *DataInit::from_mut_slice(&mut [0; size_of::<Self>()]).unwrap();
         data.version[0] = DM_VERSION_MAJOR;
         data.version[1] = DM_VERSION_MINOR;
         data.version[2] = DM_VERSION_PATCHLEVEL;
@@ -114,11 +114,6 @@ impl DmIoctl {
         dst.fill(0);
         dst.write_all(uuid.as_bytes())?;
         Ok(())
-    }
-
-    fn as_u8_slice(&self) -> &[u8; size_of::<Self>()] {
-        // SAFETY: lifetime of the output reference isn't changed.
-        unsafe { &*(&self as *const &Self as *const [u8; size_of::<Self>()]) }
     }
 }
 
@@ -153,7 +148,7 @@ impl DeviceMapper {
         dm_dev_create(&self, &mut data)?;
 
         // Step 2: load table onto the device
-        let payload_size = size_of::<DmIoctl>() + target.as_u8_slice().len();
+        let payload_size = size_of::<DmIoctl>() + target.as_slice().len();
 
         let mut data = DmIoctl::new(&name)?;
         data.data_size = payload_size as u32;
@@ -162,8 +157,8 @@ impl DeviceMapper {
         data.flags |= Flag::DM_READONLY_FLAG;
 
         let mut payload = Vec::with_capacity(payload_size);
-        payload.extend_from_slice(data.as_u8_slice());
-        payload.extend_from_slice(target.as_u8_slice());
+        payload.extend_from_slice(data.as_slice());
+        payload.extend_from_slice(target.as_slice());
         dm_table_load(&self, payload.as_mut_ptr() as *mut DmIoctl)?;
 
         // Step 3: activate the device (note: the term 'suspend' might be misleading, but it
