@@ -39,35 +39,48 @@ use crate::inode::{DirectoryEntry, Inode, InodeData, InodeKind, InodeTable};
 
 fn main() -> Result<()> {
     let matches = App::new("zipfuse")
+        .arg(
+            Arg::with_name("options")
+                .short("o")
+                .takes_value(true)
+                .required(false)
+                .help("Comma separated list of mount options")
+        )
         .arg(Arg::with_name("ZIPFILE").required(true))
         .arg(Arg::with_name("MOUNTPOINT").required(true))
         .get_matches();
 
     let zip_file = matches.value_of("ZIPFILE").unwrap().as_ref();
     let mount_point = matches.value_of("MOUNTPOINT").unwrap().as_ref();
-    run_fuse(zip_file, mount_point)?;
+    let options = matches.value_of("options");
+    run_fuse(zip_file, mount_point, options)?;
     Ok(())
 }
 
 /// Runs a fuse filesystem by mounting `zip_file` on `mount_point`.
-pub fn run_fuse(zip_file: &Path, mount_point: &Path) -> Result<()> {
+pub fn run_fuse(zip_file: &Path, mount_point: &Path, extra_options: Option<&str>) -> Result<()> {
     const MAX_READ: u32 = 1 << 20; // TODO(jiyong): tune this
     const MAX_WRITE: u32 = 1 << 13; // This is a read-only filesystem
 
     let dev_fuse = OpenOptions::new().read(true).write(true).open("/dev/fuse")?;
 
+    let mut mount_options = vec![
+        MountOption::FD(dev_fuse.as_raw_fd()),
+        MountOption::RootMode(libc::S_IFDIR | libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH),
+        MountOption::AllowOther,
+        MountOption::UserId(0),
+        MountOption::GroupId(0),
+        MountOption::MaxRead(MAX_READ),
+    ];
+    if let Some(value) = extra_options {
+        mount_options.push(MountOption::Extra(value));
+    }
+
     fuse::mount(
         mount_point,
         "zipfuse",
         libc::MS_NOSUID | libc::MS_NODEV | libc::MS_RDONLY,
-        &[
-            MountOption::FD(dev_fuse.as_raw_fd()),
-            MountOption::RootMode(libc::S_IFDIR | libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH),
-            MountOption::AllowOther,
-            MountOption::UserId(0),
-            MountOption::GroupId(0),
-            MountOption::MaxRead(MAX_READ),
-        ],
+        &mount_options,
     )?;
     Ok(fuse::worker::start_message_loop(dev_fuse, MAX_READ, MAX_WRITE, ZipFuse::new(zip_file)?)?)
 }
@@ -388,7 +401,7 @@ mod tests {
         let zip_path = PathBuf::from(zip_path);
         let mnt_path = PathBuf::from(mnt_path);
         std::thread::spawn(move || {
-            crate::run_fuse(&zip_path, &mnt_path).unwrap();
+            crate::run_fuse(&zip_path, &mnt_path, None).unwrap();
         });
     }
 
