@@ -85,7 +85,12 @@ android_system_image {
         // TODO(b/185767624): remove hidl after full keymint support
         "hwservicemanager",
 
-        "plat_sepolicy_and_mapping.sha256",
+        "microdroid_plat_sepolicy_and_mapping.sha256",
+        "microdroid_file_contexts",
+        "microdroid_hwservice_contexts",
+        "microdroid_property_contexts",
+        "microdroid_service_contexts",
+        "microdroid_keystore2_key_contexts",
         "microdroid_compatibility_matrix",
         "microdroid_manifest",
     ] + microdroid_shell_and_utilities,
@@ -93,13 +98,8 @@ android_system_image {
         common: {
             deps: [
                 "com.android.runtime",
-                "plat_sepolicy.cil",
-                "plat_mapping_file",
-                "plat_file_contexts",
-                "plat_hwservice_contexts",
-                "plat_property_contexts",
-                "plat_service_contexts",
-                "plat_keystore2_key_contexts",
+                "microdroid_plat_sepolicy.cil",
+                "microdroid_plat_mapping_file",
             ],
         },
         lib64: {
@@ -112,7 +112,7 @@ android_system_image {
     base_dir: "system",
     dirs: microdroid_rootdirs,
     symlinks: microdroid_symlinks,
-    file_contexts: "microdroid_file_contexts",
+    file_contexts: ":microdroid_file_contexts.gen",
 }
 
 prebuilt_etc {
@@ -174,7 +174,7 @@ android_filesystem {
     },
     avb_private_key: ":avb_testkey_rsa4096",
     avb_algorithm: "SHA256_RSA4096",
-    file_contexts: "microdroid_vendor_file_contexts",
+    file_contexts: ":microdroid_vendor_file_contexts.gen",
 }
 
 logical_partition {
@@ -360,36 +360,6 @@ genrule {
     srcs: ["uboot-env-x86_64.txt"],
     out: ["output.img"],
     cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
-}
-
-// sepolicy sha256 for vendor
-prebuilt_etc {
-    name: "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
-    src: ":plat_sepolicy_and_mapping.sha256_gen",
-    filename: "precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
-    relative_install_path: "selinux",
-    installable: false,
-}
-
-genrule {
-    name: "microdroid_precompiled_sepolicy_gen",
-    tools: ["secilc"],
-    srcs: [
-        ":plat_sepolicy.cil",
-        ":plat_mapping_file",
-        ":microdroid_plat_pub_versioned.cil",
-        ":microdroid_vendor_sepolicy.cil",
-    ],
-    out: ["precompiled_sepolicy"],
-    cmd: "$(location secilc) -m -M true -G -c 30 $(in) -o $(out) -f /dev/null",
-}
-
-prebuilt_etc {
-    name: "microdroid_precompiled_sepolicy",
-    src: ":microdroid_precompiled_sepolicy_gen",
-    filename: "precompiled_sepolicy",
-    relative_install_path: "selinux",
-    installable: false,
 }
 
 vbmeta {
