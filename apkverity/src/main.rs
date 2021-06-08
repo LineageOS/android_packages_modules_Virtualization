@@ -57,12 +57,19 @@ fn main() -> Result<()> {
                 )
                 .required(true),
         )
+        .arg(Arg::with_name("verbose").short("v").long("verbose").help("Shows verbose output"))
         .get_matches();
 
     let apk = matches.value_of("apk").unwrap();
     let idsig = matches.value_of("idsig").unwrap();
     let name = matches.value_of("name").unwrap();
-    enable_verity(apk, idsig, name)?;
+    let ret = enable_verity(apk, idsig, name)?;
+    if matches.is_present("verbose") {
+        println!(
+            "data_device: {:?}, hash_device: {:?}, mapper_device: {:?}",
+            ret.data_device, ret.hash_device, ret.mapper_device
+        );
+    }
     Ok(())
 }
 
