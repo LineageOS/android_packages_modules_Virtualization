@@ -35,6 +35,7 @@ pub enum DmVerityVersion {
 }
 
 /// The hash algorithm to use. SHA256 and SHA512 are supported.
+#[allow(dead_code)]
 pub enum DmVerityHashAlgorithm {
     SHA256,
     SHA512,
