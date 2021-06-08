@@ -57,7 +57,7 @@ pub enum Version {
 
 impl Version {
     fn from(val: u32) -> Result<Version> {
-        Self::from_u32(val).ok_or(anyhow!("{} is an unsupported version", val))
+        Self::from_u32(val).ok_or_else(|| anyhow!("{} is an unsupported version", val))
     }
 }
 
@@ -69,7 +69,7 @@ pub enum HashAlgorithm {
 
 impl HashAlgorithm {
     fn from(val: u32) -> Result<HashAlgorithm> {
-        Self::from_u32(val).ok_or(anyhow!("{} is an unsupported hash algorithm", val))
+        Self::from_u32(val).ok_or_else(|| anyhow!("{} is an unsupported hash algorithm", val))
     }
 }
 
@@ -157,7 +157,7 @@ mod tests {
     use std::io::Cursor;
 
     fn hexstring_from(s: &[u8]) -> String {
-        s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or(String::new())
+        s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
     }
 
     #[test]
