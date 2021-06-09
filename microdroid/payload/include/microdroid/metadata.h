@@ -17,7 +17,7 @@
 #pragma once
 
 #include <android-base/result.h>
-#include <microdroid_signature.pb.h>
+#include <metadata.pb.h>
 
 #include <iostream>
 #include <string>
@@ -25,10 +25,9 @@
 namespace android {
 namespace microdroid {
 
-base::Result<MicrodroidSignature> ReadMicrodroidSignature(const std::string& path);
+base::Result<Metadata> ReadMetadata(const std::string& path);
 
-base::Result<void> WriteMicrodroidSignature(const MicrodroidSignature& signature,
-                                            std::ostream& out);
+base::Result<void> WriteMetadata(const Metadata& metadata, std::ostream& out);
 
 } // namespace microdroid
 } // namespace android

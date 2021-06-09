@@ -6,7 +6,7 @@ type microdroid_manager_exec, exec_type, file_type, system_file_type;
 # allow domain transition from init
 init_daemon_domain(microdroid_manager)
 
-# microdroid_manager accesses /dev/block/by-name/signature which points to
+# microdroid_manager accesses /dev/block/by-name/metadata which points to
 # a /dev/vd* block device file.
 allow microdroid_manager block_device:dir r_dir_perms;
 allow microdroid_manager block_device:lnk_file r_file_perms;

@@ -1,36 +1,38 @@
 # Microdroid Payload
 
-Payload disk is a composite disk referencing host APEXes and an APK so that microdroid
-reads activates APEXes and executes a binary within the APK.
+Payload disk is a composite disk image referencing host APEXes and an APK so that microdroid
+mounts/activates APK/APEXes and executes a binary within the APK.
 
-## Format
+## Partitions
 
 Payload disk has 1 + N(number of APEX/APK payloads) partitions.
 
-The first partition is a Microdroid Signature partition which describes other partitions.
+The first partition is a "metadata" partition which describes other partitions.
 And APEXes and an APK are following as separate partitions.
 
 For now, the order of partitions are important.
 
-* partition 1: Microdroid Signature
+* partition 1: Metadata partition
 * partition 2 ~ n: APEX payloads
 * partition n + 1: APK payload
 
 It's subject to change in the future, though.
 
-### Microdroid Signature
+### Metadata partition
 
-Microdroid Signature contains the signatures of the payloads so that the payloads are
-verified inside the Guest OS.
+Metadata partition provides description of the other partitions and the location for VM payload
+configuration.
 
-Microdroid Signature is composed of header and body.
+The partition is a protobuf message prefixed with the size of the message.
 
 | offset | size | description                                                    |
 |--------|------|----------------------------------------------------------------|
 | 0      | 4    | Header. unsigned int32: body length(L) in big endian           |
-| 4      | L    | Body. A protobuf message. [schema](microdroid_signature.proto) |
+| 4      | L    | Body. A protobuf message. [schema](metadata.proto) |
 
-### Payload Partitions
+### Payload partitions
+
+Each payload partition presents APEX or APK passed from the host.
 
 At the end of each payload partition the size of the original payload file (APEX or APK) is stored
 in 4-byte big endian.
@@ -48,7 +50,8 @@ when the apex is read in microdroid as /dev/block/vdc2,
 
 ### `mk_payload`
 
-`mk_payload` creates a payload image.
+`mk_payload` creates a payload composite disk image as described in a JSON which is intentionlly
+similar to the schema of VM payload config.
 
 ```
 $ cat payload_config.json
@@ -73,7 +76,7 @@ $ adb shell ls /data/local/tmp/*.img
 payload.img
 payload-footer.img
 payload-header.img
-payload-signature.img
+payload-metadata.img
 payload.img.0          # fillers
 payload.img.1
 ...
