@@ -15,6 +15,7 @@
  */
 
 use bitflags::bitflags;
+use data_model::DataInit;
 
 // UAPI for device mapper can be found at include/uapi/linux/dm-ioctl.h
 
@@ -43,6 +44,7 @@ pub enum Cmd {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct DmIoctl {
     pub version: [u32; 3],
     pub data_size: u32,
@@ -57,6 +59,9 @@ pub struct DmIoctl {
     pub uuid: [u8; DM_UUID_LEN],
     pub data: [u8; 7],
 }
+
+// SAFETY: C struct is safe to be initialized from raw data
+unsafe impl DataInit for DmIoctl {}
 
 pub const DM_VERSION_MAJOR: u32 = 4;
 pub const DM_VERSION_MINOR: u32 = 0;
