@@ -115,6 +115,7 @@ impl IVirtualizationService for VirtualizationService {
             initrd: as_asref(&config.initrd),
             disks,
             params: config.params.to_owned(),
+            protected: config.protected_vm,
         };
         let composite_disk_mappings: Vec<_> = indirect_files
             .iter()

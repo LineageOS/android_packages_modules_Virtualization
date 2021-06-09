@@ -39,4 +39,7 @@ parcelable VirtualMachineConfig {
 
     /** Disk images to be made available to the VM. */
     DiskImage[] disks;
+
+    /** Whether the VM should be a protected VM. */
+    boolean protected_vm;
 }
