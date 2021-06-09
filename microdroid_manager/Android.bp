@@ -12,7 +12,7 @@ rust_defaults {
         "libandroid_logger",
         "libanyhow",
         "liblog_rust",
-        "libmicrodroid_signature_proto_rust",
+        "libmicrodroid_metadata_proto_rust",
         "libprotobuf",
         "libserde_json",
         "libserde",
