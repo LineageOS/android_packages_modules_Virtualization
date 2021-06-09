@@ -19,7 +19,7 @@ mod run;
 mod sync;
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
-use android_system_virtualizationservice::binder::{get_interface, ProcessState, Strong};
+use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong};
 use anyhow::{Context, Error};
 use run::command_run;
 use std::path::PathBuf;
@@ -58,7 +58,7 @@ fn main() -> Result<(), Error> {
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
 
-    let service = get_interface(VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER)
+    let service = wait_for_interface(VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER)
         .context("Failed to find VirtualizationService")?;
 
     match opt {
