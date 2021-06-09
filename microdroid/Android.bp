@@ -57,8 +57,6 @@ android_system_image {
         "logd",
         "run-as",
         "secilc",
-        "mke2fs",
-        "e2fsdroid",
 
         // "com.android.adbd" requires these,
         "libadbd_auth",
@@ -69,15 +67,11 @@ android_system_image {
 
         "apexd",
         "debuggerd",
-        "e2fsck",
         "keystore2",
         "linker",
         "linkerconfig",
         "servicemanager",
         "tombstoned",
-        "tune2fs",
-        "vdc",
-        "vold",
         "wait_for_keymaster",
         "cgroups.json",
         "public.libraries.android.txt",
@@ -218,8 +212,7 @@ bootimg {
             cmdline: microdroid_boot_cmdline +
                 "pci=noacpi " +
                 "androidboot.boot_devices=pci0000:00/0000:00:01.0," + // os
-                "pci0000:00/0000:00:03.0," + // payload
-                "pci0000:00/0000:00:04.0", // userdata
+                "pci0000:00/0000:00:03.0", // payload
         },
     },
     dtb_prebuilt: "dummy_dtb.img",
@@ -401,11 +394,6 @@ prebuilt_etc {
 prebuilt_etc {
     name: "microdroid_cdisk_env.json",
     src: "microdroid_cdisk_env.json",
-}
-
-prebuilt_etc {
-    name: "microdroid_cdisk_userdata.json",
-    src: "microdroid_cdisk_userdata.json",
 }
 
 prebuilt_etc {
