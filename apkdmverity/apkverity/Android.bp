@@ -12,6 +12,7 @@ rust_defaults {
         "libanyhow",
         "libbitflags",
         "libclap",
+        "libdata_model",
         "liblibc",
         "libnix",
         "libnum_traits",

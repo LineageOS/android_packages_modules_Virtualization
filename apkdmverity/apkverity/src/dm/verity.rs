@@ -19,6 +19,7 @@
 // which is then given to `DeviceMapper` to create a mapper device.
 
 use anyhow::{bail, Context, Result};
+use data_model::DataInit;
 use std::io::Write;
 use std::mem::size_of;
 use std::path::Path;
@@ -55,7 +56,7 @@ pub struct DmVerityTargetBuilder<'a> {
 pub struct DmVerityTarget(Box<[u8]>);
 
 impl DmVerityTarget {
-    pub fn as_u8_slice(&self) -> &[u8] {
+    pub fn as_slice(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
@@ -188,7 +189,7 @@ impl<'a> DmVerityTargetBuilder<'a> {
         header.next = aligned_size as u32;
 
         let mut buf = Vec::with_capacity(aligned_size);
-        buf.write_all(header.as_u8_slice())?;
+        buf.write_all(header.as_slice())?;
         buf.write_all(body.as_bytes())?;
         buf.write_all(vec![0; padding].as_slice())?;
         Ok(DmVerityTarget(buf.into_boxed_slice()))
