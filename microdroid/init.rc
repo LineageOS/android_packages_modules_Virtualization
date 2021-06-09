@@ -99,9 +99,6 @@ on late-init
     trigger early-boot
     trigger boot
 
-on early-fs
-    start vold
-
 on post-fs
     # Once everything is setup, no need to modify /.
     # The bind+remount combination allows this to work in containers.
@@ -114,7 +111,8 @@ on late-fs
 
     exec_start wait_for_keymaster
 
-    mount_all /vendor/etc/fstab.microdroid --late
+    # TODO(b/185767624): change the hard-coded size?
+    mount tmpfs tmpfs /data noatime nosuid nodev rw size=128M
 
 on post-fs-data
     mark_post_data
@@ -126,25 +124,22 @@ on post-fs-data
     # We restorecon /data in case the userdata partition has been reset.
     restorecon /data
 
-    # Make sure we have the device encryption key.
-    installkey /data
-
-    mkdir /data/vendor 0771 root root encryption=Require
-    mkdir /data/vendor_ce 0771 root root encryption=None
-    mkdir /data/vendor_de 0771 root root encryption=None
+    mkdir /data/vendor 0771 root root
+    mkdir /data/vendor_ce 0771 root root
+    mkdir /data/vendor_de 0771 root root
     mkdir /data/vendor/hardware 0771 root root
 
     # Start tombstoned early to be able to store tombstones.
     # microdroid doesn't have anr, but tombstoned requires it
-    mkdir /data/anr 0775 system system encryption=Require
-    mkdir /data/tombstones 0771 system system encryption=Require
+    mkdir /data/anr 0775 system system
+    mkdir /data/tombstones 0771 system system
     mkdir /data/vendor/tombstones 0771 root root
 
     start tombstoned
 
     # set up keystore directory structure first so that we can end early boot
     # and start apexd
-    mkdir /data/misc 01771 system misc encryption=Require
+    mkdir /data/misc 01771 system misc
     mkdir /data/misc/keystore 0700 keystore keystore
     # work around b/183668221
     restorecon /data/misc /data/misc/keystore
@@ -155,15 +150,9 @@ on post-fs-data
     # to leave room for earlier levels.
     setprop keystore.boot_level 30
 
-    # Now that /data is mounted and we have created /data/misc/keystore,
-    # we can tell keystore to stop allowing use of early-boot keys,
-    # and access its database for the first time to support creation and
-    # use of MAX_BOOT_LEVEL keys.
-    exec - system system -- /system/bin/vdc keymaster earlyBootEnded
-
     # For security reasons, /data/local/tmp should always be empty.
     # Do not place files or directories in /data/local/tmp
-    mkdir /data/local 0751 root root encryption=Require
+    mkdir /data/local 0751 root root
     mkdir /data/local/tmp 0771 shell shell
 
 service ueventd /system/bin/ueventd
@@ -189,6 +178,3 @@ on fs
 
 on property:sys.boot_completed=1
     start logd-auditctl
-
-on property:vold.decrypt=trigger_post_fs_data
-    trigger post-fs-data
