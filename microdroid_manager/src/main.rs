@@ -15,8 +15,8 @@
 //! Microdroid Manager
 
 mod ioutil;
+mod metadata;
 mod payload_config;
-mod signature;
 
 use android_logger::Config;
 use log::{info, Level};
@@ -32,9 +32,9 @@ fn main() -> io::Result<()> {
 
     info!("started.");
 
-    let signature = signature::load()?;
-    if !signature.payload_config_path.is_empty() {
-        let config = VmPayloadConfig::load_from(Path::new(&signature.payload_config_path))?;
+    let metadata = metadata::load()?;
+    if !metadata.payload_config_path.is_empty() {
+        let config = VmPayloadConfig::load_from(Path::new(&metadata.payload_config_path))?;
         if let Some(main_task) = &config.task {
             exec(main_task)?;
         }

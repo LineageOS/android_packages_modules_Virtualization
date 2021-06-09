@@ -3,11 +3,11 @@ package {
 }
 
 cc_defaults {
-    name: "microdroid_signature_default",
+    name: "microdroid_metadata_default",
     host_supported: true,
     srcs: [
-        "microdroid_signature.proto",
-        "signature.cc",
+        "metadata.proto",
+        "metadata.cc",
     ],
     shared_libs: [
         "libbase",
@@ -17,32 +17,32 @@ cc_defaults {
 }
 
 cc_library_static {
-    name: "lib_microdroid_signature_proto",
+    name: "lib_microdroid_metadata_proto",
     proto: {
         export_proto_headers: true,
         type: "full",
     },
-    defaults: ["microdroid_signature_default"],
+    defaults: ["microdroid_metadata_default"],
 }
 
 cc_library_static {
-    name: "lib_microdroid_signature_proto_lite",
+    name: "lib_microdroid_metadata_proto_lite",
     recovery_available: true,
     proto: {
         export_proto_headers: true,
         type: "lite",
     },
-    defaults: ["microdroid_signature_default"],
+    defaults: ["microdroid_metadata_default"],
     apex_available: [
         "com.android.virt",
     ],
 }
 
 rust_protobuf {
-    name: "libmicrodroid_signature_proto_rust",
-    crate_name: "microdroid_signature",
-    protos: ["microdroid_signature.proto"],
-    source_stem: "microdroid_signature",
+    name: "libmicrodroid_metadata_proto_rust",
+    crate_name: "microdroid_metadata",
+    protos: ["metadata.proto"],
+    source_stem: "microdroid_metadata",
     host_supported: true,
 }
 
@@ -59,7 +59,7 @@ cc_binary {
         "libz",
     ],
     static_libs: [
-        "lib_microdroid_signature_proto_lite",
+        "lib_microdroid_metadata_proto_lite",
         "libcdisk_spec",
         "libext2_uuid",
         "libimage_aggregator",
