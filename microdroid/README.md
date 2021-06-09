@@ -105,16 +105,6 @@ Create a config file, `microdroid.json`:
     {
       "image": "/data/local/tmp/microdroid/payload.img",
       "writable": false
-    },
-    {
-      "partitions": [
-        {
-          "label": "userdata",
-          "path": "/data/local/tmp/microdroid/userdata.img",
-          "writable": true
-        }
-      ],
-      "writable": true
     }
   ]
 }
@@ -129,7 +119,6 @@ via [`virtualizationservice`](../virtualizationservice/).
 $ adb root
 $ adb shell 'mkdir /data/local/tmp/microdroid'
 $ adb shell 'dd if=/dev/zero of=/data/local/tmp/microdroid/misc.img bs=4k count=256'
-$ adb shell 'dd if=/dev/zero of=/data/local/tmp/microdroid/userdata.img bs=1 count=0 seek=4G'
 $ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
 $ adb shell 'chmod go+r /data/local/tmp/microdroid/payload*'
 $ adb push microdroid.json /data/local/tmp/microdroid/microdroid.json
