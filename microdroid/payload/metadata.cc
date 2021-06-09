@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "microdroid/signature.h"
+#include "microdroid/metadata.h"
 
 #include <android-base/endian.h>
 #include <android-base/file.h>
@@ -26,7 +26,7 @@ using android::base::Result;
 namespace android {
 namespace microdroid {
 
-Result<MicrodroidSignature> ReadMicrodroidSignature(const std::string& path) {
+Result<Metadata> ReadMetadata(const std::string& path) {
     std::string content;
     if (!base::ReadFileToString(path, &content)) {
         return ErrnoError() << "Failed to read " << path;
@@ -36,27 +36,27 @@ Result<MicrodroidSignature> ReadMicrodroidSignature(const std::string& path) {
     uint32_t size;
     const size_t length_prefix_bytes = sizeof(size);
     if (content.size() < length_prefix_bytes) {
-        return Error() << "Invalid signature: size == " << content.size();
+        return Error() << "Invalid metadata: size == " << content.size();
     }
     size = be32toh(*reinterpret_cast<uint32_t*>(content.data()));
     if (content.size() < length_prefix_bytes + size) {
-        return Error() << "Invalid signature: size(" << size << ") mimatches to the content size("
+        return Error() << "Invalid metadata: size(" << size << ") mimatches to the content size("
                        << content.size() - length_prefix_bytes << ")";
     }
     content = content.substr(length_prefix_bytes, size);
 
     // parse content
-    MicrodroidSignature signature;
-    if (!signature.ParseFromString(content)) {
-        return Error() << "Can't parse MicrodroidSignature from " << path;
+    Metadata metadata;
+    if (!metadata.ParseFromString(content)) {
+        return Error() << "Can't parse Metadata from " << path;
     }
-    return signature;
+    return metadata;
 }
 
-Result<void> WriteMicrodroidSignature(const MicrodroidSignature& signature, std::ostream& out) {
+Result<void> WriteMetadata(const Metadata& metadata, std::ostream& out) {
     // prepare content
     std::string content;
-    if (!signature.SerializeToString(&content)) {
+    if (!metadata.SerializeToString(&content)) {
         return Error() << "Failed to write protobuf.";
     }
 
