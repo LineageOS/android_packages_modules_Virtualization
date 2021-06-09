@@ -41,17 +41,6 @@
         <option name="push-file" key="virt_test_initramfs.img" value="/data/local/tmp/virt-test/initramfs" />
     </target_preparer>
 
-    <!-- Root currently needed to run CrosVM.
-         TODO: Give sufficient permissions to the adb shell user (b/171240450). -->
-    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
-
-    <!-- Run VirtualizationService for the duration of the test.
-         TODO: Run VirtualizationService as a system service. -->
-    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <option name="throw-if-cmd-fail" value="true" />
-        <option name="run-command" value="start virtualizationservice" />
-    </target_preparer>
-
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp/virt-test" />
         <option name="module-name" value="VirtualizationTestCases" />
