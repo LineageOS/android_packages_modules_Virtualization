@@ -19,10 +19,12 @@ mod run;
 mod sync;
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
-use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong};
+use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong, ParcelFileDescriptor};
 use anyhow::{Context, Error};
 use run::command_run;
-use std::path::PathBuf;
+use std::convert::TryInto;
+use std::fs::OpenOptions;
+use std::path::{PathBuf, Path};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
@@ -49,6 +51,15 @@ enum Opt {
     },
     /// List running virtual machines
     List,
+    /// Create a new empty partition to be used as a writable partition for a VM
+    CreatePartition {
+        /// Path at which to create the image file
+        #[structopt(parse(from_os_str))]
+        path: PathBuf,
+
+        /// The desired size of the partition, in bytes.
+        size: u64,
+    },
 }
 
 fn main() -> Result<(), Error> {
@@ -65,6 +76,7 @@ fn main() -> Result<(), Error> {
         Opt::Run { config, daemonize } => command_run(service, &config, daemonize),
         Opt::Stop { cid } => command_stop(service, cid),
         Opt::List => command_list(service),
+        Opt::CreatePartition { path, size } => command_create_partition(service, &path, size),
     }
 }
 
@@ -81,5 +93,22 @@ fn command_stop(service: Strong<dyn IVirtualizationService>, cid: u32) -> Result
 fn command_list(service: Strong<dyn IVirtualizationService>) -> Result<(), Error> {
     let vms = service.debugListVms().context("Failed to get list of VMs")?;
     println!("Running VMs: {:#?}", vms);
+    Ok(())
+}
+
+/// Initialise an empty partition image of the given size to be used as a writable partition.
+fn command_create_partition(
+    service: Strong<dyn IVirtualizationService>,
+    image_path: &Path,
+    size: u64,
+) -> Result<(), Error> {
+    let image = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(image_path)
+        .with_context(|| format!("Failed to create {:?}", image_path))?;
+    service
+        .initializeWritablePartition(&ParcelFileDescriptor::new(image), size.try_into()?)
+        .context("Failed to initialize partition with size {}, size")?;
     Ok(())
 }
