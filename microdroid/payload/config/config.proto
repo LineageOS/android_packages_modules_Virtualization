@@ -36,8 +36,15 @@ message OsConfig {
 }
 
 message Task {
-  string command = 1;
-  repeated string args = 2;
+  enum TaskType {
+    EXECUTABLE = 0,          // "executable" in JSON
+    MICRODROID_LAUNCHER = 1, // "microdroid_launcher" in JSON
+  }
+  // when the type is "microdroid_launcher", command is searched in /mnt/apk/lib/{arch}"
+  TaskType type = 1;
+
+  string command = 2;
+  repeated string args = 3;
 }
 
 message ApexConfig {

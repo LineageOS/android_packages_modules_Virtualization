@@ -16,39 +16,76 @@
 
 mod ioutil;
 mod metadata;
-mod payload_config;
 
 use android_logger::Config;
+use anyhow::{anyhow, bail, Result};
+use keystore2_system_property::PropertyWatcher;
 use log::{info, Level};
-use payload_config::{Task, VmPayloadConfig};
-use std::io;
+use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
+use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Command;
+use std::time::Duration;
+
+const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 
 const LOG_TAG: &str = "MicrodroidManager";
 
-fn main() -> io::Result<()> {
+fn main() -> Result<()> {
     android_logger::init_once(Config::default().with_tag(LOG_TAG).with_min_level(Level::Debug));
 
     info!("started.");
 
     let metadata = metadata::load()?;
     if !metadata.payload_config_path.is_empty() {
-        let config = VmPayloadConfig::load_from(Path::new(&metadata.payload_config_path))?;
+        let config = load_config(Path::new(&metadata.payload_config_path))?;
+
+        // TODO(jooyung): wait until sys.boot_completed?
         if let Some(main_task) = &config.task {
-            exec(main_task)?;
+            exec_task(main_task)?;
         }
     }
 
     Ok(())
 }
 
-/// executes a task
-/// TODO(jooyung): fork a child process
-fn exec(task: &Task) -> io::Result<()> {
-    info!("executing main task {} {:?}...", task.command, task.args);
-    let exit_status =
-        Command::new(&task.command).args(&task.args).stdout(Stdio::inherit()).status()?;
-    info!("exit with {}", &exit_status);
+fn load_config(path: &Path) -> Result<VmPayloadConfig> {
+    info!("loading config from {:?}...", path);
+    let file = ioutil::wait_for_file(path, WAIT_TIMEOUT)?;
+    Ok(serde_json::from_reader(file)?)
+}
+
+fn exec_task(task: &Task) -> Result<()> {
+    info!("executing main task {:?}...", task);
+    build_command(task)?.spawn()?;
     Ok(())
+}
+
+fn build_command(task: &Task) -> Result<Command> {
+    Ok(match task.type_ {
+        TaskType::Executable => {
+            let mut command = Command::new(&task.command);
+            command.args(&task.args);
+            command
+        }
+        TaskType::MicrodroidLauncher => {
+            let mut command = Command::new("/system/bin/microdroid_launcher");
+            command.arg(find_library_path(&task.command)?).args(&task.args);
+            command
+        }
+    })
+}
+
+fn find_library_path(name: &str) -> Result<String> {
+    let mut watcher = PropertyWatcher::new("ro.product.cpu.abilist")?;
+    let value = watcher.read(|_name, value| Ok(value.trim().to_string()))?;
+    let abi = value.split(',').next().ok_or_else(|| anyhow!("no abilist"))?;
+    let path = format!("/mnt/apk/lib/{}/{}", abi, name);
+
+    let metadata = fs::metadata(&path)?;
+    if !metadata.is_file() {
+        bail!("{} is not a file", &path);
+    }
+
+    Ok(path)
 }

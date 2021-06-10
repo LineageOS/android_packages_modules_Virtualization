@@ -11,8 +11,10 @@ rust_defaults {
     rustlibs: [
         "libandroid_logger",
         "libanyhow",
+        "libkeystore2_system_property-rust",
         "liblog_rust",
         "libmicrodroid_metadata_proto_rust",
+        "libmicrodroid_payload_config",
         "libprotobuf",
         "libserde_json",
         "libserde",
