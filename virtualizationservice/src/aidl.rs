@@ -26,12 +26,13 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
 use android_system_virtualizationservice::binder::{
-    self, BinderFeatures, Interface, ParcelFileDescriptor, StatusCode, Strong, ThreadState,
+    self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
 use command_fds::FdMapping;
 use disk::QcowFile;
 use log::{debug, error, warn};
 use std::convert::TryInto;
+use std::ffi::CString;
 use std::fs::{File, create_dir};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -80,10 +81,16 @@ impl IVirtualizationService for VirtualizationService {
         let temporary_directory: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
         create_dir(&temporary_directory).map_err(|e| {
             error!(
-                "Failed to create temporary directory {:?} for VM files: {:?}",
+                "Failed to create temporary directory {:?} for VM files: {}",
                 temporary_directory, e
             );
-            StatusCode::UNKNOWN_ERROR
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!(
+                    "Failed to create temporary directory {:?} for VM files: {}",
+                    temporary_directory, e
+                ),
+            )
         })?;
 
         // Assemble disk images if needed.
@@ -126,8 +133,11 @@ impl IVirtualizationService for VirtualizationService {
             requester_debug_pid,
         )
         .map_err(|e| {
-            error!("Failed to start VM with config {:?}: {:?}", config, e);
-            StatusCode::UNKNOWN_ERROR
+            error!("Failed to start VM with config {:?}: {}", config, e);
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to start VM: {}", e),
+            )
         })?;
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
@@ -140,14 +150,18 @@ impl IVirtualizationService for VirtualizationService {
         size: i64,
     ) -> binder::Result<()> {
         let size = size.try_into().map_err(|e| {
-            error!("Invalid size {}: {}", size, e);
-            StatusCode::BAD_VALUE
+            new_binder_exception(
+                ExceptionCode::ILLEGAL_ARGUMENT,
+                format!("Invalid size {}: {}", size, e),
+            )
         })?;
         let image = clone_file(image_fd)?;
 
         QcowFile::new(image, size).map_err(|e| {
-            error!("Failed to create QCOW2 image: {}", e);
-            StatusCode::UNKNOWN_ERROR
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to create QCOW2 image: {}", e),
+            )
         })?;
 
         Ok(())
@@ -156,9 +170,7 @@ impl IVirtualizationService for VirtualizationService {
     /// Get a list of all currently running VMs. This method is only intended for debug purposes,
     /// and as such is only permitted from the shell user.
     fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
-        if !debug_access_allowed() {
-            return Err(StatusCode::PERMISSION_DENIED.into());
-        }
+        check_debug_access()?;
 
         let state = &mut *self.state.lock().unwrap();
         let vms = state.vms();
@@ -179,9 +191,7 @@ impl IVirtualizationService for VirtualizationService {
     /// Hold a strong reference to a VM in VirtualizationService. This method is only intended for
     /// debug purposes, and as such is only permitted from the shell user.
     fn debugHoldVmRef(&self, vmref: &Strong<dyn IVirtualMachine>) -> binder::Result<()> {
-        if !debug_access_allowed() {
-            return Err(StatusCode::PERMISSION_DENIED.into());
-        }
+        check_debug_access()?;
 
         let state = &mut *self.state.lock().unwrap();
         state.debug_hold_vm(vmref.clone());
@@ -192,9 +202,7 @@ impl IVirtualizationService for VirtualizationService {
     /// the VM was found and None otherwise. This method is only intended for debug purposes, and as
     /// such is only permitted from the shell user.
     fn debugDropVmRef(&self, cid: i32) -> binder::Result<Option<Strong<dyn IVirtualMachine>>> {
-        if !debug_access_allowed() {
-            return Err(StatusCode::PERMISSION_DENIED.into());
-        }
+        check_debug_access()?;
 
         let state = &mut *self.state.lock().unwrap();
         Ok(state.debug_drop_vm(cid))
@@ -209,19 +217,25 @@ fn assemble_disk_image(
     temporary_directory: &Path,
     next_temporary_image_id: &mut u64,
     indirect_files: &mut Vec<File>,
-) -> Result<DiskFile, StatusCode> {
+) -> Result<DiskFile, Status> {
     let image = if !disk.partitions.is_empty() {
         if disk.image.is_some() {
             warn!("DiskImage {:?} contains both image and partitions.", disk);
-            return Err(StatusCode::BAD_VALUE);
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_ARGUMENT,
+                "DiskImage contains both image and partitions.",
+            ));
         }
 
         let composite_image_filename =
             make_composite_image_filename(temporary_directory, next_temporary_image_id);
         let (image, partition_files) =
             make_composite_image(&disk.partitions, &composite_image_filename).map_err(|e| {
-                error!("Failed to make composite image with config {:?}: {:?}", disk, e);
-                StatusCode::UNKNOWN_ERROR
+                error!("Failed to make composite image with config {:?}: {}", disk, e);
+                new_binder_exception(
+                    ExceptionCode::SERVICE_SPECIFIC,
+                    format!("Failed to make composite image: {}", e),
+                )
             })?;
 
         // Pass the file descriptors for the various partition files to crosvm when it
@@ -233,7 +247,10 @@ fn assemble_disk_image(
         clone_file(image)?
     } else {
         warn!("DiskImage {:?} didn't contain image or partitions.", disk);
-        return Err(StatusCode::BAD_VALUE);
+        return Err(new_binder_exception(
+            ExceptionCode::ILLEGAL_ARGUMENT,
+            "DiskImage didn't contain image or partitions.",
+        ));
     };
 
     Ok(DiskFile { image, writable: disk.writable })
@@ -250,28 +267,35 @@ fn make_composite_image_filename(
 }
 
 /// Gets the calling SID of the current Binder thread.
-fn get_calling_sid() -> Result<String, StatusCode> {
+fn get_calling_sid() -> Result<String, Status> {
     ThreadState::with_calling_sid(|sid| {
         if let Some(sid) = sid {
             match sid.to_str() {
                 Ok(sid) => Ok(sid.to_owned()),
                 Err(e) => {
-                    error!("SID was not valid UTF-8: {:?}", e);
-                    Err(StatusCode::BAD_VALUE)
+                    error!("SID was not valid UTF-8: {}", e);
+                    Err(new_binder_exception(
+                        ExceptionCode::ILLEGAL_ARGUMENT,
+                        format!("SID was not valid UTF-8: {}", e),
+                    ))
                 }
             }
         } else {
             error!("Missing SID on startVm");
-            Err(StatusCode::UNKNOWN_ERROR)
+            Err(new_binder_exception(ExceptionCode::SECURITY, "Missing SID on startVm"))
         }
     })
 }
 
 /// Check whether the caller of the current Binder method is allowed to call debug methods.
-fn debug_access_allowed() -> bool {
+fn check_debug_access() -> binder::Result<()> {
     let uid = ThreadState::get_calling_uid();
     log::trace!("Debug method call from UID {}.", uid);
-    DEBUG_ALLOWED_UIDS.contains(&uid)
+    if DEBUG_ALLOWED_UIDS.contains(&uid) {
+        Ok(())
+    } else {
+        Err(new_binder_exception(ExceptionCode::SECURITY, "Debug access denied"))
+    }
 }
 
 /// Implementation of the AIDL `IVirtualMachine` interface. Used as a handle to a VM.
@@ -386,7 +410,7 @@ impl State {
     fn allocate_cid(&mut self) -> binder::Result<Cid> {
         // TODO(qwandor): keep track of which CIDs are currently in use so that we can reuse them.
         let cid = self.next_cid;
-        self.next_cid = self.next_cid.checked_add(1).ok_or(StatusCode::UNKNOWN_ERROR)?;
+        self.next_cid = self.next_cid.checked_add(1).ok_or(ExceptionCode::ILLEGAL_STATE)?;
         Ok(cid)
     }
 }
@@ -403,6 +427,16 @@ fn as_asref<T: AsRef<U>, U>(option: &Option<T>) -> Option<&U> {
 }
 
 /// Converts a `&ParcelFileDescriptor` to a `File` by cloning the file.
-fn clone_file(file: &ParcelFileDescriptor) -> Result<File, StatusCode> {
-    file.as_ref().try_clone().map_err(|_| StatusCode::UNKNOWN_ERROR)
+fn clone_file(file: &ParcelFileDescriptor) -> Result<File, Status> {
+    file.as_ref().try_clone().map_err(|e| {
+        new_binder_exception(
+            ExceptionCode::BAD_PARCELABLE,
+            format!("Failed to clone File from ParcelFileDescriptor: {}", e),
+        )
+    })
+}
+
+/// Constructs a new Binder error `Status` with the given `ExceptionCode` and message.
+fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> Status {
+    Status::new_exception(exception, CString::new(message.as_ref()).ok().as_deref())
 }
