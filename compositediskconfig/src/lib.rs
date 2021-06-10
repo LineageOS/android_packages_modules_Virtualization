@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! JSON configuration for running `mk_cdisk`.
+//! JSON configuration for composite disks, as used for running `mk_cdisk` and by the `vm` tool.
 
-use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 
+/// Configuration for running `mk_cdisk`.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Config {
     /// The set of partitions to be assembled into a composite image.
@@ -38,7 +38,8 @@ pub struct Partition {
 }
 
 impl Config {
-    pub fn write_json(&self, writer: impl Write) -> Result<(), Error> {
-        serde_json::to_writer(writer, self).context("Failed to write config JSON for mk_cdisk")
+    /// Write the configuration as JSON, in the format used by `mk_cdisk`.
+    pub fn write_json(&self, writer: impl Write) -> serde_json::Result<()> {
+        serde_json::to_writer(writer, self)
     }
 }

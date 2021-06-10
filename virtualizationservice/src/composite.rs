@@ -14,12 +14,10 @@
 
 //! Functions for running `mk_cdisk`.
 
-mod config;
-
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::Partition::Partition as AidlPartition;
 use anyhow::{bail, Context, Error};
 use command_fds::{CommandFdExt, FdMapping};
-use config::{Config, Partition};
+use compositediskconfig::{Config, Partition};
 use log::info;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
@@ -58,7 +56,9 @@ pub fn make_composite_image(
 
     // Write config to stdin of mk_cdisk on a separate thread to avoid deadlock, as it may not read
     // all of stdin before it blocks on writing to stdout.
-    let writer_thread = thread::spawn(move || config_json.write_json(&stdin));
+    let writer_thread = thread::spawn(move || {
+        config_json.write_json(&stdin).context("Failed to write config JSON for mk_cdisk")
+    });
     info!("Running {:?}", command);
     let output = child.wait_with_output()?;
     match writer_thread.join() {
