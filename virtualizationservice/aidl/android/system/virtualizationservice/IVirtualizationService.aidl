@@ -27,6 +27,9 @@ interface IVirtualizationService {
     IVirtualMachine startVm(
             in VirtualMachineConfig config, in @nullable ParcelFileDescriptor logFd);
 
+    /** Initialise an empty partition image of the given size to be used as a writable partition. */
+    void initializeWritablePartition(in ParcelFileDescriptor imageFd, long size);
+
     /**
      * Get a list of all currently running VMs. This method is only intended for debug purposes,
      * and as such is only permitted from the shell user.
