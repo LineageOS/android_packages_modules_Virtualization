@@ -13,12 +13,13 @@ apex {
     key: "com.android.virt.key",
     certificate: ":com.android.virt.certificate",
 
-    // crosvm is enabled for only 64-bit targets on device
+    // crosvm and virtualizationservice are only enabled for 64-bit targets on device
     arch: {
         arm64: {
             binaries: [
                 "authfs", // TODO(victorhsieh): move to microdroid once we can run the test in VM.
                 "crosvm",
+                "virtualizationservice",
             ],
             filesystems: [
                 "microdroid_super",
@@ -32,6 +33,7 @@ apex {
             binaries: [
                 "authfs", // TODO(victorhsieh): move to microdroid once we can run the test in VM.
                 "crosvm",
+                "virtualizationservice",
             ],
             filesystems: [
                 "microdroid_super",
@@ -44,7 +46,6 @@ apex {
     },
     binaries: [
         "fd_server",
-        "virtualizationservice",
         "vm",
 
         // tools to create composite images
