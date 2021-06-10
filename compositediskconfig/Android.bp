@@ -1,0 +1,18 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_library {
+    name: "libcompositediskconfig",
+    host_supported: true,
+    crate_name: "compositediskconfig",
+    srcs: ["src/lib.rs"],
+    edition: "2018",
+    rustlibs: [
+        "libserde_json",
+        "libserde",
+    ],
+    apex_available: [
+        "com.android.virt",
+    ],
+}
