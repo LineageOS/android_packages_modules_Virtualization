@@ -30,7 +30,9 @@ use android_system_virtualizationservice::binder::{
 };
 use command_fds::FdMapping;
 use log::{debug, error, warn};
+use std::convert::TryInto;
 use std::fs::{File, create_dir};
+use std::io::{Seek, SeekFrom, Write};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
@@ -129,6 +131,36 @@ impl IVirtualizationService for VirtualizationService {
         })?;
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
+    }
+
+    /// Initialise an empty partition image of the given size to be used as a writable partition.
+    fn initializeWritablePartition(
+        &self,
+        image_fd: &ParcelFileDescriptor,
+        size: i64,
+    ) -> binder::Result<()> {
+        let size: u64 = size.try_into().map_err(|e| {
+            error!("Invalid size {}: {}", size, e);
+            StatusCode::BAD_VALUE
+        })?;
+        let mut image = clone_file(image_fd)?;
+
+        // TODO: create a QCOW2 image instead, like `crosvm create_qcow2`, once `mk_cdisk` supports
+        // it (b/189211641).
+        if size > 0 {
+            // Extend the file to the given size by seeking to the size we want and writing a single
+            // 0 byte there.
+            image.seek(SeekFrom::Start(size - 1)).map_err(|e| {
+                error!("Failed to seek to desired size of image file ({}): {}.", size, e);
+                StatusCode::UNKNOWN_ERROR
+            })?;
+            image.write_all(&[0]).map_err(|e| {
+                error!("Failed to write 0 to image file: {}.", e);
+                StatusCode::UNKNOWN_ERROR
+            })?;
+        }
+
+        Ok(())
     }
 
     /// Get a list of all currently running VMs. This method is only intended for debug purposes,
