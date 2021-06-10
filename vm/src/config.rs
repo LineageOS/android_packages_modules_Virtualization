@@ -21,6 +21,7 @@ use android_system_virtualizationservice::{
     binder::ParcelFileDescriptor,
 };
 use anyhow::{bail, Context, Error};
+use compositediskconfig::Partition;
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::BufReader;
@@ -100,7 +101,7 @@ pub struct DiskImage {
 impl DiskImage {
     fn to_parcelable(&self) -> Result<AidlDiskImage, Error> {
         let partitions =
-            self.partitions.iter().map(Partition::to_parcelable).collect::<Result<_, Error>>()?;
+            self.partitions.iter().map(partition_to_parcelable).collect::<Result<_, Error>>()?;
         Ok(AidlDiskImage {
             image: maybe_open_parcel_file(&self.image, self.writable)?,
             writable: self.writable,
@@ -109,27 +110,12 @@ impl DiskImage {
     }
 }
 
-// TODO: Share this type with virtualizationservice::composite::config.
-/// A partition for a disk image to be made available to the VM.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Partition {
-    /// A label for the partition.
-    pub label: String,
-    /// The filename of the partition image.
-    pub path: PathBuf,
-    /// Whether the partition should be writable.
-    #[serde(default)]
-    pub writable: bool,
-}
-
-impl Partition {
-    fn to_parcelable(&self) -> Result<AidlPartition, Error> {
-        Ok(AidlPartition {
-            image: Some(open_parcel_file(&self.path, self.writable)?),
-            writable: self.writable,
-            label: self.label.to_owned(),
-        })
-    }
+fn partition_to_parcelable(partition: &Partition) -> Result<AidlPartition, Error> {
+    Ok(AidlPartition {
+        image: Some(open_parcel_file(&partition.path, partition.writable)?),
+        writable: partition.writable,
+        label: partition.label.to_owned(),
+    })
 }
 
 /// Try to open the given file and wrap it in a [`ParcelFileDescriptor`].

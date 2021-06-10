@@ -13,6 +13,7 @@ rust_binary {
         "libandroid_logger",
         "libanyhow",
         "libcommand_fds",
+        "libcompositediskconfig",
         "liblog_rust",
         "libserde_json",
         "libserde",
