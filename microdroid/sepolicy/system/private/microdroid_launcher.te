@@ -9,6 +9,9 @@ type microdroid_launcher_exec, exec_type, file_type, system_file_type;
 allow microdroid_launcher adbd:fd use;
 allow microdroid_launcher adbd:unix_stream_socket { read write };
 
+# microdroid_launcher is launched by microdroid_manager with fork/execvp.
+allow microdroid_launcher microdroid_manager:fd use;
+
 # Allow to use FDs inherited from the shell. This includes the FD opened for
 # the microdroid_launcher executable itself and the FD for adb connection.
 # TODO(b/186396070) remove this when this is executed from microdroid_manager
