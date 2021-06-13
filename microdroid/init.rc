@@ -109,8 +109,6 @@ on post-fs
 on late-fs
     start vendor.keymint-default
 
-    exec_start wait_for_keymaster
-
     # TODO(b/185767624): change the hard-coded size?
     mount tmpfs tmpfs /data noatime nosuid nodev rw size=128M
 

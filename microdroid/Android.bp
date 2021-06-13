@@ -73,7 +73,6 @@ android_system_image {
         "linkerconfig",
         "servicemanager",
         "tombstoned",
-        "wait_for_keymaster",
         "cgroups.json",
         "public.libraries.android.txt",
 
