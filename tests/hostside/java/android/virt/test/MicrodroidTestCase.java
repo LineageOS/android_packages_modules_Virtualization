@@ -23,6 +23,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 
+import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
@@ -51,6 +52,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     private static final int TEST_VM_CID = 10;
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
+    private static final String TEST_APK = "MicrodroidTestApp.apk";
     // This is really slow on GCE (2m 40s) but fast on localhost or actual Android phones (< 10s)
     // Set the maximum timeout value big enough.
     private static final long MICRODROID_BOOT_TIMEOUT_MINUTES = 5;
@@ -94,6 +96,15 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk_env.json env_composite.img",
                         TEST_ROOT, VIRT_APEX, VIRT_APEX);
         getDevice().executeShellCommand(makeEnvCompositeCmd);
+
+        String idsigPath = TEST_ROOT + TEST_APK + ".idsig";
+        File idsigFile = (new CompatibilityBuildHelper(getBuild())).getTestFile(TEST_APK + ".idsig");
+        getDevice().pushFile(idsigFile, idsigPath);
+
+        // TODO(b/190343842): pass this file to mk_payload
+        String idsigExists = getDevice().executeShellV2Command("[ -f " + idsigPath + " ] && echo ok")
+                .getStdout().trim();
+        assertThat(idsigExists, is("ok"));
 
         String payloadJsonOrig = VIRT_APEX + "etc/microdroid_payload.json";
         String mkPayload = VIRT_APEX + "bin/mk_payload";
