@@ -7,7 +7,7 @@ android_app {
     srcs: ["src/java/**/*.java"],
     jni_libs: ["MicrodroidTestNativeLib"],
     sdk_version: "current",
-    apex_available: ["com.android.virt"], // TODO(jiyong): remove this from virt APEX
+    use_embedded_native_libs: true,
 }
 
 // TODO(jiyong): make this a binary, not a shared library
@@ -15,5 +15,4 @@ cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/*.cpp"],
     sdk_version: "current",
-    apex_available: ["com.android.virt"], // TODO(jiyong): remove this from virt APEX
 }
