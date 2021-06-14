@@ -64,6 +64,7 @@ android_system_image {
 
         // "com.android.art" requires
         "heapprofd_client_api",
+        "libartpalette-system",
 
         "apexd",
         "debuggerd",
