@@ -40,4 +40,12 @@ apex {
         "compsvc_worker",
         "pvm_exec",
     ],
+
+    apps: [
+        "CompOSPayloadApp",
+    ],
+
+    prebuilts: [
+        "compos_payload_config",
+    ],
 }
