@@ -6,5 +6,9 @@ java_test_host {
     name: "MicrodroidHostTestCases",
     srcs: ["java/**/*.java"],
     test_suites: ["device-tests"],
-    libs: ["tradefed"],
+    libs: [
+        "tradefed",
+        "compatibility-tradefed",
+    ],
+    data: [":MicrodroidTestApp.signed"],
 }
