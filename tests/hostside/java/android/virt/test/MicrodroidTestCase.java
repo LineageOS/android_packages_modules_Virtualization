@@ -30,16 +30,26 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.RunUtil;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.zip.ZipFile;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidTestCase extends BaseHostJUnit4Test {
@@ -55,7 +65,10 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
 
     @Test
     public void testMicrodroidBoots() throws Exception {
-        startMicrodroid("MicrodroidTestApp.apk", "com.android.microdroid.test");
+        final String apkName = "MicrodroidTestApp.apk";
+        final String packageName = "com.android.microdroid.test";
+        final String configPath = "assets/vm_config.json"; // path inside the APK
+        startMicrodroid(apkName, packageName, configPath);
         waitForMicrodroidBoot(MICRODROID_BOOT_TIMEOUT_MINUTES);
         adbConnectToMicrodroid();
 
@@ -81,7 +94,11 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         final String label = "u:object_r:system_file:s0";
         assertThat(runOnMicrodroid("ls", "-Z", testLib), is(label + " " + testLib));
 
-        // Execute the library and check the result
+        // Check if the command in vm_config.json was executed by examining the side effect of the
+        // command
+        assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.run"), is("true"));
+
+        // Manually execute the library and check the output
         final String microdroidLauncher = "system/bin/microdroid_launcher";
         assertThat(
                 runOnMicrodroid(microdroidLauncher, testLib, "arg1", "arg2"),
@@ -133,59 +150,99 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         return String.join(" ", Arrays.asList(strs));
     }
 
-    private void startMicrodroid(String apkFile, String packageName) throws Exception {
-        // Tools and executables
-        final String mkCdisk = VIRT_APEX + "bin/mk_cdisk";
-        final String mkPayload = VIRT_APEX + "bin/mk_payload";
-        final String crosvm = VIRT_APEX + "bin/crosvm";
+    // TODO(b/191131043) remove this step
+    private String createMiscImage() throws Exception {
+        final String output = TEST_ROOT + "misc.img";
+        runOnAndroid("dd", "if=/dev/zero", "of=" + output, "bs=4k", "count=256");
+        assertThat(runOnAndroid("du", "-b", output), is(not("")));
+        return output;
+    }
 
-        // Input files
-        final String cdiskJson = VIRT_APEX + "etc/microdroid_cdisk.json";
-        final String cdiskEnvJson = VIRT_APEX + "etc/microdroid_cdisk_env.json";
-        final String payloadJsonOrig = VIRT_APEX + "etc/microdroid_payload.json";
-        final String bootloader = VIRT_APEX + "etc/microdroid_bootloader";
+    private String createPayloadImage(String apkName, String packageName, String configPath)
+            throws Exception {
+        File apkFile = findTestFile(apkName);
+        getDevice().installPackage(apkFile, /* reinstall */ true);
 
-        // Generated files
-        final String payloadJson = TEST_ROOT + "payload.json";
-        final String testApkIdsig = TEST_ROOT + apkFile + ".idsig";
-
-        // Image files created
-        final String miscImg = TEST_ROOT + "misc.img";
-        final String osImg = TEST_ROOT + "os_composite.img";
-        final String envImg = TEST_ROOT + "env_composite.img";
-        final String payloadImg = TEST_ROOT + "payload.img";
-
-        // Create misc.img
-        // TODO(jiyong) remove this step
-        runOnAndroid("dd", "if=/dev/zero", "of=" + miscImg, "bs=4k", "count=256");
-
-        // Create os_composite.img, env_composite.img
-        runOnAndroid(mkCdisk, cdiskJson, osImg);
-        runOnAndroid(mkCdisk, cdiskEnvJson, envImg);
-
-        // Push the idsig file to the device
-        // TODO(b/190343842): pass this file to mk_payload
-        File idsigOnHost =
-                (new CompatibilityBuildHelper(getBuild())).getTestFile(apkFile + ".idsig");
-        getDevice().pushFile(idsigOnHost, testApkIdsig);
-
-        // Create payload.img from microdroid_payload.json. APK_PATH marker in the file is
-        // replaced with the actual path to the test APK.
+        // Read the config file from the apk and parse it to know the list of APEXes needed
+        ZipFile apkAsZip = new ZipFile(apkFile);
+        InputStream is = apkAsZip.getInputStream(apkAsZip.getEntry(configPath));
+        String configString =
+                new BufferedReader(new InputStreamReader(is))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
+        JSONObject configObject = new JSONObject(configString);
+        JSONArray apexes = configObject.getJSONArray("apexes");
+        List<String> apexNames = new ArrayList<>();
+        for (int i = 0; i < apexes.length(); i++) {
+            JSONObject anApex = apexes.getJSONObject(i);
+            apexNames.add(anApex.getString("name"));
+        }
 
         // Get the path to the installed apk. Note that
         // getDevice().getAppPackageInfo(...).getCodePath() doesn't work due to the incorrect
         // parsing of the "=" character. (b/190975227). So we use the `pm path` command directly.
-        String testApk = runOnAndroid("pm", "path", packageName);
-        assertTrue(testApk.startsWith("package:"));
-        testApk = testApk.substring("package:".length());
-        testApk = testApk.replace("/", "\\\\/"); // escape slash
-        runOnAndroid("sed", "s/APK_PATH/" + testApk + "/", payloadJsonOrig, ">", payloadJson);
-        runOnAndroid(mkPayload, payloadJson, payloadImg);
+        String apkPath = runOnAndroid("pm", "path", packageName);
+        assertTrue(apkPath.startsWith("package:"));
+        apkPath = apkPath.substring("package:".length());
 
-        // Make sure that the images are actually created
-        assertThat(runOnAndroid("du", "-b", osImg, envImg, payloadImg), is(not("")));
+        // Create payload.json from the gathered data
+        JSONObject payloadObject = new JSONObject();
+        payloadObject.put("system_apexes", new JSONArray(apexNames));
+        payloadObject.put("payload_config_path", "/mnt/apk/" + configPath);
+        JSONObject apkObject = new JSONObject();
+        apkObject.put("path", apkPath);
+        apkObject.put("name", packageName);
+        payloadObject.put("apk", apkObject);
+
+        // Push the idsig file to the device
+        // TODO(b/190343842): pass path to this file to payloadObject
+        // File idsigOnHost = findTestFile(apkFile + ".idsig");
+        // final String testApkIdsig = TEST_ROOT + apkFile + ".idsig";
+        // getDevice().pushFile(idsigOnHost, testApkIdsig);
+
+        // Copy the json file to Android
+        File payloadJsonOnHost = File.createTempFile("payload", "json");
+        FileWriter writer = new FileWriter(payloadJsonOnHost);
+        writer.write(payloadObject.toString());
+        writer.close();
+        final String payloadJson = TEST_ROOT + "payload.json";
+        getDevice().pushFile(payloadJsonOnHost, payloadJson);
+
+        // Finally run mk_payload to create payload.img
+        final String mkPayload = VIRT_APEX + "bin/mk_payload";
+        final String payloadImg = TEST_ROOT + "payload.img";
+        runOnAndroid(mkPayload, payloadJson, payloadImg);
+        assertThat(runOnAndroid("du", "-b", payloadImg), is(not("")));
+
+        return payloadImg;
+    }
+
+    private File findTestFile(String name) throws Exception {
+        return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
+    }
+
+    private void startMicrodroid(String apkName, String packageName, String configPath)
+            throws Exception {
+        // Create misc.img and payload.img
+        final String payloadImg = createPayloadImage(apkName, packageName, configPath);
+        final String miscImg = createMiscImage();
+
+        // Tools and executables
+        final String mkCdisk = VIRT_APEX + "bin/mk_cdisk";
+        final String crosvm = VIRT_APEX + "bin/crosvm";
+
+        // Create os_composisite.img and env_composite.img
+        // TODO(jiyong): remove this when running a VM is done by `vm`
+        final String cdiskJson = VIRT_APEX + "etc/microdroid_cdisk.json";
+        final String cdiskEnvJson = VIRT_APEX + "etc/microdroid_cdisk_env.json";
+        final String osImg = TEST_ROOT + "os_composite.img";
+        final String envImg = TEST_ROOT + "env_composite.img";
+        final String bootloader = VIRT_APEX + "etc/microdroid_bootloader";
+        runOnAndroid(mkCdisk, cdiskJson, osImg);
+        runOnAndroid(mkCdisk, cdiskEnvJson, envImg);
 
         // Start microdroid using crosvm
+        // TODO(jiyong): do this via the `vm` command
         ExecutorService executor = Executors.newFixedThreadPool(1);
         executor.execute(
                 () -> {

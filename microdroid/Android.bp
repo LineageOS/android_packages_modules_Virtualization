@@ -398,11 +398,6 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "microdroid_payload.json",
-    src: "microdroid_payload.json",
-}
-
-prebuilt_etc {
     name: "microdroid_vendor_manifest",
     src: "microdroid_vendor_manifest.xml",
     filename: "manifest.xml",
