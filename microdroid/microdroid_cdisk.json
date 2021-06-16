@@ -1,10 +1,6 @@
 {
   "partitions": [
     {
-      "label": "misc",
-      "path": "/data/local/tmp/virt/misc.img"
-    },
-    {
       "label": "boot_a",
       "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
     },
