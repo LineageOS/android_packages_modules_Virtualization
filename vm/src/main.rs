@@ -104,6 +104,7 @@ fn command_create_partition(
 ) -> Result<(), Error> {
     let image = OpenOptions::new()
         .create_new(true)
+        .read(true)
         .write(true)
         .open(image_path)
         .with_context(|| format!("Failed to create {:?}", image_path))?;
