@@ -1,0 +1,15 @@
+{
+  "apk": {
+    "path": "/apex/com.android.compos/app/CompOSPayloadApp/CompOSPayloadApp.apk",
+    "name": "com.android.compos.payload"
+  },
+  "system_apexes": [
+    "com.android.adbd",
+    "com.android.art",
+    "com.android.compos",
+    "com.android.i18n",
+    "com.android.os.statsd",
+    "com.android.sdkext"
+  ],
+  "payload_config_path": "/mnt/apk/assets/vm_config.json"
+}
