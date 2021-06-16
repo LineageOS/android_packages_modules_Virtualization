@@ -17,10 +17,9 @@
 mod ioutil;
 mod metadata;
 
-use android_logger::Config;
 use anyhow::{anyhow, bail, Result};
 use keystore2_system_property::PropertyWatcher;
-use log::{info, Level};
+use log::info;
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use std::fs;
 use std::path::Path;
@@ -29,10 +28,9 @@ use std::time::Duration;
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 
-const LOG_TAG: &str = "MicrodroidManager";
-
 fn main() -> Result<()> {
-    android_logger::init_once(Config::default().with_tag(LOG_TAG).with_min_level(Level::Debug));
+    // TODO(b/189805435) use kernlog
+    env_logger::init();
 
     info!("started.");
 
