@@ -57,8 +57,15 @@ fn load_config(path: &Path) -> Result<VmPayloadConfig> {
 
 fn exec_task(task: &Task) -> Result<()> {
     info!("executing main task {:?}...", task);
-    build_command(task)?.spawn()?;
-    Ok(())
+    let exit_status = build_command(task)?.spawn()?.wait()?;
+    if exit_status.success() {
+        Ok(())
+    } else {
+        match exit_status.code() {
+            Some(code) => bail!("task exited with exit code: {}", code),
+            None => bail!("task terminated by signal"),
+        }
+    }
 }
 
 fn build_command(task: &Task) -> Result<Command> {
