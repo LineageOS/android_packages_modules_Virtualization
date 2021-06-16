@@ -28,22 +28,28 @@ import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
-import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileWriter;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.zip.ZipFile;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidTestCase extends BaseHostJUnit4Test {
@@ -52,158 +58,210 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     private static final int TEST_VM_CID = 10;
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
-    private static final String TEST_APK = "MicrodroidTestApp.apk";
+
     // This is really slow on GCE (2m 40s) but fast on localhost or actual Android phones (< 10s)
     // Set the maximum timeout value big enough.
     private static final long MICRODROID_BOOT_TIMEOUT_MINUTES = 5;
 
-    private String executeCommand(String cmd) {
-        final long defaultCommandTimeoutMillis = 3000; // 3 sec. Can be slow on GCE
-        return executeCommand(defaultCommandTimeoutMillis, cmd);
-    }
-
-    private String executeCommand(long timeout, String cmd) {
-        CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd.split(" "));
-        return result.getStdout().trim(); // remove the trailing whitespace including newline
-    }
-
-    private String executeCommandOnMicrodroid(String cmd) {
-        cmd = "adb -s " + MICRODROID_SERIAL + " " + cmd;
-        return executeCommand(cmd);
-    }
-
     @Test
     public void testMicrodroidBoots() throws Exception {
-        // Prepare input files
-        String prepareImagesCmd =
-                String.format(
-                        "mkdir -p %s; cd %s; "
-                                + "cp %setc/microdroid_bootloader bootloader && "
-                                + "cp %setc/fs/*.img . && "
-                                + "cp %setc/uboot_env.img . && "
-                                + "dd if=/dev/zero of=misc.img bs=4k count=256",
-                        TEST_ROOT, TEST_ROOT, VIRT_APEX, VIRT_APEX, VIRT_APEX);
-        getDevice().executeShellCommand(prepareImagesCmd);
+        final String apkName = "MicrodroidTestApp.apk";
+        final String packageName = "com.android.microdroid.test";
+        final String configPath = "assets/vm_config.json"; // path inside the APK
+        startMicrodroid(apkName, packageName, configPath);
+        waitForMicrodroidBoot(MICRODROID_BOOT_TIMEOUT_MINUTES);
+        adbConnectToMicrodroid();
 
-        // Create os_composite.img, env_composite.img, and payload.img
-        String makeOsCompositeCmd =
-                String.format(
-                        "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk.json os_composite.img",
-                        TEST_ROOT, VIRT_APEX, VIRT_APEX);
-        getDevice().executeShellCommand(makeOsCompositeCmd);
-        String makeEnvCompositeCmd =
-                String.format(
-                        "cd %s; %sbin/mk_cdisk %setc/microdroid_cdisk_env.json env_composite.img",
-                        TEST_ROOT, VIRT_APEX, VIRT_APEX);
-        getDevice().executeShellCommand(makeEnvCompositeCmd);
+        // Check if it actually booted by reading a sysprop.
+        assertThat(runOnMicrodroid("getprop", "ro.hardware"), is("microdroid"));
 
-        String idsigPath = TEST_ROOT + TEST_APK + ".idsig";
-        File idsigFile = (new CompatibilityBuildHelper(getBuild())).getTestFile(TEST_APK + ".idsig");
-        getDevice().pushFile(idsigFile, idsigPath);
+        // Test writing to /data partition
+        runOnMicrodroid("echo MicrodroidTest > /data/local/tmp/test.txt");
+        assertThat(runOnMicrodroid("cat /data/local/tmp/test.txt"), is("MicrodroidTest"));
 
-        // TODO(b/190343842): pass this file to mk_payload
-        String idsigExists = getDevice().executeShellV2Command("[ -f " + idsigPath + " ] && echo ok")
-                .getStdout().trim();
-        assertThat(idsigExists, is("ok"));
+        // Check if the APK partition exists
+        final String apkPartition = "/dev/block/by-name/microdroid-apk";
+        assertThat(runOnMicrodroid("ls", apkPartition), is(apkPartition));
 
-        String payloadJsonOrig = VIRT_APEX + "etc/microdroid_payload.json";
-        String mkPayload = VIRT_APEX + "bin/mk_payload";
+        // Check if the APK is mounted using zipfuse
+        final String mountEntry = "zipfuse on /mnt/apk type fuse.zipfuse";
+        assertThat(runOnMicrodroid("mount"), containsString(mountEntry));
+
+        // Check if the native library in the APK is has correct filesystem info
+        final String[] abis = runOnMicrodroid("getprop", "ro.product.cpu.abilist").split(",");
+        assertThat(abis.length, is(1));
+        final String testLib = "/mnt/apk/lib/" + abis[0] + "/MicrodroidTestNativeLib.so";
+        final String label = "u:object_r:system_file:s0";
+        assertThat(runOnMicrodroid("ls", "-Z", testLib), is(label + " " + testLib));
+
+        // Check if the command in vm_config.json was executed by examining the side effect of the
+        // command
+        assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.run"), is("true"));
+
+        // Manually execute the library and check the output
+        final String microdroidLauncher = "system/bin/microdroid_launcher";
+        assertThat(
+                runOnMicrodroid(microdroidLauncher, testLib, "arg1", "arg2"),
+                is("Hello Microdroid " + testLib + " arg1 arg2"));
+
+        // Shutdown microdroid
+        runOnMicrodroid("reboot");
+    }
+
+    // Run an arbitrary command in the host side and returns the result
+    private String runOnHost(String... cmd) {
+        final long timeout = 10000;
+        CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd);
+        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
+        return result.getStdout().trim();
+    }
+
+    // Same as runOnHost, but failure is not an error
+    private String tryRunOnHost(String... cmd) {
+        final long timeout = 10000;
+        CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd);
+        return result.getStdout().trim();
+    }
+
+    // Run a shell command on Android
+    private String runOnAndroid(String... cmd) throws Exception {
+        CommandResult result = getDevice().executeShellV2Command(join(cmd));
+        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
+        return result.getStdout().trim();
+    }
+
+    // Same as runOnAndroid, but failutre is not an error
+    private String tryRunOnAndroid(String... cmd) throws Exception {
+        CommandResult result = getDevice().executeShellV2Command(join(cmd));
+        return result.getStdout().trim();
+    }
+
+    // Run a shell command on Microdroid
+    private String runOnMicrodroid(String... cmd) {
+        final long timeout = 3000; // 3 sec. Microdroid is extremely slow on GCE-on-CF.
+        CommandResult result =
+                RunUtil.getDefault()
+                        .runTimedCmd(timeout, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
+        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
+        return result.getStdout().trim();
+    }
+
+    private String join(String... strs) {
+        return String.join(" ", Arrays.asList(strs));
+    }
+
+    // TODO(b/191131043) remove this step
+    private String createMiscImage() throws Exception {
+        final String output = TEST_ROOT + "misc.img";
+        runOnAndroid("dd", "if=/dev/zero", "of=" + output, "bs=4k", "count=256");
+        assertThat(runOnAndroid("du", "-b", output), is(not("")));
+        return output;
+    }
+
+    private String createPayloadImage(String apkName, String packageName, String configPath)
+            throws Exception {
+        File apkFile = findTestFile(apkName);
+        getDevice().installPackage(apkFile, /* reinstall */ true);
+
+        // Read the config file from the apk and parse it to know the list of APEXes needed
+        ZipFile apkAsZip = new ZipFile(apkFile);
+        InputStream is = apkAsZip.getInputStream(apkAsZip.getEntry(configPath));
+        String configString =
+                new BufferedReader(new InputStreamReader(is))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
+        JSONObject configObject = new JSONObject(configString);
+        JSONArray apexes = configObject.getJSONArray("apexes");
+        List<String> apexNames = new ArrayList<>();
+        for (int i = 0; i < apexes.length(); i++) {
+            JSONObject anApex = apexes.getJSONObject(i);
+            apexNames.add(anApex.getString("name"));
+        }
 
         // Get the path to the installed apk. Note that
         // getDevice().getAppPackageInfo(...).getCodePath() doesn't work due to the incorrect
-        // parsing of the "=" character. (b/190975227)
-        String apkPath = getDevice().executeShellV2Command("pm path com.android.microdroid.test")
-                .getStdout().trim();
+        // parsing of the "=" character. (b/190975227). So we use the `pm path` command directly.
+        String apkPath = runOnAndroid("pm", "path", packageName);
         assertTrue(apkPath.startsWith("package:"));
         apkPath = apkPath.substring("package:".length());
-        apkPath = apkPath.replace("/", "\\\\/");
 
-        // Replace APK_PATH in the json file with the actual path of the test APK
-        String makePayloadCompositeCmd =
-                "cd " + TEST_ROOT + ";" +
-                String.format("sed s/APK_PATH/%s/ %s > %s;", apkPath, payloadJsonOrig, "payload.json") +
-                mkPayload + " payload.json payload.img";
-        getDevice().executeShellCommand(makePayloadCompositeCmd);
+        // Create payload.json from the gathered data
+        JSONObject payloadObject = new JSONObject();
+        payloadObject.put("system_apexes", new JSONArray(apexNames));
+        payloadObject.put("payload_config_path", "/mnt/apk/" + configPath);
+        JSONObject apkObject = new JSONObject();
+        apkObject.put("path", apkPath);
+        apkObject.put("name", packageName);
+        payloadObject.put("apk", apkObject);
 
-        // Make sure that the composite images are created
-        final List<String> compositeImages =
-                new ArrayList<>(
-                        Arrays.asList(
-                                TEST_ROOT + "/os_composite.img",
-                                TEST_ROOT + "/env_composite.img",
-                                TEST_ROOT + "/payload.img"));
-        CommandResult result =
-                getDevice().executeShellV2Command("du -b " + String.join(" ", compositeImages));
-        assertThat(result.getExitCode(), is(0));
-        assertThat(result.getStdout(), is(not("")));
+        // Push the idsig file to the device
+        // TODO(b/190343842): pass path to this file to payloadObject
+        // File idsigOnHost = findTestFile(apkFile + ".idsig");
+        // final String testApkIdsig = TEST_ROOT + apkFile + ".idsig";
+        // getDevice().pushFile(idsigOnHost, testApkIdsig);
+
+        // Copy the json file to Android
+        File payloadJsonOnHost = File.createTempFile("payload", "json");
+        FileWriter writer = new FileWriter(payloadJsonOnHost);
+        writer.write(payloadObject.toString());
+        writer.close();
+        final String payloadJson = TEST_ROOT + "payload.json";
+        getDevice().pushFile(payloadJsonOnHost, payloadJson);
+
+        // Finally run mk_payload to create payload.img
+        final String mkPayload = VIRT_APEX + "bin/mk_payload";
+        final String payloadImg = TEST_ROOT + "payload.img";
+        runOnAndroid(mkPayload, payloadJson, payloadImg);
+        assertThat(runOnAndroid("du", "-b", payloadImg), is(not("")));
+
+        return payloadImg;
+    }
+
+    private File findTestFile(String name) throws Exception {
+        return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
+    }
+
+    private void startMicrodroid(String apkName, String packageName, String configPath)
+            throws Exception {
+        // Create misc.img and payload.img
+        final String payloadImg = createPayloadImage(apkName, packageName, configPath);
+        final String miscImg = createMiscImage();
+
+        // Tools and executables
+        final String mkCdisk = VIRT_APEX + "bin/mk_cdisk";
+        final String crosvm = VIRT_APEX + "bin/crosvm";
+
+        // Create os_composisite.img and env_composite.img
+        // TODO(jiyong): remove this when running a VM is done by `vm`
+        final String cdiskJson = VIRT_APEX + "etc/microdroid_cdisk.json";
+        final String cdiskEnvJson = VIRT_APEX + "etc/microdroid_cdisk_env.json";
+        final String osImg = TEST_ROOT + "os_composite.img";
+        final String envImg = TEST_ROOT + "env_composite.img";
+        final String bootloader = VIRT_APEX + "etc/microdroid_bootloader";
+        runOnAndroid(mkCdisk, cdiskJson, osImg);
+        runOnAndroid(mkCdisk, cdiskEnvJson, envImg);
 
         // Start microdroid using crosvm
+        // TODO(jiyong): do this via the `vm` command
         ExecutorService executor = Executors.newFixedThreadPool(1);
-        String runMicrodroidCmd =
-                String.format(
-                        "cd %s; %sbin/crosvm run --cid=%d --disable-sandbox --bios=bootloader"
-                                + " --serial=type=syslog --disk=os_composite.img"
-                                + " --disk=env_composite.img --disk=payload.img &",
-                        TEST_ROOT, VIRT_APEX, TEST_VM_CID);
         executor.execute(
                 () -> {
                     try {
-                        getDevice().executeShellV2Command(runMicrodroidCmd);
+                        runOnAndroid(
+                                crosvm,
+                                "run",
+                                "--cid=" + TEST_VM_CID,
+                                "--disable-sandbox",
+                                "--bios=" + bootloader,
+                                "--serial=type=syslog",
+                                "--disk=" + osImg,
+                                "--disk=" + envImg,
+                                "--disk=" + payloadImg,
+                                "&");
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                 });
-        waitForMicrodroidBoot(MICRODROID_BOOT_TIMEOUT_MINUTES);
-
-        // Connect to microdroid and read a system property from there
-        executeCommand(
-                "adb -s "
-                        + getDevice().getSerialNumber()
-                        + " forward tcp:"
-                        + TEST_VM_ADB_PORT
-                        + " vsock:"
-                        + TEST_VM_CID
-                        + ":5555");
-        executeCommand("adb connect " + MICRODROID_SERIAL);
-        String prop = executeCommandOnMicrodroid("shell getprop ro.hardware");
-        assertThat(prop, is("microdroid"));
-
-        // Test writing to /data partition
-        File tmpFile = FileUtil.createTempFile("test", ".txt");
-        tmpFile.deleteOnExit();
-        FileWriter writer = new FileWriter(tmpFile);
-        writer.write("MicrodroidTest");
-        writer.close();
-
-        executeCommandOnMicrodroid("push " + tmpFile.getPath() + " /data/local/tmp/test.txt");
-        assertThat(
-                executeCommandOnMicrodroid("shell cat /data/local/tmp/test.txt"),
-                is("MicrodroidTest"));
-
-        assertThat(
-                executeCommandOnMicrodroid("shell ls /dev/block/by-name/microdroid-apk"),
-                is("/dev/block/by-name/microdroid-apk"));
-
-        assertThat(
-                executeCommandOnMicrodroid("shell mount"),
-                containsString("zipfuse on /mnt/apk type fuse.zipfuse"));
-
-        final String[] abiList =
-                executeCommandOnMicrodroid("shell getprop ro.product.cpu.abilist").split(",");
-        assertThat(abiList.length, is(1));
-
-        final String libPath = "/mnt/apk/lib/" + abiList[0] + "/MicrodroidTestNativeLib.so";
-        assertThat(
-                executeCommandOnMicrodroid("shell ls -Z " + libPath),
-                is("u:object_r:system_file:s0 " + libPath));
-
-        assertThat(
-                executeCommandOnMicrodroid(
-                        "shell /system/bin/microdroid_launcher " + libPath + " arg1 arg2"),
-                is("Hello Microdroid " + libPath + " arg1 arg2"));
-
-        // Shutdown microdroid
-        executeCommand("adb -s localhost:" + TEST_VM_ADB_PORT + " shell reboot");
     }
 
     private void waitForMicrodroidBoot(long timeoutMinutes) throws Exception {
@@ -217,9 +275,19 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         TimeUnit.MINUTES);
     }
 
+    // Establish an adb connection to microdroid by letting Android forward the connection to
+    // microdroid.
+    private void adbConnectToMicrodroid() {
+        final String serial = getDevice().getSerialNumber();
+        final String from = "tcp:" + TEST_VM_ADB_PORT;
+        final String to = "vsock:" + TEST_VM_CID + ":5555";
+        runOnHost("adb", "-s", serial, "forward", from, to);
+        runOnHost("adb", "connect", MICRODROID_SERIAL);
+    }
+
     private void skipIfFail(String command) throws Exception {
-        assumeThat(
-                getDevice().executeShellV2Command(command).getStatus(), is(CommandStatus.SUCCESS));
+        CommandResult result = getDevice().executeShellV2Command(command);
+        assumeThat(result.getStatus(), is(CommandStatus.SUCCESS));
     }
 
     @Before
@@ -234,24 +302,25 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     @Before
     public void setUp() throws Exception {
         // kill stale crosvm processes
-        getDevice().executeShellV2Command("killall crosvm");
+        tryRunOnAndroid("killall", "crosvm");
 
-        // delete the test root
-        getDevice().executeShellCommand("rm -rf " + TEST_ROOT);
+        // Prepare the test root
+        tryRunOnAndroid("rm", "-rf", TEST_ROOT);
+        tryRunOnAndroid("mkdir", "-p", TEST_ROOT);
 
         // disconnect from microdroid
-        executeCommand("adb disconnect " + MICRODROID_SERIAL);
+        tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
 
         // clear the log
-        getDevice().executeShellV2Command("logcat -c");
+        tryRunOnAndroid("logcat", "-c");
     }
 
     @After
     public void shutdown() throws Exception {
         // disconnect from microdroid
-        executeCommand("adb disconnect " + MICRODROID_SERIAL);
+        tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
 
         // kill stale crosvm processes
-        getDevice().executeShellV2Command("killall crosvm");
+        tryRunOnAndroid("killall", "crosvm");
     }
 }

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include <stdio.h>
+#include <sys/system_properties.h>
 
 extern "C" int android_native_main(int argc, char* argv[]) {
     printf("Hello Microdroid ");
@@ -25,5 +26,7 @@ extern "C" int android_native_main(int argc, char* argv[]) {
         }
     }
     printf("\n");
+
+    __system_property_set("debug.microdroid.app.run", "true");
     return 0;
 }
