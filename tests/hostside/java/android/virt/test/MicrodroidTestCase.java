@@ -138,7 +138,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
 
     // Run a shell command on Microdroid
     private String runOnMicrodroid(String... cmd) {
-        final long timeout = 3000; // 3 sec. Microdroid is extremely slow on GCE-on-CF.
+        final long timeout = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
         CommandResult result =
                 RunUtil.getDefault()
                         .runTimedCmd(timeout, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
