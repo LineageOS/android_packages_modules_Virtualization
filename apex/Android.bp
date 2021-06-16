@@ -55,7 +55,6 @@ apex {
         "com.android.virt.init.rc",
         "microdroid_cdisk.json",
         "microdroid_cdisk_env.json",
-        "microdroid_payload.json",
         "microdroid_uboot_env",
         "microdroid_bootloader",
     ],
