@@ -7,6 +7,17 @@ rust_binary {
     crate_name: "virtualizationservice",
     srcs: ["src/main.rs"],
     edition: "2018",
+    // Only build on targets which crosvm builds on.
+    enabled: false,
+    target: {
+        android64: {
+            compile_multilib: "64",
+            enabled: true,
+        },
+        linux_bionic_arm64: {
+            enabled: true,
+        },
+    },
     prefer_rlib: true,
     rustlibs: [
         "android.system.virtualizationservice-rust",
@@ -14,6 +25,7 @@ rust_binary {
         "libanyhow",
         "libcommand_fds",
         "libcompositediskconfig",
+        "libdisk",
         "liblog_rust",
         "libserde_json",
         "libserde",
