@@ -9,7 +9,7 @@ rust_defaults {
     edition: "2018",
     prefer_rlib: true,
     rustlibs: [
-        "libandroid_logger",
+        "libenv_logger",
         "libanyhow",
         "libkeystore2_system_property-rust",
         "liblog_rust",
