@@ -133,7 +133,7 @@ impl VmInstance {
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
-            error!("Error removing temporary directory {:?}: {:?}", self.temporary_directory, e);
+            error!("Error removing temporary directory {:?}: {}", self.temporary_directory, e);
         }
     }
 
