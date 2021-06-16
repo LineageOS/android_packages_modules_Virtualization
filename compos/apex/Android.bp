@@ -36,6 +36,7 @@ apex {
     updatable: false,
 
     binaries: [
+        "compos_key_service",
         "compsvc",
         "compsvc_worker",
         "pvm_exec",
