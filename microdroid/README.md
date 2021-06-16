@@ -119,7 +119,7 @@ payload.json:
     "com.android.i18n",
     "com.android.os.statsd",
     "com.android.sdkext"
-  ],
+  ]
 }
 ```
 
