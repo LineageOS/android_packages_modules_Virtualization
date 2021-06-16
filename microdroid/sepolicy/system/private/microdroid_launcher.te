@@ -21,3 +21,6 @@ userdebug_or_eng(`
 
 # Allow to use terminal
 allow microdroid_launcher devpts:chr_file rw_file_perms;
+
+# Allow to set debug prop
+set_prop(microdroid_launcher, debug_prop)

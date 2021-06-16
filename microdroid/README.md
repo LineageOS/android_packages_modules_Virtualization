@@ -42,9 +42,11 @@ $ adb reboot
 
 ## Running
 
-Create a config file, `microdroid.json`:
+Create two config files, `microdroid.json` and `payload.json`:
 
 ```json
+microdroid.json:
+
 {
   "bootloader": "/apex/com.android.virt/etc/microdroid_bootloader",
   "disks": [
@@ -108,9 +110,20 @@ Create a config file, `microdroid.json`:
     }
   ]
 }
+
+payload.json:
+
+{
+  "system_apexes" : [
+    "com.android.adbd",
+    "com.android.i18n",
+    "com.android.os.statsd",
+    "com.android.sdkext"
+  ],
+}
 ```
 
-Copy the artifacts to the temp directory, create the composite image using
+Copy the these files to the temp directory, create the composite image using
 `mk_cdisk` and copy the VM config file. For now, some other files have to be
 manually created. In the future, you won't need these, and this shall be done
 via [`virtualizationservice`](../virtualizationservice/).
@@ -119,7 +132,8 @@ via [`virtualizationservice`](../virtualizationservice/).
 $ adb root
 $ adb shell 'mkdir /data/local/tmp/microdroid'
 $ adb shell 'dd if=/dev/zero of=/data/local/tmp/microdroid/misc.img bs=4k count=256'
-$ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload /apex/com.android.virt/etc/microdroid_payload.json payload.img'
+$ adb push payload.json /data/local/tmp/microdroid/payload.json
+$ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload payload.json payload.img'
 $ adb shell 'chmod go+r /data/local/tmp/microdroid/payload*'
 $ adb push microdroid.json /data/local/tmp/microdroid/microdroid.json
 ```
