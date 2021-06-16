@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "os": {
+    "name": "microdroid"
+  },
+  "task": {
+    "type": "executable",
+    "command": "/apex/com.android.compos/bin/compsvc",
+    "args": [
+      "--rpc-binder",
+      "/apex/com.android.art/bin/dex2oat64"
+    ]
+  },
+  "apexes": [
+    {
+      "name": "com.android.adbd"
+    },
+    {
+      "name": "com.android.art"
+    },
+    {
+      "name": "com.android.compos"
+    },
+    {
+      "name": "com.android.i18n"
+    },
+    {
+      "name": "com.android.os.statsd"
+    },
+    {
+      "name": "com.android.sdkext"
+    }
+  ]
+}
