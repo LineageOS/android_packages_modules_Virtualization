@@ -1,4 +1,7 @@
 service microdroid_manager /system/bin/microdroid_manager
     disabled
+    # TODO(b/189805435) for now redirect stdio to kmsg
+    stdio_to_kmsg
+    setenv RUST_LOG info
     # TODO(jooyung) remove this when microdroid_manager becomes a daemon
     oneshot
