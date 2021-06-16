@@ -1,7 +1,9 @@
 # Static u-boot environment variables for microdroid. See b/180481192
 
 # Boot the device following the Android boot procedure
-bootcmd=avb init virtio 0 && avb verify _a && boot_android virtio 0
+# `0` is the disk number of os_composite.img
+# `a` and `_a` are the slot index for A/B
+bootcmd=avb init virtio 0 && avb verify _a && boot_android virtio 0 a
 
 bootdelay=0
 

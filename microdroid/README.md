@@ -57,15 +57,7 @@ microdroid.json:
           "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
         },
         {
-          "label": "boot_b",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
-        },
-        {
           "label": "vendor_boot_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
-        },
-        {
-          "label": "vendor_boot_b",
           "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
         },
         {
@@ -73,15 +65,7 @@ microdroid.json:
           "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
         },
         {
-          "label": "vbmeta_b",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
-        },
-        {
           "label": "vbmeta_system_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
-        },
-        {
-          "label": "vbmeta_system_b",
           "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
         },
         {
