@@ -87,8 +87,9 @@ struct ApexConfig {
 
 struct ApkConfig {
     std::string name;
-    // TODO(jooyung): find path/idsig with name
     std::string path;
+    // TODO(jooyung) make this required?
+    std::optional<std::string> idsig_path;
 };
 
 struct Config {
@@ -144,6 +145,7 @@ Result<void> ParseJson(const Json::Value& value, ApexConfig& apex_config) {
 Result<void> ParseJson(const Json::Value& value, ApkConfig& apk_config) {
     DO(ParseJson(value["name"], apk_config.name));
     DO(ParseJson(value["path"], apk_config.path));
+    DO(ParseJson(value["idsig_path"], apk_config.idsig_path));
     return {};
 }
 
@@ -226,7 +228,9 @@ Result<void> MakeMetadata(const Config& config, const std::string& filename) {
         auto* apk = metadata.mutable_apk();
         apk->set_name(config.apk->name);
         apk->set_payload_partition_name("microdroid-apk");
-        // TODO(jooyung): set idsig partition as well
+        if (config.apk->idsig_path.has_value()) {
+            apk->set_idsig_partition_name("microdroid-apk-idsig");
+        }
     }
 
     if (config.payload_config_path.has_value()) {
@@ -237,7 +241,9 @@ Result<void> MakeMetadata(const Config& config, const std::string& filename) {
     return WriteMetadata(metadata, out);
 }
 
-Result<void> GenerateFiller(const std::string& file_path, const std::string& filler_path) {
+// fill (zeros + original file's size) with aligning BLOCK_SIZE(4096) boundary
+// return true when the filler is generated.
+Result<bool> SizeFiller(const std::string& file_path, const std::string& filler_path) {
     auto file_size = GetFileSize(file_path);
     if (!file_size.ok()) {
         return file_size.error();
@@ -258,9 +264,41 @@ Result<void> GenerateFiller(const std::string& file_path, const std::string& fil
     if (write(fd.get(), &size, sizeof(size)) <= 0) {
         return ErrnoError() << "write(" << filler_path << ") failed.";
     }
-    return {};
+    return true;
 }
 
+// fill zeros to align |file_path|'s size to BLOCK_SIZE(4096) boundary.
+// return true when the filler is generated.
+Result<bool> ZeroFiller(const std::string& file_path, const std::string& filler_path) {
+    auto file_size = GetFileSize(file_path);
+    if (!file_size.ok()) {
+        return file_size.error();
+    }
+    auto disk_size = AlignToPartitionSize(*file_size);
+    if (disk_size <= *file_size) {
+        return false;
+    }
+
+    unique_fd fd(TEMP_FAILURE_RETRY(open(filler_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600)));
+    if (fd.get() == -1) {
+        return ErrnoError() << "open(" << filler_path << ") failed.";
+    }
+    if (!android::base::WriteStringToFd(std::string(disk_size - *file_size, '\0'), fd)) {
+        return ErrnoError() << "write(" << filler_path << ") failed.";
+    }
+    return true;
+}
+
+// Do not generate any fillers
+// Note that CreateCompositeDisk() handles gaps between partitions.
+Result<bool> NoFiller(const std::string& file_path, const std::string& filler_path) {
+    (void)file_path;
+    (void)filler_path;
+    return false;
+}
+
+// fill zeros to align |file_path|'s size to BLOCK_SIZE(4096) boundary.
+// return true when the filler is generated.
 Result<void> MakePayload(const Config& config, const std::string& metadata_file,
                          const std::string& output_file) {
     std::vector<MultipleImagePartition> partitions;
@@ -274,14 +312,18 @@ Result<void> MakePayload(const Config& config, const std::string& metadata_file,
     });
 
     int filler_count = 0;
-    auto add_partition = [&](auto partition_name, auto file_path) -> Result<void> {
+    auto add_partition = [&](auto partition_name, auto file_path, auto filler) -> Result<void> {
+        std::vector<std::string> image_files{file_path};
+
         std::string filler_path = output_file + "." + std::to_string(filler_count++);
-        if (auto ret = GenerateFiller(file_path, filler_path); !ret.ok()) {
+        if (auto ret = filler(file_path, filler_path); !ret.ok()) {
             return ret.error();
+        } else if (*ret) {
+            image_files.push_back(filler_path);
         }
         partitions.push_back(MultipleImagePartition{
                 .label = partition_name,
-                .image_file_paths = {file_path, filler_path},
+                .image_file_paths = image_files,
                 .type = kLinuxFilesystem,
                 .read_only = true,
         });
@@ -292,17 +334,23 @@ Result<void> MakePayload(const Config& config, const std::string& metadata_file,
     for (size_t i = 0; i < config.apexes.size(); i++) {
         const auto& apex_config = config.apexes[i];
         std::string apex_path = ToAbsolute(apex_config.path, config.dirname);
-        if (auto ret = add_partition("microdroid-apex-" + std::to_string(i), apex_path);
+        if (auto ret = add_partition("microdroid-apex-" + std::to_string(i), apex_path, SizeFiller);
             !ret.ok()) {
             return ret.error();
         }
     }
-    // put apk with "size" filler if necessary.
+    // put apk with "zero" filler.
     // TODO(jooyung): partition name("microdroid-apk") is TBD
     if (config.apk.has_value()) {
         std::string apk_path = ToAbsolute(config.apk->path, config.dirname);
-        if (auto ret = add_partition("microdroid-apk", apk_path); !ret.ok()) {
+        if (auto ret = add_partition("microdroid-apk", apk_path, ZeroFiller); !ret.ok()) {
             return ret.error();
+        }
+        if (config.apk->idsig_path.has_value()) {
+            std::string idsig_path = ToAbsolute(config.apk->idsig_path.value(), config.dirname);
+            if (auto ret = add_partition("microdroid-apk-idsig", idsig_path, NoFiller); !ret.ok()) {
+                return ret.error();
+            }
         }
     }
 
