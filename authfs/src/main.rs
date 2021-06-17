@@ -53,6 +53,10 @@ struct Args {
     #[structopt(parse(from_os_str))]
     mount_point: PathBuf,
 
+    /// CID of the VM where the service runs.
+    #[structopt(long)]
+    cid: Option<u32>,
+
     /// A read-only remote file with integrity check. Can be multiple.
     ///
     /// For example, `--remote-verified-file 5:10:1234:/path/to/cert` tells the filesystem to
@@ -205,8 +209,11 @@ fn parse_local_ro_file_unverified_ro_option(option: &str) -> Result<OptionLocalR
     })
 }
 
-fn new_config_remote_verified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
-    let service = file::get_local_binder();
+fn new_config_remote_verified_file(
+    service: file::VirtFdService,
+    remote_id: i32,
+    file_size: u64,
+) -> Result<FileConfig> {
     let signature = service.readFsveritySignature(remote_id).context("Failed to read signature")?;
 
     let service = Arc::new(Mutex::new(service));
@@ -223,8 +230,12 @@ fn new_config_remote_verified_file(remote_id: i32, file_size: u64) -> Result<Fil
     })
 }
 
-fn new_config_remote_unverified_file(remote_id: i32, file_size: u64) -> Result<FileConfig> {
-    let reader = RemoteFileReader::new(Arc::new(Mutex::new(file::get_local_binder())), remote_id);
+fn new_config_remote_unverified_file(
+    service: file::VirtFdService,
+    remote_id: i32,
+    file_size: u64,
+) -> Result<FileConfig> {
+    let reader = RemoteFileReader::new(Arc::new(Mutex::new(service)), remote_id);
     Ok(FileConfig::RemoteUnverifiedReadonlyFile { reader, file_size })
 }
 
@@ -251,31 +262,38 @@ fn new_config_local_ro_file_unverified(file_path: &Path) -> Result<FileConfig> {
     Ok(FileConfig::LocalUnverifiedReadonlyFile { reader, file_size })
 }
 
-fn new_config_remote_new_verified_file(remote_id: i32) -> Result<FileConfig> {
-    let remote_file =
-        RemoteFileEditor::new(Arc::new(Mutex::new(file::get_local_binder())), remote_id);
+fn new_config_remote_new_verified_file(
+    service: file::VirtFdService,
+    remote_id: i32,
+) -> Result<FileConfig> {
+    let remote_file = RemoteFileEditor::new(Arc::new(Mutex::new(service)), remote_id);
     Ok(FileConfig::RemoteVerifiedNewFile { editor: VerifiedFileEditor::new(remote_file) })
 }
 
 fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
 
+    let service = file::get_binder_service(args.cid)?;
+
     for config in &args.remote_ro_file {
         file_pool.insert(
             config.ino,
-            new_config_remote_verified_file(config.remote_id, config.file_size)?,
+            new_config_remote_verified_file(service.clone(), config.remote_id, config.file_size)?,
         );
     }
 
     for config in &args.remote_ro_file_unverified {
         file_pool.insert(
             config.ino,
-            new_config_remote_unverified_file(config.remote_id, config.file_size)?,
+            new_config_remote_unverified_file(service.clone(), config.remote_id, config.file_size)?,
         );
     }
 
     for config in &args.remote_new_rw_file {
-        file_pool.insert(config.ino, new_config_remote_new_verified_file(config.remote_id)?);
+        file_pool.insert(
+            config.ino,
+            new_config_remote_new_verified_file(service.clone(), config.remote_id)?,
+        );
     }
 
     for config in &args.local_ro_file {

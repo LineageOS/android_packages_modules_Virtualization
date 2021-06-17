@@ -19,13 +19,8 @@ use std::convert::TryFrom;
 use std::io;
 use std::sync::{Arc, Mutex};
 
-use super::{ChunkBuffer, RandomWrite, ReadByChunk};
+use super::{ChunkBuffer, RandomWrite, ReadByChunk, VirtFdService};
 use crate::common::CHUNK_SIZE;
-
-use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService;
-use authfs_aidl_interface::binder::Strong;
-
-type VirtFdService = Strong<dyn IVirtFdService::IVirtFdService>;
 
 fn remote_read_chunk(
     service: &Arc<Mutex<VirtFdService>>,
