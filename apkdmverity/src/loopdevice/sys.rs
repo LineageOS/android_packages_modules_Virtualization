@@ -24,7 +24,8 @@ use data_model::DataInit;
 pub const LOOP_CONTROL: &str = "/dev/loop-control";
 
 pub const LOOP_CTL_GET_FREE: libc::c_ulong = 0x4C82;
-pub const LOOP_CONFIGURE: libc::c_ulong = 0x4C0A;
+pub const LOOP_SET_FD: libc::c_ulong = 0x4C00;
+pub const LOOP_SET_STATUS64: libc::c_ulong = 0x4C04;
 #[cfg(test)]
 pub const LOOP_CLR_FD: libc::c_ulong = 0x4C01;
 
@@ -57,6 +58,9 @@ pub struct loop_info64 {
     pub lo_encrypt_key: [u8; LO_KEY_SIZE],
     pub lo_init: [u64; 2],
 }
+
+// SAFETY: C struct is safe to be initialized from raw data
+unsafe impl DataInit for loop_info64 {}
 
 bitflags! {
     pub struct Flag: u32 {

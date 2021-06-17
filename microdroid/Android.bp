@@ -49,6 +49,7 @@ android_system_image {
         "microdroid_init_rc",
         "microdroid_launcher",
         "microdroid_manager",
+
         "ueventd.rc",
         "libbinder",
         "libbinder_ndk",
@@ -99,6 +100,7 @@ android_system_image {
         },
         lib64: {
             deps: [
+                "apkdmverity",
                 "zipfuse",
             ],
         },

@@ -37,7 +37,8 @@ use crate::util::*;
 
 // These are old-style ioctls, thus *_bad.
 nix::ioctl_none_bad!(_loop_ctl_get_free, LOOP_CTL_GET_FREE);
-nix::ioctl_write_ptr_bad!(_loop_configure, LOOP_CONFIGURE, loop_config);
+nix::ioctl_write_int_bad!(_loop_set_fd, LOOP_SET_FD);
+nix::ioctl_write_ptr_bad!(_loop_set_status64, LOOP_SET_STATUS64, loop_info64);
 #[cfg(test)]
 nix::ioctl_none_bad!(_loop_clr_fd, LOOP_CLR_FD);
 
@@ -48,9 +49,14 @@ fn loop_ctl_get_free(ctrl_file: &File) -> Result<i32> {
     Ok(unsafe { _loop_ctl_get_free(ctrl_file.as_raw_fd()) }?)
 }
 
-fn loop_configure(device_file: &File, config: &loop_config) -> Result<i32> {
+fn loop_set_fd(device_file: &File, fd: i32) -> Result<i32> {
     // SAFETY: this ioctl changes the state in kernel, but not the state in this process.
-    Ok(unsafe { _loop_configure(device_file.as_raw_fd(), config) }?)
+    Ok(unsafe { _loop_set_fd(device_file.as_raw_fd(), fd) }?)
+}
+
+fn loop_set_status64(device_file: &File, info: &loop_info64) -> Result<i32> {
+    // SAFETY: this ioctl changes the state in kernel, but not the state in this process.
+    Ok(unsafe { _loop_set_status64(device_file.as_raw_fd(), info) }?)
 }
 
 #[cfg(test)]
@@ -103,26 +109,24 @@ fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
         .context("Failed to open loop control")?;
     let num = loop_ctl_get_free(&ctrl_file).context("Failed to get free loop device")?;
 
-    // Construct the loop_config struct
+    // Construct the loop_info64 struct
     let backing_file = OpenOptions::new()
         .read(true)
         .open(&path)
         .context(format!("failed to open {:?}", path.as_ref()))?;
     // safe because the size of the array is the same as the size of the struct
-    let mut config: loop_config =
-        *DataInit::from_mut_slice(&mut [0; size_of::<loop_config>()]).unwrap();
-    config.fd = backing_file.as_raw_fd() as u32;
-    config.block_size = 4096;
-    config.info.lo_offset = offset;
-    config.info.lo_sizelimit = size_limit;
-    config.info.lo_flags |= Flag::LO_FLAGS_DIRECT_IO | Flag::LO_FLAGS_READ_ONLY;
+    let mut info: loop_info64 =
+        *DataInit::from_mut_slice(&mut [0; size_of::<loop_info64>()]).unwrap();
+    info.lo_offset = offset;
+    info.lo_sizelimit = size_limit;
+    info.lo_flags |= Flag::LO_FLAGS_DIRECT_IO | Flag::LO_FLAGS_READ_ONLY;
 
     // Special case: don't use direct IO when the backing file is already a loop device, which
     // happens only during test. DirectIO-on-loop-over-loop makes the outer loop device
     // unaccessible.
     #[cfg(test)]
     if path.as_ref().to_str().unwrap().starts_with(LOOP_DEV_PREFIX) {
-        config.info.lo_flags.remove(Flag::LO_FLAGS_DIRECT_IO);
+        info.lo_flags.remove(Flag::LO_FLAGS_DIRECT_IO);
     }
 
     // Configure the loop device to attach the backing file
@@ -133,8 +137,8 @@ fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
         .write(true)
         .open(&device_path)
         .context(format!("failed to open {:?}", &device_path))?;
-    loop_configure(&device_file, &config)
-        .context(format!("Failed to configure {:?}", &device_path))?;
+    loop_set_fd(&device_file, backing_file.as_raw_fd() as i32)?;
+    loop_set_status64(&device_file, &info)?;
 
     Ok(PathBuf::from(device_path))
 }

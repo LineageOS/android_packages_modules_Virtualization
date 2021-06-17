@@ -37,7 +37,7 @@ use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 
 fn main() -> Result<()> {
-    let matches = App::new("apkverity")
+    let matches = App::new("apkdmverity")
         .about("Creates a dm-verity block device out of APK signed with APK signature scheme V4.")
         .arg(
             Arg::with_name("apk")
