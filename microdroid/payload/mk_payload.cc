@@ -278,13 +278,12 @@ Result<bool> ZeroFiller(const std::string& file_path, const std::string& filler_
     if (disk_size <= *file_size) {
         return false;
     }
-
     unique_fd fd(TEMP_FAILURE_RETRY(open(filler_path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600)));
     if (fd.get() == -1) {
         return ErrnoError() << "open(" << filler_path << ") failed.";
     }
-    if (!android::base::WriteStringToFd(std::string(disk_size - *file_size, '\0'), fd)) {
-        return ErrnoError() << "write(" << filler_path << ") failed.";
+    if (ftruncate(fd.get(), disk_size - *file_size) == -1) {
+        return ErrnoError() << "ftruncate(" << filler_path << ") failed.";
     }
     return true;
 }
@@ -297,8 +296,6 @@ Result<bool> NoFiller(const std::string& file_path, const std::string& filler_pa
     return false;
 }
 
-// fill zeros to align |file_path|'s size to BLOCK_SIZE(4096) boundary.
-// return true when the filler is generated.
 Result<void> MakePayload(const Config& config, const std::string& metadata_file,
                          const std::string& output_file) {
     std::vector<MultipleImagePartition> partitions;
