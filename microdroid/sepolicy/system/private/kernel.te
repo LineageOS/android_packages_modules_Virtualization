@@ -28,6 +28,7 @@ allow kernel kmsg_device:chr_file relabelto;
 allow kernel null_device:chr_file relabelto;
 allow kernel random_device:chr_file relabelto;
 allow kernel snapuserd_exec:file relabelto;
+allow kernel vd_device:blk_file read;
 
 allow kernel kmsg_device:chr_file write;
 allow kernel gsid:fd use;
