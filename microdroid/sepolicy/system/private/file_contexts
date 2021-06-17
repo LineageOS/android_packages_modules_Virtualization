@@ -377,6 +377,7 @@
 /system/bin/zipfuse              u:object_r:zipfuse_exec:s0
 /system/bin/microdroid_launcher  u:object_r:microdroid_launcher_exec:s0
 /system/bin/microdroid_manager   u:object_r:microdroid_manager_exec:s0
+/system/bin/apkdmverity          u:object_r:apkdmverity_exec:s0
 
 #############################
 # Vendor files

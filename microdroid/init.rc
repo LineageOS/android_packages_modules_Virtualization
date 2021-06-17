@@ -22,6 +22,8 @@ on early-init
 
     start ueventd
 
+    # TODO(b/190343842) verify apexes/apk before mounting them.
+
     # Exec apexd in the VM mode to avoid unnecessary overhead of normal mode.
     # (e.g. session management)
     exec - root system -- /system/bin/apexd --vm
@@ -29,6 +31,7 @@ on early-init
     perform_apex_config
     exec_start derive_sdk
 
+    exec - root system -- /system/bin/apkdmverity /dev/block/by-name/microdroid-apk /dev/block/by-name/microdroid-apk-idsig microdroid-apk
     mkdir /mnt/apk 0755 system system
     start zipfuse
 
