@@ -21,6 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
@@ -79,9 +80,11 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         runOnMicrodroid("echo MicrodroidTest > /data/local/tmp/test.txt");
         assertThat(runOnMicrodroid("cat /data/local/tmp/test.txt"), is("MicrodroidTest"));
 
-        // Check if the APK partition exists
+        // Check if the APK & its idsig partitions exist
         final String apkPartition = "/dev/block/by-name/microdroid-apk";
         assertThat(runOnMicrodroid("ls", apkPartition), is(apkPartition));
+        final String apkIdsigPartition = "/dev/block/by-name/microdroid-apk-idsig";
+        assertThat(runOnMicrodroid("ls", apkIdsigPartition), is(apkIdsigPartition));
 
         // Check if the APK is mounted using zipfuse
         final String mountEntry = "zipfuse on /mnt/apk type fuse.zipfuse";
@@ -126,7 +129,9 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     // Run a shell command on Android
     private String runOnAndroid(String... cmd) throws Exception {
         CommandResult result = getDevice().executeShellV2Command(join(cmd));
-        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
+        if (result.getStatus() != CommandStatus.SUCCESS) {
+            fail(join(cmd) + " has failed: " + result);
+        }
         return result.getStdout().trim();
     }
 
@@ -142,7 +147,9 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         CommandResult result =
                 RunUtil.getDefault()
                         .runTimedCmd(timeout, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
-        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
+        if (result.getStatus() != CommandStatus.SUCCESS) {
+            fail(join(cmd) + " has failed: " + result);
+        }
         return result.getStdout().trim();
     }
 
@@ -177,20 +184,20 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         assertTrue(apkPath.startsWith("package:"));
         apkPath = apkPath.substring("package:".length());
 
+        // Push the idsig file to the device
+        File idsigOnHost = findTestFile(apkName + ".idsig");
+        final String apkIdsigPath = TEST_ROOT + apkName + ".idsig";
+        getDevice().pushFile(idsigOnHost, apkIdsigPath);
+
         // Create payload.json from the gathered data
         JSONObject payloadObject = new JSONObject();
         payloadObject.put("system_apexes", new JSONArray(apexNames));
         payloadObject.put("payload_config_path", "/mnt/apk/" + configPath);
         JSONObject apkObject = new JSONObject();
-        apkObject.put("path", apkPath);
         apkObject.put("name", packageName);
+        apkObject.put("path", apkPath);
+        apkObject.put("idsig_path", apkIdsigPath);
         payloadObject.put("apk", apkObject);
-
-        // Push the idsig file to the device
-        // TODO(b/190343842): pass path to this file to payloadObject
-        // File idsigOnHost = findTestFile(apkFile + ".idsig");
-        // final String testApkIdsig = TEST_ROOT + apkFile + ".idsig";
-        // getDevice().pushFile(idsigOnHost, testApkIdsig);
 
         // Copy the json file to Android
         File payloadJsonOnHost = File.createTempFile("payload", "json");
