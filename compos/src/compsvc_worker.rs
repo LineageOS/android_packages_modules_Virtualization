@@ -30,7 +30,7 @@ use std::process::exit;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-const AUTHFS_BIN: &str = "/apex/com.android.virt/bin/authfs";
+const AUTHFS_BIN: &str = "/system/bin/authfs";
 const AUTHFS_SETUP_POLL_INTERVAL_MS: Duration = Duration::from_millis(50);
 const AUTHFS_SETUP_TIMEOUT_SEC: Duration = Duration::from_secs(10);
 const FUSE_SUPER_MAGIC: FsType = FsType(0x65735546);
@@ -47,7 +47,11 @@ fn spawn_authfs(config: &Config) -> Result<Minijail> {
     // TODO(b/185175567): Run in a more restricted sandbox.
     let jail = Minijail::new()?;
 
-    let mut args = vec![AUTHFS_BIN.to_string(), config.authfs_root.clone()];
+    let mut args = vec![
+        AUTHFS_BIN.to_string(),
+        config.authfs_root.clone(),
+        "--cid=2".to_string(), // Always use host unless we need to support other cases
+    ];
     for conf in &config.in_fds {
         // TODO(b/185178698): Many input files need to be signed and verified.
         // or can we use debug cert for now, which is better than nothing?
