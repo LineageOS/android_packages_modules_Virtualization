@@ -32,3 +32,8 @@ allow kernel vd_device:blk_file read;
 
 allow kernel kmsg_device:chr_file write;
 allow kernel gsid:fd use;
+
+# apkdmverity attaches a loop device to idsig file
+# and the loop device is used by zipfuse later.
+# This requires kernel to use the fd opened by apkdmverity.
+allow kernel apkdmverity:fd use;
