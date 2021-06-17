@@ -29,7 +29,8 @@
 //!     - actual task
 
 use anyhow::{bail, Context, Result};
-use log::error;
+use binder::unstable_api::AsNative;
+use log::{debug, error};
 use minijail::{self, Minijail};
 use std::path::PathBuf;
 
@@ -42,7 +43,9 @@ use compos_aidl_interface::binder::{
     StatusCode, Strong,
 };
 
-const SERVICE_NAME: &str = "compsvc";
+mod common;
+use common::{SERVICE_NAME, VSOCK_PORT};
+
 const WORKER_BIN: &str = "/apex/com.android.compos/bin/compsvc_worker";
 // TODO: Replace with a valid directory setup in the VM.
 const AUTHFS_MOUNTPOINT: &str = "/data/local/tmp/authfs_mnt";
@@ -50,6 +53,7 @@ const AUTHFS_MOUNTPOINT: &str = "/data/local/tmp/authfs_mnt";
 struct CompService {
     worker_bin: PathBuf,
     task_bin: String,
+    rpc_binder: bool,
     debuggable: bool,
 }
 
@@ -128,11 +132,14 @@ fn parse_args() -> Result<CompService> {
              .long("debug"))
         .arg(clap::Arg::with_name("task_bin")
              .required(true))
+        .arg(clap::Arg::with_name("rpc_binder")
+             .long("rpc-binder"))
         .get_matches();
 
     Ok(CompService {
         task_bin: matches.value_of("task_bin").unwrap().to_string(),
         worker_bin: PathBuf::from(WORKER_BIN),
+        rpc_binder: matches.is_present("rpc_binder"),
         debuggable: matches.is_present("debug"),
     })
 }
@@ -144,10 +151,29 @@ fn main() -> Result<()> {
 
     let service = parse_args()?;
 
-    ProcessState::start_thread_pool();
-    // TODO: switch to remote binder
-    add_service(SERVICE_NAME, CompService::new_binder(service).as_binder())
-        .with_context(|| format!("Failed to register service {}", SERVICE_NAME))?;
-    ProcessState::join_thread_pool();
-    bail!("Unexpected exit after join_thread_pool")
+    if service.rpc_binder {
+        let mut service = CompService::new_binder(service).as_binder();
+        debug!("compsvc is starting as a rpc service.");
+        // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
+        // Plus the binder objects are threadsafe.
+        let retval = unsafe {
+            binder_rpc_unstable_bindgen::RunRpcServer(
+                service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
+                VSOCK_PORT,
+            )
+        };
+        if retval {
+            debug!("RPC server has shut down gracefully");
+            Ok(())
+        } else {
+            bail!("Premature termination of RPC server");
+        }
+    } else {
+        ProcessState::start_thread_pool();
+        debug!("compsvc is starting as a local service.");
+        add_service(SERVICE_NAME, CompService::new_binder(service).as_binder())
+            .with_context(|| format!("Failed to register service {}", SERVICE_NAME))?;
+        ProcessState::join_thread_pool();
+        bail!("Unexpected exit after join_thread_pool")
+    }
 }
