@@ -17,7 +17,9 @@ allow zipfuse self:global_capability_class_set sys_admin;
 # /dev/block/by-name/*
 allow zipfuse block_device:dir r_dir_perms;
 allow zipfuse block_device:lnk_file r_file_perms;
-allow zipfuse vd_device:blk_file r_file_perms;
+
+# /dev/block/by-name/microdroid-apk is mapped to /dev/block/dm-*
+allow zipfuse dm_device:blk_file r_file_perms;
 
 # allow mounting on /mnt/apk
 allow zipfuse tmpfs:dir mounton;
