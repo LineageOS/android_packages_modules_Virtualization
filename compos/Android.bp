@@ -8,6 +8,8 @@ rust_binary {
     rustlibs: [
         "compos_aidl_interface-rust",
         "libanyhow",
+        "libbinder_rpc_unstable_bindgen",
+        "libbinder_rs",
         "libclap",
         "liblibc",
         "liblog_rust",
@@ -16,6 +18,9 @@ rust_binary {
         "libscopeguard",
     ],
     prefer_rlib: true,
+    shared_libs: [
+        "libbinder_rpc_unstable",
+    ],
     apex_available: [
         "com.android.compos",
     ],
@@ -28,11 +33,16 @@ rust_binary {
         "compos_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",
+        "libbinder_rpc_unstable_bindgen",
+        "libbinder_rs",
         "libclap",
         "liblog_rust",
         "libminijail_rust",
     ],
     prefer_rlib: true,
+    shared_libs: [
+        "libbinder_rpc_unstable",
+    ],
     apex_available: [
         "com.android.compos",
     ],
