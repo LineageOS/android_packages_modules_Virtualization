@@ -263,9 +263,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
     }
 
     private void waitForMicrodroidBoot(long timeoutMinutes) throws Exception {
-        // Wait for a specific log from logd
-        // TODO(jiyong): use a more reasonable marker
-        final String pattern = "logd.auditd: start";
+        final String pattern = "load_persist_props_action";
         getDevice()
                 .executeShellV2Command(
                         "logcat --regex=\"" + pattern + "\" -m 1",
