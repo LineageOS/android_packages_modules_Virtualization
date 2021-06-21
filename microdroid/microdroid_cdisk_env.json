@@ -1,8 +1,0 @@
-{
-  "partitions": [
-    {
-      "label": "uboot_env",
-      "path": "/apex/com.android.virt/etc/uboot_env.img"
-    }
-  ]
-}
