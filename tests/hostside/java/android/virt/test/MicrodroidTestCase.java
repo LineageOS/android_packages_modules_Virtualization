@@ -46,9 +46,8 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipFile;
 
@@ -56,7 +55,6 @@ import java.util.zip.ZipFile;
 public class MicrodroidTestCase extends BaseHostJUnit4Test {
     private static final String TEST_ROOT = "/data/local/tmp/virt/";
     private static final String VIRT_APEX = "/apex/com.android.virt/";
-    private static final int TEST_VM_CID = 10;
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
 
@@ -69,9 +67,8 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         final String apkName = "MicrodroidTestApp.apk";
         final String packageName = "com.android.microdroid.test";
         final String configPath = "assets/vm_config.json"; // path inside the APK
-        startMicrodroid(apkName, packageName, configPath);
-        waitForMicrodroidBoot(MICRODROID_BOOT_TIMEOUT_MINUTES);
-        adbConnectToMicrodroid();
+        final String cid = startMicrodroid(apkName, packageName, configPath);
+        adbConnectToMicrodroid(cid, MICRODROID_BOOT_TIMEOUT_MINUTES);
 
         // Check if it actually booted by reading a sysprop.
         assertThat(runOnMicrodroid("getprop", "ro.hardware"), is("microdroid"));
@@ -108,21 +105,26 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 is("Hello Microdroid " + testLib + " arg1 arg2"));
 
         // Shutdown microdroid
-        runOnMicrodroid("reboot");
+        runOnAndroid(VIRT_APEX + "bin/vm", "stop", cid);
     }
 
     // Run an arbitrary command in the host side and returns the result
     private String runOnHost(String... cmd) {
-        final long timeout = 10000;
-        CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd);
-        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
-        return result.getStdout().trim();
+        return runOnHostWithTimeout(10000, cmd);
     }
 
     // Same as runOnHost, but failure is not an error
     private String tryRunOnHost(String... cmd) {
         final long timeout = 10000;
         CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd);
+        return result.getStdout().trim();
+    }
+
+    // Same as runOnHost, but with custom timeout
+    private String runOnHostWithTimeout(long timeoutMillis, String... cmd) {
+        assertTrue(timeoutMillis >= 0);
+        CommandResult result = RunUtil.getDefault().runTimedCmd(timeoutMillis, cmd);
+        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
         return result.getStdout().trim();
     }
 
@@ -213,6 +215,9 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         runOnAndroid(mkPayload, payloadJson, payloadImg);
         assertThat(runOnAndroid("du", "-b", payloadImg), is(not("")));
 
+        // The generated files are owned by root. Allow the virtualizationservice to read them.
+        runOnAndroid("chmod", "go+r", TEST_ROOT + "payload*");
+
         return payloadImg;
     }
 
@@ -220,65 +225,64 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
     }
 
-    private void startMicrodroid(String apkName, String packageName, String configPath)
+    private String startMicrodroid(String apkName, String packageName, String configPath)
             throws Exception {
         // Create payload.img
-        final String payloadImg = createPayloadImage(apkName, packageName, configPath);
+        createPayloadImage(apkName, packageName, configPath);
 
-        // Tools and executables
-        final String mkCdisk = VIRT_APEX + "bin/mk_cdisk";
-        final String crosvm = VIRT_APEX + "bin/crosvm";
+        // Run the VM
+        runOnAndroid("start", "virtualizationservice");
+        String ret =
+                runOnAndroid(
+                        VIRT_APEX + "bin/vm",
+                        "run",
+                        "--daemonize",
+                        VIRT_APEX + "etc/microdroid.json");
 
-        // Create os_composisite.img and env_composite.img
-        // TODO(jiyong): remove this when running a VM is done by `vm`
-        final String cdiskJson = VIRT_APEX + "etc/microdroid_cdisk.json";
-        final String cdiskEnvJson = VIRT_APEX + "etc/microdroid_cdisk_env.json";
-        final String osImg = TEST_ROOT + "os_composite.img";
-        final String envImg = TEST_ROOT + "env_composite.img";
-        final String bootloader = VIRT_APEX + "etc/microdroid_bootloader";
-        runOnAndroid(mkCdisk, cdiskJson, osImg);
-        runOnAndroid(mkCdisk, cdiskEnvJson, envImg);
-
-        // Start microdroid using crosvm
-        // TODO(jiyong): do this via the `vm` command
-        ExecutorService executor = Executors.newFixedThreadPool(1);
-        executor.execute(
-                () -> {
-                    try {
-                        runOnAndroid(
-                                crosvm,
-                                "run",
-                                "--cid=" + TEST_VM_CID,
-                                "--disable-sandbox",
-                                "--bios=" + bootloader,
-                                "--serial=type=syslog",
-                                "--disk=" + osImg,
-                                "--disk=" + envImg,
-                                "--disk=" + payloadImg,
-                                "&");
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-    }
-
-    private void waitForMicrodroidBoot(long timeoutMinutes) throws Exception {
-        final String pattern = "load_persist_props_action";
-        getDevice()
-                .executeShellV2Command(
-                        "logcat --regex=\"" + pattern + "\" -m 1",
-                        timeoutMinutes,
-                        TimeUnit.MINUTES);
+        // Retrieve the CID from the vm tool output
+        Pattern pattern = Pattern.compile("with CID (\\d+)");
+        Matcher matcher = pattern.matcher(ret);
+        assertTrue(matcher.find());
+        return matcher.group(1);
     }
 
     // Establish an adb connection to microdroid by letting Android forward the connection to
-    // microdroid.
-    private void adbConnectToMicrodroid() {
+    // microdroid. Wait until the connection is established and microdroid is booted.
+    private void adbConnectToMicrodroid(String cid, long timeoutMinutes) throws Exception {
+        long start = System.currentTimeMillis();
+        long timeoutMillis = timeoutMinutes * 60 * 1000;
+        long elapsed = 0;
+
         final String serial = getDevice().getSerialNumber();
         final String from = "tcp:" + TEST_VM_ADB_PORT;
-        final String to = "vsock:" + TEST_VM_CID + ":5555";
+        final String to = "vsock:" + cid + ":5555";
         runOnHost("adb", "-s", serial, "forward", from, to);
-        runOnHost("adb", "connect", MICRODROID_SERIAL);
+
+        boolean disconnected = true;
+        while (disconnected) {
+            elapsed = System.currentTimeMillis() - start;
+            timeoutMillis -= elapsed;
+            start = System.currentTimeMillis();
+            String ret = runOnHostWithTimeout(timeoutMillis, "adb", "connect", MICRODROID_SERIAL);
+            disconnected = ret.equals("failed to connect to " + MICRODROID_SERIAL);
+            if (disconnected) {
+                // adb demands us to disconnect if the prior connection was a failure.
+                runOnHost("adb", "disconnect", MICRODROID_SERIAL);
+            }
+        }
+
+        elapsed = System.currentTimeMillis() - start;
+        timeoutMillis -= elapsed;
+        runOnHostWithTimeout(timeoutMillis, "adb", "-s", MICRODROID_SERIAL, "wait-for-device");
+
+        boolean dataAvailable = false;
+        while (!dataAvailable && timeoutMillis >= 0) {
+            elapsed = System.currentTimeMillis() - start;
+            timeoutMillis -= elapsed;
+            start = System.currentTimeMillis();
+            final String checkCmd = "if [ -d /data/local/tmp ]; then echo 1; fi";
+            dataAvailable = runOnMicrodroid(checkCmd).equals("1");
+        }
     }
 
     private void skipIfFail(String command) throws Exception {
@@ -316,7 +320,9 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         // disconnect from microdroid
         tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
 
-        // kill stale crosvm processes
+        // kill stale VMs and directories
         tryRunOnAndroid("killall", "crosvm");
+        tryRunOnAndroid("rm", "-rf", "/data/misc/virtualizationservice/*");
+        tryRunOnAndroid("stop", "virtualizationservice");
     }
 }
