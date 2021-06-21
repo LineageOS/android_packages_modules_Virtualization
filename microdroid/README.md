@@ -5,140 +5,221 @@ on-device virtual machines. It is built from the same source code as the regular
 Android, but it is much smaller; no system server, no HALs, no GUI, etc. It is
 intended to host headless & native workloads only.
 
-## Building (VIM3L)
+## Prerequisites
 
-You need a VIM3L board. Instructions for building Android for the target, and
-flashing the image can be found [here](../docs/getting_started/yukawa.md).
+Any 64-bit target (either x86_64 or arm64) is supported. 32-bit target is not
+supported. Note that we currently don't support user builds; only userdebug
+builds are supported.
 
-Then you install `com.android.virt` APEX. All files needed to run microdroid are
-included in the APEX, which is already in the `yukawa` (VIM3L) target. You can
-of course build and install the APEX manually.
+The only remaining requirment is that `com.android.virt` APEX has to be
+pre-installed. To do this, add the following line in your product makefile.
 
-```sh
-$ source build/envsetup.sh
-$ choosecombo 1 aosp_arm64 userdebug // actually, any arm64-based target is ok
-$ TARGET_BUILD_APPS=com.android.virt m
-$ adb install $ANDROID_PRODUCT_OUT/system/apex/com.android.virt.apex
-$ adb reboot
+```make
+$(call inherit-product, packages/modules/Virtualization/apex/product_packages.mk)
 ```
 
-## Building (Cloud Android)
+Build the target after adding the line, and flash it. This step needs to be done
+only once for the target.
 
-You may use Cloud Android (cuttlefish) as well. Instructions for running a
-cuttlefish device on your workstation can be found
-[here](https://android.googlesource.com/device/google/cuttlefish/).
+If you are using `yukawa` (VIM3L) or `aosp_cf_x86_64_phone` (Cuttlefish), adding
+above line is not necessary as it's already done.
 
-The `aosp_cf_x86_64_phone` target already includes the `com.android.virt` APEX.
-So you don't need to build the APEX separately. If you want to rebuild the APEX
-and install it to cuttlefish,
+Instructions for building and flashing Android for `yukawa` can be found
+[here](../docs/getting_started/yukawa.md).
+
+## Building and installing microdroid
+
+Microdroid is part of the `com.android.virt` APEX. To build it and install to
+the device:
 
 ```sh
-$ source build/envsetup.sh
-$ choosecombo 1 aosp_cf_x86_64_phone userdebug
-$ TARGET_BUILD_APPS=com.android.virt m
-$ adb install $ANDROID_PRODUCT_OUT/system/apex/com.android.virt.apex
-$ adb reboot
+banchan com.android.virt aosp_arm64
+m apps_only dist
+adb install out/dist/com.android.virt.apex
+adb reboot
 ```
 
-## Running
+If your target is x86_64 (e.g. `aosp_cf_x86_64_phone`), replace `aosp_arm64`
+with `aosp_x86_64`.
 
-Create two config files, `microdroid.json` and `payload.json`:
+## Building an app
+
+An app in microdroid is a shared library file embedded in an APK. The shared
+library should have an entry point `android_native_main` as shown below:
+
+```C++
+extern "C" int android_native_main(int argc, char* argv[]) {
+  printf("Hello Microdroid!\n");
+}
+```
+
+Then build it as a shared library:
+
+```
+cc_library_shared {
+  name: "MyMicrodroidApp",
+  srcs: ["**/*.cpp"],
+  sdk_version: "current",
+}
+```
+
+Then you need a configuration file in JSON format that defines what to load and
+execute in microdroid. The name of the file can be anything and you may have
+multiple configuration files if needed.
 
 ```json
-microdroid.json:
-
 {
-  "bootloader": "/apex/com.android.virt/etc/microdroid_bootloader",
-  "disks": [
-    {
-      "partitions": [
-        {
-          "label": "boot_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
-        },
-        {
-          "label": "vendor_boot_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
-        },
-        {
-          "label": "vbmeta_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
-        },
-        {
-          "label": "vbmeta_system_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
-        },
-        {
-          "label": "super",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_super.img"
-        }
-      ],
-      "writable": false
-    },
-    {
-      "partitions": [
-        {
-          "label": "uboot_env",
-          "path": "/apex/com.android.virt/etc/uboot_env.img"
-        }
-      ],
-      "writable": false
-    },
-    {
-      "image": "/data/local/tmp/microdroid/payload.img",
-      "writable": false
-    }
+  "os": {"name": "microdroid"},
+  "task": {
+    "type": "microdroid_launcher",
+    "command": "MyMicrodroidApp.so",
+  },
+  "apexes": [
+    {"name": "com.android.adbd"},
+    {"name": "com.android.i18n"},
+    {"name": "com.android.os.statsd"},
+    {"name": "com.android.sdkext"}
   ]
 }
+```
 
-payload.json:
+The value of `task.command` should match with the name of the shared library
+defined above. The `apexes` array is the APEXes that will be imported to
+microdroid. The above four APEXes are essential ones and therefore shouldn't be
+omitted. In the future, you wouldn't need to add the default ones manually. If
+more APEXes are required for you app, add their names too.
 
+Embed the shared library and the VM configuration file in an APK:
+
+```
+android_app {
+  name: "MyApp",
+  srcs: ["**/*.java"], // if there is any java code
+  jni_libs: ["MyMicrodroidApp"],
+  use_embedded_native_libs: true,
+  sdk_version: "current",
+}
+
+// The VM configuration file can be embedded by simply placing it at `./assets`
+directory.
+```
+
+Finally, you build and sign the APK.
+
+```sh
+TARGET_BUILD_APPS=MyMicrodroidApp m dist
+m apksigner
+apksigner sign --ks path_to_keystore out/dist/MyMicrodroidApp.apk
+```
+
+`path_to_keystore` should be replaced with the actual path to the keystore,
+which can be created as follows:
+
+```sh
+keytool -keystore my_keystore -genkey -alias my_key
+```
+
+Make sure that `.apk.idsig` file is also generated in the same directory as the
+signed APK.
+
+## Running the app on microdroid
+
+First of all, install the signed APK to the target device.
+
+```sh
+adb install out/dist/MyMicrodroidApp.apk
+```
+
+### Creating `payload.img` manually (temporary step)
+
+This is a step that needs to be done manually for now. Eventually, this will be
+automatically done by a service named `virtualizationservice` which is part of
+the `com.android.virt` APEX.
+
+Create `payload.json` file:
+
+```json
 {
-  "system_apexes" : [
+  "payload_config_path": "/mnt/apk/assets/VM_CONFIG_NAME,
+  "system_apexes": [
     "com.android.adbd",
     "com.android.i18n",
     "com.android.os.statsd",
     "com.android.sdkext"
-  ]
+  ],
+  "apk": {
+    "name": "PACKAGE_NAME_OF_YOUR_APP"
+    "path": "PATH_TO_YOUR_APP",
+  }
 }
 ```
 
-Copy the these files to the temp directory, create the composite image using
-`mk_cdisk` and copy the VM config file. For now, some other files have to be
-manually created. In the future, you won't need these, and this shall be done
-via [`virtualizationservice`](../virtualizationservice/).
+`ALL_CAP`s in the above are placeholders. They need to be replaced with correct
+values:
+
+* `VM_CONFIG_FILE`: the name of the VM config file that you embedded in the APK.
+* `PACKAGE_NAME_OF_YOUR_APP`: package name of your app(e.g. `com.acme.app`).
+* `PATH_TO_YOUR_APP`: path to the installed APK on the device. Can be obtained
+  via the following command.
 
 ```sh
-$ adb root
-$ adb shell 'mkdir /data/local/tmp/microdroid'
-$ adb push payload.json /data/local/tmp/microdroid/payload.json
-$ adb shell 'cd /data/local/tmp/microdroid; /apex/com.android.virt/bin/mk_payload payload.json payload.img'
-$ adb shell 'chmod go+r /data/local/tmp/microdroid/payload*'
-$ adb push microdroid.json /data/local/tmp/microdroid/microdroid.json
+adb shell pm path PACKAGE_NAME_OF_YOUR_APP
 ```
 
-Ensure SELinux is in permissive mode to allow virtualizationservice and crosvm to open
-files from `/data/local/tmp`. Opening files from this directory is
-neverallow-ed and file descriptors should be passed instead but, before that is
-supported, `adb shell setenforce 0` will put the device in permissive mode.
+It shall report a cryptic path similar to
+`/data/app/~~OgZq==/com.acme.app-HudMahQ==/base.apk`.
 
-Now, run the VM and look for `adbd` starting in the logs.
+Once the file is done, execute the following command to push it to the device
+and run `mk_payload` to create `payload.img`:
 
 ```sh
-$ adb shell "start virtualizationservice"
-$ adb shell "RUST_BACKTRACE=1 RUST_LOG=trace /apex/com.android.virt/bin/vm run /data/local/tmp/microdroid/microdroid.json"
+TEST_ROOT=/data/local/tmp/virt
+adb push out/dist/MyMicrodroidApp.apk.idsig $TEST_ROOT/MyMicrodroidApp.apk.idsig
+adb push path_to_payload.json $TEST_ROOT/payload.json
+adb shell /apex/com.android.virt/bin/my_payload $TEST_ROOT/payload.json $TEST_ROOT/payload.img
+adb shell chmod go+r $TEST_ROOT/payload*
 ```
+
+### Running the VM
+
+Execute the following commands to launch a VM. The VM will boot to microdroid
+and then automatically execute your app (the shared library
+`MyMicrodroidApp.so`).
+
+```sh
+TEST_ROOT=/data/local/tmp/virt
+adb push packages/modules/Virtualization/microdroid/microdroid.json $TEST_ROOT/microdroid.json
+adb root
+adb shell setenforce 0
+adb shell start virtualizationservice
+adb shell /apex/com.android.virt/bin/vm run $TEST_ROOT/microdroid.json
+```
+
+The last command lets you know the CID assigned to the VM.
+
+Note: the disabling of SELinux is a temporary step. The restriction will
+eventually be removed.
+
+Stopping the VM can be done as follows:
+
+```sh
+adb shell /apex/com.android.virt/bin/vm stop CID
+```
+
+, where `CID` is the reported CID value.
 
 ## ADB
 
+On userdebug builds, you can have an adb connection to microdroid. To do so,
+
 ```sh
-$ CID=10
-$ adb forward tcp:8000 vsock:$CID:5555
-$ adb connect localhost:8000
+adb forward tcp:8000 vsock:$CID:5555
+adb connect localhost:8000
 ```
 
-`CID` should be the CID that `vm` reported was assigned to the VM. You can also
-check it with `adb shell "/apex/com.android.virt/bin/vm list"`. `5555` must be
+`CID` should be the CID that `vm` reported upon execution of the `vm run`
+command in the above. You can also check it with `adb shell
+"/apex/com.android.virt/bin/vm list"`. `5555` must be
 the value. `8000` however can be any port in the development machine.
 
 Done. Now you can log into microdroid. Have fun!
