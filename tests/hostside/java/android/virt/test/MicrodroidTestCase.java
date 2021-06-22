@@ -104,6 +104,9 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                 runOnMicrodroid(microdroidLauncher, testLib, "arg1", "arg2"),
                 is("Hello Microdroid " + testLib + " arg1 arg2"));
 
+        // Check that keystore was found by the payload
+        assertThat(runOnMicrodroid("getprop", "debug.microdroid.test_keystore"), is("PASS"));
+
         // Shutdown microdroid
         runOnAndroid(VIRT_APEX + "bin/vm", "stop", cid);
     }

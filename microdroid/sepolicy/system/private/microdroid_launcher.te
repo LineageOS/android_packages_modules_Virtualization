@@ -24,3 +24,18 @@ allow microdroid_launcher devpts:chr_file rw_file_perms;
 
 # Allow to set debug prop
 set_prop(microdroid_launcher, debug_prop)
+
+# Talk to binder services (for keystore)
+binder_use(microdroid_launcher);
+
+# Allow payloads to use keystore
+use_keystore(microdroid_launcher);
+
+# Allow payloads to use and manage their keys
+allow microdroid_launcher vm_payload_key:keystore2_key {
+    delete
+    get_info
+    manage_blob
+    rebind
+    use
+};
