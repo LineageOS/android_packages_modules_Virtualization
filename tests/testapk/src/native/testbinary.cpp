@@ -13,8 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <aidl/android/system/keystore2/IKeystoreService.h>
+#include <android/binder_auto_utils.h>
+#include <android/binder_manager.h>
 #include <stdio.h>
 #include <sys/system_properties.h>
+
+using aidl::android::hardware::security::keymint::SecurityLevel;
+
+using aidl::android::system::keystore2::IKeystoreSecurityLevel;
+using aidl::android::system::keystore2::IKeystoreService;
+
+namespace {
+
+bool test_keystore() {
+    ndk::SpAIBinder binder(
+            AServiceManager_getService("android.system.keystore2.IKeystoreService/default"));
+    auto service = IKeystoreService::fromBinder(binder);
+    if (service == nullptr) {
+        return false;
+    }
+    std::shared_ptr<IKeystoreSecurityLevel> securityLevel;
+    auto status = service->getSecurityLevel(SecurityLevel::TRUSTED_ENVIRONMENT, &securityLevel);
+    if (!status.isOk()) {
+        return false;
+    }
+    return true;
+}
+
+} // Anonymous namespace
 
 extern "C" int android_native_main(int argc, char* argv[]) {
     printf("Hello Microdroid ");
@@ -28,5 +55,6 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     printf("\n");
 
     __system_property_set("debug.microdroid.app.run", "true");
+    __system_property_set("debug.microdroid.test_keystore", test_keystore() ? "PASS" : "FAIL");
     return 0;
 }
