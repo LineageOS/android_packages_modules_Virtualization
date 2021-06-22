@@ -7,6 +7,7 @@ apex {
 
     // TODO(jiyong): make it updatable
     updatable: false,
+    platform_apis: true,
 
     manifest: "manifest.json",
 
