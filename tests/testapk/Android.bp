@@ -6,7 +6,7 @@ android_app {
     name: "MicrodroidTestApp",
     srcs: ["src/java/**/*.java"],
     jni_libs: ["MicrodroidTestNativeLib"],
-    sdk_version: "current",
+    platform_apis: true,
     use_embedded_native_libs: true,
 }
 
@@ -14,7 +14,10 @@ android_app {
 cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/*.cpp"],
-    sdk_version: "current",
+    shared_libs: [
+        "android.system.keystore2-V1-ndk_platform",
+        "libbinder_ndk",
+    ],
 }
 
 genrule {
