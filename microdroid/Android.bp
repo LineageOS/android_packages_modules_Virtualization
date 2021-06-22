@@ -77,6 +77,8 @@ android_system_image {
         "cgroups.json",
         "public.libraries.android.txt",
 
+        "android.system.keystore2-V1-ndk_platform",
+
         // TODO(b/185767624): remove hidl after full keymint support
         "hwservicemanager",
 
