@@ -28,7 +28,6 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
-use command_fds::FdMapping;
 use disk::QcowFile;
 use log::{debug, error, warn};
 use std::convert::TryInto;
@@ -117,17 +116,12 @@ impl IVirtualizationService for VirtualizationService {
             params: config.params.to_owned(),
             protected: config.protected_vm,
         };
-        let composite_disk_mappings: Vec<_> = indirect_files
-            .iter()
-            .map(|file| {
-                let fd = file.as_raw_fd();
-                FdMapping { parent_fd: fd, child_fd: fd }
-            })
-            .collect();
+        let composite_disk_fds: Vec<_> =
+            indirect_files.iter().map(|file| file.as_raw_fd()).collect();
         let instance = VmInstance::start(
             &crosvm_config,
             log_fd,
-            &composite_disk_mappings,
+            &composite_disk_fds,
             temporary_directory,
             requester_uid,
             requester_sid,
