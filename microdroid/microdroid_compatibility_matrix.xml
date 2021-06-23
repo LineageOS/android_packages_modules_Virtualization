@@ -6,30 +6,6 @@
         <interface>
             <name>IKeyMintDevice</name>
             <instance>default</instance>
-            <instance>strongbox</instance>
-        </interface>
-    </hal>
-    <hal format="aidl" optional="true">
-        <name>android.hardware.security.keymint</name>
-        <interface>
-            <name>IRemotelyProvisionedComponent</name>
-            <instance>default</instance>
-        </interface>
-    </hal>
-    <hal format="aidl" optional="true">
-        <name>android.hardware.security.secureclock</name>
-        <version>1</version>
-        <interface>
-            <name>ISecureClock</name>
-            <instance>default</instance>
-        </interface>
-    </hal>
-    <hal format="aidl" optional="true">
-        <name>android.hardware.security.sharedsecret</name>
-        <version>1</version>
-        <interface>
-            <name>ISharedSecret</name>
-            <instance>default</instance>
         </interface>
     </hal>
 </compatibility-matrix>
