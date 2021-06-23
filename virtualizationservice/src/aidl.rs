@@ -227,16 +227,21 @@ fn assemble_disk_image(
             ));
         }
 
-        let composite_image_filename =
-            make_composite_image_filename(temporary_directory, next_temporary_image_id);
-        let (image, partition_files) =
-            make_composite_image(&disk.partitions, &composite_image_filename).map_err(|e| {
-                error!("Failed to make composite image with config {:?}: {}", disk, e);
-                new_binder_exception(
-                    ExceptionCode::SERVICE_SPECIFIC,
-                    format!("Failed to make composite image: {}", e),
-                )
-            })?;
+        let composite_image_filenames =
+            make_composite_image_filenames(temporary_directory, next_temporary_image_id);
+        let (image, partition_files) = make_composite_image(
+            &disk.partitions,
+            &composite_image_filenames.composite,
+            &composite_image_filenames.header,
+            &composite_image_filenames.footer,
+        )
+        .map_err(|e| {
+            error!("Failed to make composite image with config {:?}: {}", disk, e);
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to make composite image: {}", e),
+            )
+        })?;
 
         // Pass the file descriptors for the various partition files to crosvm when it
         // is run.
@@ -257,13 +262,28 @@ fn assemble_disk_image(
 }
 
 /// Generates a unique filename to use for a composite disk image.
-fn make_composite_image_filename(
+fn make_composite_image_filenames(
     temporary_directory: &Path,
     next_temporary_image_id: &mut u64,
-) -> PathBuf {
+) -> CompositeImageFilenames {
     let id = *next_temporary_image_id;
     *next_temporary_image_id += 1;
-    temporary_directory.join(format!("composite-{}.img", id))
+    CompositeImageFilenames {
+        composite: temporary_directory.join(format!("composite-{}.img", id)),
+        header: temporary_directory.join(format!("composite-{}-header.img", id)),
+        footer: temporary_directory.join(format!("composite-{}-footer.img", id)),
+    }
+}
+
+/// Filenames for a composite disk image, including header and footer partitions.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CompositeImageFilenames {
+    /// The composite disk image itself.
+    composite: PathBuf,
+    /// The header partition image.
+    header: PathBuf,
+    /// The footer partition image.
+    footer: PathBuf,
 }
 
 /// Gets the calling SID of the current Binder thread.

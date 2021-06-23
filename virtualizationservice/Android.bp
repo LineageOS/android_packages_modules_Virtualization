@@ -2,8 +2,8 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_binary {
-    name: "virtualizationservice",
+rust_defaults {
+    name: "virtualizationservice_defaults",
     crate_name: "virtualizationservice",
     srcs: ["src/main.rs"],
     edition: "2018",
@@ -24,12 +24,26 @@ rust_binary {
         "libandroid_logger",
         "libanyhow",
         "libcommand_fds",
-        "libcompositediskconfig",
+        "libcrc32fast",
         "libdisk",
         "liblog_rust",
+        "libprotobuf",
+        "libprotos",
         "libserde_json",
         "libserde",
         "libshared_child",
+        "libuuid",
     ],
+}
+
+rust_binary {
+    name: "virtualizationservice",
+    defaults: ["virtualizationservice_defaults"],
     apex_available: ["com.android.virt"],
+}
+
+rust_test {
+    name: "virtualizationservice_device_test",
+    defaults: ["virtualizationservice_defaults"],
+    test_suites: ["general-tests"],
 }
