@@ -97,6 +97,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         // Check if the command in vm_config.json was executed by examining the side effect of the
         // command
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.run"), is("true"));
+        assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.sublib.run"), is("true"));
 
         // Manually execute the library and check the output
         final String microdroidLauncher = "system/bin/microdroid_launcher";

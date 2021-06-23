@@ -24,6 +24,8 @@ using aidl::android::hardware::security::keymint::SecurityLevel;
 using aidl::android::system::keystore2::IKeystoreSecurityLevel;
 using aidl::android::system::keystore2::IKeystoreService;
 
+extern void testlib_sub();
+
 namespace {
 
 bool test_keystore() {
@@ -52,6 +54,7 @@ extern "C" int android_native_main(int argc, char* argv[]) {
             printf(" ");
         }
     }
+    testlib_sub();
     printf("\n");
 
     __system_property_set("debug.microdroid.app.run", "true");
