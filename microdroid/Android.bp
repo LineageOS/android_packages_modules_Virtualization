@@ -23,7 +23,6 @@ microdroid_rootdirs = [
     "apex",
     "linkerconfig",
     "second_stage_resources",
-    "postinstall",
 ]
 
 microdroid_symlinks = [
