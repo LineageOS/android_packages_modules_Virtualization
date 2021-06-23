@@ -101,7 +101,7 @@ on post-fs
     start keystore2
 
 on late-fs
-    start vendor.keymint-default
+    start vendor.keymint-microdroid
 
     # TODO(b/185767624): change the hard-coded size?
     mount tmpfs tmpfs /data noatime nosuid nodev rw size=128M
