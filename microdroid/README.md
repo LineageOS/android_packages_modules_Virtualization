@@ -7,7 +7,7 @@ intended to host headless & native workloads only.
 
 ## Prerequisites
 
-Any 64-bit target (either x86_64 or arm64) is supported. 32-bit target is not
+Any 64-bit target (either x86\_64 or arm64) is supported. 32-bit target is not
 supported. Note that we currently don't support user builds; only userdebug
 builds are supported.
 
@@ -39,7 +39,7 @@ adb install out/dist/com.android.virt.apex
 adb reboot
 ```
 
-If your target is x86_64 (e.g. `aosp_cf_x86_64_phone`), replace `aosp_arm64`
+If your target is x86\_64 (e.g. `aosp_cf_x86_64_phone`), replace `aosp_arm64`
 with `aosp_x86_64`.
 
 ## Building an app
@@ -72,7 +72,7 @@ multiple configuration files if needed.
   "os": {"name": "microdroid"},
   "task": {
     "type": "microdroid_launcher",
-    "command": "MyMicrodroidApp.so",
+    "command": "MyMicrodroidApp.so"
   },
   "apexes": [
     {"name": "com.android.adbd"},
@@ -107,9 +107,9 @@ directory.
 Finally, you build and sign the APK.
 
 ```sh
-TARGET_BUILD_APPS=MyMicrodroidApp m dist
+TARGET_BUILD_APPS=MyApp m dist
 m apksigner
-apksigner sign --ks path_to_keystore out/dist/MyMicrodroidApp.apk
+apksigner sign --ks path_to_keystore out/dist/MyApp.apk
 ```
 
 `path_to_keystore` should be replaced with the actual path to the keystore,
@@ -127,7 +127,7 @@ signed APK.
 First of all, install the signed APK to the target device.
 
 ```sh
-adb install out/dist/MyMicrodroidApp.apk
+adb install out/dist/MyApp.apk
 ```
 
 ### Creating `payload.img` manually (temporary step)
@@ -148,8 +148,9 @@ Create `payload.json` file:
     "com.android.sdkext"
   ],
   "apk": {
-    "name": "PACKAGE_NAME_OF_YOUR_APP"
+    "name": "PACKAGE_NAME_OF_YOUR_APP",
     "path": "PATH_TO_YOUR_APP",
+    "idsig_path": "PATH_TO_APK_IDSIG"
   }
 }
 ```
@@ -169,12 +170,16 @@ adb shell pm path PACKAGE_NAME_OF_YOUR_APP
 It shall report a cryptic path similar to
 `/data/app/~~OgZq==/com.acme.app-HudMahQ==/base.apk`.
 
+* `PATH_TO_APK_IDSIG`: path to the pushed APK idsig on the device. See below
+  `adb push` command: it will be `/data/local/tmp/virt/MyApp.apk.idsig` in this
+  example.
+
 Once the file is done, execute the following command to push it to the device
 and run `mk_payload` to create `payload.img`:
 
 ```sh
 TEST_ROOT=/data/local/tmp/virt
-adb push out/dist/MyMicrodroidApp.apk.idsig $TEST_ROOT/MyMicrodroidApp.apk.idsig
+adb push out/dist/MyApp.apk.idsig $TEST_ROOT/MyApp.apk.idsig
 adb push path_to_payload.json $TEST_ROOT/payload.json
 adb shell /apex/com.android.virt/bin/my_payload $TEST_ROOT/payload.json $TEST_ROOT/payload.img
 adb shell chmod go+r $TEST_ROOT/payload*
