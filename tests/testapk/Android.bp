@@ -16,6 +16,7 @@ cc_library_shared {
     srcs: ["src/native/*.cpp"],
     shared_libs: [
         "android.system.keystore2-V1-ndk_platform",
+        "libbase",
         "libbinder_ndk",
     ],
 }
