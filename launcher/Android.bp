@@ -5,5 +5,8 @@ package {
 cc_binary {
     name: "microdroid_launcher",
     srcs: ["main.cpp"],
-    shared_libs: ["libdl"],
+    shared_libs: [
+        "libdl",
+        "libdl_android",
+    ],
 }

@@ -38,6 +38,8 @@ using aidl::android::system::keystore2::KeyMetadata;
 using android::base::Error;
 using android::base::Result;
 
+extern void testlib_sub();
+
 namespace {
 
 Result<void> test_keystore() {
@@ -192,6 +194,7 @@ extern "C" int android_native_main(int argc, char* argv[]) {
             printf(" ");
         }
     }
+    testlib_sub();
     printf("\n");
 
     __system_property_set("debug.microdroid.app.run", "true");

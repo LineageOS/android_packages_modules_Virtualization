@@ -13,12 +13,18 @@ android_app {
 // TODO(jiyong): make this a binary, not a shared library
 cc_library_shared {
     name: "MicrodroidTestNativeLib",
-    srcs: ["src/native/*.cpp"],
+    srcs: ["src/native/testbinary.cpp"],
     shared_libs: [
         "android.system.keystore2-V1-ndk_platform",
         "libbase",
         "libbinder_ndk",
+        "MicrodroidTestNativeLibSub",
     ],
+}
+
+cc_library_shared {
+    name: "MicrodroidTestNativeLibSub",
+    srcs: ["src/native/testlib.cpp"],
 }
 
 genrule {
@@ -28,12 +34,12 @@ genrule {
         "MicrodroidTestApp.apk.idsig",
     ],
     srcs: [":MicrodroidTestApp"],
-    tools:["apksigner"],
+    tools: ["apksigner"],
     tool_files: ["test.keystore"],
     cmd: "$(location apksigner) sign " +
-         "--ks $(location test.keystore) " +
-         "--ks-pass=pass:testkey --key-pass=pass:testkey " +
-         "--in $(in) " +
-         "--out $(genDir)/MicrodroidTestApp.apk",
-         // $(genDir)/MicrodroidTestApp.apk.idsig is generated implicitly
+        "--ks $(location test.keystore) " +
+        "--ks-pass=pass:testkey --key-pass=pass:testkey " +
+        "--in $(in) " +
+        "--out $(genDir)/MicrodroidTestApp.apk",
+    // $(genDir)/MicrodroidTestApp.apk.idsig is generated implicitly
 }
