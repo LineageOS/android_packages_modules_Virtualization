@@ -1,0 +1,16 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_binary {
+    name: "compos_key_cmd",
+    srcs: ["compos_key_cmd.cpp"],
+    apex_available: ["com.android.virt"],
+
+    shared_libs: [
+        "compos_aidl_interface-ndk_platform",
+        "libbase",
+        "libbinder_ndk",
+        "libcrypto",
+    ],
+}
