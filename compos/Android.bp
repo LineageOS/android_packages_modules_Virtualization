@@ -66,6 +66,24 @@ rust_binary {
     ],
 }
 
+rust_binary {
+    name: "compos_key_service",
+    srcs: ["src/compos_key_service.rs"],
+    edition: "2018",
+    rustlibs: [
+        "compos_aidl_interface-rust",
+        "android.system.keystore2-V1-rust",
+        "android.hardware.security.keymint-V1-rust",
+        "libandroid_logger",
+        "libanyhow",
+        "liblog_rust",
+        "libring",
+        "libscopeguard",
+    ],
+    prefer_rlib: true,
+    apex_available: ["com.android.compos"],
+}
+
 // TODO(b/190503456) Remove this when vm/virtualizationservice generates payload.img from vm_config
 prebuilt_etc {
     name: "compos_payload_config",

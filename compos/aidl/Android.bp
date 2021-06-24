@@ -15,5 +15,10 @@ aidl_interface {
                 "com.android.compos",
             ],
         },
+        ndk: {
+            apex_available: [
+                "com.android.virt",
+            ],
+        },
     },
 }
