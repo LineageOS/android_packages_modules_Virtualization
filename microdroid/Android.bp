@@ -147,9 +147,7 @@ logical_partition {
     ],
 }
 
-// TODO(jiyong): change the name to init, cause it's confusing
-microdroid_boot_cmdline = "rdinit=/bin/init_vendor " +
-    "panic=-1 " +
+microdroid_boot_cmdline = "panic=-1 " +
     // TODO(b/181936135) make the ratelimiting conditional; ratelimiting on prod build
     "printk.devkmsg=on " +
     "androidboot.first_stage_console=1 " +
@@ -186,7 +184,7 @@ bootimg {
 android_filesystem {
     name: "microdroid_ramdisk-5.10",
     deps: [
-        "init_first_stage_soong",
+        "init_first_stage",
     ],
     dirs: [
         "dev",
