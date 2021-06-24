@@ -47,6 +47,7 @@ apex {
     binaries: [
         "fd_server",
         "vm",
+        "compos_key_cmd",
 
         // tools to create composite images
         "mk_cdisk",
