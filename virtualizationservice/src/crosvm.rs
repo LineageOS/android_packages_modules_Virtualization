@@ -39,6 +39,7 @@ pub struct CrosvmConfig<'a> {
     pub initrd: Option<&'a File>,
     pub disks: Vec<DiskFile>,
     pub params: Option<String>,
+    pub protected: bool,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -55,6 +56,8 @@ pub struct VmInstance {
     child: SharedChild,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
+    /// Whether the VM is a protected VM.
+    pub protected: bool,
     /// Directory of temporary files used by the VM while it is running.
     pub temporary_directory: PathBuf,
     /// The UID of the process which requested the VM.
@@ -75,6 +78,7 @@ impl VmInstance {
     fn new(
         child: SharedChild,
         cid: Cid,
+        protected: bool,
         temporary_directory: PathBuf,
         requester_uid: u32,
         requester_sid: String,
@@ -83,6 +87,7 @@ impl VmInstance {
         VmInstance {
             child,
             cid,
+            protected,
             temporary_directory,
             requester_uid,
             requester_sid,
@@ -107,6 +112,7 @@ impl VmInstance {
         let instance = Arc::new(VmInstance::new(
             child,
             config.cid,
+            config.protected,
             temporary_directory,
             requester_uid,
             requester_sid,
@@ -162,6 +168,10 @@ fn run_vm(
     let mut command = Command::new(CROSVM_PATH);
     // TODO(qwandor): Remove --disable-sandbox.
     command.arg("run").arg("--disable-sandbox").arg("--cid").arg(config.cid.to_string());
+
+    if config.protected {
+        command.arg("--protected-vm");
+    }
 
     if let Some(log_fd) = log_fd {
         command.stdout(log_fd);
