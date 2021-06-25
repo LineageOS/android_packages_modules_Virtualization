@@ -20,6 +20,8 @@
 // Needs to be included after sys/socket.h
 #include <linux/vm_sockets.h>
 
+#include <algorithm>
+#include <array>
 #include <iostream>
 #include <optional>
 
@@ -41,7 +43,22 @@ static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initram
 static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
 
+bool isVmSupported() {
+    const std::array<const char *, 4> needed_files = {
+            "/dev/kvm",
+            "/dev/vhost-vsock",
+            "/apex/com.android.virt/bin/crosvm",
+            "/apex/com.android.virt/bin/virtualizationservice",
+    };
+    return std::all_of(needed_files.begin(), needed_files.end(),
+                       [](const char *file) { return access(file, F_OK) == 0; });
+}
+
 TEST_F(VirtualizationTest, TestVsock) {
+    if (!isVmSupported()) {
+        GTEST_SKIP() << "Device doesn't support VM.";
+    }
+
     binder::Status status;
 
     unique_fd server_fd(TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM, 0)));
