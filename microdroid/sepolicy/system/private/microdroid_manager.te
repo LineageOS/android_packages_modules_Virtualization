@@ -22,10 +22,7 @@ allow microdroid_manager system_file:file execute_no_trans;
 allow microdroid_manager {shell_exec toolbox_exec}:file rx_file_perms;
 
 # Let microdroid_manager kernel-log.
-# TODO(b/189805435) when ready this should be kmsg_device rather than kmsg_debug_device
-userdebug_or_eng(`
-  allow microdroid_manager kmsg_debug_device:chr_file write;
-')
+allow microdroid_manager kmsg_device:chr_file w_file_perms;
 
 # Let microdroid_manager read a config file from /mnt/apk (fusefs)
 # TODO(b/188400186) remove the below two rules
