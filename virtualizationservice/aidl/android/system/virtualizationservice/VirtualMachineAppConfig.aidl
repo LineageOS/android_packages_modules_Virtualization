@@ -15,14 +15,14 @@
  */
 package android.system.virtualizationservice;
 
-import android.system.virtualizationservice.VirtualMachineAppConfig;
-import android.system.virtualizationservice.VirtualMachineRawConfig;
+/** Configuration for running an App in a VM */
+parcelable VirtualMachineAppConfig {
+    /** Main APK */
+    ParcelFileDescriptor apk;
 
-/** Configuration for running a VM */
-union VirtualMachineConfig {
-    /** Configuration for a VM to run an APP */
-    VirtualMachineAppConfig appConfig;
+    /** idsig for an APK */
+    ParcelFileDescriptor idsig;
 
-    /** Configuration for a VM with low-level configuration */
-    VirtualMachineRawConfig rawConfig;
+    /** Path to a configuration in an APK. This is the actual configuration for a VM. */
+    @utf8InCpp String configPath;
 }
