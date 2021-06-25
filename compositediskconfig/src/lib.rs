@@ -30,7 +30,11 @@ pub struct Partition {
     /// A label for the partition.
     pub label: String,
     /// The filename of the partition image.
-    pub path: PathBuf,
+    #[serde(default)]
+    pub path: Option<PathBuf>,
+    /// The filename of the partition image.
+    #[serde(default)]
+    pub paths: Vec<PathBuf>,
     /// Whether the partition should be writable.
     #[serde(default)]
     pub writable: bool,
