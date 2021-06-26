@@ -9,15 +9,15 @@ rust_defaults {
     edition: "2018",
     prefer_rlib: true,
     rustlibs: [
-        "libenv_logger",
         "libanyhow",
+        "libkernlog",
         "libkeystore2_system_property-rust",
         "liblog_rust",
         "libmicrodroid_metadata_proto_rust",
         "libmicrodroid_payload_config",
         "libprotobuf",
-        "libserde_json",
         "libserde",
+        "libserde_json",
     ],
     init_rc: ["microdroid_manager.rc"],
 }
