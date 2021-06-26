@@ -29,9 +29,7 @@ use std::time::Duration;
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn main() -> Result<()> {
-    // TODO(b/189805435) use kernlog
-    env_logger::init();
-
+    kernlog::init()?;
     info!("started.");
 
     let metadata = metadata::load()?;
