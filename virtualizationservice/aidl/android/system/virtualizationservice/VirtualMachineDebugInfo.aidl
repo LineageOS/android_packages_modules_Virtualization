@@ -21,13 +21,13 @@ parcelable VirtualMachineDebugInfo {
     int cid;
 
     /** Directory of temporary files used by the VM while it is running. */
-    String temporaryDirectory;
+    @utf8InCpp String temporaryDirectory;
 
     /** The UID of the process which requested the VM. */
     int requesterUid;
 
     /** The SID of the process which requested the VM. */
-    String requesterSid;
+    @utf8InCpp String requesterSid;
 
     /**
      * The PID of the process which requested the VM. Note that this process may no longer exist and
