@@ -17,11 +17,11 @@
 use crate::aidl::VirtualMachineCallbacks;
 use crate::Cid;
 use anyhow::{bail, Error};
-use command_fds::{CommandFdExt, FdMapping};
+use command_fds::CommandFdExt;
 use log::{debug, error, info};
 use shared_child::SharedChild;
 use std::fs::{remove_dir_all, File};
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -102,13 +102,13 @@ impl VmInstance {
     pub fn start(
         config: &CrosvmConfig,
         log_fd: Option<File>,
-        composite_disk_mappings: &[FdMapping],
+        composite_disk_fds: &[RawFd],
         temporary_directory: PathBuf,
         requester_uid: u32,
         requester_sid: String,
         requester_debug_pid: i32,
     ) -> Result<Arc<VmInstance>, Error> {
-        let child = run_vm(config, log_fd, composite_disk_mappings)?;
+        let child = run_vm(config, log_fd, composite_disk_fds)?;
         let instance = Arc::new(VmInstance::new(
             child,
             config.cid,
@@ -161,7 +161,7 @@ impl VmInstance {
 fn run_vm(
     config: &CrosvmConfig,
     log_fd: Option<File>,
-    composite_disk_mappings: &[FdMapping],
+    composite_disk_fds: &[RawFd],
 ) -> Result<SharedChild, Error> {
     validate_config(config)?;
 
@@ -181,14 +181,14 @@ fn run_vm(
     }
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
-    let mut fd_mappings = composite_disk_mappings.to_vec();
+    let mut preserved_fds = composite_disk_fds.to_vec();
 
     if let Some(bootloader) = &config.bootloader {
-        command.arg("--bios").arg(add_fd_mapping(&mut fd_mappings, bootloader));
+        command.arg("--bios").arg(add_preserved_fd(&mut preserved_fds, bootloader));
     }
 
     if let Some(initrd) = &config.initrd {
-        command.arg("--initrd").arg(add_fd_mapping(&mut fd_mappings, initrd));
+        command.arg("--initrd").arg(add_preserved_fd(&mut preserved_fds, initrd));
     }
 
     if let Some(params) = &config.params {
@@ -198,15 +198,15 @@ fn run_vm(
     for disk in &config.disks {
         command
             .arg(if disk.writable { "--rwdisk" } else { "--disk" })
-            .arg(add_fd_mapping(&mut fd_mappings, &disk.image));
+            .arg(add_preserved_fd(&mut preserved_fds, &disk.image));
     }
 
     if let Some(kernel) = &config.kernel {
-        command.arg(add_fd_mapping(&mut fd_mappings, kernel));
+        command.arg(add_preserved_fd(&mut preserved_fds, kernel));
     }
 
-    debug!("Setting mappings {:?}", fd_mappings);
-    command.fd_mappings(fd_mappings)?;
+    debug!("Preserving FDs {:?}", preserved_fds);
+    command.preserved_fds(preserved_fds);
 
     info!("Running {:?}", command);
     let result = SharedChild::spawn(&mut command)?;
@@ -224,10 +224,10 @@ fn validate_config(config: &CrosvmConfig) -> Result<(), Error> {
     Ok(())
 }
 
-/// Adds a mapping for `file` to `fd_mappings`, and returns a string of the form "/proc/self/fd/N"
-/// where N is the file descriptor for the child process.
-fn add_fd_mapping(fd_mappings: &mut Vec<FdMapping>, file: &File) -> String {
+/// Adds the file descriptor for `file` to `preserved_fds`, and returns a string of the form
+/// "/proc/self/fd/N" where N is the file descriptor.
+fn add_preserved_fd(preserved_fds: &mut Vec<RawFd>, file: &File) -> String {
     let fd = file.as_raw_fd();
-    fd_mappings.push(FdMapping { parent_fd: fd, child_fd: fd });
+    preserved_fds.push(fd);
     format!("/proc/self/fd/{}", fd)
 }
