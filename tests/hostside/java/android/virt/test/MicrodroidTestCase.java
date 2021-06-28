@@ -30,13 +30,13 @@ import org.junit.runner.RunWith;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     private static final long MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES = 5;
+    private static final String APK_NAME = "MicrodroidTestApp.apk";
+    private static final String PACKAGE_NAME = "com.android.microdroid.test";
 
     @Test
     public void testMicrodroidBoots() throws Exception {
-        final String apkName = "MicrodroidTestApp.apk";
-        final String packageName = "com.android.microdroid.test";
         final String configPath = "assets/vm_config.json"; // path inside the APK
-        final String cid = startMicrodroid(apkName, packageName, configPath);
+        final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath);
         adbConnectToMicrodroid(cid, MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES);
 
         // Test writing to /data partition
@@ -83,6 +83,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         prepareVirtualizationTestSetup();
 
+        getDevice().installPackage(findTestFile(APK_NAME), /* reinstall */ false);
+
         // clear the log
         getDevice().executeShellV2Command("logcat -c");
     }
@@ -90,5 +92,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     @After
     public void shutdown() throws Exception {
         cleanUpVirtualizationTestSetup();
+
+        getDevice().uninstallPackage(PACKAGE_NAME);
     }
 }
