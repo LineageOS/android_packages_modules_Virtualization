@@ -86,7 +86,7 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
     VirtualMachineConfig config;
     config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
     config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
-    config.params = String16(kVmParams);
+    config.params = kVmParams;
     config.protected_vm = protected_vm;
 
     sp<IVirtualMachine> vm;
