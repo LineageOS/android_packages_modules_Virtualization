@@ -1,3 +1,1 @@
-# portcon statements go here, e.g.
-# portcon tcp 80 u:object_r:http_port:s0
-
+# This file can't be empty, but is unused on microdroid
