@@ -36,12 +36,21 @@ pub fn command_run(
     service: Strong<dyn IVirtualizationService>,
     config_path: &Path,
     daemonize: bool,
+    log_path: Option<&Path>,
 ) -> Result<(), Error> {
     let config_file = File::open(config_path).context("Failed to open config file")?;
     let config =
         VmConfig::load(&config_file).context("Failed to parse config file")?.to_parcelable()?;
-    let stdout =
-        if daemonize { None } else { Some(ParcelFileDescriptor::new(duplicate_stdout()?)) };
+    let stdout = if let Some(log_path) = log_path {
+        Some(ParcelFileDescriptor::new(
+            File::create(log_path)
+                .with_context(|| format!("Failed to open log file {:?}", log_path))?,
+        ))
+    } else if daemonize {
+        None
+    } else {
+        Some(ParcelFileDescriptor::new(duplicate_stdout()?))
+    };
     let vm = service.startVm(&config, stdout.as_ref()).context("Failed to start VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
