@@ -43,6 +43,10 @@ enum Opt {
         /// Detach VM from the terminal and run in the background
         #[structopt(short, long)]
         daemonize: bool,
+
+        /// Path to file for VM log output.
+        #[structopt(short, long)]
+        log: Option<PathBuf>,
     },
     /// Stop a virtual machine running in the background
     Stop {
@@ -73,7 +77,9 @@ fn main() -> Result<(), Error> {
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::Run { config, daemonize } => command_run(service, &config, daemonize),
+        Opt::Run { config, daemonize, log } => {
+            command_run(service, &config, daemonize, log.as_deref())
+        }
         Opt::Stop { cid } => command_stop(service, cid),
         Opt::List => command_list(service),
         Opt::CreatePartition { path, size } => command_create_partition(service, &path, size),
