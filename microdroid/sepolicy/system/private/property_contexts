@@ -25,9 +25,6 @@ ctl.fuse_   u:object_r:ctl_fuse_prop:s0
 ctl.console u:object_r:ctl_console_prop:s0
 ctl.        u:object_r:ctl_default_prop:s0
 
-dev.mnt.blk.root   u:object_r:system_prop:s0 exact string
-dev.mnt.blk.vendor u:object_r:system_prop:s0 exact string
-
 sys.init.perf_lsm_hooks u:object_r:init_perf_lsm_hooks_prop:s0 exact bool
 
 service.adb.root u:object_r:shell_prop:s0 exact bool
