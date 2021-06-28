@@ -15,25 +15,14 @@
 //! Payload metadata from /dev/block/by-name/metadata
 
 use log::info;
-use microdroid_metadata::metadata::Metadata;
-use protobuf::Message;
+use microdroid_metadata::{read_metadata, Metadata};
 use std::fs::File;
 use std::io;
-use std::io::Read;
 
 const METADATA_PATH: &str = "/dev/block/by-name/metadata";
 
 /// loads payload metadata from /dev/block/by-name/metadata
 pub fn load() -> io::Result<Metadata> {
     info!("loading payload metadata...");
-
-    let mut f = File::open(METADATA_PATH)?;
-    // metadata partition is
-    //  4 bytes : size(N) in big endian
-    //  N bytes : message for Metadata
-    let mut buf = [0u8; 4];
-    f.read_exact(&mut buf)?;
-    let size = i32::from_be_bytes(buf);
-
-    Ok(Metadata::parse_from_reader(&mut f.take(size as u64))?)
+    read_metadata(File::open(METADATA_PATH)?)
 }
