@@ -46,6 +46,8 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -234,6 +236,8 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         // Create payload.img
         createPayloadImage(apkName, packageName, configPath);
 
+        final String logPath = TEST_ROOT + "log.txt";
+
         // Run the VM
         runOnAndroid("start", "virtualizationservice");
         String ret =
@@ -241,7 +245,19 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
                         VIRT_APEX + "bin/vm",
                         "run",
                         "--daemonize",
+                        "--log " + logPath,
                         VIRT_APEX + "etc/microdroid.json");
+
+        // Redirect log.txt to logd using logwrapper
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+        executor.execute(
+                () -> {
+                    try {
+                        runOnAndroid("logwrapper", "tail", "-f", "-n +0", logPath);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
 
         // Retrieve the CID from the vm tool output
         Pattern pattern = Pattern.compile("with CID (\\d+)");
