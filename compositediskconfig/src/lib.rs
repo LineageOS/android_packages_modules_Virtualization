@@ -15,7 +15,6 @@
 //! JSON configuration for composite disks, as used for running `mk_cdisk` and by the `vm` tool.
 
 use serde::{Deserialize, Serialize};
-use std::io::Write;
 use std::path::PathBuf;
 
 /// Configuration for running `mk_cdisk`.
@@ -35,11 +34,4 @@ pub struct Partition {
     /// Whether the partition should be writable.
     #[serde(default)]
     pub writable: bool,
-}
-
-impl Config {
-    /// Write the configuration as JSON, in the format used by `mk_cdisk`.
-    pub fn write_json(&self, writer: impl Write) -> serde_json::Result<()> {
-        serde_json::to_writer(writer, self)
-    }
 }
