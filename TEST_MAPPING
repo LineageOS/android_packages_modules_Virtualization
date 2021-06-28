@@ -1,8 +1,13 @@
 {
-  "postsubmit": [
+  "presubmit": [
     {
       "name": "MicrodroidHostTestCases"
-    },
+    }
+  ],
+  "postsubmit": [
+    // TODO(jiyong): promote this to presubmit. That currently doesn't work because
+    // this test is skipped for cf_x86_64_phone (not aosp_cf_x86_64_phone), but tradefed
+    // somehow thinks that the test wasn't executed at all and reports it as a failure.
     {
       "name": "VirtualizationTestCases"
     }
