@@ -134,7 +134,7 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         return result.getStdout().trim();
     }
 
-    // Run a shell command on Android
+    // Run a shell command on Android. the default timeout is 2 min by tradefed
     private String runOnAndroid(String... cmd) throws Exception {
         CommandResult result = getDevice().executeShellV2Command(join(cmd));
         if (result.getStatus() != CommandStatus.SUCCESS) {
@@ -143,9 +143,22 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         return result.getStdout().trim();
     }
 
-    // Same as runOnAndroid, but failutre is not an error
+    // Same as runOnAndroid, but failure is not an error
     private String tryRunOnAndroid(String... cmd) throws Exception {
         CommandResult result = getDevice().executeShellV2Command(join(cmd));
+        return result.getStdout().trim();
+    }
+
+    private String runOnAndroidWithTimeout(long timeoutMillis, String... cmd) throws Exception {
+        CommandResult result =
+                getDevice()
+                        .executeShellV2Command(
+                                join(cmd),
+                                timeoutMillis,
+                                java.util.concurrent.TimeUnit.MILLISECONDS);
+        if (result.getStatus() != CommandStatus.SUCCESS) {
+            fail(join(cmd) + " has failed: " + result);
+        }
         return result.getStdout().trim();
     }
 
@@ -253,9 +266,16 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         executor.execute(
                 () -> {
                     try {
-                        runOnAndroid("logwrapper", "tail", "-f", "-n +0", logPath);
+                        // Keep redirecting sufficiently long enough
+                        runOnAndroidWithTimeout(
+                                MICRODROID_BOOT_TIMEOUT_MINUTES * 60 * 1000,
+                                "logwrapper",
+                                "tail",
+                                "-f",
+                                "-n +0",
+                                logPath);
                     } catch (Exception e) {
-                        throw new RuntimeException(e);
+                        // Consume
                     }
                 });
 
