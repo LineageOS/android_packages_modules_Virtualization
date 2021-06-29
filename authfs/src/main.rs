@@ -92,6 +92,14 @@ struct Args {
     debug: bool,
 }
 
+impl Args {
+    fn has_remote_files(&self) -> bool {
+        !self.remote_ro_file.is_empty()
+            || !self.remote_ro_file_unverified.is_empty()
+            || !self.remote_new_rw_file.is_empty()
+    }
+}
+
 struct OptionRemoteRoFile {
     ino: Inode,
 
@@ -273,27 +281,37 @@ fn new_config_remote_new_verified_file(
 fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
 
-    let service = file::get_binder_service(args.cid)?;
+    if args.has_remote_files() {
+        let service = file::get_binder_service(args.cid)?;
 
-    for config in &args.remote_ro_file {
-        file_pool.insert(
-            config.ino,
-            new_config_remote_verified_file(service.clone(), config.remote_id, config.file_size)?,
-        );
-    }
+        for config in &args.remote_ro_file {
+            file_pool.insert(
+                config.ino,
+                new_config_remote_verified_file(
+                    service.clone(),
+                    config.remote_id,
+                    config.file_size,
+                )?,
+            );
+        }
 
-    for config in &args.remote_ro_file_unverified {
-        file_pool.insert(
-            config.ino,
-            new_config_remote_unverified_file(service.clone(), config.remote_id, config.file_size)?,
-        );
-    }
+        for config in &args.remote_ro_file_unverified {
+            file_pool.insert(
+                config.ino,
+                new_config_remote_unverified_file(
+                    service.clone(),
+                    config.remote_id,
+                    config.file_size,
+                )?,
+            );
+        }
 
-    for config in &args.remote_new_rw_file {
-        file_pool.insert(
-            config.ino,
-            new_config_remote_new_verified_file(service.clone(), config.remote_id)?,
-        );
+        for config in &args.remote_new_rw_file {
+            file_pool.insert(
+                config.ino,
+                new_config_remote_new_verified_file(service.clone(), config.remote_id)?,
+            );
+        }
     }
 
     for config in &args.local_ro_file {
