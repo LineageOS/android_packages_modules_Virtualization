@@ -14,7 +14,6 @@
 
 //! Android VM control tool.
 
-mod config;
 mod run;
 mod sync;
 

@@ -14,7 +14,6 @@
 
 //! Command to run a VM.
 
-use crate::config::VmConfig;
 use crate::sync::AtomicFlag;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::IVirtualMachine;
@@ -30,6 +29,7 @@ use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::Path;
+use vmconfig::VmConfig;
 
 /// Run a VM from the given configuration file.
 pub fn command_run(
