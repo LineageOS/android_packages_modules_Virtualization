@@ -10,13 +10,13 @@ rust_binary {
     rustlibs: [
         "android.system.virtualizationservice-rust",
         "libanyhow",
-        "libcompositediskconfig",
         "libenv_logger",
         "liblibc",
         "liblog_rust",
         "libserde_json",
         "libserde",
         "libstructopt",
+        "libvmconfig",
     ],
     apex_available: [
         "com.android.virt",

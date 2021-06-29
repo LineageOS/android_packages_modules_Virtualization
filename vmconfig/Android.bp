@@ -3,12 +3,13 @@ package {
 }
 
 rust_library {
-    name: "libcompositediskconfig",
-    host_supported: true,
-    crate_name: "compositediskconfig",
+    name: "libvmconfig",
+    crate_name: "vmconfig",
     srcs: ["src/lib.rs"],
     edition: "2018",
     rustlibs: [
+        "android.system.virtualizationservice-rust",
+        "libanyhow",
         "libserde_json",
         "libserde",
     ],
