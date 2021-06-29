@@ -115,11 +115,30 @@ impl DiskImage {
 }
 
 fn partition_to_parcelable(partition: &Partition) -> Result<AidlPartition, Error> {
-    Ok(AidlPartition {
-        image: Some(open_parcel_file(&partition.path, partition.writable)?),
-        writable: partition.writable,
-        label: partition.label.to_owned(),
-    })
+    if !partition.paths.is_empty() {
+        if partition.path.is_some() {
+            bail!("Partition {} contains both path/paths", &partition.label);
+        }
+        let images = partition
+            .paths
+            .iter()
+            .map(|path| open_parcel_file(&path, partition.writable))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(AidlPartition {
+            images,
+            writable: partition.writable,
+            label: partition.label.to_owned(),
+        })
+    } else {
+        let path = partition.path.as_ref().ok_or_else(|| {
+            Error::msg(format!("Partition {} doesn't set path/paths", &partition.label))
+        })?;
+        Ok(AidlPartition {
+            images: vec![open_parcel_file(&path, partition.writable)?],
+            writable: partition.writable,
+            label: partition.label.to_owned(),
+        })
+    }
 }
 
 /// Try to open the given file and wrap it in a [`ParcelFileDescriptor`].
