@@ -181,7 +181,7 @@ and run `mk_payload` to create `payload.img`:
 TEST_ROOT=/data/local/tmp/virt
 adb push out/dist/MyApp.apk.idsig $TEST_ROOT/MyApp.apk.idsig
 adb push path_to_payload.json $TEST_ROOT/payload.json
-adb shell /apex/com.android.virt/bin/my_payload $TEST_ROOT/payload.json $TEST_ROOT/payload.img
+adb shell /apex/com.android.virt/bin/mk_payload $TEST_ROOT/payload.json $TEST_ROOT/payload.img
 adb shell chmod go+r $TEST_ROOT/payload*
 ```
 
@@ -193,14 +193,14 @@ and then automatically execute your app (the shared library
 
 ```sh
 TEST_ROOT=/data/local/tmp/virt
-adb push packages/modules/Virtualization/microdroid/microdroid.json $TEST_ROOT/microdroid.json
 adb root
 adb shell setenforce 0
 adb shell start virtualizationservice
-adb shell /apex/com.android.virt/bin/vm run $TEST_ROOT/microdroid.json
+adb shell /apex/com.android.virt/bin/vm run --daemonize --log $TEST_ROOT/log.txt /apex/com.android.virt/etc/microdroid.json
 ```
 
-The last command lets you know the CID assigned to the VM.
+The last command lets you know the CID assigned to the VM. The console output
+from the VM is stored to `$TEST_ROOT/log.txt` file for debugging purpose.
 
 Note: the disabling of SELinux is a temporary step. The restriction will
 eventually be removed.
@@ -211,7 +211,8 @@ Stopping the VM can be done as follows:
 adb shell /apex/com.android.virt/bin/vm stop CID
 ```
 
-, where `CID` is the reported CID value.
+, where `CID` is the reported CID value. This works only when the `vm` was
+invoked with the `--daemonize` flag.
 
 ## ADB
 
