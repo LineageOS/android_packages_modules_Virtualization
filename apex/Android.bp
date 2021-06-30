@@ -49,10 +49,6 @@ apex {
         "fd_server",
         "vm",
         "compos_key_cmd",
-
-        // tools to create composite images
-        "mk_cdisk",
-        "mk_payload",
     ],
     prebuilts: [
         "com.android.virt.init.rc",
