@@ -74,20 +74,13 @@ multiple configuration files if needed.
     "type": "microdroid_launcher",
     "command": "MyMicrodroidApp.so"
   },
-  "apexes": [
-    {"name": "com.android.adbd"},
-    {"name": "com.android.i18n"},
-    {"name": "com.android.os.statsd"},
-    {"name": "com.android.sdkext"}
-  ]
+  "apexes" : [ ... ]
 }
 ```
 
 The value of `task.command` should match with the name of the shared library
 defined above. The `apexes` array is the APEXes that will be imported to
-microdroid. The above four APEXes are essential ones and therefore shouldn't be
-omitted. In the future, you wouldn't need to add the default ones manually. If
-more APEXes are required for you app, add their names too.
+microdroid.
 
 Embed the shared library and the VM configuration file in an APK:
 
