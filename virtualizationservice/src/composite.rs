@@ -72,6 +72,11 @@ fn align_to_power_of_2(val: u64, align_log: u8) -> u64 {
     ((val + (align - 1)) / align) * align
 }
 
+/// Round `val` to partition size(4K)
+pub fn align_to_partition_size(val: u64) -> u64 {
+    align_to_power_of_2(val, PARTITION_SIZE_SHIFT)
+}
+
 impl PartitionInfo {
     fn aligned_size(&self) -> u64 {
         align_to_power_of_2(self.files.iter().map(|file| file.size).sum(), PARTITION_SIZE_SHIFT)

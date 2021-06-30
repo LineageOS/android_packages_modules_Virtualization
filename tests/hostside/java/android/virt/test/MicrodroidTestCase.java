@@ -18,7 +18,6 @@ package android.virt.test;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -31,27 +30,17 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.RunUtil;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileWriter;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.zip.ZipFile;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidTestCase extends BaseHostJUnit4Test {
@@ -178,25 +167,15 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         return String.join(" ", Arrays.asList(strs));
     }
 
-    private String createPayloadImage(String apkName, String packageName, String configPath)
+    private File findTestFile(String name) throws Exception {
+        return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
+    }
+
+    private String startMicrodroid(String apkName, String packageName, String configPath)
             throws Exception {
+        // Install APK
         File apkFile = findTestFile(apkName);
         getDevice().installPackage(apkFile, /* reinstall */ true);
-
-        // Read the config file from the apk and parse it to know the list of APEXes needed
-        ZipFile apkAsZip = new ZipFile(apkFile);
-        InputStream is = apkAsZip.getInputStream(apkAsZip.getEntry(configPath));
-        String configString =
-                new BufferedReader(new InputStreamReader(is))
-                        .lines()
-                        .collect(Collectors.joining("\n"));
-        JSONObject configObject = new JSONObject(configString);
-        JSONArray apexes = configObject.getJSONArray("apexes");
-        List<String> apexNames = new ArrayList<>();
-        for (int i = 0; i < apexes.length(); i++) {
-            JSONObject anApex = apexes.getJSONObject(i);
-            apexNames.add(anApex.getString("name"));
-        }
 
         // Get the path to the installed apk. Note that
         // getDevice().getAppPackageInfo(...).getCodePath() doesn't work due to the incorrect
@@ -210,45 +189,6 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         final String apkIdsigPath = TEST_ROOT + apkName + ".idsig";
         getDevice().pushFile(idsigOnHost, apkIdsigPath);
 
-        // Create payload.json from the gathered data
-        JSONObject payloadObject = new JSONObject();
-        payloadObject.put("system_apexes", new JSONArray(apexNames));
-        payloadObject.put("payload_config_path", "/mnt/apk/" + configPath);
-        JSONObject apkObject = new JSONObject();
-        apkObject.put("name", packageName);
-        apkObject.put("path", apkPath);
-        apkObject.put("idsig_path", apkIdsigPath);
-        payloadObject.put("apk", apkObject);
-
-        // Copy the json file to Android
-        File payloadJsonOnHost = File.createTempFile("payload", "json");
-        FileWriter writer = new FileWriter(payloadJsonOnHost);
-        writer.write(payloadObject.toString());
-        writer.close();
-        final String payloadJson = TEST_ROOT + "payload.json";
-        getDevice().pushFile(payloadJsonOnHost, payloadJson);
-
-        // Finally run mk_payload to create payload.img
-        final String mkPayload = VIRT_APEX + "bin/mk_payload";
-        final String payloadImg = TEST_ROOT + "payload.img";
-        runOnAndroid(mkPayload, payloadJson, payloadImg);
-        assertThat(runOnAndroid("du", "-b", payloadImg), is(not("")));
-
-        // The generated files are owned by root. Allow the virtualizationservice to read them.
-        runOnAndroid("chmod", "go+r", TEST_ROOT + "payload*");
-
-        return payloadImg;
-    }
-
-    private File findTestFile(String name) throws Exception {
-        return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
-    }
-
-    private String startMicrodroid(String apkName, String packageName, String configPath)
-            throws Exception {
-        // Create payload.img
-        createPayloadImage(apkName, packageName, configPath);
-
         final String logPath = TEST_ROOT + "log.txt";
 
         // Run the VM
@@ -256,10 +196,12 @@ public class MicrodroidTestCase extends BaseHostJUnit4Test {
         String ret =
                 runOnAndroid(
                         VIRT_APEX + "bin/vm",
-                        "run",
+                        "run-app",
                         "--daemonize",
                         "--log " + logPath,
-                        VIRT_APEX + "etc/microdroid.json");
+                        apkPath,
+                        apkIdsigPath,
+                        configPath);
 
         // Redirect log.txt to logd using logwrapper
         ExecutorService executor = Executors.newFixedThreadPool(1);

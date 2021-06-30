@@ -13,4 +13,7 @@ rust_library {
         "libserde_json",
         "libserde",
     ],
+    apex_available: [
+        "com.android.virt",
+    ],
 }

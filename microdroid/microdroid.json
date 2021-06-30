@@ -34,10 +34,6 @@
         }
       ],
       "writable": false
-    },
-    {
-      "image": "/data/local/tmp/virt/payload.img",
-      "writable": false
     }
   ]
 }

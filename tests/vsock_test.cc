@@ -32,6 +32,7 @@
 #include "android-base/parseint.h"
 #include "android-base/unique_fd.h"
 #include "android/system/virtualizationservice/VirtualMachineConfig.h"
+#include "android/system/virtualizationservice/VirtualMachineRawConfig.h"
 #include "virt/VirtualizationTest.h"
 
 #define KVM_CAP_ARM_PROTECTED_VM 0xffbadab1
@@ -83,12 +84,13 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
     ret = TEMP_FAILURE_RETRY(listen(server_fd, 1));
     ASSERT_EQ(ret, 0) << strerror(errno);
 
-    VirtualMachineConfig config;
-    config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
-    config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
-    config.params = kVmParams;
-    config.protected_vm = protected_vm;
+    VirtualMachineRawConfig raw_config;
+    raw_config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
+    raw_config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
+    raw_config.params = kVmParams;
+    raw_config.protected_vm = protected_vm;
 
+    VirtualMachineConfig config(std::move(raw_config));
     sp<IVirtualMachine> vm;
     status = virtualization_service->startVm(config, std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
