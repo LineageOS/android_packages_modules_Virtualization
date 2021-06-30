@@ -16,26 +16,35 @@
 
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, VmInstance};
+use crate::payload;
 use crate::{Cid, FIRST_GUEST_CID};
+
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DiskImage::DiskImage;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachineCallback::IVirtualMachineCallback;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    VirtualMachineAppConfig::VirtualMachineAppConfig,
+    VirtualMachineConfig::VirtualMachineConfig,
+    VirtualMachineRawConfig::VirtualMachineRawConfig,
+};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
 use android_system_virtualizationservice::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
+use anyhow::Error;
 use disk::QcowFile;
 use log::{debug, error, warn};
+use microdroid_payload_config::VmPayloadConfig;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::fs::{File, create_dir};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
+use vmconfig::VmConfig;
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
@@ -91,6 +100,22 @@ impl IVirtualizationService for VirtualizationService {
                 ),
             )
         })?;
+
+        let mut opt_raw_config = None;
+        let config = match config {
+            VirtualMachineConfig::AppConfig(config) => {
+                let raw_config = load_app_config(config, &temporary_directory).map_err(|e| {
+                    error!("Failed to load app config from {}: {}", &config.configPath, e);
+                    new_binder_exception(
+                        ExceptionCode::SERVICE_SPECIFIC,
+                        format!("Failed to load app config from {}: {}", &config.configPath, e),
+                    )
+                })?;
+                opt_raw_config.replace(raw_config);
+                opt_raw_config.as_ref().unwrap()
+            }
+            VirtualMachineConfig::RawConfig(config) => config,
+        };
 
         // Assemble disk images if needed.
         let disks = config
@@ -254,6 +279,34 @@ fn assemble_disk_image(
     };
 
     Ok(DiskFile { image, writable: disk.writable })
+}
+
+fn load_app_config(
+    config: &VirtualMachineAppConfig,
+    temporary_directory: &Path,
+) -> Result<VirtualMachineRawConfig, Error> {
+    let apk_file = config.apk.as_ref().unwrap().as_ref();
+    let idsig_file = config.idsig.as_ref().unwrap().as_ref();
+    let config_path = &config.configPath;
+
+    let mut apk_zip = zip::ZipArchive::new(apk_file)?;
+    let config_file = apk_zip.by_name(config_path)?;
+    let vm_payload_config: VmPayloadConfig = serde_json::from_reader(config_file)?;
+
+    let os_name = &vm_payload_config.os.name;
+    let vm_config_path = PathBuf::from(format!("/apex/com.android.virt/etc/{}.json", os_name));
+    let vm_config_file = File::open(vm_config_path)?;
+    let mut vm_config = VmConfig::load(&vm_config_file)?;
+
+    vm_config.disks.push(payload::make_disk_image(
+        format!("/proc/self/fd/{}", apk_file.as_raw_fd()).into(),
+        format!("/proc/self/fd/{}", idsig_file.as_raw_fd()).into(),
+        config_path,
+        &vm_payload_config.apexes,
+        temporary_directory,
+    )?);
+
+    vm_config.to_parcelable()
 }
 
 /// Generates a unique filename to use for a composite disk image.

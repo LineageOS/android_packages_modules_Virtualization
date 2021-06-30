@@ -27,12 +27,16 @@ rust_defaults {
         "libcrc32fast",
         "libdisk",
         "liblog_rust",
+        "libmicrodroid_metadata",
+        "libmicrodroid_payload_config",
         "libprotobuf",
         "libprotos",
         "libserde_json",
         "libserde",
         "libshared_child",
         "libuuid",
+        "libvmconfig",
+        "libzip",
     ],
 }
 

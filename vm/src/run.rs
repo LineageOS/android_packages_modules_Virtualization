@@ -20,6 +20,10 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachineCallback::{
     BnVirtualMachineCallback, IVirtualMachineCallback,
 };
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    VirtualMachineAppConfig::VirtualMachineAppConfig,
+    VirtualMachineConfig::VirtualMachineConfig,
+};
 use android_system_virtualizationservice::binder::{
     BinderFeatures, DeathRecipient, IBinder, ParcelFileDescriptor, Strong,
 };
@@ -31,6 +35,25 @@ use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::Path;
 use vmconfig::VmConfig;
 
+/// Run a VM from the given APK, idsig, and config.
+pub fn command_run_app(
+    service: Strong<dyn IVirtualizationService>,
+    apk: &Path,
+    idsig: &Path,
+    config_path: &str,
+    daemonize: bool,
+    log_path: Option<&Path>,
+) -> Result<(), Error> {
+    let apk_file = File::open(apk).context("Failed to open APK file")?;
+    let idsig_file = File::open(idsig).context("Failed to open idsig file")?;
+    let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
+        apk: ParcelFileDescriptor::new(apk_file).into(),
+        idsig: ParcelFileDescriptor::new(idsig_file).into(),
+        configPath: config_path.to_owned(),
+    });
+    run(service, &config, &format!("{:?}!{:?}", apk, config_path), daemonize, log_path)
+}
+
 /// Run a VM from the given configuration file.
 pub fn command_run(
     service: Strong<dyn IVirtualizationService>,
@@ -41,6 +64,22 @@ pub fn command_run(
     let config_file = File::open(config_path).context("Failed to open config file")?;
     let config =
         VmConfig::load(&config_file).context("Failed to parse config file")?.to_parcelable()?;
+    run(
+        service,
+        &VirtualMachineConfig::RawConfig(config),
+        &format!("{:?}", config_path),
+        daemonize,
+        log_path,
+    )
+}
+
+fn run(
+    service: Strong<dyn IVirtualizationService>,
+    config: &VirtualMachineConfig,
+    config_path: &str,
+    daemonize: bool,
+    log_path: Option<&Path>,
+) -> Result<(), Error> {
     let stdout = if let Some(log_path) = log_path {
         Some(ParcelFileDescriptor::new(
             File::create(log_path)
@@ -51,7 +90,7 @@ pub fn command_run(
     } else {
         Some(ParcelFileDescriptor::new(duplicate_stdout()?))
     };
-    let vm = service.startVm(&config, stdout.as_ref()).context("Failed to start VM")?;
+    let vm = service.startVm(config, stdout.as_ref()).context("Failed to start VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
     println!("Started VM from {:?} with CID {}.", config_path, cid);
