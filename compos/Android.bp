@@ -83,10 +83,3 @@ rust_binary {
     prefer_rlib: true,
     apex_available: ["com.android.compos"],
 }
-
-// TODO(b/190503456) Remove this when vm/virtualizationservice generates payload.img from vm_config
-prebuilt_etc {
-    name: "compos_payload_config",
-    src: "payload_config.json",
-    filename: "payload_config.json",
-}
