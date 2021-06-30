@@ -32,7 +32,6 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use structopt::StructOpt;
 
 mod auth;
@@ -224,15 +223,14 @@ fn new_config_remote_verified_file(
 ) -> Result<FileConfig> {
     let signature = service.readFsveritySignature(remote_id).context("Failed to read signature")?;
 
-    let service = Arc::new(Mutex::new(service));
     let authenticator = FakeAuthenticator::always_succeed();
     Ok(FileConfig::RemoteVerifiedReadonlyFile {
         reader: VerifiedFileReader::new(
             &authenticator,
-            RemoteFileReader::new(Arc::clone(&service), remote_id),
+            RemoteFileReader::new(service.clone(), remote_id),
             file_size,
             signature,
-            RemoteMerkleTreeReader::new(Arc::clone(&service), remote_id),
+            RemoteMerkleTreeReader::new(service.clone(), remote_id),
         )?,
         file_size,
     })
@@ -243,7 +241,7 @@ fn new_config_remote_unverified_file(
     remote_id: i32,
     file_size: u64,
 ) -> Result<FileConfig> {
-    let reader = RemoteFileReader::new(Arc::new(Mutex::new(service)), remote_id);
+    let reader = RemoteFileReader::new(service, remote_id);
     Ok(FileConfig::RemoteUnverifiedReadonlyFile { reader, file_size })
 }
 
@@ -274,7 +272,7 @@ fn new_config_remote_new_verified_file(
     service: file::VirtFdService,
     remote_id: i32,
 ) -> Result<FileConfig> {
-    let remote_file = RemoteFileEditor::new(Arc::new(Mutex::new(service)), remote_id);
+    let remote_file = RemoteFileEditor::new(service, remote_id);
     Ok(FileConfig::RemoteVerifiedNewFile { editor: VerifiedFileEditor::new(remote_file) })
 }
 
