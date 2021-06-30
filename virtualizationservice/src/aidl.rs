@@ -34,10 +34,10 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
-use anyhow::Error;
+use anyhow::Result;
 use disk::QcowFile;
 use log::{debug, error, warn};
-use microdroid_payload_config::VmPayloadConfig;
+use microdroid_payload_config::{ApexConfig, VmPayloadConfig};
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::fs::{File, create_dir};
@@ -284,7 +284,7 @@ fn assemble_disk_image(
 fn load_app_config(
     config: &VirtualMachineAppConfig,
     temporary_directory: &Path,
-) -> Result<VirtualMachineRawConfig, Error> {
+) -> Result<VirtualMachineRawConfig> {
     let apk_file = config.apk.as_ref().unwrap().as_ref();
     let idsig_file = config.idsig.as_ref().unwrap().as_ref();
     let config_path = &config.configPath;
@@ -298,13 +298,25 @@ fn load_app_config(
     let vm_config_file = File::open(vm_config_path)?;
     let mut vm_config = VmConfig::load(&vm_config_file)?;
 
-    vm_config.disks.push(payload::make_disk_image(
-        format!("/proc/self/fd/{}", apk_file.as_raw_fd()).into(),
-        format!("/proc/self/fd/{}", idsig_file.as_raw_fd()).into(),
-        config_path,
-        &vm_payload_config.apexes,
-        temporary_directory,
-    )?);
+    // Microdroid requires additional payload disk image
+    if os_name == "microdroid" {
+        // TODO (b/192200378) move this to microdroid.json?
+        let mut apexes = vm_payload_config.apexes.clone();
+        apexes.extend(
+            ["com.android.adbd", "com.android.i18n", "com.android.os.statsd", "com.android.sdkext"]
+                .iter()
+                .map(|name| ApexConfig { name: name.to_string() }),
+        );
+        apexes.dedup_by(|a, b| a.name == b.name);
+
+        vm_config.disks.push(payload::make_disk_image(
+            format!("/proc/self/fd/{}", apk_file.as_raw_fd()).into(),
+            format!("/proc/self/fd/{}", idsig_file.as_raw_fd()).into(),
+            config_path,
+            &apexes,
+            temporary_directory,
+        )?);
+    }
 
     vm_config.to_parcelable()
 }

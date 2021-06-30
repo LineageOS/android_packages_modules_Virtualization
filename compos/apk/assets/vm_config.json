@@ -13,22 +13,10 @@
   },
   "apexes": [
     {
-      "name": "com.android.adbd"
-    },
-    {
       "name": "com.android.art"
     },
     {
       "name": "com.android.compos"
-    },
-    {
-      "name": "com.android.i18n"
-    },
-    {
-      "name": "com.android.os.statsd"
-    },
-    {
-      "name": "com.android.sdkext"
     }
   ]
 }
