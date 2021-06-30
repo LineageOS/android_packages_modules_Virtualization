@@ -48,6 +48,6 @@ apex {
     ],
 
     prebuilts: [
-        "compos_payload_config",
+        "CompOSPayloadApp.apk.idsig",
     ],
 }
