@@ -10,6 +10,12 @@ java_test_host {
         "compatibility-tradefed",
         "compatibility-host-util",
     ],
+    static_libs: [
+        "VirtualizationTestHelper",
+    ],
     test_suites: ["general-tests"],
-    data: [":authfs_test_files"],
+    data: [
+        ":authfs_test_files",
+        ":MicrodroidTestApp.signed",
+    ],
 }
