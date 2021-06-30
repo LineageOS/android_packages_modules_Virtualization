@@ -13,4 +13,7 @@ rust_library {
         "libmicrodroid_metadata_proto_rust",
         "libprotobuf",
     ],
+    apex_available: [
+        "com.android.virt",
+    ],
 }

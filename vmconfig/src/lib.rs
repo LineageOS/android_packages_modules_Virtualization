@@ -17,7 +17,7 @@
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::DiskImage::DiskImage as AidlDiskImage,
     aidl::android::system::virtualizationservice::Partition::Partition as AidlPartition,
-    aidl::android::system::virtualizationservice::VirtualMachineConfig::VirtualMachineConfig,
+    aidl::android::system::virtualizationservice::VirtualMachineRawConfig::VirtualMachineRawConfig,
     binder::ParcelFileDescriptor,
 };
 
@@ -76,8 +76,8 @@ impl VmConfig {
 
     /// Convert the `VmConfig` to a [`VirtualMachineConfig`] which can be passed to the Virt
     /// Manager.
-    pub fn to_parcelable(&self) -> Result<VirtualMachineConfig, Error> {
-        Ok(VirtualMachineConfig {
+    pub fn to_parcelable(&self) -> Result<VirtualMachineRawConfig, Error> {
+        Ok(VirtualMachineRawConfig {
             kernel: maybe_open_parcel_file(&self.kernel, false)?,
             initrd: maybe_open_parcel_file(&self.initrd, false)?,
             params: self.params.clone(),
