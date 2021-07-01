@@ -8,7 +8,9 @@ java_test_host {
     test_suites: ["device-tests"],
     libs: [
         "tradefed",
-        "compatibility-tradefed",
+    ],
+    static_libs: [
+        "VirtualizationTestHelper",
     ],
     data: [":MicrodroidTestApp.signed"],
 }
