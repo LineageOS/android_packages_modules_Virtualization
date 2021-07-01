@@ -16,7 +16,7 @@
 
 use crate::composite::align_to_partition_size;
 
-use anyhow::{Error, Result};
+use anyhow::Result;
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::ApexConfig;
 use std::fs;
@@ -36,6 +36,7 @@ fn get_path(package_name: &str) -> Result<PathBuf> {
 /// When passing a host APEX file as a block device in a payload disk image,
 /// the size of the original file needs to be stored in the last 4 bytes so that
 /// other programs (e.g. apexd) can read it as a zip.
+/// Returns true always since the filler is created.
 fn make_size_filler(size: u64, filler_path: &Path) -> Result<bool> {
     let partition_size = align_to_partition_size(size + 4);
     let mut file = OpenOptions::new().create_new(true).write(true).open(filler_path)?;
@@ -47,7 +48,8 @@ fn make_size_filler(size: u64, filler_path: &Path) -> Result<bool> {
 
 /// When passing a host APK file as a block device in a payload disk image and it is
 /// mounted via dm-verity, we need to make the device zero-padded up to 4K boundary.
-/// Otherwise, intergrity checks via hashtree will fail.
+/// Otherwise, integrity checks via hashtree will fail.
+/// Returns true if filler is created.
 fn make_zero_filler(size: u64, filler_path: &Path) -> Result<bool> {
     let partition_size = align_to_partition_size(size);
     if partition_size <= size {
@@ -60,6 +62,7 @@ fn make_zero_filler(size: u64, filler_path: &Path) -> Result<bool> {
 
 /// When passing a host idsig file as a block device, we don't need any filler because it is read
 /// in length-prefixed way.
+/// Returns false always because the filler is not created.
 fn make_no_filler(_size: u64, _filler_path: &Path) -> Result<bool> {
     Ok(false)
 }
@@ -83,12 +86,12 @@ pub fn make_disk_image(
         version: 1u32,
         apexes: apexes
             .iter()
-            .map(|apex| ApexPayload { name: String::from(&apex.name), ..Default::default() })
+            .map(|apex| ApexPayload { name: apex.name.clone(), ..Default::default() })
             .collect(),
         apk: Some(ApkPayload {
-            name: String::from("apk"),
-            payload_partition_name: String::from("microdroid-apk"),
-            idsig_partition_name: String::from("microdroid-apk-idsig"),
+            name: "apk".to_owned(),
+            payload_partition_name: "microdroid-apk".to_owned(),
+            idsig_partition_name: "microdroid-apk-idsig".to_owned(),
             ..Default::default()
         })
         .into(),
@@ -101,39 +104,53 @@ pub fn make_disk_image(
 
     // put metadata at the first partition
     let mut partitions = vec![Partition {
-        label: String::from("metadata"),
+        label: "metadata".to_owned(),
         paths: vec![metadata_path],
         writable: false,
     }];
 
     let mut filler_count = 0;
-    let mut make_partition = |label: String,
-                              path: PathBuf,
-                              make_filler: &dyn Fn(u64, &Path) -> Result<bool, Error>|
-     -> Result<Partition> {
-        let filler_path = temporary_directory.join(format!("filler-{}", filler_count));
-        let size = fs::metadata(&path)?.len();
-
-        if make_filler(size, &filler_path)? {
-            filler_count += 1;
-            Ok(Partition { label, paths: vec![path, filler_path], writable: false })
-        } else {
-            Ok(Partition { label, paths: vec![path], writable: false })
-        }
-    };
     for (i, apex) in apexes.iter().enumerate() {
         partitions.push(make_partition(
             format!("microdroid-apex-{}", i),
             get_path(&apex.name)?,
+            temporary_directory,
+            &mut filler_count,
             &make_size_filler,
         )?);
     }
-    partitions.push(make_partition(String::from("microdroid-apk"), apk_file, &make_zero_filler)?);
     partitions.push(make_partition(
-        String::from("microdroid-apk-idsig"),
+        "microdroid-apk".to_owned(),
+        apk_file,
+        temporary_directory,
+        &mut filler_count,
+        &make_zero_filler,
+    )?);
+    partitions.push(make_partition(
+        "microdroid-apk-idsig".to_owned(),
         idsig_file,
+        temporary_directory,
+        &mut filler_count,
         &make_no_filler,
     )?);
 
     Ok(DiskImage { image: None, partitions, writable: false })
+}
+
+fn make_partition(
+    label: String,
+    path: PathBuf,
+    temporary_directory: &Path,
+    filler_count: &mut u32,
+    make_filler: &dyn Fn(u64, &Path) -> Result<bool>,
+) -> Result<Partition> {
+    let filler_path = temporary_directory.join(format!("filler-{}", filler_count));
+    let size = fs::metadata(&path)?.len();
+
+    if make_filler(size, &filler_path)? {
+        *filler_count += 1;
+        Ok(Partition { label, paths: vec![path, filler_path], writable: false })
+    } else {
+        Ok(Partition { label, paths: vec![path], writable: false })
+    }
 }

@@ -79,7 +79,7 @@ pub fn align_to_partition_size(val: u64) -> u64 {
 
 impl PartitionInfo {
     fn aligned_size(&self) -> u64 {
-        align_to_power_of_2(self.files.iter().map(|file| file.size).sum(), PARTITION_SIZE_SHIFT)
+        align_to_partition_size(self.files.iter().map(|file| file.size).sum())
     }
 }
 
