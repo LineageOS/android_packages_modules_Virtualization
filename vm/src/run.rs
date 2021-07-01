@@ -93,7 +93,7 @@ fn run(
     let vm = service.startVm(config, stdout.as_ref()).context("Failed to start VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
-    println!("Started VM from {:?} with CID {}.", config_path, cid);
+    println!("Started VM from {} with CID {}.", config_path, cid);
 
     if daemonize {
         // Pass the VM reference back to VirtualizationService and have it hold it in the
