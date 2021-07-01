@@ -102,8 +102,7 @@ pub fn make_disk_image(
     // put metadata at the first partition
     let mut partitions = vec![Partition {
         label: String::from("metadata"),
-        path: Some(metadata_path),
-        paths: vec![],
+        paths: vec![metadata_path],
         writable: false,
     }];
 
@@ -117,9 +116,9 @@ pub fn make_disk_image(
 
         if make_filler(size, &filler_path)? {
             filler_count += 1;
-            Ok(Partition { label, path: None, paths: vec![path, filler_path], writable: false })
+            Ok(Partition { label, paths: vec![path, filler_path], writable: false })
         } else {
-            Ok(Partition { label, path: Some(path), paths: vec![], writable: false })
+            Ok(Partition { label, paths: vec![path], writable: false })
         }
     };
     for (i, apex) in apexes.iter().enumerate() {
