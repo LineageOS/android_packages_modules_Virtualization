@@ -8,7 +8,7 @@ android_app {
     apex_available: ["com.android.compos"],
 }
 
-// TODO(b/190409306) this is temporal until we have a solid way to pass merkle tree
+// TODO(b/190409306) this is temporary until we have a solid way to pass merkle tree
 java_genrule {
     name: "CompOSPayloadApp.signing",
     out: [
