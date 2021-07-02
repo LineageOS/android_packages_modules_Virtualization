@@ -20,7 +20,7 @@ import android.system.virtualizationservice.VirtualMachineRawConfig;
 
 /** Configuration for running a VM */
 union VirtualMachineConfig {
-    /** Configuration for a VM to run an APP */
+    /** Configuration for a VM to run an app */
     VirtualMachineAppConfig appConfig;
 
     /** Configuration for a VM with low-level configuration */

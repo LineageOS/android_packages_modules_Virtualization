@@ -17,7 +17,7 @@ package android.system.virtualizationservice;
 
 import android.system.virtualizationservice.DiskImage;
 
-/** Raw Configuration for running a VM. */
+/** Raw configuration for running a VM. */
 parcelable VirtualMachineRawConfig {
     /** The kernel image, if any. */
     @nullable ParcelFileDescriptor kernel;
