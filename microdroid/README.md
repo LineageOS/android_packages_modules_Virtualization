@@ -73,14 +73,22 @@ multiple configuration files if needed.
   "task": {
     "type": "microdroid_launcher",
     "command": "MyMicrodroidApp.so"
-  },
-  "apexes" : [ ... ]
+  }
 }
 ```
 
 The value of `task.command` should match with the name of the shared library
-defined above. The `apexes` array is the APEXes that will be imported to
-microdroid.
+defined above. If your app rquires APEXes to be imported, you can declare the list
+in `apexes` key like following.
+```json
+{
+  "os": ...,
+  "task": ...,
+  "apexes": [
+    {"name": "com.android.awesome_apex"}
+  ]
+}
+```
 
 Embed the shared library and the VM configuration file in an APK:
 
@@ -150,7 +158,6 @@ and then automatically execute your app (the shared library
 TEST_ROOT=/data/local/tmp/virt
 adb root
 adb shell setenforce 0
-adb shell start virtualizationservice
 adb shell /apex/com.android.virt/bin/vm run-app --daemonize --log $TEST_ROOT/log.txt PATH_TO_YOUR_APP $TEST_ROOT/MyApp.apk.idsig assets/VM_CONFIG_FILE
 ```
 
