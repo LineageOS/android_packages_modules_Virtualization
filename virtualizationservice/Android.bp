@@ -31,6 +31,7 @@ rust_defaults {
         "libmicrodroid_payload_config",
         "libprotobuf",
         "libprotos",
+        "libregex",
         "libserde_json",
         "libserde",
         "libshared_child",

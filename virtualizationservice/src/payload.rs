@@ -16,21 +16,66 @@
 
 use crate::composite::align_to_partition_size;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::ApexConfig;
+use regex::Regex;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use vmconfig::{DiskImage, Partition};
 
-// TODO(b/191601801): look up /apex/apex-info-list.xml
-fn get_path(package_name: &str) -> Result<PathBuf> {
-    let output = Command::new("pm").arg("path").arg(package_name).output()?;
-    let output = String::from_utf8(output.stdout)?;
-    Ok(PathBuf::from(output.strip_prefix("package:").unwrap().trim()))
+/// Represents the list of APEXes
+#[derive(Debug)]
+pub struct ApexInfoList {
+    list: Vec<ApexInfo>,
+}
+
+#[derive(Debug)]
+struct ApexInfo {
+    name: String,
+    path: PathBuf,
+}
+
+impl ApexInfoList {
+    /// Loads ApexInfoList
+    pub fn load() -> Result<ApexInfoList> {
+        // TODO(b/191601801): look up /apex/apex-info-list.xml instead of apexservice
+        // Each APEX prints the line:
+        //   Module: <...> Version: <...> VersionName: <...> Path: <...> IsActive: <...> IsFactory: <...>
+        // We only care about "Module:" and "Path:" tagged values for now.
+        let info_pattern = Regex::new(r"^Module: (?P<name>[^ ]*) .* Path: (?P<path>[^ ]*) .*$")?;
+        let output = Command::new("cmd")
+            .arg("-w")
+            .arg("apexservice")
+            .arg("getActivePackages")
+            .output()
+            .expect("failed to execute apexservice cmd");
+        let list = BufReader::new(output.stdout.as_slice())
+            .lines()
+            .map(|line| -> Result<ApexInfo> {
+                let line = line?;
+                let captures =
+                    info_pattern.captures(&line).ok_or_else(|| anyhow!("can't parse: {}", line))?;
+                let name = captures.name("name").unwrap();
+                let path = captures.name("path").unwrap();
+                Ok(ApexInfo { name: name.as_str().to_owned(), path: path.as_str().into() })
+            })
+            .collect::<Result<Vec<ApexInfo>>>()?;
+        Ok(ApexInfoList { list })
+    }
+
+    fn get_path_for(&self, apex_name: &str) -> Result<PathBuf> {
+        Ok(self
+            .list
+            .iter()
+            .find(|apex| apex.name == apex_name)
+            .ok_or_else(|| anyhow!("{} not found.", apex_name))?
+            .path
+            .clone())
+    }
 }
 
 /// When passing a host APEX file as a block device in a payload disk image,
@@ -74,7 +119,8 @@ fn make_no_filler(_size: u64, _filler_path: &Path) -> Result<bool> {
 ///   ..
 ///   microdroid-apk: [apk, zero filler]
 ///   microdroid-apk-idsig: idsig
-pub fn make_disk_image(
+pub fn make_payload_disk(
+    apex_info_list: &ApexInfoList,
     apk_file: PathBuf,
     idsig_file: PathBuf,
     config_path: &str,
@@ -113,7 +159,7 @@ pub fn make_disk_image(
     for (i, apex) in apexes.iter().enumerate() {
         partitions.push(make_partition(
             format!("microdroid-apex-{}", i),
-            get_path(&apex.name)?,
+            apex_info_list.get_path_for(&apex.name)?,
             temporary_directory,
             &mut filler_count,
             &make_size_filler,
