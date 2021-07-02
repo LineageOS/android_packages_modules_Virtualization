@@ -16,7 +16,7 @@
 
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, VmInstance};
-use crate::payload;
+use crate::payload::{make_payload_disk, ApexInfoList};
 use crate::{Cid, FIRST_GUEST_CID};
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
@@ -62,9 +62,19 @@ const MICRODROID_REQUIRED_APEXES: [&str; 4] =
     ["com.android.adbd", "com.android.i18n", "com.android.os.statsd", "com.android.sdkext"];
 
 /// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct VirtualizationService {
     state: Mutex<State>,
+    apex_info_list: ApexInfoList,
+}
+
+impl VirtualizationService {
+    pub fn new() -> Result<VirtualizationService> {
+        Ok(VirtualizationService {
+            state: Default::default(),
+            apex_info_list: ApexInfoList::load()?,
+        })
+    }
 }
 
 impl Interface for VirtualizationService {}
@@ -109,13 +119,15 @@ impl IVirtualizationService for VirtualizationService {
 
         let config = match config {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
-                load_app_config(config, &temporary_directory).map_err(|e| {
-                    error!("Failed to load app config from {}: {}", &config.configPath, e);
-                    new_binder_exception(
-                        ExceptionCode::SERVICE_SPECIFIC,
-                        format!("Failed to load app config from {}: {}", &config.configPath, e),
-                    )
-                })?,
+                load_app_config(&self.apex_info_list, config, &temporary_directory).map_err(
+                    |e| {
+                        error!("Failed to load app config from {}: {}", &config.configPath, e);
+                        new_binder_exception(
+                            ExceptionCode::SERVICE_SPECIFIC,
+                            format!("Failed to load app config from {}: {}", &config.configPath, e),
+                        )
+                    },
+                )?,
             ),
             VirtualMachineConfig::RawConfig(config) => BorrowedOrOwned::Borrowed(config),
         };
@@ -286,6 +298,7 @@ fn assemble_disk_image(
 }
 
 fn load_app_config(
+    apex_info_list: &ApexInfoList,
     config: &VirtualMachineAppConfig,
     temporary_directory: &Path,
 ) -> Result<VirtualMachineRawConfig> {
@@ -314,7 +327,8 @@ fn load_app_config(
         );
         apexes.dedup_by(|a, b| a.name == b.name);
 
-        vm_config.disks.push(payload::make_disk_image(
+        vm_config.disks.push(make_payload_disk(
+            apex_info_list,
             format!("/proc/self/fd/{}", apk_file.as_raw_fd()).into(),
             format!("/proc/self/fd/{}", idsig_file.as_raw_fd()).into(),
             config_path,
