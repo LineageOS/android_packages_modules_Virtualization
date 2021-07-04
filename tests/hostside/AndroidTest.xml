@@ -22,11 +22,6 @@
       a test-only permission, run it without selinux -->
     <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer"/>
 
-    <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
-        <option name="cleanup-apks" value="true" />
-        <option name="test-file-name" value="MicrodroidTestApp.apk" />
-    </target_preparer>
-
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
         <option name="jar" value="MicrodroidHostTestCases.jar" />
     </test>
