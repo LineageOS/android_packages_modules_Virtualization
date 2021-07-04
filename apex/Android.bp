@@ -50,6 +50,9 @@ apex {
         "vm",
         "compos_key_cmd",
     ],
+    java_libs: [
+        "android.system.virtualmachine",
+    ],
     prebuilts: [
         "com.android.virt.init.rc",
         "microdroid.json",
