@@ -5,6 +5,9 @@ package {
 android_app {
     name: "MicrodroidTestApp",
     srcs: ["src/java/**/*.java"],
+    libs: [
+        "android.system.virtualmachine",
+    ],
     jni_libs: ["MicrodroidTestNativeLib"],
     platform_apis: true,
     use_embedded_native_libs: true,
