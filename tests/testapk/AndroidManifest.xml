@@ -15,6 +15,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.microdroid.test">
     <application android:label="Microdroid Test">
+        <uses-library android:name="android.system.virtualmachine" android:required="true" />
         <activity android:name="TestActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

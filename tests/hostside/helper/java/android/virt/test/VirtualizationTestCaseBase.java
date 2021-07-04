@@ -139,7 +139,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         return String.join(" ", Arrays.asList(strs));
     }
 
-    private File findTestFile(String name) throws Exception {
+    public File findTestFile(String name) throws Exception {
         return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
     }
 
