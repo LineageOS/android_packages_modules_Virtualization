@@ -43,6 +43,7 @@ pub fn command_run_app(
     config_path: &str,
     daemonize: bool,
     log_path: Option<&Path>,
+    debug: bool,
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
     let idsig_file = File::open(idsig).context("Failed to open idsig file")?;
@@ -50,6 +51,7 @@ pub fn command_run_app(
         apk: ParcelFileDescriptor::new(apk_file).into(),
         idsig: ParcelFileDescriptor::new(idsig_file).into(),
         configPath: config_path.to_owned(),
+        debug,
     });
     run(service, &config, &format!("{:?}!{:?}", apk, config_path), daemonize, log_path)
 }

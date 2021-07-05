@@ -25,4 +25,7 @@ parcelable VirtualMachineAppConfig {
 
     /** Path to a configuration in an APK. This is the actual configuration for a VM. */
     @utf8InCpp String configPath;
+
+    /** Whether to run the VM in debug mode or not */
+    boolean debug;
 }
