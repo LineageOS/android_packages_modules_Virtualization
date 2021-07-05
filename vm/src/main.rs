@@ -53,6 +53,10 @@ enum Opt {
         /// Path to file for VM log output.
         #[structopt(short, long)]
         log: Option<PathBuf>,
+
+        /// Whether to run VM in debug mode.
+        #[structopt(short, long)]
+        debug: bool,
     },
     /// Run a virtual machine
     Run {
@@ -97,8 +101,8 @@ fn main() -> Result<(), Error> {
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::RunApp { apk, idsig, config_path, daemonize, log } => {
-            command_run_app(service, &apk, &idsig, &config_path, daemonize, log.as_deref())
+        Opt::RunApp { apk, idsig, config_path, daemonize, log, debug } => {
+            command_run_app(service, &apk, &idsig, &config_path, daemonize, log.as_deref(), debug)
         }
         Opt::Run { config, daemonize, log } => {
             command_run(service, &config, daemonize, log.as_deref())
