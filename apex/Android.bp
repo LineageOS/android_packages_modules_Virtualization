@@ -58,6 +58,7 @@ apex {
         "microdroid.json",
         "microdroid_uboot_env",
         "microdroid_bootloader",
+        "microdroid_bootconfig_debug",
     ],
     file_contexts: ":com.android.virt-file_contexts",
 }

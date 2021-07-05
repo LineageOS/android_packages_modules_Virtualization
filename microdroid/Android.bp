@@ -193,10 +193,9 @@ logical_partition {
 }
 
 microdroid_boot_cmdline = "panic=-1 " +
+    "bootconfig " +
     // TODO(b/181936135) make the ratelimiting conditional; ratelimiting on prod build
-    "printk.devkmsg=on " +
-    "androidboot.first_stage_console=1 " +
-    "androidboot.hardware=microdroid "
+    "printk.devkmsg=on "
 
 bootimg {
     name: "microdroid_boot-5.10",
@@ -207,15 +206,11 @@ bootimg {
     arch: {
         arm64: {
             kernel_prebuilt: ":kernel_prebuilts-5.10-arm64",
-            cmdline: microdroid_boot_cmdline +
-                "androidboot.boot_devices=10000.pci",
+            cmdline: microdroid_boot_cmdline,
         },
         x86_64: {
             kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
-            cmdline: microdroid_boot_cmdline +
-                "pci=noacpi " +
-                "androidboot.boot_devices=pci0000:00/0000:00:01.0," + // os
-                "pci0000:00/0000:00:03.0", // payload
+            cmdline: microdroid_boot_cmdline + "pci=noacpi ",
         },
     },
     dtb_prebuilt: "dummy_dtb.img",
@@ -249,6 +244,14 @@ bootimg {
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "4",
     vendor_boot: true,
+    arch: {
+        arm64: {
+            bootconfig: ":microdroid_bootconfig_arm64_gen",
+        },
+        x86_64: {
+            bootconfig: ":microdroid_bootconfig_x86_64_gen",
+        },
+    },
     partition_name: "vendor_boot",
     use_avb: true,
     avb_private_key: ":avb_testkey_rsa4096",
@@ -279,6 +282,32 @@ android_filesystem {
             name: "lib",
         },
     ],
+}
+
+genrule {
+    name: "microdroid_bootconfig_arm64_gen",
+    srcs: [
+        "bootconfig.common",
+        "bootconfig.arm64",
+    ],
+    out: ["bootconfig"],
+    cmd: "cat $(in) > $(out)",
+}
+
+genrule {
+    name: "microdroid_bootconfig_x86_64_gen",
+    srcs: [
+        "bootconfig.common",
+        "bootconfig.x86_64",
+    ],
+    out: ["bootconfig"],
+    cmd: "cat $(in) > $(out)",
+}
+
+prebuilt_etc {
+    name: "microdroid_bootconfig_debug",
+    src: "bootconfig.debug",
+    filename: "microdroid_bootconfig.debug",
 }
 
 prebuilt_etc {
