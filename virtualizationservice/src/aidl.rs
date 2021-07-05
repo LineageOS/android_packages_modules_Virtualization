@@ -44,7 +44,7 @@ use std::fs::{File, create_dir};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
-use vmconfig::VmConfig;
+use vmconfig::{VmConfig, Partition};
 use zip::ZipArchive;
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
@@ -319,7 +319,7 @@ fn load_app_config(
     let vm_config_file = File::open(vm_config_path)?;
     let mut vm_config = VmConfig::load(&vm_config_file)?;
 
-    // Microdroid requires additional payload disk image
+    // Microdroid requires additional payload disk image and the bootconfig partition
     if os_name == "microdroid" {
         let mut apexes = vm_payload_config.apexes.clone();
         apexes.extend(
@@ -335,6 +335,16 @@ fn load_app_config(
             &apexes,
             temporary_directory,
         )?);
+
+        if config.debug {
+            vm_config.disks[1].partitions.push(Partition {
+                label: "bootconfig".to_owned(),
+                paths: vec![PathBuf::from(
+                    "/apex/com.android.virt/etc/microdroid_bootconfig.debug",
+                )],
+                writable: false,
+            });
+        }
     }
 
     vm_config.to_parcelable()
