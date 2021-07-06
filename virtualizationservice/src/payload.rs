@@ -158,7 +158,7 @@ pub fn make_payload_disk(
 
     // put metadata at the first partition
     let mut partitions = vec![Partition {
-        label: "metadata".to_owned(),
+        label: "payload-metadata".to_owned(),
         paths: vec![metadata_path],
         writable: false,
     }];
