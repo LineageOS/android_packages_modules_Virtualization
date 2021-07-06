@@ -29,6 +29,7 @@ rust_defaults {
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
+        "libonce_cell",
         "libprotobuf",
         "libprotos",
         "libregex",
