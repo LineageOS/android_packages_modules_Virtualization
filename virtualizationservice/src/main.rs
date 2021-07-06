@@ -39,7 +39,7 @@ fn main() {
         android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Trace),
     );
 
-    let service = VirtualizationService::new().unwrap();
+    let service = VirtualizationService::default();
     let service = BnVirtualizationService::new_binder(
         service,
         BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
