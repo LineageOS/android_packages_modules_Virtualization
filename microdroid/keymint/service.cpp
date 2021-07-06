@@ -34,7 +34,7 @@ int main() {
 
     // Add Keymint Service
     std::shared_ptr<MicrodroidKeyMintDevice> keyMint =
-            ndk::SharedRefBase::make<MicrodroidKeyMintDevice>(SecurityLevel::SOFTWARE);
+            ndk::SharedRefBase::make<MicrodroidKeyMintDevice>();
     auto instanceName = std::string(MicrodroidKeyMintDevice::descriptor) + "/default";
     LOG(INFO) << "adding keymint service instance: " << instanceName;
     binder_status_t status =

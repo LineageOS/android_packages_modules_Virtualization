@@ -34,7 +34,7 @@ using secureclock::TimeStampToken;
 
 class MicrodroidKeyMintDevice : public BnKeyMintDevice {
 public:
-    explicit MicrodroidKeyMintDevice(SecurityLevel securityLevel);
+    MicrodroidKeyMintDevice();
     virtual ~MicrodroidKeyMintDevice();
 
     ScopedAStatus getHardwareInfo(KeyMintHardwareInfo* info) override;
@@ -85,9 +85,6 @@ public:
 
 protected:
     std::shared_ptr<::keymaster::AndroidKeymaster> impl_;
-    SecurityLevel securityLevel_;
 };
-
-IKeyMintDevice* CreateKeyMintDevice(SecurityLevel securityLevel);
 
 } // namespace aidl::android::hardware::security::keymint
