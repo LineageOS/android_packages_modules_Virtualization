@@ -73,7 +73,7 @@ fn align_to_power_of_2(val: u64, align_log: u8) -> u64 {
 }
 
 /// Round `val` to partition size(4K)
-pub fn align_to_partition_size(val: u64) -> u64 {
+fn align_to_partition_size(val: u64) -> u64 {
     align_to_power_of_2(val, PARTITION_SIZE_SHIFT)
 }
 
@@ -168,7 +168,7 @@ fn create_gpt_entry(partition: &PartitionInfo, offset: u64) -> GptPartitionEntry
 fn create_component_disks(
     partition: &PartitionInfo,
     offset: u64,
-    header_path: &str,
+    zero_filler_path: &str,
 ) -> Result<Vec<ComponentDisk>, Error> {
     let aligned_size = partition.aligned_size();
 
@@ -208,7 +208,7 @@ fn create_component_disks(
             );
             component_disks.push(ComponentDisk {
                 offset: offset + file_size_sum,
-                file_path: header_path.to_owned(),
+                file_path: zero_filler_path.to_owned(),
                 read_write_capability: ReadWriteCapability::READ_ONLY,
                 ..ComponentDisk::new()
             });
@@ -222,19 +222,22 @@ fn create_component_disks(
 /// files.
 pub fn create_composite_disk(
     partitions: &[PartitionInfo],
+    zero_filler_path: &Path,
     header_path: &Path,
     header_file: &mut File,
     footer_path: &Path,
     footer_file: &mut File,
     output_composite: &mut File,
 ) -> Result<(), Error> {
+    let zero_filler_path =
+        zero_filler_path.to_str().context("Invalid zero filler path")?.to_string();
     let header_path = header_path.to_str().context("Invalid header path")?.to_string();
     let footer_path = footer_path.to_str().context("Invalid footer path")?.to_string();
 
     let mut composite_proto = CompositeDisk::new();
     composite_proto.version = COMPOSITE_DISK_VERSION;
     composite_proto.component_disks.push(ComponentDisk {
-        file_path: header_path.clone(),
+        file_path: header_path,
         offset: 0,
         read_write_capability: ReadWriteCapability::READ_ONLY,
         ..ComponentDisk::new()
@@ -249,7 +252,9 @@ pub fn create_composite_disk(
     for partition in partitions {
         create_gpt_entry(partition, next_disk_offset).write_bytes(&mut writer)?;
 
-        for component_disk in create_component_disks(partition, next_disk_offset, &header_path)? {
+        for component_disk in
+            create_component_disks(partition, next_disk_offset, &zero_filler_path)?
+        {
             composite_proto.component_disks.push(component_disk);
         }
 
@@ -304,6 +309,7 @@ pub fn create_composite_disk(
 /// the form `/proc/self/fd/N` for the partition images.
 pub fn make_composite_image(
     partitions: &[Partition],
+    zero_filler_path: &Path,
     output_path: &Path,
     header_path: &Path,
     footer_path: &Path,
@@ -327,6 +333,7 @@ pub fn make_composite_image(
 
     create_composite_disk(
         &partitions,
+        zero_filler_path,
         header_path,
         &mut header_file,
         footer_path,
