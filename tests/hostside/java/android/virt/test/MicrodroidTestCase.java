@@ -29,7 +29,6 @@ import org.junit.runner.RunWith;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidTestCase extends VirtualizationTestCaseBase {
-    private static final long MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES = 5;
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
 
@@ -37,7 +36,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     public void testMicrodroidBoots() throws Exception {
         final String configPath = "assets/vm_config.json"; // path inside the APK
         final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath, /* debug */ false);
-        adbConnectToMicrodroid(cid, MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES);
+        adbConnectToMicrodroid(cid);
 
         // Test writing to /data partition
         runOnMicrodroid("echo MicrodroidTest > /data/local/tmp/test.txt");
@@ -82,7 +81,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String configPath = "assets/vm_config.json"; // path inside the APK
         final boolean debug = true;
         final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath, debug);
-        adbConnectToMicrodroid(cid, MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES);
+        adbConnectToMicrodroid(cid);
 
         assertThat(runOnMicrodroid("getenforce"), is("Permissive"));
 
