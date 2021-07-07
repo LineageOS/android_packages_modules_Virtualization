@@ -15,9 +15,12 @@
 -->
 
 <configuration description="Config for authfs tests">
-    <!-- Since Android does not support user namespace, we need root to access /dev/fuse and also
-         to set up the mount. -->
+    <!-- Need root to start virtualizationservice -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
+
+    <!-- virtualizationservice doesn't have access to shell_data_file. Instead of giving it
+          a test-only permission, run it without selinux -->
+    <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer"/>
 
     <!-- Basic checks that the device has all the prerequisites. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
