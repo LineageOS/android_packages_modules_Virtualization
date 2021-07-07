@@ -143,8 +143,8 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         return (new CompatibilityBuildHelper(getBuild())).getTestFile(name);
     }
 
-    public String startMicrodroid(String apkName, String packageName, String configPath)
-            throws Exception {
+    public String startMicrodroid(
+            String apkName, String packageName, String configPath, boolean debug) throws Exception {
         // Install APK
         File apkFile = findTestFile(apkName);
         getDevice().installPackage(apkFile, /* reinstall */ true);
@@ -162,6 +162,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         getDevice().pushFile(idsigOnHost, apkIdsigPath);
 
         final String logPath = TEST_ROOT + "log.txt";
+        final String debugFlag = debug ? "--debug " : "";
 
         // Run the VM
         runOnAndroid("start", "virtualizationservice");
@@ -171,6 +172,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
                         "run-app",
                         "--daemonize",
                         "--log " + logPath,
+                        debugFlag,
                         apkPath,
                         apkIdsigPath,
                         configPath);
