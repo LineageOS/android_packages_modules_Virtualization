@@ -41,6 +41,7 @@ use microdroid_payload_config::{ApexConfig, VmPayloadConfig};
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::fs::{File, create_dir};
+use std::num::NonZeroU32;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
@@ -144,6 +145,7 @@ impl IVirtualizationService for VirtualizationService {
             disks,
             params: config.params.to_owned(),
             protected: config.protected_vm,
+            memory_mib: config.memory_mib.try_into().ok().and_then(NonZeroU32::new),
         };
         let composite_disk_fds: Vec<_> =
             indirect_files.iter().map(|file| file.as_raw_fd()).collect();
