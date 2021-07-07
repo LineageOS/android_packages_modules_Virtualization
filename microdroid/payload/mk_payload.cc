@@ -302,7 +302,7 @@ Result<void> MakePayload(const Config& config, const std::string& metadata_file,
 
     // put metadata at the first partition
     partitions.push_back(MultipleImagePartition{
-            .label = "metadata",
+            .label = "payload-metadata",
             .image_file_paths = {metadata_file},
             .type = kLinuxFilesystem,
             .read_only = true,
