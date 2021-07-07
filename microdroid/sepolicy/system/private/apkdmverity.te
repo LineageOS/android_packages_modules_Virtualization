@@ -6,7 +6,7 @@ type apkdmverity_exec, exec_type, file_type, system_file_type;
 # allow domain transition from init
 init_daemon_domain(apkdmverity)
 
-# apkdmverity accesses /dev/block/by-name/metadata which points to
+# apkdmverity accesses "payload metadata disk" which points to
 # a /dev/vd* block device file.
 allow apkdmverity block_device:dir r_dir_perms;
 allow apkdmverity block_device:lnk_file r_file_perms;
