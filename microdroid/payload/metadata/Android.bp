@@ -10,6 +10,7 @@ rust_library {
     prefer_rlib: true,
     edition: "2018",
     rustlibs: [
+        "libanyhow",
         "libmicrodroid_metadata_proto_rust",
         "libprotobuf",
     ],

@@ -7,7 +7,7 @@ mounts/activates APK/APEXes and executes a binary within the APK.
 
 Payload disk has 1 + N(number of APEX/APK payloads) partitions.
 
-The first partition is a "metadata" partition which describes other partitions.
+The first partition is a "payload-metadata" partition which describes other partitions.
 And APEXes and an APK are following as separate partitions.
 
 For now, the order of partitions are important.
