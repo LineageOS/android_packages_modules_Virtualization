@@ -42,4 +42,7 @@ parcelable VirtualMachineRawConfig {
 
     /** Whether the VM should be a protected VM. */
     boolean protected_vm;
+
+    /** The amount of RAM to give the VM, in MiB. 0 or negative to use the default. */
+    int memory_mib;
 }

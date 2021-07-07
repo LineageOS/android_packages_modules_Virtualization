@@ -23,8 +23,10 @@ use android_system_virtualizationservice::{
 
 use anyhow::{bail, Context, Error, Result};
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
 use std::io::BufReader;
+use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 
 /// Configuration for a particular VM to be started.
@@ -46,6 +48,9 @@ pub struct VmConfig {
     /// Whether the VM should be a protected VM.
     #[serde(default)]
     pub protected: bool,
+    /// The amount of RAM to give the VM, in MiB.
+    #[serde(default)]
+    pub memory_mib: Option<NonZeroU32>,
 }
 
 impl VmConfig {
@@ -77,6 +82,11 @@ impl VmConfig {
     /// Convert the `VmConfig` to a [`VirtualMachineConfig`] which can be passed to the Virt
     /// Manager.
     pub fn to_parcelable(&self) -> Result<VirtualMachineRawConfig, Error> {
+        let memory_mib = if let Some(memory_mib) = self.memory_mib {
+            memory_mib.get().try_into().context("Invalid memory_mib")?
+        } else {
+            0
+        };
         Ok(VirtualMachineRawConfig {
             kernel: maybe_open_parcel_file(&self.kernel, false)?,
             initrd: maybe_open_parcel_file(&self.initrd, false)?,
@@ -84,6 +94,7 @@ impl VmConfig {
             bootloader: maybe_open_parcel_file(&self.bootloader, false)?,
             disks: self.disks.iter().map(DiskImage::to_parcelable).collect::<Result<_, Error>>()?,
             protected_vm: self.protected,
+            memory_mib,
         })
     }
 }
