@@ -22,6 +22,10 @@ import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
+import android.view.View;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -47,38 +51,77 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        TextView consoleView = (TextView) findViewById(R.id.consoleOutput);
+        Button runStopButton = (Button) findViewById(R.id.runStopButton);
+        ScrollView scrollView = (ScrollView) findViewById(R.id.scrollview);
 
-        // Whenthe console model is updated, append the new line to the text view.
-        TextView view = (TextView) findViewById(R.id.textview);
+        // When the console model is updated, append the new line to the text view.
         VirtualMachineModel model = new ViewModelProvider(this).get(VirtualMachineModel.class);
         model.getConsoleOutput()
                 .observeForever(
                         new Observer<String>() {
                             @Override
                             public void onChanged(String line) {
-                                view.append(line + "\n");
+                                consoleView.append(line + "\n");
+                                scrollView.fullScroll(View.FOCUS_DOWN);
                             }
                         });
+
+        // When the VM status is updated, change the label of the button
+        model.getStatus()
+                .observeForever(
+                        new Observer<VirtualMachine.Status>() {
+                            @Override
+                            public void onChanged(VirtualMachine.Status status) {
+                                if (status == VirtualMachine.Status.RUNNING) {
+                                    runStopButton.setText("Stop");
+                                } else {
+                                    runStopButton.setText("Run");
+                                    consoleView.setText("");
+                                }
+                            }
+                        });
+
+        // When the button is clicked, run or stop the VM
+        runStopButton.setOnClickListener(
+                new View.OnClickListener() {
+                    public void onClick(View v) {
+                        if (model.getStatus().getValue() == VirtualMachine.Status.RUNNING) {
+                            model.stop();
+                        } else {
+                            CheckBox debugModeCheckBox = (CheckBox) findViewById(R.id.debugMode);
+                            final boolean debug = debugModeCheckBox.isChecked();
+                            model.run(debug);
+                        }
+                    }
+                });
     }
 
     /** Models a virtual machine and console output from it. */
     public static class VirtualMachineModel extends AndroidViewModel {
-        private final VirtualMachine mVirtualMachine;
+        private VirtualMachine mVirtualMachine;
         private final MutableLiveData<String> mConsoleOutput = new MutableLiveData<>();
+        private final MutableLiveData<VirtualMachine.Status> mStatus = new MutableLiveData<>();
 
         public VirtualMachineModel(Application app) {
             super(app);
+            mStatus.setValue(VirtualMachine.Status.DELETED);
+        }
 
+        /** Runs a VM */
+        public void run(boolean debug) {
             // Create a VM and run it.
             // TODO(jiyong): remove the call to idsigPath
             try {
-                VirtualMachineConfig config =
+                VirtualMachineConfig.Builder builder =
                         new VirtualMachineConfig.Builder(getApplication(), "assets/vm_config.json")
                                 .idsigPath("/data/local/tmp/virt/MicrodroidDemoApp.apk.idsig")
-                                .build();
+                                .debugMode(debug);
+                VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
                 mVirtualMachine = vmm.create("demo_vm", config);
                 mVirtualMachine.run();
+                mStatus.postValue(mVirtualMachine.getStatus());
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
             }
@@ -105,8 +148,25 @@ public class MainActivity extends AppCompatActivity {
                     });
         }
 
+        /** Stops the running VM */
+        public void stop() {
+            try {
+                mVirtualMachine.stop();
+            } catch (VirtualMachineException e) {
+                // Consume
+            }
+            mVirtualMachine = null;
+            mStatus.postValue(VirtualMachine.Status.STOPPED);
+        }
+
+        /** Returns the console output from the VM */
         public LiveData<String> getConsoleOutput() {
             return mConsoleOutput;
+        }
+
+        /** Returns the status of the VM */
+        public LiveData<VirtualMachine.Status> getStatus() {
+            return mStatus;
         }
     }
 }
