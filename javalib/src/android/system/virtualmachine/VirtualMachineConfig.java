@@ -43,10 +43,12 @@ public final class VirtualMachineConfig {
     private static final String KEY_APKPATH = "apkPath";
     private static final String KEY_IDSIGPATH = "idsigPath";
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
+    private static final String KEY_DEBUGMODE = "debugMode";
 
     // Paths to the APK and its idsig file of this application.
     private final String mApkPath;
     private final String mIdsigPath;
+    private final boolean mDebugMode;
 
     /**
      * Path within the APK to the payload config file that defines software aspects of this config.
@@ -55,10 +57,12 @@ public final class VirtualMachineConfig {
 
     // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
-    private VirtualMachineConfig(String apkPath, String idsigPath, String payloadConfigPath) {
+    private VirtualMachineConfig(
+            String apkPath, String idsigPath, String payloadConfigPath, boolean debugMode) {
         mApkPath = apkPath;
         mIdsigPath = idsigPath;
         mPayloadConfigPath = payloadConfigPath;
+        mDebugMode = debugMode;
     }
 
     /** Loads a config from a stream, for example a file. */
@@ -81,7 +85,8 @@ public final class VirtualMachineConfig {
         if (payloadConfigPath == null) {
             throw new VirtualMachineException("No payloadConfigPath");
         }
-        return new VirtualMachineConfig(apkPath, idsigPath, payloadConfigPath);
+        final boolean debugMode = b.getBoolean(KEY_DEBUGMODE);
+        return new VirtualMachineConfig(apkPath, idsigPath, payloadConfigPath, debugMode);
     }
 
     /** Persists this config to a stream, for example a file. */
@@ -91,6 +96,7 @@ public final class VirtualMachineConfig {
         b.putString(KEY_APKPATH, mApkPath);
         b.putString(KEY_IDSIGPATH, mIdsigPath);
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
+        b.putBoolean(KEY_DEBUGMODE, mDebugMode);
         b.writeToStream(output);
     }
 
@@ -110,6 +116,7 @@ public final class VirtualMachineConfig {
         parcel.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
         parcel.idsig = ParcelFileDescriptor.open(new File(mIdsigPath), MODE_READ_ONLY);
         parcel.configPath = mPayloadConfigPath;
+        parcel.debug = mDebugMode;
         return parcel;
     }
 
@@ -117,6 +124,7 @@ public final class VirtualMachineConfig {
     public static class Builder {
         private Context mContext;
         private String mPayloadConfigPath;
+        private boolean mDebugMode;
         private String mIdsigPath; // TODO(jiyong): remove this
         // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
@@ -124,6 +132,13 @@ public final class VirtualMachineConfig {
         public Builder(Context context, String payloadConfigPath) {
             mContext = context;
             mPayloadConfigPath = payloadConfigPath;
+            mDebugMode = false;
+        }
+
+        /** Enables or disables the debug mode */
+        public Builder debugMode(boolean enableOrDisable) {
+            mDebugMode = enableOrDisable;
+            return this;
         }
 
         // TODO(jiyong): remove this. Apps shouldn't need to set the path to the idsig file. It
@@ -137,7 +152,7 @@ public final class VirtualMachineConfig {
         /** Builds an immutable {@link VirtualMachineConfig} */
         public VirtualMachineConfig build() {
             final String apkPath = mContext.getPackageCodePath();
-            return new VirtualMachineConfig(apkPath, mIdsigPath, mPayloadConfigPath);
+            return new VirtualMachineConfig(apkPath, mIdsigPath, mPayloadConfigPath, mDebugMode);
         }
     }
 }
