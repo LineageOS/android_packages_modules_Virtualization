@@ -36,7 +36,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     @Test
     public void testMicrodroidBoots() throws Exception {
         final String configPath = "assets/vm_config.json"; // path inside the APK
-        final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath);
+        final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath, /* debug */ false);
         adbConnectToMicrodroid(cid, MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES);
 
         // Test writing to /data partition
@@ -73,6 +73,18 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         // Check that keystore was found by the payload
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.test.keystore"), is("PASS"));
+
+        shutdownMicrodroid(cid);
+    }
+
+    @Test
+    public void testDebugMode() throws Exception {
+        final String configPath = "assets/vm_config.json"; // path inside the APK
+        final boolean debug = true;
+        final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath, debug);
+        adbConnectToMicrodroid(cid, MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES);
+
+        assertThat(runOnMicrodroid("getenforce"), is("Permissive"));
 
         shutdownMicrodroid(cid);
     }
