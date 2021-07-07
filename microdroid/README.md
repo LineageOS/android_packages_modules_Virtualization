@@ -11,7 +11,7 @@ Any 64-bit target (either x86\_64 or arm64) is supported. 32-bit target is not
 supported. Note that we currently don't support user builds; only userdebug
 builds are supported.
 
-The only remaining requirment is that `com.android.virt` APEX has to be
+The only remaining requirement is that `com.android.virt` APEX has to be
 pre-installed. To do this, add the following line in your product makefile.
 
 ```make
