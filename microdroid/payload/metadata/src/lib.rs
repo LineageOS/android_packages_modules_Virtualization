@@ -18,15 +18,15 @@
 //!   4 bytes : size(N) in big endian
 //!   N bytes : protobuf message for Metadata
 
+use anyhow::Result;
 use protobuf::Message;
-use std::io;
 use std::io::Read;
 use std::io::Write;
 
 pub use microdroid_metadata::metadata::{ApexPayload, ApkPayload, Metadata};
 
 /// Reads a metadata from a reader
-pub fn read_metadata<T: Read>(mut r: T) -> io::Result<Metadata> {
+pub fn read_metadata<T: Read>(mut r: T) -> Result<Metadata> {
     let mut buf = [0u8; 4];
     r.read_exact(&mut buf)?;
     let size = i32::from_be_bytes(buf);
@@ -34,9 +34,10 @@ pub fn read_metadata<T: Read>(mut r: T) -> io::Result<Metadata> {
 }
 
 /// Writes a metadata to a writer
-pub fn write_metadata<T: Write>(metadata: &Metadata, mut w: T) -> io::Result<()> {
+pub fn write_metadata<T: Write>(metadata: &Metadata, mut w: T) -> Result<()> {
     let mut buf = Vec::new();
     metadata.write_to_writer(&mut buf)?;
     w.write_all(&(buf.len() as i32).to_be_bytes())?;
-    w.write_all(&buf)
+    w.write_all(&buf)?;
+    Ok(())
 }

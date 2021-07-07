@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Payload metadata from /dev/block/by-name/metadata
+//! Payload metadata from /dev/block/by-name/payload-metadata
 
+use anyhow::Result;
 use log::info;
 use microdroid_metadata::{read_metadata, Metadata};
 use std::fs::File;
-use std::io;
 
-const METADATA_PATH: &str = "/dev/block/by-name/metadata";
+const PAYLOAD_METADATA_PATH: &str = "/dev/block/by-name/payload-metadata";
 
-/// loads payload metadata from /dev/block/by-name/metadata
-pub fn load() -> io::Result<Metadata> {
+/// loads payload metadata from /dev/block/by-name/paylaod-metadata
+pub fn load() -> Result<Metadata> {
     info!("loading payload metadata...");
-    read_metadata(File::open(METADATA_PATH)?)
+    read_metadata(File::open(PAYLOAD_METADATA_PATH)?)
 }
