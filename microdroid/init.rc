@@ -29,7 +29,6 @@ on early-init
     exec - root system -- /system/bin/apexd --vm
 
     perform_apex_config
-    exec_start derive_sdk
 
     exec - root system -- /system/bin/apkdmverity /dev/block/by-name/microdroid-apk /dev/block/by-name/microdroid-apk-idsig microdroid-apk
     mkdir /mnt/apk 0755 system system
