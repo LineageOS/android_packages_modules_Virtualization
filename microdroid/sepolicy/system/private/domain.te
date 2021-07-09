@@ -1,544 +1,252 @@
-# Transition to crash_dump when /system/bin/crash_dump* is executed.
-# This occurs when the process crashes.
-# We do not apply this to the su domain to avoid interfering with
-# tests (b/114136122)
-domain_auto_trans({ domain userdebug_or_eng(`-su') }, crash_dump_exec, crash_dump);
-allow domain crash_dump:process sigchld;
+# Rules for all domains.
 
-# Allow every process to check the heapprofd.enable properties to determine
-# whether to load the heap profiling library. This does not necessarily enable
-# heap profiling, as initialization will fail if it does not have the
-# necessary SELinux permissions.
-get_prop(domain, heapprofd_prop);
-# Allow heap profiling on debug builds.
-userdebug_or_eng(`can_profile_heap({
-  domain
-  -bpfloader
-  -init
-  -kernel
-  -keystore
-  -llkd
-  -logd
-  -logpersist
-  -recovery
-  -recovery_persist
-  -recovery_refresh
-  -ueventd
-  -vendor_init
-  -vold
-})')
+# Allow reaping by init.
+allow domain init:process sigchld;
 
-# As above, allow perf profiling most processes on debug builds.
-# zygote is excluded as system-wide profiling could end up with it
-# (unexpectedly) holding an open fd across a fork.
-userdebug_or_eng(`can_profile_perf({
-  domain
-  -bpfloader
-  -init
-  -kernel
-  -keystore
-  -llkd
-  -logd
-  -logpersist
-  -recovery
-  -recovery_persist
-  -recovery_refresh
-  -ueventd
-  -vendor_init
-  -vold
-  -zygote
-})')
+# Intra-domain accesses.
+allow domain self:process {
+    fork
+    sigchld
+    sigkill
+    sigstop
+    signull
+    signal
+    getsched
+    setsched
+    getsession
+    getpgid
+    setpgid
+    getcap
+    setcap
+    getattr
+    setrlimit
+};
+allow domain self:fd use;
+allow domain proc:dir r_dir_perms;
+allow domain proc_net_type:dir search;
+r_dir_file(domain, self)
+allow domain self:{ fifo_file file } rw_file_perms;
+allow domain self:unix_dgram_socket { create_socket_perms sendto };
+allow domain self:unix_stream_socket { create_stream_socket_perms connectto };
 
-# Everyone can access the IncFS list of features.
-r_dir_file(domain, sysfs_fs_incfs_features);
+# Inherit or receive open files from others.
+allow domain init:fd use;
 
+# Root fs.
+allow domain tmpfs:dir { getattr search };
+allow domain rootfs:dir search;
+allow domain rootfs:lnk_file { read getattr };
+
+# Device accesses.
+allow domain device:dir search;
+allow domain dev_type:lnk_file r_file_perms;
+allow domain devpts:dir search;
+allow domain socket_device:dir r_dir_perms;
+allow domain owntty_device:chr_file rw_file_perms;
+allow domain null_device:chr_file rw_file_perms;
+allow domain zero_device:chr_file rw_file_perms;
+
+# /dev/binder can be accessed by ... everyone! :)
+allow { domain -hwservicemanager } binder_device:chr_file rw_file_perms;
+
+# Restrict binder ioctls to an allowlist. Additional ioctl commands may be
+# added to individual domains, but this sets safe defaults for all processes.
+allowxperm domain binder_device:chr_file ioctl { unpriv_binder_ioctls };
+
+# /dev/binderfs needs to be accessed by everyone too!
+allow domain binderfs:dir { getattr search };
+allow domain binderfs_logs_proc:dir search;
+
+allow { domain -servicemanager } hwbinder_device:chr_file rw_file_perms;
+allow domain ptmx_device:chr_file rw_file_perms;
+allow domain random_device:chr_file rw_file_perms;
+allow domain proc_random:dir r_dir_perms;
+allow domain proc_random:file r_file_perms;
+allow domain properties_device:dir { search getattr };
+allow domain properties_serial:file r_file_perms;
+allow domain property_info:file r_file_perms;
+
+allow domain property_contexts_file:file r_file_perms;
+
+allow domain init:key search;
+
+# logd access
+unix_socket_send(domain, logdw, logd)
+
+# Directory/link file access for path resolution.
+allow domain {
+    system_file
+    system_lib_file
+    system_seccomp_policy_file
+    system_security_cacerts_file
+}:dir r_dir_perms;
+allow domain system_file:lnk_file { getattr read };
+
+# Global access to /system/etc/security/cacerts/*, /system/etc/seccomp_policy/*, /system/lib[64]/*,
+# /(system|product|system_ext)/etc/(group|passwd), linker and its config.
+allow domain system_seccomp_policy_file:file r_file_perms;
+# cacerts are accessible from public Java API.
+allow domain system_security_cacerts_file:file r_file_perms;
+allow domain system_group_file:file r_file_perms;
+allow domain system_passwd_file:file r_file_perms;
+allow domain system_linker_exec:file { execute read open getattr map };
+allow domain system_linker_config_file:file r_file_perms;
+allow domain system_lib_file:file { execute read open getattr map };
+# To allow following symlinks at /system/bin/linker, /system/lib/libc.so, etc.
+allow domain system_linker_exec:lnk_file { read open getattr };
+allow domain system_lib_file:lnk_file { read open getattr };
+
+allow domain system_event_log_tags_file:file r_file_perms;
+
+allow coredomain system_file:file { execute read open getattr map };
+
+# All domains get access to /vendor/etc
+allow domain vendor_configs_file:dir r_dir_perms;
+allow domain vendor_configs_file:file { read open getattr map };
+
+# Allow all domains to be able to follow /system/vendor and/or
+# /vendor/odm symlinks.
+allow domain vendor_file_type:lnk_file { getattr open read };
+
+# This is required to be able to search & read /vendor/lib64
+# in order to lookup vendor libraries. The execute permission
+# for coredomains is granted *only* for same process HALs
+allow domain vendor_file:dir { getattr search };
+
+# Allow reading and executing out of /vendor to all vendor domains
+allow { domain -coredomain } vendor_file_type:dir r_dir_perms;
+allow { domain -coredomain } vendor_file_type:file { read open getattr execute map };
+allow { domain -coredomain } vendor_file_type:lnk_file { getattr read };
+
+# read and stat any sysfs symlinks
+allow domain sysfs:lnk_file { getattr read };
+
+# Lots of processes access current CPU information
+r_dir_file(domain, sysfs_devices_system_cpu)
+
+# If kernel CONFIG_TRANSPARENT_HUGEPAGE is enabled, libjemalloc5 (statically
+# included by libc) reads /sys/kernel/mm/transparent_hugepage/enabled.
+allow domain sysfs_transparent_hugepage:dir search;
+allow domain sysfs_transparent_hugepage:file r_file_perms;
+
+allow coredomain system_data_file:dir getattr;
+# /data has the label system_data_root_file. Vendor components need the search
+# permission on system_data_root_file for path traversal to /data/vendor.
+allow domain system_data_root_file:dir { search getattr } ;
+allow domain system_data_file:dir search;
+# TODO restrict this to non-coredomain
+allow domain vendor_data_file:dir { getattr search };
+
+# required by the dynamic linker
+allow domain proc:lnk_file { getattr read };
+
+# /proc/cpuinfo
+allow domain proc_cpuinfo:file r_file_perms;
+
+# profiling needs to read /proc/sys/kernel/perf_event_max_sample_rate
+allow domain proc_perf:file r_file_perms;
+
+# toybox loads libselinux which stats /sys/fs/selinux/
+allow domain selinuxfs:dir search;
+allow domain selinuxfs:file getattr;
+allow domain sysfs:dir search;
+allow domain selinuxfs:filesystem getattr;
+
+# Almost all processes log tracing information to
+# /sys/kernel/debug/tracing/trace_marker
+# The reason behind this is documented in b/6513400
+allow domain debugfs:dir search;
+allow domain debugfs_tracing:dir search;
+allow domain debugfs_tracing_debug:dir search;
+allow domain debugfs_trace_marker:file w_file_perms;
+
+# Linux lockdown mode offers coarse-grained definitions for access controls.
+# The "confidentiality" level detects access to tracefs or the perf subsystem.
+# This overlaps with more precise declarations in Android's policy. The
+# debugfs_trace_marker above is an example in which all processes should have
+# some access to tracefs. Therefore, allow all domains to access this level.
+# The "integrity" level is however enforced.
+allow domain self:lockdown confidentiality;
+
+# Filesystem access.
+allow domain fs_type:filesystem getattr;
+allow domain fs_type:dir getattr;
+
+# Restrict all domains to an allowlist for common socket types. Additional
+# ioctl commands may be added to individual domains, but this sets safe
+# defaults for all processes. Note that granting this allowlist to domain does
+# not grant the ioctl permission on these socket types. That must be granted
+# separately.
+allowxperm domain domain:{ icmp_socket rawip_socket tcp_socket udp_socket }
+  ioctl { unpriv_sock_ioctls unpriv_tty_ioctls };
+# default allowlist for unix sockets.
+allowxperm domain { domain pdx_channel_socket_type }:{ unix_dgram_socket unix_stream_socket }
+  ioctl unpriv_unix_sock_ioctls;
+
+# Restrict PTYs to only allowed ioctls.
+# Note that granting this allowlist to domain does
+# not grant the wider ioctl permission. That must be granted
+# separately.
+allowxperm domain devpts:chr_file ioctl unpriv_tty_ioctls;
+
+# All domains must clearly enumerate what ioctls they use
+# on filesystem objects (plain files, directories, symbolic links,
+# named pipes, and named sockets). We start off with a safe set.
+allowxperm domain { file_type fs_type domain dev_type }:{ dir notdevfile_class_set blk_file } ioctl { FIOCLEX FIONCLEX };
+
+# If a domain has ioctl access to tun_device, it must clearly enumerate the
+# ioctls used. Safe defaults are listed below.
+allowxperm domain tun_device:chr_file ioctl { FIOCLEX FIONCLEX };
+
+# Allow a process to make a determination whether a file descriptor
+# for a plain file or pipe (fifo_file) is a tty. Note that granting
+# this allowlist to domain does not grant the ioctl permission to
+# these files. That must be granted separately.
+allowxperm domain { file_type fs_type }:file ioctl { TCGETS };
+allowxperm domain domain:fifo_file ioctl { TCGETS };
+
+# If a domain has access to perform an ioctl on a block device, allow these
+# very common, benign ioctls
+allowxperm domain dev_type:blk_file ioctl { BLKGETSIZE64 BLKSSZGET };
+
+# read APEX dir and stat any symlink pointing to APEXs.
+allow domain apex_mnt_dir:dir { getattr search };
+allow domain apex_mnt_dir:lnk_file r_file_perms;
+
+allow domain self:global_capability_class_set audit_control;
+allow domain self:netlink_audit_socket { create_socket_perms_no_ioctl nlmsg_write };
+
+# workaround for supressing property accesses.
+# TODO: remove these
+set_prop(domain, property_type)
+# auditallow { domain -init } property_type:property_service set;
+# auditallow { domain -init } property_type:file rw_file_perms;
+
+allow domain linkerconfig_file:dir search;
+allow domain linkerconfig_file:file r_file_perms;
+
+#-----------------------------------------
 # Path resolution access in cgroups.
 allow domain cgroup:dir search;
-allow { domain -appdomain -rs } cgroup:dir w_dir_perms;
-allow { domain -appdomain -rs } cgroup:file w_file_perms;
+allow { domain } cgroup:dir w_dir_perms;
+allow { domain } cgroup:file w_file_perms;
 
 allow domain cgroup_v2:dir search;
-allow { domain -appdomain -rs } cgroup_v2:dir w_dir_perms;
-allow { domain -appdomain -rs } cgroup_v2:file w_file_perms;
+allow { domain } cgroup_v2:dir w_dir_perms;
+allow { domain } cgroup_v2:file w_file_perms;
 
 allow domain cgroup_rc_file:dir search;
 allow domain cgroup_rc_file:file r_file_perms;
 allow domain task_profiles_file:file r_file_perms;
 allow domain task_profiles_api_file:file r_file_perms;
-allow domain vendor_task_profiles_file:file r_file_perms;
 
-# Allow all domains to read sys.use_memfd to determine
-# if memfd support can be used if device supports it
-get_prop(domain, use_memfd_prop);
-
-# Read access to sdkextensions props
-get_prop(domain, module_sdkextensions_prop)
-
-# Read access to bq configuration values
-get_prop(domain, bq_config_prop);
-
-# For now, everyone can access core property files
-# Device specific properties are not granted by default
-not_compatible_property(`
-    # DO NOT ADD ANY PROPERTIES HERE
-    get_prop(domain, core_property_type)
-    get_prop(domain, exported3_system_prop)
-    get_prop(domain, vendor_default_prop)
-')
-compatible_property_only(`
-    # DO NOT ADD ANY PROPERTIES HERE
-    get_prop({coredomain appdomain shell}, core_property_type)
-    get_prop({coredomain appdomain shell}, exported3_system_prop)
-    get_prop({coredomain appdomain shell}, exported_camera_prop)
-    get_prop({coredomain shell}, userspace_reboot_exported_prop)
-    get_prop({coredomain shell}, userspace_reboot_log_prop)
-    get_prop({coredomain shell}, userspace_reboot_test_prop)
-    get_prop({domain -coredomain -appdomain}, vendor_default_prop)
-')
-
+#-----------------------------------------
 # Allow access to fsverity keyring.
 allow domain kernel:key search;
-# Allow access to keys in the fsverity keyring that were installed at boot.
-allow domain fsverity_init:key search;
-# For testing purposes, allow access to keys installed with su.
-userdebug_or_eng(`
-  allow domain su:key search;
-')
 
-# Allow access to linkerconfig file
-allow domain linkerconfig_file:dir search;
-allow domain linkerconfig_file:file r_file_perms;
-
-# Allow all processes to check for the existence of the boringssl_self_test_marker files.
-allow domain boringssl_self_test_marker:dir search;
-
-# Limit ability to ptrace or read sensitive /proc/pid files of processes
-# with other UIDs to these allowlisted domains.
-neverallow {
-  domain
-  -vold
-  userdebug_or_eng(`-llkd')
-  -dumpstate
-  userdebug_or_eng(`-incidentd')
-  userdebug_or_eng(`-profcollectd')
-  -storaged
-  -system_server
-} self:global_capability_class_set sys_ptrace;
-
-# Limit ability to generate hardware unique device ID attestations to priv_apps
-neverallow { domain -priv_app -gmscore_app } *:keystore_key gen_unique_id;
-neverallow { domain -priv_app -gmscore_app } *:keystore2_key gen_unique_id;
-neverallow { domain -system_server } *:keystore2_key use_dev_id;
-neverallow { domain -system_server } keystore:keystore2 { clear_ns lock reset unlock };
-
-neverallow {
-  domain
-  -init
-  -vendor_init
-  userdebug_or_eng(`-domain')
-} debugfs_tracing_debug:file no_rw_file_perms;
-
-# System_server owns dropbox data, and init creates/restorecons the directory
-# Disallow direct access by other processes.
-neverallow { domain -init -system_server } dropbox_data_file:dir *;
-neverallow { domain -init -system_server } dropbox_data_file:file ~{ getattr read };
-
-###
-# Services should respect app sandboxes
-neverallow {
-  domain
-  -appdomain
-  -installd # creation of sandbox
-} { privapp_data_file app_data_file }:dir_file_class_set { create unlink };
-
-# Only the following processes should be directly accessing private app
-# directories.
-neverallow {
-  domain
-  -adbd
-  -appdomain
-  -app_zygote
-  -dexoptanalyzer
-  -installd
-  -iorap_inode2filename
-  -iorap_prefetcherd
-  -profman
-  -rs # spawned by appdomain, so carryover the exception above
-  -runas
-  -system_server
-  -viewcompiler
-  -zygote
-} { privapp_data_file app_data_file }:dir *;
-
-# Only apps should be modifying app data. installd is exempted for
-# restorecon and package install/uninstall.
-neverallow {
-  domain
-  -appdomain
-  -installd
-  -rs # spawned by appdomain, so carryover the exception above
-} { privapp_data_file app_data_file }:dir ~r_dir_perms;
-
-neverallow {
-  domain
-  -appdomain
-  -app_zygote
-  -installd
-  -iorap_prefetcherd
-  -rs # spawned by appdomain, so carryover the exception above
-} { privapp_data_file app_data_file }:file_class_set open;
-
-neverallow {
-  domain
-  -appdomain
-  -installd # creation of sandbox
-} { privapp_data_file app_data_file }:dir_file_class_set { create unlink };
-
-neverallow {
-  domain
-  -installd
-} { privapp_data_file app_data_file }:dir_file_class_set { relabelfrom relabelto };
-
-# The staging directory contains APEX and APK files. It is important to ensure
-# that these files cannot be accessed by other domains to ensure that the files
-# do not change between system_server staging the files and apexd processing
-# the files.
-neverallow { domain -init -system_server -apexd -installd -iorap_inode2filename -priv_app } staging_data_file:dir *;
-neverallow { domain -init -system_app -system_server -apexd -adbd -kernel -installd -iorap_inode2filename -priv_app } staging_data_file:file *;
-neverallow { domain -init -system_server -installd} staging_data_file:dir no_w_dir_perms;
-# apexd needs the link and unlink permissions, so list every `no_w_file_perms`
-# except for `link` and `unlink`.
-neverallow { domain -init -system_server } staging_data_file:file
-  { append create relabelfrom rename setattr write no_x_file_perms };
-
-neverallow {
-    domain
-    -appdomain # for oemfs
-    -bootanim # for oemfs
-    -recovery # for /tmp/update_binary in tmpfs
-    -microdroid_app -microdroid_manager # for executing shared libs on /mnt/apk in Microdroid
-} { fs_type -rootfs }:file execute;
-
-#
-# Assert that, to the extent possible, we're not loading executable content from
-# outside the rootfs or /system partition except for a few allowlisted domains.
-# Executable files loaded from /data is a persistence vector
-# we want to avoid. See
-# https://bugs.chromium.org/p/project-zero/issues/detail?id=955 for example.
-#
-neverallow {
-    domain
-    -appdomain
-    with_asan(`-asan_extract')
-    -iorap_prefetcherd
-    -shell
-    userdebug_or_eng(`-su')
-    -system_server_startup # for memfd backed executable regions
-    -app_zygote
-    -webview_zygote
-    -zygote
-    userdebug_or_eng(`-mediaextractor')
-    userdebug_or_eng(`-mediaswcodec')
-} {
-    file_type
-    -system_file_type
-    -system_lib_file
-    -system_linker_exec
-    -vendor_file_type
-    -exec_type
-    -postinstall_file
-}:file execute;
-
-# Only init is allowed to write cgroup.rc file
-neverallow {
-  domain
-  -init
-  -vendor_init
-} cgroup_rc_file:file no_w_file_perms;
-
-# Only authorized processes should be writing to files in /data/dalvik-cache
-neverallow {
-  domain
-  -init # TODO: limit init to relabelfrom for files
-  -zygote
-  -installd
-  -postinstall_dexopt
-  -cppreopts
-  -dex2oat
-  -otapreopt_slot
-} dalvikcache_data_file:file no_w_file_perms;
-
-neverallow {
-  domain
-  -init
-  -installd
-  -postinstall_dexopt
-  -cppreopts
-  -dex2oat
-  -zygote
-  -otapreopt_slot
-} dalvikcache_data_file:dir no_w_dir_perms;
-
-# Only authorized processes should be writing to /data/misc/apexdata/com.android.art as it
-# contains boot class path and system server AOT artifacts following an ART APEX Mainline update.
-neverallow {
-  domain
-  # art processes
-  -odrefresh
-  -odsign
-  # others
-  -apexd
-  -init
-  -vold_prepare_subdirs
-} apex_art_data_file:file no_w_file_perms;
-
-neverallow {
-  domain
-  # art processes
-  -odrefresh
-  -odsign
-  # others
-  -apexd
-  -init
-  -vold_prepare_subdirs
-} apex_art_data_file:dir no_w_dir_perms;
-
-# Protect most domains from executing arbitrary content from /data.
-neverallow {
-  domain
-  -appdomain
-} {
-  data_file_type
-  -apex_art_data_file
-  -dalvikcache_data_file
-  -system_data_file # shared libs in apks
-  -apk_data_file
-}:file no_x_file_perms;
-
-# Minimize dac_override and dac_read_search.
-# Instead of granting them it is usually better to add the domain to
-# a Unix group or change the permissions of a file.
-define(`dac_override_allowed', `{
-  apexd
-  dnsmasq
-  dumpstate
-  init
-  installd
-  userdebug_or_eng(`llkd')
-  lmkd
-  migrate_legacy_obb_data
-  netd
-  postinstall_dexopt
-  recovery
-  rss_hwm_reset
-  sdcardd
-  tee
-  ueventd
-  uncrypt
-  vendor_init
-  vold
-  vold_prepare_subdirs
-  zygote
-}')
-neverallow ~dac_override_allowed self:global_capability_class_set dac_override;
-# Since the kernel checks dac_read_search before dac_override, domains that
-# have dac_override should also have dac_read_search to eliminate spurious
-# denials.  Some domains have dac_read_search without having dac_override, so
-# this list should be a superset of the one above.
-neverallow ~{
-  dac_override_allowed
-  iorap_inode2filename
-  iorap_prefetcherd
-  traced_perf
-  traced_probes
-  heapprofd
-} self:global_capability_class_set dac_read_search;
-
-# Limit what domains can mount filesystems or change their mount flags.
-# sdcard_type / vfat is exempt as a larger set of domains need
-# this capability, including device-specific domains.
-neverallow {
-    domain
-    -apexd
-    recovery_only(`-fastbootd')
-    -init
-    -kernel
-    -otapreopt_chroot
-    -recovery
-    -update_engine
-    -vold
-    -zygote
-    -zipfuse
-} { fs_type
-    -sdcard_type
-}:filesystem { mount remount relabelfrom relabelto };
-
-enforce_debugfs_restriction(`
-  neverallow {
-    domain userdebug_or_eng(`-init')
-  } { debugfs_type -debugfs_tracing_debug }:filesystem { mount remount relabelfrom relabelto };
-')
-
-# Limit raw I/O to these allowlisted domains. Do not apply to debug builds.
-neverallow {
-  domain
-  userdebug_or_eng(`-domain')
-  -kernel
-  -gsid
-  -init
-  -recovery
-  -ueventd
-  -healthd
-  -uncrypt
-  -tee
-  -hal_bootctl_server
-  -fastbootd
-} self:global_capability_class_set sys_rawio;
-
-# Limit directory operations that doesn't need to do app data isolation.
-neverallow {
-  domain
-  -init
-  -installd
-  -zygote
-} mirror_data_file:dir *;
-
-# This property is being removed. Remove remaining access.
-neverallow { domain -init -system_server -vendor_init } net_dns_prop:property_service set;
-neverallow { domain -dumpstate -init -system_server -vendor_init } net_dns_prop:file read;
-
-# Only core domains are allowed to access package_manager properties
-neverallow { domain -init -system_server } pm_prop:property_service set;
-neverallow { domain -coredomain } pm_prop:file no_rw_file_perms;
-
-# Do not allow reading the last boot timestamp from system properties
-neverallow { domain -init -system_server -dumpstate } firstboot_prop:file r_file_perms;
-
-# Kprobes should only be used by adb root
-neverallow { domain -init -vendor_init } debugfs_kprobes:file *;
-
-# On TREBLE devices, most coredomains should not access vendor_files.
-# TODO(b/71553434): Remove exceptions here.
-full_treble_only(`
-  neverallow {
-    coredomain
-    -appdomain
-    -bootanim
-    -crash_dump
-    -heapprofd
-    userdebug_or_eng(`-profcollectd')
-    -init
-    -iorap_inode2filename
-    -iorap_prefetcherd
-    -kernel
-    -traced_perf
-    -ueventd
-  } vendor_file:file { no_w_file_perms no_x_file_perms open };
-')
-
-# Vendor domains are not permitted to initiate communications to core domain sockets
-full_treble_only(`
-  neverallow_establish_socket_comms({
-    domain
-    -coredomain
-    -appdomain
-    -socket_between_core_and_vendor_violators
-  }, {
-    coredomain
-    -logd # Logging by writing to logd Unix domain socket is public API
-    -netd # netdomain needs this
-    -mdnsd # netdomain needs this
-    userdebug_or_eng(`-su') # communications with su are permitted only on userdebug or eng builds
-    -init
-    -tombstoned # linker to tombstoned
-    userdebug_or_eng(`-heapprofd')
-    userdebug_or_eng(`-traced_perf')
-  });
-')
-
-full_treble_only(`
-  # Do not allow system components access to /vendor files except for the
-  # ones allowed here.
-  neverallow {
-    coredomain
-    # TODO(b/37168747): clean up fwk access to /vendor
-    -crash_dump
-    -init # starts vendor executables
-    -iorap_inode2filename
-    -iorap_prefetcherd
-    -kernel # loads /vendor/firmware
-    -heapprofd
-    userdebug_or_eng(`-profcollectd')
-    -shell
-    -system_executes_vendor_violators
-    -traced_perf # library/binary access for symbolization
-    -ueventd # reads /vendor/ueventd.rc
-    -vold # loads incremental fs driver
-  } {
-    vendor_file_type
-    -same_process_hal_file
-    -vendor_app_file
-    -vendor_apex_file
-    -vendor_configs_file
-    -vendor_service_contexts_file
-    -vendor_framework_file
-    -vendor_idc_file
-    -vendor_keychars_file
-    -vendor_keylayout_file
-    -vendor_overlay_file
-    -vendor_public_framework_file
-    -vendor_public_lib_file
-    -vendor_task_profiles_file
-    -vndk_sp_file
-  }:file *;
-')
-
-# mlsvendorcompat is only for compatibility support for older vendor
-# images, and should not be granted to any domain in current policy.
-# (Every domain is allowed self:fork, so this will trigger if the
-# intsersection of domain & mlsvendorcompat is not empty.)
-neverallow domain mlsvendorcompat:process fork;
-
-# Only init and otapreopt_chroot should be mounting filesystems on locations
-# labeled system or vendor (/product and /vendor respectively).
-# In microdroid, zipfuse is allowed mounton /mnt/apk.
-neverallow { domain -init -otapreopt_chroot -zipfuse } { system_file_type vendor_file_type }:dir_file_class_set mounton;
-
-# Only allow init and vendor_init to read/write mm_events properties
-# NOTE: dumpstate is allowed to read any system property
-neverallow {
-  domain
-  -init
-  -vendor_init
-  -dumpstate
-} mm_events_config_prop:file no_rw_file_perms;
-
-# Allow the tracing daemon and callstack sampler to use kallsyms to symbolize
-# kernel traces. Addresses are not disclosed, they are repalced with symbol
-# names (if available). Traces don't disclose KASLR.
-neverallow {
-  domain
-  -init
-  userdebug_or_eng(`-profcollectd')
-  -vendor_init
-  -traced_probes
-  -traced_perf
-} proc_kallsyms:file { open read };
-
-# debugfs_kcov type is not included in this neverallow statement since the KCOV
-# tool uses it for kernel fuzzing.
-# vendor_modprobe is also exempted since the kernel modules it loads may create
-# debugfs files in its context.
-enforce_debugfs_restriction(`
-  neverallow {
-    domain
-    -vendor_modprobe
-    userdebug_or_eng(`
-      -init
-      -hal_dumpstate
-    ')
-  } { debugfs_type
-      userdebug_or_eng(`-debugfs_kcov')
-      -tracefs_type
-  }:file no_rw_file_perms;
-')
+# Transition to crash_dump when /system/bin/crash_dump* is executed.
+# This occurs when the process crashes.
+# We do not apply this to the su domain to avoid interfering with
+# tests (b/114136122)
+domain_auto_trans(domain, crash_dump_exec, crash_dump);
+allow domain crash_dump:process sigchld;

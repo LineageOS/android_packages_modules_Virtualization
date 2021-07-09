@@ -46,3 +46,6 @@ allow microdroid_app vm_payload_key:keystore2_key {
 
 # Allow microdroid_app to use vsock inherited from microdroid_manager
 allow microdroid_app microdroid_manager:vsock_socket { read write };
+
+# Write to /dev/kmsg.
+allow microdroid_app kmsg_device:chr_file rw_file_perms;
