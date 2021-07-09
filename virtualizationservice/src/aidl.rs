@@ -59,8 +59,8 @@ const DEBUG_ALLOWED_UIDS: [u32; 2] = [0, 2000];
 
 /// The list of APEXes which microdroid requires.
 /// TODO(b/192200378) move this to microdroid.json?
-const MICRODROID_REQUIRED_APEXES: [&str; 4] =
-    ["com.android.adbd", "com.android.i18n", "com.android.os.statsd", "com.android.sdkext"];
+const MICRODROID_REQUIRED_APEXES: [&str; 3] =
+    ["com.android.adbd", "com.android.i18n", "com.android.os.statsd"];
 
 /// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
 #[derive(Debug, Default)]
