@@ -18,7 +18,9 @@ package com.android.microdroid.demo;
 
 import android.app.Application;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
 import android.system.virtualmachine.VirtualMachine;
+import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
@@ -36,6 +38,7 @@ import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.concurrent.ExecutorService;
@@ -52,10 +55,12 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         TextView consoleView = (TextView) findViewById(R.id.consoleOutput);
+        TextView payloadView = (TextView) findViewById(R.id.payloadOutput);
         Button runStopButton = (Button) findViewById(R.id.runStopButton);
-        ScrollView scrollView = (ScrollView) findViewById(R.id.scrollview);
+        ScrollView scrollView = (ScrollView) findViewById(R.id.scrollConsoleOutput);
 
-        // When the console model is updated, append the new line to the text view.
+        // When the console output or payload output is updated, append the new line to the
+        // corresponding text view.
         VirtualMachineModel model = new ViewModelProvider(this).get(VirtualMachineModel.class);
         model.getConsoleOutput()
                 .observeForever(
@@ -64,6 +69,14 @@ public class MainActivity extends AppCompatActivity {
                             public void onChanged(String line) {
                                 consoleView.append(line + "\n");
                                 scrollView.fullScroll(View.FOCUS_DOWN);
+                            }
+                        });
+        model.getPayloadOutput()
+                .observeForever(
+                        new Observer<String>() {
+                            @Override
+                            public void onChanged(String line) {
+                                payloadView.append(line + "\n");
                             }
                         });
 
@@ -75,9 +88,10 @@ public class MainActivity extends AppCompatActivity {
                             public void onChanged(VirtualMachine.Status status) {
                                 if (status == VirtualMachine.Status.RUNNING) {
                                     runStopButton.setText("Stop");
+                                    consoleView.setText("");
+                                    payloadView.setText("");
                                 } else {
                                     runStopButton.setText("Run");
-                                    consoleView.setText("");
                                 }
                             }
                         });
@@ -101,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
     public static class VirtualMachineModel extends AndroidViewModel {
         private VirtualMachine mVirtualMachine;
         private final MutableLiveData<String> mConsoleOutput = new MutableLiveData<>();
+        private final MutableLiveData<String> mPayloadOutput = new MutableLiveData<>();
         private final MutableLiveData<VirtualMachine.Status> mStatus = new MutableLiveData<>();
 
         public VirtualMachineModel(Application app) {
@@ -121,6 +136,31 @@ public class MainActivity extends AppCompatActivity {
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
                 mVirtualMachine = vmm.getOrCreate("demo_vm", config);
                 mVirtualMachine.run();
+                mVirtualMachine.setCallback(
+                        new VirtualMachineCallback() {
+                            @Override
+                            public void onPayloadStarted(
+                                    VirtualMachine vm, ParcelFileDescriptor out) {
+                                try {
+                                    BufferedReader reader =
+                                            new BufferedReader(
+                                                    new InputStreamReader(
+                                                            new FileInputStream(
+                                                                    out.getFileDescriptor())));
+                                    String line;
+                                    while ((line = reader.readLine()) != null) {
+                                        mPayloadOutput.postValue(line);
+                                    }
+                                } catch (IOException e) {
+                                    // Consume
+                                }
+                            }
+
+                            @Override
+                            public void onDied(VirtualMachine vm) {
+                                mStatus.postValue(VirtualMachine.Status.STOPPED);
+                            }
+                        });
                 mStatus.postValue(mVirtualMachine.getStatus());
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
@@ -162,6 +202,11 @@ public class MainActivity extends AppCompatActivity {
         /** Returns the console output from the VM */
         public LiveData<String> getConsoleOutput() {
             return mConsoleOutput;
+        }
+
+        /** Returns the payload output from the VM */
+        public LiveData<String> getPayloadOutput() {
+            return mPayloadOutput;
         }
 
         /** Returns the status of the VM */

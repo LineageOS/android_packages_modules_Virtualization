@@ -17,10 +17,12 @@
 package android.system.virtualmachine;
 
 import android.content.Context;
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.system.virtualizationservice.IVirtualMachine;
+import android.system.virtualizationservice.IVirtualMachineCallback;
 import android.system.virtualizationservice.IVirtualizationService;
 
 import java.io.File;
@@ -84,6 +86,9 @@ public class VirtualMachine {
 
     /** Handle to the "running" VM. */
     private IVirtualMachine mVirtualMachine;
+
+    /** The registered callback */
+    private VirtualMachineCallback mCallback;
 
     private ParcelFileDescriptor mConsoleReader;
     private ParcelFileDescriptor mConsoleWriter;
@@ -186,6 +191,19 @@ public class VirtualMachine {
     }
 
     /**
+     * Registers the callback object to get events from the virtual machine. If a callback was
+     * already registered, it is replaced with the new one.
+     */
+    public void setCallback(VirtualMachineCallback callback) {
+        mCallback = callback;
+    }
+
+    /** Returns the currently registered callback. */
+    public VirtualMachineCallback getCallback() {
+        return mCallback;
+    }
+
+    /**
      * Runs this virtual machine. The returning of this method however doesn't mean that the VM has
      * actually started running or the OS has booted there. Such events can be notified by
      * registering a callback object (not implemented currently).
@@ -208,6 +226,40 @@ public class VirtualMachine {
                             android.system.virtualizationservice.VirtualMachineConfig.appConfig(
                                     getConfig().toParcel()),
                             mConsoleWriter);
+
+            mVirtualMachine.registerCallback(
+                    new IVirtualMachineCallback.Stub() {
+                        @Override
+                        public void onPayloadStarted(int cid, ParcelFileDescriptor stream) {
+                            final VirtualMachineCallback cb = mCallback;
+                            if (cb == null) {
+                                return;
+                            }
+                            cb.onPayloadStarted(VirtualMachine.this, stream);
+                        }
+
+                        @Override
+                        public void onDied(int cid) {
+                            final VirtualMachineCallback cb = mCallback;
+                            if (cb == null) {
+                                return;
+                            }
+                            cb.onDied(VirtualMachine.this);
+                        }
+                    });
+            service.asBinder()
+                    .linkToDeath(
+                            new IBinder.DeathRecipient() {
+                                @Override
+                                public void binderDied() {
+                                    final VirtualMachineCallback cb = mCallback;
+                                    if (cb != null) {
+                                        cb.onDied(VirtualMachine.this);
+                                    }
+                                }
+                            },
+                            0);
+
         } catch (IOException e) {
             throw new VirtualMachineException(e);
         } catch (RemoteException e) {

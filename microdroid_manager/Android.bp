@@ -18,6 +18,7 @@ rust_defaults {
         "libprotobuf",
         "libserde",
         "libserde_json",
+        "libvsock",
     ],
     init_rc: ["microdroid_manager.rc"],
 }
