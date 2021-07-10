@@ -19,8 +19,12 @@
 # To include the APEX in your build, insert this in your device.mk:
 #   $(call inherit-product, packages/modules/Virtualization/apex/product_packages.mk)
 
-PRODUCT_PACKAGES += com.android.virt
+PRODUCT_PACKAGES += \
+    com.android.compos \
+    com.android.virt
+
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
+    system/apex/com.android.compos.apex \
     system/apex/com.android.virt.apex \
     system/bin/crosvm \
     system/lib64/%.dylib.so \
