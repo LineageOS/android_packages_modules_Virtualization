@@ -74,7 +74,12 @@ public class VirtualMachineManager {
         return VirtualMachine.load(mContext, name);
     }
 
-    /** Returns an existing {@link VirtualMachine} if it exists, or create a new one. */
+    /**
+     * Returns an existing {@link VirtualMachine} if it exists, or create a new one. If the virtual
+     * machine exists, and config is not null, the virtual machine is re-configured with the new
+     * config. However, if the config is not compatible with the original config of the virtual
+     * machine, exception is thrown.
+     */
     public VirtualMachine getOrCreate(String name, VirtualMachineConfig config)
             throws VirtualMachineException {
         VirtualMachine vm;
@@ -85,10 +90,11 @@ public class VirtualMachineManager {
             }
         }
 
-        if (vm.getConfig().equals(config)) {
-            return vm;
-        } else {
-            throw new VirtualMachineException("Incompatible config");
+        if (config != null) {
+            // Can throw VirtualMachineException is the new config is not compatible with the
+            // old config.
+            vm.setConfig(config);
         }
+        return vm;
     }
 }
