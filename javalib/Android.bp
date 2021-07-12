@@ -20,3 +20,10 @@ java_sdk_library {
     // TODO(jiyong): remove the below once this gets public
     unsafe_ignore_missing_latest_api: true,
 }
+
+android_app {
+    name: "android.system.virtualmachine.res",
+    installable: true,
+    apex_available: ["com.android.virt"],
+    sdk_version: "current",
+}
