@@ -37,4 +37,15 @@ interface ICompOsKeyService {
      * @return whether the inputs are valid and correspond to each other.
      */
     boolean verifySigningKey(in byte[] keyBlob, in byte[] publicKey);
+
+    /**
+     * Use the supplied encrypted private key to sign some data.
+     *
+     * @param keyBlob The encrypted blob containing the private key, as returned by
+     *                generateSigningKey().
+     * @param data The data to be signed. (Large data sizes may cause failure.)
+     * @return the signature.
+     */
+    // STOPSHIP(b/193241041): We must not expose this from the PVM.
+    byte[] sign(in byte[] keyBlob, in byte[] data);
 }
