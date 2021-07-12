@@ -5,12 +5,18 @@ package {
 cc_binary {
     name: "compos_key_cmd",
     srcs: ["compos_key_cmd.cpp"],
-    apex_available: ["com.android.virt"],
+    apex_available: ["com.android.compos"],
+
+    static_libs: [
+        "lib_compos_proto",
+    ],
 
     shared_libs: [
         "compos_aidl_interface-ndk_platform",
         "libbase",
         "libbinder_ndk",
         "libcrypto",
+        "libfsverity",
+        "libprotobuf-cpp-lite",
     ],
 }
