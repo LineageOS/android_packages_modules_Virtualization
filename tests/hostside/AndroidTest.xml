@@ -14,14 +14,6 @@
      limitations under the License.
 -->
 <configuration description="Tests for microdroid">
-    <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer">
-        <option name="force-root" value="true" />
-    </target_preparer>
-
-    <!-- virtualizationservice doesn't have access to shell_data_file. Instead of giving it
-      a test-only permission, run it without selinux -->
-    <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer"/>
-
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
         <option name="jar" value="MicrodroidHostTestCases.jar" />
     </test>
