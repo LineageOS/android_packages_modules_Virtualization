@@ -170,7 +170,7 @@ Result<void> test_keystore() {
 }
 
 template <typename T>
-void report_test(std::string name, Result<T> result) {
+Result<T> report_test(std::string name, Result<T> result) {
     auto property = "debug.microdroid.test." + name;
     std::stringstream outcome;
     if (result.ok()) {
@@ -181,6 +181,7 @@ void report_test(std::string name, Result<T> result) {
         std::cout << "[" << name << "] test failed: " << result.error() << "\n";
     }
     __system_property_set(property.c_str(), outcome.str().c_str());
+    return result;
 }
 
 } // Anonymous namespace
@@ -198,6 +199,7 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     printf("\n");
 
     __system_property_set("debug.microdroid.app.run", "true");
-    report_test("keystore", test_keystore());
+    if (!report_test("keystore", test_keystore()).ok()) return 1;
+
     return 0;
 }
