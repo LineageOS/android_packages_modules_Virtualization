@@ -25,9 +25,11 @@ import android.system.virtualizationservice.IVirtualizationService;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.util.Optional;
 
@@ -105,16 +107,22 @@ public class VirtualMachine {
     /* package */ static VirtualMachine create(
             Context context, String name, VirtualMachineConfig config)
             throws VirtualMachineException {
-        // TODO(jiyong): trigger an error if the VM having 'name' already exists.
         VirtualMachine vm = new VirtualMachine(context, name, config);
 
         try {
-            final File vmRoot = vm.mConfigFilePath.getParentFile();
-            Files.createDirectories(vmRoot.toPath());
+            final File thisVmDir = vm.mConfigFilePath.getParentFile();
+            Files.createDirectories(thisVmDir.getParentFile().toPath());
 
-            FileOutputStream output = new FileOutputStream(vm.mConfigFilePath);
-            vm.mConfig.serialize(output);
-            output.close();
+            // The checking of the existence of this directory and the creation of it is done
+            // atomically. If the directory already exists (i.e. the VM with the same name was
+            // already created), FileAlreadyExistsException is thrown
+            Files.createDirectory(thisVmDir.toPath());
+
+            try (FileOutputStream output = new FileOutputStream(vm.mConfigFilePath)) {
+                vm.mConfig.serialize(output);
+            }
+        } catch (FileAlreadyExistsException e) {
+            throw new VirtualMachineException("virtual machine already exists", e);
         } catch (IOException e) {
             throw new VirtualMachineException(e);
         }
@@ -126,7 +134,6 @@ public class VirtualMachine {
     /** Loads a virtual machine that is already created before. */
     /* package */ static VirtualMachine load(Context context, String name)
             throws VirtualMachineException {
-        // TODO(jiyong): return null if the VM having the 'name' doesn't exist.
         VirtualMachine vm = new VirtualMachine(context, name, /* config */ null);
 
         try {
@@ -134,6 +141,9 @@ public class VirtualMachine {
             VirtualMachineConfig config = VirtualMachineConfig.from(input);
             input.close();
             vm.mConfig = config;
+        } catch (FileNotFoundException e) {
+            // The VM doesn't exist.
+            return null;
         } catch (IOException e) {
             throw new VirtualMachineException(e);
         }
@@ -265,8 +275,21 @@ public class VirtualMachine {
      */
     public VirtualMachineConfig setConfig(VirtualMachineConfig newConfig)
             throws VirtualMachineException {
-        // TODO(jiyong): implement this
-        throw new VirtualMachineException("Not implemented");
+        final VirtualMachineConfig oldConfig = getConfig();
+        if (!oldConfig.isCompatibleWith(newConfig)) {
+            throw new VirtualMachineException("incompatible config");
+        }
+
+        try {
+            FileOutputStream output = new FileOutputStream(mConfigFilePath);
+            newConfig.serialize(output);
+            output.close();
+        } catch (IOException e) {
+            throw new VirtualMachineException(e);
+        }
+        mConfig = newConfig;
+
+        return oldConfig;
     }
 
     @Override
