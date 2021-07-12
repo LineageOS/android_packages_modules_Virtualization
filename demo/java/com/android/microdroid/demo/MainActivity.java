@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
                                 .debugMode(debug);
                 VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
-                mVirtualMachine = vmm.create("demo_vm", config);
+                mVirtualMachine = vmm.getOrCreate("demo_vm", config);
                 mVirtualMachine.run();
                 mStatus.postValue(mVirtualMachine.getStatus());
             } catch (VirtualMachineException e) {
