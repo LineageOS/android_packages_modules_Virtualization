@@ -19,6 +19,8 @@ package android.system.virtualmachine;
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature; // This actually is certificate!
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
@@ -28,6 +30,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Represents a configuration of a virtual machine. A configuration consists of hardware
@@ -40,6 +45,7 @@ public final class VirtualMachineConfig {
     // These defines the schema of the config file persisted on disk.
     private static final int VERSION = 1;
     private static final String KEY_VERSION = "version";
+    private static final String KEY_CERTS = "certs";
     private static final String KEY_APKPATH = "apkPath";
     private static final String KEY_IDSIGPATH = "idsigPath";
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
@@ -47,6 +53,7 @@ public final class VirtualMachineConfig {
 
     // Paths to the APK and its idsig file of this application.
     private final String mApkPath;
+    private final Signature[] mCerts;
     private final String mIdsigPath;
     private final boolean mDebugMode;
 
@@ -58,8 +65,13 @@ public final class VirtualMachineConfig {
     // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
     private VirtualMachineConfig(
-            String apkPath, String idsigPath, String payloadConfigPath, boolean debugMode) {
+            String apkPath,
+            Signature[] certs,
+            String idsigPath,
+            String payloadConfigPath,
+            boolean debugMode) {
         mApkPath = apkPath;
+        mCerts = certs;
         mIdsigPath = idsigPath;
         mPayloadConfigPath = payloadConfigPath;
         mDebugMode = debugMode;
@@ -77,6 +89,15 @@ public final class VirtualMachineConfig {
         if (apkPath == null) {
             throw new VirtualMachineException("No apkPath");
         }
+        final String[] certStrings = b.getStringArray(KEY_CERTS);
+        if (certStrings == null || certStrings.length == 0) {
+            throw new VirtualMachineException("No certs");
+        }
+        List<Signature> certList = new ArrayList<>();
+        for (String s : certStrings) {
+            certList.add(new Signature(s));
+        }
+        Signature[] certs = certList.toArray(new Signature[0]);
         final String idsigPath = b.getString(KEY_IDSIGPATH);
         if (idsigPath == null) {
             throw new VirtualMachineException("No idsigPath");
@@ -86,7 +107,7 @@ public final class VirtualMachineConfig {
             throw new VirtualMachineException("No payloadConfigPath");
         }
         final boolean debugMode = b.getBoolean(KEY_DEBUGMODE);
-        return new VirtualMachineConfig(apkPath, idsigPath, payloadConfigPath, debugMode);
+        return new VirtualMachineConfig(apkPath, certs, idsigPath, payloadConfigPath, debugMode);
     }
 
     /** Persists this config to a stream, for example a file. */
@@ -94,6 +115,12 @@ public final class VirtualMachineConfig {
         PersistableBundle b = new PersistableBundle();
         b.putInt(KEY_VERSION, VERSION);
         b.putString(KEY_APKPATH, mApkPath);
+        List<String> certList = new ArrayList<>();
+        for (Signature cert : mCerts) {
+            certList.add(cert.toCharsString());
+        }
+        String[] certs = certList.toArray(new String[0]);
+        b.putStringArray(KEY_CERTS, certs);
         b.putString(KEY_IDSIGPATH, mIdsigPath);
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
         b.putBoolean(KEY_DEBUGMODE, mDebugMode);
@@ -103,6 +130,23 @@ public final class VirtualMachineConfig {
     /** Returns the path to the payload config within the owning application. */
     public String getPayloadConfigPath() {
         return mPayloadConfigPath;
+    }
+
+    /**
+     * Tests if this config is compatible with other config. Being compatible means that the configs
+     * can be interchangeably used for the same virtual machine. Compatible changes includes the
+     * number of CPUs and the size of the RAM, and change of the payload as long as the payload is
+     * signed by the same signer. All other changes (e.g. using a payload from a different signer,
+     * change of the debug mode, etc.) are considered as incompatible.
+     */
+    public boolean isCompatibleWith(VirtualMachineConfig other) {
+        if (!Arrays.equals(this.mCerts, other.mCerts)) {
+            return false;
+        }
+        if (this.mDebugMode != other.mDebugMode) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -152,7 +196,22 @@ public final class VirtualMachineConfig {
         /** Builds an immutable {@link VirtualMachineConfig} */
         public VirtualMachineConfig build() {
             final String apkPath = mContext.getPackageCodePath();
-            return new VirtualMachineConfig(apkPath, mIdsigPath, mPayloadConfigPath, mDebugMode);
+            final String packageName = mContext.getPackageName();
+            Signature[] certs;
+            try {
+                certs =
+                        mContext.getPackageManager()
+                                .getPackageInfo(
+                                        packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                                .signingInfo
+                                .getSigningCertificateHistory();
+            } catch (PackageManager.NameNotFoundException e) {
+                // This cannot happen as `packageName` is from this app.
+                throw new RuntimeException(e);
+            }
+
+            return new VirtualMachineConfig(
+                    apkPath, certs, mIdsigPath, mPayloadConfigPath, mDebugMode);
         }
     }
 }
