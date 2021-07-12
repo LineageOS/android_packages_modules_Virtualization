@@ -86,6 +86,11 @@ impl ICompOsKeyService for CompOsKeyService {
             true
         })
     }
+
+    fn sign(&self, key_blob: &[u8], data: &[u8]) -> binder::Result<Vec<u8>> {
+        self.do_sign(key_blob, data)
+            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
+    }
 }
 
 /// Constructs a new Binder error `Status` with the given `ExceptionCode` and message.
@@ -126,7 +131,7 @@ impl CompOsKeyService {
         let mut data = [0u8; 32];
         self.random.fill(&mut data).context("No random data")?;
 
-        let signature = self.sign(key_blob, &data)?;
+        let signature = self.do_sign(key_blob, &data)?;
 
         let public_key =
             signature::UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256, public_key);
@@ -135,7 +140,7 @@ impl CompOsKeyService {
         Ok(())
     }
 
-    fn sign(&self, key_blob: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    fn do_sign(&self, key_blob: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         let key_descriptor = KeyDescriptor { blob: Some(key_blob.to_vec()), ..KEY_DESCRIPTOR };
         let operation_parameters = [PURPOSE_SIGN, ALGORITHM, PADDING, DIGEST];
         let forced = false;
