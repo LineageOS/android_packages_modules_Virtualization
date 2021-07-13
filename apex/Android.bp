@@ -52,6 +52,9 @@ apex {
     java_libs: [
         "android.system.virtualmachine",
     ],
+    apps: [
+        "android.system.virtualmachine.res",
+    ],
     prebuilts: [
         "com.android.virt.init.rc",
         "microdroid.json",
