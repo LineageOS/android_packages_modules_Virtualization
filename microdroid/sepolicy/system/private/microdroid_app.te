@@ -43,3 +43,6 @@ allow microdroid_app vm_payload_key:keystore2_key {
     rebind
     use
 };
+
+# Allow microdroid_app to use vsock inherited from microdroid_manager
+allow microdroid_app microdroid_manager:vsock_socket { read write };
