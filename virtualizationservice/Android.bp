@@ -21,6 +21,7 @@ rust_defaults {
     prefer_rlib: true,
     rustlibs: [
         "android.system.virtualizationservice-rust",
+        "android.os.permissions_aidl-rust",
         "libandroid_logger",
         "libanyhow",
         "libcommand_fds",
