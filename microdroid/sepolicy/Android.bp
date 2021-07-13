@@ -115,7 +115,6 @@ se_policy_cil {
     name: "microdroid_plat_sepolicy.cil",
     stem: "plat_sepolicy.cil",
     src: ":microdroid_plat_sepolicy.conf",
-    additional_cil_files: ["system/private/technical_debt.cil"],
     installable: false,
 }
 

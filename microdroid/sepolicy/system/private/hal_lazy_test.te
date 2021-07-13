@@ -1,3 +1,0 @@
-userdebug_or_eng(`
-  hal_attribute_hwservice(hal_lazy_test, hal_lazy_test_hwservice)
-')

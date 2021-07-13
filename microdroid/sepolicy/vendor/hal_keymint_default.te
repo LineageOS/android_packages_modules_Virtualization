@@ -4,4 +4,8 @@ hal_server_domain(hal_keymint_default, hal_keymint)
 type hal_keymint_default_exec, exec_type, vendor_file_type, file_type;
 init_daemon_domain(hal_keymint_default)
 
-get_prop(hal_keymint_default, vendor_security_patch_level_prop);
+allow hal_keymint_default keystore:binder transfer;
+allow hal_keymint_default system_lib_file:file execute;
+
+allow logd hal_keymint_default:dir search;
+allow logd hal_keymint_default:file { getattr open read };

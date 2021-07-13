@@ -1,3 +1,0 @@
-type traced, domain, coredomain, mlstrustedsubject;
-type traced_tmpfs, file_type;
-
