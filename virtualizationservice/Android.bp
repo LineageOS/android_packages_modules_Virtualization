@@ -39,6 +39,7 @@ rust_defaults {
         "libuuid",
         "libvmconfig",
         "libzip",
+        "libvsock",
     ],
 }
 
