@@ -32,3 +32,6 @@ allow zipfuse zipfusefs:filesystem { mount relabelfrom relabelto };
 # allow mounting with context=u:object_r:system_file:s0 so that files provided
 # by zipfuse are treated the same as the other files in /system or /apex
 allow system_file zipfusefs:filesystem associate;
+
+read_logd(zipfuse)
+control_logd(zipfuse)
