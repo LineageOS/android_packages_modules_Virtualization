@@ -33,10 +33,38 @@
                 android:text="Debug mode" />
         </LinearLayout>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="App output:" />
+
         <ScrollView
-            android:id="@+id/scrollview"
+            android:id="@+id/scrollPayloadOutput"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <TextView
+                android:id="@+id/payloadOutput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#9089e0"
+                android:fontFamily="monospace"
+                android:textColor="#000000" />
+        </ScrollView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Console output:" />
+
+        <ScrollView
+            android:id="@+id/scrollConsoleOutput"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="2">
 
             <TextView
                 android:id="@+id/consoleOutput"
