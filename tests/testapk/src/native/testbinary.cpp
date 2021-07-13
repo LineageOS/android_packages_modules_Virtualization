@@ -45,7 +45,7 @@ namespace {
 Result<void> test_keystore() {
     // Connect to Keystore.
     ndk::SpAIBinder binder(
-            AServiceManager_getService("android.system.keystore2.IKeystoreService/default"));
+            AServiceManager_waitForService("android.system.keystore2.IKeystoreService/default"));
     auto service = IKeystoreService::fromBinder(binder);
     if (service == nullptr) {
         return Error() << "Failed to find Keystore";
