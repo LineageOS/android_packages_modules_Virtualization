@@ -23,6 +23,16 @@ import android.system.virtualizationservice.IVirtualMachine;
  */
 oneway interface IVirtualMachineCallback {
     /**
+     * Called when the payload starts in the VM. `stdout` is the stdout of the payload.
+     *
+     * <p>Note: when the virtual machine object is shared to multiple processes and they register
+     * this callback to the same virtual machine object, the processes will compete to read from the
+     * same payload stdout. As a result, each process might get only a part of the entire output
+     * stream. To avoid such a case, keep only one process to read from the stdout.
+     */
+    void onPayloadStarted(int cid, in ParcelFileDescriptor stdout);
+
+    /**
      * Called when the VM dies.
      *
      * Note that this will not be called if the VirtualizationService itself dies, so you should
