@@ -721,12 +721,7 @@ define(`hal_attribute_service', `
         domain
         -$1_client
         -$1_server
-        # some services are allowed to find all services
-        -atrace
-        -dumpstate
         -shell
-        -system_app
-        -traceur_app
     } $2:service_manager find;
   ')
 ')

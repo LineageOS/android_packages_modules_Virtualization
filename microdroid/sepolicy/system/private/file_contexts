@@ -64,11 +64,11 @@
 /dev/rtc[0-9]      u:object_r:rtc_device:s0
 /dev/socket(/.*)?	u:object_r:socket_device:s0
 /dev/socket/adbd	u:object_r:adbd_socket:s0
-/dev/socket/dumpstate	u:object_r:dumpstate_socket:s0
 /dev/socket/logd	u:object_r:logd_socket:s0
 /dev/socket/logdr	u:object_r:logdr_socket:s0
 /dev/socket/logdw	u:object_r:logdw_socket:s0
 /dev/socket/property_service	u:object_r:property_socket:s0
+/dev/socket/statsdw	u:object_r:statsdw_socket:s0
 /dev/socket/tombstoned_crash u:object_r:tombstoned_crash_socket:s0
 /dev/socket/tombstoned_java_trace u:object_r:tombstoned_java_trace_socket:s0
 /dev/socket/tombstoned_intercept u:object_r:tombstoned_intercept_socket:s0
@@ -153,7 +153,6 @@
 #
 /data		u:object_r:system_data_root_file:s0
 /data/(.*)?		u:object_r:system_data_file:s0
-/data/anr(/.*)?		u:object_r:anr_data_file:s0
 /data/local/tests(/.*)?	u:object_r:shell_test_data_file:s0
 /data/local/tmp(/.*)?	u:object_r:shell_data_file:s0
 /data/local/tmp/ltp(/.*)?   u:object_r:nativetest_data_file:s0
@@ -161,3 +160,7 @@
 /data/misc/keystore(/.*)?       u:object_r:keystore_data_file:s0
 /data/tombstones(/.*)?	u:object_r:tombstone_data_file:s0
 /data/vendor(/.*)?              u:object_r:vendor_data_file:s0
+
+# microdroid doesn't use anr, but tombstoned tries to read this.
+# So marking /data/anr as tombstone_data_file
+/data/anr(/.*)?		u:object_r:tombstone_data_file:s0

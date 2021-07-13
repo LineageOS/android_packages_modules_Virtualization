@@ -1,5 +1,0 @@
-userdebug_or_eng(`
-  typeattribute aidl_lazy_test_server coredomain;
-
-  init_daemon_domain(aidl_lazy_test_server)
-')

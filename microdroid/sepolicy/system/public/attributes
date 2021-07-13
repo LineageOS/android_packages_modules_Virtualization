@@ -323,7 +323,6 @@ hal_attribute(configstore);
 hal_attribute(confirmationui);
 hal_attribute(contexthub);
 hal_attribute(drm);
-hal_attribute(dumpstate);
 hal_attribute(evs);
 hal_attribute(face);
 hal_attribute(fingerprint);
@@ -392,3 +391,5 @@ expandattribute dmabuf_heap_device_type false;
 
 # All types used for DSU metadata files.
 attribute gsi_metadata_file_type;
+
+attribute fusefs_type;
