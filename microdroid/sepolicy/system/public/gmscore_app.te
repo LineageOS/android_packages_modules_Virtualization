@@ -1,5 +1,0 @@
-###
-### A domain for further sandboxing the PrebuiltGMSCore app.
-###
-
-type gmscore_app, domain;

@@ -2,12 +2,11 @@ typeattribute tombstoned coredomain;
 
 init_daemon_domain(tombstoned)
 
-get_prop(tombstoned, tombstone_config_prop)
+# Write to arbitrary pipes given to us.
+allow tombstoned domain:fd use;
+allow tombstoned domain:fifo_file write;
 
-neverallow {
-    domain
-    -init
-    -vendor_init
-    -dumpstate
-    -tombstoned
-} tombstone_config_prop:file no_rw_file_perms;
+allow tombstoned domain:dir r_dir_perms;
+allow tombstoned domain:file r_file_perms;
+allow tombstoned tombstone_data_file:dir rw_dir_perms;
+allow tombstoned tombstone_data_file:file { create_file_perms link };
