@@ -25,6 +25,7 @@ cc_binary {
         "libkeymint",
         "liblog",
         "libpuresoftkeymasterdevice",
+        "libsoft_attestation_cert",
         "libutils",
     ],
     local_include_dirs: [
@@ -32,6 +33,7 @@ cc_binary {
     ],
     srcs: [
         "MicrodroidKeyMintDevice.cpp",
+        "MicrodroidKeymasterContext.cpp",
         "service.cpp",
     ],
 }
