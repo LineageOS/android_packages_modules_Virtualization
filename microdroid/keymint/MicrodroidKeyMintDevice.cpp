@@ -17,14 +17,16 @@
 #define LOG_TAG "android.hardware.security.keymint-impl"
 #include "MicrodroidKeyMintDevice.h"
 
+#include <AndroidKeyMintOperation.h>
+#include <KeyMintUtils.h>
 #include <aidl/android/hardware/security/keymint/ErrorCode.h>
 #include <android-base/logging.h>
 #include <keymaster/android_keymaster.h>
 #include <keymaster/contexts/pure_soft_keymaster_context.h>
 #include <keymaster/keymaster_configuration.h>
 
-#include "AndroidKeyMintOperation.h"
-#include "KeyMintUtils.h"
+#include "MicrodroidKeyMintDevice.h"
+#include "MicrodroidKeymasterContext.h"
 
 namespace aidl::android::hardware::security::keymint {
 
@@ -41,26 +43,11 @@ using secureclock::TimeStampToken;
 
 namespace {
 
-vector<KeyCharacteristics> convertKeyCharacteristics(SecurityLevel keyMintSecurityLevel,
-                                                     const AuthorizationSet& requestParams,
+vector<KeyCharacteristics> convertKeyCharacteristics(const AuthorizationSet& requestParams,
                                                      const AuthorizationSet& sw_enforced,
                                                      const AuthorizationSet& hw_enforced,
                                                      bool include_keystore_enforced = true) {
-    KeyCharacteristics keyMintEnforced{keyMintSecurityLevel, {}};
-
-    if (keyMintSecurityLevel != SecurityLevel::SOFTWARE) {
-        // We're pretending to be TRUSTED_ENVIRONMENT or STRONGBOX.
-        keyMintEnforced.authorizations = kmParamSet2Aidl(hw_enforced);
-        if (include_keystore_enforced) {
-            // Put all the software authorizations in the keystore list.
-            KeyCharacteristics keystoreEnforced{SecurityLevel::KEYSTORE,
-                                                kmParamSet2Aidl(sw_enforced)};
-            return {std::move(keyMintEnforced), std::move(keystoreEnforced)};
-        } else {
-            return {std::move(keyMintEnforced)};
-        }
-    }
-
+    KeyCharacteristics keyMintEnforced{SecurityLevel::SOFTWARE, {}};
     KeyCharacteristics keystoreEnforced{SecurityLevel::KEYSTORE, {}};
     CHECK(hw_enforced.empty()) << "Hardware-enforced list is non-empty for pure SW KeyMint";
 
@@ -210,26 +197,22 @@ void addClientAndAppData(const std::vector<uint8_t>& appId, const std::vector<ui
 
 constexpr size_t kOperationTableSize = 16;
 
-MicrodroidKeyMintDevice::MicrodroidKeyMintDevice(SecurityLevel securityLevel)
+MicrodroidKeyMintDevice::MicrodroidKeyMintDevice(::keymaster::KeymasterKeyBlob& rootKey)
       : impl_(new ::keymaster::AndroidKeymaster(
                 [&]() -> auto {
-                    auto context =
-                            new PureSoftKeymasterContext(KmVersion::KEYMINT_1,
-                                                         static_cast<keymaster_security_level_t>(
-                                                                 securityLevel));
+                    auto context = new MicrodroidKeymasterContext(KmVersion::KEYMINT_1, rootKey);
                     context->SetSystemVersion(::keymaster::GetOsVersion(),
                                               ::keymaster::GetOsPatchlevel());
                     return context;
                 }(),
-                kOperationTableSize)),
-        securityLevel_(securityLevel) {}
+                kOperationTableSize)) {}
 
 MicrodroidKeyMintDevice::~MicrodroidKeyMintDevice() {}
 
 ScopedAStatus MicrodroidKeyMintDevice::getHardwareInfo(KeyMintHardwareInfo* info) {
     info->versionNumber = 1;
-    info->securityLevel = securityLevel_;
-    info->keyMintName = "FakeKeyMintDevice";
+    info->securityLevel = SecurityLevel::SOFTWARE;
+    info->keyMintName = "MicrodroidKeyMintDevice";
     info->keyMintAuthorName = "Google";
     info->timestampTokenRequired = false;
     return ScopedAStatus::ok();
@@ -280,7 +263,7 @@ ScopedAStatus MicrodroidKeyMintDevice::generateKey(const vector<KeyParameter>& k
 
     creationResult->keyBlob = kmBlob2vector(response.key_blob);
     creationResult->keyCharacteristics =
-            convertKeyCharacteristics(securityLevel_, request.key_description, response.unenforced,
+            convertKeyCharacteristics(request.key_description, response.unenforced,
                                       response.enforced);
     creationResult->certificateChain = convertCertificateChain(response.certificate_chain);
     return ScopedAStatus::ok();
@@ -312,7 +295,7 @@ ScopedAStatus MicrodroidKeyMintDevice::importKey(const vector<KeyParameter>& key
 
     creationResult->keyBlob = kmBlob2vector(response.key_blob);
     creationResult->keyCharacteristics =
-            convertKeyCharacteristics(securityLevel_, request.key_description, response.unenforced,
+            convertKeyCharacteristics(request.key_description, response.unenforced,
                                       response.enforced);
     creationResult->certificateChain = convertCertificateChain(response.certificate_chain);
 
@@ -320,12 +303,9 @@ ScopedAStatus MicrodroidKeyMintDevice::importKey(const vector<KeyParameter>& key
 }
 
 ScopedAStatus MicrodroidKeyMintDevice::importWrappedKey(
-        const vector<uint8_t>& wrappedKeyData,        //
-        const vector<uint8_t>& wrappingKeyBlob,       //
-        const vector<uint8_t>& maskingKey,            //
-        const vector<KeyParameter>& unwrappingParams, //
-        int64_t passwordSid, int64_t biometricSid,    //
-        KeyCreationResult* creationResult) {
+        const vector<uint8_t>& wrappedKeyData, const vector<uint8_t>& wrappingKeyBlob,
+        const vector<uint8_t>& maskingKey, const vector<KeyParameter>& unwrappingParams,
+        int64_t passwordSid, int64_t biometricSid, KeyCreationResult* creationResult) {
     ImportWrappedKeyRequest request(impl_->message_version());
     request.SetWrappedMaterial(wrappedKeyData.data(), wrappedKeyData.size());
     request.SetWrappingMaterial(wrappingKeyBlob.data(), wrappingKeyBlob.size());
@@ -343,8 +323,8 @@ ScopedAStatus MicrodroidKeyMintDevice::importWrappedKey(
 
     creationResult->keyBlob = kmBlob2vector(response.key_blob);
     creationResult->keyCharacteristics =
-            convertKeyCharacteristics(securityLevel_, request.additional_params,
-                                      response.unenforced, response.enforced);
+            convertKeyCharacteristics(request.additional_params, response.unenforced,
+                                      response.enforced);
     creationResult->certificateChain = convertCertificateChain(response.certificate_chain);
 
     return ScopedAStatus::ok();
@@ -368,23 +348,14 @@ ScopedAStatus MicrodroidKeyMintDevice::upgradeKey(const vector<uint8_t>& keyBlob
     return ScopedAStatus::ok();
 }
 
-ScopedAStatus MicrodroidKeyMintDevice::deleteKey(const vector<uint8_t>& keyBlob) {
-    DeleteKeyRequest request(impl_->message_version());
-    request.SetKeyMaterial(keyBlob.data(), keyBlob.size());
-
-    DeleteKeyResponse response(impl_->message_version());
-    impl_->DeleteKey(request, &response);
-
-    return kmError2ScopedAStatus(response.error);
+ScopedAStatus MicrodroidKeyMintDevice::deleteKey(const vector<uint8_t>&) {
+    // There's nothing to be done to delete software key blobs.
+    return kmError2ScopedAStatus(KM_ERROR_OK);
 }
 
 ScopedAStatus MicrodroidKeyMintDevice::deleteAllKeys() {
     // There's nothing to be done to delete software key blobs.
-    DeleteAllKeysRequest request(impl_->message_version());
-    DeleteAllKeysResponse response(impl_->message_version());
-    impl_->DeleteAllKeys(request, &response);
-
-    return kmError2ScopedAStatus(response.error);
+    return kmError2ScopedAStatus(KM_ERROR_OK);
 }
 
 ScopedAStatus MicrodroidKeyMintDevice::destroyAttestationIds() {
@@ -420,21 +391,13 @@ ScopedAStatus MicrodroidKeyMintDevice::begin(KeyPurpose purpose, const vector<ui
 }
 
 ScopedAStatus MicrodroidKeyMintDevice::deviceLocked(
-        bool passwordOnly, const std::optional<secureclock::TimeStampToken>& timestampToken) {
-    DeviceLockedRequest request(impl_->message_version());
-    request.passwordOnly = passwordOnly;
-    if (timestampToken.has_value()) {
-        request.token.challenge = timestampToken->challenge;
-        request.token.mac = {timestampToken->mac.data(), timestampToken->mac.size()};
-        request.token.timestamp = timestampToken->timestamp.milliSeconds;
-    }
-    DeviceLockedResponse response = impl_->DeviceLocked(request);
-    return kmError2ScopedAStatus(response.error);
+        bool, const std::optional<secureclock::TimeStampToken>&) {
+    // Microdroid doesn't yet have a concept of a locked device.
+    return kmError2ScopedAStatus(KM_ERROR_OK);
 }
 
 ScopedAStatus MicrodroidKeyMintDevice::earlyBootEnded() {
-    EarlyBootEndedResponse response = impl_->EarlyBootEnded();
-    return kmError2ScopedAStatus(response.error);
+    return kmError2ScopedAStatus(KM_ERROR_UNIMPLEMENTED);
 }
 
 ScopedAStatus MicrodroidKeyMintDevice::convertStorageKeyToEphemeral(
@@ -458,15 +421,11 @@ ScopedAStatus MicrodroidKeyMintDevice::getKeyCharacteristics(
     }
 
     AuthorizationSet emptySet;
-    *keyCharacteristics = convertKeyCharacteristics(securityLevel_, emptySet, response.unenforced,
-                                                    response.enforced,
-                                                    /* include_keystore_enforced = */ false);
+    *keyCharacteristics =
+            convertKeyCharacteristics(emptySet, response.unenforced, response.enforced,
+                                      /* include_keystore_enforced = */ false);
 
     return ScopedAStatus::ok();
-}
-
-IKeyMintDevice* CreateKeyMintDevice(SecurityLevel securityLevel) {
-    return ::new MicrodroidKeyMintDevice(securityLevel);
 }
 
 } // namespace aidl::android::hardware::security::keymint

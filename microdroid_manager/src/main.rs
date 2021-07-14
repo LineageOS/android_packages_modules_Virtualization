@@ -19,7 +19,7 @@ mod metadata;
 
 use anyhow::{anyhow, bail, Result};
 use keystore2_system_property::PropertyWatcher;
-use log::{error, info};
+use log::{error, info, warn};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use std::fs::{self, File};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -38,6 +38,11 @@ fn main() -> Result<()> {
     let metadata = metadata::load()?;
     if !metadata.payload_config_path.is_empty() {
         let config = load_config(Path::new(&metadata.payload_config_path))?;
+
+        let fake_secret = "This is a placeholder for a value that is derived from the images that are loaded in the VM.";
+        if let Err(err) = keystore2_system_property::write("ro.vmsecret.keymint", fake_secret) {
+            warn!("failed to set ro.vmsecret.keymint: {}", err);
+        }
 
         // TODO(jooyung): wait until sys.boot_completed?
         if let Some(main_task) = &config.task {
