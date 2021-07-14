@@ -218,7 +218,7 @@ allow domain self:netlink_audit_socket { create_socket_perms_no_ioctl nlmsg_writ
 
 # workaround for supressing property accesses.
 # TODO: remove these
-set_prop(domain, property_type)
+set_prop(domain, property_type -vmsecret_keymint_prop)
 # auditallow { domain -init } property_type:property_service set;
 # auditallow { domain -init } property_type:file rw_file_perms;
 

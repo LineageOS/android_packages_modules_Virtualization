@@ -9,3 +9,5 @@ allow hal_keymint_default system_lib_file:file execute;
 
 allow logd hal_keymint_default:dir search;
 allow logd hal_keymint_default:file { getattr open read };
+
+get_prop(hal_keymint_default, vmsecret_keymint_prop);

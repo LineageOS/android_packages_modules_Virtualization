@@ -12,6 +12,7 @@ rust_defaults {
         "libanyhow",
         "libkernlog",
         "libkeystore2_system_property-rust",
+        "liblibc",
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
