@@ -53,7 +53,7 @@ use zip::ZipArchive;
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 /// Directory in which to write disk image files used while running VMs.
-const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
+pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
 
 /// The list of APEXes which microdroid requires.
 /// TODO(b/192200378) move this to microdroid.json?
