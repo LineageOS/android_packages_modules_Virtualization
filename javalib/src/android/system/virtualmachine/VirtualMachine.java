@@ -216,7 +216,8 @@ public class VirtualMachine {
             throw new VirtualMachineException(this + " is not in stopped state");
         }
         IVirtualizationService service =
-                IVirtualizationService.Stub.asInterface(ServiceManager.getService(SERVICE_NAME));
+                IVirtualizationService.Stub.asInterface(
+                        ServiceManager.waitForService(SERVICE_NAME));
 
         try {
             if (mConsoleReader == null && mConsoleWriter == null) {
