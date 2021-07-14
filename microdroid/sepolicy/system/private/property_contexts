@@ -50,6 +50,8 @@ ro.boottime.zipfuse                   u:object_r:boottime_prop:s0 exact int
 
 ro.build.fingerprint u:object_r:fingerprint_prop:s0 exact string
 
+ro.vmsecret.keymint u:object_r:vmsecret_keymint_prop:s0 exact string
+
 hwservicemanager.ready u:object_r:hwservicemanager_prop:s0 exact bool
 
 apexd.status u:object_r:apexd_prop:s0 exact enum starting activated ready
