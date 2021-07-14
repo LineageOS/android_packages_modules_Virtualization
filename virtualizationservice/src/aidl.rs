@@ -52,7 +52,7 @@ use zip::ZipArchive;
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 /// Directory in which to write disk image files used while running VMs.
-const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
+pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
 
 // TODO(qwandor): Use PermissionController once it is available to Rust.
 /// Only processes running with one of these UIDs are allowed to call debug methods.
