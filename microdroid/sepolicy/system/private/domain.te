@@ -68,6 +68,8 @@ allow domain property_info:file r_file_perms;
 
 allow domain property_contexts_file:file r_file_perms;
 
+dontaudit domain property_type:file audit_access;
+
 allow domain init:key search;
 
 # logd access
