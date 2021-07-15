@@ -23,6 +23,9 @@ parcelable VirtualMachineAppConfig {
     /** idsig for an APK */
     ParcelFileDescriptor idsig;
 
+    /** instance.img that has per-instance data */
+    ParcelFileDescriptor instanceImage;
+
     /** Path to a configuration in an APK. This is the actual configuration for a VM. */
     @utf8InCpp String configPath;
 
