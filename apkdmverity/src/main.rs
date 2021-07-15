@@ -98,7 +98,9 @@ fn enable_verity<P: AsRef<Path> + Debug>(apk: P, idsig: P, name: &str) -> Result
     // Parse the idsig file to locate the merkle tree in it, then attach the file to a loop device
     // with the offset so that the start of the merkle tree becomes the beginning of the loop
     // device.
-    let sig = V4Signature::from(File::open(&idsig)?)?;
+    let sig = V4Signature::from(
+        File::open(&idsig).context(format!("Failed to open idsig file {:?}", &idsig))?,
+    )?;
     let offset = sig.merkle_tree_offset;
     let size = sig.merkle_tree_size as u64;
     let hash_device = loopdevice::attach(&idsig, offset, size)?;
