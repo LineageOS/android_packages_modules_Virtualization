@@ -14,16 +14,16 @@
 
 //! Android VM control tool.
 
+mod create_partition;
 mod run;
 mod sync;
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
-use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong, ParcelFileDescriptor};
+use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong};
 use anyhow::{Context, Error};
+use create_partition::command_create_partition;
 use run::{command_run, command_run_app};
-use std::convert::TryInto;
-use std::fs::OpenOptions;
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
@@ -42,6 +42,10 @@ enum Opt {
         /// Path to idsig of the APK
         #[structopt(parse(from_os_str))]
         idsig: PathBuf,
+
+        /// Path to the instance image. Created if not exists.
+        #[structopt(parse(from_os_str))]
+        instance: PathBuf,
 
         /// Path to VM config JSON within APK (e.g. assets/vm_config.json)
         config_path: String,
@@ -101,8 +105,17 @@ fn main() -> Result<(), Error> {
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::RunApp { apk, idsig, config_path, daemonize, log, debug } => {
-            command_run_app(service, &apk, &idsig, &config_path, daemonize, log.as_deref(), debug)
+        Opt::RunApp { apk, idsig, instance, config_path, daemonize, log, debug } => {
+            command_run_app(
+                service,
+                &apk,
+                &idsig,
+                &instance,
+                &config_path,
+                daemonize,
+                log.as_deref(),
+                debug,
+            )
         }
         Opt::Run { config, daemonize, log } => {
             command_run(service, &config, daemonize, log.as_deref())
@@ -126,23 +139,5 @@ fn command_stop(service: Strong<dyn IVirtualizationService>, cid: u32) -> Result
 fn command_list(service: Strong<dyn IVirtualizationService>) -> Result<(), Error> {
     let vms = service.debugListVms().context("Failed to get list of VMs")?;
     println!("Running VMs: {:#?}", vms);
-    Ok(())
-}
-
-/// Initialise an empty partition image of the given size to be used as a writable partition.
-fn command_create_partition(
-    service: Strong<dyn IVirtualizationService>,
-    image_path: &Path,
-    size: u64,
-) -> Result<(), Error> {
-    let image = OpenOptions::new()
-        .create_new(true)
-        .read(true)
-        .write(true)
-        .open(image_path)
-        .with_context(|| format!("Failed to create {:?}", image_path))?;
-    service
-        .initializeWritablePartition(&ParcelFileDescriptor::new(image), size.try_into()?)
-        .context("Failed to initialize partition with size {}, size")?;
     Ok(())
 }
