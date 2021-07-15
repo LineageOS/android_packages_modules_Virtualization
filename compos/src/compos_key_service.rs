@@ -27,21 +27,16 @@ use android_system_keystore2::aidl::android::system::keystore2::{
 };
 use anyhow::{anyhow, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::{
-    CompOsKeyData::CompOsKeyData,
-    ICompOsKeyService::{BnCompOsKeyService, ICompOsKeyService},
+    CompOsKeyData::CompOsKeyData, ICompOsKeyService::ICompOsKeyService,
 };
 use compos_aidl_interface::binder::{
-    self, add_service, get_interface, BinderFeatures, ExceptionCode, Interface, ProcessState,
-    Status, Strong,
+    self, get_interface, ExceptionCode, Interface, Status, Strong,
 };
-use log::{info, warn, Level};
+use log::warn;
 use ring::rand::{SecureRandom, SystemRandom};
 use ring::signature;
 use scopeguard::ScopeGuard;
 use std::ffi::CString;
-
-const LOG_TAG: &str = "CompOsKeyService";
-const OUR_SERVICE_NAME: &str = "android.system.composkeyservice";
 
 const KEYSTORE_SERVICE_NAME: &str = "android.system.keystore2.IKeystoreService/default";
 const COMPOS_NAMESPACE: i64 = 101;
@@ -65,7 +60,7 @@ const NO_AUTH_REQUIRED: KeyParameter =
 const KEY_DESCRIPTOR: KeyDescriptor =
     KeyDescriptor { domain: Domain::BLOB, nspace: COMPOS_NAMESPACE, alias: None, blob: None };
 
-struct CompOsKeyService {
+pub struct CompOsKeyService {
     random: SystemRandom,
     security_level: Strong<dyn IKeystoreSecurityLevel>,
 }
@@ -99,13 +94,16 @@ fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> 
 }
 
 impl CompOsKeyService {
-    fn new(keystore_service: &Strong<dyn IKeystoreService>) -> Self {
-        Self {
+    pub fn new() -> Result<Self> {
+        let keystore_service = get_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
+            .context("No Keystore service")?;
+
+        Ok(Self {
             random: SystemRandom::new(),
             security_level: keystore_service
                 .getSecurityLevel(SecurityLevel::TRUSTED_ENVIRONMENT)
-                .unwrap(),
-        }
+                .context("Getting SecurityLevel failed")?,
+        })
     }
 
     fn do_generate(&self) -> Result<CompOsKeyData> {
@@ -164,25 +162,4 @@ impl CompOsKeyService {
 
         signature.ok_or_else(|| anyhow!("No signature returned"))
     }
-}
-
-fn main() -> Result<()> {
-    android_logger::init_once(
-        android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Trace),
-    );
-
-    // We need to start the thread pool for Binder to work properly.
-    ProcessState::start_thread_pool();
-
-    let keystore_service = get_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
-        .context("No Keystore service")?;
-    let service = CompOsKeyService::new(&keystore_service);
-    let service = BnCompOsKeyService::new_binder(service, BinderFeatures::default());
-
-    add_service(OUR_SERVICE_NAME, service.as_binder()).context("Adding service failed")?;
-    info!("It's alive!");
-
-    ProcessState::join_thread_pool();
-
-    Ok(())
 }
