@@ -43,6 +43,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     private static final String VIRT_APEX = "/apex/com.android.virt/";
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
+    private static final String INSTANCE_IMG = "instance.img";
 
     // This is really slow on GCE (2m 40s) but fast on localhost or actual Android phones (< 10s)
     // Set the maximum timeout value big enough.
@@ -192,6 +193,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         final String apkIdsigPath = TEST_ROOT + apkName + ".idsig";
         getDevice().pushFile(idsigOnHost, apkIdsigPath);
 
+        final String instanceImg = TEST_ROOT + INSTANCE_IMG;
         final String logPath = TEST_ROOT + "log.txt";
         final String debugFlag = debug ? "--debug " : "";
 
@@ -206,6 +208,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
                         debugFlag,
                         apkPath,
                         apkIdsigPath,
+                        instanceImg,
                         configPath);
 
         // Redirect log.txt to logd using logwrapper

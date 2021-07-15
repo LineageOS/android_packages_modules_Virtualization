@@ -339,6 +339,8 @@ fn load_app_config(
 ) -> Result<VirtualMachineRawConfig> {
     let apk_file = config.apk.as_ref().unwrap().as_ref();
     let idsig_file = config.idsig.as_ref().unwrap().as_ref();
+    // TODO(b/193504400) pass this to crosvm
+    let _instance_file = config.instanceImage.as_ref().unwrap().as_ref();
     let config_path = &config.configPath;
 
     let mut apk_zip = ZipArchive::new(apk_file)?;

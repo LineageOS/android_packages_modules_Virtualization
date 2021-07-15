@@ -14,6 +14,7 @@
 
 //! Command to run a VM.
 
+use crate::create_partition::command_create_partition;
 use crate::sync::AtomicFlag;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::IVirtualMachine;
@@ -33,13 +34,15 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::Path;
-use vmconfig::VmConfig;
+use vmconfig::{open_parcel_file, VmConfig};
 
 /// Run a VM from the given APK, idsig, and config.
+#[allow(clippy::too_many_arguments)]
 pub fn command_run_app(
     service: Strong<dyn IVirtualizationService>,
     apk: &Path,
     idsig: &Path,
+    instance: &Path,
     config_path: &str,
     daemonize: bool,
     log_path: Option<&Path>,
@@ -47,9 +50,16 @@ pub fn command_run_app(
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
     let idsig_file = File::open(idsig).context("Failed to open idsig file")?;
+
+    if !instance.exists() {
+        const INSTANCE_FILE_SIZE: u64 = 10 * 1024 * 1024;
+        command_create_partition(service.clone(), instance, INSTANCE_FILE_SIZE)?;
+    }
+
     let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
         apk: ParcelFileDescriptor::new(apk_file).into(),
         idsig: ParcelFileDescriptor::new(idsig_file).into(),
+        instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         configPath: config_path.to_owned(),
         debug,
     });

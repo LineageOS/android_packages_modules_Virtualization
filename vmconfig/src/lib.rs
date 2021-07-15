@@ -153,7 +153,7 @@ impl Partition {
 }
 
 /// Try to open the given file and wrap it in a [`ParcelFileDescriptor`].
-fn open_parcel_file(filename: &Path, writable: bool) -> Result<ParcelFileDescriptor> {
+pub fn open_parcel_file(filename: &Path, writable: bool) -> Result<ParcelFileDescriptor> {
     Ok(ParcelFileDescriptor::new(
         OpenOptions::new()
             .read(true)
