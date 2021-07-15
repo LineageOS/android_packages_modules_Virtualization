@@ -30,7 +30,7 @@ use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData, ICompOsKeyService::ICompOsKeyService,
 };
 use compos_aidl_interface::binder::{
-    self, get_interface, ExceptionCode, Interface, Status, Strong,
+    self, wait_for_interface, ExceptionCode, Interface, Status, Strong,
 };
 use log::warn;
 use ring::rand::{SecureRandom, SystemRandom};
@@ -95,7 +95,7 @@ fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> 
 
 impl CompOsKeyService {
     pub fn new() -> Result<Self> {
-        let keystore_service = get_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
+        let keystore_service = wait_for_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
             .context("No Keystore service")?;
 
         Ok(Self {
