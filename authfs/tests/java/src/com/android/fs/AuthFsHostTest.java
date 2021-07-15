@@ -18,18 +18,26 @@ package com.android.virt.fs;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
 import android.platform.test.annotations.RootPermissionTest;
+import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
 import com.android.compatibility.common.util.PollingCheck;
 import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
+import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.util.CommandResult;
 
 import org.junit.After;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,7 +45,6 @@ import org.junit.runner.RunWith;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// TODO move to Virtualization/tests/hostside/
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class AuthFsHostTest extends VirtualizationTestCaseBase {
@@ -55,50 +62,87 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     private static final String AUTHFS_BIN = "/system/bin/authfs";
 
     /** Plenty of time for authfs to get ready */
-    private static final int AUTHFS_INIT_TIMEOUT_MS = 1500;
+    private static final int AUTHFS_INIT_TIMEOUT_MS = 3000;
 
     /** FUSE's magic from statfs(2) */
     private static final String FUSE_SUPER_MAGIC_HEX = "65735546";
 
-    private ExecutorService mThreadPool;
-    private String mCid;
+    private static CommandRunner sAndroid;
+    private static String sCid;
+    private static boolean sAssumptionFailed;
 
-    @Before
-    public void setUp() throws DeviceNotAvailableException {
-        testIfDeviceIsCapable();
+    private ExecutorService mThreadPool = Executors.newCachedThreadPool();
 
-        cleanUpTestFiles();
+    @BeforeClassWithInfo
+    public static void beforeClassWithDevice(TestInformation testInfo)
+            throws DeviceNotAvailableException {
+        assertNotNull(testInfo.getDevice());
+        ITestDevice androidDevice = testInfo.getDevice();
+        sAndroid = new CommandRunner(androidDevice);
 
-        prepareVirtualizationTestSetup();
+        try {
+            testIfDeviceIsCapable(androidDevice);
+        } catch (AssumptionViolatedException e) {
+            // NB: The assumption exception is NOT handled by the test infra when it is thrown from
+            // a class method (see b/37502066). This has not only caused the loss of log, but also
+            // prevented the test cases to be reported at all and thus confused the test infra.
+            //
+            // Since we want to avoid the big overhead to start the VM repeatedly on CF, let's catch
+            // AssumptionViolatedException and emulate it artifitially.
+            CLog.e("Assumption failed: " + e);
+            sAssumptionFailed = true;
+            return;
+        }
 
-        mThreadPool = Executors.newCachedThreadPool();
+        prepareVirtualizationTestSetup(androidDevice);
 
         // For each test case, boot and adb connect to a new Microdroid
+        CLog.i("Starting the shared VM");
         final String apkName = "MicrodroidTestApp.apk";
         final String packageName = "com.android.microdroid.test";
         final String configPath = "assets/vm_config.json"; // path inside the APK
-        mCid = startMicrodroid(apkName, packageName, configPath, /* debug */ false);
-        adbConnectToMicrodroid(mCid);
+        sCid =
+                startMicrodroid(
+                        androidDevice,
+                        testInfo.getBuildInfo(),
+                        apkName,
+                        packageName,
+                        configPath,
+                        /* debug */ false);
+        adbConnectToMicrodroid(androidDevice, sCid);
 
         // Root because authfs (started from shell in this test) currently require root to open
         // /dev/fuse and mount the FUSE.
         rootMicrodroid();
     }
 
-    @After
-    public void tearDown() throws DeviceNotAvailableException {
-        if (mCid != null) {
-            shutdownMicrodroid(mCid);
-            mCid = null;
+    @AfterClassWithInfo
+    public static void afterClassWithDevice(TestInformation testInfo)
+            throws DeviceNotAvailableException {
+        assertNotNull(sAndroid);
+
+        if (sCid != null) {
+            CLog.i("Shutting down shared VM");
+            shutdownMicrodroid(sAndroid.getDevice(), sCid);
+            sCid = null;
         }
 
-        tryRunOnAndroid("killall fd_server");
-        cleanUpTestFiles();
-        cleanUpVirtualizationTestSetup();
+        cleanUpVirtualizationTestSetup(sAndroid.getDevice());
+        sAndroid = null;
     }
 
-    private void cleanUpTestFiles() throws DeviceNotAvailableException {
-        tryRunOnAndroid("rm -f " + TEST_DIR + "/output");
+    @Before
+    public void setUp() {
+        assumeFalse(sAssumptionFailed);
+    }
+
+    @After
+    public void tearDown() throws DeviceNotAvailableException {
+        sAndroid.tryRun("killall fd_server");
+        sAndroid.tryRun("rm -f " + TEST_DIR + "/output");
+
+        tryRunOnMicrodroid("killall authfs");
+        tryRunOnMicrodroid("umount " + MOUNT_DIR);
     }
 
     @Test
@@ -194,7 +238,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Action
         // Tampering with the first 2 4K block of the backing file.
-        runOnAndroid("dd if=/dev/zero of=" + backendPath + " bs=1 count=8192");
+        sAndroid.run("dd if=/dev/zero of=" + backendPath + " bs=1 count=8192");
 
         // Verify
         // Write to a block partially requires a read back to calculate the new hash. It should fail
@@ -274,7 +318,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     }
 
     private String computeFileHashOnAndroid(String path) throws DeviceNotAvailableException {
-        String result = runOnAndroid("sha256sum " + path);
+        String result = sAndroid.run("sha256sum " + path);
         String[] tokens = result.split("\\s");
         if (tokens.length > 0) {
             return tokens[0];
@@ -320,7 +364,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 () -> {
                     try {
                         CLog.i("Starting fd_server");
-                        CommandResult result = getDevice().executeShellV2Command(cmd);
+                        CommandResult result = sAndroid.runForResult(cmd);
                         CLog.w("fd_server has stopped: " + result);
                     } catch (DeviceNotAvailableException e) {
                         CLog.e("Error running fd_server", e);
