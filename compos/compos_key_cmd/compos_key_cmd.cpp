@@ -232,6 +232,9 @@ static Result<void> sign(const std::string& blob_file, const std::vector<std::st
 }
 
 int main(int argc, char** argv) {
+    // Restrict access to our outputs to the current user.
+    umask(077);
+
     if (argc == 4 && argv[1] == "--generate"sv) {
         auto result = generate(argv[2], argv[3]);
         if (result.ok()) {
