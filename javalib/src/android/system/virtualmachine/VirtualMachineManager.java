@@ -16,6 +16,7 @@
 
 package android.system.virtualmachine;
 
+import android.annotation.NonNull;
 import android.content.Context;
 
 import java.lang.ref.WeakReference;
@@ -28,16 +29,16 @@ import java.util.WeakHashMap;
  * @hide
  */
 public class VirtualMachineManager {
-    private final Context mContext;
+    private final @NonNull Context mContext;
 
-    private VirtualMachineManager(Context context) {
+    private VirtualMachineManager(@NonNull Context context) {
         mContext = context;
     }
 
     static Map<Context, WeakReference<VirtualMachineManager>> sInstances = new WeakHashMap<>();
 
     /** Returns the per-context instance. */
-    public static VirtualMachineManager getInstance(Context context) {
+    public static @NonNull VirtualMachineManager getInstance(@NonNull Context context) {
         synchronized (sInstances) {
             VirtualMachineManager vmm =
                     sInstances.containsKey(context) ? sInstances.get(context).get() : null;
@@ -59,7 +60,8 @@ public class VirtualMachineManager {
      * new (and different) virtual machine even if the name and the config are the same as the
      * deleted one.
      */
-    public VirtualMachine create(String name, VirtualMachineConfig config)
+    public @NonNull VirtualMachine create(
+            @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         synchronized (sCreateLock) {
             return VirtualMachine.create(mContext, name, config);
@@ -70,30 +72,23 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
      * such virtual machine.
      */
-    public VirtualMachine get(String name) throws VirtualMachineException {
+    public @NonNull VirtualMachine get(@NonNull String name) throws VirtualMachineException {
         return VirtualMachine.load(mContext, name);
     }
 
     /**
-     * Returns an existing {@link VirtualMachine} if it exists, or create a new one. If the virtual
-     * machine exists, and config is not null, the virtual machine is re-configured with the new
-     * config. However, if the config is not compatible with the original config of the virtual
-     * machine, exception is thrown.
+     * Returns an existing {@link VirtualMachine} if it exists, or create a new one. The config
+     * parameter is used only when a new virtual machine is created.
      */
-    public VirtualMachine getOrCreate(String name, VirtualMachineConfig config)
+    public @NonNull VirtualMachine getOrCreate(
+            @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         VirtualMachine vm;
         synchronized (sCreateLock) {
             vm = get(name);
             if (vm == null) {
-                return create(name, config);
+                vm = create(name, config);
             }
-        }
-
-        if (config != null) {
-            // Can throw VirtualMachineException is the new config is not compatible with the
-            // old config.
-            vm.setConfig(config);
         }
         return vm;
     }
