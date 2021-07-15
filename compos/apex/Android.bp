@@ -38,7 +38,7 @@ apex {
 
     binaries: [
         "compos_key_cmd",
-        "compos_key_service",
+        "compos_key_host",
         "compsvc",
         "compsvc_worker",
         "pvm_exec",
