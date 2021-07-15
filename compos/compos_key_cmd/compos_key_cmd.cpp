@@ -35,6 +35,11 @@
 
 #include "compos_signature.pb.h"
 
+// From frameworks/native/libs/binder/rust/src/binder_rpc_unstable.hpp
+extern "C" {
+AIBinder* RpcClient(unsigned int cid, unsigned int port);
+}
+
 using namespace std::literals;
 
 using aidl::com::android::compos::CompOsKeyData;
@@ -44,6 +49,8 @@ using android::base::Error;
 using android::base::Result;
 using android::base::unique_fd;
 using compos::proto::Signature;
+
+const unsigned int kRpcPort = 3142;
 
 static bool writeBytesToFile(const std::vector<uint8_t>& bytes, const std::string& path) {
     std::string str(bytes.begin(), bytes.end());
@@ -56,6 +63,12 @@ static Result<std::vector<uint8_t>> readBytesFromFile(const std::string& path) {
         return Error() << "Failed to read " << path;
     }
     return std::vector<uint8_t>(str.begin(), str.end());
+}
+
+static std::shared_ptr<ICompOsKeyService> getService(int cid) {
+    ndk::SpAIBinder binder(cid == 0 ? AServiceManager_getService("android.system.composkeyservice")
+                                    : RpcClient(cid, kRpcPort));
+    return ICompOsKeyService::fromBinder(binder);
 }
 
 static Result<std::vector<uint8_t>> extractRsaPublicKey(
@@ -89,9 +102,9 @@ static Result<std::vector<uint8_t>> extractRsaPublicKey(
     return result;
 }
 
-static Result<void> generate(const std::string& blob_file, const std::string& public_key_file) {
-    ndk::SpAIBinder binder(AServiceManager_getService("android.system.composkeyservice"));
-    auto service = ICompOsKeyService::fromBinder(binder);
+static Result<void> generate(int cid, const std::string& blob_file,
+                             const std::string& public_key_file) {
+    auto service = getService(cid);
     if (!service) {
         return Error() << "No service";
     }
@@ -117,9 +130,9 @@ static Result<void> generate(const std::string& blob_file, const std::string& pu
     return {};
 }
 
-static Result<bool> verify(const std::string& blob_file, const std::string& public_key_file) {
-    ndk::SpAIBinder binder(AServiceManager_getService("android.system.composkeyservice"));
-    auto service = ICompOsKeyService::fromBinder(binder);
+static Result<bool> verify(int cid, const std::string& blob_file,
+                           const std::string& public_key_file) {
+    auto service = getService(cid);
     if (!service) {
         return Error() << "No service";
     }
@@ -210,9 +223,9 @@ static Result<void> signFile(ICompOsKeyService* service, const std::vector<uint8
     return {};
 }
 
-static Result<void> sign(const std::string& blob_file, const std::vector<std::string>& files) {
-    ndk::SpAIBinder binder(AServiceManager_getService("android.system.composkeyservice"));
-    auto service = ICompOsKeyService::fromBinder(binder);
+static Result<void> sign(int cid, const std::string& blob_file,
+                         const std::vector<std::string>& files) {
+    auto service = getService(cid);
     if (!service) {
         return Error() << "No service";
     }
@@ -235,15 +248,26 @@ int main(int argc, char** argv) {
     // Restrict access to our outputs to the current user.
     umask(077);
 
-    if (argc == 4 && argv[1] == "--generate"sv) {
-        auto result = generate(argv[2], argv[3]);
+    int cid = 0;
+    if (argc >= 3 && argv[1] == "--cid"sv) {
+        cid = atoi(argv[2]);
+        if (cid == 0) {
+            std::cerr << "Invalid cid\n";
+            return 1;
+        }
+        argc -= 2;
+        argv += 2;
+    }
+
+    if (argc == 4 && argv[1] == "generate"sv) {
+        auto result = generate(cid, argv[2], argv[3]);
         if (result.ok()) {
             return 0;
         } else {
             std::cerr << result.error() << '\n';
         }
-    } else if (argc == 4 && argv[1] == "--verify"sv) {
-        auto result = verify(argv[2], argv[3]);
+    } else if (argc == 4 && argv[1] == "verify"sv) {
+        auto result = verify(cid, argv[2], argv[3]);
         if (result.ok()) {
             if (result.value()) {
                 std::cerr << "Key files are valid.\n";
@@ -254,9 +278,9 @@ int main(int argc, char** argv) {
         } else {
             std::cerr << result.error() << '\n';
         }
-    } else if (argc >= 4 && argv[1] == "--sign"sv) {
+    } else if (argc >= 4 && argv[1] == "sign"sv) {
         const std::vector<std::string> files{&argv[3], &argv[argc]};
-        auto result = sign(argv[2], files);
+        auto result = sign(cid, argv[2], files);
         if (result.ok()) {
             std::cerr << "All signatures generated.\n";
             return 0;
@@ -264,14 +288,15 @@ int main(int argc, char** argv) {
             std::cerr << result.error() << '\n';
         }
     } else {
-        std::cerr << "Usage: \n"
-                  << "  --generate <blob file> <public key file> Generate new key pair and "
+        std::cerr << "Usage: compos_key_cmd [--cid <cid>] generate|verify|sign\n"
+                  << "  generate <blob file> <public key file> Generate new key pair and "
                      "write\n"
                   << "    the private key blob and public key to the specified files.\n "
-                  << "  --verify <blob file> <public key file> Verify that the content of the\n"
+                  << "  verify <blob file> <public key file> Verify that the content of the\n"
                   << "    specified private key blob and public key files are valid.\n "
-                  << "  --sign <blob file> <files to be signed> Generate signatures for one or\n"
-                  << "    more files using the supplied private key blob.\n";
+                  << "  sign <blob file> <files to be signed> Generate signatures for one or\n"
+                  << "    more files using the supplied private key blob.\n"
+                  << "Specify --cid to connect to a VM rather than the host\n";
     }
     return 1;
 }
