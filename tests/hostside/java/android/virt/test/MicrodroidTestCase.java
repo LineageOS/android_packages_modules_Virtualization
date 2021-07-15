@@ -35,15 +35,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     @Test
     public void testMicrodroidBoots() throws Exception {
         final String configPath = "assets/vm_config.json"; // path inside the APK
-        final String cid =
-                startMicrodroid(
-                        getDevice(),
-                        getBuild(),
-                        APK_NAME,
-                        PACKAGE_NAME,
-                        configPath,
-                        /* debug */ false);
-        adbConnectToMicrodroid(getDevice(), cid);
+        final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath, /* debug */ false);
+        adbConnectToMicrodroid(cid);
 
         // Test writing to /data partition
         runOnMicrodroid("echo MicrodroidTest > /data/local/tmp/test.txt");
@@ -80,27 +73,26 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         // Check that keystore was found by the payload
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.test.keystore"), is("PASS"));
 
-        shutdownMicrodroid(getDevice(), cid);
+        shutdownMicrodroid(cid);
     }
 
     @Test
     public void testDebugMode() throws Exception {
         final String configPath = "assets/vm_config.json"; // path inside the APK
         final boolean debug = true;
-        final String cid =
-                startMicrodroid(getDevice(), getBuild(), APK_NAME, PACKAGE_NAME, configPath, debug);
-        adbConnectToMicrodroid(getDevice(), cid);
+        final String cid = startMicrodroid(APK_NAME, PACKAGE_NAME, configPath, debug);
+        adbConnectToMicrodroid(cid);
 
         assertThat(runOnMicrodroid("getenforce"), is("Permissive"));
 
-        shutdownMicrodroid(getDevice(), cid);
+        shutdownMicrodroid(cid);
     }
 
     @Before
     public void setUp() throws Exception {
-        testIfDeviceIsCapable(getDevice());
+        testIfDeviceIsCapable();
 
-        prepareVirtualizationTestSetup(getDevice());
+        prepareVirtualizationTestSetup();
 
         getDevice().installPackage(findTestFile(APK_NAME), /* reinstall */ false);
 
@@ -110,7 +102,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
     @After
     public void shutdown() throws Exception {
-        cleanUpVirtualizationTestSetup(getDevice());
+        cleanUpVirtualizationTestSetup();
 
         getDevice().uninstallPackage(PACKAGE_NAME);
     }

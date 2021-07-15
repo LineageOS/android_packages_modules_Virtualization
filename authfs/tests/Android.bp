@@ -3,14 +3,19 @@ package {
 }
 
 java_test_host {
-    name: "MicrodroidHostTestCases",
+    name: "AuthFsHostTest",
     srcs: ["java/**/*.java"],
-    test_suites: ["device-tests"],
     libs: [
         "tradefed",
+        "compatibility-tradefed",
+        "compatibility-host-util",
     ],
     static_libs: [
         "VirtualizationTestHelper",
     ],
-    data: [":MicrodroidTestApp.signed"],
+    test_suites: ["general-tests"],
+    data: [
+        ":authfs_test_files",
+        ":MicrodroidTestApp.signed",
+    ],
 }
