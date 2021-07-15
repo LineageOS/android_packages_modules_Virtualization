@@ -28,7 +28,7 @@
 
 use crate::util::*;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use data_model::DataInit;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -135,7 +135,11 @@ impl DeviceMapper {
     /// Constructs a new `DeviceMapper` entrypoint. This is essentially the same as opening
     /// "/dev/mapper/control".
     pub fn new() -> Result<DeviceMapper> {
-        let f = OpenOptions::new().read(true).write(true).open(MAPPER_CONTROL)?;
+        let f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(MAPPER_CONTROL)
+            .context(format!("failed to open {}", MAPPER_CONTROL))?;
         Ok(DeviceMapper(f))
     }
 
@@ -145,7 +149,8 @@ impl DeviceMapper {
         // Step 1: create an empty device
         let mut data = DmIoctl::new(&name)?;
         data.set_uuid(&uuid()?)?;
-        dm_dev_create(&self, &mut data)?;
+        dm_dev_create(&self, &mut data)
+            .context(format!("failed to create an empty device with name {}", &name))?;
 
         // Step 2: load table onto the device
         let payload_size = size_of::<DmIoctl>() + target.as_slice().len();
@@ -159,12 +164,13 @@ impl DeviceMapper {
         let mut payload = Vec::with_capacity(payload_size);
         payload.extend_from_slice(data.as_slice());
         payload.extend_from_slice(target.as_slice());
-        dm_table_load(&self, payload.as_mut_ptr() as *mut DmIoctl)?;
+        dm_table_load(&self, payload.as_mut_ptr() as *mut DmIoctl)
+            .context("failed to load table")?;
 
         // Step 3: activate the device (note: the term 'suspend' might be misleading, but it
         // actually activates the table. See include/uapi/linux/dm-ioctl.h
         let mut data = DmIoctl::new(&name)?;
-        dm_dev_suspend(&self, &mut data)?;
+        dm_dev_suspend(&self, &mut data).context("failed to activate")?;
 
         // Step 4: wait unti the device is created and return the device path
         let path = Path::new(MAPPER_DEV_ROOT).join(&name);
@@ -177,7 +183,8 @@ impl DeviceMapper {
     pub fn delete_device_deferred(&self, name: &str) -> Result<()> {
         let mut data = DmIoctl::new(&name)?;
         data.flags |= Flag::DM_DEFERRED_REMOVE;
-        dm_dev_remove(&self, &mut data)?;
+        dm_dev_remove(&self, &mut data)
+            .context(format!("failed to remove device with name {}", &name))?;
         Ok(())
     }
 }
