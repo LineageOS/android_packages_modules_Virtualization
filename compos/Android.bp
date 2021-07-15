@@ -67,8 +67,8 @@ rust_binary {
 }
 
 rust_binary {
-    name: "compos_key_service",
-    srcs: ["src/compos_key_service.rs"],
+    name: "compos_key_host",
+    srcs: ["src/compos_key_host_main.rs"],
     edition: "2018",
     rustlibs: [
         "compos_aidl_interface-rust",
