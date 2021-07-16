@@ -18,6 +18,7 @@ package android.system.virtualmachine;
 
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 
+import android.annotation.NonNull;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.Signature; // This actually is certificate!
@@ -52,23 +53,23 @@ public final class VirtualMachineConfig {
     private static final String KEY_DEBUGMODE = "debugMode";
 
     // Paths to the APK and its idsig file of this application.
-    private final String mApkPath;
-    private final Signature[] mCerts;
-    private final String mIdsigPath;
+    private final @NonNull String mApkPath;
+    private final @NonNull Signature[] mCerts;
+    private final @NonNull String mIdsigPath;
     private final boolean mDebugMode;
 
     /**
      * Path within the APK to the payload config file that defines software aspects of this config.
      */
-    private final String mPayloadConfigPath;
+    private final @NonNull String mPayloadConfigPath;
 
     // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
     private VirtualMachineConfig(
-            String apkPath,
-            Signature[] certs,
-            String idsigPath,
-            String payloadConfigPath,
+            @NonNull String apkPath,
+            @NonNull Signature[] certs,
+            @NonNull String idsigPath,
+            @NonNull String payloadConfigPath,
             boolean debugMode) {
         mApkPath = apkPath;
         mCerts = certs;
@@ -78,7 +79,7 @@ public final class VirtualMachineConfig {
     }
 
     /** Loads a config from a stream, for example a file. */
-    /* package */ static VirtualMachineConfig from(InputStream input)
+    /* package */ static @NonNull VirtualMachineConfig from(@NonNull InputStream input)
             throws IOException, VirtualMachineException {
         PersistableBundle b = PersistableBundle.readFromStream(input);
         final int version = b.getInt(KEY_VERSION);
@@ -111,7 +112,7 @@ public final class VirtualMachineConfig {
     }
 
     /** Persists this config to a stream, for example a file. */
-    /* package */ void serialize(OutputStream output) throws IOException {
+    /* package */ void serialize(@NonNull OutputStream output) throws IOException {
         PersistableBundle b = new PersistableBundle();
         b.putInt(KEY_VERSION, VERSION);
         b.putString(KEY_APKPATH, mApkPath);
@@ -128,7 +129,7 @@ public final class VirtualMachineConfig {
     }
 
     /** Returns the path to the payload config within the owning application. */
-    public String getPayloadConfigPath() {
+    public @NonNull String getPayloadConfigPath() {
         return mPayloadConfigPath;
     }
 
@@ -139,7 +140,7 @@ public final class VirtualMachineConfig {
      * signed by the same signer. All other changes (e.g. using a payload from a different signer,
      * change of the debug mode, etc.) are considered as incompatible.
      */
-    public boolean isCompatibleWith(VirtualMachineConfig other) {
+    public boolean isCompatibleWith(@NonNull VirtualMachineConfig other) {
         if (!Arrays.equals(this.mCerts, other.mCerts)) {
             return false;
         }
@@ -173,7 +174,7 @@ public final class VirtualMachineConfig {
         // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
         /** Creates a builder for the given context (APK), and the payload config file in APK. */
-        public Builder(Context context, String payloadConfigPath) {
+        public Builder(@NonNull Context context, @NonNull String payloadConfigPath) {
             mContext = context;
             mPayloadConfigPath = payloadConfigPath;
             mDebugMode = false;
@@ -188,13 +189,13 @@ public final class VirtualMachineConfig {
         // TODO(jiyong): remove this. Apps shouldn't need to set the path to the idsig file. It
         // should be automatically found or created on demand.
         /** Set the path to the idsig file for the current application. */
-        public Builder idsigPath(String idsigPath) {
+        public Builder idsigPath(@NonNull String idsigPath) {
             mIdsigPath = idsigPath;
             return this;
         }
 
         /** Builds an immutable {@link VirtualMachineConfig} */
-        public VirtualMachineConfig build() {
+        public @NonNull VirtualMachineConfig build() {
             final String apkPath = mContext.getPackageCodePath();
             final String packageName = mContext.getPackageName();
             Signature[] certs;
