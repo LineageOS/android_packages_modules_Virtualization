@@ -18,6 +18,8 @@ package android.system.virtualmachine;
 
 import static android.os.ParcelFileDescriptor.MODE_READ_WRITE;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.content.Context;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
@@ -71,35 +73,36 @@ public class VirtualMachine {
     }
 
     /** The package which owns this VM. */
-    private final String mPackageName;
+    private final @NonNull String mPackageName;
 
     /** Name of this VM within the package. The name should be unique in the package. */
-    private final String mName;
+    private final @NonNull String mName;
 
     /**
      * Path to the config file for this VM. The config file is where the configuration is persisted.
      */
-    private final File mConfigFilePath;
+    private final @NonNull File mConfigFilePath;
 
     /** Path to the instance image file for this VM. */
-    private final File mInstanceFilePath;
+    private final @NonNull File mInstanceFilePath;
 
     /** Size of the instance image. 10 MB. */
     private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 
     /** The configuration that is currently associated with this VM. */
-    private VirtualMachineConfig mConfig;
+    private @NonNull VirtualMachineConfig mConfig;
 
     /** Handle to the "running" VM. */
-    private IVirtualMachine mVirtualMachine;
+    private @Nullable IVirtualMachine mVirtualMachine;
 
     /** The registered callback */
-    private VirtualMachineCallback mCallback;
+    private @Nullable VirtualMachineCallback mCallback;
 
-    private ParcelFileDescriptor mConsoleReader;
-    private ParcelFileDescriptor mConsoleWriter;
+    private @Nullable ParcelFileDescriptor mConsoleReader;
+    private @Nullable ParcelFileDescriptor mConsoleWriter;
 
-    private VirtualMachine(Context context, String name, VirtualMachineConfig config) {
+    private VirtualMachine(
+            @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config) {
         mPackageName = context.getPackageName();
         mName = name;
         mConfig = config;
@@ -115,8 +118,8 @@ public class VirtualMachine {
      * it is persisted until it is deleted by calling {@link #delete()}. The created virtual machine
      * is in {@link #STOPPED} state. To run the VM, call {@link #run()}.
      */
-    /* package */ static VirtualMachine create(
-            Context context, String name, VirtualMachineConfig config)
+    /* package */ static @NonNull VirtualMachine create(
+            @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         if (config == null) {
             throw new VirtualMachineException("null config");
@@ -165,8 +168,8 @@ public class VirtualMachine {
     }
 
     /** Loads a virtual machine that is already created before. */
-    /* package */ static VirtualMachine load(Context context, String name)
-            throws VirtualMachineException {
+    /* package */ static @NonNull VirtualMachine load(
+            @NonNull Context context, @NonNull String name) throws VirtualMachineException {
         VirtualMachine vm = new VirtualMachine(context, name, /* config */ null);
 
         try (FileInputStream input = new FileInputStream(vm.mConfigFilePath)) {
@@ -193,7 +196,7 @@ public class VirtualMachine {
      * Returns the name of this virtual machine. The name is unique in the package and can't be
      * changed.
      */
-    public String getName() {
+    public @NonNull String getName() {
         return mName;
     }
 
@@ -204,12 +207,12 @@ public class VirtualMachine {
      * share the same config. It is also possible that a virtual machine can switch its config,
      * which can be done by calling {@link #setConfig(VirtualMachineCOnfig)}.
      */
-    public VirtualMachineConfig getConfig() {
+    public @NonNull VirtualMachineConfig getConfig() {
         return mConfig;
     }
 
     /** Returns the current status of this virtual machine. */
-    public Status getStatus() throws VirtualMachineException {
+    public @NonNull Status getStatus() throws VirtualMachineException {
         try {
             if (mVirtualMachine != null && mVirtualMachine.isRunning()) {
                 return Status.RUNNING;
@@ -227,12 +230,12 @@ public class VirtualMachine {
      * Registers the callback object to get events from the virtual machine. If a callback was
      * already registered, it is replaced with the new one.
      */
-    public void setCallback(VirtualMachineCallback callback) {
+    public void setCallback(@Nullable VirtualMachineCallback callback) {
         mCallback = callback;
     }
 
     /** Returns the currently registered callback. */
-    public VirtualMachineCallback getCallback() {
+    public @Nullable VirtualMachineCallback getCallback() {
         return mCallback;
     }
 
@@ -304,7 +307,7 @@ public class VirtualMachine {
     }
 
     /** Returns the stream object representing the console output from the virtual machine. */
-    public InputStream getConsoleOutputStream() throws VirtualMachineException {
+    public @NonNull InputStream getConsoleOutputStream() throws VirtualMachineException {
         if (mConsoleReader == null) {
             throw new VirtualMachineException("Console output not available");
         }
@@ -339,7 +342,7 @@ public class VirtualMachine {
     }
 
     /** Returns the CID of this virtual machine, if it is running. */
-    public Optional<Integer> getCid() throws VirtualMachineException {
+    public @NonNull Optional<Integer> getCid() throws VirtualMachineException {
         if (getStatus() != Status.RUNNING) {
             return Optional.empty();
         }
@@ -361,7 +364,7 @@ public class VirtualMachine {
      *
      * @return the old config
      */
-    public VirtualMachineConfig setConfig(VirtualMachineConfig newConfig)
+    public @NonNull VirtualMachineConfig setConfig(@NonNull VirtualMachineConfig newConfig)
             throws VirtualMachineException {
         final VirtualMachineConfig oldConfig = getConfig();
         if (!oldConfig.isCompatibleWith(newConfig)) {
