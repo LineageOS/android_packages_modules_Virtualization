@@ -16,27 +16,32 @@
 
 use crate::composite::align_to_partition_size;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Context, Result};
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::ApexConfig;
 use once_cell::sync::OnceCell;
-use regex::Regex;
+use serde::Deserialize;
+use serde_xml_rs::from_reader;
 use std::fs;
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
+use std::fs::{File, OpenOptions};
+use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use vmconfig::{DiskImage, Partition};
 
+const APEX_INFO_LIST_PATH: &str = "/apex/apex-info-list.xml";
+
 /// Represents the list of APEXes
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 struct ApexInfoList {
+    #[serde(rename = "apex-info")]
     list: Vec<ApexInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 struct ApexInfo {
+    #[serde(rename = "moduleName")]
     name: String,
+    #[serde(rename = "modulePath")]
     path: PathBuf,
 }
 
@@ -45,34 +50,11 @@ impl ApexInfoList {
     fn load() -> Result<&'static ApexInfoList> {
         static INSTANCE: OnceCell<ApexInfoList> = OnceCell::new();
         INSTANCE.get_or_try_init(|| {
-            // TODO(b/191601801): look up /apex/apex-info-list.xml instead of apexservice
-            // Each APEX prints the line:
-            //   Module: <...> Version: <...> VersionName: <...> Path: <...> IsActive: <...> IsFactory: <...>
-            // We only care about "Module:" and "Path:" tagged values for now.
-            let info_pattern =
-                Regex::new(r"^Module: (?P<name>[^ ]*) .* Path: (?P<path>[^ ]*) .*$")?;
-            let output = Command::new("cmd")
-                .arg("-w")
-                .arg("apexservice")
-                .arg("getActivePackages")
-                .output()
-                .expect("failed to execute apexservice cmd");
-            let list = BufReader::new(output.stdout.as_slice())
-                .lines()
-                .map(|line| -> Result<ApexInfo> {
-                    let line = line?;
-                    let captures = info_pattern
-                        .captures(&line)
-                        .ok_or_else(|| anyhow!("can't parse: {}", line))?;
-                    let name = captures.name("name").unwrap();
-                    let path = captures.name("path").unwrap();
-                    Ok(ApexInfo { name: name.as_str().to_owned(), path: path.as_str().into() })
-                })
-                .collect::<Result<Vec<ApexInfo>>>()?;
-            if list.is_empty() {
-                bail!("failed to load apex info: empty");
-            }
-            Ok(ApexInfoList { list })
+            let apex_info_list = File::open(APEX_INFO_LIST_PATH)
+                .context(format!("Failed to open {}", APEX_INFO_LIST_PATH))?;
+            let apex_info_list: ApexInfoList = from_reader(apex_info_list)
+                .context(format!("Failed to parse {}", APEX_INFO_LIST_PATH))?;
+            Ok(apex_info_list)
         })
     }
 
