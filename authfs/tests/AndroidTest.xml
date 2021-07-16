@@ -18,18 +18,11 @@
     <!-- Need root to start virtualizationservice -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
-    <!-- virtualizationservice doesn't have access to shell_data_file. Instead of giving it
-          a test-only permission, run it without selinux -->
+    <!-- Still need to define SELinux policy for authfs and fd_server properly. -->
     <target_preparer class="com.android.tradefed.targetprep.DisableSELinuxTargetPreparer"/>
 
-    <!-- Basic checks that the device has all the prerequisites. -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
-        <!-- Make sure kernel has FUSE enabled. -->
-        <option name="run-command" value="ls /dev/fuse" />
-        <!-- Make sure necessary executables are installed. -->
-        <option name="run-command" value="ls /apex/com.android.virt/bin/fd_server" />
-        <option name="run-command" value="ls /apex/com.android.virt/bin/authfs" />
         <!-- Prepare test directory. -->
         <option name="run-command" value="mkdir -p /data/local/tmp/authfs/mnt" />
         <option name="teardown-command" value="rm -rf /data/local/tmp/authfs" />
