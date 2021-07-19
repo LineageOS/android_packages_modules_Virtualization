@@ -16,20 +16,19 @@
 
 package android.compos.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
+import static com.google.common.truth.Truth.assertThat;
 
 import android.platform.test.annotations.RootPermissionTest;
 import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -53,27 +52,16 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     private String mCid;
 
     @Before
-    public void setUp() throws DeviceNotAvailableException {
+    public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
 
         prepareVirtualizationTestSetup(getDevice());
 
-        final String apkName = "CompOSPayloadApp.apk";
-        final String packageName = "com.android.compos.payload";
-        final String configPath = "assets/vm_config.json"; // path inside the APK
-        mCid =
-                startMicrodroid(
-                        getDevice(),
-                        getBuild(),
-                        apkName,
-                        packageName,
-                        configPath,
-                        /* debug */ true);
-        adbConnectToMicrodroid(getDevice(), mCid);
+        startComposVm();
     }
 
     @After
-    public void tearDown() throws DeviceNotAvailableException {
+    public void tearDown() throws Exception {
         if (mCid != null) {
             shutdownMicrodroid(getDevice(), mCid);
             mCid = null;
@@ -83,7 +71,8 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     }
 
     @Test
-    public void testOdrefresh() throws DeviceNotAvailableException, InterruptedException {
+    @Ignore("b/192294431")
+    public void testOdrefresh() throws Exception {
         waitForServiceRunning();
 
         CommandRunner android = new CommandRunner(getDevice());
@@ -95,16 +84,30 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
                         ODREFRESH_BIN,
                         "--use-compilation-os=" + mCid,
                         "--force-compile");
-        assertThat(result.getExitCode(), is(COMPILATION_SUCCESS));
+        assertThat(result.getExitCode()).isEqualTo(COMPILATION_SUCCESS);
 
         // Expect the output to be valid.
         result = android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--check");
-        assertThat(result.getExitCode(), is(OKAY));
+        assertThat(result.getExitCode()).isEqualTo(OKAY);
+    }
+
+    private void startComposVm() throws Exception {
+        final String apkName = "CompOSPayloadApp.apk";
+        final String packageName = "com.android.compos.payload";
+        mCid =
+                startMicrodroid(
+                        getDevice(),
+                        getBuild(),
+                        apkName,
+                        packageName,
+                        "assets/vm_config.json",
+                        /* debug */ true);
+        adbConnectToMicrodroid(getDevice(), mCid);
     }
 
     private void waitForServiceRunning() {
         try {
-            PollingCheck.waitFor(COMPSVC_READY_LATENCY_MS, () -> isServiceRunning());
+            PollingCheck.waitFor(COMPSVC_READY_LATENCY_MS, this::isServiceRunning);
         } catch (Exception e) {
             throw new RuntimeException("Service unavailable", e);
         }
