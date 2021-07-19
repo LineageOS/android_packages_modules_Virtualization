@@ -14,6 +14,7 @@ cc_binary {
     shared_libs: [
         "compos_aidl_interface-ndk_platform",
         "libbase",
+        "libbinder_rpc_unstable",
         "libbinder_ndk",
         "libcrypto",
         "libfsverity",

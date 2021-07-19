@@ -1,0 +1,18 @@
+{
+    "version": 1,
+    "os": {
+        "name": "microdroid"
+    },
+    "task": {
+        "type": "executable",
+        "command": "/apex/com.android.compos/bin/compos_key_main",
+        "args": [
+            "--rpc-binder"
+        ]
+    },
+    "apexes": [
+        {
+            "name": "com.android.compos"
+        }
+    ]
+}
