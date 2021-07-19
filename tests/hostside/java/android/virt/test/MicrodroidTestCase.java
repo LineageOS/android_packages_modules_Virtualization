@@ -55,10 +55,6 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String apkIdsigPartition = "/dev/block/by-name/microdroid-apk-idsig";
         assertThat(runOnMicrodroid("ls", apkIdsigPartition), is(apkIdsigPartition));
 
-        // Check if the APK is mounted using zipfuse
-        final String mountEntry = "zipfuse on /mnt/apk type fuse.zipfuse";
-        assertThat(runOnMicrodroid("mount"), containsString(mountEntry));
-
         // Check if the native library in the APK is has correct filesystem info
         final String[] abis = runOnMicrodroid("getprop", "ro.product.cpu.abilist").split(",");
         assertThat(abis.length, is(1));
