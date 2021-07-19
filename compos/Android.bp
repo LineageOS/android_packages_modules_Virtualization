@@ -67,8 +67,8 @@ rust_binary {
 }
 
 rust_binary {
-    name: "compos_key_host",
-    srcs: ["src/compos_key_host_main.rs"],
+    name: "compos_key_main",
+    srcs: ["src/compos_key_main.rs"],
     edition: "2018",
     rustlibs: [
         "compos_aidl_interface-rust",
@@ -76,10 +76,16 @@ rust_binary {
         "android.hardware.security.keymint-V1-rust",
         "libandroid_logger",
         "libanyhow",
+        "libbinder_rs",
+        "libbinder_rpc_unstable_bindgen",
+        "libclap",
         "liblog_rust",
         "libring",
         "libscopeguard",
     ],
     prefer_rlib: true,
+    shared_libs: [
+        "libbinder_rpc_unstable",
+    ],
     apex_available: ["com.android.compos"],
 }
