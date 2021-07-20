@@ -23,7 +23,7 @@ java_genrule {
         "--ks-pass=pass:testkey --key-pass=pass:testkey " +
         "--in $(in) " +
         "--out $(genDir)/CompOSPayloadApp.apk",
-    // $(genDir)/MicrodroidTestApp.apk.idsig is generated implicitly
+    // $(genDir)/CompOSPayloadApp.apk.idsig is generated implicitly
 }
 
 android_app_import {

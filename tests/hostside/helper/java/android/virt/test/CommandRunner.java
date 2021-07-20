@@ -75,6 +75,12 @@ public class CommandRunner {
         return result.getStdout().trim();
     }
 
+    public CommandResult runForResultWithTimeout(long timeoutMillis, String... cmd)
+            throws DeviceNotAvailableException {
+        return mDevice.executeShellV2Command(
+                join(cmd), timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
     public CommandResult runForResult(String... cmd) throws DeviceNotAvailableException {
         return mDevice.executeShellV2Command(join(cmd));
     }
