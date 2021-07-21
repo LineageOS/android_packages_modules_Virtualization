@@ -5,6 +5,7 @@ package {
 microdroid_shell_and_utilities = [
     "reboot",
     "sh",
+    "strace",
     "toolbox",
     "toybox",
 ]
