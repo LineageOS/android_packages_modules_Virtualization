@@ -30,6 +30,7 @@ use log::error;
 use minijail::{self, Minijail};
 use std::path::PathBuf;
 
+use crate::signer::Signer;
 use compos_aidl_interface::aidl::com::android::compos::ICompService::{
     BnCompService, ICompService,
 };
@@ -46,8 +47,17 @@ const AUTHFS_MOUNTPOINT: &str = "/data/local/tmp";
 /// Constructs a binder object that implements ICompService. task_bin is the path to the binary that will
 /// be run when execute() is called. If debuggable is true then stdout/stderr from the binary will be
 /// available for debugging.
-pub fn new_binder(task_bin: String, debuggable: bool) -> Strong<dyn ICompService> {
-    let service = CompService { worker_bin: PathBuf::from(WORKER_BIN), task_bin, debuggable };
+pub fn new_binder(
+    task_bin: String,
+    debuggable: bool,
+    signer: Option<Box<dyn Signer>>,
+) -> Strong<dyn ICompService> {
+    let service = CompService {
+        worker_bin: PathBuf::from(WORKER_BIN.to_owned()),
+        task_bin,
+        debuggable,
+        signer,
+    };
     BnCompService::new_binder(service, BinderFeatures::default())
 }
 
@@ -55,6 +65,8 @@ struct CompService {
     task_bin: String,
     worker_bin: PathBuf,
     debuggable: bool,
+    #[allow(dead_code)] // TODO: Make use of this
+    signer: Option<Box<dyn Signer>>,
 }
 
 impl CompService {

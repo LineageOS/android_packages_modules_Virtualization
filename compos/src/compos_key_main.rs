@@ -16,12 +16,13 @@
 //! VM using RPC Binder.
 
 mod compos_key_service;
+mod compsvc;
+mod signer;
 
-use crate::compos_key_service::{CompOsKeyService, KeystoreNamespace};
+use crate::compos_key_service::KeystoreNamespace;
 use anyhow::{bail, Context, Result};
 use binder::unstable_api::AsNative;
-use compos_aidl_interface::aidl::com::android::compos::ICompOsKeyService::BnCompOsKeyService;
-use compos_aidl_interface::binder::{add_service, BinderFeatures, ProcessState};
+use compos_aidl_interface::binder::{add_service, ProcessState};
 use log::{info, Level};
 
 const LOG_TAG: &str = "CompOsKeyService";
@@ -41,9 +42,7 @@ fn main() -> Result<()> {
 
     let key_namespace =
         if rpc_binder { KeystoreNamespace::VmPayload } else { KeystoreNamespace::Odsign };
-    let service = CompOsKeyService::new(key_namespace)?;
-    let mut service =
-        BnCompOsKeyService::new_binder(service, BinderFeatures::default()).as_binder();
+    let mut service = compos_key_service::new(key_namespace)?.as_binder();
 
     if rpc_binder {
         info!("Starting RPC service");

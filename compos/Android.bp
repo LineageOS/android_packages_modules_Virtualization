@@ -80,6 +80,7 @@ rust_binary {
         "libbinder_rpc_unstable_bindgen",
         "libclap",
         "liblog_rust",
+        "libminijail_rust",
         "libring",
         "libscopeguard",
     ],
