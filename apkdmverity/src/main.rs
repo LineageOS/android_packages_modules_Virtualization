@@ -139,6 +139,17 @@ mod tests {
         result: &'a VerityResult,
     }
 
+    // On Android, skip the test on devices that doesn't have the virt APEX
+    // (b/193612136)
+    #[cfg(target_os = "android")]
+    fn should_skip() -> bool {
+        !Path::new("/apex/com.android.virt").exists()
+    }
+    #[cfg(not(target_os = "android"))]
+    fn should_skip() -> bool {
+        false
+    }
+
     fn create_block_aligned_file(path: &Path, data: &[u8]) {
         let mut f = File::create(&path).unwrap();
         f.write_all(data).unwrap();
@@ -158,6 +169,9 @@ mod tests {
     }
 
     fn run_test(apk: &[u8], idsig: &[u8], name: &str, check: fn(TestContext)) {
+        if should_skip() {
+            return;
+        }
         let test_dir = tempfile::TempDir::new().unwrap();
         let (apk_path, idsig_path) = prepare_inputs(&test_dir.path(), apk, idsig);
 
@@ -273,6 +287,10 @@ mod tests {
     // test if both files are already block devices
     #[test]
     fn inputs_are_block_devices() {
+        if should_skip() {
+            return;
+        }
+
         use std::ops::Deref;
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
