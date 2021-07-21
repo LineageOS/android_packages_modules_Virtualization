@@ -35,7 +35,7 @@ fn get_rpc_binder(cid: u32) -> io::Result<VirtFdService> {
         new_spibinder(binder_rpc_unstable_bindgen::RpcClient(cid, RPC_SERVICE_PORT) as *mut AIBinder)
     };
     if let Some(ibinder) = ibinder {
-        Ok(IVirtFdService::try_from(ibinder).map_err(|e| {
+        Ok(<dyn IVirtFdService>::try_from(ibinder).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::AddrNotAvailable,
                 format!("Cannot connect to RPC service: {}", e),
