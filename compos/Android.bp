@@ -28,7 +28,7 @@ rust_binary {
 
 rust_binary {
     name: "compsvc",
-    srcs: ["src/compsvc.rs"],
+    srcs: ["src/compsvc_main.rs"],
     rustlibs: [
         "compos_aidl_interface-rust",
         "libandroid_logger",
