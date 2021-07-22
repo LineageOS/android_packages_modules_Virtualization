@@ -57,7 +57,7 @@ fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompService>> {
         new_spibinder(binder_rpc_unstable_bindgen::RpcClient(cid, VSOCK_PORT) as *mut AIBinder)
     };
     if let Some(ibinder) = ibinder {
-        ICompService::try_from(ibinder).context("Cannot connect to RPC service")
+        <dyn ICompService>::try_from(ibinder).context("Cannot connect to RPC service")
     } else {
         bail!("Invalid raw AIBinder")
     }
