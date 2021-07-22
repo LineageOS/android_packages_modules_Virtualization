@@ -273,7 +273,8 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
             disconnected = ret.equals("failed to connect to " + MICRODROID_SERIAL);
             if (disconnected) {
                 // adb demands us to disconnect if the prior connection was a failure.
-                runOnHost("adb", "disconnect", MICRODROID_SERIAL);
+                // b/194375443: this somtimes fails, thus 'try*'.
+                tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
             }
         }
 
