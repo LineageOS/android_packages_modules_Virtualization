@@ -30,10 +30,11 @@
       "partitions": [
         {
           "label": "uboot_env",
-          "paths": ["/apex/com.android.virt/etc/uboot_env.img"]
+          "paths": ["/apex/com.android.virt/etc/uboot_env.img"],
+          "writable": false
         }
       ],
-      "writable": false
+      "writable": true
     }
   ]
 }
