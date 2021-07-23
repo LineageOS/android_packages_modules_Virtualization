@@ -58,7 +58,6 @@ rust_binary {
         "liblog_rust",
         "libminijail_rust",
         "libnix",
-        "libscopeguard",
     ],
     prefer_rlib: true,
     apex_available: [
