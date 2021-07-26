@@ -14,5 +14,5 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.android.compos.payload">
-    <application android:label="CompOS" />
+    <application android:label="CompOS" android:hasCode="false"/>
 </manifest>
