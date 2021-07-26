@@ -14,6 +14,11 @@
 
 //! Payload disk image
 
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    DiskImage::DiskImage, Partition::Partition, VirtualMachineAppConfig::VirtualMachineAppConfig,
+    VirtualMachineRawConfig::VirtualMachineRawConfig,
+};
+use android_system_virtualizationservice::binder::ParcelFileDescriptor;
 use anyhow::{anyhow, Context, Result};
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::ApexConfig;
@@ -22,7 +27,12 @@ use serde::Deserialize;
 use serde_xml_rs::from_reader;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
-use vmconfig::{DiskImage, Partition};
+use vmconfig::open_parcel_file;
+
+/// The list of APEXes which microdroid requires.
+// TODO(b/192200378) move this to microdroid.json?
+const MICRODROID_REQUIRED_APEXES: [&str; 3] =
+    ["com.android.adbd", "com.android.i18n", "com.android.os.statsd"];
 
 const APEX_INFO_LIST_PATH: &str = "/apex/apex-info-list.xml";
 
@@ -65,23 +75,14 @@ impl ApexInfoList {
     }
 }
 
-/// Creates a DiskImage with partitions:
-///   metadata: metadata
-///   microdroid-apex-0: apex 0
-///   microdroid-apex-1: apex 1
-///   ..
-///   microdroid-apk: apk
-///   microdroid-apk-idsig: idsig
-pub fn make_payload_disk(
-    apk_file: PathBuf,
-    idsig_file: PathBuf,
+fn make_metadata_file(
     config_path: &str,
     apexes: &[ApexConfig],
     temporary_directory: &Path,
-) -> Result<DiskImage> {
+) -> Result<ParcelFileDescriptor> {
     let metadata_path = temporary_directory.join("metadata");
     let metadata = Metadata {
-        version: 1u32,
+        version: 1,
         apexes: apexes
             .iter()
             .map(|apex| ApexPayload { name: apex.name.clone(), ..Default::default() })
@@ -96,35 +97,97 @@ pub fn make_payload_disk(
         payload_config_path: format!("/mnt/apk/{}", config_path),
         ..Default::default()
     };
-    let mut metadata_file =
-        OpenOptions::new().create_new(true).read(true).write(true).open(&metadata_path)?;
+
+    // Write metadata to file.
+    let mut metadata_file = OpenOptions::new()
+        .create_new(true)
+        .read(true)
+        .write(true)
+        .open(&metadata_path)
+        .with_context(|| format!("Failed to open metadata file {:?}", metadata_path))?;
     microdroid_metadata::write_metadata(&metadata, &mut metadata_file)?;
 
+    // Re-open the metadata file as read-only.
+    open_parcel_file(&metadata_path, false)
+}
+
+/// Creates a DiskImage with partitions:
+///   metadata: metadata
+///   microdroid-apex-0: apex 0
+///   microdroid-apex-1: apex 1
+///   ..
+///   microdroid-apk: apk
+///   microdroid-apk-idsig: idsig
+fn make_payload_disk(
+    apk_file: File,
+    idsig_file: File,
+    config_path: &str,
+    apexes: &[ApexConfig],
+    temporary_directory: &Path,
+) -> Result<DiskImage> {
+    let metadata_file = make_metadata_file(config_path, apexes, temporary_directory)?;
     // put metadata at the first partition
     let mut partitions = vec![Partition {
         label: "payload-metadata".to_owned(),
-        paths: vec![metadata_path],
+        images: vec![metadata_file],
         writable: false,
     }];
 
     let apex_info_list = ApexInfoList::load()?;
     for (i, apex) in apexes.iter().enumerate() {
+        let apex_path = apex_info_list.get_path_for(&apex.name)?;
+        let apex_file = open_parcel_file(&apex_path, false)?;
         partitions.push(Partition {
             label: format!("microdroid-apex-{}", i),
-            paths: vec![apex_info_list.get_path_for(&apex.name)?],
+            images: vec![apex_file],
             writable: false,
         });
     }
     partitions.push(Partition {
         label: "microdroid-apk".to_owned(),
-        paths: vec![apk_file],
+        images: vec![ParcelFileDescriptor::new(apk_file)],
         writable: false,
     });
     partitions.push(Partition {
         label: "microdroid-apk-idsig".to_owned(),
-        paths: vec![idsig_file],
+        images: vec![ParcelFileDescriptor::new(idsig_file)],
         writable: false,
     });
 
     Ok(DiskImage { image: None, partitions, writable: false })
+}
+
+pub fn add_microdroid_images(
+    config: &VirtualMachineAppConfig,
+    temporary_directory: &Path,
+    apk_file: File,
+    idsig_file: File,
+    mut apexes: Vec<ApexConfig>,
+    vm_config: &mut VirtualMachineRawConfig,
+) -> Result<()> {
+    apexes.extend(
+        MICRODROID_REQUIRED_APEXES.iter().map(|name| ApexConfig { name: name.to_string() }),
+    );
+    apexes.dedup_by(|a, b| a.name == b.name);
+
+    vm_config.disks.push(make_payload_disk(
+        apk_file,
+        idsig_file,
+        &config.configPath,
+        &apexes,
+        temporary_directory,
+    )?);
+
+    if config.debug {
+        vm_config.disks[1].partitions.push(Partition {
+            label: "bootconfig".to_owned(),
+            images: vec![open_parcel_file(
+                Path::new("/apex/com.android.virt/etc/microdroid_bootconfig.debug"),
+                false,
+            )?],
+            writable: false,
+        });
+    }
+
+    Ok(())
 }
