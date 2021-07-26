@@ -19,49 +19,57 @@
 //! read/write. The service also attempts to sandbox the execution so that one task cannot leak or
 //! impact future tasks.
 //!
-//! Example:
-//! $ compsvc /system/bin/sleep
-//!
 //! The current architecture / process hierarchy looks like:
 //! - compsvc (handle requests)
 //!   - compsvc_worker (for environment setup)
 //!     - authfs (fd translation)
 //!     - actual task
 
-use anyhow::{bail, Context, Result};
-use binder::unstable_api::AsNative;
-use log::{debug, error};
+use anyhow::Result;
+use log::error;
 use minijail::{self, Minijail};
 use std::path::PathBuf;
 
+use crate::signer::Signer;
 use compos_aidl_interface::aidl::com::android::compos::ICompService::{
     BnCompService, ICompService,
 };
 use compos_aidl_interface::aidl::com::android::compos::Metadata::Metadata;
 use compos_aidl_interface::binder::{
-    add_service, BinderFeatures, Interface, ProcessState, Result as BinderResult, Status,
-    StatusCode, Strong,
+    BinderFeatures, Interface, Result as BinderResult, Status, StatusCode, Strong,
 };
 
-mod common;
-use common::{SERVICE_NAME, VSOCK_PORT};
-
 const WORKER_BIN: &str = "/apex/com.android.compos/bin/compsvc_worker";
+
 // TODO: Replace with a valid directory setup in the VM.
 const AUTHFS_MOUNTPOINT: &str = "/data/local/tmp";
 
-struct CompService {
-    worker_bin: PathBuf,
+/// Constructs a binder object that implements ICompService. task_bin is the path to the binary that will
+/// be run when execute() is called. If debuggable is true then stdout/stderr from the binary will be
+/// available for debugging.
+pub fn new_binder(
     task_bin: String,
-    rpc_binder: bool,
     debuggable: bool,
+    signer: Option<Box<dyn Signer>>,
+) -> Strong<dyn ICompService> {
+    let service = CompService {
+        worker_bin: PathBuf::from(WORKER_BIN.to_owned()),
+        task_bin,
+        debuggable,
+        signer,
+    };
+    BnCompService::new_binder(service, BinderFeatures::default())
+}
+
+struct CompService {
+    task_bin: String,
+    worker_bin: PathBuf,
+    debuggable: bool,
+    #[allow(dead_code)] // TODO: Make use of this
+    signer: Option<Box<dyn Signer>>,
 }
 
 impl CompService {
-    pub fn new_binder(service: CompService) -> Strong<dyn ICompService> {
-        BnCompService::new_binder(service, BinderFeatures::default())
-    }
-
     fn run_worker_in_jail_and_wait(&self, args: &[String]) -> Result<(), minijail::Error> {
         let mut jail = Minijail::new()?;
 
@@ -122,58 +130,5 @@ impl ICompService for CompService {
                 Err(Status::from(StatusCode::UNKNOWN_ERROR))
             }
         }
-    }
-}
-
-fn parse_args() -> Result<CompService> {
-    #[rustfmt::skip]
-    let matches = clap::App::new("compsvc")
-        .arg(clap::Arg::with_name("debug")
-             .long("debug"))
-        .arg(clap::Arg::with_name("task_bin")
-             .required(true))
-        .arg(clap::Arg::with_name("rpc_binder")
-             .long("rpc-binder"))
-        .get_matches();
-
-    Ok(CompService {
-        task_bin: matches.value_of("task_bin").unwrap().to_string(),
-        worker_bin: PathBuf::from(WORKER_BIN),
-        rpc_binder: matches.is_present("rpc_binder"),
-        debuggable: matches.is_present("debug"),
-    })
-}
-
-fn main() -> Result<()> {
-    android_logger::init_once(
-        android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
-    );
-
-    let service = parse_args()?;
-
-    if service.rpc_binder {
-        let mut service = CompService::new_binder(service).as_binder();
-        debug!("compsvc is starting as a rpc service.");
-        // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
-        // Plus the binder objects are threadsafe.
-        let retval = unsafe {
-            binder_rpc_unstable_bindgen::RunRpcServer(
-                service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
-                VSOCK_PORT,
-            )
-        };
-        if retval {
-            debug!("RPC server has shut down gracefully");
-            Ok(())
-        } else {
-            bail!("Premature termination of RPC server");
-        }
-    } else {
-        ProcessState::start_thread_pool();
-        debug!("compsvc is starting as a local service.");
-        add_service(SERVICE_NAME, CompService::new_binder(service).as_binder())
-            .with_context(|| format!("Failed to register service {}", SERVICE_NAME))?;
-        ProcessState::join_thread_pool();
-        bail!("Unexpected exit after join_thread_pool")
     }
 }
