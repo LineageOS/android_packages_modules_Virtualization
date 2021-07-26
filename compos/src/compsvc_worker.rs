@@ -18,94 +18,29 @@
 //! responsible for setting up the execution environment, e.g. to create file descriptors for
 //! remote file access via an authfs mount.
 
+mod authfs;
+
 use anyhow::{bail, Result};
-use log::warn;
 use minijail::Minijail;
-use nix::sys::statfs::{statfs, FsType};
-use std::fs::{File, OpenOptions};
-use std::io;
+use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::process::exit;
-use std::thread::sleep;
-use std::time::{Duration, Instant};
 
-const AUTHFS_BIN: &str = "/system/bin/authfs";
-const AUTHFS_SETUP_POLL_INTERVAL_MS: Duration = Duration::from_millis(50);
-const AUTHFS_SETUP_TIMEOUT_SEC: Duration = Duration::from_secs(10);
-const FUSE_SUPER_MAGIC: FsType = FsType(0x65735546);
+use crate::authfs::{AuthFs, InFdAnnotation, OutFdAnnotation, PseudoRawFd};
 
-/// The number that hints the future file descriptor. These are not really file descriptor, but
-/// represents the file descriptor number to pass to the task.
-type PseudoRawFd = i32;
-
-fn is_fuse(path: &str) -> Result<bool> {
-    Ok(statfs(path)?.filesystem_type() == FUSE_SUPER_MAGIC)
-}
-
-fn spawn_authfs(config: &Config) -> Result<Minijail> {
-    // TODO(b/185175567): Run in a more restricted sandbox.
-    let jail = Minijail::new()?;
-
-    let mut args = vec![
-        AUTHFS_BIN.to_string(),
-        config.authfs_root.clone(),
-        "--cid=2".to_string(), // Always use host unless we need to support other cases
-    ];
-    for conf in &config.in_fds {
-        // TODO(b/185178698): Many input files need to be signed and verified.
-        // or can we use debug cert for now, which is better than nothing?
-        args.push("--remote-ro-file-unverified".to_string());
-        args.push(format!("{}:{}:{}", conf.fd, conf.fd, conf.file_size));
-    }
-    for conf in &config.out_fds {
-        args.push("--remote-new-rw-file".to_string());
-        args.push(format!("{}:{}", conf.fd, conf.fd));
-    }
-
-    let preserve_fds = if config.debuggable {
-        vec![1, 2] // inherit/redirect stdout/stderr for debugging
-    } else {
-        vec![]
-    };
-
-    let _pid = jail.run(Path::new(AUTHFS_BIN), &preserve_fds, &args)?;
-    Ok(jail)
-}
-
-fn wait_until_authfs_ready(authfs_root: &str) -> Result<()> {
-    let start_time = Instant::now();
-    loop {
-        if is_fuse(authfs_root)? {
-            break;
-        }
-        if start_time.elapsed() > AUTHFS_SETUP_TIMEOUT_SEC {
-            bail!("Time out mounting authfs");
-        }
-        sleep(AUTHFS_SETUP_POLL_INTERVAL_MS);
-    }
-    Ok(())
-}
-
-fn open_authfs_file(authfs_root: &str, basename: PseudoRawFd, writable: bool) -> io::Result<File> {
-    OpenOptions::new().read(true).write(writable).open(format!("{}/{}", authfs_root, basename))
-}
-
-fn open_authfs_files_for_mapping(config: &Config) -> io::Result<Vec<(File, PseudoRawFd)>> {
+fn open_authfs_files_for_mapping(
+    authfs: &AuthFs,
+    config: &Config,
+) -> Result<Vec<(File, PseudoRawFd)>> {
     let mut fd_mapping = Vec::with_capacity(config.in_fds.len() + config.out_fds.len());
 
-    let results: io::Result<Vec<_>> = config
-        .in_fds
-        .iter()
-        .map(|conf| Ok((open_authfs_file(&config.authfs_root, conf.fd, false)?, conf.fd)))
-        .collect();
+    let results: Result<Vec<_>> =
+        config.in_fds.iter().map(|conf| Ok((authfs.open_file(conf.fd, false)?, conf.fd))).collect();
     fd_mapping.append(&mut results?);
 
-    let results: io::Result<Vec<_>> = config
-        .out_fds
-        .iter()
-        .map(|conf| Ok((open_authfs_file(&config.authfs_root, conf.fd, true)?, conf.fd)))
-        .collect();
+    let results: Result<Vec<_>> =
+        config.out_fds.iter().map(|conf| Ok((authfs.open_file(conf.fd, true)?, conf.fd))).collect();
     fd_mapping.append(&mut results?);
 
     Ok(fd_mapping)
@@ -123,15 +58,6 @@ fn spawn_jailed_task(config: &Config, fd_mapping: Vec<(File, PseudoRawFd)>) -> R
     let _pid =
         jail.run_remap(&Path::new(&config.args[0]), preserve_fds.as_slice(), &config.args)?;
     Ok(jail)
-}
-
-struct InFdAnnotation {
-    fd: PseudoRawFd,
-    file_size: u64,
-}
-
-struct OutFdAnnotation {
-    fd: PseudoRawFd,
 }
 
 struct Config {
@@ -209,23 +135,19 @@ fn main() -> Result<()> {
 
     let config = parse_args()?;
 
-    let authfs_jail = spawn_authfs(&config)?;
-    let authfs_lifetime = scopeguard::guard(authfs_jail, |authfs_jail| {
-        if let Err(e) = authfs_jail.kill() {
-            if !matches!(e, minijail::Error::Killed(_)) {
-                warn!("Failed to kill authfs: {}", e);
-            }
-        }
-    });
-
-    wait_until_authfs_ready(&config.authfs_root)?;
-    let fd_mapping = open_authfs_files_for_mapping(&config)?;
+    let authfs = AuthFs::mount_and_wait(
+        &config.authfs_root,
+        &config.in_fds,
+        &config.out_fds,
+        config.debuggable,
+    )?;
+    let fd_mapping = open_authfs_files_for_mapping(&authfs, &config)?;
 
     let jail = spawn_jailed_task(&config, fd_mapping)?;
     let jail_result = jail.wait();
 
     // Be explicit about the lifetime, which should last at least until the task is finished.
-    drop(authfs_lifetime);
+    drop(authfs);
 
     match jail_result {
         Ok(_) => Ok(()),
