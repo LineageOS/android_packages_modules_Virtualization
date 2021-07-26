@@ -17,6 +17,7 @@
 package com.android.compos;
 
 import com.android.compos.CompOsKeyData;
+import com.android.compos.ICompService;
 
 /** {@hide} */
 interface ICompOsKeyService {
@@ -48,4 +49,13 @@ interface ICompOsKeyService {
      */
     // STOPSHIP(b/193241041): We must not expose this from the PVM.
     byte[] sign(in byte[] keyBlob, in byte[] data);
+
+    /**
+     * Return an instance of ICompService that will sign output files with a given encrypted
+     * private key.
+     *
+     * @param keyBlob The encrypted blob containing the private key, as returned by
+     *                generateSigningKey().
+     */
+    ICompService getCompService(in byte[] keyBlob);
 }
