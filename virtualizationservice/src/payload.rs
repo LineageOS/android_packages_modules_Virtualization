@@ -162,6 +162,7 @@ pub fn add_microdroid_images(
     temporary_directory: &Path,
     apk_file: File,
     idsig_file: File,
+    instance_file: File,
     mut apexes: Vec<ApexConfig>,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
@@ -188,6 +189,13 @@ pub fn add_microdroid_images(
             writable: false,
         });
     }
+
+    // instance image is at the second partition in the second disk.
+    vm_config.disks[1].partitions.push(Partition {
+        label: "vm-instance".to_owned(),
+        images: vec![ParcelFileDescriptor::new(instance_file)],
+        writable: true,
+    });
 
     Ok(())
 }
