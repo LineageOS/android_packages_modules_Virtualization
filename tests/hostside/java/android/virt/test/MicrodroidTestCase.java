@@ -16,7 +16,6 @@
 
 package android.virt.test;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
@@ -54,6 +53,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         assertThat(runOnMicrodroid("ls", apkPartition), is(apkPartition));
         final String apkIdsigPartition = "/dev/block/by-name/microdroid-apk-idsig";
         assertThat(runOnMicrodroid("ls", apkIdsigPartition), is(apkIdsigPartition));
+        // Check the vm-instance partition as well
+        final String vmInstancePartition = "/dev/block/by-name/vm-instance";
+        assertThat(runOnMicrodroid("ls", vmInstancePartition), is(vmInstancePartition));
 
         // Check if the native library in the APK is has correct filesystem info
         final String[] abis = runOnMicrodroid("getprop", "ro.product.cpu.abilist").split(",");
