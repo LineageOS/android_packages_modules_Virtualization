@@ -78,8 +78,9 @@ multiple configuration files if needed.
 ```
 
 The value of `task.command` should match with the name of the shared library
-defined above. If your app rquires APEXes to be imported, you can declare the list
-in `apexes` key like following.
+defined above. If your app rquires APEXes to be imported, you can declare the
+list in `apexes` key like following.
+
 ```json
 {
   "os": ...,
@@ -102,13 +103,13 @@ android_app {
 }
 
 // The VM configuration file can be embedded by simply placing it at `./assets`
-directory.
+// directory.
 ```
 
 Finally, you build and sign the APK.
 
 ```sh
-TARGET_BUILD_APPS=MyApp m dist
+TARGET_BUILD_APPS=MyApp m apps_only dist
 m apksigner
 apksigner sign --ks path_to_keystore out/dist/MyApp.apk
 ```
@@ -147,7 +148,8 @@ Push idsig of the APK to the device.
 
 ```sh
 TEST_ROOT=/data/local/tmp/virt
-adb push out/dist/MyApp.apk.idsig $TEST_ROOT
+adb shell mkdir $TEST_ROOT
+adb push out/dist/MyApp.apk.idsig $TEST_ROOT/
 ```
 
 Execute the following commands to launch a VM. The VM will boot to microdroid
@@ -156,16 +158,18 @@ and then automatically execute your app (the shared library
 
 ```sh
 TEST_ROOT=/data/local/tmp/virt
-adb root
-adb shell setenforce 0
-adb shell /apex/com.android.virt/bin/vm run-app --daemonize --log $TEST_ROOT/log.txt PATH_TO_YOUR_APP $TEST_ROOT/MyApp.apk.idsig assets/VM_CONFIG_FILE
+adb shell /apex/com.android.virt/bin/vm run-app \
+--log $TEST_ROOT/log.txt \
+PATH_TO_YOUR_APP \
+$TEST_ROOT/MyApp.apk.idsig \
+$TEST_ROOT/instance.img \
+assets/VM_CONFIG_FILE
 ```
 
 The last command lets you know the CID assigned to the VM. The console output
-from the VM is stored to `$TEST_ROOT/log.txt` file for debugging purpose.
-
-Note: the disabling of SELinux is a temporary step. The restriction will
-eventually be removed.
+from the VM is stored to `$TEST_ROOT/log.txt` file for debugging purpose. If you
+omit the `--log $TEST_ROOT/log.txt` option, it will be emitted to the current
+console.
 
 Stopping the VM can be done as follows:
 
@@ -174,7 +178,8 @@ adb shell /apex/com.android.virt/bin/vm stop CID
 ```
 
 , where `CID` is the reported CID value. This works only when the `vm` was
-invoked with the `--daemonize` flag.
+invoked with the `--daemonize` flag. If the flag was not used, press Ctrl+C on
+the console where the `vm run-app` command was invoked.
 
 ## ADB
 
