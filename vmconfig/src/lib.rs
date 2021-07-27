@@ -93,8 +93,8 @@ impl VmConfig {
             params: self.params.clone(),
             bootloader: maybe_open_parcel_file(&self.bootloader, false)?,
             disks: self.disks.iter().map(DiskImage::to_parcelable).collect::<Result<_, Error>>()?,
-            protected_vm: self.protected,
-            memory_mib,
+            protectedVm: self.protected,
+            memoryMib: memory_mib,
         })
     }
 }

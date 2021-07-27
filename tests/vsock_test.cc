@@ -88,7 +88,7 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
     raw_config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
     raw_config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
     raw_config.params = kVmParams;
-    raw_config.protected_vm = protected_vm;
+    raw_config.protectedVm = protected_vm;
 
     VirtualMachineConfig config(std::move(raw_config));
     sp<IVirtualMachine> vm;
