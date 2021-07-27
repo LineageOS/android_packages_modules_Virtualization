@@ -35,5 +35,6 @@
       ],
       "writable": false
     }
-  ]
+  ],
+  "memory_mib": 2048
 }

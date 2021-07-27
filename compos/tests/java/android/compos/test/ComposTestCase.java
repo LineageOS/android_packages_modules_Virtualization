@@ -28,7 +28,6 @@ import com.android.tradefed.util.CommandResult;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -71,7 +70,6 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     }
 
     @Test
-    @Ignore("b/192294431")
     public void testOdrefresh() throws Exception {
         waitForServiceRunning();
 
