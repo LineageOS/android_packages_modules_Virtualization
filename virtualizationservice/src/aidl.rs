@@ -658,7 +658,7 @@ impl<'a, T> AsRef<T> for BorrowedOrOwned<'a, T> {
     fn as_ref(&self) -> &T {
         match self {
             Self::Borrowed(b) => b,
-            Self::Owned(o) => &o,
+            Self::Owned(o) => o,
         }
     }
 }

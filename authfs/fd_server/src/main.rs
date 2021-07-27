@@ -118,7 +118,7 @@ impl IVirtFdService for FdService {
 
         match self.get_file_config(id)? {
             FdConfig::Readonly { file, .. } | FdConfig::ReadWrite(file) => {
-                read_into_buf(&file, size, offset).map_err(|e| {
+                read_into_buf(file, size, offset).map_err(|e| {
                     error!("readFile: read error: {}", e);
                     Status::from(ERROR_IO)
                 })
@@ -133,7 +133,7 @@ impl IVirtFdService for FdService {
         match &self.get_file_config(id)? {
             FdConfig::Readonly { file, alt_merkle_tree, .. } => {
                 if let Some(tree_file) = &alt_merkle_tree {
-                    read_into_buf(&tree_file, size, offset).map_err(|e| {
+                    read_into_buf(tree_file, size, offset).map_err(|e| {
                         error!("readFsverityMerkleTree: read error: {}", e);
                         Status::from(ERROR_IO)
                     })
@@ -165,7 +165,7 @@ impl IVirtFdService for FdService {
                     // Supposedly big enough buffer size to store signature.
                     let size = MAX_REQUESTING_DATA as usize;
                     let offset = 0;
-                    read_into_buf(&sig_file, size, offset).map_err(|e| {
+                    read_into_buf(sig_file, size, offset).map_err(|e| {
                         error!("readFsveritySignature: read error: {}", e);
                         Status::from(ERROR_IO)
                     })

@@ -49,23 +49,23 @@ type Handle = u64;
 pub enum FileConfig {
     /// A file type that is verified against fs-verity signature (thus read-only). The file is
     /// backed by a local file. Debug only.
-    LocalVerifiedReadonlyFile {
+    LocalVerifiedReadonly {
         reader: VerifiedFileReader<LocalFileReader, LocalFileReader>,
         file_size: u64,
     },
     /// A file type that is a read-only passthrough from a local file. Debug only.
-    LocalUnverifiedReadonlyFile { reader: LocalFileReader, file_size: u64 },
+    LocalUnverifiedReadonly { reader: LocalFileReader, file_size: u64 },
     /// A file type that is verified against fs-verity signature (thus read-only). The file is
     /// served from a remote server.
-    RemoteVerifiedReadonlyFile {
+    RemoteVerifiedReadonly {
         reader: VerifiedFileReader<RemoteFileReader, RemoteMerkleTreeReader>,
         file_size: u64,
     },
     /// A file type that is a read-only passthrough from a file on a remote serrver.
-    RemoteUnverifiedReadonlyFile { reader: RemoteFileReader, file_size: u64 },
+    RemoteUnverifiedReadonly { reader: RemoteFileReader, file_size: u64 },
     /// A file type that is initially empty, and the content is stored on a remote server. File
     /// integrity is guaranteed with private Merkle tree.
-    RemoteVerifiedNewFile { editor: VerifiedFileEditor<RemoteFileEditor> },
+    RemoteVerifiedNew { editor: VerifiedFileEditor<RemoteFileEditor> },
 }
 
 struct AuthFs {
@@ -87,7 +87,7 @@ impl AuthFs {
     }
 
     fn get_file_config(&self, inode: &Inode) -> io::Result<&FileConfig> {
-        self.file_pool.get(&inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
+        self.file_pool.get(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
     }
 }
 
@@ -207,13 +207,13 @@ impl FileSystem for AuthFs {
         // be static.
         let inode = num.parse::<Inode>().map_err(|_| io::Error::from_raw_os_error(libc::ENOENT))?;
         let st = match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedReadonlyFile { file_size, .. }
-            | FileConfig::LocalUnverifiedReadonlyFile { file_size, .. }
-            | FileConfig::RemoteUnverifiedReadonlyFile { file_size, .. }
-            | FileConfig::RemoteVerifiedReadonlyFile { file_size, .. } => {
+            FileConfig::LocalVerifiedReadonly { file_size, .. }
+            | FileConfig::LocalUnverifiedReadonly { file_size, .. }
+            | FileConfig::RemoteUnverifiedReadonly { file_size, .. }
+            | FileConfig::RemoteVerifiedReadonly { file_size, .. } => {
                 create_stat(inode, *file_size, FileMode::ReadOnly)?
             }
-            FileConfig::RemoteVerifiedNewFile { editor } => {
+            FileConfig::RemoteVerifiedNew { editor } => {
                 create_stat(inode, editor.size(), FileMode::ReadWrite)?
             }
         };
@@ -234,13 +234,13 @@ impl FileSystem for AuthFs {
     ) -> io::Result<(libc::stat64, Duration)> {
         Ok((
             match self.get_file_config(&inode)? {
-                FileConfig::LocalVerifiedReadonlyFile { file_size, .. }
-                | FileConfig::LocalUnverifiedReadonlyFile { file_size, .. }
-                | FileConfig::RemoteUnverifiedReadonlyFile { file_size, .. }
-                | FileConfig::RemoteVerifiedReadonlyFile { file_size, .. } => {
+                FileConfig::LocalVerifiedReadonly { file_size, .. }
+                | FileConfig::LocalUnverifiedReadonly { file_size, .. }
+                | FileConfig::RemoteUnverifiedReadonly { file_size, .. }
+                | FileConfig::RemoteVerifiedReadonly { file_size, .. } => {
                     create_stat(inode, *file_size, FileMode::ReadOnly)?
                 }
-                FileConfig::RemoteVerifiedNewFile { editor } => {
+                FileConfig::RemoteVerifiedNew { editor } => {
                     create_stat(inode, editor.size(), FileMode::ReadWrite)?
                 }
             },
@@ -257,13 +257,13 @@ impl FileSystem for AuthFs {
         // Since file handle is not really used in later operations (which use Inode directly),
         // return None as the handle.
         match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedReadonlyFile { .. }
-            | FileConfig::LocalUnverifiedReadonlyFile { .. }
-            | FileConfig::RemoteVerifiedReadonlyFile { .. }
-            | FileConfig::RemoteUnverifiedReadonlyFile { .. } => {
+            FileConfig::LocalVerifiedReadonly { .. }
+            | FileConfig::LocalUnverifiedReadonly { .. }
+            | FileConfig::RemoteVerifiedReadonly { .. }
+            | FileConfig::RemoteUnverifiedReadonly { .. } => {
                 check_access_mode(flags, libc::O_RDONLY)?;
             }
-            FileConfig::RemoteVerifiedNewFile { .. } => {
+            FileConfig::RemoteVerifiedNew { .. } => {
                 // No need to check access modes since all the modes are allowed to the
                 // read-writable file.
             }
@@ -285,19 +285,19 @@ impl FileSystem for AuthFs {
         _flags: u32,
     ) -> io::Result<usize> {
         match self.get_file_config(&inode)? {
-            FileConfig::LocalVerifiedReadonlyFile { reader, file_size } => {
+            FileConfig::LocalVerifiedReadonly { reader, file_size } => {
                 read_chunks(w, reader, *file_size, offset, size)
             }
-            FileConfig::LocalUnverifiedReadonlyFile { reader, file_size } => {
+            FileConfig::LocalUnverifiedReadonly { reader, file_size } => {
                 read_chunks(w, reader, *file_size, offset, size)
             }
-            FileConfig::RemoteVerifiedReadonlyFile { reader, file_size } => {
+            FileConfig::RemoteVerifiedReadonly { reader, file_size } => {
                 read_chunks(w, reader, *file_size, offset, size)
             }
-            FileConfig::RemoteUnverifiedReadonlyFile { reader, file_size } => {
+            FileConfig::RemoteUnverifiedReadonly { reader, file_size } => {
                 read_chunks(w, reader, *file_size, offset, size)
             }
-            FileConfig::RemoteVerifiedNewFile { editor } => {
+            FileConfig::RemoteVerifiedNew { editor } => {
                 // Note that with FsOptions::WRITEBACK_CACHE, it's possible for the kernel to
                 // request a read even if the file is open with O_WRONLY.
                 read_chunks(w, editor, editor.size(), offset, size)
@@ -318,7 +318,7 @@ impl FileSystem for AuthFs {
         _flags: u32,
     ) -> io::Result<usize> {
         match self.get_file_config(&inode)? {
-            FileConfig::RemoteVerifiedNewFile { editor } => {
+            FileConfig::RemoteVerifiedNew { editor } => {
                 let mut buf = vec![0; size as usize];
                 r.read_exact(&mut buf)?;
                 editor.write_at(&buf, offset)
@@ -336,7 +336,7 @@ impl FileSystem for AuthFs {
         valid: SetattrValid,
     ) -> io::Result<(libc::stat64, Duration)> {
         match self.get_file_config(&inode)? {
-            FileConfig::RemoteVerifiedNewFile { editor } => {
+            FileConfig::RemoteVerifiedNew { editor } => {
                 // Initialize the default stat.
                 let mut new_attr = create_stat(inode, editor.size(), FileMode::ReadWrite)?;
                 // `valid` indicates what fields in `attr` are valid. Update to return correctly.
