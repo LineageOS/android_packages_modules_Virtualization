@@ -41,8 +41,8 @@ parcelable VirtualMachineRawConfig {
     DiskImage[] disks;
 
     /** Whether the VM should be a protected VM. */
-    boolean protected_vm;
+    boolean protectedVm;
 
     /** The amount of RAM to give the VM, in MiB. 0 or negative to use the default. */
-    int memory_mib;
+    int memoryMib;
 }
