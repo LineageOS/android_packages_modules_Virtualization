@@ -51,12 +51,17 @@ public final class VirtualMachineConfig {
     private static final String KEY_IDSIGPATH = "idsigPath";
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
     private static final String KEY_DEBUGMODE = "debugMode";
+    private static final String KEY_MEMORY_MIB = "memoryMib";
 
     // Paths to the APK and its idsig file of this application.
     private final @NonNull String mApkPath;
     private final @NonNull Signature[] mCerts;
     private final @NonNull String mIdsigPath;
     private final boolean mDebugMode;
+    /**
+     * The amount of RAM to give the VM, in MiB. If this is 0 or negative the default will be used.
+     */
+    private final int mMemoryMib;
 
     /**
      * Path within the APK to the payload config file that defines software aspects of this config.
@@ -70,12 +75,14 @@ public final class VirtualMachineConfig {
             @NonNull Signature[] certs,
             @NonNull String idsigPath,
             @NonNull String payloadConfigPath,
-            boolean debugMode) {
+            boolean debugMode,
+            int memoryMib) {
         mApkPath = apkPath;
         mCerts = certs;
         mIdsigPath = idsigPath;
         mPayloadConfigPath = payloadConfigPath;
         mDebugMode = debugMode;
+        mMemoryMib = memoryMib;
     }
 
     /** Loads a config from a stream, for example a file. */
@@ -108,7 +115,9 @@ public final class VirtualMachineConfig {
             throw new VirtualMachineException("No payloadConfigPath");
         }
         final boolean debugMode = b.getBoolean(KEY_DEBUGMODE);
-        return new VirtualMachineConfig(apkPath, certs, idsigPath, payloadConfigPath, debugMode);
+        final int memoryMib = b.getInt(KEY_MEMORY_MIB);
+        return new VirtualMachineConfig(
+                apkPath, certs, idsigPath, payloadConfigPath, debugMode, memoryMib);
     }
 
     /** Persists this config to a stream, for example a file. */
@@ -125,6 +134,9 @@ public final class VirtualMachineConfig {
         b.putString(KEY_IDSIGPATH, mIdsigPath);
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
         b.putBoolean(KEY_DEBUGMODE, mDebugMode);
+        if (mMemoryMib > 0) {
+            b.putInt(KEY_MEMORY_MIB, mMemoryMib);
+        }
         b.writeToStream(output);
     }
 
@@ -162,6 +174,7 @@ public final class VirtualMachineConfig {
         parcel.idsig = ParcelFileDescriptor.open(new File(mIdsigPath), MODE_READ_ONLY);
         parcel.configPath = mPayloadConfigPath;
         parcel.debug = mDebugMode;
+        parcel.memoryMib = mMemoryMib;
         return parcel;
     }
 
@@ -170,6 +183,7 @@ public final class VirtualMachineConfig {
         private Context mContext;
         private String mPayloadConfigPath;
         private boolean mDebugMode;
+        private int mMemoryMib;
         private String mIdsigPath; // TODO(jiyong): remove this
         // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
@@ -183,6 +197,15 @@ public final class VirtualMachineConfig {
         /** Enables or disables the debug mode */
         public Builder debugMode(boolean enableOrDisable) {
             mDebugMode = enableOrDisable;
+            return this;
+        }
+
+        /**
+         * Sets the amount of RAM to give the VM. If this is zero or negative then the default will
+         * be used.
+         */
+        public Builder memoryMib(int memoryMib) {
+            mMemoryMib = memoryMib;
             return this;
         }
 
@@ -212,7 +235,7 @@ public final class VirtualMachineConfig {
             }
 
             return new VirtualMachineConfig(
-                    apkPath, certs, mIdsigPath, mPayloadConfigPath, mDebugMode);
+                    apkPath, certs, mIdsigPath, mPayloadConfigPath, mDebugMode, mMemoryMib);
         }
     }
 }
