@@ -290,9 +290,9 @@ pub fn create_composite_disk(
 
 /// Constructs a composite disk image for the given list of partitions, and opens it ready to use.
 ///
-/// Returns the composite disk image file, and a list of FD mappings which must be applied to any
-/// process which wants to use it. This is necessary because the composite image contains paths of
-/// the form `/proc/self/fd/N` for the partition images.
+/// Returns the composite disk image file, and a list of files whose file descriptors must be passed
+/// to any process which wants to use it. This is necessary because the composite image contains
+/// paths of the form `/proc/self/fd/N` for the partition images.
 pub fn make_composite_image(
     partitions: &[Partition],
     zero_filler_path: &Path,
@@ -300,7 +300,7 @@ pub fn make_composite_image(
     header_path: &Path,
     footer_path: &Path,
 ) -> Result<(File, Vec<File>), Error> {
-    let (partitions, files) = convert_partitions(partitions)?;
+    let (partitions, mut files) = convert_partitions(partitions)?;
 
     let mut composite_image = OpenOptions::new()
         .create_new(true)
@@ -316,13 +316,16 @@ pub fn make_composite_image(
         OpenOptions::new().create_new(true).read(true).write(true).open(footer_path).with_context(
             || format!("Failed to create composite image header {:?}", footer_path),
         )?;
+    let zero_filler_file = File::open(&zero_filler_path).with_context(|| {
+        format!("Failed to open composite image zero filler {:?}", zero_filler_path)
+    })?;
 
     create_composite_disk(
         &partitions,
-        zero_filler_path,
-        header_path,
+        &fd_path_for_file(&zero_filler_file),
+        &fd_path_for_file(&header_file),
         &mut header_file,
-        footer_path,
+        &fd_path_for_file(&footer_file),
         &mut footer_file,
         &mut composite_image,
     )?;
@@ -331,12 +334,16 @@ pub fn make_composite_image(
     let composite_image = File::open(&output_path)
         .with_context(|| format!("Failed to open composite image {:?}", output_path))?;
 
+    files.push(header_file);
+    files.push(footer_file);
+    files.push(zero_filler_file);
+
     Ok((composite_image, files))
 }
 
 /// Given the AIDL config containing a list of partitions, with a [`ParcelFileDescriptor`] for each
-/// partition, return the list of file descriptors which must be passed to the composite disk image
-/// partition configuration for it.
+/// partition, returns the corresponding list of PartitionInfo and the list of files whose file
+/// descriptors must be passed to any process using the composite image.
 fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, Vec<File>), Error> {
     // File descriptors to pass to child process.
     let mut files = vec![];
@@ -353,12 +360,12 @@ fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, V
                 .try_clone()
                 .context("Failed to clone partition image file descriptor")?;
             let size = get_partition_size(&file)?;
-            let fd = file.as_raw_fd();
+            let path = fd_path_for_file(&file);
             files.push(file);
 
             Ok(PartitionInfo {
                 label: partition.label.to_owned(),
-                path: format!("/proc/self/fd/{}", fd).into(),
+                path,
                 partition_type: ImagePartitionType::LinuxFilesystem,
                 writable: partition.writable,
                 size,
@@ -367,6 +374,11 @@ fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, V
         .collect::<Result<_, Error>>()?;
 
     Ok((partitions, files))
+}
+
+fn fd_path_for_file(file: &File) -> PathBuf {
+    let fd = file.as_raw_fd();
+    format!("/proc/self/fd/{}", fd).into()
 }
 
 /// Find the size of the partition image in the given file by parsing the header.
