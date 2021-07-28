@@ -12,7 +12,7 @@ cc_binary {
     ],
 
     shared_libs: [
-        "compos_aidl_interface-ndk_platform",
+        "compos_aidl_interface-ndk",
         "libbase",
         "libbinder_rpc_unstable",
         "libbinder_ndk",
