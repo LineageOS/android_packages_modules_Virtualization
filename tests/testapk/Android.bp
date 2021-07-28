@@ -18,7 +18,7 @@ cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/testbinary.cpp"],
     shared_libs: [
-        "android.system.keystore2-V1-ndk_platform",
+        "android.system.keystore2-V1-ndk",
         "libbase",
         "libbinder_ndk",
         "MicrodroidTestNativeLibSub",

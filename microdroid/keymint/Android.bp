@@ -15,7 +15,7 @@ cc_binary {
         "-Wextra",
     ],
     shared_libs: [
-        "android.hardware.security.keymint-V1-ndk_platform",
+        "android.hardware.security.keymint-V1-ndk",
         "lib_android_keymaster_keymint_utils",
         "libbase",
         "libbinder_ndk",
