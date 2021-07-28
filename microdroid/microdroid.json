@@ -5,23 +5,23 @@
       "partitions": [
         {
           "label": "boot_a",
-          "paths": ["/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"]
+          "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
         },
         {
           "label": "vendor_boot_a",
-          "paths": ["/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"]
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
         },
         {
           "label": "vbmeta_a",
-          "paths": ["/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"]
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
         },
         {
           "label": "vbmeta_system_a",
-          "paths": ["/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"]
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
         },
         {
           "label": "super",
-          "paths": ["/apex/com.android.virt/etc/fs/microdroid_super.img"]
+          "path": "/apex/com.android.virt/etc/fs/microdroid_super.img"
         }
       ],
       "writable": false
@@ -30,7 +30,7 @@
       "partitions": [
         {
           "label": "uboot_env",
-          "paths": ["/apex/com.android.virt/etc/uboot_env.img"],
+          "path": "/apex/com.android.virt/etc/uboot_env.img",
           "writable": false
         }
       ],
