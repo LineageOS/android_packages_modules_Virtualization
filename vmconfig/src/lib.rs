@@ -146,7 +146,7 @@ impl Partition {
         let images = self
             .paths
             .iter()
-            .map(|path| open_parcel_file(&path, self.writable))
+            .map(|path| open_parcel_file(path, self.writable))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(AidlPartition { images, writable: self.writable, label: self.label.to_owned() })
     }

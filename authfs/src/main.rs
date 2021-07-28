@@ -224,7 +224,7 @@ fn new_config_remote_verified_file(
     let signature = service.readFsveritySignature(remote_id).context("Failed to read signature")?;
 
     let authenticator = FakeAuthenticator::always_succeed();
-    Ok(FileConfig::RemoteVerifiedReadonlyFile {
+    Ok(FileConfig::RemoteVerifiedReadonly {
         reader: VerifiedFileReader::new(
             &authenticator,
             RemoteFileReader::new(service.clone(), remote_id),
@@ -242,7 +242,7 @@ fn new_config_remote_unverified_file(
     file_size: u64,
 ) -> Result<FileConfig> {
     let reader = RemoteFileReader::new(service, remote_id);
-    Ok(FileConfig::RemoteUnverifiedReadonlyFile { reader, file_size })
+    Ok(FileConfig::RemoteUnverifiedReadonly { reader, file_size })
 }
 
 fn new_config_local_ro_file(
@@ -259,13 +259,13 @@ fn new_config_local_ro_file(
     let _ = File::open(signature)?.read_to_end(&mut sig)?;
     let reader =
         VerifiedFileReader::new(&authenticator, file_reader, file_size, sig, merkle_tree_reader)?;
-    Ok(FileConfig::LocalVerifiedReadonlyFile { reader, file_size })
+    Ok(FileConfig::LocalVerifiedReadonly { reader, file_size })
 }
 
 fn new_config_local_ro_file_unverified(file_path: &Path) -> Result<FileConfig> {
     let reader = LocalFileReader::new(File::open(file_path)?)?;
     let file_size = reader.len();
-    Ok(FileConfig::LocalUnverifiedReadonlyFile { reader, file_size })
+    Ok(FileConfig::LocalUnverifiedReadonly { reader, file_size })
 }
 
 fn new_config_remote_new_verified_file(
@@ -273,7 +273,7 @@ fn new_config_remote_new_verified_file(
     remote_id: i32,
 ) -> Result<FileConfig> {
     let remote_file = RemoteFileEditor::new(service, remote_id);
-    Ok(FileConfig::RemoteVerifiedNewFile { editor: VerifiedFileEditor::new(remote_file) })
+    Ok(FileConfig::RemoteVerifiedNew { editor: VerifiedFileEditor::new(remote_file) })
 }
 
 fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
