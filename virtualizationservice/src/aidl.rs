@@ -160,8 +160,8 @@ impl IVirtualizationService for VirtualizationService {
             initrd: as_asref(&config.initrd),
             disks,
             params: config.params.to_owned(),
-            protected: config.protected_vm,
-            memory_mib: config.memory_mib.try_into().ok().and_then(NonZeroU32::new),
+            protected: config.protectedVm,
+            memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
         };
         let composite_disk_fds: Vec<_> =
             indirect_files.iter().map(|file| file.as_raw_fd()).collect();
@@ -382,8 +382,8 @@ fn load_app_config(
     let vm_config_file = File::open(vm_config_path)?;
     let mut vm_config = VmConfig::load(&vm_config_file)?.to_parcelable()?;
 
-    if config.memory_mib > 0 {
-        vm_config.memory_mib = config.memory_mib;
+    if config.memoryMib > 0 {
+        vm_config.memoryMib = config.memoryMib;
     }
 
     // Microdroid requires an additional payload disk image and the bootconfig partition.
