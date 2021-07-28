@@ -33,7 +33,7 @@ type HashBuffer = [u8; Sha256Hasher::HASH_SIZE];
 
 fn hash_with_padding(chunk: &[u8], pad_to: usize) -> Result<HashBuffer, CryptoError> {
     let padding_size = pad_to - chunk.len();
-    Sha256Hasher::new()?.update(&chunk)?.update(&ZEROS[..padding_size])?.finalize()
+    Sha256Hasher::new()?.update(chunk)?.update(&ZEROS[..padding_size])?.finalize()
 }
 
 fn verity_check<T: ReadByChunk>(
@@ -47,7 +47,7 @@ fn verity_check<T: ReadByChunk>(
     // beyond the file size, including empty file.
     assert_ne!(file_size, 0);
 
-    let chunk_hash = hash_with_padding(&chunk, CHUNK_SIZE as usize)?;
+    let chunk_hash = hash_with_padding(chunk, CHUNK_SIZE as usize)?;
 
     fsverity_walk(chunk_index, file_size, merkle_tree)?.try_fold(
         chunk_hash,

@@ -82,7 +82,7 @@ impl CompService {
         } else {
             vec![]
         };
-        let _pid = jail.run(&self.worker_bin, &inheritable_fds, &args)?;
+        let _pid = jail.run(&self.worker_bin, &inheritable_fds, args)?;
         jail.wait()
     }
 

@@ -101,7 +101,7 @@ impl RandomWrite for RemoteFileEditor {
             i64::try_from(offset).map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
         let size = self
             .service
-            .writeFile(self.file_fd, &buf, offset)
+            .writeFile(self.file_fd, buf, offset)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.get_description()))?;
         Ok(size as usize) // within range because size is supposed to <= buf.len(), which is a usize
     }

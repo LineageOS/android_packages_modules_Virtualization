@@ -20,7 +20,7 @@ pub const RPC_SERVICE_PORT: u32 = 3264;
 
 fn get_local_binder() -> io::Result<VirtFdService> {
     let service_name = "authfs_fd_server";
-    get_interface(&service_name).map_err(|e| {
+    get_interface(service_name).map_err(|e| {
         io::Error::new(
             io::ErrorKind::AddrNotAvailable,
             format!("Cannot reach authfs_fd_server binder service: {}", e),
