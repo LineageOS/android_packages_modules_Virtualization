@@ -23,6 +23,8 @@ import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
 import com.android.compatibility.common.util.PollingCheck;
+import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
 
@@ -37,6 +39,10 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
     /** Path to odrefresh on Microdroid */
     private static final String ODREFRESH_BIN = "/apex/com.android.art/bin/odrefresh";
+
+    /** Output directory of odrefresh */
+    private static final String ODREFRESH_OUTPUT_DIR =
+            "/data/misc/apexdata/com.android.art/dalvik-cache";
 
     /** Timeout of odrefresh to finish */
     private static final int ODREFRESH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -75,21 +81,54 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
         CommandRunner android = new CommandRunner(getDevice());
 
-        // Expect the compilation to finish successfully.
+        // Prepare the groundtruth. The compilation on Android should finish successfully.
+        {
+            long start = System.currentTimeMillis();
+            CommandResult result =
+                    android.runForResultWithTimeout(
+                            ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--force-compile");
+            long elapsed = System.currentTimeMillis() - start;
+            assertThat(result.getExitCode()).isEqualTo(COMPILATION_SUCCESS);
+            CLog.i("Local compilation took " + elapsed + "ms");
+        }
+
+        // Save the expected checksum for the output directory.
+        String expectedChecksumSnapshot = checksumDirectoryContent(android, ODREFRESH_OUTPUT_DIR);
+
+        // Let --check clean up the output.
         CommandResult result =
-                android.runForResultWithTimeout(
-                        ODREFRESH_TIMEOUT_MS,
-                        ODREFRESH_BIN,
-                        "--use-compilation-os=" + mCid,
-                        "--force-compile");
-        assertThat(result.getExitCode()).isEqualTo(COMPILATION_SUCCESS);
+                android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--check");
+        assertThat(result.getExitCode()).isEqualTo(OKAY);
+
+        // Expect the compilation in Compilation OS to finish successfully.
+        {
+            long start = System.currentTimeMillis();
+            result =
+                    android.runForResultWithTimeout(
+                            ODREFRESH_TIMEOUT_MS,
+                            ODREFRESH_BIN,
+                            "--use-compilation-os=" + mCid,
+                            "--force-compile");
+            long elapsed = System.currentTimeMillis() - start;
+            assertThat(result.getExitCode()).isEqualTo(COMPILATION_SUCCESS);
+            CLog.i("Comp OS compilation took " + elapsed + "ms");
+        }
+
+        // Save the actual checksum for the output directory.
+        String actualChecksumSnapshot = checksumDirectoryContent(android, ODREFRESH_OUTPUT_DIR);
 
         // Expect the output to be valid.
+        result = android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--verify");
+        assertThat(result.getExitCode()).isEqualTo(OKAY);
+        // --check can delete the output, so run later.
         result = android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--check");
         assertThat(result.getExitCode()).isEqualTo(OKAY);
+
+        // Expect the output of Comp OS to be the same as compiled on Android.
+        assertThat(actualChecksumSnapshot).isEqualTo(expectedChecksumSnapshot);
     }
 
-    private void startComposVm() throws Exception {
+    private void startComposVm() throws DeviceNotAvailableException {
         final String apkName = "CompOSPayloadApp.apk";
         final String packageName = "com.android.compos.payload";
         mCid =
@@ -113,5 +152,10 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
     private boolean isServiceRunning() {
         return tryRunOnMicrodroid("pidof compsvc") != null;
+    }
+
+    private String checksumDirectoryContent(CommandRunner runner, String path)
+            throws DeviceNotAvailableException {
+        return runner.run("find " + path + " -type f -exec sha256sum {} \\; | sort");
     }
 }
