@@ -63,7 +63,7 @@ pub fn command_run_app(
         configPath: config_path.to_owned(),
         debug,
         // Use the default.
-        memory_mib: 0,
+        memoryMib: 0,
     });
     run(service, &config, &format!("{:?}!{:?}", apk, config_path), daemonize, log_path)
 }
