@@ -121,7 +121,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(apk: P, idsig: P, name: &str) -> Result
     // Actually create a dm-verity block device using the spec.
     let dm = dm::DeviceMapper::new()?;
     let mapper_device =
-        dm.create_device(&name, &target).context("Failed to create dm-verity device")?;
+        dm.create_device(name, &target).context("Failed to create dm-verity device")?;
 
     Ok(VerityResult { data_device, hash_device, mapper_device })
 }
@@ -173,7 +173,7 @@ mod tests {
             return;
         }
         let test_dir = tempfile::TempDir::new().unwrap();
-        let (apk_path, idsig_path) = prepare_inputs(&test_dir.path(), apk, idsig);
+        let (apk_path, idsig_path) = prepare_inputs(test_dir.path(), apk, idsig);
 
         // Run the program and register clean-ups.
         let ret = enable_verity(&apk_path, &idsig_path, name).unwrap();
@@ -296,7 +296,7 @@ mod tests {
         let idsig = include_bytes!("../testdata/test.apk.idsig");
 
         let test_dir = tempfile::TempDir::new().unwrap();
-        let (apk_path, idsig_path) = prepare_inputs(&test_dir.path(), apk, idsig);
+        let (apk_path, idsig_path) = prepare_inputs(test_dir.path(), apk, idsig);
 
         // attach the files to loop devices to make them block devices
         let apk_size = fs::metadata(&apk_path).unwrap().len();
@@ -314,7 +314,7 @@ mod tests {
 
         let name = "loop_as_input";
         // Run the program WITH the loop devices, not the regular files.
-        let ret = enable_verity(apk_loop_device.deref(), idsig_loop_device.deref(), &name).unwrap();
+        let ret = enable_verity(apk_loop_device.deref(), idsig_loop_device.deref(), name).unwrap();
         let ret = scopeguard::guard(ret, |ret| {
             loopdevice::detach(ret.data_device).unwrap();
             loopdevice::detach(ret.hash_device).unwrap();

@@ -203,7 +203,7 @@ impl CompOsKeyService {
             return Err(anyhow!("Key requires user authorization"));
         }
 
-        let signature = operation.finish(Some(&data), None).context("Signing failed")?;
+        let signature = operation.finish(Some(data), None).context("Signing failed")?;
         // Operation has finished, we're no longer responsible for aborting it
         ScopeGuard::into_inner(operation);
 

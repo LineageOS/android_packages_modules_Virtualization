@@ -206,7 +206,7 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
             // (original) integrity for the file. To matches what write(2) describes for an error
             // case (though it's about direct I/O), "Partial data may be written ... should be
             // considered inconsistent", an error below is propagated.
-            self.file.write_all_at(&source, output_offset)?;
+            self.file.write_all_at(source, output_offset)?;
 
             // Update the hash only after the write succeeds. Note that this only attempts to keep
             // the tree consistent to what has been written regardless the actual state beyond the
@@ -290,7 +290,7 @@ mod tests {
             if end > self.data.borrow().len() {
                 self.data.borrow_mut().resize(end, 0);
             }
-            self.data.borrow_mut().as_mut_slice()[begin..end].copy_from_slice(&buf);
+            self.data.borrow_mut().as_mut_slice()[begin..end].copy_from_slice(buf);
             Ok(buf.len())
         }
 
@@ -318,7 +318,7 @@ mod tests {
                         format!("read_chunk out of bound: index {}", chunk_index),
                     )
                 })?;
-            buf[..chunk.len()].copy_from_slice(&chunk);
+            buf[..chunk.len()].copy_from_slice(chunk);
             Ok(chunk.len())
         }
     }

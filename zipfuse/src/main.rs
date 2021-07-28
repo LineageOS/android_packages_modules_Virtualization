@@ -44,7 +44,7 @@ fn main() -> Result<()> {
                 .short("o")
                 .takes_value(true)
                 .required(false)
-                .help("Comma separated list of mount options")
+                .help("Comma separated list of mount options"),
         )
         .arg(Arg::with_name("ZIPFILE").required(true))
         .arg(Arg::with_name("MOUNTPOINT").required(true))
@@ -650,7 +650,7 @@ mod tests {
         let mnt_path = test_dir.join("mnt");
         assert!(fs::create_dir(&mnt_path).is_ok());
 
-        start_fuse(&zip_path, &mnt_path);
+        start_fuse(zip_path, &mnt_path);
 
         // Give some time for the fuse to boot up
         assert!(wait_for_mount(&mnt_path).is_ok());
@@ -669,7 +669,7 @@ mod tests {
         let mut zip_file = File::create(&zip_path).unwrap();
         zip_file.write_all(include_bytes!("../testdata/test.zip")).unwrap();
 
-        run_fuse_and_check_test_zip(&test_dir.path(), &zip_path);
+        run_fuse_and_check_test_zip(test_dir.path(), &zip_path);
     }
 
     #[cfg(not(target_os = "android"))] // Android doesn't have the loopdev crate
