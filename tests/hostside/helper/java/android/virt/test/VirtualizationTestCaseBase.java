@@ -230,13 +230,17 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
             throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(androidDevice);
 
-        // Close the connection before shutting the VM down. Otherwise, b/192660485.
-        tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
-        final String serial = androidDevice.getSerialNumber();
-        tryRunOnHost("adb", "-s", serial, "forward", "--remove", "tcp:" + TEST_VM_ADB_PORT);
-
         // Shutdown the VM
         android.run(VIRT_APEX + "bin/vm", "stop", cid);
+
+        // TODO(192660485): Figure out why shutting down the VM disconnects adb on cuttlefish
+        // temporarily. Without this wait, the rest of `runOnAndroid/skipIfFail` fails due to the
+        // connection loss, and results in assumption error exception for the rest of the tests.
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public static void rootMicrodroid() throws DeviceNotAvailableException {
