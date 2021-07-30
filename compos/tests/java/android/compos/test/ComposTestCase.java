@@ -30,13 +30,11 @@ import com.android.tradefed.util.CommandResult;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
-@Ignore("b/194974010")
 public final class ComposTestCase extends VirtualizationTestCaseBase {
 
     /** Path to odrefresh on Microdroid */
