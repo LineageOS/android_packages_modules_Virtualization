@@ -15,13 +15,9 @@ on early-init
     # set RLIMIT_NICE to allow priorities from 19 to -20
     setrlimit nice 40 40
 
-    # in microdroid, we don't use "bootstrap" mount namespace
-    # because APEXes are passed from host and are available
-    # from the start. We don't need to wait till /data is ready.
-    enter_default_mount_ns
-
     start ueventd
 
+    start microdroid_manager
     # TODO(b/190343842) verify apexes/apk before mounting them.
 
     # Exec apexd in the VM mode to avoid unnecessary overhead of normal mode.
@@ -85,10 +81,6 @@ on init
     start hwservicemanager
 
     start adbd
-
-    # TODO(b/186396070) microdroid_manager starts zipfuse if necessary
-    # TODO(b/186396070) move this before apexd for DICE derivation
-    start microdroid_manager
 
 on load_persist_props_action
     start logd
