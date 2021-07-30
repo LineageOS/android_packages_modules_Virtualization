@@ -20,8 +20,8 @@ parcelable Partition {
     /** A label for the partition. */
     @utf8InCpp String label;
 
-    /** The backing file descriptors of the partition images. */
-    ParcelFileDescriptor[] images;
+    /** The backing file descriptor of the partition image. */
+    ParcelFileDescriptor image;
 
     /** Whether the partition should be writable by the VM. */
     boolean writable;

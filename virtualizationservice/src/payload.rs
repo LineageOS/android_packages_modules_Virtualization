@@ -129,7 +129,7 @@ fn make_payload_disk(
     // put metadata at the first partition
     let mut partitions = vec![Partition {
         label: "payload-metadata".to_owned(),
-        images: vec![metadata_file],
+        image: Some(metadata_file),
         writable: false,
     }];
 
@@ -139,18 +139,18 @@ fn make_payload_disk(
         let apex_file = open_parcel_file(&apex_path, false)?;
         partitions.push(Partition {
             label: format!("microdroid-apex-{}", i),
-            images: vec![apex_file],
+            image: Some(apex_file),
             writable: false,
         });
     }
     partitions.push(Partition {
         label: "microdroid-apk".to_owned(),
-        images: vec![ParcelFileDescriptor::new(apk_file)],
+        image: Some(ParcelFileDescriptor::new(apk_file)),
         writable: false,
     });
     partitions.push(Partition {
         label: "microdroid-apk-idsig".to_owned(),
-        images: vec![ParcelFileDescriptor::new(idsig_file)],
+        image: Some(ParcelFileDescriptor::new(idsig_file)),
         writable: false,
     });
 
@@ -182,10 +182,10 @@ pub fn add_microdroid_images(
     if config.debug {
         vm_config.disks[1].partitions.push(Partition {
             label: "bootconfig".to_owned(),
-            images: vec![open_parcel_file(
+            image: Some(open_parcel_file(
                 Path::new("/apex/com.android.virt/etc/microdroid_bootconfig.debug"),
                 false,
-            )?],
+            )?),
             writable: false,
         });
     }
@@ -193,7 +193,7 @@ pub fn add_microdroid_images(
     // instance image is at the second partition in the second disk.
     vm_config.disks[1].partitions.push(Partition {
         label: "vm-instance".to_owned(),
-        images: vec![ParcelFileDescriptor::new(instance_file)],
+        image: Some(ParcelFileDescriptor::new(instance_file)),
         writable: true,
     });
 
