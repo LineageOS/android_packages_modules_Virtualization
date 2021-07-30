@@ -46,9 +46,9 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
     private static final String INSTANCE_IMG = "instance.img";
 
-    // This is really slow on GCE (2m 40s) but fast on localhost or actual Android phones (< 10s)
-    // Set the maximum timeout value big enough.
-    private static final long MICRODROID_BOOT_TIMEOUT_MINUTES = 5;
+    // This is really slow on GCE (2m 40s) but fast on localhost or actual Android phones (< 10s).
+    // Then there is time to run the actual task. Set the maximum timeout value big enough.
+    private static final long MICRODROID_MAX_LIFETIME_MINUTES = 20;
 
     private static final long MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES = 5;
 
@@ -206,9 +206,12 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         executor.execute(
                 () -> {
                     try {
-                        // Keep redirecting sufficiently long enough
+                        // Keep redirecting as long as the expecting maximum test time. When an adb
+                        // command times out, it may trigger the device recovery process, which
+                        // disconnect adb, which terminates any live adb commands. See an example at
+                        // b/194974010#comment25.
                         android.runWithTimeout(
-                                MICRODROID_BOOT_TIMEOUT_MINUTES * 60 * 1000,
+                                MICRODROID_MAX_LIFETIME_MINUTES * 60 * 1000,
                                 "logwrapper",
                                 "tail",
                                 "-f",
