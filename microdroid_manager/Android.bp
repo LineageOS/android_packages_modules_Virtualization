@@ -27,6 +27,7 @@ rust_defaults {
 rust_binary {
     name: "microdroid_manager",
     defaults: ["microdroid_manager_defaults"],
+    bootstrap: true,
 }
 
 rust_test {

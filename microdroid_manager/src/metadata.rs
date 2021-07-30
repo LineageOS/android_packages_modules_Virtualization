@@ -14,15 +14,19 @@
 
 //! Payload metadata from /dev/block/by-name/payload-metadata
 
+use crate::ioutil;
+
 use anyhow::Result;
 use log::info;
 use microdroid_metadata::{read_metadata, Metadata};
-use std::fs::File;
+use std::time::Duration;
 
+const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const PAYLOAD_METADATA_PATH: &str = "/dev/block/by-name/payload-metadata";
 
 /// loads payload metadata from /dev/block/by-name/paylaod-metadata
 pub fn load() -> Result<Metadata> {
     info!("loading payload metadata...");
-    read_metadata(File::open(PAYLOAD_METADATA_PATH)?)
+    let file = ioutil::wait_for_file(PAYLOAD_METADATA_PATH, WAIT_TIMEOUT)?;
+    read_metadata(file)
 }
