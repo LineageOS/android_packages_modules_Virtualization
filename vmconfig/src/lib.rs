@@ -131,8 +131,7 @@ pub struct Partition {
     /// A label for the partition.
     pub label: String,
     /// The filename of the partition image.
-    #[serde(default)]
-    pub paths: Vec<PathBuf>,
+    pub path: PathBuf,
     /// Whether the partition should be writable.
     #[serde(default)]
     pub writable: bool,
@@ -140,15 +139,11 @@ pub struct Partition {
 
 impl Partition {
     fn to_parcelable(&self) -> Result<AidlPartition> {
-        if self.paths.is_empty() {
-            bail!("Partition {} contains no paths", &self.label);
-        }
-        let images = self
-            .paths
-            .iter()
-            .map(|path| open_parcel_file(path, self.writable))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(AidlPartition { images, writable: self.writable, label: self.label.to_owned() })
+        Ok(AidlPartition {
+            image: Some(open_parcel_file(&self.path, self.writable)?),
+            writable: self.writable,
+            label: self.label.to_owned(),
+        })
     }
 }
 

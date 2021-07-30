@@ -50,20 +50,14 @@ const DISK_SIZE_SHIFT: u8 = 16;
 const LINUX_FILESYSTEM_GUID: Uuid = Uuid::from_u128(0x0FC63DAF_8483_4772_8E79_3D69D8477DE4);
 const EFI_SYSTEM_PARTITION_GUID: Uuid = Uuid::from_u128(0xC12A7328_F81F_11D2_BA4B_00A0C93EC93B);
 
-/// Information about a single image file to be included in a partition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PartitionFileInfo {
-    path: PathBuf,
-    size: u64,
-}
-
-/// Information about a partition to create, including the set of image files which make it up.
+/// Information about a partition to create.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PartitionInfo {
     label: String,
-    files: Vec<PartitionFileInfo>,
+    path: PathBuf,
     partition_type: ImagePartitionType,
     writable: bool,
+    size: u64,
 }
 
 /// Round `val` up to the next multiple of 2**`align_log`.
@@ -79,7 +73,7 @@ fn align_to_partition_size(val: u64) -> u64 {
 
 impl PartitionInfo {
     fn aligned_size(&self) -> u64 {
-        align_to_partition_size(self.files.iter().map(|file| file.size).sum())
+        align_to_partition_size(self.size)
     }
 }
 
@@ -172,26 +166,18 @@ fn create_component_disks(
 ) -> Result<Vec<ComponentDisk>, Error> {
     let aligned_size = partition.aligned_size();
 
-    if partition.files.is_empty() {
-        bail!("No image files for partition {:?}", partition);
-    }
-    let mut file_size_sum = 0;
-    let mut component_disks = vec![];
-    for file in &partition.files {
-        component_disks.push(ComponentDisk {
-            offset: offset + file_size_sum,
-            file_path: file.path.to_str().context("Invalid partition path")?.to_string(),
-            read_write_capability: if partition.writable {
-                ReadWriteCapability::READ_WRITE
-            } else {
-                ReadWriteCapability::READ_ONLY
-            },
-            ..ComponentDisk::new()
-        });
-        file_size_sum += file.size;
-    }
+    let mut component_disks = vec![ComponentDisk {
+        offset,
+        file_path: partition.path.to_str().context("Invalid partition path")?.to_string(),
+        read_write_capability: if partition.writable {
+            ReadWriteCapability::READ_WRITE
+        } else {
+            ReadWriteCapability::READ_ONLY
+        },
+        ..ComponentDisk::new()
+    }];
 
-    if file_size_sum != aligned_size {
+    if partition.size != aligned_size {
         if partition.writable {
             bail!(
                 "Read-write partition {:?} size is not a multiple of {}.",
@@ -207,7 +193,7 @@ fn create_component_disks(
                 1 << PARTITION_SIZE_SHIFT
             );
             component_disks.push(ComponentDisk {
-                offset: offset + file_size_sum,
+                offset: offset + partition.size,
                 file_path: zero_filler_path.to_owned(),
                 read_write_capability: ReadWriteCapability::READ_ONLY,
                 ..ComponentDisk::new()
@@ -348,7 +334,7 @@ pub fn make_composite_image(
     Ok((composite_image, files))
 }
 
-/// Given the AIDL config containing a list of partitions, with [`ParcelFileDescriptor`]s for each
+/// Given the AIDL config containing a list of partitions, with a [`ParcelFileDescriptor`] for each
 /// partition, return the list of file descriptors which must be passed to the composite disk image
 /// partition configuration for it.
 fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, Vec<File>), Error> {
@@ -358,29 +344,24 @@ fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, V
     let partitions = partitions
         .iter()
         .map(|partition| {
-            let image_files = partition
-                .images
-                .iter()
-                .map(|image| {
-                    let file = image
-                        .as_ref()
-                        .try_clone()
-                        .context("Failed to clone partition image file descriptor")?;
-
-                    let size = get_partition_size(&file)?;
-                    let fd = file.as_raw_fd();
-                    let partition_info_file =
-                        PartitionFileInfo { path: format!("/proc/self/fd/{}", fd).into(), size };
-                    files.push(file);
-                    Ok(partition_info_file)
-                })
-                .collect::<Result<Vec<_>, Error>>()?;
+            // TODO(b/187187765): This shouldn't be an Option.
+            let file = partition
+                .image
+                .as_ref()
+                .context("Invalid partition image file descriptor")?
+                .as_ref()
+                .try_clone()
+                .context("Failed to clone partition image file descriptor")?;
+            let size = get_partition_size(&file)?;
+            let fd = file.as_raw_fd();
+            files.push(file);
 
             Ok(PartitionInfo {
                 label: partition.label.to_owned(),
-                files: image_files,
+                path: format!("/proc/self/fd/{}", fd).into(),
                 partition_type: ImagePartitionType::LinuxFilesystem,
                 writable: partition.writable,
+                size,
             })
         })
         .collect::<Result<_, Error>>()?;
