@@ -15,11 +15,6 @@ on early-init
     # set RLIMIT_NICE to allow priorities from 19 to -20
     setrlimit nice 40 40
 
-    # in microdroid, we don't use "bootstrap" mount namespace
-    # because APEXes are passed from host and are available
-    # from the start. We don't need to wait till /data is ready.
-    enter_default_mount_ns
-
     start ueventd
 
     # TODO(b/190343842) verify apexes/apk before mounting them.
