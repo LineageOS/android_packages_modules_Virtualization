@@ -4,12 +4,7 @@
       "name": "MicrodroidHostTestCases"
     },
     {
-      "name": "ComposHostTestCases",
-      "options": [
-        {
-          "exclude-filter": "android.compos.test.ComposKeyTestCase#testOdrefresh"
-        }
-      ]
+      "name": "ComposHostTestCases"
     }
   ],
   "postsubmit": [
@@ -18,15 +13,6 @@
     // somehow thinks that the test wasn't executed at all and reports it as a failure.
     {
       "name": "VirtualizationTestCases"
-    },
-    // TODO(victorhsieh): promotee this to presubmit once it's proven stable.
-    {
-      "name": "ComposHostTestCases",
-      "options": [
-        {
-          "include-filter": "android.compos.test.ComposKeyTestCase#testOdrefresh"
-        }
-      ]
     }
   ],
   "imports": [
