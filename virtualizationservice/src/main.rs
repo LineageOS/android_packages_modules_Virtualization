@@ -17,7 +17,6 @@
 mod aidl;
 mod composite;
 mod crosvm;
-mod gpt;
 mod payload;
 
 use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY};
