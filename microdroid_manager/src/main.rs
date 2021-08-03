@@ -20,13 +20,13 @@ mod metadata;
 use anyhow::{anyhow, bail, Result};
 use log::{error, info, warn};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
+use rustutils::system_properties::PropertyWatcher;
 use std::fs::{self, File};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
 use std::time::Duration;
-use system_properties::PropertyWatcher;
 use vsock::VsockStream;
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,7 +40,7 @@ fn main() -> Result<()> {
         let config = load_config(Path::new(&metadata.payload_config_path))?;
 
         let fake_secret = "This is a placeholder for a value that is derived from the images that are loaded in the VM.";
-        if let Err(err) = system_properties::write("ro.vmsecret.keymint", fake_secret) {
+        if let Err(err) = rustutils::system_properties::write("ro.vmsecret.keymint", fake_secret) {
             warn!("failed to set ro.vmsecret.keymint: {}", err);
         }
 
