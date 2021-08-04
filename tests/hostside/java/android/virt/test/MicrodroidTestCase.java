@@ -69,13 +69,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.run"), is("true"));
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.sublib.run"), is("true"));
 
-        // Manually execute the library and check the output
-        final String microdroidLauncher = "system/bin/microdroid_launcher";
-        assertThat(
-                runOnMicrodroid(microdroidLauncher, testLib, "arg1", "arg2"),
-                is("Hello Microdroid " + testLib + " arg1 arg2"));
-
-        // Check that keystore was found by the payload
+        // Check that keystore was found by the payload. Wait until the property is set.
+        tryRunOnMicrodroid("watch -e \"getprop debug.microdroid.test.keystore | grep '^$'\"");
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.test.keystore"), is("PASS"));
 
         shutdownMicrodroid(getDevice(), cid);
