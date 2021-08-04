@@ -128,14 +128,13 @@ impl IVirtualizationService for VirtualizationService {
         let config = config.as_ref();
 
         let zero_filler_path = temporary_directory.join("zero.img");
-        let zero_filler_file = write_zero_filler(&zero_filler_path).map_err(|e| {
+        write_zero_filler(&zero_filler_path).map_err(|e| {
             error!("Failed to make composite image: {}", e);
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("Failed to make composite image: {}", e),
             )
         })?;
-        indirect_files.push(zero_filler_file);
 
         // Assemble disk images if needed.
         let disks = config
@@ -291,7 +290,7 @@ fn handle_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
     Ok(())
 }
 
-fn write_zero_filler(zero_filler_path: &Path) -> Result<File> {
+fn write_zero_filler(zero_filler_path: &Path) -> Result<()> {
     let file = OpenOptions::new()
         .create_new(true)
         .read(true)
@@ -299,7 +298,7 @@ fn write_zero_filler(zero_filler_path: &Path) -> Result<File> {
         .open(zero_filler_path)
         .with_context(|| "Failed to create zero.img")?;
     file.set_len(ZERO_FILLER_SIZE)?;
-    Ok(file)
+    Ok(())
 }
 
 /// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
