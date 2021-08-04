@@ -111,6 +111,7 @@ android_system_image {
             deps: [
                 "apkdmverity",
                 "authfs",
+                "authfs_service",
                 "zipfuse",
 
                 // TODO(b/184872979): Needed by authfs. Remove once the Rust API is created.

@@ -123,6 +123,8 @@ fn run_authfs(
     debuggable: bool,
 ) -> Result<SharedChild> {
     let mut args = vec![mountpoint.to_owned(), OsString::from("--cid=2")];
+    args.push(OsString::from("-o"));
+    args.push(OsString::from("fscontext=u:object_r:authfs_fuse:s0"));
     for conf in in_fds {
         // TODO(b/185178698): Many input files need to be signed and verified.
         // or can we use debug cert for now, which is better than nothing?
