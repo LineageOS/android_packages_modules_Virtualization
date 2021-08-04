@@ -35,6 +35,10 @@ microdroid_symlinks = [
         target: "/system/etc",
         name: "etc",
     },
+    {
+        target: "/system/bin",
+        name: "bin",
+    },
 ]
 
 android_system_image {
