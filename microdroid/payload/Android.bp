@@ -49,30 +49,26 @@ rust_protobuf {
     ],
 }
 
-cc_binary {
+cc_binary_host {
     name: "mk_payload",
     srcs: [
         "mk_payload.cc",
     ],
-    shared_libs: [
+    static_libs: [
+        "lib_microdroid_metadata_proto",
         "libbase",
+        "libcdisk_spec",
         "libcuttlefish_fs",
         "libcuttlefish_utils",
-        "liblog",
-        "libz",
-    ],
-    static_libs: [
-        "lib_microdroid_metadata_proto_lite",
-        "libcdisk_spec",
         "libext2_uuid",
         "libimage_aggregator",
         "libjsoncpp",
+        "liblog",
+        "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",
         "libsparse",
         "libxml2",
+        "libz",
     ],
-    generated_sources: ["apex-info-list"],
-    apex_available: [
-        "com.android.virt",
-    ],
+    static_executable: true,
 }
