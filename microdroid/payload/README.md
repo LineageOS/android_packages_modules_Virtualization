@@ -3,6 +3,9 @@
 Payload disk is a composite disk image referencing host APEXes and an APK so that microdroid
 mounts/activates APK/APEXes and executes a binary within the APK.
 
+Payload disk is created by [VirtualizationService](../../virtualizationservice) Service when
+starting a VM.
+
 ## Partitions
 
 Payload disk has 1 + N(number of APEX/APK payloads) partitions.
@@ -14,7 +17,7 @@ For now, the order of partitions are important.
 
 * partition 1: Metadata partition
 * partition 2 ~ n: APEX payloads
-* partition n + 1: APK payload
+* partition n+1, n+2: APK payload and its idsig
 
 It's subject to change in the future, though.
 
@@ -34,52 +37,37 @@ The partition is a protobuf message prefixed with the size of the message.
 
 Each payload partition presents APEX or APK passed from the host.
 
-At the end of each payload partition the size of the original payload file (APEX or APK) is stored
-in 4-byte big endian.
+Note that each payload passed to the Guest is read by a block device. If a payload is not sized to a
+multiples of 4k, reading it would fail. To prevent that, "zero fillers" are added for those files.
+For example, if an APK is 8000 byte big, the APK partition would be padded with 192 bytes of zeros.
 
-For example, the following code shows how to get the original size of host apex file
-when the apex is read in microdroid as /dev/block/vdc2,
+# `mk_payload`
 
-    int fd = open("/dev/block/vdc2", O_RDONLY | O_BINARY | O_CLOEXEC);
-    uint32_t size;
-    lseek(fd, -sizeof(size), SEEK_END);
-    read(fd, &size, sizeof(size));
-    size = betoh32(size);
-
-## How to Create
-
-### `mk_payload`
-
-`mk_payload` creates a payload composite disk image as described in a JSON which is intentionlly
-similar to the schema of VM payload config.
+`mk_payload` is a small utility to create a payload disk image.
 
 ```
 $ cat payload_config.json
 {
-  "system_apexes": [
-    "com.android.adbd",
-  ],
   "apexes": [
     {
       "name": "com.my.hello",
-      "path": "hello.apex"
+      "path": "hello.apex",
     }
   ],
   "apk": {
     "name": "com.my.world",
-    "path": "/path/to/world.apk"
+    "path": "/path/to/world.apk",
+    "idsigPath": "/path/to/world.apk.idsig",
   }
 }
-$ adb push payload_config.json hello.apex /data/local/tmp/
-$ adb shell 'cd /data/local/tmp; /apex/com.android.virt/bin/mk_payload payload_config.json payload.img
-$ adb shell ls /data/local/tmp/*.img
+$ m mk_payload
+$ mk_payload payload_config.json payload.img
+$ ls
 payload.img
 payload-footer.img
 payload-header.img
 payload-metadata.img
-payload.img.0          # fillers
-payload.img.1
+payload-filler-0.img
+payload-filler-1.img
 ...
 ```
-
-In the future, [VirtualizationService](../../virtualizationservice) will handle this.
