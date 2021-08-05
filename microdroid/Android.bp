@@ -221,7 +221,7 @@ bootimg {
         },
         x86_64: {
             kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
-            cmdline: microdroid_boot_cmdline + "pci=noacpi ",
+            cmdline: microdroid_boot_cmdline + "acpi=noirq",
         },
     },
     dtb_prebuilt: "dummy_dtb.img",
