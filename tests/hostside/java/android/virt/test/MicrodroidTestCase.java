@@ -73,6 +73,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         tryRunOnMicrodroid("watch -e \"getprop debug.microdroid.test.keystore | grep '^$'\"");
         assertThat(runOnMicrodroid("getprop", "debug.microdroid.test.keystore"), is("PASS"));
 
+        // Check that no denials have happened so far
+        assertThat(runOnMicrodroid("logcat -d -e 'avc:[[:space:]]{1,2}denied'"), is(""));
+
         shutdownMicrodroid(getDevice(), cid);
     }
 
