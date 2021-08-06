@@ -56,6 +56,10 @@ struct Args {
     #[structopt(long)]
     cid: Option<u32>,
 
+    /// Extra options to FUSE
+    #[structopt(short = "o")]
+    extra_options: Option<String>,
+
     /// A read-only remote file with integrity check. Can be multiple.
     ///
     /// For example, `--remote-verified-file 5:10:1234:/path/to/cert` tells the filesystem to
@@ -339,6 +343,6 @@ fn main() -> Result<()> {
     );
 
     let file_pool = prepare_file_pool(&args)?;
-    fusefs::loop_forever(file_pool, &args.mount_point)?;
+    fusefs::loop_forever(file_pool, &args.mount_point, &args.extra_options)?;
     bail!("Unexpected exit after the handler loop")
 }
