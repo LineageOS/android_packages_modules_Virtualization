@@ -15,6 +15,7 @@
 //! Run the CompOS key management service, either in the host using normal Binder or in the
 //! VM using RPC Binder.
 
+mod compilation;
 mod compos_key_service;
 mod compsvc;
 mod signer;

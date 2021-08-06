@@ -122,12 +122,7 @@ impl ICompOsKeyService for CompOsKeyService {
     fn getCompService(&self, key_blob: &[u8]) -> binder::Result<Strong<dyn ICompService>> {
         let signer =
             Box::new(CompOsSigner { key_blob: key_blob.to_owned(), key_service: self.clone() });
-        let debuggable = true;
-        Ok(compsvc::new_binder(
-            "/apex/com.android.art/bin/dex2oat64".to_owned(),
-            debuggable,
-            Some(signer),
-        ))
+        Ok(compsvc::new_binder(Some(signer)))
     }
 }
 
