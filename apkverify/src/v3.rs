@@ -16,6 +16,9 @@
 
 //! Verifies APK Signature Scheme V3
 
+// TODO(jooyung) remove this
+#![allow(dead_code)]
+
 use anyhow::{anyhow, bail, Result};
 use bytes::Bytes;
 use std::fs::File;
