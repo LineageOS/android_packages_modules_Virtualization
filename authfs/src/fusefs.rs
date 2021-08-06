@@ -380,6 +380,7 @@ impl FileSystem for AuthFs {
 pub fn loop_forever(
     file_pool: BTreeMap<Inode, FileConfig>,
     mountpoint: &Path,
+    extra_options: &Option<String>,
 ) -> Result<(), fuse::Error> {
     let max_read: u32 = 65536;
     let max_write: u32 = 65536;
@@ -389,20 +390,20 @@ pub fn loop_forever(
         .open("/dev/fuse")
         .expect("Failed to open /dev/fuse");
 
-    fuse::mount(
-        mountpoint,
-        "authfs",
-        libc::MS_NOSUID | libc::MS_NODEV,
-        &[
-            MountOption::FD(dev_fuse.as_raw_fd()),
-            MountOption::RootMode(libc::S_IFDIR | libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH),
-            MountOption::AllowOther,
-            MountOption::UserId(0),
-            MountOption::GroupId(0),
-            MountOption::MaxRead(max_read),
-        ],
-    )
-    .expect("Failed to mount fuse");
+    let mut mount_options = vec![
+        MountOption::FD(dev_fuse.as_raw_fd()),
+        MountOption::RootMode(libc::S_IFDIR | libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH),
+        MountOption::AllowOther,
+        MountOption::UserId(0),
+        MountOption::GroupId(0),
+        MountOption::MaxRead(max_read),
+    ];
+    if let Some(value) = extra_options {
+        mount_options.push(MountOption::Extra(value));
+    }
+
+    fuse::mount(mountpoint, "authfs", libc::MS_NOSUID | libc::MS_NODEV, &mount_options)
+        .expect("Failed to mount fuse");
 
     fuse::worker::start_message_loop(
         dev_fuse,
