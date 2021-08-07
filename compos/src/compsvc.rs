@@ -19,17 +19,18 @@
 //! actual compiler.
 
 use anyhow::Result;
+use log::warn;
 use std::ffi::CString;
 use std::path::PathBuf;
 
 use crate::compilation::compile;
-use crate::compos_key_service::{CompOsKeyService, KeystoreNamespace};
-use crate::signer::Signer;
+use crate::compos_key_service::CompOsKeyService;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
-use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
-    BnCompOsService, ICompOsService,
+use compos_aidl_interface::aidl::com::android::compos::{
+    CompOsKeyData::CompOsKeyData,
+    ICompOsService::{BnCompOsService, ICompOsService},
+    Metadata::Metadata,
 };
-use compos_aidl_interface::aidl::com::android::compos::Metadata::Metadata;
 use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong,
 };
@@ -38,23 +39,16 @@ const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
 
 /// Constructs a binder object that implements ICompOsService.
-pub fn new_binder(
-    rpc_binder: bool,
-    signer: Option<Box<dyn Signer>>,
-) -> Result<Strong<dyn ICompOsService>> {
-    let namespace =
-        if rpc_binder { KeystoreNamespace::VmPayload } else { KeystoreNamespace::Odsign };
-    let key_service = CompOsKeyService::new(namespace)?;
-
-    let service = CompOsService { dex2oat_path: PathBuf::from(DEX2OAT_PATH), signer, key_service };
+pub fn new_binder(rpc_binder: bool) -> Result<Strong<dyn ICompOsService>> {
+    let service = CompOsService {
+        dex2oat_path: PathBuf::from(DEX2OAT_PATH),
+        key_service: CompOsKeyService::new(rpc_binder)?,
+    };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
 }
 
 struct CompOsService {
     dex2oat_path: PathBuf,
-    #[allow(dead_code)] // TODO: Make use of this
-    signer: Option<Box<dyn Signer>>,
-    #[allow(dead_code)] // TODO: Make use of this
     key_service: CompOsKeyService,
 }
 
@@ -69,6 +63,27 @@ impl ICompOsService for CompOsService {
                 format!("Compilation failed: {}", e),
             )
         })
+    }
+
+    fn generateSigningKey(&self) -> BinderResult<CompOsKeyData> {
+        self.key_service
+            .do_generate()
+            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
+    }
+
+    fn verifySigningKey(&self, key_blob: &[u8], public_key: &[u8]) -> BinderResult<bool> {
+        Ok(if let Err(e) = self.key_service.do_verify(key_blob, public_key) {
+            warn!("Signing key verification failed: {}", e.to_string());
+            false
+        } else {
+            true
+        })
+    }
+
+    fn sign(&self, key_blob: &[u8], data: &[u8]) -> BinderResult<Vec<u8>> {
+        self.key_service
+            .do_sign(key_blob, data)
+            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
     }
 }
 

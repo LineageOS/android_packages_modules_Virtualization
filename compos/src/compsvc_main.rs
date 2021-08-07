@@ -49,7 +49,7 @@ fn main() -> Result<()> {
     );
 
     let config = parse_args()?;
-    let mut service = compsvc::new_binder(config.rpc_binder, /* signer */ None)?.as_binder();
+    let mut service = compsvc::new_binder(config.rpc_binder)?.as_binder();
     if config.rpc_binder {
         debug!("compsvc is starting as a rpc service.");
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
