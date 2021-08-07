@@ -17,7 +17,7 @@
 package com.android.compos;
 
 import com.android.compos.CompOsKeyData;
-import com.android.compos.ICompService;
+import com.android.compos.ICompOsService;
 
 /** {@hide} */
 interface ICompOsKeyService {
@@ -51,11 +51,11 @@ interface ICompOsKeyService {
     byte[] sign(in byte[] keyBlob, in byte[] data);
 
     /**
-     * Return an instance of ICompService that will sign output files with a given encrypted
+     * Return an instance of ICompOsService that will sign output files with a given encrypted
      * private key.
      *
      * @param keyBlob The encrypted blob containing the private key, as returned by
      *                generateSigningKey().
      */
-    ICompService getCompService(in byte[] keyBlob);
+    ICompOsService getCompOsService(in byte[] keyBlob);
 }

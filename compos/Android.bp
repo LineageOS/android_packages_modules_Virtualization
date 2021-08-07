@@ -30,6 +30,8 @@ rust_binary {
     name: "compsvc",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
+        "android.hardware.security.keymint-V1-rust",
+        "android.system.keystore2-V1-rust",
         "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",
@@ -39,6 +41,8 @@ rust_binary {
         "libclap",
         "liblog_rust",
         "libminijail_rust",
+        "libring",
+        "libscopeguard",
     ],
     prefer_rlib: true,
     shared_libs: [

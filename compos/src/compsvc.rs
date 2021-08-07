@@ -18,38 +18,49 @@
 //! file descriptors backed by authfs (via authfs_service) and pass the file descriptors to the
 //! actual compiler.
 
+use anyhow::Result;
+use std::ffi::CString;
 use std::path::PathBuf;
 
 use crate::compilation::compile;
+use crate::compos_key_service::{CompOsKeyService, KeystoreNamespace};
 use crate::signer::Signer;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
-use compos_aidl_interface::aidl::com::android::compos::ICompService::{
-    BnCompService, ICompService,
+use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
+    BnCompOsService, ICompOsService,
 };
 use compos_aidl_interface::aidl::com::android::compos::Metadata::Metadata;
 use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong,
 };
-use std::ffi::CString;
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
 
-/// Constructs a binder object that implements ICompService.
-pub fn new_binder(signer: Option<Box<dyn Signer>>) -> Strong<dyn ICompService> {
-    let service = CompService { dex2oat_path: PathBuf::from(DEX2OAT_PATH), signer };
-    BnCompService::new_binder(service, BinderFeatures::default())
+/// Constructs a binder object that implements ICompOsService.
+pub fn new_binder(
+    rpc_binder: bool,
+    signer: Option<Box<dyn Signer>>,
+) -> Result<Strong<dyn ICompOsService>> {
+    let namespace =
+        if rpc_binder { KeystoreNamespace::VmPayload } else { KeystoreNamespace::Odsign };
+    let key_service = CompOsKeyService::new(namespace)?;
+
+    let service = CompOsService { dex2oat_path: PathBuf::from(DEX2OAT_PATH), signer, key_service };
+    Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
 }
 
-struct CompService {
+struct CompOsService {
     dex2oat_path: PathBuf,
     #[allow(dead_code)] // TODO: Make use of this
     signer: Option<Box<dyn Signer>>,
+    #[allow(dead_code)] // TODO: Make use of this
+    key_service: CompOsKeyService,
 }
 
-impl Interface for CompService {}
+impl Interface for CompOsService {}
 
-impl ICompService for CompService {
+impl ICompOsService for CompOsService {
     fn execute(&self, args: &[String], metadata: &Metadata) -> BinderResult<i8> {
         let authfs_service = get_authfs_service()?;
         compile(&self.dex2oat_path, args, authfs_service, metadata).map_err(|e| {

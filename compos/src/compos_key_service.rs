@@ -31,7 +31,7 @@ use anyhow::{anyhow, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
     ICompOsKeyService::{BnCompOsKeyService, ICompOsKeyService},
-    ICompService::ICompService,
+    ICompOsService::ICompOsService,
 };
 use compos_aidl_interface::binder::{
     self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, Status, Strong,
@@ -54,18 +54,9 @@ pub enum KeystoreNamespace {
 
 /// Constructs a binder object that implements ICompOsKeyService. namespace is the Keystore2 namespace to
 /// use for the keys.
+#[allow(dead_code)] // for compsvc
 pub fn new(namespace: KeystoreNamespace) -> Result<Strong<dyn ICompOsKeyService>> {
-    let keystore_service = wait_for_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
-        .context("No Keystore service")?;
-
-    let service = CompOsKeyService {
-        namespace,
-        random: SystemRandom::new(),
-        security_level: keystore_service
-            .getSecurityLevel(SecurityLevel::TRUSTED_ENVIRONMENT)
-            .context("Getting SecurityLevel failed")?,
-    };
-
+    let service = CompOsKeyService::new(namespace)?;
     Ok(BnCompOsKeyService::new_binder(service, BinderFeatures::default()))
 }
 
@@ -90,8 +81,9 @@ const NO_AUTH_REQUIRED: KeyParameter =
 const BLOB_KEY_DESCRIPTOR: KeyDescriptor =
     KeyDescriptor { domain: Domain::BLOB, nspace: 0, alias: None, blob: None };
 
+/// An internal service for CompOS key management.
 #[derive(Clone)]
-struct CompOsKeyService {
+pub struct CompOsKeyService {
     namespace: KeystoreNamespace,
     random: SystemRandom,
     security_level: Strong<dyn IKeystoreSecurityLevel>,
@@ -119,10 +111,12 @@ impl ICompOsKeyService for CompOsKeyService {
             .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
     }
 
-    fn getCompService(&self, key_blob: &[u8]) -> binder::Result<Strong<dyn ICompService>> {
+    fn getCompOsService(&self, key_blob: &[u8]) -> binder::Result<Strong<dyn ICompOsService>> {
         let signer =
             Box::new(CompOsSigner { key_blob: key_blob.to_owned(), key_service: self.clone() });
-        Ok(compsvc::new_binder(Some(signer)))
+        let rpc_binder = true; // don't care
+        compsvc::new_binder(rpc_binder, Some(signer))
+            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
     }
 }
 
@@ -143,6 +137,19 @@ impl Signer for CompOsSigner {
 }
 
 impl CompOsKeyService {
+    pub fn new(namespace: KeystoreNamespace) -> Result<Self> {
+        let keystore_service = wait_for_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
+            .context("No Keystore service")?;
+
+        Ok(CompOsKeyService {
+            namespace,
+            random: SystemRandom::new(),
+            security_level: keystore_service
+                .getSecurityLevel(SecurityLevel::TRUSTED_ENVIRONMENT)
+                .context("Getting SecurityLevel failed")?,
+        })
+    }
+
     fn do_generate(&self) -> Result<CompOsKeyData> {
         let key_descriptor = KeyDescriptor { nspace: self.namespace as i64, ..BLOB_KEY_DESCRIPTOR };
         let key_parameters =

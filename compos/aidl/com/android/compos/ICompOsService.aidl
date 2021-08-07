@@ -19,7 +19,7 @@ package com.android.compos;
 import com.android.compos.Metadata;
 
 /** {@hide} */
-interface ICompService {
+interface ICompOsService {
     /**
      * Execute a command composed of the args, in a context that may be specified in the Metadata,
      * e.g. with file descriptors pre-opened. The service is responsible to decide what executables
