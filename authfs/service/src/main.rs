@@ -40,8 +40,7 @@ use authfs_aidl_interface::binder::{
 };
 
 const SERVICE_NAME: &str = "authfs_service";
-// TODO: Replace with a valid directory setup in the VM.
-const SERVICE_ROOT: &str = "/data/local/tmp/authfs";
+const SERVICE_ROOT: &str = "/data/misc/authfs";
 
 /// Implementation of `IAuthFsService`.
 pub struct AuthFsService {
