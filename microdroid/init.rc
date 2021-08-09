@@ -136,6 +136,9 @@ on post-fs
 
     start keystore2
 
+    mkdir /data/misc/authfs 0700 root root
+    start authfs_service
+
 on late-fs
     start vendor.keymint-microdroid
 
