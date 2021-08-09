@@ -14,6 +14,8 @@ rust_library {
         "libbyteorder",
         "libbytes",
         "liblog_rust",
+        "libring",
+        "libx509_parser",
         "libzip",
     ],
 }

@@ -20,7 +20,7 @@ use anyhow::{bail, Result};
 use bytes::{Buf, Bytes};
 use std::ops::Deref;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LengthPrefixed<T> {
     inner: T,
 }
