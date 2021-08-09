@@ -19,4 +19,5 @@ rust_binary {
         "libshared_child",
     ],
     prefer_rlib: true,
+    init_rc: ["authfs_service.rc"],
 }
