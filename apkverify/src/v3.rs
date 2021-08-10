@@ -79,8 +79,8 @@ type AdditionalAttributes = Bytes;
 /// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the certificates
 /// associated with each signer.
 pub fn verify<P: AsRef<Path>>(path: P) -> Result<()> {
-    let mut f = File::open(path.as_ref())?;
-    let signature = find_signature(&mut f, APK_SIGNATURE_SCHEME_V3_BLOCK_ID)?;
+    let f = File::open(path.as_ref())?;
+    let signature = find_signature(f, APK_SIGNATURE_SCHEME_V3_BLOCK_ID)?;
     verify_signature(&signature.signature_block)?;
     Ok(())
 }
