@@ -54,7 +54,7 @@ impl Interface for AuthFs {}
 impl IAuthFs for AuthFs {
     fn openFile(
         &self,
-        remote_fd_name: i64,
+        remote_fd_name: i32,
         writable: bool,
     ) -> binder::Result<ParcelFileDescriptor> {
         let mut path = PathBuf::from(&self.mountpoint);
