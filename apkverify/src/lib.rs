@@ -19,6 +19,7 @@
 mod bytes_ext;
 mod sigutil;
 mod v3;
+mod ziputil;
 
 use anyhow::Result;
 use std::path::Path;
