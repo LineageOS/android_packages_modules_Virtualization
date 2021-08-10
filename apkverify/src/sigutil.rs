@@ -128,19 +128,19 @@ fn find_signature_scheme_block(buf: Bytes, block_id: u32) -> Result<Bytes> {
 }
 
 pub fn is_supported_signature_algorithm(algorithm_id: u32) -> bool {
-    match algorithm_id {
+    matches!(
+        algorithm_id,
         SIGNATURE_RSA_PSS_WITH_SHA256
-        | SIGNATURE_RSA_PSS_WITH_SHA512
-        | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256
-        | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512
-        | SIGNATURE_ECDSA_WITH_SHA256
-        | SIGNATURE_ECDSA_WITH_SHA512
-        | SIGNATURE_DSA_WITH_SHA256
-        | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256
-        | SIGNATURE_VERITY_ECDSA_WITH_SHA256
-        | SIGNATURE_VERITY_DSA_WITH_SHA256 => true,
-        _ => false,
-    }
+            | SIGNATURE_RSA_PSS_WITH_SHA512
+            | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256
+            | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512
+            | SIGNATURE_ECDSA_WITH_SHA256
+            | SIGNATURE_ECDSA_WITH_SHA512
+            | SIGNATURE_DSA_WITH_SHA256
+            | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256
+            | SIGNATURE_VERITY_ECDSA_WITH_SHA256
+            | SIGNATURE_VERITY_DSA_WITH_SHA256
+    )
 }
 
 fn to_content_digest_algorithm(algorithm_id: u32) -> Result<u32> {
