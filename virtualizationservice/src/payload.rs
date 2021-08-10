@@ -85,7 +85,12 @@ fn make_metadata_file(
         version: 1,
         apexes: apexes
             .iter()
-            .map(|apex| ApexPayload { name: apex.name.clone(), ..Default::default() })
+            .enumerate()
+            .map(|(i, apex)| ApexPayload {
+                name: apex.name.clone(),
+                partition_name: format!("microdroid-apex-{}", i),
+                ..Default::default()
+            })
             .collect(),
         apk: Some(ApkPayload {
             name: "apk".to_owned(),
