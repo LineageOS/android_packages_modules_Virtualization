@@ -40,5 +40,12 @@ fn test_verify_v3() {
 fn test_verify_v3_digest_mismatch() {
     let res = verify("tests/data/v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk");
     assert!(res.is_err());
-    assert_contains!(res.err().unwrap().to_string(), "digest mismatch");
+    assert_contains!(res.err().unwrap().to_string(), "Digest mismatch");
+}
+
+#[test]
+fn test_verify_v3_cert_and_publick_key_mismatch() {
+    let res = verify("tests/data/v3-only-cert-and-public-key-mismatch.apk");
+    assert!(res.is_err());
+    assert_contains!(res.err().unwrap().to_string(), "Public key mismatch");
 }

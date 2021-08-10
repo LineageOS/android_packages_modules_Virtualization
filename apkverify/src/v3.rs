@@ -19,12 +19,13 @@
 // TODO(jooyung) remove this
 #![allow(dead_code)]
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use bytes::Bytes;
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::ops::Range;
 use std::path::Path;
+use x509_parser::x509;
 
 use crate::bytes_ext::{BytesExt, LengthPrefixed, ReadFromBytes};
 use crate::sigutil::*;
@@ -127,7 +128,8 @@ impl Signer {
 
         // 2. Verify the corresponding signature from signatures against signed data using public key.
         //    (It is now safe to parse signed data.)
-        verify_signed_data(&self.signed_data, strongest, &self.public_key)?;
+        let (_, key_info) = x509::SubjectPublicKeyInfo::from_der(self.public_key.as_ref())?;
+        verify_signed_data(&self.signed_data, strongest, &key_info)?;
 
         // It is now safe to parse signed data.
         let signed_data: SignedData = self.signed_data.slice(..).read()?;
@@ -161,13 +163,20 @@ impl Signer {
         // 6. Verify that the computed digest is identical to the corresponding digest from digests.
         if computed != digest.digest.as_ref() {
             bail!(
-                "digest mismatch: computed={:?} vs expected={:?}",
+                "Digest mismatch: computed={:?} vs expected={:?}",
                 to_hex_string(&computed),
                 to_hex_string(&digest.digest),
             );
         }
 
-        // TODO(jooyung) 7. Verify that SubjectPublicKeyInfo of the first certificate of certificates is identical to public key.
+        // 7. Verify that SubjectPublicKeyInfo of the first certificate of certificates is identical
+        //    to public key.
+        let cert = signed_data.certificates.first().context("No certificates listed")?;
+        let (_, cert) = x509_parser::parse_x509_certificate(cert.as_ref())?;
+        if cert.tbs_certificate.subject_pki != key_info {
+            bail!("Public key mismatch between certificate and signature record");
+        }
+
         // TODO(jooyung) 8. If the proof-of-rotation attribute exists for the signer verify that the struct is valid and this signer is the last certificate in the list.
         Ok(())
     }
@@ -176,10 +185,9 @@ impl Signer {
 fn verify_signed_data(
     data: &Bytes,
     signature: &Signature,
-    public_key: &SubjectPublicKeyInfo,
+    key_info: &x509::SubjectPublicKeyInfo,
 ) -> Result<()> {
     use ring::signature;
-    let (_, key_info) = x509_parser::x509::SubjectPublicKeyInfo::from_der(public_key.as_ref())?;
     let verification_alg: &dyn signature::VerificationAlgorithm =
         match signature.signature_algorithm_id {
             SIGNATURE_RSA_PSS_WITH_SHA256 => &signature::RSA_PSS_2048_8192_SHA256,
@@ -202,7 +210,7 @@ fn verify_signed_data(
             }
             _ => bail!("Unsupported signature algorithm: {:#x}", signature.signature_algorithm_id),
         };
-    let key = signature::UnparsedPublicKey::new(verification_alg, key_info.subject_public_key.data);
+    let key = signature::UnparsedPublicKey::new(verification_alg, &key_info.subject_public_key);
     key.verify(data.as_ref(), signature.signature.as_ref())?;
     Ok(())
 }
