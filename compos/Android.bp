@@ -30,6 +30,7 @@ rust_binary {
     name: "compsvc",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
+        "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",
@@ -49,27 +50,11 @@ rust_binary {
 }
 
 rust_binary {
-    name: "compsvc_worker",
-    srcs: ["src/compsvc_worker.rs"],
-    rustlibs: [
-        "libandroid_logger",
-        "libanyhow",
-        "libclap",
-        "liblog_rust",
-        "libminijail_rust",
-        "libnix",
-    ],
-    prefer_rlib: true,
-    apex_available: [
-        "com.android.compos",
-    ],
-}
-
-rust_binary {
     name: "compos_key_main",
     srcs: ["src/compos_key_main.rs"],
     edition: "2018",
     rustlibs: [
+        "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
         "android.system.keystore2-V1-rust",
         "android.hardware.security.keymint-V1-rust",
