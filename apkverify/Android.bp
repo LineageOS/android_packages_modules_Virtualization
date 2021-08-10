@@ -1,0 +1,19 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_library {
+    name: "libapkverify",
+    host_supported: true,
+    crate_name: "apkverify",
+    srcs: ["src/lib.rs"],
+    prefer_rlib: true,
+    edition: "2018",
+    rustlibs: [
+        "libanyhow",
+        "libbyteorder",
+        "libbytes",
+        "liblog_rust",
+        "libzip",
+    ],
+}
