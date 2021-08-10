@@ -21,5 +21,5 @@ import com.android.virt.fs.AuthFsConfig;
 /** @hide */
 interface IAuthFs {
     /** Returns a file descriptor given the name of a remote file descriptor. */
-    ParcelFileDescriptor openFile(long remoteFdName, boolean writable);
+    ParcelFileDescriptor openFile(int remoteFdName, boolean writable);
 }
