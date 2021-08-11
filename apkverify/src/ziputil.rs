@@ -17,7 +17,7 @@
 //! Utilities for zip handling
 
 use anyhow::{bail, Result};
-use bytes::Buf;
+use bytes::{Buf, BufMut};
 use std::io::{Read, Seek, SeekFrom};
 use zip::ZipArchive;
 
@@ -68,4 +68,13 @@ fn get_central_directory_offset(buf: &[u8]) -> Result<u32> {
         bail!("Invalid EOCD size: {}", buf.len());
     }
     Ok((&buf[EOCD_CENTRAL_DIRECTORY_OFFSET_FIELD_OFFSET..]).get_u32_le())
+}
+
+/// Update EOCD's central_directory_offset field.
+pub fn set_central_directory_offset(buf: &mut [u8], value: u32) -> Result<()> {
+    if buf.len() < EOCD_MIN_SIZE {
+        bail!("Invalid EOCD size: {}", buf.len());
+    }
+    (&mut buf[EOCD_CENTRAL_DIRECTORY_OFFSET_FIELD_OFFSET..]).put_u32_le(value);
+    Ok(())
 }
