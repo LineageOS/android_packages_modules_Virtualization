@@ -55,10 +55,11 @@ keymaster_error_t MicrodroidKeymasterContext::CreateKeyBlob(const AuthorizationS
     // doesn't pose a problem for the current applications but may be a
     // candidate for hardening.
     auto encrypted_key = EncryptKey(key_material, AES_GCM_WITH_SW_ENFORCED, *hw_enforced,
-                                    *sw_enforced, hidden, root_key_, random_);
+                                    *sw_enforced, hidden, SecureDeletionData{}, root_key_, random_);
     if (!encrypted_key) return encrypted_key.error();
 
-    auto serialized = SerializeAuthEncryptedBlob(*encrypted_key, *hw_enforced, *sw_enforced);
+    auto serialized = SerializeAuthEncryptedBlob(*encrypted_key, *hw_enforced, *sw_enforced,
+                                                 0 /* key_slot */);
     if (!serialized) return serialized.error();
     *blob = *serialized;
     return KM_ERROR_OK;
@@ -81,7 +82,7 @@ keymaster_error_t MicrodroidKeymasterContext::ParseKeyBlob(
         return KM_ERROR_INVALID_ARGUMENT;
     }
 
-    auto key_material = DecryptKey(*deserialized_key, hidden, root_key_);
+    auto key_material = DecryptKey(*deserialized_key, hidden, SecureDeletionData{}, root_key_);
     if (!key_material) return key_material.error();
 
     auto factory = GetKeyFactory(algorithm);
@@ -139,11 +140,11 @@ keymaster_error_t MicrodroidKeymasterContext::UpgradeKeyBlob(const KeymasterKeyB
 
     auto encrypted_key =
             EncryptKey(key->key_material(), AES_GCM_WITH_SW_ENFORCED, key->hw_enforced(),
-                       key->sw_enforced(), hidden, root_key_, random_);
+                       key->sw_enforced(), hidden, SecureDeletionData{}, root_key_, random_);
     if (!encrypted_key) return encrypted_key.error();
 
-    auto serialized =
-            SerializeAuthEncryptedBlob(*encrypted_key, key->hw_enforced(), key->sw_enforced());
+    auto serialized = SerializeAuthEncryptedBlob(*encrypted_key, key->hw_enforced(),
+                                                 key->sw_enforced(), 0 /* key_slot */);
     if (!serialized) return serialized.error();
 
     *upgraded_key = std::move(*serialized);
