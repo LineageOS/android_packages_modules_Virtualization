@@ -55,11 +55,13 @@ keymaster_error_t MicrodroidKeymasterContext::CreateKeyBlob(const AuthorizationS
     // doesn't pose a problem for the current applications but may be a
     // candidate for hardening.
     auto encrypted_key = EncryptKey(key_material, AES_GCM_WITH_SW_ENFORCED, *hw_enforced,
-                                    *sw_enforced, hidden, root_key_, random_, &error);
-    if (error != KM_ERROR_OK) return error;
+                                    *sw_enforced, hidden, root_key_, random_);
+    if (!encrypted_key) return encrypted_key.error();
 
-    *blob = SerializeAuthEncryptedBlob(encrypted_key, *hw_enforced, *sw_enforced, &error);
-    return error;
+    auto serialized = SerializeAuthEncryptedBlob(*encrypted_key, *hw_enforced, *sw_enforced);
+    if (!serialized) return serialized.error();
+    *blob = *serialized;
+    return KM_ERROR_OK;
 }
 
 keymaster_error_t MicrodroidKeymasterContext::ParseKeyBlob(
@@ -71,21 +73,21 @@ keymaster_error_t MicrodroidKeymasterContext::ParseKeyBlob(
     error = BuildHiddenAuthorizations(additional_params, &hidden, microdroidSoftwareRootOfTrust);
     if (error != KM_ERROR_OK) return error;
 
-    auto deserialized_key = DeserializeAuthEncryptedBlob(blob, &error);
-    if (error != KM_ERROR_OK) return error;
+    auto deserialized_key = DeserializeAuthEncryptedBlob(blob);
+    if (!deserialized_key) return deserialized_key.error();
 
     keymaster_algorithm_t algorithm;
-    if (!deserialized_key.sw_enforced.GetTagValue(TAG_ALGORITHM, &algorithm)) {
+    if (!deserialized_key->sw_enforced.GetTagValue(TAG_ALGORITHM, &algorithm)) {
         return KM_ERROR_INVALID_ARGUMENT;
     }
 
-    auto key_material = DecryptKey(deserialized_key, hidden, root_key_, &error);
-    if (error != KM_ERROR_OK) return error;
+    auto key_material = DecryptKey(*deserialized_key, hidden, root_key_);
+    if (!key_material) return key_material.error();
 
     auto factory = GetKeyFactory(algorithm);
-    return factory->LoadKey(move(key_material), additional_params,
-                            move(deserialized_key.hw_enforced), move(deserialized_key.sw_enforced),
-                            key);
+    return factory->LoadKey(move(*key_material), additional_params,
+                            move(deserialized_key->hw_enforced),
+                            move(deserialized_key->sw_enforced), key);
 }
 
 static bool UpgradeIntegerTag(keymaster_tag_t tag, uint32_t value, AuthorizationSet* set) {
@@ -137,10 +139,13 @@ keymaster_error_t MicrodroidKeymasterContext::UpgradeKeyBlob(const KeymasterKeyB
 
     auto encrypted_key =
             EncryptKey(key->key_material(), AES_GCM_WITH_SW_ENFORCED, key->hw_enforced(),
-                       key->sw_enforced(), hidden, root_key_, random_, &error);
-    if (error != KM_ERROR_OK) return error;
+                       key->sw_enforced(), hidden, root_key_, random_);
+    if (!encrypted_key) return encrypted_key.error();
 
-    *upgraded_key = SerializeAuthEncryptedBlob(encrypted_key, key->hw_enforced(),
-                                               key->sw_enforced(), &error);
+    auto serialized =
+            SerializeAuthEncryptedBlob(*encrypted_key, key->hw_enforced(), key->sw_enforced());
+    if (!serialized) return serialized.error();
+
+    *upgraded_key = std::move(*serialized);
     return error;
 }
