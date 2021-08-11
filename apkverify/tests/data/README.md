@@ -11,6 +11,4 @@ Verified for SourceStamp: false
 Number of signers: 1
 ```
 
-Some test APKs are copied from tools/apksig/src/test/resources/com/android/apksig/.
-- v3-only-cert-and-public-key-mismatch.apk
-- v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk
+APK files are copied from tools/apksig/src/test/resources/com/android/apksig/.

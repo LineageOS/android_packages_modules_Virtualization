@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
-//! Verifies APK/APEX signing with v2/v3 scheme
+//! A collection of utilities for testing
 
-mod bytes_ext;
-mod sigutil;
-mod testing;
-mod v3;
-mod ziputil;
-
-use anyhow::Result;
-use std::path::Path;
-
-/// Verifies APK/APEX signing with v2/v3 scheme
-pub fn verify<P: AsRef<Path>>(path: P) -> Result<()> {
-    // TODO(jooyung) fallback to v2 when v3 not found
-    v3::verify(path)
+/// Asserts if `haystack.contains(needed)`
+#[macro_export]
+macro_rules! assert_contains {
+    ($haystack:expr,$needle:expr $(,)?) => {
+        match (&$haystack, &$needle) {
+            (haystack_value, needle_value) => {
+                assert!(
+                    haystack_value.contains(needle_value),
+                    "{} is not found in {}",
+                    needle_value,
+                    haystack_value
+                );
+            }
+        }
+    };
 }
