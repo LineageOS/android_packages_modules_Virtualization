@@ -18,10 +18,12 @@
 
 use anyhow::{anyhow, bail, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
-use bytes::{Buf, Bytes};
-use std::io::{Read, Seek, SeekFrom};
+use bytes::{Buf, BufMut, Bytes};
+use ring::digest;
+use std::cmp::min;
+use std::io::{Cursor, Read, Seek, SeekFrom, Take};
 
-use crate::ziputil::zip_sections;
+use crate::ziputil::{set_central_directory_offset, zip_sections};
 
 const APK_SIG_BLOCK_MIN_SIZE: u32 = 32;
 const APK_SIG_BLOCK_MAGIC: u128 = 0x3234206b636f6c4220676953204b5041;
@@ -45,27 +47,146 @@ const CONTENT_DIGEST_VERITY_CHUNKED_SHA256: u32 = 3;
 #[allow(unused)]
 const CONTENT_DIGEST_SHA256: u32 = 4;
 
-pub struct SignatureInfo {
-    pub signature_block: Bytes,
+const CHUNK_SIZE_BYTES: u64 = 1024 * 1024;
+
+pub struct ApkSections<R> {
+    inner: R,
+    signing_block_offset: u32,
+    signing_block_size: u32,
+    central_directory_offset: u32,
+    central_directory_size: u32,
+    eocd_offset: u32,
+    eocd_size: u32,
 }
 
-/// Returns the APK Signature Scheme block contained in the provided file for the given ID
-/// and the additional information relevant for verifying the block against the file.
-pub fn find_signature<F: Read + Seek>(f: F, block_id: u32) -> Result<SignatureInfo> {
-    let (mut f, sections) = zip_sections(f)?;
+impl<R: Read + Seek> ApkSections<R> {
+    pub fn new(reader: R) -> Result<ApkSections<R>> {
+        let (mut f, zip_sections) = zip_sections(reader)?;
+        let (signing_block_offset, signing_block_size) =
+            find_signing_block(&mut f, zip_sections.central_directory_offset)?;
+        Ok(ApkSections {
+            inner: f,
+            signing_block_offset,
+            signing_block_size,
+            central_directory_offset: zip_sections.central_directory_offset,
+            central_directory_size: zip_sections.central_directory_size,
+            eocd_offset: zip_sections.eocd_offset,
+            eocd_size: zip_sections.eocd_size,
+        })
+    }
 
-    let (signing_block, _signing_block_offset) =
-        find_signing_block(&mut f, sections.central_directory_offset)?;
+    /// Returns the APK Signature Scheme block contained in the provided file for the given ID
+    /// and the additional information relevant for verifying the block against the file.
+    pub fn find_signature(&mut self, block_id: u32) -> Result<Bytes> {
+        let signing_block = self.bytes(self.signing_block_offset, self.signing_block_size)?;
+        // TODO(jooyung): propagate NotFound error so that verification can fallback to V2
+        find_signature_scheme_block(Bytes::from(signing_block), block_id)
+    }
 
-    // TODO(jooyung): propagate NotFound error so that verification can fallback to V2
-    let signature_scheme_block = find_signature_scheme_block(signing_block, block_id)?;
-    Ok(SignatureInfo { signature_block: signature_scheme_block })
+    /// Computes digest with "signature algorithm" over APK contents, central directory, and EOCD.
+    /// 1. The digest of each chunk is computed over the concatenation of byte 0xa5, the chunk’s
+    ///    length in bytes (little-endian uint32), and the chunk’s contents.
+    /// 2. The top-level digest is computed over the concatenation of byte 0x5a, the number of
+    ///    chunks (little-endian uint32), and the concatenation of digests of the chunks in the
+    ///    order the chunks appear in the APK.
+    /// (see https://source.android.com/security/apksigning/v2#integrity-protected-contents)
+    pub fn compute_digest(&mut self, signature_algorithm_id: u32) -> Result<Vec<u8>> {
+        let digester = Digester::new(signature_algorithm_id)?;
+
+        let mut digests_of_chunks = bytes::BytesMut::new();
+        let mut chunk_count = 0u32;
+        let mut chunk = vec![0u8; CHUNK_SIZE_BYTES as usize];
+        for data in &[
+            ApkSections::zip_entries,
+            ApkSections::central_directory,
+            ApkSections::eocd_for_verification,
+        ] {
+            let mut data = data(self)?;
+            while data.limit() > 0 {
+                let chunk_size = min(CHUNK_SIZE_BYTES, data.limit());
+                let mut slice = &mut chunk[..(chunk_size as usize)];
+                data.read_exact(&mut slice)?;
+                digests_of_chunks.put_slice(
+                    digester.digest(slice, CHUNK_HEADER_MID, chunk_size as u32).as_ref(),
+                );
+                chunk_count += 1;
+            }
+        }
+        Ok(digester.digest(&digests_of_chunks, CHUNK_HEADER_TOP, chunk_count).as_ref().into())
+    }
+
+    fn zip_entries(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
+        scoped_read(&mut self.inner, 0, self.signing_block_offset as u64)
+    }
+    fn central_directory(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
+        scoped_read(
+            &mut self.inner,
+            self.central_directory_offset as u64,
+            self.central_directory_size as u64,
+        )
+    }
+    fn eocd_for_verification(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
+        let mut eocd = self.bytes(self.eocd_offset, self.eocd_size)?;
+        // Protection of section 4 (ZIP End of Central Directory) is complicated by the section
+        // containing the offset of ZIP Central Directory. The offset changes when the size of the
+        // APK Signing Block changes, for instance, when a new signature is added. Thus, when
+        // computing digest over the ZIP End of Central Directory, the field containing the offset
+        // of ZIP Central Directory must be treated as containing the offset of the APK Signing
+        // Block.
+        set_central_directory_offset(&mut eocd, self.signing_block_offset)?;
+        Ok(Read::take(Box::new(Cursor::new(eocd)), self.eocd_size as u64))
+    }
+    fn bytes(&mut self, offset: u32, size: u32) -> Result<Vec<u8>> {
+        self.inner.seek(SeekFrom::Start(offset as u64))?;
+        let mut buf = vec![0u8; size as usize];
+        self.inner.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+}
+
+fn scoped_read<'a, R: Read + Seek>(
+    src: &'a mut R,
+    offset: u64,
+    size: u64,
+) -> Result<Take<Box<dyn Read + 'a>>> {
+    src.seek(SeekFrom::Start(offset))?;
+    Ok(Read::take(Box::new(src), size))
+}
+
+struct Digester {
+    algorithm: &'static digest::Algorithm,
+}
+
+const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
+const CHUNK_HEADER_MID: &[u8] = &[0xa5];
+impl Digester {
+    fn new(signature_algorithm_id: u32) -> Result<Digester> {
+        let digest_algorithm_id = to_content_digest_algorithm(signature_algorithm_id)?;
+        let algorithm = match digest_algorithm_id {
+            CONTENT_DIGEST_CHUNKED_SHA256 => &digest::SHA256,
+            CONTENT_DIGEST_CHUNKED_SHA512 => &digest::SHA512,
+            // TODO(jooyung): implement
+            CONTENT_DIGEST_VERITY_CHUNKED_SHA256 => {
+                bail!("TODO(b/190343842): CONTENT_DIGEST_VERITY_CHUNKED_SHA256: not implemented")
+            }
+            _ => bail!("Unknown digest algorithm: {}", digest_algorithm_id),
+        };
+        Ok(Digester { algorithm })
+    }
+    // v2/v3 digests are computed after prepending "header" byte and "size" info.
+    fn digest(&self, data: &[u8], header: &[u8], size: u32) -> digest::Digest {
+        let mut ctx = digest::Context::new(self.algorithm);
+        ctx.update(header);
+        ctx.update(&size.to_le_bytes());
+        ctx.update(data);
+        ctx.finish()
+    }
 }
 
 fn find_signing_block<T: Read + Seek>(
     reader: &mut T,
     central_directory_offset: u32,
-) -> Result<(Bytes, u32)> {
+) -> Result<(u32, u32)> {
     // FORMAT:
     // OFFSET       DATA TYPE  DESCRIPTION
     // * @+0  bytes uint64:    size in bytes (excluding this field)
@@ -96,10 +217,7 @@ fn find_signing_block<T: Read + Seek>(
             size_in_footer
         );
     }
-    reader.seek(SeekFrom::Start(signing_block_offset as u64))?;
-    let mut buf = vec![0u8; total_size as usize];
-    reader.read_exact(&mut buf)?;
-    Ok((Bytes::from(buf), signing_block_offset))
+    Ok((signing_block_offset, total_size))
 }
 
 fn find_signature_scheme_block(buf: Bytes, block_id: u32) -> Result<Bytes> {

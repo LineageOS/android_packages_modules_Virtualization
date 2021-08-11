@@ -95,3 +95,19 @@ fn read_length_prefixed_slice(buf: &mut Bytes) -> Result<Bytes> {
     }
     Ok(buf.split_to(len))
 }
+
+#[cfg(test)]
+mod tests {
+    use bytes::{BufMut, BytesMut};
+    #[test]
+    fn test_read_length_prefixed_slice() {
+        let data = b"hello world";
+        let mut b = BytesMut::new();
+        b.put_u32_le(data.len() as u32);
+        b.put_slice(data);
+        let mut slice = b.freeze();
+        let res = super::read_length_prefixed_slice(&mut slice);
+        assert!(res.is_ok());
+        assert_eq!(data, res.ok().unwrap().as_ref());
+    }
+}
