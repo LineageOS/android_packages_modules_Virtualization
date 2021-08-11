@@ -44,6 +44,11 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                         /* debug */ false);
         adbConnectToMicrodroid(getDevice(), cid);
 
+        // Wait until logd-init starts. The service is one of the last services that are started in
+        // the microdroid boot procedure. Therefore, waiting for the service means that we wait for
+        // the boot to complete. TODO: we need a better marker eventually.
+        tryRunOnMicrodroid("watch -e \"getprop init.svc.logd-reinit | grep '^$'\"");
+
         // Test writing to /data partition
         runOnMicrodroid("echo MicrodroidTest > /data/local/tmp/test.txt");
         assertThat(runOnMicrodroid("cat /data/local/tmp/test.txt"), is("MicrodroidTest"));
