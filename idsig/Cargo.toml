@@ -1,0 +1,8 @@
+[package]
+name = "idsig"
+version = "0.1.0"
+authors = ["Jiyong Park <jiyong@google.com>"]
+edition = "2018"
+
+[dependencies]
+ring = "0.16"
