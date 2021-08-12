@@ -13,12 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+//! `idsig` provides routines for creating the idsig file that is defined for the APK signature
+//! scheme v4 and for parsing the file.
+
 use ring::digest::{self, Algorithm};
 use std::io::{Cursor, Read, Result, Seek, SeekFrom, Write};
 
 /// `HashTree` is a merkle tree (and its root hash) that is compatible with fs-verity.
 pub struct HashTree {
+    /// Binary presentation of the merkle tree
     pub tree: Vec<u8>,
+    /// Root hash
     pub root_hash: Vec<u8>,
 }
 
@@ -32,7 +38,7 @@ impl HashTree {
         block_size: usize,
         algorithm: &'static Algorithm,
     ) -> Result<Self> {
-        let salt = zero_pad_salt(&salt, algorithm);
+        let salt = zero_pad_salt(salt, algorithm);
         let tree = generate_hash_tree(input, input_size, &salt, block_size, algorithm)?;
 
         // Root hash is from the first block of the hash or the input data if there is no hash tree
