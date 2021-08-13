@@ -14,22 +14,8 @@
  * limitations under the License.
  */
 
-use apkverify::verify;
-
-macro_rules! assert_contains {
-    ($haystack:expr,$needle:expr $(,)?) => {
-        match (&$haystack, &$needle) {
-            (haystack_value, needle_value) => {
-                assert!(
-                    haystack_value.contains(needle_value),
-                    "{} is not found in {}",
-                    needle_value,
-                    haystack_value
-                );
-            }
-        }
-    };
-}
+use apkverify::{assert_contains, verify};
+use std::matches;
 
 #[test]
 fn test_verify_v3() {
@@ -48,4 +34,15 @@ fn test_verify_v3_cert_and_publick_key_mismatch() {
     let res = verify("tests/data/v3-only-cert-and-public-key-mismatch.apk");
     assert!(res.is_err());
     assert_contains!(res.err().unwrap().to_string(), "Public key mismatch");
+}
+
+#[test]
+fn test_verify_truncated_cd() {
+    use zip::result::ZipError;
+    let res = verify("tests/data/v2-only-truncated-cd.apk");
+    // TODO(jooyung): consider making a helper for err assertion
+    assert!(matches!(
+        res.err().unwrap().root_cause().downcast_ref::<ZipError>().unwrap(),
+        ZipError::InvalidArchive(_),
+    ));
 }
