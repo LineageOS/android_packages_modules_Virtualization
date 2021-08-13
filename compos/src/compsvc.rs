@@ -19,11 +19,11 @@
 //! actual compiler.
 
 use anyhow::Result;
-use log::warn;
+use log::{debug, warn};
 use std::ffi::CString;
 use std::path::PathBuf;
 
-use crate::compilation::compile;
+use crate::compilation::{compile, CompilerOutput};
 use crate::compos_key_service::CompOsKeyService;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
@@ -57,12 +57,22 @@ impl Interface for CompOsService {}
 impl ICompOsService for CompOsService {
     fn execute(&self, args: &[String], metadata: &Metadata) -> BinderResult<i8> {
         let authfs_service = get_authfs_service()?;
-        compile(&self.dex2oat_path, args, authfs_service, metadata).map_err(|e| {
+        let output = compile(&self.dex2oat_path, args, authfs_service, metadata).map_err(|e| {
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("Compilation failed: {}", e),
             )
-        })
+        })?;
+        match output {
+            CompilerOutput::Digests { oat, vdex, image } => {
+                // TODO(b/161471326): Sign the output on succeed.
+                debug!("oat fs-verity digest: {:02x?}", oat);
+                debug!("vdex fs-verity digest: {:02x?}", vdex);
+                debug!("image fs-verity digest: {:02x?}", image);
+                Ok(0)
+            }
+            CompilerOutput::ExitCode(exit_code) => Ok(exit_code),
+        }
     }
 
     fn generateSigningKey(&self) -> BinderResult<CompOsKeyData> {

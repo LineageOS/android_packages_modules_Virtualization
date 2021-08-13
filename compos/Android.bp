@@ -39,6 +39,7 @@ rust_binary {
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
         "libclap",
+        "liblibc",
         "liblog_rust",
         "libminijail_rust",
         "libring",
