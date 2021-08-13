@@ -11,6 +11,7 @@ rust_defaults {
     rustlibs: [
         "libanyhow",
         "libring",
+        "libnum_traits",
     ],
     proc_macros: ["libnum_derive"],
     multilib: {
