@@ -18,7 +18,7 @@
 
 use anyhow::{anyhow, bail, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
-use bytes::{Buf, BufMut, Bytes};
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use ring::digest;
 use std::cmp::min;
 use std::io::{Cursor, Read, Seek, SeekFrom, Take};
@@ -61,11 +61,11 @@ pub struct ApkSections<R> {
 
 impl<R: Read + Seek> ApkSections<R> {
     pub fn new(reader: R) -> Result<ApkSections<R>> {
-        let (mut f, zip_sections) = zip_sections(reader)?;
+        let (mut reader, zip_sections) = zip_sections(reader)?;
         let (signing_block_offset, signing_block_size) =
-            find_signing_block(&mut f, zip_sections.central_directory_offset)?;
+            find_signing_block(&mut reader, zip_sections.central_directory_offset)?;
         Ok(ApkSections {
-            inner: f,
+            inner: reader,
             signing_block_offset,
             signing_block_size,
             central_directory_offset: zip_sections.central_directory_offset,
@@ -93,7 +93,7 @@ impl<R: Read + Seek> ApkSections<R> {
     pub fn compute_digest(&mut self, signature_algorithm_id: u32) -> Result<Vec<u8>> {
         let digester = Digester::new(signature_algorithm_id)?;
 
-        let mut digests_of_chunks = bytes::BytesMut::new();
+        let mut digests_of_chunks = BytesMut::new();
         let mut chunk_count = 0u32;
         let mut chunk = vec![0u8; CHUNK_SIZE_BYTES as usize];
         for data in &[
@@ -118,6 +118,7 @@ impl<R: Read + Seek> ApkSections<R> {
     fn zip_entries(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
         scoped_read(&mut self.inner, 0, self.signing_block_offset as u64)
     }
+
     fn central_directory(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
         scoped_read(
             &mut self.inner,
@@ -125,6 +126,7 @@ impl<R: Read + Seek> ApkSections<R> {
             self.central_directory_size as u64,
         )
     }
+
     fn eocd_for_verification(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
         let mut eocd = self.bytes(self.eocd_offset, self.eocd_size)?;
         // Protection of section 4 (ZIP End of Central Directory) is complicated by the section
@@ -136,6 +138,7 @@ impl<R: Read + Seek> ApkSections<R> {
         set_central_directory_offset(&mut eocd, self.signing_block_offset)?;
         Ok(Read::take(Box::new(Cursor::new(eocd)), self.eocd_size as u64))
     }
+
     fn bytes(&mut self, offset: u32, size: u32) -> Result<Vec<u8>> {
         self.inner.seek(SeekFrom::Start(offset as u64))?;
         let mut buf = vec![0u8; size as usize];
@@ -159,6 +162,7 @@ struct Digester {
 
 const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
 const CHUNK_HEADER_MID: &[u8] = &[0xa5];
+
 impl Digester {
     fn new(signature_algorithm_id: u32) -> Result<Digester> {
         let digest_algorithm_id = to_content_digest_algorithm(signature_algorithm_id)?;
@@ -173,6 +177,7 @@ impl Digester {
         };
         Ok(Digester { algorithm })
     }
+
     // v2/v3 digests are computed after prepending "header" byte and "size" info.
     fn digest(&self, data: &[u8], header: &[u8], size: u32) -> digest::Digest {
         let mut ctx = digest::Context::new(self.algorithm);
