@@ -16,10 +16,11 @@
 
 package com.android.compos;
 
+import com.android.compos.CompOsKeyData;
 import com.android.compos.Metadata;
 
 /** {@hide} */
-interface ICompService {
+interface ICompOsService {
     /**
      * Execute a command composed of the args, in a context that may be specified in the Metadata,
      * e.g. with file descriptors pre-opened. The service is responsible to decide what executables
@@ -32,4 +33,33 @@ interface ICompService {
      * @return exit code of the program
      */
     byte execute(in String[] args, in Metadata metadata);
+
+    /**
+     * Generate a new public/private key pair suitable for signing CompOs output files.
+     *
+     * @return a certificate for the public key and the encrypted private key
+     */
+    CompOsKeyData generateSigningKey();
+
+    /**
+     * Check that the supplied encrypted private key is valid for signing CompOs output files, and
+     * corresponds to the public key.
+     *
+     * @param keyBlob The encrypted blob containing the private key, as returned by
+     *                generateSigningKey().
+     * @param publicKey The public key, as a DER encoded RSAPublicKey (RFC 3447 Appendix-A.1.1).
+     * @return whether the inputs are valid and correspond to each other.
+     */
+    boolean verifySigningKey(in byte[] keyBlob, in byte[] publicKey);
+
+    /**
+     * Use the supplied encrypted private key to sign some data.
+     *
+     * @param keyBlob The encrypted blob containing the private key, as returned by
+     *                generateSigningKey().
+     * @param data The data to be signed. (Large data sizes may cause failure.)
+     * @return the signature.
+     */
+    // STOPSHIP(b/193241041): We must not expose this from the PVM.
+    byte[] sign(in byte[] keyBlob, in byte[] data);
 }

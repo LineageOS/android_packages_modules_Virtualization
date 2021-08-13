@@ -131,7 +131,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
                         getBuild(),
                         apkName,
                         packageName,
-                        "assets/key_service_vm_config.json",
+                        "assets/vm_config.json",
                         /* debug */ true);
         adbConnectToMicrodroid(getDevice(), mCid);
     }
@@ -145,6 +145,6 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
     }
 
     private boolean isServiceRunning() {
-        return tryRunOnMicrodroid("pidof compos_key_main") != null;
+        return tryRunOnMicrodroid("pidof compsvc") != null;
     }
 }

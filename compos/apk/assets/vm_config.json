@@ -7,8 +7,7 @@
     "type": "executable",
     "command": "/apex/com.android.compos/bin/compsvc",
     "args": [
-      "--rpc-binder",
-      "/apex/com.android.art/bin/dex2oat64"
+      "--rpc-binder"
     ]
   },
   "apexes": [
