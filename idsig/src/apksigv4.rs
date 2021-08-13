@@ -22,36 +22,56 @@ use std::io::{Read, Seek};
 // `apksigv4` module provides routines to decode the idsig file as defined in [APK signature
 // scheme v4] (https://source.android.com/security/apksigning/v4).
 
+/// `V4Signature` provides access to the various fields in an idsig file.
 #[derive(Debug)]
 pub struct V4Signature {
+    /// Version of the header. Should be 2.
     pub version: Version,
+    /// Provides access to the information about how the APK is hashed.
     pub hashing_info: HashingInfo,
+    /// Provides access to the information that can be used to verify this file
     pub signing_info: SigningInfo,
+    /// Total size of the merkle tree
     pub merkle_tree_size: u32,
+    /// Offset of the merkle tree in the idsig file
     pub merkle_tree_offset: u64,
 }
 
+/// `HashingInfo` provides information about how the APK is hashed.
 #[derive(Debug)]
 pub struct HashingInfo {
+    /// Hash algorithm used when creating the merkle tree for the APK.
     pub hash_algorithm: HashAlgorithm,
+    /// The log size of a block used when creating the merkle tree. 12 if 4k block was used.
     pub log2_blocksize: u8,
+    /// The salt used when creating the merkle tree. 32 bytes max.
     pub salt: Box<[u8]>,
+    /// The root hash of the merkle tree created.
     pub raw_root_hash: Box<[u8]>,
 }
 
+/// `SigningInfo` provides information that can be used to verify the idsig file.
 #[derive(Debug)]
 pub struct SigningInfo {
+    /// Digest of the APK that this idsig file is for.
     pub apk_digest: Box<[u8]>,
+    /// Certificate of the signer that signed this idsig file. ASN.1 DER form.
     pub x509_certificate: Box<[u8]>,
+    /// A free-form binary data
     pub additional_data: Box<[u8]>,
+    /// Public key of the signer in ASN.1 DER form. This must match the `x509_certificate` field.
     pub public_key: Box<[u8]>,
+    /// Signature algorithm used to sign this file.
     pub signature_algorithm_id: SignatureAlgorithmId,
+    /// The signature of this file.
     pub signature: Box<[u8]>,
 }
 
+/// Version of the idsig file format
 #[derive(Debug, PartialEq, FromPrimitive)]
 #[repr(u32)]
 pub enum Version {
+    /// Version 2, the only supported version.
     V2 = 2,
 }
 
@@ -61,9 +81,11 @@ impl Version {
     }
 }
 
+/// Hash algorithm that can be used for idsig file.
 #[derive(Debug, PartialEq, FromPrimitive)]
 #[repr(u32)]
 pub enum HashAlgorithm {
+    /// SHA2-256
     SHA256 = 1,
 }
 
@@ -73,16 +95,24 @@ impl HashAlgorithm {
     }
 }
 
+/// Signature algorithm that can be used for idsig file
 #[derive(Debug, PartialEq, FromPrimitive)]
 #[allow(non_camel_case_types)]
 #[repr(u32)]
 pub enum SignatureAlgorithmId {
+    /// RSASSA-PSS with SHA2-256 digest, SHA2-256 MGF1, 32 bytes of salt, trailer: 0xbc
     RSASSA_PSS_SHA2_256 = 0x0101,
+    /// RSASSA-PSS with SHA2-512 digest, SHA2-512 MGF1, 64 bytes of salt, trailer: 0xbc
     RSASSA_PSS_SHA2_512 = 0x0102,
+    /// RSASSA-PKCS1-v1_5 with SHA2-256 digest.
     RSASSA_PKCS1_SHA2_256 = 0x0103,
+    /// RSASSA-PKCS1-v1_5 with SHA2-512 digest.
     RSASSA_PKCS1_SHA2_512 = 0x0104,
+    /// ECDSA with SHA2-256 digest.
     ECDSA_SHA2_256 = 0x0201,
+    /// ECDSA with SHA2-512 digest.
     ECDSA_SHA2_512 = 0x0202,
+    /// DSA with SHA2-256 digest
     DSA_SHA2_256 = 0x0301,
 }
 
@@ -153,9 +183,12 @@ fn read_sized_array(r: &mut dyn Read) -> Result<Box<[u8]>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::hexstring_from;
-    use crate::*;
+    use crate::apksigv4::*;
     use std::io::Cursor;
+
+    fn hexstring_from(s: &[u8]) -> String {
+        s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
+    }
 
     #[test]
     fn parse_idsig_file() {
