@@ -16,11 +16,10 @@
 
 //! A tool to start a standalone compsvc server, either in the host using Binder or in a VM using
 //! RPC binder over vsock.
-//!
-//! Example:
-//! $ compsvc /system/bin/sleep
 
 mod common;
+mod compilation;
+mod compos_key_service;
 mod compsvc;
 mod signer;
 
@@ -31,27 +30,17 @@ use compos_aidl_interface::binder::{add_service, ProcessState};
 use log::debug;
 
 struct Config {
-    task_bin: String,
     rpc_binder: bool,
-    debuggable: bool,
 }
 
 fn parse_args() -> Result<Config> {
     #[rustfmt::skip]
     let matches = clap::App::new("compsvc")
-        .arg(clap::Arg::with_name("debug")
-             .long("debug"))
-        .arg(clap::Arg::with_name("task_bin")
-             .required(true))
         .arg(clap::Arg::with_name("rpc_binder")
              .long("rpc-binder"))
         .get_matches();
 
-    Ok(Config {
-        task_bin: matches.value_of("task_bin").unwrap().to_string(),
-        rpc_binder: matches.is_present("rpc_binder"),
-        debuggable: matches.is_present("debug"),
-    })
+    Ok(Config { rpc_binder: matches.is_present("rpc_binder") })
 }
 
 fn main() -> Result<()> {
@@ -60,7 +49,7 @@ fn main() -> Result<()> {
     );
 
     let config = parse_args()?;
-    let mut service = compsvc::new_binder(config.task_bin, config.debuggable, None).as_binder();
+    let mut service = compsvc::new_binder(config.rpc_binder)?.as_binder();
     if config.rpc_binder {
         debug!("compsvc is starting as a rpc service.");
         // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
