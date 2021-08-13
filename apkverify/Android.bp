@@ -4,7 +4,6 @@ package {
 
 rust_defaults {
     name: "libapkverify.defaults",
-    host_supported: true,
     crate_name: "apkverify",
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
@@ -33,12 +32,14 @@ rust_test {
 
 rust_test {
     name: "libapkverify.integration_test",
-    host_supported: true,
     crate_name: "apkverify_test",
     srcs: ["tests/*_test.rs"],
     prefer_rlib: true,
     edition: "2018",
     test_suites: ["general-tests"],
-    rustlibs: ["libapkverify"],
+    rustlibs: [
+        "libapkverify",
+        "libzip",
+    ],
     data: ["tests/data/*"],
 }
