@@ -517,6 +517,23 @@ impl IVirtualMachine for VirtualMachine {
         self.instance.callbacks.add(callback.clone());
         Ok(())
     }
+
+    fn connectVsock(&self, port: i32) -> binder::Result<ParcelFileDescriptor> {
+        if !self.instance.running() {
+            return Err(new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                "VM is no longer running",
+            ));
+        }
+        let stream =
+            VsockStream::connect_with_cid_port(self.instance.cid, port as u32).map_err(|e| {
+                new_binder_exception(
+                    ExceptionCode::SERVICE_SPECIFIC,
+                    format!("Failed to connect: {}", e),
+                )
+            })?;
+        Ok(vsock_stream_to_pfd(stream))
+    }
 }
 
 impl Drop for VirtualMachine {
@@ -535,9 +552,7 @@ impl VirtualMachineCallbacks {
     /// Call all registered callbacks to notify that the payload has started.
     pub fn notify_payload_started(&self, cid: Cid, stream: VsockStream) {
         let callbacks = &*self.0.lock().unwrap();
-        // SAFETY: ownership is transferred from stream to f
-        let f = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
-        let pfd = ParcelFileDescriptor::new(f);
+        let pfd = vsock_stream_to_pfd(stream);
         for callback in callbacks {
             if let Err(e) = callback.onPayloadStarted(cid as i32, &pfd) {
                 error!("Error notifying payload start event from VM CID {}: {}", cid, e);
@@ -639,6 +654,13 @@ fn clone_file(file: &ParcelFileDescriptor) -> Result<File, Status> {
             format!("Failed to clone File from ParcelFileDescriptor: {}", e),
         )
     })
+}
+
+/// Converts a `VsockStream` to a `ParcelFileDescriptor`.
+fn vsock_stream_to_pfd(stream: VsockStream) -> ParcelFileDescriptor {
+    // SAFETY: ownership is transferred from stream to f
+    let f = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
+    ParcelFileDescriptor::new(f)
 }
 
 /// Constructs a new Binder error `Status` with the given `ExceptionCode` and message.
