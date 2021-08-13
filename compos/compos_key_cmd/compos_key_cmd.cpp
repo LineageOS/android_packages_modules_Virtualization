@@ -16,7 +16,7 @@
 
 #include <aidl/android/system/virtualizationservice/BnVirtualMachineCallback.h>
 #include <aidl/android/system/virtualizationservice/IVirtualizationService.h>
-#include <aidl/com/android/compos/ICompOsKeyService.h>
+#include <aidl/com/android/compos/ICompOsService.h>
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/result.h>
@@ -56,7 +56,7 @@ using aidl::android::system::virtualizationservice::IVirtualMachine;
 using aidl::android::system::virtualizationservice::IVirtualMachineCallback;
 using aidl::android::system::virtualizationservice::VirtualMachineConfig;
 using aidl::com::android::compos::CompOsKeyData;
-using aidl::com::android::compos::ICompOsKeyService;
+using aidl::com::android::compos::ICompOsService;
 using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Result;
@@ -66,7 +66,7 @@ using ndk::ScopedAStatus;
 using ndk::ScopedFileDescriptor;
 using ndk::SharedRefBase;
 
-constexpr unsigned int kRpcPort = 3142;
+constexpr unsigned int kRpcPort = 6432;
 
 constexpr const char* kConfigApkPath =
         "/apex/com.android.compos/app/CompOSPayloadApp/CompOSPayloadApp.apk";
@@ -89,11 +89,11 @@ static Result<std::vector<uint8_t>> readBytesFromFile(const std::string& path) {
     return std::vector<uint8_t>(str.begin(), str.end());
 }
 
-static std::shared_ptr<ICompOsKeyService> getService(int cid) {
+static std::shared_ptr<ICompOsService> getService(int cid) {
     LOG(INFO) << "Connecting to cid " << cid;
     ndk::SpAIBinder binder(cid == 0 ? AServiceManager_getService("android.system.composkeyservice")
                                     : RpcClient(cid, kRpcPort));
-    return ICompOsKeyService::fromBinder(binder);
+    return ICompOsService::fromBinder(binder);
 }
 
 namespace {
@@ -337,7 +337,7 @@ static Result<bool> verify(TargetVm& vm, const std::string& blob_file,
     return result;
 }
 
-static Result<void> signFile(ICompOsKeyService* service, const std::vector<uint8_t>& key_blob,
+static Result<void> signFile(ICompOsService* service, const std::vector<uint8_t>& key_blob,
                              const std::string& file) {
     unique_fd fd(TEMP_FAILURE_RETRY(open(file.c_str(), O_RDONLY | O_CLOEXEC)));
     if (!fd.ok()) {
