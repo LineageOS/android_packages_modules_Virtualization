@@ -32,4 +32,7 @@ interface IVirtualMachine {
      * we might miss some events that happen before the registration is done.
      */
     void registerCallback(IVirtualMachineCallback callback);
+
+    /** Open a vsock connection to the CID of the VM on the given port. */
+    ParcelFileDescriptor connectVsock(int port);
 }
