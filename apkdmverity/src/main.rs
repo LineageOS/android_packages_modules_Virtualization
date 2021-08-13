@@ -21,15 +21,13 @@
 //! system managed by the host Android which is assumed to be compromisable, it is important to
 //! keep the integrity of the file "inside" Microdroid.
 
-mod apksigv4;
 mod dm;
 mod loopdevice;
 mod util;
 
-use crate::apksigv4::*;
-
 use anyhow::{bail, Context, Result};
 use clap::{App, Arg};
+use idsig::{HashAlgorithm, V4Signature};
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
@@ -112,7 +110,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(apk: P, idsig: P, name: &str) -> Result
         .hash_device(&hash_device)
         .root_digest(&sig.hashing_info.raw_root_hash)
         .hash_algorithm(match sig.hashing_info.hash_algorithm {
-            apksigv4::HashAlgorithm::SHA256 => dm::DmVerityHashAlgorithm::SHA256,
+            HashAlgorithm::SHA256 => dm::DmVerityHashAlgorithm::SHA256,
         })
         .salt(&sig.hashing_info.salt)
         .build()

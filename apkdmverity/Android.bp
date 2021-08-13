@@ -13,6 +13,7 @@ rust_defaults {
         "libbitflags",
         "libclap",
         "libdata_model",
+        "libidsig",
         "liblibc",
         "libnix",
         "libnum_traits",
