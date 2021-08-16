@@ -88,8 +88,12 @@ impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
         Self { file, merkle_tree: Arc::new(RwLock::new(MerkleLeaves::new())) }
     }
 
+    /// Returns the fs-verity digest size in bytes.
+    pub fn get_fsverity_digest_size(&self) -> usize {
+        Sha256Hasher::HASH_SIZE
+    }
+
     /// Calculates the fs-verity digest of the current file.
-    #[allow(dead_code)]
     pub fn calculate_fsverity_digest(&self) -> io::Result<Sha256Hash> {
         let merkle_tree = self.merkle_tree.read().unwrap();
         merkle_tree.calculate_fsverity_digest().map_err(|e| io::Error::new(io::ErrorKind::Other, e))
