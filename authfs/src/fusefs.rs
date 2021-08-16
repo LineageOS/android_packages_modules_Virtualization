@@ -28,8 +28,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use fuse::filesystem::{
-    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, SetattrValid,
-    ZeroCopyReader, ZeroCopyWriter,
+    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, GetxattrReply,
+    SetattrValid, ZeroCopyReader, ZeroCopyWriter,
 };
 use fuse::mount::MountOption;
 
@@ -372,6 +372,38 @@ impl FileSystem for AuthFs {
                 Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
             }
             _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
+        }
+    }
+
+    fn getxattr(
+        &self,
+        _ctx: Context,
+        inode: Self::Inode,
+        name: &CStr,
+        size: u32,
+    ) -> io::Result<GetxattrReply> {
+        match self.get_file_config(&inode)? {
+            FileConfig::RemoteVerifiedNew { editor } => {
+                // FUSE ioctl is limited, thus we can't implement fs-verity ioctls without a kernel
+                // change (see b/196635431). Until it's possible, use xattr to expose what we need
+                // as an authfs specific API.
+                if name != CStr::from_bytes_with_nul(b"authfs.fsverity.digest\0").unwrap() {
+                    return Err(io::Error::from_raw_os_error(libc::ENODATA));
+                }
+
+                if size == 0 {
+                    // Per protocol, when size is 0, return the value size.
+                    Ok(GetxattrReply::Count(editor.get_fsverity_digest_size() as u32))
+                } else {
+                    let digest = editor.calculate_fsverity_digest()?;
+                    if digest.len() > size as usize {
+                        Err(io::Error::from_raw_os_error(libc::ERANGE))
+                    } else {
+                        Ok(GetxattrReply::Value(digest.to_vec()))
+                    }
+                }
+            }
+            _ => Err(io::Error::from_raw_os_error(libc::ENODATA)),
         }
     }
 }
