@@ -25,19 +25,6 @@ cc_library_static {
     defaults: ["microdroid_metadata_default"],
 }
 
-cc_library_static {
-    name: "lib_microdroid_metadata_proto_lite",
-    recovery_available: true,
-    proto: {
-        export_proto_headers: true,
-        type: "lite",
-    },
-    defaults: ["microdroid_metadata_default"],
-    apex_available: [
-        "com.android.virt",
-    ],
-}
-
 rust_protobuf {
     name: "libmicrodroid_metadata_proto_rust",
     crate_name: "microdroid_metadata",
