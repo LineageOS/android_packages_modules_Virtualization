@@ -25,7 +25,7 @@ use std::fs::File;
 use std::io::{Read, Seek};
 use std::ops::Range;
 use std::path::Path;
-use x509_parser::x509;
+use x509_parser::{prelude::FromDer, x509};
 
 use crate::bytes_ext::{BytesExt, LengthPrefixed, ReadFromBytes};
 use crate::sigutil::*;
