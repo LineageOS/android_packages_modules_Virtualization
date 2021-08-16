@@ -28,22 +28,20 @@ configuration.
 
 The partition is a protobuf message prefixed with the size of the message.
 
-| offset | size | description                                                    |
-|--------|------|----------------------------------------------------------------|
-| 0      | 4    | Header. unsigned int32: body length(L) in big endian           |
-| 4      | L    | Body. A protobuf message. [schema](metadata.proto) |
+| offset | size | description                                          |
+| ------ | ---- | ---------------------------------------------------- |
+| 0      | 4    | Header. unsigned int32: body length(L) in big endian |
+| 4      | L    | Body. A protobuf message. [schema](metadata.proto)   |
 
 ### Payload partitions
 
 Each payload partition presents APEX or APK passed from the host.
 
-Note that each payload passed to the Guest is read by a block device. If a payload is not sized to a
-multiples of 4k, reading it would fail. To prevent that, "zero fillers" are added for those files.
-For example, if an APK is 8000 byte big, the APK partition would be padded with 192 bytes of zeros.
+The size of a payload partition must be a multiple of 4096 bytes.
 
 # `mk_payload`
 
-`mk_payload` is a small utility to create a payload disk image.
+`mk_payload` is a small utility to create a payload disk image. It is used by ARCVM.
 
 ```
 $ cat payload_config.json
