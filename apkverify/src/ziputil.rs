@@ -93,7 +93,7 @@ pub fn set_central_directory_offset(buf: &mut [u8], value: u32) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assert_contains;
+    use crate::testing::assert_contains;
     use std::io::{Cursor, Write};
     use zip::{write::FileOptions, ZipWriter};
 
@@ -125,6 +125,6 @@ mod tests {
         // ZipArchive::new() succeeds, but we should reject
         let res = zip_sections(Cursor::new([pre_eocd, cd, eocd].concat()));
         assert!(res.is_err());
-        assert_contains!(res.err().unwrap().to_string(), "Invalid ZIP: offset should be 0");
+        assert_contains(&res.err().unwrap().to_string(), "Invalid ZIP: offset should be 0");
     }
 }

@@ -21,11 +21,15 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use bytes::Bytes;
+use ring::signature::{
+    UnparsedPublicKey, VerificationAlgorithm, ECDSA_P256_SHA256_ASN1, RSA_PKCS1_2048_8192_SHA256,
+    RSA_PKCS1_2048_8192_SHA512, RSA_PSS_2048_8192_SHA256, RSA_PSS_2048_8192_SHA512,
+};
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::ops::Range;
 use std::path::Path;
-use x509_parser::{prelude::FromDer, x509};
+use x509_parser::{parse_x509_certificate, prelude::FromDer, x509::SubjectPublicKeyInfo};
 
 use crate::bytes_ext::{BytesExt, LengthPrefixed, ReadFromBytes};
 use crate::sigutil::*;
@@ -45,7 +49,7 @@ struct Signer {
     min_sdk: u32,
     max_sdk: u32,
     signatures: LengthPrefixed<Vec<LengthPrefixed<Signature>>>,
-    public_key: LengthPrefixed<SubjectPublicKeyInfo>,
+    public_key: LengthPrefixed<Bytes>,
 }
 
 impl Signer {
@@ -79,7 +83,6 @@ struct Digest {
     digest: LengthPrefixed<Bytes>,
 }
 
-type SubjectPublicKeyInfo = Bytes;
 type X509Certificate = Bytes;
 type AdditionalAttributes = Bytes;
 
@@ -128,7 +131,7 @@ impl Signer {
 
         // 2. Verify the corresponding signature from signatures against signed data using public key.
         //    (It is now safe to parse signed data.)
-        let (_, key_info) = x509::SubjectPublicKeyInfo::from_der(self.public_key.as_ref())?;
+        let (_, key_info) = SubjectPublicKeyInfo::from_der(self.public_key.as_ref())?;
         verify_signed_data(&self.signed_data, strongest, &key_info)?;
 
         // It is now safe to parse signed data.
@@ -172,7 +175,7 @@ impl Signer {
         // 7. Verify that SubjectPublicKeyInfo of the first certificate of certificates is identical
         //    to public key.
         let cert = signed_data.certificates.first().context("No certificates listed")?;
-        let (_, cert) = x509_parser::parse_x509_certificate(cert.as_ref())?;
+        let (_, cert) = parse_x509_certificate(cert.as_ref())?;
         if cert.tbs_certificate.subject_pki != key_info {
             bail!("Public key mismatch between certificate and signature record");
         }
@@ -185,32 +188,28 @@ impl Signer {
 fn verify_signed_data(
     data: &Bytes,
     signature: &Signature,
-    key_info: &x509::SubjectPublicKeyInfo,
+    key_info: &SubjectPublicKeyInfo,
 ) -> Result<()> {
-    use ring::signature;
-    let verification_alg: &dyn signature::VerificationAlgorithm =
-        match signature.signature_algorithm_id {
-            SIGNATURE_RSA_PSS_WITH_SHA256 => &signature::RSA_PSS_2048_8192_SHA256,
-            SIGNATURE_RSA_PSS_WITH_SHA512 => &signature::RSA_PSS_2048_8192_SHA512,
-            SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256 | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256 => {
-                &signature::RSA_PKCS1_2048_8192_SHA256
-            }
-            SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512 => &signature::RSA_PKCS1_2048_8192_SHA512,
-            SIGNATURE_ECDSA_WITH_SHA256 | SIGNATURE_VERITY_ECDSA_WITH_SHA256 => {
-                &signature::ECDSA_P256_SHA256_ASN1
-            }
-            // TODO(b/190343842) not implemented signature algorithm
-            SIGNATURE_ECDSA_WITH_SHA512
-            | SIGNATURE_DSA_WITH_SHA256
-            | SIGNATURE_VERITY_DSA_WITH_SHA256 => {
-                bail!(
-                    "TODO(b/190343842) not implemented signature algorithm: {:#x}",
-                    signature.signature_algorithm_id
-                );
-            }
-            _ => bail!("Unsupported signature algorithm: {:#x}", signature.signature_algorithm_id),
-        };
-    let key = signature::UnparsedPublicKey::new(verification_alg, &key_info.subject_public_key);
+    let verification_alg: &dyn VerificationAlgorithm = match signature.signature_algorithm_id {
+        SIGNATURE_RSA_PSS_WITH_SHA256 => &RSA_PSS_2048_8192_SHA256,
+        SIGNATURE_RSA_PSS_WITH_SHA512 => &RSA_PSS_2048_8192_SHA512,
+        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256 | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256 => {
+            &RSA_PKCS1_2048_8192_SHA256
+        }
+        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512 => &RSA_PKCS1_2048_8192_SHA512,
+        SIGNATURE_ECDSA_WITH_SHA256 | SIGNATURE_VERITY_ECDSA_WITH_SHA256 => &ECDSA_P256_SHA256_ASN1,
+        // TODO(b/190343842) not implemented signature algorithm
+        SIGNATURE_ECDSA_WITH_SHA512
+        | SIGNATURE_DSA_WITH_SHA256
+        | SIGNATURE_VERITY_DSA_WITH_SHA256 => {
+            bail!(
+                "TODO(b/190343842) not implemented signature algorithm: {:#x}",
+                signature.signature_algorithm_id
+            );
+        }
+        _ => bail!("Unsupported signature algorithm: {:#x}", signature.signature_algorithm_id),
+    };
+    let key = UnparsedPublicKey::new(verification_alg, &key_info.subject_public_key);
     key.verify(data.as_ref(), signature.signature.as_ref())?;
     Ok(())
 }

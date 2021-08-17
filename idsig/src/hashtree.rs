@@ -191,7 +191,7 @@ fn zero_pad_salt(salt: &[u8], algorithm: &Algorithm) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::hashtree::*;
+    use super::*;
     use ring::digest;
     use std::fs::{self, File};
 
