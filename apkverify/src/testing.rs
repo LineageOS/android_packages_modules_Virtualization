@@ -16,19 +16,7 @@
 
 //! A collection of utilities for testing
 
-/// Asserts if `haystack.contains(needed)`
-#[macro_export]
-macro_rules! assert_contains {
-    ($haystack:expr,$needle:expr $(,)?) => {
-        match (&$haystack, &$needle) {
-            (haystack_value, needle_value) => {
-                assert!(
-                    haystack_value.contains(needle_value),
-                    "{} is not found in {}",
-                    needle_value,
-                    haystack_value
-                );
-            }
-        }
-    };
+/// Asserts if `haystack.contains(needle)`
+pub fn assert_contains(haystack: &str, needle: &str) {
+    assert!(haystack.contains(needle), "{} is not found in {}", needle, haystack);
 }
