@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use apkverify::{assert_contains, verify};
+use apkverify::{testing::assert_contains, verify};
 use std::matches;
 
 #[test]
@@ -26,14 +26,14 @@ fn test_verify_v3() {
 fn test_verify_v3_digest_mismatch() {
     let res = verify("tests/data/v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk");
     assert!(res.is_err());
-    assert_contains!(res.err().unwrap().to_string(), "Digest mismatch");
+    assert_contains(&res.unwrap_err().to_string(), "Digest mismatch");
 }
 
 #[test]
-fn test_verify_v3_cert_and_publick_key_mismatch() {
+fn test_verify_v3_cert_and_public_key_mismatch() {
     let res = verify("tests/data/v3-only-cert-and-public-key-mismatch.apk");
     assert!(res.is_err());
-    assert_contains!(res.err().unwrap().to_string(), "Public key mismatch");
+    assert_contains(&res.unwrap_err().to_string(), "Public key mismatch");
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn test_verify_truncated_cd() {
     let res = verify("tests/data/v2-only-truncated-cd.apk");
     // TODO(jooyung): consider making a helper for err assertion
     assert!(matches!(
-        res.err().unwrap().root_cause().downcast_ref::<ZipError>().unwrap(),
+        res.unwrap_err().root_cause().downcast_ref::<ZipError>().unwrap(),
         ZipError::InvalidArchive(_),
     ));
 }

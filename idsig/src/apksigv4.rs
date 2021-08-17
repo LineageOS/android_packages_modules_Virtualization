@@ -183,7 +183,7 @@ fn read_sized_array(r: &mut dyn Read) -> Result<Box<[u8]>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::apksigv4::*;
+    use super::*;
     use std::io::Cursor;
 
     fn hexstring_from(s: &[u8]) -> String {
