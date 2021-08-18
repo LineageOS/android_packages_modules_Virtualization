@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-use anyhow::{anyhow, Context, Result};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
-use std::io::{Read, Seek};
+use anyhow::{anyhow, bail, Context, Result};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use num_derive::{FromPrimitive, ToPrimitive};
+use num_traits::{FromPrimitive, ToPrimitive};
+use std::io::{copy, Cursor, Read, Seek, SeekFrom, Write};
 
-// `apksigv4` module provides routines to decode the idsig file as defined in [APK signature
-// scheme v4] (https://source.android.com/security/apksigning/v4).
+use crate::hashtree::*;
+
+// `apksigv4` module provides routines to decode and encode the idsig file as defined in [APK
+// signature scheme v4] (https://source.android.com/security/apksigning/v4).
 
 /// `V4Signature` provides access to the various fields in an idsig file.
-#[derive(Debug)]
-pub struct V4Signature {
+#[derive(Default)]
+pub struct V4Signature<R: Read + Seek> {
     /// Version of the header. Should be 2.
     pub version: Version,
     /// Provides access to the information about how the APK is hashed.
@@ -35,10 +38,13 @@ pub struct V4Signature {
     pub merkle_tree_size: u32,
     /// Offset of the merkle tree in the idsig file
     pub merkle_tree_offset: u64,
+
+    // Provides access to the underlying data
+    data: R,
 }
 
 /// `HashingInfo` provides information about how the APK is hashed.
-#[derive(Debug)]
+#[derive(Default)]
 pub struct HashingInfo {
     /// Hash algorithm used when creating the merkle tree for the APK.
     pub hash_algorithm: HashAlgorithm,
@@ -51,7 +57,7 @@ pub struct HashingInfo {
 }
 
 /// `SigningInfo` provides information that can be used to verify the idsig file.
-#[derive(Debug)]
+#[derive(Default)]
 pub struct SigningInfo {
     /// Digest of the APK that this idsig file is for.
     pub apk_digest: Box<[u8]>,
@@ -68,7 +74,7 @@ pub struct SigningInfo {
 }
 
 /// Version of the idsig file format
-#[derive(Debug, PartialEq, FromPrimitive)]
+#[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum Version {
     /// Version 2, the only supported version.
@@ -81,8 +87,14 @@ impl Version {
     }
 }
 
+impl Default for Version {
+    fn default() -> Self {
+        Version::V2
+    }
+}
+
 /// Hash algorithm that can be used for idsig file.
-#[derive(Debug, PartialEq, FromPrimitive)]
+#[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum HashAlgorithm {
     /// SHA2-256
@@ -95,8 +107,14 @@ impl HashAlgorithm {
     }
 }
 
+impl Default for HashAlgorithm {
+    fn default() -> Self {
+        HashAlgorithm::SHA256
+    }
+}
+
 /// Signature algorithm that can be used for idsig file
-#[derive(Debug, PartialEq, FromPrimitive)]
+#[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 #[repr(u32)]
 pub enum SignatureAlgorithmId {
@@ -123,62 +141,181 @@ impl SignatureAlgorithmId {
     }
 }
 
-impl V4Signature {
-    /// Reads a stream from `r` and then parses it into a `V4Signature` struct.
-    pub fn from<T: Read + Seek>(mut r: T) -> Result<V4Signature> {
+impl Default for SignatureAlgorithmId {
+    fn default() -> Self {
+        SignatureAlgorithmId::DSA_SHA2_256
+    }
+}
+
+impl<R: Read + Seek> V4Signature<R> {
+    /// Consumes a stream for an idsig file into a `V4Signature` struct.
+    pub fn from(mut r: R) -> Result<V4Signature<R>> {
         Ok(V4Signature {
-            version: Version::from(read_le_u32(&mut r)?)?,
+            version: Version::from(r.read_u32::<LittleEndian>()?)?,
             hashing_info: HashingInfo::from(&mut r)?,
             signing_info: SigningInfo::from(&mut r)?,
-            merkle_tree_size: read_le_u32(&mut r)?,
+            merkle_tree_size: r.read_u32::<LittleEndian>()?,
             merkle_tree_offset: r.stream_position()?,
+            data: r,
         })
+    }
+
+    /// Read a stream for an APK file and creates a corresponding `V4Signature` struct that digests
+    /// the APK file. Note that the signing is not done.
+    pub fn create(
+        mut apk: &mut R,
+        block_size: usize,
+        salt: &[u8],
+        algorithm: HashAlgorithm,
+    ) -> Result<V4Signature<Cursor<Vec<u8>>>> {
+        // Determine the size of the apk
+        let start = apk.stream_position()?;
+        let size = apk.seek(SeekFrom::End(0))? as usize;
+        apk.seek(SeekFrom::Start(start))?;
+
+        // Create hash tree (and root hash)
+        let algorithm = match algorithm {
+            HashAlgorithm::SHA256 => &ring::digest::SHA256,
+        };
+        let hash_tree = HashTree::from(&mut apk, size, salt, block_size, algorithm)?;
+
+        let mut ret = V4Signature {
+            version: Version::default(),
+            hashing_info: HashingInfo::default(),
+            signing_info: SigningInfo::default(),
+            merkle_tree_size: hash_tree.tree.len() as u32,
+            merkle_tree_offset: 0, // merkle tree starts from the beginning of `data`
+            data: Cursor::new(hash_tree.tree),
+        };
+        ret.hashing_info.raw_root_hash = hash_tree.root_hash.into_boxed_slice();
+        ret.hashing_info.log2_blocksize = log2(block_size);
+
+        // TODO(jiyong): fill the signing_info struct by reading the APK file. The information,
+        // especially `apk_digest` is needed to check if `V4Signature` is outdated, in which case
+        // it needs to be created from the updated APK.
+
+        Ok(ret)
+    }
+
+    /// Writes the data into a writer
+    pub fn write_into<W: Write + Seek>(&mut self, mut w: &mut W) -> Result<()> {
+        // Writes the header part
+        w.write_u32::<LittleEndian>(self.version.to_u32().unwrap())?;
+        self.hashing_info.write_into(&mut w)?;
+        self.signing_info.write_into(&mut w)?;
+        w.write_u32::<LittleEndian>(self.merkle_tree_size)?;
+
+        // Writes the merkle tree
+        self.data.seek(SeekFrom::Start(self.merkle_tree_offset))?;
+        let copied_size = copy(&mut self.data, &mut w)?;
+        if copied_size != self.merkle_tree_size as u64 {
+            bail!(
+                "merkle tree is {} bytes, but only {} bytes are written.",
+                self.merkle_tree_size,
+                copied_size
+            );
+        }
+        Ok(())
+    }
+
+    /// Returns the bytes that represents the merkle tree
+    pub fn merkle_tree(&mut self) -> Result<Vec<u8>> {
+        self.data.seek(SeekFrom::Start(self.merkle_tree_offset))?;
+        let mut out = Vec::new();
+        self.data.read_to_end(&mut out)?;
+        Ok(out)
     }
 }
 
 impl HashingInfo {
     fn from(mut r: &mut dyn Read) -> Result<HashingInfo> {
-        read_le_u32(&mut r)?;
+        // Size of the entire hashing_info struct. We don't need this because each variable-sized
+        // fields in the struct are also length encoded.
+        r.read_u32::<LittleEndian>()?;
         Ok(HashingInfo {
-            hash_algorithm: HashAlgorithm::from(read_le_u32(&mut r)?)?,
-            log2_blocksize: read_u8(&mut r)?,
+            hash_algorithm: HashAlgorithm::from(r.read_u32::<LittleEndian>()?)?,
+            log2_blocksize: r.read_u8()?,
             salt: read_sized_array(&mut r)?,
             raw_root_hash: read_sized_array(&mut r)?,
         })
+    }
+
+    fn write_into<W: Write + Seek>(&self, mut w: &mut W) -> Result<()> {
+        let start = w.stream_position()?;
+        // Size of the entire hashing_info struct. Since we don't know the size yet, fill the place
+        // with 0. The exact size will then be written below.
+        w.write_u32::<LittleEndian>(0)?;
+
+        w.write_u32::<LittleEndian>(self.hash_algorithm.to_u32().unwrap())?;
+        w.write_u8(self.log2_blocksize)?;
+        write_sized_array(&mut w, &self.salt)?;
+        write_sized_array(&mut w, &self.raw_root_hash)?;
+
+        // Determine the size of hashing_info, and write it in front of the struct where the value
+        // was initialized to zero.
+        let end = w.stream_position()?;
+        let size = end - start - std::mem::size_of::<u32>() as u64;
+        w.seek(SeekFrom::Start(start))?;
+        w.write_u32::<LittleEndian>(size as u32)?;
+        w.seek(SeekFrom::Start(end))?;
+        Ok(())
     }
 }
 
 impl SigningInfo {
     fn from(mut r: &mut dyn Read) -> Result<SigningInfo> {
-        read_le_u32(&mut r)?;
+        // Size of the entire signing_info struct. We don't need this because each variable-sized
+        // fields in the struct are also length encoded.
+        r.read_u32::<LittleEndian>()?;
         Ok(SigningInfo {
             apk_digest: read_sized_array(&mut r)?,
             x509_certificate: read_sized_array(&mut r)?,
             additional_data: read_sized_array(&mut r)?,
             public_key: read_sized_array(&mut r)?,
-            signature_algorithm_id: SignatureAlgorithmId::from(read_le_u32(&mut r)?)?,
+            signature_algorithm_id: SignatureAlgorithmId::from(r.read_u32::<LittleEndian>()?)?,
             signature: read_sized_array(&mut r)?,
         })
     }
-}
 
-fn read_u8(r: &mut dyn Read) -> Result<u8> {
-    let mut byte = [0; 1];
-    r.read_exact(&mut byte)?;
-    Ok(byte[0])
-}
+    fn write_into<W: Write + Seek>(&self, mut w: &mut W) -> Result<()> {
+        let start = w.stream_position()?;
+        // Size of the entire signing_info struct. Since we don't know the size yet, fill the place
+        // with 0. The exact size will then be written below.
+        w.write_u32::<LittleEndian>(0)?;
 
-fn read_le_u32(r: &mut dyn Read) -> Result<u32> {
-    let mut bytes = [0; 4];
-    r.read_exact(&mut bytes)?;
-    Ok(u32::from_le_bytes(bytes))
+        write_sized_array(&mut w, &self.apk_digest)?;
+        write_sized_array(&mut w, &self.x509_certificate)?;
+        write_sized_array(&mut w, &self.additional_data)?;
+        write_sized_array(&mut w, &self.public_key)?;
+        w.write_u32::<LittleEndian>(self.signature_algorithm_id.to_u32().unwrap())?;
+        write_sized_array(&mut w, &self.signature)?;
+
+        // Determine the size of signing_info, and write it in front of the struct where the value
+        // was initialized to zero.
+        let end = w.stream_position()?;
+        let size = end - start - std::mem::size_of::<u32>() as u64;
+        w.seek(SeekFrom::Start(start))?;
+        w.write_u32::<LittleEndian>(size as u32)?;
+        w.seek(SeekFrom::Start(end))?;
+        Ok(())
+    }
 }
 
 fn read_sized_array(r: &mut dyn Read) -> Result<Box<[u8]>> {
-    let size = read_le_u32(r)?;
+    let size = r.read_u32::<LittleEndian>()?;
     let mut data = vec![0; size as usize];
     r.read_exact(&mut data)?;
     Ok(data.into_boxed_slice())
+}
+
+fn write_sized_array(w: &mut dyn Write, data: &[u8]) -> Result<()> {
+    w.write_u32::<LittleEndian>(data.len() as u32)?;
+    Ok(w.write_all(data)?)
+}
+
+fn log2(n: usize) -> u8 {
+    let num_bits = std::mem::size_of::<usize>() * 8;
+    (num_bits as u32 - n.leading_zeros() - 1) as u8
 }
 
 #[cfg(test)]
@@ -221,5 +358,42 @@ mod tests {
 
         assert_eq!(36864, parsed.merkle_tree_size);
         assert_eq!(2251, parsed.merkle_tree_offset);
+    }
+
+    /// Parse an idsig file into V4Signature and write it. The written date must be the same as
+    /// the input file.
+    #[test]
+    fn parse_and_compose() {
+        let input = Cursor::new(include_bytes!("../testdata/test.apk.idsig"));
+        let mut parsed = V4Signature::from(input.clone()).unwrap();
+
+        let mut output = Cursor::new(Vec::new());
+        parsed.write_into(&mut output).unwrap();
+
+        assert_eq!(input.get_ref().as_ref(), output.get_ref().as_slice());
+    }
+
+    /// Create V4Signature by hashing an APK. Merkle tree and the root hash should be the same
+    /// as those in the idsig file created by the signapk tool.
+    #[test]
+    fn digest_from_apk() {
+        let mut input = Cursor::new(include_bytes!("../testdata/test.apk"));
+        let mut created =
+            V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256).unwrap();
+
+        let golden = Cursor::new(include_bytes!("../testdata/test.apk.idsig"));
+        let mut golden = V4Signature::from(golden).unwrap();
+
+        // Compare the root hash
+        assert_eq!(
+            created.hashing_info.raw_root_hash.as_ref(),
+            golden.hashing_info.raw_root_hash.as_ref()
+        );
+
+        // Compare the merkle tree
+        assert_eq!(
+            created.merkle_tree().unwrap().as_slice(),
+            golden.merkle_tree().unwrap().as_slice()
+        );
     }
 }
