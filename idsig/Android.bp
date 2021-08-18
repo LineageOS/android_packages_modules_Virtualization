@@ -10,6 +10,7 @@ rust_defaults {
     prefer_rlib: true,
     rustlibs: [
         "libanyhow",
+        "libbyteorder",
         "libring",
         "libnum_traits",
     ],

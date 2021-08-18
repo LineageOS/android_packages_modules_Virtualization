@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-use ring::digest::{self, Algorithm, Digest};
+pub use ring::digest::{Algorithm, Digest};
+
+use ring::digest;
 use std::io::{Cursor, Read, Result, Write};
 
 /// `HashTree` is a merkle tree (and its root hash) that is compatible with fs-verity.
@@ -62,7 +64,7 @@ impl HashTree {
 /// blocksize-byte blocks (zero-padding the ends as needed) and these blocks are hashed,
 /// producing the second level of hashes. This proceeds up the tree until only a single block
 /// remains.
-fn generate_hash_tree<R: Read>(
+pub fn generate_hash_tree<R: Read>(
     input: &mut R,
     input_size: usize,
     salt: &[u8],
