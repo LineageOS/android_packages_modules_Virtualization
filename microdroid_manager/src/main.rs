@@ -40,8 +40,8 @@ fn main() -> Result<()> {
     let metadata = metadata::load()?;
 
     if let Err(err) = verify_payloads() {
-        error!("failed to verify payload: {}", err);
-        // TODO(jooyung): should stop the boot process if verification fails
+        error!("failed to verify payload: {:#?}", err);
+        return Err(err);
     }
 
     if !metadata.payload_config_path.is_empty() {
