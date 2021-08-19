@@ -20,8 +20,8 @@ use crate::payload::add_microdroid_images;
 use crate::{Cid, FIRST_GUEST_CID};
 
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DiskImage::DiskImage;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
 };
@@ -35,7 +35,11 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
+    BnVirtualMachineService, IVirtualMachineService,
+};
 use anyhow::{bail, Context, Result};
+use ::binder::unstable_api::AsNative;
 use disk::QcowFile;
 use idsig::{V4Signature, HashAlgorithm};
 use log::{debug, error, warn, info};
@@ -62,6 +66,11 @@ const VMADDR_CID_HOST: u32 = 2;
 /// Port number that virtualizationservice listens on connections from the guest VMs for the
 /// payload output
 const PORT_VIRT_SERVICE: u32 = 3000;
+
+/// Port number that virtualizationservice listens on connections from the guest VMs for the
+/// VirtualMachineService binder service
+/// Sync with microdroid_manager/src/main.rs
+const PORT_VM_BINDER_SERVICE: u32 = 5000;
 
 /// The size of zero.img.
 /// Gaps in composite disk images are filled with a shared zero.img.
@@ -273,9 +282,33 @@ impl IVirtualizationService for VirtualizationService {
 impl VirtualizationService {
     pub fn init() -> VirtualizationService {
         let service = VirtualizationService::default();
+
+        // server for payload output
         let state = service.state.clone(); // reference to state (not the state itself) is copied
         std::thread::spawn(move || {
             handle_connection_from_vm(state).unwrap();
+        });
+
+        // binder server for vm
+        let state = service.state.clone(); // reference to state (not the state itself) is copied
+        std::thread::spawn(move || {
+            let mut service = VirtualMachineService::new_binder(state).as_binder();
+            debug!("virtual machine service is starting as an RPC service.");
+            // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
+            // Plus the binder objects are threadsafe.
+            let retval = unsafe {
+                binder_rpc_unstable_bindgen::RunRpcServer(
+                    service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
+                    PORT_VM_BINDER_SERVICE,
+                )
+            };
+            if retval {
+                debug!("RPC server has shut down gracefully");
+            } else {
+                bail!("Premature termination of RPC server");
+            }
+
+            Ok(retval)
         });
         service
     }
@@ -301,6 +334,7 @@ fn handle_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
                 warn!("connection is not from a guest VM");
                 continue;
             }
+            // TODO(b/191845268): handle this with VirtualMachineService
             if let Some(vm) = state.lock().unwrap().get_vm(cid) {
                 vm.callbacks.notify_payload_started(cid, stream);
             }
@@ -700,5 +734,37 @@ impl<'a, T> AsRef<T> for BorrowedOrOwned<'a, T> {
             Self::Borrowed(b) => b,
             Self::Owned(o) => o,
         }
+    }
+}
+
+/// Implementation of `IVirtualMachineService`, the entry point of the AIDL service.
+#[derive(Debug, Default)]
+struct VirtualMachineService {
+    state: Arc<Mutex<State>>,
+}
+
+impl Interface for VirtualMachineService {}
+
+impl IVirtualMachineService for VirtualMachineService {
+    fn notifyPayloadStarted(&self, cid: i32) -> binder::Result<()> {
+        let cid = cid as Cid;
+        if self.state.lock().unwrap().get_vm(cid).is_none() {
+            error!("notifyPayloadStarted is called from an unknown cid {}", cid);
+            return Err(new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("cannot find a VM with cid {}", cid),
+            ));
+        }
+        info!("VM having CID {} started payload", cid);
+        Ok(())
+    }
+}
+
+impl VirtualMachineService {
+    fn new_binder(state: Arc<Mutex<State>>) -> Strong<dyn IVirtualMachineService> {
+        BnVirtualMachineService::new_binder(
+            VirtualMachineService { state },
+            BinderFeatures::default(),
+        )
     }
 }

@@ -21,9 +21,12 @@ rust_defaults {
     prefer_rlib: true,
     rustlibs: [
         "android.system.virtualizationservice-rust",
+        "android.system.virtualmachineservice-rust",
         "android.os.permissions_aidl-rust",
         "libandroid_logger",
         "libanyhow",
+        "libbinder_rpc_unstable_bindgen",
+        "libbinder_rs",
         "libcommand_fds",
         "libdisk",
         "libidsig",
@@ -38,6 +41,9 @@ rust_defaults {
         "libvmconfig",
         "libzip",
         "libvsock",
+    ],
+    shared_libs: [
+        "libbinder_rpc_unstable",
     ],
 }
 
