@@ -166,6 +166,12 @@ fn parse_args() -> Result<Config> {
 }
 
 fn main() -> Result<()> {
+    let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
+    let log_level = if debuggable { log::Level::Trace } else { log::Level::Info };
+    android_logger::init_once(
+        android_logger::Config::default().with_tag("pvm_exec").with_min_level(log_level),
+    );
+
     // 1. Parse the command line arguments for collect execution data.
     let Config { args, metadata, cid, debuggable } = parse_args()?;
 
