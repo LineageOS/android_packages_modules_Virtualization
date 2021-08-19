@@ -7,6 +7,7 @@ rust_binary {
     srcs: ["src/pvm_exec.rs"],
     rustlibs: [
         "compos_aidl_interface-rust",
+        "libandroid_logger",
         "libanyhow",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
