@@ -23,9 +23,10 @@ use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::{FromIBinder, Strong};
 use log::{error, info, warn};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
+use nix::ioctl_read_bad;
 use rustutils::system_properties::PropertyWatcher;
-use std::fs::{self, File};
-use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::fs::{self, File, OpenOptions};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::str;
@@ -61,6 +62,27 @@ fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
     }
 }
 
+const IOCTL_VM_SOCKETS_GET_LOCAL_CID: usize = 0x7b9;
+ioctl_read_bad!(
+    /// Gets local cid from /dev/vsock
+    vm_sockets_get_local_cid,
+    IOCTL_VM_SOCKETS_GET_LOCAL_CID,
+    u32
+);
+
+// TODO: remove this after VS can check the peer addresses of binder clients
+fn get_local_cid() -> Result<u32> {
+    let f = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .open("/dev/vsock")
+        .context("failed to open /dev/vsock")?;
+    let mut ret = 0;
+    // SAFETY: the kernel only modifies the given u32 integer.
+    unsafe { vm_sockets_get_local_cid(f.as_raw_fd(), &mut ret) }?;
+    Ok(ret)
+}
+
 fn main() -> Result<()> {
     kernlog::init()?;
     info!("started.");
@@ -72,10 +94,7 @@ fn main() -> Result<()> {
         return Err(err);
     }
 
-    // TODO(b/191845268): microdroid_manager should use this binder to communicate with the host
-    if let Err(err) = get_vms_rpc_binder() {
-        error!("cannot connect to VirtualMachineService: {}", err);
-    }
+    let service = get_vms_rpc_binder().expect("cannot connect to VirtualMachineService");
 
     if !metadata.payload_config_path.is_empty() {
         let config = load_config(Path::new(&metadata.payload_config_path))?;
@@ -87,7 +106,7 @@ fn main() -> Result<()> {
 
         // TODO(jooyung): wait until sys.boot_completed?
         if let Some(main_task) = &config.task {
-            exec_task(main_task).map_err(|e| {
+            exec_task(main_task, &service).map_err(|e| {
                 error!("failed to execute task: {}", e);
                 e
             })?;
@@ -118,29 +137,13 @@ fn load_config(path: &Path) -> Result<VmPayloadConfig> {
 
 /// Executes the given task. Stdout of the task is piped into the vsock stream to the
 /// virtualizationservice in the host side.
-fn exec_task(task: &Task) -> Result<()> {
-    const VMADDR_CID_HOST: u32 = 2;
-    const PORT_VIRT_SVC: u32 = 3000;
-    let stdout = match VsockStream::connect_with_cid_port(VMADDR_CID_HOST, PORT_VIRT_SVC) {
-        Ok(stream) => {
-            // SAFETY: the ownership of the underlying file descriptor is transferred from stream
-            // to the file object, and then into the Command object. When the command is finished,
-            // the file descriptor is closed.
-            let f = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
-            Stdio::from(f)
-        }
-        Err(e) => {
-            error!("failed to connect to virtualization service: {}", e);
-            // Don't fail hard here. Even if we failed to connect to the virtualizationservice,
-            // we keep executing the task. This can happen if the owner of the VM doesn't register
-            // callback to accept the stream. Use /dev/null as the stdout so that the task can
-            // make progress without waiting for someone to consume the output.
-            Stdio::null()
-        }
-    };
+fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Result<()> {
     info!("executing main task {:?}...", task);
-    // TODO(jiyong): consider piping the stream into stdio (and probably stderr) as well.
-    let mut child = build_command(task)?.stdout(stdout).spawn()?;
+    let mut child = build_command(task)?.spawn()?;
+
+    info!("notifying payload started");
+    service.notifyPayloadStarted(get_local_cid()? as i32)?;
+
     match child.wait()?.code() {
         Some(0) => {
             info!("task successfully finished");
@@ -152,7 +155,10 @@ fn exec_task(task: &Task) -> Result<()> {
 }
 
 fn build_command(task: &Task) -> Result<Command> {
-    Ok(match task.type_ {
+    const VMADDR_CID_HOST: u32 = 2;
+    const PORT_VIRT_SVC: u32 = 3000;
+
+    let mut command = match task.type_ {
         TaskType::Executable => {
             let mut command = Command::new(&task.command);
             command.args(&task.args);
@@ -163,7 +169,30 @@ fn build_command(task: &Task) -> Result<Command> {
             command.arg(find_library_path(&task.command)?).args(&task.args);
             command
         }
-    })
+    };
+
+    match VsockStream::connect_with_cid_port(VMADDR_CID_HOST, PORT_VIRT_SVC) {
+        Ok(stream) => {
+            // SAFETY: the ownership of the underlying file descriptor is transferred from stream
+            // to the file object, and then into the Command object. When the command is finished,
+            // the file descriptor is closed.
+            let file = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
+            command
+                .stdin(Stdio::from(file.try_clone()?))
+                .stdout(Stdio::from(file.try_clone()?))
+                .stderr(Stdio::from(file));
+        }
+        Err(e) => {
+            error!("failed to connect to virtualization service: {}", e);
+            // Don't fail hard here. Even if we failed to connect to the virtualizationservice,
+            // we keep executing the task. This can happen if the owner of the VM doesn't register
+            // callback to accept the stream. Use /dev/null as the stream so that the task can
+            // make progress without waiting for someone to consume the output.
+            command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+        }
+    }
+
+    Ok(command)
 }
 
 fn find_library_path(name: &str) -> Result<String> {

@@ -20,6 +20,7 @@ rust_defaults {
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
+        "libnix",
         "libprotobuf",
         "librustutils",
         "libserde",

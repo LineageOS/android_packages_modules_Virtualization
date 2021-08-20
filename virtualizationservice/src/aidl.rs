@@ -52,7 +52,7 @@ use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use vmconfig::VmConfig;
-use vsock::{VsockListener, SockAddr, VsockStream};
+use vsock::{SockAddr, VsockListener, VsockStream};
 use zip::ZipArchive;
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
@@ -64,8 +64,8 @@ pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
 const VMADDR_CID_HOST: u32 = 2;
 
 /// Port number that virtualizationservice listens on connections from the guest VMs for the
-/// payload output
-const PORT_VIRT_SERVICE: u32 = 3000;
+/// payload input and output
+const PORT_VIRT_STREAM_SERVICE: u32 = 3000;
 
 /// Port number that virtualizationservice listens on connections from the guest VMs for the
 /// VirtualMachineService binder service
@@ -286,7 +286,7 @@ impl VirtualizationService {
         // server for payload output
         let state = service.state.clone(); // reference to state (not the state itself) is copied
         std::thread::spawn(move || {
-            handle_connection_from_vm(state).unwrap();
+            handle_stream_connection_from_vm(state).unwrap();
         });
 
         // binder server for vm
@@ -316,8 +316,8 @@ impl VirtualizationService {
 
 /// Waits for incoming connections from VM. If a new connection is made, notify the event to the
 /// client via the callback (if registered).
-fn handle_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
-    let listener = VsockListener::bind_with_cid_port(VMADDR_CID_HOST, PORT_VIRT_SERVICE)?;
+fn handle_stream_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
+    let listener = VsockListener::bind_with_cid_port(VMADDR_CID_HOST, PORT_VIRT_STREAM_SERVICE)?;
     for stream in listener.incoming() {
         let stream = match stream {
             Err(e) => {
@@ -329,14 +329,11 @@ fn handle_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
         if let Ok(SockAddr::Vsock(addr)) = stream.peer_addr() {
             let cid = addr.cid();
             let port = addr.port();
-            info!("connected from cid={}, port={}", cid, port);
-            if cid < FIRST_GUEST_CID {
-                warn!("connection is not from a guest VM");
-                continue;
-            }
-            // TODO(b/191845268): handle this with VirtualMachineService
+            info!("payload stream connected from cid={}, port={}", cid, port);
             if let Some(vm) = state.lock().unwrap().get_vm(cid) {
-                vm.callbacks.notify_payload_started(cid, stream);
+                vm.stream.lock().unwrap().insert(stream);
+            } else {
+                error!("connection from cid={} is not from a guest VM", cid);
             }
         }
     }
@@ -603,11 +600,11 @@ pub struct VirtualMachineCallbacks(Mutex<Vec<Strong<dyn IVirtualMachineCallback>
 
 impl VirtualMachineCallbacks {
     /// Call all registered callbacks to notify that the payload has started.
-    pub fn notify_payload_started(&self, cid: Cid, stream: VsockStream) {
+    pub fn notify_payload_started(&self, cid: Cid, stream: Option<VsockStream>) {
         let callbacks = &*self.0.lock().unwrap();
-        let pfd = vsock_stream_to_pfd(stream);
+        let pfd = stream.map(vsock_stream_to_pfd);
         for callback in callbacks {
-            if let Err(e) = callback.onPayloadStarted(cid as i32, &pfd) {
+            if let Err(e) = callback.onPayloadStarted(cid as i32, pfd.as_ref()) {
                 error!("Error notifying payload start event from VM CID {}: {}", cid, e);
             }
         }
@@ -748,15 +745,18 @@ impl Interface for VirtualMachineService {}
 impl IVirtualMachineService for VirtualMachineService {
     fn notifyPayloadStarted(&self, cid: i32) -> binder::Result<()> {
         let cid = cid as Cid;
-        if self.state.lock().unwrap().get_vm(cid).is_none() {
+        if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
+            info!("VM having CID {} started payload", cid);
+            let stream = vm.stream.lock().unwrap().take();
+            vm.callbacks.notify_payload_started(cid, stream);
+            Ok(())
+        } else {
             error!("notifyPayloadStarted is called from an unknown cid {}", cid);
-            return Err(new_binder_exception(
+            Err(new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("cannot find a VM with cid {}", cid),
-            ));
+            ))
         }
-        info!("VM having CID {} started payload", cid);
-        Ok(())
     }
 }
 
