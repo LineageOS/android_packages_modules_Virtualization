@@ -130,7 +130,6 @@ public class MainActivity extends AppCompatActivity {
             try {
                 VirtualMachineConfig.Builder builder =
                         new VirtualMachineConfig.Builder(getApplication(), "assets/vm_config.json")
-                                .idsigPath("/data/local/tmp/virt/MicrodroidDemoApp.apk.idsig")
                                 .debugMode(debug);
                 VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
