@@ -49,7 +49,14 @@ pub fn command_run_app(
     debug: bool,
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
+    let idsig_file = File::create(idsig).context("Failed to create idsig file")?;
+
+    let apk_fd = ParcelFileDescriptor::new(apk_file);
+    let idsig_fd = ParcelFileDescriptor::new(idsig_file);
+    service.createOrUpdateIdsigFile(&apk_fd, &idsig_fd)?;
+
     let idsig_file = File::open(idsig).context("Failed to open idsig file")?;
+    let idsig_fd = ParcelFileDescriptor::new(idsig_file);
 
     if !instance.exists() {
         const INSTANCE_FILE_SIZE: u64 = 10 * 1024 * 1024;
@@ -57,8 +64,8 @@ pub fn command_run_app(
     }
 
     let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
-        apk: ParcelFileDescriptor::new(apk_file).into(),
-        idsig: ParcelFileDescriptor::new(idsig_file).into(),
+        apk: apk_fd.into(),
+        idsig: idsig_fd.into(),
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         configPath: config_path.to_owned(),
         debug,

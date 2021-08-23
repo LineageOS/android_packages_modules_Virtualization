@@ -37,6 +37,7 @@ use android_system_virtualizationservice::binder::{
 };
 use anyhow::{bail, Context, Result};
 use disk::QcowFile;
+use idsig::{V4Signature, HashAlgorithm};
 use log::{debug, error, warn, info};
 use microdroid_payload_config::VmPayloadConfig;
 use std::convert::TryInto;
@@ -206,6 +207,24 @@ impl IVirtualizationService for VirtualizationService {
             )
         })?;
 
+        Ok(())
+    }
+
+    /// Creates or update the idsig file by digesting the input APK file.
+    fn createOrUpdateIdsigFile(
+        &self,
+        input_fd: &ParcelFileDescriptor,
+        idsig_fd: &ParcelFileDescriptor,
+    ) -> binder::Result<()> {
+        // TODO(b/193504400): do this only when (1) idsig_fd is empty or (2) the APK digest in
+        // idsig_fd is different from APK digest in input_fd
+
+        let mut input = clone_file(input_fd)?;
+        let mut sig = V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256).unwrap();
+
+        let mut output = clone_file(idsig_fd)?;
+        output.set_len(0).unwrap();
+        sig.write_into(&mut output).unwrap();
         Ok(())
     }
 

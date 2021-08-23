@@ -25,6 +25,7 @@ rust_defaults {
 rust_library {
     name: "libidsig",
     defaults: ["libidsig.defaults"],
+    apex_available: ["com.android.virt"],
 }
 
 rust_test {

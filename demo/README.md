@@ -10,8 +10,6 @@ TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
 
 ```
 adb install out/dist/MicrodroidDemoApp.apk
-adb shell mkdir /data/local/tmp/virt
-adb push out/dist/MicrodroidDemoApp.apk.idsig /data/local/tmp/virt/
 ```
 
 ## Running
