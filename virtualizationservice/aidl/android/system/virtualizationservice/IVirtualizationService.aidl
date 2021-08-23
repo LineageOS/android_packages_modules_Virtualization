@@ -35,6 +35,15 @@ interface IVirtualizationService {
     void initializeWritablePartition(in ParcelFileDescriptor imageFd, long size);
 
     /**
+     * Create or update an idsig file that digests the given APK file. The idsig file follows the
+     * idsig format that is defined by the APK Signature Scheme V4. The idsig file is not updated
+     * when it is up to date with the input file, which is checked by comparing the
+     * signing_info.apk_digest field in the idsig file with the signer.signed_data.digests.digest
+     * field in the input APK file.
+     */
+    void createOrUpdateIdsigFile(in ParcelFileDescriptor inputFd, in ParcelFileDescriptor idsigFd);
+
+    /**
      * Get a list of all currently running VMs. This method is only intended for debug purposes,
      * and as such is only permitted from the shell user.
      */

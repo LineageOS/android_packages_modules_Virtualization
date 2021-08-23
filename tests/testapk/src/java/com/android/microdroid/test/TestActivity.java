@@ -37,7 +37,6 @@ public class TestActivity extends Activity {
         try {
             VirtualMachineConfig config =
                     new VirtualMachineConfig.Builder(this, "assets/vm_config.json")
-                            .idsigPath("/data/local/tmp/virt/MicrodroidTestApp.apk.idsig")
                             .build();
 
             VirtualMachineManager vmm = VirtualMachineManager.getInstance(this);
