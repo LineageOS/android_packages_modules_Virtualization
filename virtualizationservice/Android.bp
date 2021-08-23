@@ -26,6 +26,7 @@ rust_defaults {
         "libanyhow",
         "libcommand_fds",
         "libdisk",
+        "libidsig",
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
