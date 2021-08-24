@@ -4,7 +4,7 @@ package {
 
 aidl_interface {
     name: "android.system.virtualizationservice",
-    srcs: ["**/*.aidl"],
+    srcs: ["android/system/virtualizationservice/**/*.aidl"],
     // This is never accessed directly. Apps are expected to use this indirectly via the Java
     // wrapper android.system.virtualmachine.
     unstable: true,
@@ -21,6 +21,18 @@ aidl_interface {
                 "com.android.compos",
             ],
         },
+        rust: {
+            enabled: true,
+            apex_available: ["com.android.virt"],
+        },
+    },
+}
+
+aidl_interface {
+    name: "android.system.virtualmachineservice",
+    srcs: ["android/system/virtualmachineservice/**/*.aidl"],
+    unstable: true,
+    backend: {
         rust: {
             enabled: true,
             apex_available: ["com.android.virt"],
