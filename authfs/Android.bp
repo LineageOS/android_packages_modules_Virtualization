@@ -79,3 +79,13 @@ filegroup {
         "testdata/input.4m.merkle_dump.bad",
     ],
 }
+
+rust_test {
+    name: "libauthfs_crypto_bindgen_test",
+    srcs: [":libauthfs_crypto_bindgen"],
+    crate_name: "authfs_crypto_bindgen_test",
+    test_suites: ["general-tests"],
+    auto_gen_config: true,
+    clippy_lints: "none",
+    lints: "none",
+}
