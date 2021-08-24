@@ -33,4 +33,7 @@ rust_test {
     defaults: ["libidsig.defaults"],
     test_suites: ["general-tests"],
     compile_multilib: "first",
+    data: [
+        "testdata/input.*",
+    ],
 }
