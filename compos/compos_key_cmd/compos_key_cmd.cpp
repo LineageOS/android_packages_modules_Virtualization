@@ -100,7 +100,7 @@ namespace {
 class Callback : public BnVirtualMachineCallback {
 public:
     ::ndk::ScopedAStatus onPayloadStarted(
-            int32_t in_cid, const ::ndk::ScopedFileDescriptor& /*in_stdout*/) override {
+            int32_t in_cid, const ::ndk::ScopedFileDescriptor& /*in_stream*/) override {
         // TODO: Consider copying stdout somewhere useful?
         LOG(INFO) << "Payload started! cid = " << in_cid;
         {

@@ -17,6 +17,7 @@
 package android.system.virtualmachine;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.os.ParcelFileDescriptor;
 
 /**
@@ -28,7 +29,7 @@ import android.os.ParcelFileDescriptor;
 public interface VirtualMachineCallback {
 
     /** Called when the payload starts in the VM. */
-    void onPayloadStarted(@NonNull VirtualMachine vm, @NonNull ParcelFileDescriptor stdout);
+    void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
 
     /** Called when the VM died. */
     void onDied(@NonNull VirtualMachine vm);
