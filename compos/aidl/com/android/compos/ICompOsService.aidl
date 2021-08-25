@@ -17,6 +17,7 @@
 package com.android.compos;
 
 import com.android.compos.CompOsKeyData;
+import com.android.compos.CompilationResult;
 import com.android.compos.Metadata;
 
 /** {@hide} */
@@ -32,7 +33,7 @@ interface ICompOsService {
     void initializeSigningKey(in byte[] keyBlob);
 
     /**
-     * Execute a command composed of the args, in a context that may be specified in the Metadata,
+     * Run dex2oat command with provided args, in a context that may be specified in the Metadata,
      * e.g. with file descriptors pre-opened. The service is responsible to decide what executables
      * it may run.
      *
@@ -40,9 +41,9 @@ interface ICompOsService {
      *             which may not be used by the service. The service may be configured to always use
      *             a fixed executable, or possibly use the 0-th args are the executable lookup hint.
      * @param metadata Additional information of the execution
-     * @return exit code of the program
+     * @return a CompilationResult
      */
-    byte execute(in String[] args, in Metadata metadata);
+    CompilationResult compile(in String[] args, in Metadata metadata);
 
     /**
      * Generate a new public/private key pair suitable for signing CompOs output files.
