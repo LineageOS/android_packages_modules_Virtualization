@@ -337,8 +337,7 @@ static Result<bool> verify(TargetVm& vm, const std::string& blob_file,
     return result;
 }
 
-static Result<void> signFile(ICompOsService* service, const std::vector<uint8_t>& key_blob,
-                             const std::string& file) {
+static Result<void> signFile(ICompOsService* service, const std::string& file) {
     unique_fd fd(TEMP_FAILURE_RETRY(open(file.c_str(), O_RDONLY | O_CLOEXEC)));
     if (!fd.ok()) {
         return ErrnoError() << "Failed to open";
@@ -386,7 +385,7 @@ static Result<void> signFile(ICompOsService* service, const std::vector<uint8_t>
     memcpy(to_be_signed->digest, digest->digest, digest->digest_size);
 
     std::vector<uint8_t> signature;
-    auto status = service->sign(key_blob, buffer, &signature);
+    auto status = service->sign(buffer, &signature);
     if (!status.isOk()) {
         return Error() << "Failed to sign: " << status.getDescription();
     }
@@ -420,8 +419,13 @@ static Result<void> sign(TargetVm& vm, const std::string& blob_file,
         return blob.error();
     }
 
+    auto status = service->initializeSigningKey(blob.value());
+    if (!status.isOk()) {
+        return Error() << "Failed to initialize signing key: " << status.getDescription();
+    }
+
     for (auto& file : files) {
-        auto result = signFile(service.get(), blob.value(), file);
+        auto result = signFile(service.get(), file);
         if (!result.ok()) {
             return Error() << result.error() << ": " << file;
         }
@@ -519,7 +523,8 @@ int main(int argc, char** argv) {
                   << "  verify <blob file> <public key file> Verify that the content of the\n"
                   << "    specified private key blob and public key files are valid.\n "
                   << "  sign <blob file> <files to be signed> Generate signatures for one or\n"
-                  << "    more files using the supplied private key blob.\n"
+                  << "    more files using the supplied private key blob. Signature is stored in\n"
+                  << "    <filename>.signature\n"
                   << "  make-instance <image file> Create an empty instance image file for a VM.\n"
                   << "\n"
                   << "OPTIONS: --log <log file> (--cid <cid> | --start <image file>)\n"
