@@ -54,6 +54,7 @@ using aidl::android::system::virtualizationservice::BnVirtualMachineCallback;
 using aidl::android::system::virtualizationservice::IVirtualizationService;
 using aidl::android::system::virtualizationservice::IVirtualMachine;
 using aidl::android::system::virtualizationservice::IVirtualMachineCallback;
+using aidl::android::system::virtualizationservice::PartitionType;
 using aidl::android::system::virtualizationservice::VirtualMachineConfig;
 using aidl::com::android::compos::CompOsKeyData;
 using aidl::com::android::compos::ICompOsService;
@@ -442,7 +443,8 @@ static Result<void> makeInstanceImage(const std::string& image_path) {
         return ErrnoError() << "Failed to create image file";
     }
 
-    auto status = service->initializeWritablePartition(fd, 10 * 1024 * 1024);
+    auto status = service->initializeWritablePartition(fd, 10 * 1024 * 1024,
+                                                       PartitionType::ANDROID_VM_INSTANCE);
     if (!status.isOk()) {
         return Error() << "Failed to initialize partition: " << status.getDescription();
     }

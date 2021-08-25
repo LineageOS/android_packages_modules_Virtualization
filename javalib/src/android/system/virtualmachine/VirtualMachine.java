@@ -29,6 +29,7 @@ import android.os.ServiceManager;
 import android.system.virtualizationservice.IVirtualMachine;
 import android.system.virtualizationservice.IVirtualMachineCallback;
 import android.system.virtualizationservice.IVirtualizationService;
+import android.system.virtualizationservice.PartitionType;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
 
 import java.io.File;
@@ -165,7 +166,8 @@ public class VirtualMachine {
         try {
             service.initializeWritablePartition(
                     ParcelFileDescriptor.open(vm.mInstanceFilePath, MODE_READ_WRITE),
-                    INSTANCE_FILE_SIZE);
+                    INSTANCE_FILE_SIZE,
+                    PartitionType.ANDROID_VM_INSTANCE);
         } catch (FileNotFoundException e) {
             throw new VirtualMachineException("instance image missing", e);
         } catch (RemoteException e) {
@@ -287,7 +289,6 @@ public class VirtualMachine {
 
             android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
                     android.system.virtualizationservice.VirtualMachineConfig.appConfig(appConfig);
-
 
             mVirtualMachine = service.startVm(vmConfigParcel, mConsoleWriter);
             mVirtualMachine.registerCallback(
