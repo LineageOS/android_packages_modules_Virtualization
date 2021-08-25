@@ -163,16 +163,22 @@ struct VirtualMachineCallback {
 impl Interface for VirtualMachineCallback {}
 
 impl IVirtualMachineCallback for VirtualMachineCallback {
-    fn onPayloadStarted(&self, _cid: i32, stdout: &ParcelFileDescriptor) -> BinderResult<()> {
-        // Show the stdout of the payload
-        let mut reader = BufReader::new(stdout.as_ref());
-        loop {
-            let mut s = String::new();
-            match reader.read_line(&mut s) {
-                Ok(0) => break,
-                Ok(_) => print!("{}", s),
-                Err(e) => eprintln!("error reading from virtual machine: {}", e),
-            };
+    fn onPayloadStarted(
+        &self,
+        _cid: i32,
+        stream: Option<&ParcelFileDescriptor>,
+    ) -> BinderResult<()> {
+        // Show the output of the payload
+        if let Some(stream) = stream {
+            let mut reader = BufReader::new(stream.as_ref());
+            loop {
+                let mut s = String::new();
+                match reader.read_line(&mut s) {
+                    Ok(0) => break,
+                    Ok(_) => print!("{}", s),
+                    Err(e) => eprintln!("error reading from virtual machine: {}", e),
+                };
+            }
         }
         Ok(())
     }
