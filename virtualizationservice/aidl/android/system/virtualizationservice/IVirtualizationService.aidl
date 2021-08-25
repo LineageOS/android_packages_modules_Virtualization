@@ -16,6 +16,7 @@
 package android.system.virtualizationservice;
 
 import android.system.virtualizationservice.IVirtualMachine;
+import android.system.virtualizationservice.PartitionType;
 import android.system.virtualizationservice.VirtualMachineConfig;
 import android.system.virtualizationservice.VirtualMachineDebugInfo;
 
@@ -32,7 +33,8 @@ interface IVirtualizationService {
      *
      * The file must be open with both read and write permissions, and should be a new empty file.
      */
-    void initializeWritablePartition(in ParcelFileDescriptor imageFd, long size);
+    void initializeWritablePartition(
+            in ParcelFileDescriptor imageFd, long size, PartitionType type);
 
     /**
      * Create or update an idsig file that digests the given APK file. The idsig file follows the

@@ -32,6 +32,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineRawConfig::VirtualMachineRawConfig,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::PartitionType::PartitionType;
 use android_system_virtualizationservice::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
@@ -47,6 +48,7 @@ use microdroid_payload_config::VmPayloadConfig;
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::fs::{File, OpenOptions, create_dir};
+use std::io::{Error, ErrorKind, Write};
 use std::num::NonZeroU32;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
@@ -75,6 +77,12 @@ const PORT_VM_BINDER_SERVICE: u32 = 5000;
 /// The size of zero.img.
 /// Gaps in composite disk images are filled with a shared zero.img.
 const ZERO_FILLER_SIZE: u64 = 4096;
+
+/// Magic string for the instance image
+const ANDROID_VM_INSTANCE_MAGIC: &str = "Android-VM-instance";
+
+/// Version of the instance image format
+const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
 
 /// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
 #[derive(Debug, Default)]
@@ -199,6 +207,7 @@ impl IVirtualizationService for VirtualizationService {
         &self,
         image_fd: &ParcelFileDescriptor,
         size: i64,
+        partition_type: PartitionType,
     ) -> binder::Result<()> {
         check_manage_access()?;
         let size = size.try_into().map_err(|e| {
@@ -209,10 +218,25 @@ impl IVirtualizationService for VirtualizationService {
         })?;
         let image = clone_file(image_fd)?;
 
-        QcowFile::new(image, size).map_err(|e| {
+        let mut part = QcowFile::new(image, size).map_err(|e| {
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("Failed to create QCOW2 image: {}", e),
+            )
+        })?;
+
+        match partition_type {
+            PartitionType::RAW => Ok(()),
+            PartitionType::ANDROID_VM_INSTANCE => format_as_android_vm_instance(&mut part),
+            _ => Err(Error::new(
+                ErrorKind::Unsupported,
+                format!("Unsupported partition type {:?}", partition_type),
+            )),
+        }
+        .map_err(|e| {
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to initialize partition as {:?}: {}", partition_type, e),
             )
         })?;
 
@@ -349,6 +373,12 @@ fn write_zero_filler(zero_filler_path: &Path) -> Result<()> {
         .with_context(|| "Failed to create zero.img")?;
     file.set_len(ZERO_FILLER_SIZE)?;
     Ok(())
+}
+
+fn format_as_android_vm_instance(part: &mut dyn Write) -> std::io::Result<()> {
+    part.write_all(ANDROID_VM_INSTANCE_MAGIC.as_bytes())?;
+    part.write_all(&ANDROID_VM_INSTANCE_VERSION.to_le_bytes())?;
+    part.flush()
 }
 
 /// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
