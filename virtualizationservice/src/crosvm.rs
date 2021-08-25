@@ -26,8 +26,9 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
+use vsock::VsockStream;
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
@@ -73,6 +74,8 @@ pub struct VmInstance {
     running: AtomicBool,
     /// Callbacks to clients of the VM.
     pub callbacks: VirtualMachineCallbacks,
+    /// Input/output stream of the payload run in the VM.
+    pub stream: Mutex<Option<VsockStream>>,
 }
 
 impl VmInstance {
@@ -96,6 +99,7 @@ impl VmInstance {
             requester_debug_pid,
             running: AtomicBool::new(true),
             callbacks: Default::default(),
+            stream: Mutex::new(None),
         }
     }
 
