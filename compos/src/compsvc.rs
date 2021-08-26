@@ -19,16 +19,19 @@
 //! actual compiler.
 
 use anyhow::Result;
-use log::{debug, warn};
+use log::warn;
+use std::default::Default;
 use std::ffi::CString;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
 use crate::compilation::{compile, CompilerOutput};
 use crate::compos_key_service::CompOsKeyService;
+use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
+    CompilationResult::CompilationResult,
     ICompOsService::{BnCompOsService, ICompOsService},
     Metadata::Metadata,
 };
@@ -55,6 +58,20 @@ struct CompOsService {
     key_blob: Arc<RwLock<Vec<u8>>>,
 }
 
+impl CompOsService {
+    fn generate_raw_fsverity_signature(
+        &self,
+        key_blob: &[u8],
+        fsverity_digest: &fsverity::Sha256Digest,
+    ) -> Vec<u8> {
+        let formatted_digest = fsverity::to_formatted_digest(fsverity_digest);
+        self.key_service.do_sign(key_blob, &formatted_digest[..]).unwrap_or_else(|e| {
+            warn!("Failed to sign the fsverity digest, returning empty signature.  Error: {}", e);
+            Vec::new()
+        })
+    }
+}
+
 impl Interface for CompOsService {}
 
 impl ICompOsService for CompOsService {
@@ -68,7 +85,7 @@ impl ICompOsService for CompOsService {
         }
     }
 
-    fn execute(&self, args: &[String], metadata: &Metadata) -> BinderResult<i8> {
+    fn compile(&self, args: &[String], metadata: &Metadata) -> BinderResult<CompilationResult> {
         let authfs_service = get_authfs_service()?;
         let output = compile(&self.dex2oat_path, args, authfs_service, metadata).map_err(|e| {
             new_binder_exception(
@@ -78,13 +95,27 @@ impl ICompOsService for CompOsService {
         })?;
         match output {
             CompilerOutput::Digests { oat, vdex, image } => {
-                // TODO(b/161471326): Sign the output on succeed.
-                debug!("oat fs-verity digest: {:02x?}", oat);
-                debug!("vdex fs-verity digest: {:02x?}", vdex);
-                debug!("image fs-verity digest: {:02x?}", image);
-                Ok(0)
+                let key = &*self.key_blob.read().unwrap();
+                if key.is_empty() {
+                    Err(new_binder_exception(
+                        ExceptionCode::ILLEGAL_STATE,
+                        "Key is not initialized",
+                    ))
+                } else {
+                    let oat_signature = self.generate_raw_fsverity_signature(key, &oat);
+                    let vdex_signature = self.generate_raw_fsverity_signature(key, &vdex);
+                    let image_signature = self.generate_raw_fsverity_signature(key, &image);
+                    Ok(CompilationResult {
+                        exitCode: 0,
+                        oatSignature: oat_signature,
+                        vdexSignature: vdex_signature,
+                        imageSignature: image_signature,
+                    })
+                }
             }
-            CompilerOutput::ExitCode(exit_code) => Ok(exit_code),
+            CompilerOutput::ExitCode(exit_code) => {
+                Ok(CompilationResult { exitCode: exit_code, ..Default::default() })
+            }
         }
     }
 
