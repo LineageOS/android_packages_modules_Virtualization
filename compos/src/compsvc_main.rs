@@ -21,6 +21,7 @@ mod common;
 mod compilation;
 mod compos_key_service;
 mod compsvc;
+mod fsverity;
 mod signer;
 
 use crate::common::{SERVICE_NAME, VSOCK_PORT};
