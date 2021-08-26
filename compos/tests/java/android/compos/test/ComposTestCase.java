@@ -40,6 +40,9 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     /** Path to odrefresh on Microdroid */
     private static final String ODREFRESH_BIN = "/apex/com.android.art/bin/odrefresh";
 
+    /** Path to compos_key_cmd on Microdroid */
+    private static final String COMPOS_KEY_CMD_BIN = "/apex/com.android.compos/bin/compos_key_cmd";
+
     /** Output directory of odrefresh */
     private static final String ODREFRESH_OUTPUT_DIR =
             "/data/misc/apexdata/com.android.art/dalvik-cache";
@@ -99,6 +102,15 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
         CommandResult result =
                 android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--check");
         assertThat(result.getExitCode()).isEqualTo(OKAY);
+
+        // Initialize the service with the generated key. Should succeed.
+        android.run(
+                COMPOS_KEY_CMD_BIN,
+                "--cid " + mCid,
+                "generate",
+                TEST_ROOT + "test_key.blob",
+                TEST_ROOT + "test_key.pubkey");
+        android.run(COMPOS_KEY_CMD_BIN, "--cid " + mCid, "init-key", TEST_ROOT + "test_key.blob");
 
         // Expect the compilation in Compilation OS to finish successfully.
         {

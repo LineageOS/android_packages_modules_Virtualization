@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-//! pvm_exec is a proxy/wrapper command to run a command remotely. It does not transport the
-//! program and just pass the command line arguments to compsvc to execute. The most important task
+//! pvm_exec is a proxy/wrapper command to run compilation task remotely. The most important task
 //! for this program is to run a `fd_server` that serves remote file read/write requests.
 //!
-//! Example:
-//! $ adb shell exec 3</dev/zero 4<>/dev/null pvm_exec --in-fd 3 --out-fd 4 -- sleep 10
+//! It currently works as a command line wrapper to make it easy to schedule an existing dex2oat
+//! task to run in the VM.
 //!
-//! Note the immediate argument right after "--" (e.g. "sleep" in the example above) is not really
-//! used. It is only for ergonomics.
+//! Example:
+//! $ adb shell exec 3</input/dex 4<>/output/oat ... pvm_exec --in-fd 3 --out-fd 4 -- dex2oat64 ...
+//!
+//! Note the immediate argument "dex2oat64" right after "--" is not really used. It is only for
+//! ergonomics.
 
 use anyhow::{bail, Context, Result};
 use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::FromIBinder;
-use log::{error, warn};
+use log::{debug, error, warn};
 use minijail::Minijail;
 use nix::fcntl::{fcntl, FcntlArg::F_GETFD};
 use nix::sys::stat::fstat;
@@ -187,14 +189,22 @@ fn main() -> Result<()> {
 
     // 3. Send the command line args to the remote to execute.
     let service = if let Some(cid) = cid { get_rpc_binder(cid) } else { get_local_service() }?;
-    let exit_code = service.execute(&args, &metadata).context("Binder call failed")?;
+    let result = service.compile(&args, &metadata).context("Binder call failed")?;
+
+    // TODO: store/use the signature
+    debug!(
+        "Signature length: oat {}, vdex {}, image {}",
+        result.oatSignature.len(),
+        result.vdexSignature.len(),
+        result.imageSignature.len()
+    );
 
     // Be explicit about the lifetime, which should last at least until the task is finished.
     drop(fd_server_lifetime);
 
-    if exit_code > 0 {
-        error!("remote execution failed with exit code {}", exit_code);
-        exit(exit_code as i32);
+    if result.exitCode > 0 {
+        error!("remote execution failed with exit code {}", result.exitCode);
+        exit(result.exitCode as i32);
     }
     Ok(())
 }
