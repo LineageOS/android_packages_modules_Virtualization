@@ -75,7 +75,7 @@ constexpr const char* kConfigApkIdsigPath =
         "/apex/com.android.compos/etc/CompOSPayloadApp.apk.idsig";
 
 // This is a path inside the APK
-constexpr const char* kConfigFilePath = "assets/key_service_vm_config.json";
+constexpr const char* kConfigFilePath = "assets/vm_config.json";
 
 static bool writeBytesToFile(const std::vector<uint8_t>& bytes, const std::string& path) {
     std::string str(bytes.begin(), bytes.end());
