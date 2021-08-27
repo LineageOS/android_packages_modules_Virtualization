@@ -14,14 +14,17 @@
 
 //! Microdroid Manager
 
+mod instance;
 mod ioutil;
 mod metadata;
 
+use crate::instance::InstanceDisk;
 use anyhow::{anyhow, bail, Context, Result};
 use apkverify::verify;
 use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::{FromIBinder, Strong};
-use log::{error, info, warn};
+use idsig::V4Signature;
+use log::{debug, error, info, warn};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use nix::ioctl_read_bad;
 use rustutils::system_properties::PropertyWatcher;
@@ -94,6 +97,18 @@ fn main() -> Result<()> {
         return Err(err);
     }
 
+    let mut instance = InstanceDisk::new()?;
+    // TODO(jiyong): the data should have an internal structure
+    if let Some(data) = instance.read_microdroid_data().context("Failed to read identity data")? {
+        debug!("read apk root hash: {}", to_hex_string(&data));
+        //TODO(jiyong) apkdmverity should use this root hash instead of the one read from the idsig
+        //file, if the root hash is found in the instance image.
+    } else {
+        let data = get_apk_roothash()?;
+        debug!("write apk root hash: {}", to_hex_string(&data));
+        instance.write_microdroid_data(data.as_ref()).context("Failed to write identity data")?;
+    }
+
     let service = get_vms_rpc_binder().expect("cannot connect to VirtualMachineService");
 
     if !metadata.payload_config_path.is_empty() {
@@ -127,6 +142,12 @@ fn verify_payloads() -> Result<()> {
     info!("payload verification succeeded.");
     // TODO(jooyung): collect public keys and store them in instance.img
     Ok(())
+}
+
+fn get_apk_roothash() -> Result<Box<[u8]>> {
+    let mut idsig = File::open("/dev/block/by-name/microdroid-apk-idsig")?;
+    let idsig = V4Signature::from(&mut idsig)?;
+    Ok(idsig.hashing_info.raw_root_hash)
 }
 
 fn load_config(path: &Path) -> Result<VmPayloadConfig> {
@@ -207,4 +228,8 @@ fn find_library_path(name: &str) -> Result<String> {
     }
 
     Ok(path)
+}
+
+fn to_hex_string(buf: &[u8]) -> String {
+    buf.iter().map(|b| format!("{:02X}", b)).collect()
 }
