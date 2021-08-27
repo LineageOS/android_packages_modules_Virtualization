@@ -41,6 +41,7 @@ import androidx.lifecycle.ViewModelProvider;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -120,16 +121,67 @@ public class MainActivity extends AppCompatActivity {
         private final MutableLiveData<String> mConsoleOutput = new MutableLiveData<>();
         private final MutableLiveData<String> mPayloadOutput = new MutableLiveData<>();
         private final MutableLiveData<VirtualMachine.Status> mStatus = new MutableLiveData<>();
+        private ExecutorService mExecutorService;
 
         public VirtualMachineModel(Application app) {
             super(app);
             mStatus.setValue(VirtualMachine.Status.DELETED);
         }
 
+        private static void postOutput(MutableLiveData<String> output, InputStream stream)
+                throws IOException {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+            String line;
+            while ((line = reader.readLine()) != null && !Thread.interrupted()) {
+                output.postValue(line);
+            }
+        }
+
         /** Runs a VM */
         public void run(boolean debug) {
             // Create a VM and run it.
             // TODO(jiyong): remove the call to idsigPath
+            mExecutorService = Executors.newFixedThreadPool(2);
+
+            VirtualMachineCallback callback =
+                    new VirtualMachineCallback() {
+                        // store reference to ExecutorService to avoid race condition
+                        private final ExecutorService mService = mExecutorService;
+
+                        @Override
+                        public void onPayloadStarted(
+                                VirtualMachine vm, ParcelFileDescriptor stream) {
+                            if (stream == null) {
+                                mPayloadOutput.postValue("(no output available)");
+                                return;
+                            }
+
+                            mService.execute(
+                                    new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            try {
+                                                postOutput(
+                                                        mPayloadOutput,
+                                                        new FileInputStream(
+                                                                stream.getFileDescriptor()));
+                                            } catch (IOException e) {
+                                                Log.e(
+                                                        TAG,
+                                                        "IOException while reading payload: "
+                                                                + e.getMessage());
+                                            }
+                                        }
+                                    });
+                        }
+
+                        @Override
+                        public void onDied(VirtualMachine vm) {
+                            mService.shutdownNow();
+                            mStatus.postValue(VirtualMachine.Status.STOPPED);
+                        }
+                    };
+
             try {
                 VirtualMachineConfig.Builder builder =
                         new VirtualMachineConfig.Builder(getApplication(), "assets/vm_config.json")
@@ -138,58 +190,25 @@ public class MainActivity extends AppCompatActivity {
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
                 mVirtualMachine = vmm.getOrCreate("demo_vm", config);
                 mVirtualMachine.run();
-                mVirtualMachine.setCallback(
-                        new VirtualMachineCallback() {
-                            @Override
-                            public void onPayloadStarted(
-                                    VirtualMachine vm, ParcelFileDescriptor stream) {
-                                if (stream == null) {
-                                    mPayloadOutput.postValue("(no output available)");
-                                    return;
-                                }
-                                try {
-                                    BufferedReader reader =
-                                            new BufferedReader(
-                                                    new InputStreamReader(
-                                                            new FileInputStream(
-                                                                    stream.getFileDescriptor())));
-                                    String line;
-                                    while ((line = reader.readLine()) != null) {
-                                        mPayloadOutput.postValue(line);
-                                    }
-                                } catch (IOException e) {
-                                    Log.e(TAG, "IOException while reading payload: "
-                                            + e.getMessage());
-                                }
-                            }
-
-                            @Override
-                            public void onDied(VirtualMachine vm) {
-                                mStatus.postValue(VirtualMachine.Status.STOPPED);
-                            }
-                        });
+                mVirtualMachine.setCallback(callback);
                 mStatus.postValue(mVirtualMachine.getStatus());
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
             }
 
             // Read console output from the VM in the background
-            ExecutorService executorService = Executors.newFixedThreadPool(1);
-            executorService.execute(
+            mExecutorService.execute(
                     new Runnable() {
                         @Override
                         public void run() {
                             try {
-                                BufferedReader reader =
-                                        new BufferedReader(
-                                                new InputStreamReader(
-                                                        mVirtualMachine.getConsoleOutputStream()));
-                                while (true) {
-                                    String line = reader.readLine();
-                                    mConsoleOutput.postValue(line);
-                                }
+                                postOutput(
+                                        mConsoleOutput, mVirtualMachine.getConsoleOutputStream());
                             } catch (IOException | VirtualMachineException e) {
-                                // Consume
+                                Log.e(
+                                        TAG,
+                                        "Exception while posting console output: "
+                                                + e.getMessage());
                             }
                         }
                     });
@@ -203,6 +222,7 @@ public class MainActivity extends AppCompatActivity {
                 // Consume
             }
             mVirtualMachine = null;
+            mExecutorService.shutdownNow();
             mStatus.postValue(VirtualMachine.Status.STOPPED);
         }
 
