@@ -204,10 +204,10 @@ logical_partition {
     ],
 }
 
-microdroid_boot_cmdline = "panic=-1 " +
-    "bootconfig " +
-    // TODO(b/181936135) make the ratelimiting conditional; ratelimiting on prod build
-    "printk.devkmsg=on "
+microdroid_boot_cmdline = [
+    "panic=-1",
+    "bootconfig",
+]
 
 bootimg {
     name: "microdroid_boot-5.10",
@@ -222,9 +222,15 @@ bootimg {
         },
         x86_64: {
             kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
-            cmdline: microdroid_boot_cmdline + "acpi=noirq",
+            cmdline: microdroid_boot_cmdline + ["acpi=noirq"],
         },
     },
+    product_variables: {
+        debuggable: {
+            cmdline: ["printk.devkmsg=on"],
+        },
+    },
+
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "4",
     partition_name: "boot",
