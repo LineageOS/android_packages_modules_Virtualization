@@ -48,17 +48,6 @@ static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initram
 static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
 
-bool isVmSupported() {
-    const std::array<const char *, 4> needed_files = {
-            "/dev/kvm",
-            "/dev/vhost-vsock",
-            "/apex/com.android.virt/bin/crosvm",
-            "/apex/com.android.virt/bin/virtualizationservice",
-    };
-    return std::all_of(needed_files.begin(), needed_files.end(),
-                       [](const char *file) { return access(file, F_OK) == 0; });
-}
-
 /** Returns true if the kernel supports Protected KVM. */
 bool isPkvmSupported() {
     unique_fd kvm_fd(open("/dev/kvm", O_NONBLOCK | O_CLOEXEC));
@@ -66,6 +55,10 @@ bool isPkvmSupported() {
 }
 
 void runTest(sp<IVirtualizationService> virtualization_service, bool protected_vm) {
+    if (protected_vm && !isPkvmSupported()) {
+        GTEST_SKIP() << "Skipping as pKVM is not supported on this device.";
+    }
+
     binder::Status status;
 
     unique_fd server_fd(TEMP_FAILURE_RETRY(socket(AF_VSOCK, SOCK_STREAM, 0)));
@@ -117,20 +110,10 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
 }
 
 TEST_F(VirtualizationTest, TestVsock) {
-    if (!isVmSupported()) {
-        GTEST_SKIP() << "Device doesn't support KVM.";
-    }
-
     runTest(mVirtualizationService, false);
 }
 
 TEST_F(VirtualizationTest, TestVsockProtected) {
-    if (!isVmSupported()) {
-        GTEST_SKIP() << "Device doesn't support KVM.";
-    } else if (!isPkvmSupported()) {
-        GTEST_SKIP() << "Skipping as pKVM is not supported on this device.";
-    }
-
     runTest(mVirtualizationService, true);
 }
 
