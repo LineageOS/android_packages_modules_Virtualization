@@ -1,0 +1,12 @@
+cc_library_shared {
+    name: "libvirtualmachine_jni",
+    srcs: ["android_system_virtualmachine_VirtualMachine.cpp"],
+    apex_available: ["com.android.virt"],
+    shared_libs: [
+        "android.system.virtualizationservice-ndk",
+        "libbinder_ndk",
+        "libbinder_rpc_unstable",
+        "liblog",
+        "libnativehelper",
+    ],
+}
