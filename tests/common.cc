@@ -16,9 +16,28 @@
 
 #include "virt/VirtualizationTest.h"
 
+namespace {
+
+bool isVmSupported() {
+    const std::array<const char *, 4> needed_files = {
+            "/dev/kvm",
+            "/dev/vhost-vsock",
+            "/apex/com.android.virt/bin/crosvm",
+            "/apex/com.android.virt/bin/virtualizationservice",
+    };
+    return std::all_of(needed_files.begin(), needed_files.end(),
+                       [](const char *file) { return access(file, F_OK) == 0; });
+}
+
+} // namespace
+
 namespace virt {
 
 void VirtualizationTest::SetUp() {
+    if (!isVmSupported()) {
+        GTEST_SKIP() << "Device doesn't support KVM.";
+    }
+
     mVirtualizationService = waitForService<IVirtualizationService>(
             String16("android.system.virtualizationservice"));
     ASSERT_NE(mVirtualizationService, nullptr);
