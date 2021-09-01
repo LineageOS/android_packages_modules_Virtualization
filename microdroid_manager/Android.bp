@@ -15,6 +15,8 @@ rust_defaults {
         "libapkverify",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
+        "libbyteorder",
+        "libidsig",
         "libkernlog",
         "liblibc",
         "liblog_rust",
@@ -22,15 +24,23 @@ rust_defaults {
         "libmicrodroid_payload_config",
         "libnix",
         "libprotobuf",
+        "libring",
         "librustutils",
         "libserde",
         "libserde_json",
+        "libuuid",
         "libvsock",
+        "librand",
     ],
     shared_libs: [
         "libbinder_rpc_unstable",
     ],
     init_rc: ["microdroid_manager.rc"],
+    multilib: {
+        lib32: {
+            enabled: false,
+        },
+    },
 }
 
 rust_binary {

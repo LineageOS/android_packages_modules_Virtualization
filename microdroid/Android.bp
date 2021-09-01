@@ -52,7 +52,6 @@ android_system_image {
         "microdroid_build_prop",
         "microdroid_init_rc",
         "microdroid_launcher",
-        "microdroid_manager",
 
         "ueventd.rc",
         "libbinder",
@@ -112,6 +111,7 @@ android_system_image {
                 "apkdmverity",
                 "authfs",
                 "authfs_service",
+                "microdroid_manager",
                 "zipfuse",
 
                 // TODO(b/184872979): Needed by authfs. Remove once the Rust API is created.
