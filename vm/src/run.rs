@@ -190,10 +190,12 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
     }
 
     fn onPayloadReady(&self, _cid: i32) -> BinderResult<()> {
+        eprintln!("payload is ready");
         Ok(())
     }
 
-    fn onPayloadFinished(&self, _cid: i32, _exit_code: i32) -> BinderResult<()> {
+    fn onPayloadFinished(&self, _cid: i32, exit_code: i32) -> BinderResult<()> {
+        eprintln!("payload finished with exit code {}", exit_code);
         Ok(())
     }
 
