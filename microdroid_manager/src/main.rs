@@ -141,17 +141,23 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
     info!("executing main task {:?}...", task);
     let mut child = build_command(task)?.spawn()?;
 
+    let local_cid = get_local_cid()?;
     info!("notifying payload started");
-    service.notifyPayloadStarted(get_local_cid()? as i32)?;
+    service.notifyPayloadStarted(local_cid as i32)?;
 
-    match child.wait()?.code() {
-        Some(0) => {
+    if let Some(code) = child.wait()?.code() {
+        info!("notifying payload finished");
+        service.notifyPayloadFinished(local_cid as i32, code)?;
+
+        if code == 0 {
             info!("task successfully finished");
-            Ok(())
+        } else {
+            error!("task exited with exit code: {}", code);
         }
-        Some(code) => bail!("task exited with exit code: {}", code),
-        None => bail!("task terminated by signal"),
+    } else {
+        error!("task terminated by signal");
     }
+    Ok(())
 }
 
 fn build_command(task: &Task) -> Result<Command> {
