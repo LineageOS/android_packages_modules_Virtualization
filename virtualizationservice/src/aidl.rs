@@ -640,6 +640,16 @@ impl VirtualMachineCallbacks {
         }
     }
 
+    /// Call all registered callbacks to notify that the payload is ready to serve.
+    pub fn notify_payload_ready(&self, cid: Cid) {
+        let callbacks = &*self.0.lock().unwrap();
+        for callback in callbacks {
+            if let Err(e) = callback.onPayloadReady(cid as i32) {
+                error!("Error notifying payload ready event from VM CID {}: {}", cid, e);
+            }
+        }
+    }
+
     /// Call all registered callbacks to notify that the payload has finished.
     pub fn notify_payload_finished(&self, cid: Cid, exit_code: i32) {
         let callbacks = &*self.0.lock().unwrap();
@@ -792,6 +802,21 @@ impl IVirtualMachineService for VirtualMachineService {
             Ok(())
         } else {
             error!("notifyPayloadStarted is called from an unknown cid {}", cid);
+            Err(new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("cannot find a VM with cid {}", cid),
+            ))
+        }
+    }
+
+    fn notifyPayloadReady(&self, cid: i32) -> binder::Result<()> {
+        let cid = cid as Cid;
+        if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
+            info!("VM having CID {} payload is ready", cid);
+            vm.callbacks.notify_payload_ready(cid);
+            Ok(())
+        } else {
+            error!("notifyPayloadReady is called from an unknown cid {}", cid);
             Err(new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("cannot find a VM with cid {}", cid),

@@ -32,6 +32,11 @@ oneway interface IVirtualMachineCallback {
     void onPayloadStarted(int cid, in @nullable ParcelFileDescriptor stream);
 
     /**
+     * Called when the payload in the VM is ready to serve.
+     */
+    void onPayloadReady(int cid);
+
+    /**
      * Called when the payload has finished in the VM. `exitCode` is the exit code of the payload.
      */
     void onPayloadFinished(int cid, int exitCode);
