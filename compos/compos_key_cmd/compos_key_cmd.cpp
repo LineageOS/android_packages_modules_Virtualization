@@ -112,6 +112,11 @@ public:
         return ScopedAStatus::ok();
     }
 
+    ::ndk::ScopedAStatus onPayloadFinished(int32_t in_cid, int32_t in_exit_code) override {
+        LOG(INFO) << "Payload finished! cid = " << in_cid << ", exit_code = " << in_exit_code;
+        return ScopedAStatus::ok();
+    }
+
     ::ndk::ScopedAStatus onDied(int32_t in_cid) override {
         LOG(WARNING) << "VM died! cid = " << in_cid;
         {

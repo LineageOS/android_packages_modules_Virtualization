@@ -189,6 +189,10 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
         Ok(())
     }
 
+    fn onPayloadFinished(&self, _cid: i32, _exit_code: i32) -> BinderResult<()> {
+        Ok(())
+    }
+
     fn onDied(&self, _cid: i32) -> BinderResult<()> {
         // No need to explicitly report the event to the user (e.g. via println!) because this
         // callback is registered only when the vm tool is invoked as interactive mode (e.g. not
