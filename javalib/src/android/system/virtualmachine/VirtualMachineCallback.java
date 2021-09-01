@@ -31,6 +31,9 @@ public interface VirtualMachineCallback {
     /** Called when the payload starts in the VM. */
     void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
 
+    /** Called when the payload in the VM is ready to serve. */
+    void onPayloadReady(@NonNull VirtualMachine vm);
+
     /** Called when the payload has finished in the VM. */
     void onPayloadFinished(@NonNull VirtualMachine vm, int exitCode);
 
