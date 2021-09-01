@@ -303,6 +303,15 @@ public class VirtualMachine {
                         }
 
                         @Override
+                        public void onPayloadFinished(int cid, int exitCode) {
+                            final VirtualMachineCallback cb = mCallback;
+                            if (cb == null) {
+                                return;
+                            }
+                            cb.onPayloadFinished(VirtualMachine.this, exitCode);
+                        }
+
+                        @Override
                         public void onDied(int cid) {
                             final VirtualMachineCallback cb = mCallback;
                             if (cb == null) {
