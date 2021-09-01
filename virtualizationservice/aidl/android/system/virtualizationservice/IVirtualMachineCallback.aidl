@@ -32,6 +32,11 @@ oneway interface IVirtualMachineCallback {
     void onPayloadStarted(int cid, in @nullable ParcelFileDescriptor stream);
 
     /**
+     * Called when the payload has finished in the VM. `exitCode` is the exit code of the payload.
+     */
+    void onPayloadFinished(int cid, int exitCode);
+
+    /**
      * Called when the VM dies.
      *
      * Note that this will not be called if the VirtualizationService itself dies, so you should
