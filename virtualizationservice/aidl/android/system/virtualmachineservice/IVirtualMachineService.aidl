@@ -18,6 +18,18 @@ package android.system.virtualmachineservice;
 /** {@hide} */
 interface IVirtualMachineService {
     /**
+     * Port number that VirtualMachineService listens on connections from the guest VMs for the
+     * payload input and output.
+     */
+    const int VM_STREAM_SERVICE_PORT = 3000;
+
+    /**
+     * Port number that VirtualMachineService listens on connections from the guest VMs for the
+     * VirtualMachineService binder service.
+     */
+    const int VM_BINDER_SERVICE_PORT = 5000;
+
+    /**
      * Notifies that the payload has started.
      * TODO(b/191845268): remove cid parameter
      */
