@@ -176,6 +176,14 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         @Override
+                        public void onPayloadReady(VirtualMachine vm) {
+                            // This check doesn't 100% prevent race condition, but is fine for demo.
+                            if (!mService.isShutdown()) {
+                                mPayloadOutput.postValue("(Payload is ready)");
+                            }
+                        }
+
+                        @Override
                         public void onPayloadFinished(VirtualMachine vm, int exitCode) {
                             // This check doesn't 100% prevent race condition, but is fine for demo.
                             if (!mService.isShutdown()) {
