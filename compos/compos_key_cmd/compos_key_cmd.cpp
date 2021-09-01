@@ -112,6 +112,11 @@ public:
         return ScopedAStatus::ok();
     }
 
+    ::ndk::ScopedAStatus onPayloadReady(int32_t in_cid) override {
+        LOG(INFO) << "Payload is ready! cid = " << in_cid;
+        return ScopedAStatus::ok();
+    }
+
     ::ndk::ScopedAStatus onPayloadFinished(int32_t in_cid, int32_t in_exit_code) override {
         LOG(INFO) << "Payload finished! cid = " << in_cid << ", exit_code = " << in_exit_code;
         return ScopedAStatus::ok();
