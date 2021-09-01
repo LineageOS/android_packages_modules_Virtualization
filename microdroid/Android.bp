@@ -165,6 +165,7 @@ genrule {
 
 android_filesystem {
     name: "microdroid_vendor",
+    partition_name: "vendor",
     use_avb: true,
     deps: [
         "android.hardware.security.keymint-service.microdroid",
@@ -194,11 +195,11 @@ logical_partition {
     size: "auto",
     default_group: [
         {
-            name: "system",
+            name: "system_a",
             filesystem: ":microdroid",
         },
         {
-            name: "vendor",
+            name: "vendor_a",
             filesystem: ":microdroid_vendor",
         },
     ],
@@ -419,11 +420,6 @@ vbmeta {
             rollback_index_location: 1,
             private_key: ":avb_testkey_rsa4096",
         },
-        {
-            name: "boot",
-            rollback_index_location: 2,
-            private_key: ":avb_testkey_rsa4096",
-        },
     ],
 }
 
@@ -433,6 +429,7 @@ vbmeta {
     private_key: ":avb_testkey_rsa4096",
     partitions: [
         "microdroid",
+        "microdroid_boot-5.10",
     ],
 }
 
