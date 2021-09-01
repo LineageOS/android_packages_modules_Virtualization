@@ -1,2 +1,2 @@
-system /system ext4 noatime,ro,errors=panic wait,first_stage_mount,logical
-vendor /vendor ext4 noatime,ro,errors=panic wait,first_stage_mount,logical
+system /system ext4 noatime,ro,errors=panic wait,slotselect,avb=vbmeta_system,first_stage_mount,logical
+vendor /vendor ext4 noatime,ro,errors=panic wait,slotselect,avb=vbmeta,first_stage_mount,logical
