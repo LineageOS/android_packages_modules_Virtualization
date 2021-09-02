@@ -36,7 +36,9 @@ use std::str;
 use std::time::Duration;
 use vsock::VsockStream;
 
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
+    VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
+};
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const DM_MOUNTED_APK_PATH: &str = "/dev/block/mapper/microdroid-apk";
@@ -44,18 +46,13 @@ const DM_MOUNTED_APK_PATH: &str = "/dev/block/mapper/microdroid-apk";
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
 
-/// Port number that virtualizationservice listens on connections from the guest VMs for the
-/// VirtualMachineService binder service
-/// Sync with virtualizationservice/src/aidl.rs
-const PORT_VM_BINDER_SERVICE: u32 = 5000;
-
 fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
     // safely taken by new_spibinder.
     let ibinder = unsafe {
         new_spibinder(binder_rpc_unstable_bindgen::RpcClient(
             VMADDR_CID_HOST,
-            PORT_VM_BINDER_SERVICE,
+            VM_BINDER_SERVICE_PORT as u32,
         ) as *mut AIBinder)
     };
     if let Some(ibinder) = ibinder {
@@ -183,7 +180,6 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
 
 fn build_command(task: &Task) -> Result<Command> {
     const VMADDR_CID_HOST: u32 = 2;
-    const PORT_VIRT_SVC: u32 = 3000;
 
     let mut command = match task.type_ {
         TaskType::Executable => {
@@ -198,7 +194,7 @@ fn build_command(task: &Task) -> Result<Command> {
         }
     };
 
-    match VsockStream::connect_with_cid_port(VMADDR_CID_HOST, PORT_VIRT_SVC) {
+    match VsockStream::connect_with_cid_port(VMADDR_CID_HOST, VM_STREAM_SERVICE_PORT as u32) {
         Ok(stream) => {
             // SAFETY: the ownership of the underlying file descriptor is transferred from stream
             // to the file object, and then into the Command object. When the command is finished,
