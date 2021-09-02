@@ -37,7 +37,7 @@ use android_system_virtualizationservice::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-    BnVirtualMachineService, IVirtualMachineService,
+    VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, BnVirtualMachineService, IVirtualMachineService,
 };
 use anyhow::{bail, Context, Result};
 use ::binder::unstable_api::AsNative;
@@ -64,15 +64,6 @@ pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
 
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
-
-/// Port number that virtualizationservice listens on connections from the guest VMs for the
-/// payload input and output
-const PORT_VIRT_STREAM_SERVICE: u32 = 3000;
-
-/// Port number that virtualizationservice listens on connections from the guest VMs for the
-/// VirtualMachineService binder service
-/// Sync with microdroid_manager/src/main.rs
-const PORT_VM_BINDER_SERVICE: u32 = 5000;
 
 /// The size of zero.img.
 /// Gaps in composite disk images are filled with a shared zero.img.
@@ -323,7 +314,7 @@ impl VirtualizationService {
             let retval = unsafe {
                 binder_rpc_unstable_bindgen::RunRpcServer(
                     service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
-                    PORT_VM_BINDER_SERVICE,
+                    VM_BINDER_SERVICE_PORT as u32,
                 )
             };
             if retval {
@@ -341,7 +332,8 @@ impl VirtualizationService {
 /// Waits for incoming connections from VM. If a new connection is made, notify the event to the
 /// client via the callback (if registered).
 fn handle_stream_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
-    let listener = VsockListener::bind_with_cid_port(VMADDR_CID_HOST, PORT_VIRT_STREAM_SERVICE)?;
+    let listener =
+        VsockListener::bind_with_cid_port(VMADDR_CID_HOST, VM_STREAM_SERVICE_PORT as u32)?;
     for stream in listener.incoming() {
         let stream = match stream {
             Err(e) => {
