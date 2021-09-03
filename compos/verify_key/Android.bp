@@ -1,0 +1,23 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_binary {
+    name: "compos_verify_key",
+    srcs: ["verify_key.rs"],
+    rustlibs: [
+        "android.system.virtualizationservice-rust",
+        "compos_aidl_interface-rust",
+        "libanyhow",
+        "libbinder_rpc_unstable_bindgen",
+        "libbinder_rs",
+        "libclap",
+    ],
+    prefer_rlib: true,
+    shared_libs: [
+        "libbinder_rpc_unstable",
+    ],
+    apex_available: [
+        "com.android.compos",
+    ],
+}
