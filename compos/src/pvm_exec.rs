@@ -29,6 +29,7 @@
 use anyhow::{bail, Context, Result};
 use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::FromIBinder;
+use clap::{value_t, App, Arg};
 use log::{debug, error, warn};
 use minijail::Minijail;
 use nix::fcntl::{fcntl, FcntlArg::F_GETFD};
@@ -42,13 +43,9 @@ use compos_aidl_interface::aidl::com::android::compos::{
 use compos_aidl_interface::binder::Strong;
 
 mod common;
-use common::{SERVICE_NAME, VSOCK_PORT};
+use common::VSOCK_PORT;
 
 const FD_SERVER_BIN: &str = "/apex/com.android.virt/bin/fd_server";
-
-fn get_local_service() -> Result<Strong<dyn ICompOsService>> {
-    compos_aidl_interface::binder::get_interface(SERVICE_NAME).context("get local binder")
-}
 
 fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompOsService>> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
@@ -103,29 +100,30 @@ fn parse_arg_fd(arg: &str) -> Result<RawFd> {
 struct Config {
     args: Vec<String>,
     fd_annotation: FdAnnotation,
-    cid: Option<u32>,
+    cid: u32,
     debuggable: bool,
 }
 
 fn parse_args() -> Result<Config> {
     #[rustfmt::skip]
-    let matches = clap::App::new("pvm_exec")
-        .arg(clap::Arg::with_name("in-fd")
+    let matches = App::new("pvm_exec")
+        .arg(Arg::with_name("in-fd")
              .long("in-fd")
              .takes_value(true)
              .multiple(true)
              .use_delimiter(true))
-        .arg(clap::Arg::with_name("out-fd")
+        .arg(Arg::with_name("out-fd")
              .long("out-fd")
              .takes_value(true)
              .multiple(true)
              .use_delimiter(true))
-        .arg(clap::Arg::with_name("cid")
+        .arg(Arg::with_name("cid")
              .takes_value(true)
+             .required(true)
              .long("cid"))
-        .arg(clap::Arg::with_name("debug")
+        .arg(Arg::with_name("debug")
              .long("debug"))
-        .arg(clap::Arg::with_name("args")
+        .arg(Arg::with_name("args")
              .last(true)
              .required(true)
              .multiple(true))
@@ -140,8 +138,7 @@ fn parse_args() -> Result<Config> {
     let output_fds = results?;
 
     let args: Vec<_> = matches.values_of("args").unwrap().map(|s| s.to_string()).collect();
-    let cid =
-        if let Some(arg) = matches.value_of("cid") { Some(arg.parse::<u32>()?) } else { None };
+    let cid = value_t!(matches, "cid", u32)?;
     let debuggable = matches.is_present("debug");
 
     Ok(Config { args, fd_annotation: FdAnnotation { input_fds, output_fds }, cid, debuggable })
@@ -168,7 +165,7 @@ fn main() -> Result<()> {
     });
 
     // 3. Send the command line args to the remote to execute.
-    let service = if let Some(cid) = cid { get_rpc_binder(cid) } else { get_local_service() }?;
+    let service = get_rpc_binder(cid)?;
     let result = service.compile(&args, &fd_annotation).context("Binder call failed")?;
 
     // TODO: store/use the signature

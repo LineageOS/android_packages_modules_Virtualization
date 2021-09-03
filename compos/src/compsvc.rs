@@ -43,10 +43,10 @@ const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
 
 /// Constructs a binder object that implements ICompOsService.
-pub fn new_binder(rpc_binder: bool) -> Result<Strong<dyn ICompOsService>> {
+pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
     let service = CompOsService {
         dex2oat_path: PathBuf::from(DEX2OAT_PATH),
-        key_service: CompOsKeyService::new(rpc_binder)?,
+        key_service: CompOsKeyService::new()?,
         key_blob: Arc::new(RwLock::new(Vec::new())),
     };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
