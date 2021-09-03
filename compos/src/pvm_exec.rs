@@ -32,14 +32,12 @@ use binder::FromIBinder;
 use log::{debug, error, warn};
 use minijail::Minijail;
 use nix::fcntl::{fcntl, FcntlArg::F_GETFD};
-use nix::sys::stat::fstat;
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::process::exit;
 
 use compos_aidl_interface::aidl::com::android::compos::{
-    ICompOsService::ICompOsService, InputFdAnnotation::InputFdAnnotation, Metadata::Metadata,
-    OutputFdAnnotation::OutputFdAnnotation,
+    FdAnnotation::FdAnnotation, ICompOsService::ICompOsService,
 };
 use compos_aidl_interface::binder::Strong;
 
@@ -65,7 +63,7 @@ fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompOsService>> {
     }
 }
 
-fn spawn_fd_server(metadata: &Metadata, debuggable: bool) -> Result<Minijail> {
+fn spawn_fd_server(fd_annotation: &FdAnnotation, debuggable: bool) -> Result<Minijail> {
     let mut inheritable_fds = if debuggable {
         vec![1, 2] // inherit/redirect stdout/stderr for debugging
     } else {
@@ -73,15 +71,15 @@ fn spawn_fd_server(metadata: &Metadata, debuggable: bool) -> Result<Minijail> {
     };
 
     let mut args = vec![FD_SERVER_BIN.to_string(), "--rpc-binder".to_string()];
-    for metadata in &metadata.input_fd_annotations {
+    for fd in &fd_annotation.input_fds {
         args.push("--ro-fds".to_string());
-        args.push(metadata.fd.to_string());
-        inheritable_fds.push(metadata.fd);
+        args.push(fd.to_string());
+        inheritable_fds.push(*fd);
     }
-    for metadata in &metadata.output_fd_annotations {
+    for fd in &fd_annotation.output_fds {
         args.push("--rw-fds".to_string());
-        args.push(metadata.fd.to_string());
-        inheritable_fds.push(metadata.fd);
+        args.push(fd.to_string());
+        inheritable_fds.push(*fd);
     }
 
     let jail = Minijail::new()?;
@@ -104,7 +102,7 @@ fn parse_arg_fd(arg: &str) -> Result<RawFd> {
 
 struct Config {
     args: Vec<String>,
-    metadata: Metadata,
+    fd_annotation: FdAnnotation,
     cid: Option<u32>,
     debuggable: bool,
 }
@@ -133,38 +131,20 @@ fn parse_args() -> Result<Config> {
              .multiple(true))
         .get_matches();
 
-    let results: Result<Vec<_>> = matches
-        .values_of("in-fd")
-        .unwrap_or_default()
-        .map(|arg| {
-            let fd = parse_arg_fd(arg)?;
-            let file_size = fstat(fd)?.st_size;
-            Ok(InputFdAnnotation { fd, file_size })
-        })
-        .collect();
-    let input_fd_annotations = results?;
+    let results: Result<Vec<_>> =
+        matches.values_of("in-fd").unwrap_or_default().map(parse_arg_fd).collect();
+    let input_fds = results?;
 
-    let results: Result<Vec<_>> = matches
-        .values_of("out-fd")
-        .unwrap_or_default()
-        .map(|arg| {
-            let fd = parse_arg_fd(arg)?;
-            Ok(OutputFdAnnotation { fd })
-        })
-        .collect();
-    let output_fd_annotations = results?;
+    let results: Result<Vec<_>> =
+        matches.values_of("out-fd").unwrap_or_default().map(parse_arg_fd).collect();
+    let output_fds = results?;
 
     let args: Vec<_> = matches.values_of("args").unwrap().map(|s| s.to_string()).collect();
     let cid =
         if let Some(arg) = matches.value_of("cid") { Some(arg.parse::<u32>()?) } else { None };
     let debuggable = matches.is_present("debug");
 
-    Ok(Config {
-        args,
-        metadata: Metadata { input_fd_annotations, output_fd_annotations },
-        cid,
-        debuggable,
-    })
+    Ok(Config { args, fd_annotation: FdAnnotation { input_fds, output_fds }, cid, debuggable })
 }
 
 fn main() -> Result<()> {
@@ -175,10 +155,10 @@ fn main() -> Result<()> {
     );
 
     // 1. Parse the command line arguments for collect execution data.
-    let Config { args, metadata, cid, debuggable } = parse_args()?;
+    let Config { args, fd_annotation, cid, debuggable } = parse_args()?;
 
     // 2. Spawn and configure a fd_server to serve remote read/write requests.
-    let fd_server_jail = spawn_fd_server(&metadata, debuggable)?;
+    let fd_server_jail = spawn_fd_server(&fd_annotation, debuggable)?;
     let fd_server_lifetime = scopeguard::guard(fd_server_jail, |fd_server_jail| {
         if let Err(e) = fd_server_jail.kill() {
             if !matches!(e, minijail::Error::Killed(_)) {
@@ -189,7 +169,7 @@ fn main() -> Result<()> {
 
     // 3. Send the command line args to the remote to execute.
     let service = if let Some(cid) = cid { get_rpc_binder(cid) } else { get_local_service() }?;
-    let result = service.compile(&args, &metadata).context("Binder call failed")?;
+    let result = service.compile(&args, &fd_annotation).context("Binder call failed")?;
 
     // TODO: store/use the signature
     debug!(

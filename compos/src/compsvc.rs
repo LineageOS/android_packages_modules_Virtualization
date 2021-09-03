@@ -32,8 +32,8 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFs
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
     CompilationResult::CompilationResult,
+    FdAnnotation::FdAnnotation,
     ICompOsService::{BnCompOsService, ICompOsService},
-    Metadata::Metadata,
 };
 use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong,
@@ -85,14 +85,19 @@ impl ICompOsService for CompOsService {
         }
     }
 
-    fn compile(&self, args: &[String], metadata: &Metadata) -> BinderResult<CompilationResult> {
+    fn compile(
+        &self,
+        args: &[String],
+        fd_annotation: &FdAnnotation,
+    ) -> BinderResult<CompilationResult> {
         let authfs_service = get_authfs_service()?;
-        let output = compile(&self.dex2oat_path, args, authfs_service, metadata).map_err(|e| {
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("Compilation failed: {}", e),
-            )
-        })?;
+        let output =
+            compile(&self.dex2oat_path, args, authfs_service, fd_annotation).map_err(|e| {
+                new_binder_exception(
+                    ExceptionCode::SERVICE_SPECIFIC,
+                    format!("Compilation failed: {}", e),
+                )
+            })?;
         match output {
             CompilerOutput::Digests { oat, vdex, image } => {
                 let key = &*self.key_blob.read().unwrap();
