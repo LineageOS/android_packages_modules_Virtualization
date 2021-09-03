@@ -55,7 +55,7 @@ struct Args {
 
     /// CID of the VM where the service runs.
     #[structopt(long)]
-    cid: Option<u32>,
+    cid: u32,
 
     /// Extra options to FUSE
     #[structopt(short = "o")]
@@ -275,7 +275,7 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
 
     if args.has_remote_files() {
-        let service = file::get_binder_service(args.cid)?;
+        let service = file::get_rpc_binder_service(args.cid)?;
 
         for config in &args.remote_ro_file {
             file_pool.insert(

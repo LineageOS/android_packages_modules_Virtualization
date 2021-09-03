@@ -67,7 +67,7 @@ fn spawn_fd_server(fd_annotation: &FdAnnotation, debuggable: bool) -> Result<Min
         vec![]
     };
 
-    let mut args = vec![FD_SERVER_BIN.to_string(), "--rpc-binder".to_string()];
+    let mut args = vec![FD_SERVER_BIN.to_string()];
     for fd in &fd_annotation.input_fds {
         args.push("--ro-fds".to_string());
         args.push(fd.to_string());

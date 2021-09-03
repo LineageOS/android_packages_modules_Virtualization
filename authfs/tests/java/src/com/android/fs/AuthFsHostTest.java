@@ -151,7 +151,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Setup
         runFdServerOnAndroid(
                 "3<input.4m 4<input.4m.merkle_dump 5<input.4m.fsv_sig 6<input.4m",
-                "--ro-fds 3:4:5 --ro-fds 6 --rpc-binder");
+                "--ro-fds 3:4:5 --ro-fds 6");
 
         runAuthFsOnMicrodroid(
                 "--remote-ro-file-unverified 10:6 --remote-ro-file 11:3:cert.der --cid 2");
@@ -176,7 +176,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runFdServerOnAndroid(
                 "3<input.4k 4<input.4k.merkle_dump 5<input.4k.fsv_sig"
                         + " 6<input.4k1 7<input.4k1.merkle_dump 8<input.4k1.fsv_sig",
-                "--ro-fds 3:4:5 --ro-fds 6:7:8 --rpc-binder");
+                "--ro-fds 3:4:5 --ro-fds 6:7:8");
         runAuthFsOnMicrodroid(
                 "--remote-ro-file 10:3:cert.der --remote-ro-file 11:6:cert.der --cid 2");
 
@@ -197,8 +197,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
             throws DeviceNotAvailableException, InterruptedException {
         // Setup
         runFdServerOnAndroid(
-                "3<input.4m 4<input.4m.merkle_dump.bad 5<input.4m.fsv_sig",
-                "--ro-fds 3:4:5 --rpc-binder");
+                "3<input.4m 4<input.4m.merkle_dump.bad 5<input.4m.fsv_sig", "--ro-fds 3:4:5");
         runAuthFsOnMicrodroid("--remote-ro-file 10:3:cert.der --cid 2");
 
         // Verify
@@ -209,7 +208,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testWriteThroughCorrectly()
             throws DeviceNotAvailableException, InterruptedException {
         // Setup
-        runFdServerOnAndroid("3<>output", "--rw-fds 3 --rpc-binder");
+        runFdServerOnAndroid("3<>output", "--rw-fds 3");
         runAuthFsOnMicrodroid("--remote-new-rw-file 20:3 --cid 2");
 
         // Action
@@ -227,7 +226,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testWriteFailedIfDetectsTampering()
             throws DeviceNotAvailableException, InterruptedException {
         // Setup
-        runFdServerOnAndroid("3<>output", "--rw-fds 3 --rpc-binder");
+        runFdServerOnAndroid("3<>output", "--rw-fds 3");
         runAuthFsOnMicrodroid("--remote-new-rw-file 20:3 --cid 2");
 
         String srcPath = "/system/bin/linker64";
@@ -258,7 +257,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     @Test
     public void testFileResize() throws DeviceNotAvailableException, InterruptedException {
         // Setup
-        runFdServerOnAndroid("3<>output", "--rw-fds 3 --rpc-binder");
+        runFdServerOnAndroid("3<>output", "--rw-fds 3");
         runAuthFsOnMicrodroid("--remote-new-rw-file 20:3 --cid 2");
         String outputPath = MOUNT_DIR + "/20";
         String backendPath = TEST_DIR + "/output";
