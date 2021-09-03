@@ -154,8 +154,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "--ro-fds 3:4:5 --ro-fds 6 --rpc-binder");
 
         runAuthFsOnMicrodroid(
-                "--remote-ro-file-unverified 10:6:4194304 --remote-ro-file 11:3:4194304:cert.der"
-                        + " --cid 2");
+                "--remote-ro-file-unverified 10:6 --remote-ro-file 11:3:cert.der --cid 2");
 
         // Action
         String actualHashUnverified4m = computeFileHashOnMicrodroid(MOUNT_DIR + "/10");
@@ -179,7 +178,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                         + " 6<input.4k1 7<input.4k1.merkle_dump 8<input.4k1.fsv_sig",
                 "--ro-fds 3:4:5 --ro-fds 6:7:8 --rpc-binder");
         runAuthFsOnMicrodroid(
-                "--remote-ro-file 10:3:4096:cert.der --remote-ro-file 11:6:4097:cert.der --cid 2");
+                "--remote-ro-file 10:3:cert.der --remote-ro-file 11:6:cert.der --cid 2");
 
         // Action
         String actualHash4k = computeFileHashOnMicrodroid(MOUNT_DIR + "/10");
@@ -200,7 +199,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runFdServerOnAndroid(
                 "3<input.4m 4<input.4m.merkle_dump.bad 5<input.4m.fsv_sig",
                 "--ro-fds 3:4:5 --rpc-binder");
-        runAuthFsOnMicrodroid("--remote-ro-file 10:3:4096:cert.der --cid 2");
+        runAuthFsOnMicrodroid("--remote-ro-file 10:3:cert.der --cid 2");
 
         // Verify
         assertFalse(copyFileOnMicrodroid(MOUNT_DIR + "/10", "/dev/null"));

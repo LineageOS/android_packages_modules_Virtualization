@@ -27,6 +27,9 @@
 
 mod fsverity;
 
+use anyhow::{bail, Context, Result};
+use binder::unstable_api::AsNative;
+use log::{debug, error};
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
@@ -36,12 +39,9 @@ use std::io;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 
-use anyhow::{bail, Context, Result};
-use binder::unstable_api::AsNative;
-use log::{debug, error};
-
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
-    BnVirtFdService, IVirtFdService, ERROR_IO, ERROR_UNKNOWN_FD, MAX_REQUESTING_DATA,
+    BnVirtFdService, IVirtFdService, ERROR_FILE_TOO_LARGE, ERROR_IO, ERROR_UNKNOWN_FD,
+    MAX_REQUESTING_DATA,
 };
 use authfs_aidl_interface::binder::{
     add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Result as BinderResult,
@@ -223,6 +223,30 @@ impl IVirtFdService for FdService {
                     error!("resize: set_len error: {}", e);
                     Status::from(ERROR_IO)
                 })
+            }
+        }
+    }
+
+    fn getFileSize(&self, id: i32) -> BinderResult<i64> {
+        match &self.get_file_config(id)? {
+            FdConfig::Readonly { file, .. } => {
+                let size = file
+                    .metadata()
+                    .map_err(|e| {
+                        error!("getFileSize error: {}", e);
+                        Status::from(ERROR_IO)
+                    })?
+                    .len();
+                Ok(size.try_into().map_err(|e| {
+                    error!("getFileSize: File too large: {}", e);
+                    Status::from(ERROR_FILE_TOO_LARGE)
+                })?)
+            }
+            FdConfig::ReadWrite(_file) => {
+                // Content and metadata of a writable file needs to be tracked by authfs, since
+                // fd_server isn't considered trusted. So there is no point to support getFileSize
+                // for a writable file.
+                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
             }
         }
     }
