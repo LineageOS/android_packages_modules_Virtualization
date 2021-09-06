@@ -14,35 +14,17 @@
  * limitations under the License.
  */
 
-//! A tool to verify whether a CompOs instance image and key pair are valid. It starts a CompOs VM
+//! A tool to verify whether a CompOS instance image and key pair are valid. It starts a CompOS VM
 //! as part of this. The tool is intended to be run by odsign during boot.
 
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    IVirtualMachine::IVirtualMachine,
-    IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
-    IVirtualizationService::IVirtualizationService,
-    VirtualMachineAppConfig::VirtualMachineAppConfig,
-    VirtualMachineConfig::VirtualMachineConfig,
-};
-use android_system_virtualizationservice::binder::{
-    wait_for_interface, BinderFeatures, DeathRecipient, IBinder, Interface, ParcelFileDescriptor,
-    ProcessState, Result as BinderResult, Strong,
-};
-use anyhow::{anyhow, bail, Context, Result};
-use binder::{
-    unstable_api::{new_spibinder, AIBinder},
-    FromIBinder,
-};
-use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
+use anyhow::{bail, Context, Result};
+use compos_aidl_interface::binder::ProcessState;
+use compos_common::compos_client::VmInstance;
+use compos_common::COMPOS_DATA_ROOT;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread;
-use std::time::Duration;
 
-const COMPOS_APEX_ROOT: &str = "/apex/com.android.compos";
-const COMPOS_DATA_ROOT: &str = "/data/misc/apexdata/com.android.compos";
 const CURRENT_DIR: &str = "current";
 const PENDING_DIR: &str = "pending";
 const PRIVATE_KEY_BLOB_FILE: &str = "key.blob";
@@ -51,9 +33,13 @@ const INSTANCE_IMAGE_FILE: &str = "instance.img";
 
 const MAX_FILE_SIZE_BYTES: u64 = 8 * 1024;
 
-const COMPOS_SERVICE_PORT: u32 = 6432;
-
 fn main() -> Result<()> {
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_tag("compos_verify_key")
+            .with_min_level(log::Level::Info),
+    );
+
     let matches = clap::App::new("compos_verify_key")
         .arg(
             clap::Arg::with_name("instance")
@@ -79,7 +65,7 @@ fn main() -> Result<()> {
         if do_pending {
             // If the pending instance is ok, then it must actually match the current system state,
             // so we promote it to current.
-            println!("Promoting pending to current");
+            log::info!("Promoting pending to current");
             promote_to_current(&instance_dir)
         } else {
             Ok(())
@@ -88,9 +74,9 @@ fn main() -> Result<()> {
 
     if result.is_err() {
         // This is best efforts, and we still want to report the original error as our result
-        println!("Removing {}", instance_dir.display());
+        log::info!("Removing {}", instance_dir.display());
         if let Err(e) = fs::remove_dir_all(&instance_dir) {
-            eprintln!("Failed to remove directory: {}", e);
+            log::warn!("Failed to remove directory: {}", e);
         }
     }
 
@@ -100,14 +86,13 @@ fn main() -> Result<()> {
 fn verify(instance_dir: &Path) -> Result<()> {
     let blob = instance_dir.join(PRIVATE_KEY_BLOB_FILE);
     let public_key = instance_dir.join(PUBLIC_KEY_FILE);
-    let instance = instance_dir.join(INSTANCE_IMAGE_FILE);
+    let instance_image = instance_dir.join(INSTANCE_IMAGE_FILE);
 
     let blob = read_small_file(blob).context("Failed to read key blob")?;
     let public_key = read_small_file(public_key).context("Failed to read public key")?;
 
-    let instance = File::open(instance).context("Failed to open instance image file")?;
-    let vm_instance = VmInstance::start(instance)?;
-    let service = get_service(vm_instance.cid).context("Failed to connect to CompOs service")?;
+    let vm_instance = VmInstance::start(&instance_image)?;
+    let service = vm_instance.get_service()?;
 
     let result = service.verifySigningKey(&blob, &public_key).context("Verifying signing key")?;
 
@@ -128,20 +113,6 @@ fn read_small_file(file: PathBuf) -> Result<Vec<u8>> {
     Ok(data)
 }
 
-fn get_service(cid: i32) -> Result<Strong<dyn ICompOsService>> {
-    let cid = cid as u32;
-    // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
-    // safely taken by new_spibinder.
-    let ibinder = unsafe {
-        new_spibinder(
-            binder_rpc_unstable_bindgen::RpcClient(cid, COMPOS_SERVICE_PORT) as *mut AIBinder
-        )
-    }
-    .ok_or_else(|| anyhow!("Invalid raw AIBinder"))?;
-
-    Ok(FromIBinder::try_from(ibinder)?)
-}
-
 fn promote_to_current(instance_dir: &Path) -> Result<()> {
     let current_dir: PathBuf = [COMPOS_DATA_ROOT, CURRENT_DIR].iter().collect();
 
@@ -152,162 +123,4 @@ fn promote_to_current(instance_dir: &Path) -> Result<()> {
     fs::rename(&instance_dir, &current_dir)
         .context("Unable to promote pending instance to current")?;
     Ok(())
-}
-
-#[derive(Debug)]
-struct VmState {
-    has_died: bool,
-    cid: Option<i32>,
-}
-
-impl Default for VmState {
-    fn default() -> Self {
-        Self { has_died: false, cid: None }
-    }
-}
-
-#[derive(Debug)]
-struct VmStateMonitor {
-    mutex: Mutex<VmState>,
-    state_ready: Condvar,
-}
-
-impl Default for VmStateMonitor {
-    fn default() -> Self {
-        Self { mutex: Mutex::new(Default::default()), state_ready: Condvar::new() }
-    }
-}
-
-impl VmStateMonitor {
-    fn set_died(&self) {
-        let mut state = self.mutex.lock().unwrap();
-        state.has_died = true;
-        state.cid = None;
-        drop(state); // Unlock the mutex prior to notifying
-        self.state_ready.notify_all();
-    }
-
-    fn set_started(&self, cid: i32) {
-        let mut state = self.mutex.lock().unwrap();
-        if state.has_died {
-            return;
-        }
-        state.cid = Some(cid);
-        drop(state); // Unlock the mutex prior to notifying
-        self.state_ready.notify_all();
-    }
-
-    fn wait_for_start(&self) -> Result<i32> {
-        let (state, result) = self
-            .state_ready
-            .wait_timeout_while(self.mutex.lock().unwrap(), Duration::from_secs(10), |state| {
-                state.cid.is_none() && !state.has_died
-            })
-            .unwrap();
-        if result.timed_out() {
-            bail!("Timed out waiting for VM")
-        }
-        state.cid.ok_or_else(|| anyhow!("VM died"))
-    }
-}
-
-struct VmInstance {
-    #[allow(dead_code)] // Keeps the vm alive even if we don`t touch it
-    vm: Strong<dyn IVirtualMachine>,
-    cid: i32,
-}
-
-impl VmInstance {
-    fn start(instance_file: File) -> Result<VmInstance> {
-        let instance_fd = ParcelFileDescriptor::new(instance_file);
-
-        let apex_dir = Path::new(COMPOS_APEX_ROOT);
-        let data_dir = Path::new(COMPOS_DATA_ROOT);
-
-        let apk_fd = File::open(apex_dir.join("app/CompOSPayloadApp/CompOSPayloadApp.apk"))
-            .context("Failed to open config APK file")?;
-        let apk_fd = ParcelFileDescriptor::new(apk_fd);
-
-        let idsig_fd = File::open(apex_dir.join("etc/CompOSPayloadApp.apk.idsig"))
-            .context("Failed to open config APK idsig file")?;
-        let idsig_fd = ParcelFileDescriptor::new(idsig_fd);
-
-        // TODO: Send this to stdout instead? Or specify None?
-        let log_fd = File::create(data_dir.join("vm.log")).context("Failed to create log file")?;
-        let log_fd = ParcelFileDescriptor::new(log_fd);
-
-        let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
-            apk: Some(apk_fd),
-            idsig: Some(idsig_fd),
-            instanceImage: Some(instance_fd),
-            configPath: "assets/vm_config.json".to_owned(),
-            ..Default::default()
-        });
-
-        let service = wait_for_interface::<dyn IVirtualizationService>(
-            "android.system.virtualizationservice",
-        )
-        .context("Failed to find VirtualizationService")?;
-
-        let vm = service.startVm(&config, Some(&log_fd)).context("Failed to start VM")?;
-        let vm_state = Arc::new(VmStateMonitor::default());
-
-        let vm_state_clone = Arc::clone(&vm_state);
-        vm.as_binder().link_to_death(&mut DeathRecipient::new(move || {
-            vm_state_clone.set_died();
-            eprintln!("VirtualizationService died");
-        }))?;
-
-        let vm_state_clone = Arc::clone(&vm_state);
-        let callback = BnVirtualMachineCallback::new_binder(
-            VmCallback(vm_state_clone),
-            BinderFeatures::default(),
-        );
-        vm.registerCallback(&callback)?;
-
-        let cid = vm_state.wait_for_start()?;
-
-        // TODO: Use onPayloadReady to avoid this
-        thread::sleep(Duration::from_secs(3));
-
-        Ok(VmInstance { vm, cid })
-    }
-}
-
-#[derive(Debug)]
-struct VmCallback(Arc<VmStateMonitor>);
-
-impl Interface for VmCallback {}
-
-impl IVirtualMachineCallback for VmCallback {
-    fn onDied(&self, cid: i32) -> BinderResult<()> {
-        self.0.set_died();
-        println!("VM died, cid = {}", cid);
-        Ok(())
-    }
-
-    fn onPayloadStarted(
-        &self,
-        cid: i32,
-        _stream: Option<&binder::parcel::ParcelFileDescriptor>,
-    ) -> BinderResult<()> {
-        self.0.set_started(cid);
-        // TODO: Use the stream?
-        println!("VM payload started, cid = {}", cid);
-        Ok(())
-    }
-
-    fn onPayloadReady(&self, cid: i32) -> BinderResult<()> {
-        // TODO: Use this to trigger vsock connection
-        println!("VM payload ready, cid = {}", cid);
-        Ok(())
-    }
-
-    fn onPayloadFinished(&self, cid: i32, exit_code: i32) -> BinderResult<()> {
-        // This should probably never happen in our case, but if it does we means our VM is no
-        // longer running
-        self.0.set_died();
-        println!("VM payload finished, cid = {}, exit code = {}", cid, exit_code);
-        Ok(())
-    }
 }
