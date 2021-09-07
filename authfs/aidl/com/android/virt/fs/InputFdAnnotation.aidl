@@ -23,7 +23,4 @@ parcelable InputFdAnnotation {
      * number used in the backend server.
      */
     int fd;
-
-    /** The actual file size in bytes of the backing file to be read. */
-    long fileSize;
 }
