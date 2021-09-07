@@ -17,6 +17,7 @@ on early-init
 
     start ueventd
 
+    mkdir /mnt/apk 0755 system system
     start microdroid_manager
     # TODO(b/190343842) verify apexes/apk before mounting them.
 
@@ -26,9 +27,10 @@ on early-init
 
     perform_apex_config
 
-    exec - root system -- /system/bin/apkdmverity /dev/block/by-name/microdroid-apk /dev/block/by-name/microdroid-apk-idsig microdroid-apk
-    mkdir /mnt/apk 0755 system system
-    start zipfuse
+    # Notify to microdroid_manager that perform_apex_config is done.
+    # Microdroid_manager shouldn't execute payload before this, because app
+    # payloads are not designed to run with bootstrap bionic
+    setprop apex_config.done true
 
 on init
     # Mount binderfs
