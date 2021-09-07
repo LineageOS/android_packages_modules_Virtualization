@@ -15,11 +15,6 @@ rust_defaults {
         "libnum_traits",
     ],
     proc_macros: ["libnum_derive"],
-    multilib: {
-        lib32: {
-            enabled: false,
-        },
-    },
 }
 
 rust_library {
