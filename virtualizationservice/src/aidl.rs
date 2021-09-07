@@ -51,7 +51,7 @@ use std::ffi::CString;
 use std::fs::{File, OpenOptions, create_dir};
 use std::io::{Error, ErrorKind, Write};
 use std::num::NonZeroU32;
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
+use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use vmconfig::VmConfig;
@@ -164,20 +164,18 @@ impl IVirtualizationService for VirtualizationService {
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
             cid,
-            bootloader: as_asref(&config.bootloader),
-            kernel: as_asref(&config.kernel),
-            initrd: as_asref(&config.initrd),
+            bootloader: maybe_clone_file(&config.bootloader)?,
+            kernel: maybe_clone_file(&config.kernel)?,
+            initrd: maybe_clone_file(&config.initrd)?,
             disks,
             params: config.params.to_owned(),
             protected: config.protectedVm,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
-        };
-        let composite_disk_fds: Vec<_> =
-            indirect_files.iter().map(|file| file.as_raw_fd()).collect();
-        let instance = VmInstance::start(
-            &crosvm_config,
             log_fd,
-            &composite_disk_fds,
+            indirect_files,
+        };
+        let instance = VmInstance::start(
+            crosvm_config,
             temporary_directory,
             requester_uid,
             requester_sid,
@@ -734,11 +732,6 @@ impl Default for State {
     }
 }
 
-/// Converts an `&Option<T>` to an `Option<U>` where `T` implements `AsRef<U>`.
-fn as_asref<T: AsRef<U>, U>(option: &Option<T>) -> Option<&U> {
-    option.as_ref().map(|t| t.as_ref())
-}
-
 /// Gets the `VirtualMachineState` of the given `VmInstance`.
 fn get_state(instance: &VmInstance) -> VirtualMachineState {
     if instance.running() {
@@ -761,6 +754,11 @@ fn clone_file(file: &ParcelFileDescriptor) -> Result<File, Status> {
             format!("Failed to clone File from ParcelFileDescriptor: {}", e),
         )
     })
+}
+
+/// Converts an `&Option<ParcelFileDescriptor>` to an `Option<File>` by cloning the file.
+fn maybe_clone_file(file: &Option<ParcelFileDescriptor>) -> Result<Option<File>, Status> {
+    file.as_ref().map(clone_file).transpose()
 }
 
 /// Converts a `VsockStream` to a `ParcelFileDescriptor`.
