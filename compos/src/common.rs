@@ -17,6 +17,3 @@
 /// Port to listen. This should be out of future port range (if happens) that microdroid may
 /// reserve for system components.
 pub const VSOCK_PORT: u32 = 6432;
-
-/// Service name of local binder. Used only for debugging purpose.
-pub const SERVICE_NAME: &str = "compsvc";

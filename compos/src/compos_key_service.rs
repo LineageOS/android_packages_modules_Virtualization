@@ -32,15 +32,9 @@ use ring::rand::{SecureRandom, SystemRandom};
 use ring::signature;
 use scopeguard::ScopeGuard;
 
-/// Keystore2 namespace IDs, used for access control to keys.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum KeystoreNamespace {
-    /// In the host we re-use the ID assigned to odsign. See system/sepolicy/private/keystore2_key_contexts.
-    // TODO(alanstokes): Remove this.
-    Odsign = 101,
-    /// In a VM we can use the generic ID allocated for payloads. See microdroid's keystore2_key_contexts.
-    VmPayload = 140,
-}
+/// Keystore2 namespace ID, used for access control to keys. In a VM we can use the generic ID
+/// allocated for payloads. See microdroid's keystore2_key_contexts.
+const KEYSTORE_NAMESPACE: i64 = 140;
 
 const KEYSTORE_SERVICE_NAME: &str = "android.system.keystore2.IKeystoreService/default";
 const PURPOSE_SIGN: KeyParameter =
@@ -61,25 +55,21 @@ const NO_AUTH_REQUIRED: KeyParameter =
     KeyParameter { tag: Tag::NO_AUTH_REQUIRED, value: KeyParameterValue::BoolValue(true) };
 
 const BLOB_KEY_DESCRIPTOR: KeyDescriptor =
-    KeyDescriptor { domain: Domain::BLOB, nspace: 0, alias: None, blob: None };
+    KeyDescriptor { domain: Domain::BLOB, nspace: KEYSTORE_NAMESPACE, alias: None, blob: None };
 
 /// An internal service for CompOS key management.
 #[derive(Clone)]
 pub struct CompOsKeyService {
-    namespace: KeystoreNamespace,
     random: SystemRandom,
     security_level: Strong<dyn IKeystoreSecurityLevel>,
 }
 
 impl CompOsKeyService {
-    pub fn new(rpc_binder: bool) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let keystore_service = wait_for_interface::<dyn IKeystoreService>(KEYSTORE_SERVICE_NAME)
             .context("No Keystore service")?;
 
-        let namespace =
-            if rpc_binder { KeystoreNamespace::VmPayload } else { KeystoreNamespace::Odsign };
         Ok(CompOsKeyService {
-            namespace,
             random: SystemRandom::new(),
             security_level: keystore_service
                 .getSecurityLevel(SecurityLevel::TRUSTED_ENVIRONMENT)
@@ -88,7 +78,7 @@ impl CompOsKeyService {
     }
 
     pub fn do_generate(&self) -> Result<CompOsKeyData> {
-        let key_descriptor = KeyDescriptor { nspace: self.namespace as i64, ..BLOB_KEY_DESCRIPTOR };
+        let key_descriptor = BLOB_KEY_DESCRIPTOR;
         let key_parameters =
             [PURPOSE_SIGN, ALGORITHM, PADDING, DIGEST, KEY_SIZE, EXPONENT, NO_AUTH_REQUIRED];
         let attestation_key = None;
@@ -121,11 +111,7 @@ impl CompOsKeyService {
     }
 
     pub fn do_sign(&self, key_blob: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        let key_descriptor = KeyDescriptor {
-            nspace: self.namespace as i64,
-            blob: Some(key_blob.to_vec()),
-            ..BLOB_KEY_DESCRIPTOR
-        };
+        let key_descriptor = KeyDescriptor { blob: Some(key_blob.to_vec()), ..BLOB_KEY_DESCRIPTOR };
         let operation_parameters = [PURPOSE_SIGN, ALGORITHM, PADDING, DIGEST];
         let forced = false;
 
