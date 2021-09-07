@@ -32,8 +32,8 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFs
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
     CompilationResult::CompilationResult,
+    FdAnnotation::FdAnnotation,
     ICompOsService::{BnCompOsService, ICompOsService},
-    Metadata::Metadata,
 };
 use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong,
@@ -43,10 +43,10 @@ const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
 
 /// Constructs a binder object that implements ICompOsService.
-pub fn new_binder(rpc_binder: bool) -> Result<Strong<dyn ICompOsService>> {
+pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
     let service = CompOsService {
         dex2oat_path: PathBuf::from(DEX2OAT_PATH),
-        key_service: CompOsKeyService::new(rpc_binder)?,
+        key_service: CompOsKeyService::new()?,
         key_blob: Arc::new(RwLock::new(Vec::new())),
     };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
@@ -85,14 +85,19 @@ impl ICompOsService for CompOsService {
         }
     }
 
-    fn compile(&self, args: &[String], metadata: &Metadata) -> BinderResult<CompilationResult> {
+    fn compile(
+        &self,
+        args: &[String],
+        fd_annotation: &FdAnnotation,
+    ) -> BinderResult<CompilationResult> {
         let authfs_service = get_authfs_service()?;
-        let output = compile(&self.dex2oat_path, args, authfs_service, metadata).map_err(|e| {
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("Compilation failed: {}", e),
-            )
-        })?;
+        let output =
+            compile(&self.dex2oat_path, args, authfs_service, fd_annotation).map_err(|e| {
+                new_binder_exception(
+                    ExceptionCode::SERVICE_SPECIFIC,
+                    format!("Compilation failed: {}", e),
+                )
+            })?;
         match output {
             CompilerOutput::Digests { oat, vdex, image } => {
                 let key = &*self.key_blob.read().unwrap();

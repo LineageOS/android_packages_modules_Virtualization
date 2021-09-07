@@ -29,6 +29,7 @@
 
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -54,7 +55,7 @@ struct Args {
 
     /// CID of the VM where the service runs.
     #[structopt(long)]
-    cid: Option<u32>,
+    cid: u32,
 
     /// Extra options to FUSE
     #[structopt(short = "o")]
@@ -62,16 +63,15 @@ struct Args {
 
     /// A read-only remote file with integrity check. Can be multiple.
     ///
-    /// For example, `--remote-verified-file 5:10:1234:/path/to/cert` tells the filesystem to
-    /// associate entry 5 with a remote file 10 of size 1234 bytes, and need to be verified against
-    /// the /path/to/cert.
+    /// For example, `--remote-verified-file 5:10:/path/to/cert` tells the filesystem to associate
+    /// entry 5 with a remote file 10, and need to be verified against the /path/to/cert.
     #[structopt(long, parse(try_from_str = parse_remote_ro_file_option))]
     remote_ro_file: Vec<OptionRemoteRoFile>,
 
     /// A read-only remote file without integrity check. Can be multiple.
     ///
-    /// For example, `--remote-unverified-file 5:10:1234` tells the filesystem to associate entry 5
-    /// with a remote file 10 of size 1234 bytes.
+    /// For example, `--remote-unverified-file 5:10` tells the filesystem to associate entry 5
+    /// with a remote file 10.
     #[structopt(long, parse(try_from_str = parse_remote_ro_file_unverified_option))]
     remote_ro_file_unverified: Vec<OptionRemoteRoFileUnverified>,
 
@@ -109,10 +109,6 @@ struct OptionRemoteRoFile {
     /// ID to refer to the remote file.
     remote_id: i32,
 
-    /// Expected size of the remote file. Necessary for signature check and Merkle tree
-    /// verification.
-    file_size: u64,
-
     /// Certificate to verify the authenticity of the file's fs-verity signature.
     /// TODO(170494765): Implement PKCS#7 signature verification.
     _certificate_path: PathBuf,
@@ -123,9 +119,6 @@ struct OptionRemoteRoFileUnverified {
 
     /// ID to refer to the remote file.
     remote_id: i32,
-
-    /// Expected size of the remote file.
-    file_size: u64,
 }
 
 struct OptionRemoteRwFile {
@@ -161,26 +154,24 @@ struct OptionLocalRoFileUnverified {
 
 fn parse_remote_ro_file_option(option: &str) -> Result<OptionRemoteRoFile> {
     let strs: Vec<&str> = option.split(':').collect();
-    if strs.len() != 4 {
+    if strs.len() != 3 {
         bail!("Invalid option: {}", option);
     }
     Ok(OptionRemoteRoFile {
         ino: strs[0].parse::<Inode>()?,
         remote_id: strs[1].parse::<i32>()?,
-        file_size: strs[2].parse::<u64>()?,
-        _certificate_path: PathBuf::from(strs[3]),
+        _certificate_path: PathBuf::from(strs[2]),
     })
 }
 
 fn parse_remote_ro_file_unverified_option(option: &str) -> Result<OptionRemoteRoFileUnverified> {
     let strs: Vec<&str> = option.split(':').collect();
-    if strs.len() != 3 {
+    if strs.len() != 2 {
         bail!("Invalid option: {}", option);
     }
     Ok(OptionRemoteRoFileUnverified {
         ino: strs[0].parse::<Inode>()?,
         remote_id: strs[1].parse::<i32>()?,
-        file_size: strs[2].parse::<u64>()?,
     })
 }
 
@@ -284,7 +275,7 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
 
     if args.has_remote_files() {
-        let service = file::get_binder_service(args.cid)?;
+        let service = file::get_rpc_binder_service(args.cid)?;
 
         for config in &args.remote_ro_file {
             file_pool.insert(
@@ -292,7 +283,7 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
                 new_config_remote_verified_file(
                     service.clone(),
                     config.remote_id,
-                    config.file_size,
+                    service.getFileSize(config.remote_id)?.try_into()?,
                 )?,
             );
         }
@@ -303,7 +294,7 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
                 new_config_remote_unverified_file(
                     service.clone(),
                     config.remote_id,
-                    config.file_size,
+                    service.getFileSize(config.remote_id)?.try_into()?,
                 )?,
             );
         }
