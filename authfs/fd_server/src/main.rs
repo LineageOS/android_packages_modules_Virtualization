@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-//! This program is a constrained file/FD server to serve file requests through a remote[1] binder
+//! This program is a constrained file/FD server to serve file requests through a remote binder
 //! service. The file server is not designed to serve arbitrary file paths in the filesystem. On
 //! the contrary, the server should be configured to start with already opened FDs, and serve the
 //! client's request against the FDs
 //!
 //! For example, `exec 9</path/to/file fd_server --ro-fds 9` starts the binder service. A client
 //! client can then request the content of file 9 by offset and size.
-//!
-//! [1] Since the remote binder is not ready, this currently implementation uses local binder
-//!     first.
 
 mod fsverity;
 
+use anyhow::{bail, Result};
+use binder::unstable_api::AsNative;
+use log::{debug, error};
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
@@ -36,19 +36,14 @@ use std::io;
 use std::os::unix::fs::FileExt;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 
-use anyhow::{bail, Context, Result};
-use binder::unstable_api::AsNative;
-use log::{debug, error};
-
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
-    BnVirtFdService, IVirtFdService, ERROR_IO, ERROR_UNKNOWN_FD, MAX_REQUESTING_DATA,
+    BnVirtFdService, IVirtFdService, ERROR_FILE_TOO_LARGE, ERROR_IO, ERROR_UNKNOWN_FD,
+    MAX_REQUESTING_DATA,
 };
 use authfs_aidl_interface::binder::{
-    add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Result as BinderResult,
-    Status, StatusCode, Strong,
+    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, StatusCode, Strong,
 };
 
-const SERVICE_NAME: &str = "authfs_fd_server";
 const RPC_SERVICE_PORT: u32 = 3264; // TODO: support dynamic port for multiple fd_server instances
 
 fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> Status {
@@ -226,6 +221,30 @@ impl IVirtFdService for FdService {
             }
         }
     }
+
+    fn getFileSize(&self, id: i32) -> BinderResult<i64> {
+        match &self.get_file_config(id)? {
+            FdConfig::Readonly { file, .. } => {
+                let size = file
+                    .metadata()
+                    .map_err(|e| {
+                        error!("getFileSize error: {}", e);
+                        Status::from(ERROR_IO)
+                    })?
+                    .len();
+                Ok(size.try_into().map_err(|e| {
+                    error!("getFileSize: File too large: {}", e);
+                    Status::from(ERROR_FILE_TOO_LARGE)
+                })?)
+            }
+            FdConfig::ReadWrite(_file) => {
+                // Content and metadata of a writable file needs to be tracked by authfs, since
+                // fd_server isn't considered trusted. So there is no point to support getFileSize
+                // for a writable file.
+                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
+            }
+        }
+    }
 }
 
 fn read_into_buf(file: &File, max_size: usize, offset: u64) -> io::Result<Vec<u8>> {
@@ -277,7 +296,7 @@ fn parse_arg_rw_fds(arg: &str) -> Result<(i32, FdConfig)> {
     Ok((fd, FdConfig::ReadWrite(file)))
 }
 
-fn parse_args() -> Result<(bool, BTreeMap<i32, FdConfig>)> {
+fn parse_args() -> Result<BTreeMap<i32, FdConfig>> {
     #[rustfmt::skip]
     let matches = clap::App::new("fd_server")
         .arg(clap::Arg::with_name("ro-fds")
@@ -288,8 +307,6 @@ fn parse_args() -> Result<(bool, BTreeMap<i32, FdConfig>)> {
              .long("rw-fds")
              .multiple(true)
              .number_of_values(1))
-        .arg(clap::Arg::with_name("rpc-binder")
-             .long("rpc-binder"))
         .get_matches();
 
     let mut fd_pool = BTreeMap::new();
@@ -306,8 +323,7 @@ fn parse_args() -> Result<(bool, BTreeMap<i32, FdConfig>)> {
         }
     }
 
-    let rpc_binder = matches.is_present("rpc-binder");
-    Ok((rpc_binder, fd_pool))
+    Ok(fd_pool)
 }
 
 fn main() -> Result<()> {
@@ -315,32 +331,22 @@ fn main() -> Result<()> {
         android_logger::Config::default().with_tag("fd_server").with_min_level(log::Level::Debug),
     );
 
-    let (rpc_binder, fd_pool) = parse_args()?;
+    let fd_pool = parse_args()?;
 
-    if rpc_binder {
-        let mut service = FdService::new_binder(fd_pool).as_binder();
-        debug!("fd_server is starting as a rpc service.");
-        // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
-        // Plus the binder objects are threadsafe.
-        let retval = unsafe {
-            binder_rpc_unstable_bindgen::RunRpcServer(
-                service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
-                RPC_SERVICE_PORT,
-            )
-        };
-        if retval {
-            debug!("RPC server has shut down gracefully");
-            Ok(())
-        } else {
-            bail!("Premature termination of RPC server");
-        }
+    let mut service = FdService::new_binder(fd_pool).as_binder();
+    debug!("fd_server is starting as a rpc service.");
+    // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
+    // Plus the binder objects are threadsafe.
+    let retval = unsafe {
+        binder_rpc_unstable_bindgen::RunRpcServer(
+            service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
+            RPC_SERVICE_PORT,
+        )
+    };
+    if retval {
+        debug!("RPC server has shut down gracefully");
+        Ok(())
     } else {
-        ProcessState::start_thread_pool();
-        let service = FdService::new_binder(fd_pool).as_binder();
-        add_service(SERVICE_NAME, service)
-            .with_context(|| format!("Failed to register service {}", SERVICE_NAME))?;
-        debug!("fd_server is running as a local service.");
-        ProcessState::join_thread_pool();
-        bail!("Unexpected exit after join_thread_pool")
+        bail!("Premature termination of RPC server");
     }
 }

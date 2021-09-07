@@ -5,10 +5,7 @@
   },
   "task": {
     "type": "executable",
-    "command": "/apex/com.android.compos/bin/compsvc",
-    "args": [
-      "--rpc-binder"
-    ]
+    "command": "/apex/com.android.compos/bin/compsvc"
   },
   "apexes": [
     {

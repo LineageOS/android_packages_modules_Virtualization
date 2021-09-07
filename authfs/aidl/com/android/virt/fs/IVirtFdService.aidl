@@ -28,6 +28,9 @@ interface IVirtFdService {
      */
     const int ERROR_IO = 2;
 
+    /** Error when the file is too large to handle correctly. */
+    const int ERROR_FILE_TOO_LARGE = 3;
+
     /** Maximum content size that the service allows the client to request. */
     const int MAX_REQUESTING_DATA = 16384;
 
@@ -54,4 +57,6 @@ interface IVirtFdService {
 
     /** Resizes the file backed by the given file ID to the new size. */
     void resize(int id, long size);
+
+    long getFileSize(int id);
 }
