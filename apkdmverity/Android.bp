@@ -17,6 +17,7 @@ rust_defaults {
         "liblibc",
         "libnix",
         "libnum_traits",
+        "librustutils",
         "libscopeguard",
         "libuuid",
     ],
@@ -31,6 +32,8 @@ rust_defaults {
 rust_binary {
     name: "apkdmverity",
     defaults: ["apkdmverity.defaults"],
+    init_rc: ["apkdmverity.rc"],
+    bootstrap: true,
 }
 
 rust_test {

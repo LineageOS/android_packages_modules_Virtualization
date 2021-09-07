@@ -1,0 +1,3 @@
+service apkdmverity /system/bin/apkdmverity /dev/block/by-name/microdroid-apk /dev/block/by-name/microdroid-apk-idsig microdroid-apk
+    disabled
+    oneshot

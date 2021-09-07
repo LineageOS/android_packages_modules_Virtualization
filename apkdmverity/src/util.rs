@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use nix::sys::stat::FileStat;
 use std::fs::File;
 use std::os::unix::fs::FileTypeExt;
@@ -40,6 +40,19 @@ pub fn wait_for_path<P: AsRef<Path>>(path: P) -> Result<()> {
 /// Returns hexadecimal reprentation of a given byte array.
 pub fn hexstring_from(s: &[u8]) -> String {
     s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
+}
+
+/// Parses a hexadecimal string into a byte array
+pub fn parse_hexstring(s: &str) -> Result<Vec<u8>> {
+    let len = s.len();
+    if len % 2 != 0 {
+        bail!("length {} is not even", len)
+    } else {
+        (0..len)
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| anyhow!(e)))
+            .collect()
+    }
 }
 
 /// fstat that accepts a path rather than FD
