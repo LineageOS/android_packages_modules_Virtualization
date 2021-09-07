@@ -27,7 +27,7 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::{
     InputFdAnnotation::InputFdAnnotation, OutputFdAnnotation::OutputFdAnnotation,
 };
 use authfs_aidl_interface::binder::{ParcelFileDescriptor, Strong};
-use compos_aidl_interface::aidl::com::android::compos::Metadata::Metadata;
+use compos_aidl_interface::aidl::com::android::compos::FdAnnotation::FdAnnotation;
 
 /// The number that represents the file descriptor number expecting by the task. The number may be
 /// meaningless in the current process.
@@ -50,17 +50,17 @@ struct CompilerOutputParcelFds {
     image: ParcelFileDescriptor,
 }
 
-/// Runs the compiler with given flags with file descriptors described in `metadata` retrieved via
-/// `authfs_service`. Returns exit code of the compiler process.
+/// Runs the compiler with given flags with file descriptors described in `fd_annotation` retrieved
+/// via `authfs_service`. Returns exit code of the compiler process.
 pub fn compile(
     compiler_path: &Path,
     compiler_args: &[String],
     authfs_service: Strong<dyn IAuthFsService>,
-    metadata: &Metadata,
+    fd_annotation: &FdAnnotation,
 ) -> Result<CompilerOutput> {
     // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
     // is out of scope.
-    let authfs_config = build_authfs_config(metadata);
+    let authfs_config = build_authfs_config(fd_annotation);
     let authfs = authfs_service.mount(&authfs_config)?;
 
     // The task expects to receive FD numbers that match its flags (e.g. --zip-fd=42) prepared
@@ -135,18 +135,18 @@ fn parse_compiler_args(
     })
 }
 
-fn build_authfs_config(metadata: &Metadata) -> AuthFsConfig {
+fn build_authfs_config(fd_annotation: &FdAnnotation) -> AuthFsConfig {
     AuthFsConfig {
         port: 3264, // TODO: support dynamic port
-        inputFdAnnotations: metadata
-            .input_fd_annotations
+        inputFdAnnotations: fd_annotation
+            .input_fds
             .iter()
-            .map(|x| InputFdAnnotation { fd: x.fd, fileSize: x.file_size })
+            .map(|fd| InputFdAnnotation { fd: *fd })
             .collect(),
-        outputFdAnnotations: metadata
-            .output_fd_annotations
+        outputFdAnnotations: fd_annotation
+            .output_fds
             .iter()
-            .map(|x| OutputFdAnnotation { fd: x.fd })
+            .map(|fd| OutputFdAnnotation { fd: *fd })
             .collect(),
     }
 }
