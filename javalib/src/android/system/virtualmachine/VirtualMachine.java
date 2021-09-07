@@ -31,6 +31,7 @@ import android.system.virtualizationservice.IVirtualMachineCallback;
 import android.system.virtualizationservice.IVirtualizationService;
 import android.system.virtualizationservice.PartitionType;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
+import android.system.virtualizationservice.VirtualMachineState;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -224,8 +225,16 @@ public class VirtualMachine {
     /** Returns the current status of this virtual machine. */
     public @NonNull Status getStatus() throws VirtualMachineException {
         try {
-            if (mVirtualMachine != null && mVirtualMachine.isRunning()) {
-                return Status.RUNNING;
+            if (mVirtualMachine != null) {
+                switch (mVirtualMachine.getState()) {
+                    case VirtualMachineState.STARTING:
+                    case VirtualMachineState.STARTED:
+                    case VirtualMachineState.READY:
+                    case VirtualMachineState.FINISHED:
+                        return Status.RUNNING;
+                    case VirtualMachineState.DEAD:
+                        return Status.STOPPED;
+                }
             }
         } catch (RemoteException e) {
             throw new VirtualMachineException(e);
