@@ -28,6 +28,7 @@ mod util;
 use anyhow::{bail, Context, Result};
 use clap::{App, Arg};
 use idsig::{HashAlgorithm, V4Signature};
+use rustutils::system_properties;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
@@ -61,7 +62,13 @@ fn main() -> Result<()> {
     let apk = matches.value_of("apk").unwrap();
     let idsig = matches.value_of("idsig").unwrap();
     let name = matches.value_of("name").unwrap();
-    let ret = enable_verity(apk, idsig, name)?;
+    let roothash = if let Ok(val) = system_properties::read("microdroid_manager.apk_roothash") {
+        Some(util::parse_hexstring(&val)?)
+    } else {
+        // This failure is not an error. We will use the roothash read from the idsig file.
+        None
+    };
+    let ret = enable_verity(apk, idsig, name, roothash.as_deref())?;
     if matches.is_present("verbose") {
         println!(
             "data_device: {:?}, hash_device: {:?}, mapper_device: {:?}",
@@ -80,7 +87,12 @@ struct VerityResult {
 const BLOCK_SIZE: u64 = 4096;
 
 // Makes a dm-verity block device out of `apk` and its accompanying `idsig` files.
-fn enable_verity<P: AsRef<Path> + Debug>(apk: P, idsig: P, name: &str) -> Result<VerityResult> {
+fn enable_verity<P: AsRef<Path> + Debug>(
+    apk: P,
+    idsig: P,
+    name: &str,
+    roothash: Option<&[u8]>,
+) -> Result<VerityResult> {
     // Attach the apk file to a loop device if the apk file is a regular file. If not (i.e. block
     // device), we only need to get the size and use the block device as it is.
     let (data_device, apk_size) = if fs::metadata(&apk)?.file_type().is_block_device() {
@@ -108,7 +120,11 @@ fn enable_verity<P: AsRef<Path> + Debug>(apk: P, idsig: P, name: &str) -> Result
     let target = dm::DmVerityTargetBuilder::default()
         .data_device(&data_device, apk_size)
         .hash_device(&hash_device)
-        .root_digest(&sig.hashing_info.raw_root_hash)
+        .root_digest(if let Some(roothash) = roothash {
+            roothash
+        } else {
+            &sig.hashing_info.raw_root_hash
+        })
         .hash_algorithm(match sig.hashing_info.hash_algorithm {
             HashAlgorithm::SHA256 => dm::DmVerityHashAlgorithm::SHA256,
         })
@@ -167,6 +183,16 @@ mod tests {
     }
 
     fn run_test(apk: &[u8], idsig: &[u8], name: &str, check: fn(TestContext)) {
+        run_test_with_hash(apk, idsig, name, None, check);
+    }
+
+    fn run_test_with_hash(
+        apk: &[u8],
+        idsig: &[u8],
+        name: &str,
+        roothash: Option<&[u8]>,
+        check: fn(TestContext),
+    ) {
         if should_skip() {
             return;
         }
@@ -174,7 +200,7 @@ mod tests {
         let (apk_path, idsig_path) = prepare_inputs(test_dir.path(), apk, idsig);
 
         // Run the program and register clean-ups.
-        let ret = enable_verity(&apk_path, &idsig_path, name).unwrap();
+        let ret = enable_verity(&apk_path, &idsig_path, name, roothash).unwrap();
         let ret = scopeguard::guard(ret, |ret| {
             loopdevice::detach(ret.data_device).unwrap();
             loopdevice::detach(ret.hash_device).unwrap();
@@ -312,7 +338,8 @@ mod tests {
 
         let name = "loop_as_input";
         // Run the program WITH the loop devices, not the regular files.
-        let ret = enable_verity(apk_loop_device.deref(), idsig_loop_device.deref(), name).unwrap();
+        let ret =
+            enable_verity(apk_loop_device.deref(), idsig_loop_device.deref(), name, None).unwrap();
         let ret = scopeguard::guard(ret, |ret| {
             loopdevice::detach(ret.data_device).unwrap();
             loopdevice::detach(ret.hash_device).unwrap();
@@ -324,5 +351,19 @@ mod tests {
         let original = fs::read(&apk_path).unwrap();
         assert_eq!(verity.len(), original.len()); // fail fast
         assert_eq!(verity.as_slice(), original.as_slice());
+    }
+
+    // test with custom roothash
+    #[test]
+    fn correct_custom_roothash() {
+        let apk = include_bytes!("../testdata/test.apk");
+        let idsig = include_bytes!("../testdata/test.apk.idsig");
+        let roothash = V4Signature::from(Cursor::new(&idsig)).unwrap().hashing_info.raw_root_hash;
+        run_test_with_hash(apk.as_ref(), idsig.as_ref(), "correct", Some(&roothash), |ctx| {
+            let verity = fs::read(&ctx.result.mapper_device).unwrap();
+            let original = fs::read(&ctx.result.data_device).unwrap();
+            assert_eq!(verity.len(), original.len()); // fail fast
+            assert_eq!(verity.as_slice(), original.as_slice());
+        });
     }
 }
