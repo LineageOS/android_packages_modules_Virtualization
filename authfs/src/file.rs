@@ -10,7 +10,7 @@ use std::io;
 
 use crate::common::CHUNK_SIZE;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::IVirtFdService;
-use authfs_aidl_interface::binder::{get_interface, Strong};
+use authfs_aidl_interface::binder::Strong;
 
 pub type VirtFdService = Strong<dyn IVirtFdService>;
 
@@ -18,17 +18,7 @@ pub type ChunkBuffer = [u8; CHUNK_SIZE as usize];
 
 pub const RPC_SERVICE_PORT: u32 = 3264;
 
-fn get_local_binder() -> io::Result<VirtFdService> {
-    let service_name = "authfs_fd_server";
-    get_interface(service_name).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::AddrNotAvailable,
-            format!("Cannot reach authfs_fd_server binder service: {}", e),
-        )
-    })
-}
-
-fn get_rpc_binder(cid: u32) -> io::Result<VirtFdService> {
+pub fn get_rpc_binder_service(cid: u32) -> io::Result<VirtFdService> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
     // safely taken by new_spibinder.
     let ibinder = unsafe {
@@ -43,14 +33,6 @@ fn get_rpc_binder(cid: u32) -> io::Result<VirtFdService> {
         })?)
     } else {
         Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid raw AIBinder"))
-    }
-}
-
-pub fn get_binder_service(cid: Option<u32>) -> io::Result<VirtFdService> {
-    if let Some(cid) = cid {
-        get_rpc_binder(cid)
-    } else {
-        get_local_binder()
     }
 }
 
