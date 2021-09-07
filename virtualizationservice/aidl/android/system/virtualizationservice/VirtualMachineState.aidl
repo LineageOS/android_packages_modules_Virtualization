@@ -21,6 +21,10 @@ package android.system.virtualizationservice;
 @Backing(type="int")
 enum VirtualMachineState {
     /**
+     * The VM has been created but not yet started.
+     */
+    NOT_STARTED = 0,
+    /**
      * The VM is running, but the payload has not yet started.
      */
     STARTING = 1,
