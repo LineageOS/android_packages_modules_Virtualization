@@ -101,7 +101,10 @@ android_system_image {
     multilib: {
         common: {
             deps: [
+                // non-updatable & mandatory apexes
+                "com.android.i18n",
                 "com.android.runtime",
+
                 "microdroid_plat_sepolicy.cil",
                 "microdroid_plat_mapping_file",
             ],
