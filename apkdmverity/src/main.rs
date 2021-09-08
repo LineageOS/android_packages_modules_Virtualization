@@ -62,7 +62,7 @@ fn main() -> Result<()> {
     let apk = matches.value_of("apk").unwrap();
     let idsig = matches.value_of("idsig").unwrap();
     let name = matches.value_of("name").unwrap();
-    let roothash = if let Ok(val) = system_properties::read("microdroid_manager.apk_roothash") {
+    let roothash = if let Ok(val) = system_properties::read("microdroid_manager.apk_root_hash") {
         Some(util::parse_hexstring(&val)?)
     } else {
         // This failure is not an error. We will use the roothash read from the idsig file.
