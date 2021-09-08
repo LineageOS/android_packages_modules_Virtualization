@@ -19,7 +19,6 @@ on early-init
 
     mkdir /mnt/apk 0755 system system
     start microdroid_manager
-    # TODO(b/190343842) verify apexes/apk before mounting them.
 
     # Exec apexd in the VM mode to avoid unnecessary overhead of normal mode.
     # (e.g. session management)
