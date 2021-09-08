@@ -16,16 +16,15 @@
 
 //! A tool to start a standalone compsvc server that serves over RPC binder.
 
-mod common;
 mod compilation;
 mod compos_key_service;
 mod compsvc;
 mod fsverity;
 mod signer;
 
-use crate::common::VSOCK_PORT;
 use anyhow::{bail, Result};
 use binder::unstable_api::AsNative;
+use compos_common::COMPOS_VSOCK_PORT;
 use log::debug;
 
 fn main() -> Result<()> {
@@ -40,7 +39,7 @@ fn main() -> Result<()> {
     let retval = unsafe {
         binder_rpc_unstable_bindgen::RunRpcServer(
             service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
-            VSOCK_PORT,
+            COMPOS_VSOCK_PORT,
         )
     };
     if retval {
