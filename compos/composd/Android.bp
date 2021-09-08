@@ -1,0 +1,22 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_binary {
+    name: "composd",
+    srcs: ["src/composd_main.rs"],
+    edition: "2018",
+    rustlibs: [
+        "android.system.composd-rust",
+        "compos_aidl_interface-rust",
+        "libandroid_logger",
+        "libanyhow",
+        "libbinder_rs",
+        "libcompos_common",
+        "liblog_rust",
+    ],
+    prefer_rlib: true,
+    apex_available: [
+        "com.android.compos",
+    ],
+}
