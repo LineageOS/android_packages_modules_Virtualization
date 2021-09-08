@@ -14,6 +14,16 @@
  * limitations under the License.
  */
 
-/// Port to listen. This should be out of future port range (if happens) that microdroid may
-/// reserve for system components.
-pub const VSOCK_PORT: u32 = 6432;
+//! Common items used by CompOS server and/or clients
+
+pub mod compos_client;
+
+/// VSock port that the CompOS server listens on for RPC binder connections. This should be out of
+/// future port range (if happens) that microdroid may reserve for system components.
+pub const COMPOS_VSOCK_PORT: u32 = 6432;
+
+/// The root directory where the CompOS APEX is mounted (read only).
+pub const COMPOS_APEX_ROOT: &str = "/apex/com.android.compos";
+
+/// The root of the  data directory available for private use by the CompOS APEX.
+pub const COMPOS_DATA_ROOT: &str = "/data/misc/apexdata/com.android.compos";
