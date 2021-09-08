@@ -41,9 +41,7 @@ use compos_aidl_interface::aidl::com::android::compos::{
     FdAnnotation::FdAnnotation, ICompOsService::ICompOsService,
 };
 use compos_aidl_interface::binder::Strong;
-
-mod common;
-use common::VSOCK_PORT;
+use compos_common::COMPOS_VSOCK_PORT;
 
 const FD_SERVER_BIN: &str = "/apex/com.android.virt/bin/fd_server";
 
@@ -51,7 +49,9 @@ fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompOsService>> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
     // safely taken by new_spibinder.
     let ibinder = unsafe {
-        new_spibinder(binder_rpc_unstable_bindgen::RpcClient(cid, VSOCK_PORT) as *mut AIBinder)
+        new_spibinder(
+            binder_rpc_unstable_bindgen::RpcClient(cid, COMPOS_VSOCK_PORT) as *mut AIBinder
+        )
     };
     if let Some(ibinder) = ibinder {
         <dyn ICompOsService>::try_from(ibinder).context("Cannot connect to RPC service")
