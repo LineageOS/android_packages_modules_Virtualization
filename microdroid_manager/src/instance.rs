@@ -37,6 +37,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ring::aead::{Aad, Algorithm, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::hkdf::{Salt, HKDF_SHA256};
+use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use uuid::Uuid;
@@ -104,7 +105,7 @@ impl InstanceDisk {
     /// Reads the identity data that was written by microdroid manager. The returned data is
     /// plaintext, although it is stored encrypted. In case when the partition for microdroid
     /// manager doesn't exist, which can happen if it's the first boot, `Ok(None)` is returned.
-    pub fn read_microdroid_data(&mut self) -> Result<Option<Box<[u8]>>> {
+    pub fn read_microdroid_data(&mut self) -> Result<Option<MicrodroidData>> {
         let (header, offset) = self.locate_microdroid_header()?;
         if header.is_none() {
             return Ok(None);
@@ -134,13 +135,16 @@ impl InstanceDisk {
         // Truncate to remove the tag
         data.truncate(plaintext_len);
 
-        Ok(Some(data.into_boxed_slice()))
+        let microdroid_data = serde_cbor::from_slice(data.as_slice())?;
+        Ok(Some(microdroid_data))
     }
 
     /// Writes identity data to the partition for microdroid manager. The partition is appended
     /// if it doesn't exist. The data is stored encrypted.
-    pub fn write_microdroid_data(&mut self, data: &[u8]) -> Result<()> {
+    pub fn write_microdroid_data(&mut self, microdroid_data: &MicrodroidData) -> Result<()> {
         let (header, offset) = self.locate_microdroid_header()?;
+
+        let mut data = serde_cbor::to_vec(microdroid_data)?;
 
         // By encrypting and signing the data, tag will be appended. The tag also becomes part of
         // the encrypted payload which will be written. In addition, a 12-bytes nonce will be
@@ -170,7 +174,6 @@ impl InstanceDisk {
 
         // Then encrypt and sign the data. The non-encrypted input data is copied to a vector
         // because it is encrypted in place, and also the tag is appended.
-        let mut data = data.to_vec();
         get_key().seal_in_place_append_tag(nonce, Aad::from(&header), &mut data)?;
 
         // Persist the encrypted payload data
@@ -307,3 +310,17 @@ fn get_key() -> ZeroOnDropKey {
 
     ret
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MicrodroidData {
+    pub apk_data: ApkData,
+    // TODO(b/197053593) add data for APEXes
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApkData {
+    pub root_hash: Box<RootHash>,
+    // TODO(b/199143508) add cert
+}
+
+pub type RootHash = [u8];

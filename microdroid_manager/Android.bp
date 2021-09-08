@@ -27,6 +27,7 @@ rust_defaults {
         "libring",
         "librustutils",
         "libserde",
+        "libserde_cbor",
         "libserde_json",
         "libuuid",
         "libvsock",
