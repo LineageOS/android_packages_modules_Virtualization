@@ -18,7 +18,9 @@ package com.android.microdroid.demo;
 
 import android.app.Application;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
@@ -38,6 +40,8 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.android.microdroid.testservice.ITestService;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -45,6 +49,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * This app is to demonstrate the use of APIs in the android.system.virtualmachine library.
@@ -141,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
         public void run(boolean debug) {
             // Create a VM and run it.
             // TODO(jiyong): remove the call to idsigPath
-            mExecutorService = Executors.newFixedThreadPool(2);
+            mExecutorService = Executors.newFixedThreadPool(3);
 
             VirtualMachineCallback callback =
                     new VirtualMachineCallback() {
@@ -177,9 +182,55 @@ public class MainActivity extends AppCompatActivity {
 
                         @Override
                         public void onPayloadReady(VirtualMachine vm) {
-                            // This check doesn't 100% prevent race condition, but is fine for demo.
-                            if (!mService.isShutdown()) {
-                                mPayloadOutput.postValue("(Payload is ready)");
+                            // This check doesn't 100% prevent race condition or UI hang.
+                            // However, it's fine for demo.
+                            if (mService.isShutdown()) {
+                                return;
+                            }
+                            mPayloadOutput.postValue("(Payload is ready. Testing VM service...)");
+
+                            Future<IBinder> service;
+                            try {
+                                service = vm.connectToVsockServer(ITestService.SERVICE_PORT);
+                            } catch (VirtualMachineException e) {
+                                mPayloadOutput.postValue(
+                                        String.format(
+                                                "(Exception while connecting VM's binder"
+                                                        + " service: %s)",
+                                                e.getMessage()));
+                                return;
+                            }
+
+                            mService.execute(() -> testVMService(service));
+                        }
+
+                        private void testVMService(Future<IBinder> service) {
+                            IBinder binder;
+                            try {
+                                binder = service.get();
+                            } catch (Exception e) {
+                                if (!Thread.interrupted()) {
+                                    mPayloadOutput.postValue(
+                                            String.format(
+                                                    "(VM service connection failed: %s)",
+                                                    e.getMessage()));
+                                }
+                                return;
+                            }
+
+                            try {
+                                ITestService testService = ITestService.Stub.asInterface(binder);
+                                int ret = testService.addInteger(123, 456);
+                                mPayloadOutput.postValue(
+                                        String.format(
+                                                "(VM payload service: %d + %d = %d)",
+                                                123, 456, ret));
+                            } catch (RemoteException e) {
+                                mPayloadOutput.postValue(
+                                        String.format(
+                                                "(Exception while testing VM's binder service:"
+                                                        + " %s)",
+                                                e.getMessage()));
                             }
                         }
 
