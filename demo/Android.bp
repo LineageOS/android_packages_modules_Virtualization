@@ -9,6 +9,7 @@ android_app {
     static_libs: [
         "androidx-constraintlayout_constraintlayout",
         "androidx.appcompat_appcompat",
+        "com.android.microdroid.testservice-java",
         "com.google.android.material_material",
     ],
     libs: [
