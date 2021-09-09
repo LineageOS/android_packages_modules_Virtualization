@@ -22,10 +22,10 @@ import android.system.virtualizationservice.VirtualMachineDebugInfo;
 
 interface IVirtualizationService {
     /**
-     * Start the VM with the given config file, and return a handle to it. If `logFd` is provided
-     * then console logs from the VM will be sent to it.
+     * Create the VM with the given config file, and return a handle to it ready to start it. If
+     * `logFd` is provided then console logs from the VM will be sent to it.
      */
-    IVirtualMachine startVm(
+    IVirtualMachine createVm(
             in VirtualMachineConfig config, in @nullable ParcelFileDescriptor logFd);
 
     /**
