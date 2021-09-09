@@ -311,16 +311,22 @@ fn get_key() -> ZeroOnDropKey {
     ret
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct MicrodroidData {
     pub apk_data: ApkData,
-    // TODO(b/197053593) add data for APEXes
+    pub apex_data: Vec<ApexData>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct ApkData {
     pub root_hash: Box<RootHash>,
     // TODO(b/199143508) add cert
 }
 
 pub type RootHash = [u8];
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct ApexData {
+    pub name: String,
+    pub pubkey: Vec<u8>,
+}
