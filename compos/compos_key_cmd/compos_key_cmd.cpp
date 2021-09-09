@@ -213,7 +213,7 @@ public:
         appConfig.memoryMib = 0; // Use default
 
         LOG(INFO) << "Starting VM";
-        auto status = service->startVm(config, logFd, &mVm);
+        auto status = service->createVm(config, logFd, &mVm);
         if (!status.isOk()) {
             return Error() << status.getDescription();
         }
@@ -224,7 +224,7 @@ public:
             return Error() << status.getDescription();
         }
 
-        LOG(INFO) << "Started VM with cid = " << cid;
+        LOG(INFO) << "Created VM with CID = " << cid;
 
         // We need to use this rather than std::make_shared to make sure the
         // embedded weak_ptr is initialised.
@@ -234,6 +234,12 @@ public:
         if (!status.isOk()) {
             return Error() << status.getDescription();
         }
+
+        status = mVm->start();
+        if (!status.isOk()) {
+            return Error() << status.getDescription();
+        }
+        LOG(INFO) << "Started VM";
 
         if (!mCallback->waitForStarted()) {
             return Error() << "VM Payload failed to start";

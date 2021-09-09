@@ -85,13 +85,16 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
 
     VirtualMachineConfig config(std::move(raw_config));
     sp<IVirtualMachine> vm;
-    status = virtualization_service->startVm(config, std::nullopt, &vm);
-    ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
+    status = virtualization_service->createVm(config, std::nullopt, &vm);
+    ASSERT_TRUE(status.isOk()) << "Error creating VM: " << status;
 
     int32_t cid;
     status = vm->getCid(&cid);
     ASSERT_TRUE(status.isOk()) << "Error getting CID: " << status;
     LOG(INFO) << "VM starting with CID " << cid;
+
+    status = vm->start();
+    ASSERT_TRUE(status.isOk()) << "Error starting VM: " << status;
 
     LOG(INFO) << "Accepting connection...";
     struct sockaddr_vm client_sa;
