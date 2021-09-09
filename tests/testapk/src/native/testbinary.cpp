@@ -14,11 +14,21 @@
  * limitations under the License.
  */
 #include <aidl/android/system/keystore2/IKeystoreService.h>
+#include <aidl/android/system/virtualmachineservice/IVirtualMachineService.h>
+#include <aidl/com/android/microdroid/testservice/BnTestService.h>
 #include <android-base/result.h>
+#include <android-base/unique_fd.h>
 #include <android/binder_auto_utils.h>
 #include <android/binder_manager.h>
+#include <fcntl.h>
+#include <linux/vm_sockets.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <sys/ioctl.h>
 #include <sys/system_properties.h>
+#include <unistd.h>
+
+#include <binder_rpc_unstable.hpp>
 
 using aidl::android::hardware::security::keymint::Algorithm;
 using aidl::android::hardware::security::keymint::Digest;
@@ -35,8 +45,12 @@ using aidl::android::system::keystore2::IKeystoreService;
 using aidl::android::system::keystore2::KeyDescriptor;
 using aidl::android::system::keystore2::KeyMetadata;
 
+using aidl::android::system::virtualmachineservice::IVirtualMachineService;
+
+using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Result;
+using android::base::unique_fd;
 
 extern void testlib_sub();
 
@@ -184,9 +198,63 @@ Result<T> report_test(std::string name, Result<T> result) {
     return result;
 }
 
+Result<unsigned> get_local_cid() {
+    // TODO: remove this after VS can check the peer addresses of binder clients
+    unique_fd fd(open("/dev/vsock", O_RDONLY));
+    if (fd.get() == -1) {
+        return ErrnoError() << "failed to open /dev/vsock";
+    }
+
+    unsigned cid;
+    if (ioctl(fd.get(), IOCTL_VM_SOCKETS_GET_LOCAL_CID, &cid) == -1) {
+        return ErrnoError() << "failed to IOCTL_VM_SOCKETS_GET_LOCAL_CID";
+    }
+
+    return cid;
+}
+
+Result<void> start_test_service() {
+    class TestService : public aidl::com::android::microdroid::testservice::BnTestService {
+        ndk::ScopedAStatus addInteger(int32_t a, int32_t b, int32_t* out) override {
+            *out = a + b;
+            return ndk::ScopedAStatus::ok();
+        }
+    };
+    auto testService = ndk::SharedRefBase::make<TestService>();
+
+    auto callback = []([[maybe_unused]] void* param) {
+        // Tell microdroid_manager that we're ready.
+        // Failing to notify is not a fatal error; the payload can continue.
+        ndk::SpAIBinder binder(
+                RpcClient(VMADDR_CID_HOST, IVirtualMachineService::VM_BINDER_SERVICE_PORT));
+        auto virtualMachineService = IVirtualMachineService::fromBinder(binder);
+        if (virtualMachineService == nullptr) {
+            std::cerr << "failed to connect VirtualMachineService";
+            return;
+        }
+        if (auto res = get_local_cid(); !res.ok()) {
+            std::cerr << "failed to get local cid: " << res.error();
+        } else if (!virtualMachineService->notifyPayloadReady(res.value()).isOk()) {
+            std::cerr << "failed to notify payload ready to virtualizationservice";
+        }
+    };
+
+    if (!RunRpcServerCallback(testService->asBinder().get(), testService->SERVICE_PORT, callback,
+                              nullptr)) {
+        return Error() << "RPC Server failed to run";
+    }
+
+    return {};
+}
+
 } // Anonymous namespace
 
 extern "C" int android_native_main(int argc, char* argv[]) {
+    // disable buffering to communicate seamlessly
+    setvbuf(stdin, nullptr, _IONBF, 0);
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+
     printf("Hello Microdroid ");
     for (int i = 0; i < argc; i++) {
         printf("%s", argv[i]);
@@ -201,5 +269,10 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     __system_property_set("debug.microdroid.app.run", "true");
     if (!report_test("keystore", test_keystore()).ok()) return 1;
 
-    return 0;
+    if (auto res = start_test_service(); res.ok()) {
+        return 0;
+    } else {
+        std::cerr << "starting service failed: " << res.error();
+        return 1;
+    }
 }
