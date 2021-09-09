@@ -21,7 +21,7 @@ mod payload;
 
 use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
-use android_system_virtualizationservice::binder::{add_service, BinderFeatures, ProcessState};
+use android_system_virtualizationservice::binder::{register_lazy_service, BinderFeatures, ProcessState};
 use anyhow::Error;
 use log::{info, Level};
 use std::fs::{remove_dir_all, remove_file, read_dir};
@@ -47,7 +47,7 @@ fn main() {
         service,
         BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
     );
-    add_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
+    register_lazy_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();
 }
