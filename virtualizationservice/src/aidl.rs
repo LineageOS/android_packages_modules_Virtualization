@@ -15,7 +15,7 @@
 //! Implementation of the AIDL interface of the VirtualizationService.
 
 use crate::composite::make_composite_image;
-use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance};
+use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
 use crate::{Cid, FIRST_GUEST_CID};
 
@@ -85,10 +85,11 @@ pub struct VirtualizationService {
 impl Interface for VirtualizationService {}
 
 impl IVirtualizationService for VirtualizationService {
-    /// Create and start a new VM with the given configuration, assigning it the next available CID.
+    /// Creates (but does not start) a new VM with the given configuration, assigning it the next
+    /// available CID.
     ///
     /// Returns a binder `IVirtualMachine` object referring to it, as a handle for the client.
-    fn startVm(
+    fn createVm(
         &self,
         config: &VirtualMachineConfig,
         log_fd: Option<&ParcelFileDescriptor>,
@@ -174,20 +175,22 @@ impl IVirtualizationService for VirtualizationService {
             log_fd,
             indirect_files,
         };
-        let instance = VmInstance::start(
-            crosvm_config,
-            temporary_directory,
-            requester_uid,
-            requester_sid,
-            requester_debug_pid,
-        )
-        .map_err(|e| {
-            error!("Failed to start VM with config {:?}: {}", config, e);
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("Failed to start VM: {}", e),
+        let instance = Arc::new(
+            VmInstance::new(
+                crosvm_config,
+                temporary_directory,
+                requester_uid,
+                requester_sid,
+                requester_debug_pid,
             )
-        })?;
+            .map_err(|e| {
+                error!("Failed to create VM with config {:?}: {}", config, e);
+                new_binder_exception(
+                    ExceptionCode::SERVICE_SPECIFIC,
+                    format!("Failed to create VM: {}", e),
+                )
+            })?,
+        );
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
     }
@@ -513,8 +516,8 @@ fn get_calling_sid() -> Result<String, Status> {
                 }
             }
         } else {
-            error!("Missing SID on startVm");
-            Err(new_binder_exception(ExceptionCode::SECURITY, "Missing SID on startVm"))
+            error!("Missing SID on createVm");
+            Err(new_binder_exception(ExceptionCode::SECURITY, "Missing SID on createVm"))
         }
     })
 }
@@ -589,12 +592,16 @@ impl IVirtualMachine for VirtualMachine {
         Ok(())
     }
 
+    fn start(&self) -> binder::Result<()> {
+        self.instance.start().map_err(|e| {
+            error!("Error starting VM with CID {}: {:?}", self.instance.cid, e);
+            new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string())
+        })
+    }
+
     fn connectVsock(&self, port: i32) -> binder::Result<ParcelFileDescriptor> {
-        if !self.instance.running() {
-            return Err(new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                "VM is no longer running",
-            ));
+        if !matches!(&*self.instance.vm_state.lock().unwrap(), VmState::Running { .. }) {
+            return Err(new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, "VM is not running"));
         }
         let stream =
             VsockStream::connect_with_cid_port(self.instance.cid, port as u32).map_err(|e| {
@@ -734,15 +741,16 @@ impl Default for State {
 
 /// Gets the `VirtualMachineState` of the given `VmInstance`.
 fn get_state(instance: &VmInstance) -> VirtualMachineState {
-    if instance.running() {
-        match instance.payload_state() {
+    match &*instance.vm_state.lock().unwrap() {
+        VmState::NotStarted { .. } => VirtualMachineState::NOT_STARTED,
+        VmState::Running { .. } => match instance.payload_state() {
             PayloadState::Starting => VirtualMachineState::STARTING,
             PayloadState::Started => VirtualMachineState::STARTED,
             PayloadState::Ready => VirtualMachineState::READY,
             PayloadState::Finished => VirtualMachineState::FINISHED,
-        }
-    } else {
-        VirtualMachineState::DEAD
+        },
+        VmState::Dead => VirtualMachineState::DEAD,
+        VmState::Failed => VirtualMachineState::DEAD,
     }
 }
 

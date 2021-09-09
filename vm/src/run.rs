@@ -16,15 +16,16 @@
 
 use crate::create_partition::command_create_partition;
 use crate::sync::AtomicFlag;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::IVirtualMachine;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachineCallback::{
     BnVirtualMachineCallback, IVirtualMachineCallback,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    IVirtualMachine::IVirtualMachine,
+    IVirtualizationService::IVirtualizationService,
     PartitionType::PartitionType,
     VirtualMachineAppConfig::VirtualMachineAppConfig,
     VirtualMachineConfig::VirtualMachineConfig,
+    VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice::binder::{
     BinderFeatures, DeathRecipient, IBinder, ParcelFileDescriptor, Strong,
@@ -100,6 +101,18 @@ pub fn command_run(
     )
 }
 
+fn state_to_str(vm_state: VirtualMachineState) -> &'static str {
+    match vm_state {
+        VirtualMachineState::NOT_STARTED => "NOT_STARTED",
+        VirtualMachineState::STARTING => "STARTING",
+        VirtualMachineState::STARTED => "STARTED",
+        VirtualMachineState::READY => "READY",
+        VirtualMachineState::FINISHED => "FINISHED",
+        VirtualMachineState::DEAD => "DEAD",
+        _ => "(invalid state)",
+    }
+}
+
 fn run(
     service: Strong<dyn IVirtualizationService>,
     config: &VirtualMachineConfig,
@@ -117,10 +130,17 @@ fn run(
     } else {
         Some(ParcelFileDescriptor::new(duplicate_stdout()?))
     };
-    let vm = service.startVm(config, stdout.as_ref()).context("Failed to start VM")?;
+    let vm = service.createVm(config, stdout.as_ref()).context("Failed to create VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
-    println!("Started VM from {} with CID {}.", config_path, cid);
+    println!(
+        "Created VM from {} with CID {}, state is {}.",
+        config_path,
+        cid,
+        state_to_str(vm.getState()?)
+    );
+    vm.start()?;
+    println!("Started VM, state now {}.", state_to_str(vm.getState()?));
 
     if daemonize {
         // Pass the VM reference back to VirtualizationService and have it hold it in the

@@ -34,6 +34,9 @@ interface IVirtualMachine {
      */
     void registerCallback(IVirtualMachineCallback callback);
 
+    /** Starts running the VM. */
+    void start();
+
     /** Open a vsock connection to the CID of the VM on the given port. */
     ParcelFileDescriptor connectVsock(int port);
 }
