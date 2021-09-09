@@ -32,6 +32,7 @@ rust_defaults {
         "libuuid",
         "libvsock",
         "librand",
+        "libzip",
     ],
     shared_libs: [
         "libbinder_rpc_unstable",
