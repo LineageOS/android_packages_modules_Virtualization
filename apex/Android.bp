@@ -50,6 +50,9 @@ apex {
     java_libs: [
         "android.system.virtualmachine",
     ],
+    jni_libs: [
+        "libvirtualmachine_jni",
+    ],
     apps: [
         "android.system.virtualmachine.res",
     ],
