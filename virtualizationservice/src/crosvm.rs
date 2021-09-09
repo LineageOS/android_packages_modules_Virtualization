@@ -34,15 +34,17 @@ const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
 /// Configuration for a VM to run with crosvm.
 #[derive(Debug)]
-pub struct CrosvmConfig<'a> {
+pub struct CrosvmConfig {
     pub cid: Cid,
-    pub bootloader: Option<&'a File>,
-    pub kernel: Option<&'a File>,
-    pub initrd: Option<&'a File>,
+    pub bootloader: Option<File>,
+    pub kernel: Option<File>,
+    pub initrd: Option<File>,
     pub disks: Vec<DiskFile>,
     pub params: Option<String>,
     pub protected: bool,
     pub memory_mib: Option<NonZeroU32>,
+    pub log_fd: Option<File>,
+    pub indirect_files: Vec<File>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -121,19 +123,19 @@ impl VmInstance {
     /// Start an instance of `crosvm` to manage a new VM. The `crosvm` instance will be killed when
     /// the `VmInstance` is dropped.
     pub fn start(
-        config: &CrosvmConfig,
-        log_fd: Option<File>,
-        composite_disk_fds: &[RawFd],
+        config: CrosvmConfig,
         temporary_directory: PathBuf,
         requester_uid: u32,
         requester_sid: String,
         requester_debug_pid: i32,
     ) -> Result<Arc<VmInstance>, Error> {
-        let child = run_vm(config, log_fd, composite_disk_fds)?;
+        let cid = config.cid;
+        let protected = config.protected;
+        let child = run_vm(config)?;
         let instance = Arc::new(VmInstance::new(
             child,
-            config.cid,
-            config.protected,
+            cid,
+            protected,
             temporary_directory,
             requester_uid,
             requester_sid,
@@ -196,13 +198,9 @@ impl VmInstance {
     }
 }
 
-/// Start an instance of `crosvm` to manage a new VM.
-fn run_vm(
-    config: &CrosvmConfig,
-    log_fd: Option<File>,
-    composite_disk_fds: &[RawFd],
-) -> Result<SharedChild, Error> {
-    validate_config(config)?;
+/// Starts an instance of `crosvm` to manage a new VM.
+fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
+    validate_config(&config)?;
 
     let mut command = Command::new(CROSVM_PATH);
     // TODO(qwandor): Remove --disable-sandbox.
@@ -216,7 +214,7 @@ fn run_vm(
         command.arg("--mem").arg(memory_mib.to_string());
     }
 
-    if let Some(log_fd) = log_fd {
+    if let Some(log_fd) = config.log_fd {
         command.stdout(log_fd);
     } else {
         // Ignore console output.
@@ -224,7 +222,7 @@ fn run_vm(
     }
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
-    let mut preserved_fds = composite_disk_fds.to_vec();
+    let mut preserved_fds = config.indirect_files.iter().map(|file| file.as_raw_fd()).collect();
 
     if let Some(bootloader) = &config.bootloader {
         command.arg("--bios").arg(add_preserved_fd(&mut preserved_fds, bootloader));
