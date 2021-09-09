@@ -41,6 +41,9 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * A handle to the virtual machine. The virtual machine is local to the app which created the
@@ -108,6 +111,12 @@ public class VirtualMachine {
 
     private @Nullable ParcelFileDescriptor mConsoleReader;
     private @Nullable ParcelFileDescriptor mConsoleWriter;
+
+    private final ExecutorService mExecutorService = Executors.newCachedThreadPool();
+
+    static {
+        System.loadLibrary("virtualmachine_jni");
+    }
 
     private VirtualMachine(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config) {
@@ -428,6 +437,25 @@ public class VirtualMachine {
         mConfig = newConfig;
 
         return oldConfig;
+    }
+
+    private static native IBinder nativeConnectToVsockServer(IBinder vmBinder, int port);
+
+    /**
+     * Connects to a VM's RPC server via vsock, and returns a root IBinder object. Guest VMs are
+     * expected to set up vsock servers in their payload. After the host app receives onPayloadReady
+     * callback, the host app can use this method to establish an RPC session to the guest VMs.
+     *
+     * <p>If the connection succeeds, the root IBinder object will be returned via {@link
+     * VirtualMachineCallback.onVsockServerReady()}. If the connection fails, {@link
+     * VirtualMachineCallback.onVsockServerConnectionFailed()} will be called.
+     */
+    public Future<IBinder> connectToVsockServer(int port) throws VirtualMachineException {
+        if (getStatus() != Status.RUNNING) {
+            throw new VirtualMachineException("VM is not running");
+        }
+        return mExecutorService.submit(
+                () -> nativeConnectToVsockServer(mVirtualMachine.asBinder(), port));
     }
 
     @Override
