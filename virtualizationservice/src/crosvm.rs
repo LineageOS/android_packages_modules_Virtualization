@@ -52,6 +52,18 @@ pub struct DiskFile {
     pub writable: bool,
 }
 
+/// The lifecycle state which the payload in the VM has reported itself to be in.
+///
+/// Note that the order of enum variants is significant; only forward transitions are allowed by
+/// [`VmInstance::update_payload_state`].
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum PayloadState {
+    Starting,
+    Started,
+    Ready,
+    Finished,
+}
+
 /// Information about a particular instance of a VM which is running.
 #[derive(Debug)]
 pub struct VmInstance {
@@ -76,6 +88,8 @@ pub struct VmInstance {
     pub callbacks: VirtualMachineCallbacks,
     /// Input/output stream of the payload run in the VM.
     pub stream: Mutex<Option<VsockStream>>,
+    /// The latest lifecycle state which the payload reported itself to be in.
+    payload_state: Mutex<PayloadState>,
 }
 
 impl VmInstance {
@@ -100,6 +114,7 @@ impl VmInstance {
             running: AtomicBool::new(true),
             callbacks: Default::default(),
             stream: Mutex::new(None),
+            payload_state: Mutex::new(PayloadState::Starting),
         }
     }
 
@@ -152,6 +167,24 @@ impl VmInstance {
     /// Return whether `crosvm` is still running the VM.
     pub fn running(&self) -> bool {
         self.running.load(Ordering::Acquire)
+    }
+
+    /// Returns the last reported state of the VM payload.
+    pub fn payload_state(&self) -> PayloadState {
+        *self.payload_state.lock().unwrap()
+    }
+
+    /// Updates the payload state to the given value, if it is a valid state transition.
+    pub fn update_payload_state(&self, new_state: PayloadState) -> Result<(), Error> {
+        let mut state_locked = self.payload_state.lock().unwrap();
+        // Only allow forward transitions, e.g. from starting to started or finished, not back in
+        // the other direction.
+        if new_state > *state_locked {
+            *state_locked = new_state;
+            Ok(())
+        } else {
+            bail!("Invalid payload state transition from {:?} to {:?}", *state_locked, new_state)
+        }
     }
 
     /// Kill the crosvm instance.
