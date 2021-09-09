@@ -31,8 +31,7 @@ use vmconfig::open_parcel_file;
 
 /// The list of APEXes which microdroid requires.
 // TODO(b/192200378) move this to microdroid.json?
-const MICRODROID_REQUIRED_APEXES: [&str; 3] =
-    ["com.android.adbd", "com.android.i18n", "com.android.os.statsd"];
+const MICRODROID_REQUIRED_APEXES: [&str; 2] = ["com.android.adbd", "com.android.os.statsd"];
 
 const APEX_INFO_LIST_PATH: &str = "/apex/apex-info-list.xml";
 
