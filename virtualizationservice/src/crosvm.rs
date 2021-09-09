@@ -21,11 +21,11 @@ use command_fds::CommandFdExt;
 use log::{debug, error, info};
 use shared_child::SharedChild;
 use std::fs::{remove_dir_all, File};
+use std::mem;
 use std::num::NonZeroU32;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use vsock::VsockStream;
@@ -66,11 +66,55 @@ pub enum PayloadState {
     Finished,
 }
 
-/// Information about a particular instance of a VM which is running.
+/// The current state of the VM itself.
+#[derive(Debug)]
+pub enum VmState {
+    /// The VM has not yet tried to start.
+    NotStarted {
+        ///The configuration needed to start the VM, if it has not yet been started.
+        config: CrosvmConfig,
+    },
+    /// The VM has been started.
+    Running {
+        /// The crosvm child process.
+        child: Arc<SharedChild>,
+    },
+    /// The VM died or was killed.
+    Dead,
+    /// The VM failed to start.
+    Failed,
+}
+
+impl VmState {
+    /// Tries to start the VM, if it is in the `NotStarted` state.
+    ///
+    /// Returns an error if the VM is in the wrong state, or fails to start.
+    fn start(&mut self, instance: Arc<VmInstance>) -> Result<(), Error> {
+        let state = mem::replace(self, VmState::Failed);
+        if let VmState::NotStarted { config } = state {
+            // If this fails and returns an error, `self` will be left in the `Failed` state.
+            let child = Arc::new(run_vm(config)?);
+
+            let child_clone = child.clone();
+            thread::spawn(move || {
+                instance.monitor(child_clone);
+            });
+
+            // If it started correctly, update the state.
+            *self = VmState::Running { child };
+            Ok(())
+        } else {
+            *self = state;
+            bail!("VM already started or failed")
+        }
+    }
+}
+
+/// Information about a particular instance of a VM which may be running.
 #[derive(Debug)]
 pub struct VmInstance {
-    /// The crosvm child process.
-    child: SharedChild,
+    /// The current state of the VM.
+    pub vm_state: Mutex<VmState>,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
     /// Whether the VM is a protected VM.
@@ -84,8 +128,6 @@ pub struct VmInstance {
     /// The PID of the process which requested the VM. Note that this process may no longer exist
     /// and the PID may have been reused for a different process, so this should not be trusted.
     pub requester_debug_pid: i32,
-    /// Whether the VM is still running.
-    running: AtomicBool,
     /// Callbacks to clients of the VM.
     pub callbacks: VirtualMachineCallbacks,
     /// Input/output stream of the payload run in the VM.
@@ -95,80 +137,59 @@ pub struct VmInstance {
 }
 
 impl VmInstance {
-    /// Create a new `VmInstance` for the given process.
-    fn new(
-        child: SharedChild,
-        cid: Cid,
-        protected: bool,
-        temporary_directory: PathBuf,
-        requester_uid: u32,
-        requester_sid: String,
-        requester_debug_pid: i32,
-    ) -> VmInstance {
-        VmInstance {
-            child,
-            cid,
-            protected,
-            temporary_directory,
-            requester_uid,
-            requester_sid,
-            requester_debug_pid,
-            running: AtomicBool::new(true),
-            callbacks: Default::default(),
-            stream: Mutex::new(None),
-            payload_state: Mutex::new(PayloadState::Starting),
-        }
-    }
-
-    /// Start an instance of `crosvm` to manage a new VM. The `crosvm` instance will be killed when
-    /// the `VmInstance` is dropped.
-    pub fn start(
+    /// Validates the given config and creates a new `VmInstance` but doesn't start running it.
+    pub fn new(
         config: CrosvmConfig,
         temporary_directory: PathBuf,
         requester_uid: u32,
         requester_sid: String,
         requester_debug_pid: i32,
-    ) -> Result<Arc<VmInstance>, Error> {
+    ) -> Result<VmInstance, Error> {
+        validate_config(&config)?;
         let cid = config.cid;
         let protected = config.protected;
-        let child = run_vm(config)?;
-        let instance = Arc::new(VmInstance::new(
-            child,
+        Ok(VmInstance {
+            vm_state: Mutex::new(VmState::NotStarted { config }),
             cid,
             protected,
             temporary_directory,
             requester_uid,
             requester_sid,
             requester_debug_pid,
-        ));
-
-        let instance_clone = instance.clone();
-        thread::spawn(move || {
-            instance_clone.monitor();
-        });
-
-        Ok(instance)
+            callbacks: Default::default(),
+            stream: Mutex::new(None),
+            payload_state: Mutex::new(PayloadState::Starting),
+        })
     }
 
-    /// Wait for the crosvm child process to finish, then mark the VM as no longer running and call
-    /// any callbacks.
-    fn monitor(&self) {
-        match self.child.wait() {
+    /// Starts an instance of `crosvm` to manage the VM. The `crosvm` instance will be killed when
+    /// the `VmInstance` is dropped.
+    pub fn start(self: &Arc<Self>) -> Result<(), Error> {
+        self.vm_state.lock().unwrap().start(self.clone())
+    }
+
+    /// Waits for the crosvm child process to finish, then marks the VM as no longer running and
+    /// calls any callbacks.
+    ///
+    /// This takes a separate reference to the `SharedChild` rather than using the one in
+    /// `self.vm_state` to avoid holding the lock on `vm_state` while it is running.
+    fn monitor(&self, child: Arc<SharedChild>) {
+        match child.wait() {
             Err(e) => error!("Error waiting for crosvm instance to die: {}", e),
             Ok(status) => info!("crosvm exited with status {}", status),
         }
-        self.running.store(false, Ordering::Release);
+
+        let mut vm_state = self.vm_state.lock().unwrap();
+        *vm_state = VmState::Dead;
+        // Ensure that the mutex is released before calling the callbacks.
+        drop(vm_state);
+
         self.callbacks.callback_on_died(self.cid);
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
             error!("Error removing temporary directory {:?}: {}", self.temporary_directory, e);
         }
-    }
-
-    /// Return whether `crosvm` is still running the VM.
-    pub fn running(&self) -> bool {
-        self.running.load(Ordering::Acquire)
     }
 
     /// Returns the last reported state of the VM payload.
@@ -189,11 +210,14 @@ impl VmInstance {
         }
     }
 
-    /// Kill the crosvm instance.
+    /// Kills the crosvm instance, if it is running.
     pub fn kill(&self) {
-        // TODO: Talk to crosvm to shutdown cleanly.
-        if let Err(e) = self.child.kill() {
-            error!("Error killing crosvm instance: {}", e);
+        let vm_state = &*self.vm_state.lock().unwrap();
+        if let VmState::Running { child } = vm_state {
+            // TODO: Talk to crosvm to shutdown cleanly.
+            if let Err(e) = child.kill() {
+                error!("Error killing crosvm instance: {}", e);
+            }
         }
     }
 }

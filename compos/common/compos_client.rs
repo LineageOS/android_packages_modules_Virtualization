@@ -82,7 +82,7 @@ impl VmInstance {
         )
         .context("Failed to find VirtualizationService")?;
 
-        let vm = service.startVm(&config, Some(&log_fd)).context("Failed to start VM")?;
+        let vm = service.createVm(&config, Some(&log_fd)).context("Failed to create VM")?;
         let vm_state = Arc::new(VmStateMonitor::default());
 
         let vm_state_clone = Arc::clone(&vm_state);
@@ -97,6 +97,8 @@ impl VmInstance {
             BinderFeatures::default(),
         );
         vm.registerCallback(&callback)?;
+
+        vm.start()?;
 
         let cid = vm_state.wait_for_start()?;
 
