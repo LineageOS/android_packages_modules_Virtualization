@@ -18,7 +18,7 @@ use crate::instance::ApexData;
 use crate::ioutil::wait_for_file;
 use anyhow::Result;
 use log::info;
-use microdroid_metadata::{read_metadata, Metadata};
+use microdroid_metadata::{read_metadata, ApexPayload, Metadata};
 use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
@@ -35,9 +35,9 @@ pub fn load_metadata() -> Result<Metadata> {
     read_metadata(file)
 }
 
-/// Loads (name, pubkey) from payload apexes and returns them as sorted by name.
+/// Loads (name, pubkey) from payload APEXes
 pub fn get_apex_data_from_payload(metadata: &Metadata) -> Result<Vec<ApexData>> {
-    let mut apex_data: Vec<ApexData> = metadata
+    metadata
         .apexes
         .iter()
         .map(|apex| {
@@ -46,9 +46,7 @@ pub fn get_apex_data_from_payload(metadata: &Metadata) -> Result<Vec<ApexData>> 
             let pubkey = get_pubkey_from_apex(&partition)?;
             Ok(ApexData { name, pubkey })
         })
-        .collect::<Result<Vec<_>>>()?;
-    apex_data.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(apex_data)
+        .collect()
 }
 
 fn get_pubkey_from_apex(path: &str) -> Result<Vec<u8>> {
@@ -58,4 +56,19 @@ fn get_pubkey_from_apex(path: &str) -> Result<Vec<u8>> {
     let mut pubkey = Vec::new();
     pubkey_file.read_to_end(&mut pubkey)?;
     Ok(pubkey)
+}
+
+/// Convert vector of ApexData into Metadata
+pub fn to_metadata(apex_data: &[ApexData]) -> Metadata {
+    Metadata {
+        apexes: apex_data
+            .iter()
+            .map(|data| ApexPayload {
+                name: data.name.clone(),
+                public_key: data.pubkey.clone(),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
 }
