@@ -111,13 +111,11 @@ fn main() -> Result<()> {
         instance.write_microdroid_data(&verified_data).context("Failed to write identity data")?;
     }
 
-    wait_for_apex_config_done()?;
+    // Before reading a file from the APK, start zipfuse
+    system_properties::write("ctl.start", "zipfuse")?;
 
     let service = get_vms_rpc_binder().expect("cannot connect to VirtualMachineService");
     if !metadata.payload_config_path.is_empty() {
-        // Before reading a file from the APK, start zipfuse
-        system_properties::write("ctl.start", "zipfuse")?;
-
         let config = load_config(Path::new(&metadata.payload_config_path))?;
 
         let fake_secret = "This is a placeholder for a value that is derived from the images that are loaded in the VM.";
@@ -125,7 +123,10 @@ fn main() -> Result<()> {
             warn!("failed to set ro.vmsecret.keymint: {}", err);
         }
 
+        // Wait until apex config is done. (e.g. linker configuration for apexes)
         // TODO(jooyung): wait until sys.boot_completed?
+        wait_for_apex_config_done()?;
+
         if let Some(main_task) = &config.task {
             exec_task(main_task, &service).map_err(|e| {
                 error!("failed to execute task: {}", e);
