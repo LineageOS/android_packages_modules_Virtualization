@@ -18,12 +18,11 @@ on early-init
     start ueventd
 
     mkdir /mnt/apk 0755 system system
+    # Microdroid_manager starts apkdmverity/zipfuse/apexd
     start microdroid_manager
 
-    # Exec apexd in the VM mode to avoid unnecessary overhead of normal mode.
-    # (e.g. session management)
-    exec - root system -- /system/bin/apexd --vm
-
+    # Wait for apexd to finish activating APEXes before starting more processes.
+    wait_for_prop apexd.status activated
     perform_apex_config
 
     # Notify to microdroid_manager that perform_apex_config is done.
@@ -169,6 +168,12 @@ on post-fs-data
     # Do not place files or directories in /data/local/tmp
     mkdir /data/local 0751 root root
     mkdir /data/local/tmp 0771 shell shell
+
+service apexd-vm /system/bin/apexd --vm
+    user root
+    group system
+    oneshot
+    disabled
 
 service ueventd /system/bin/ueventd
     class core
