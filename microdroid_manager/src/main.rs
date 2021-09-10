@@ -20,7 +20,7 @@ mod payload;
 
 use crate::instance::{ApkData, InstanceDisk, MicrodroidData, RootHash};
 use anyhow::{anyhow, bail, ensure, Context, Result};
-use apkverify::verify;
+use apkverify::{get_public_key_der, verify};
 use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::{FromIBinder, Strong};
 use idsig::V4Signature;
@@ -187,16 +187,18 @@ fn verify_payload(
     // taken only when the root_hash is un-trustful which can be either when this is the first boot
     // of the VM or APK was updated in the host.
     // TODO(jooyung): consider multithreading to make this faster
-    if !root_hash_trustful {
-        verify(DM_MOUNTED_APK_PATH).context(format!("failed to verify {}", DM_MOUNTED_APK_PATH))?;
-    }
+    let apk_pubkey = if !root_hash_trustful {
+        verify(DM_MOUNTED_APK_PATH).context(format!("failed to verify {}", DM_MOUNTED_APK_PATH))?
+    } else {
+        get_public_key_der(DM_MOUNTED_APK_PATH)?
+    };
 
     info!("payload verification successful. took {:#?}", start_time.elapsed().unwrap());
 
     // At this point, we can ensure that the root_hash from the idsig file is trusted, either by
     // fully verifying the APK or by comparing it with the saved root_hash.
     Ok(MicrodroidData {
-        apk_data: ApkData { root_hash: root_hash_from_idsig },
+        apk_data: ApkData { root_hash: root_hash_from_idsig, pubkey: apk_pubkey },
         apex_data: apex_data_from_payload,
     })
 }
