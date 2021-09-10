@@ -14,6 +14,7 @@
 
 //! IO utilities
 
+use anyhow::{anyhow, Result};
 use std::fs::File;
 use std::io;
 use std::path::Path;
@@ -23,17 +24,17 @@ use std::time::{Duration, Instant};
 const SLEEP_DURATION: Duration = Duration::from_millis(5);
 
 /// waits for a file with a timeout and returns it
-pub fn wait_for_file<P: AsRef<Path>>(path: P, timeout: Duration) -> io::Result<File> {
+pub fn wait_for_file<P: AsRef<Path>>(path: P, timeout: Duration) -> Result<File> {
     let begin = Instant::now();
     loop {
         match File::open(&path) {
             Ok(file) => return Ok(file),
             Err(error) => {
                 if error.kind() != io::ErrorKind::NotFound {
-                    return Err(error);
+                    return Err(anyhow!(error));
                 }
                 if begin.elapsed() > timeout {
-                    return Err(io::Error::from(io::ErrorKind::NotFound));
+                    return Err(anyhow!(io::Error::from(io::ErrorKind::NotFound)));
                 }
                 thread::sleep(SLEEP_DURATION);
             }
@@ -47,7 +48,7 @@ mod tests {
     use std::io::{Read, Write};
 
     #[test]
-    fn test_wait_for_file() -> io::Result<()> {
+    fn test_wait_for_file() -> Result<()> {
         let test_dir = tempfile::TempDir::new().unwrap();
         let test_file = test_dir.path().join("test.txt");
         thread::spawn(move || -> io::Result<()> {
@@ -69,6 +70,9 @@ mod tests {
         let test_file = test_dir.path().join("test.txt");
         let file = wait_for_file(&test_file, Duration::from_secs(1));
         assert!(file.is_err());
-        assert_eq!(io::ErrorKind::NotFound, file.unwrap_err().kind());
+        assert_eq!(
+            io::ErrorKind::NotFound,
+            file.unwrap_err().root_cause().downcast_ref::<io::Error>().unwrap().kind()
+        );
     }
 }
