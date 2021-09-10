@@ -38,11 +38,7 @@ message ApexPayload {
 
   // Optional.
   // When specified, the public key used to sign the apex should match with it.
-  string publicKey = 3;
-
-  // Optional.
-  // When specified, the root digest of the apex should match with it.
-  string rootDigest = 4;
+  bytes public_key = 3;
 }
 
 message ApkPayload {
