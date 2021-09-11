@@ -14,6 +14,9 @@
      limitations under the License.
 -->
 <configuration description="Tests for CompOS">
+    <!-- Make sure pKVM is available on the device -->
+    <target_preparer class="com.android.tradefed.targetprep.PkvmPreparer"/>
+
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer">
         <option name="force-root" value="true" />
     </target_preparer>
