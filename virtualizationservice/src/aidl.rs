@@ -349,7 +349,7 @@ fn handle_stream_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
             let port = addr.port();
             info!("payload stream connected from cid={}, port={}", cid, port);
             if let Some(vm) = state.lock().unwrap().get_vm(cid) {
-                vm.stream.lock().unwrap().insert(stream);
+                *vm.stream.lock().unwrap() = Some(stream);
             } else {
                 error!("connection from cid={} is not from a guest VM", cid);
             }
