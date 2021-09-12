@@ -15,9 +15,6 @@
 -->
 
 <configuration description="Config for authfs tests">
-    <!-- Make sure pKVM is available on the device -->
-    <target_preparer class="com.android.tradefed.targetprep.PkvmPreparer"/>
-
     <!-- Need root to start virtualizationservice -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
 
