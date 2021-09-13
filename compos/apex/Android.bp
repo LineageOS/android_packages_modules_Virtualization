@@ -40,6 +40,7 @@ apex {
     binaries: [
         "compos_key_cmd",
         "compos_verify_key",
+        "composd",
         "compsvc",
         "pvm_exec",
     ],
@@ -50,5 +51,13 @@ apex {
 
     prebuilts: [
         "CompOSPayloadApp.apk.idsig",
+        "com.android.compos.init.rc",
     ],
+}
+
+prebuilt_etc {
+    name: "com.android.compos.init.rc",
+    src: "composd.rc",
+    filename: "init.rc",
+    installable: false,
 }
