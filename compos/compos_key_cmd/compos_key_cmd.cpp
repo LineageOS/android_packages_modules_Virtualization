@@ -33,6 +33,7 @@
 #include <openssl/x509.h>
 #include <unistd.h>
 
+#include <binder_rpc_unstable.hpp>
 #include <chrono>
 #include <condition_variable>
 #include <filesystem>
@@ -42,11 +43,6 @@
 #include <string_view>
 
 #include "compos_signature.pb.h"
-
-// From frameworks/native/libs/binder/rust/src/binder_rpc_unstable.hpp
-extern "C" {
-AIBinder* RpcClient(unsigned int cid, unsigned int port);
-}
 
 using namespace std::literals;
 
