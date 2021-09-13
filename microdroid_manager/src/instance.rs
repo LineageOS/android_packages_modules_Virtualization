@@ -328,5 +328,6 @@ pub type RootHash = [u8];
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct ApexData {
     pub name: String,
-    pub pubkey: Vec<u8>,
+    pub public_key: Vec<u8>,
+    pub root_digest: Vec<u8>,
 }
