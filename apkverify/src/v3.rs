@@ -86,40 +86,50 @@ struct Digest {
 type X509Certificate = Bytes;
 type AdditionalAttributes = Bytes;
 
-/// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the certificates
-/// associated with each signer.
-pub fn verify<P: AsRef<Path>>(path: P) -> Result<()> {
+/// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the public key
+/// associated with the signer.
+pub fn verify<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
     let f = File::open(path.as_ref())?;
     let mut sections = ApkSections::new(f)?;
-    verify_signature(&mut sections)?;
-    Ok(())
+    find_signer_and_then(&mut sections, |(signer, sections)| signer.verify(sections))
 }
 
-/// Verifies the contents of the provided APK file against the provided APK Signature Scheme v3
-/// Block.
-fn verify_signature<R: Read + Seek>(sections: &mut ApkSections<R>) -> Result<()> {
+/// Finds the supported signer and execute a function on it.
+fn find_signer_and_then<R, U, F>(sections: &mut ApkSections<R>, f: F) -> Result<U>
+where
+    R: Read + Seek,
+    F: FnOnce((&Signer, &mut ApkSections<R>)) -> Result<U>,
+{
     let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID)?;
-
     // parse v3 scheme block
     let signers = block.read::<Signers>()?;
 
     // find supported by platform
-    let mut supported =
-        signers.iter().filter(|s| s.sdk_range().contains(&SDK_INT)).collect::<Vec<_>>();
+    let supported = signers.iter().filter(|s| s.sdk_range().contains(&SDK_INT)).collect::<Vec<_>>();
 
     // there should be exactly one
     if supported.len() != 1 {
-        bail!("APK Signature Scheme V3 only supports one signer: {} signers found.", signers.len())
+        bail!(
+            "APK Signature Scheme V3 only supports one signer: {} signers found.",
+            supported.len()
+        )
     }
 
-    // and it should be verified
-    supported.pop().unwrap().verify(sections)?;
+    // Call the supplied function
+    f((supported[0], sections))
+}
 
-    Ok(())
+/// Gets the public key (in DER format) that was used to sign the given APK/APEX file
+pub fn get_public_key_der<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
+    let f = File::open(path.as_ref())?;
+    let mut sections = ApkSections::new(f)?;
+    find_signer_and_then(&mut sections, |(signer, _)| {
+        Ok(signer.public_key.to_vec().into_boxed_slice())
+    })
 }
 
 impl Signer {
-    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<()> {
+    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
         // 1. Choose the strongest supported signature algorithm ID from signatures. The strength
         //    ordering is up to each implementation/platform version.
         let strongest: &Signature = self
@@ -181,7 +191,7 @@ impl Signer {
         }
 
         // TODO(jooyung) 8. If the proof-of-rotation attribute exists for the signer verify that the struct is valid and this signer is the last certificate in the list.
-        Ok(())
+        Ok(self.public_key.to_vec().into_boxed_slice())
     }
 }
 
