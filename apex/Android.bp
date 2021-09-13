@@ -81,4 +81,5 @@ prebuilt_etc {
     name: "com.android.virt.init.rc",
     src: "virtualizationservice.rc",
     filename: "init.rc",
+    installable: false,
 }
