@@ -35,7 +35,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice::binder::{
-    self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
+    self, force_lazy_services_persist, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong, ThreadState,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
     VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, BnVirtualMachineService, IVirtualMachineService,
@@ -716,12 +716,20 @@ impl State {
     /// Store a strong VM reference.
     fn debug_hold_vm(&mut self, vm: Strong<dyn IVirtualMachine>) {
         self.debug_held_vms.push(vm);
+        // Make sure our process is not shut down while we hold the VM reference
+        // on behalf of the caller.
+        force_lazy_services_persist(true);
     }
 
     /// Retrieve and remove a strong VM reference.
     fn debug_drop_vm(&mut self, cid: i32) -> Option<Strong<dyn IVirtualMachine>> {
         let pos = self.debug_held_vms.iter().position(|vm| vm.getCid() == Ok(cid))?;
-        Some(self.debug_held_vms.swap_remove(pos))
+        let vm = self.debug_held_vms.swap_remove(pos);
+        if self.debug_held_vms.is_empty() {
+            // Once we no longer hold any VM references it is ok for our process to be shut down.
+            force_lazy_services_persist(false);
+        }
+        Some(vm)
     }
 
     /// Get the next available CID, or an error if we have run out.
