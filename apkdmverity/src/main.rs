@@ -359,11 +359,17 @@ mod tests {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
         let roothash = V4Signature::from(Cursor::new(&idsig)).unwrap().hashing_info.raw_root_hash;
-        run_test_with_hash(apk.as_ref(), idsig.as_ref(), "correct", Some(&roothash), |ctx| {
-            let verity = fs::read(&ctx.result.mapper_device).unwrap();
-            let original = fs::read(&ctx.result.data_device).unwrap();
-            assert_eq!(verity.len(), original.len()); // fail fast
-            assert_eq!(verity.as_slice(), original.as_slice());
-        });
+        run_test_with_hash(
+            apk.as_ref(),
+            idsig.as_ref(),
+            "correct_custom_roothash",
+            Some(&roothash),
+            |ctx| {
+                let verity = fs::read(&ctx.result.mapper_device).unwrap();
+                let original = fs::read(&ctx.result.data_device).unwrap();
+                assert_eq!(verity.len(), original.len()); // fail fast
+                assert_eq!(verity.as_slice(), original.as_slice());
+            },
+        );
     }
 }
