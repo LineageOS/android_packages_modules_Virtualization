@@ -18,6 +18,8 @@
 //! responsible for managing the lifecycle of the CompOS VM instances, providing key management for
 //! them, and orchestrating trusted compilation.
 
+mod compos_instance;
+mod odrefresh;
 mod service;
 
 use android_system_composd::binder::{register_lazy_service, ProcessState};
@@ -28,6 +30,8 @@ fn try_main() -> Result<()> {
     android_logger::init_once(
         android_logger::Config::default().with_tag("composd").with_min_level(log::Level::Info),
     );
+
+    ProcessState::start_thread_pool();
 
     let service = service::new_binder();
     register_lazy_service("android.system.composd", service.as_binder())
