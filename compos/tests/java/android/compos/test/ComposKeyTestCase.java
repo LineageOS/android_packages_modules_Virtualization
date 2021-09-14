@@ -159,7 +159,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
                         apkName,
                         packageName,
                         "assets/vm_config.json",
-                        /* debug */ true);
+                        /* debug */ false);
         adbConnectToMicrodroid(getDevice(), mCid);
     }
 
