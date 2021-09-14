@@ -61,6 +61,9 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
 
         // disconnect from microdroid
         tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
+
+        // remove any leftover files under test root
+        android.tryRun("rm", "-rf", TEST_ROOT + "*");
     }
 
     public static void cleanUpVirtualizationTestSetup(ITestDevice androidDevice)
