@@ -15,6 +15,8 @@
 //! IO utilities
 
 use anyhow::{anyhow, Result};
+use log::debug;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io;
 use std::path::Path;
@@ -24,7 +26,8 @@ use std::time::{Duration, Instant};
 const SLEEP_DURATION: Duration = Duration::from_millis(5);
 
 /// waits for a file with a timeout and returns it
-pub fn wait_for_file<P: AsRef<Path>>(path: P, timeout: Duration) -> Result<File> {
+pub fn wait_for_file<P: AsRef<Path> + Debug>(path: P, timeout: Duration) -> Result<File> {
+    debug!("waiting for {:?}...", path);
     let begin = Instant::now();
     loop {
         match File::open(&path) {
