@@ -17,14 +17,11 @@
 use crate::instance::ApexData;
 use crate::ioutil::wait_for_file;
 use anyhow::Result;
+use apex::verify;
 use log::info;
 use microdroid_metadata::{read_metadata, ApexPayload, Metadata};
-use std::fs::File;
-use std::io::Read;
 use std::time::Duration;
-use zip::ZipArchive;
 
-const APEX_PUBKEY_ENTRY: &str = "apex_pubkey";
 const PAYLOAD_METADATA_PATH: &str = "/dev/block/by-name/payload-metadata";
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -35,27 +32,18 @@ pub fn load_metadata() -> Result<Metadata> {
     read_metadata(file)
 }
 
-/// Loads (name, pubkey) from payload APEXes
+/// Loads (name, public_key, root_digest) from payload APEXes
 pub fn get_apex_data_from_payload(metadata: &Metadata) -> Result<Vec<ApexData>> {
     metadata
         .apexes
         .iter()
         .map(|apex| {
             let name = apex.name.clone();
-            let partition = format!("/dev/block/by-name/{}", apex.partition_name);
-            let pubkey = get_pubkey_from_apex(&partition)?;
-            Ok(ApexData { name, pubkey })
+            let apex_path = format!("/dev/block/by-name/{}", apex.partition_name);
+            let result = verify(&apex_path)?;
+            Ok(ApexData { name, public_key: result.public_key, root_digest: result.root_digest })
         })
         .collect()
-}
-
-fn get_pubkey_from_apex(path: &str) -> Result<Vec<u8>> {
-    let f = File::open(path)?;
-    let mut z = ZipArchive::new(f)?;
-    let mut pubkey_file = z.by_name(APEX_PUBKEY_ENTRY)?;
-    let mut pubkey = Vec::new();
-    pubkey_file.read_to_end(&mut pubkey)?;
-    Ok(pubkey)
 }
 
 /// Convert vector of ApexData into Metadata
@@ -65,10 +53,13 @@ pub fn to_metadata(apex_data: &[ApexData]) -> Metadata {
             .iter()
             .map(|data| ApexPayload {
                 name: data.name.clone(),
-                public_key: data.pubkey.clone(),
+                public_key: data.public_key.clone(),
+                root_digest: data.root_digest.clone(),
                 ..Default::default()
             })
             .collect(),
         ..Default::default()
     }
 }
+
+mod apex;
