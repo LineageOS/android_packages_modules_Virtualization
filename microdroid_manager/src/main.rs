@@ -88,13 +88,20 @@ fn get_local_cid() -> Result<u32> {
     Ok(ret)
 }
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = try_main() {
+        error!("failed with {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn try_main() -> Result<()> {
     kernlog::init()?;
     info!("started.");
 
-    let metadata = load_metadata()?;
+    let metadata = load_metadata().context("Failed to load payload metadata")?;
 
-    let mut instance = InstanceDisk::new()?;
+    let mut instance = InstanceDisk::new().context("Failed to load instance.img")?;
     let saved_data = instance.read_microdroid_data().context("Failed to read identity data")?;
 
     // Verify the payload before using it.
