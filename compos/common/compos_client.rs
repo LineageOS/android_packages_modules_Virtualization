@@ -34,7 +34,10 @@ use binder::{
     FromIBinder,
 };
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
+use log::warn;
 use std::fs::File;
+use std::os::raw;
+use std::os::unix::io::IntoRawFd;
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
@@ -44,6 +47,7 @@ use std::time::Duration;
 pub struct VmInstance {
     #[allow(dead_code)] // Keeps the vm alive even if we don`t touch it
     vm: Strong<dyn IVirtualMachine>,
+    #[allow(dead_code)] // Likely to be useful
     cid: i32,
 }
 
@@ -110,17 +114,60 @@ impl VmInstance {
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
     pub fn get_service(&self) -> Result<Strong<dyn ICompOsService>> {
-        let cid = self.cid as u32;
-        // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership
-        // can be safely taken by new_spibinder.
+        let mut vsock_factory = VsockFactory::new(&*self.vm);
+        let param = vsock_factory.as_void_ptr();
+
         let ibinder = unsafe {
-            new_spibinder(
-                binder_rpc_unstable_bindgen::RpcClient(cid, COMPOS_VSOCK_PORT) as *mut AIBinder
-            )
+            // SAFETY: AIBinder returned by RpcPreconnectedClient has correct reference count, and
+            // the ownership can be safely taken by new_spibinder.
+            // RpcPreconnectedClient does not take ownership of param, only passing it to
+            // request_fd.
+            let binder = binder_rpc_unstable_bindgen::RpcPreconnectedClient(
+                Some(VsockFactory::request_fd),
+                param,
+            ) as *mut AIBinder;
+            new_spibinder(binder)
         }
         .ok_or_else(|| anyhow!("Failed to connect to CompOS service"))?;
 
         FromIBinder::try_from(ibinder).context("Connecting to CompOS service")
+    }
+}
+
+struct VsockFactory<'a> {
+    vm: &'a dyn IVirtualMachine,
+}
+
+impl<'a> VsockFactory<'a> {
+    fn new(vm: &'a dyn IVirtualMachine) -> Self {
+        Self { vm }
+    }
+
+    fn as_void_ptr(&mut self) -> *mut raw::c_void {
+        self as *mut _ as *mut raw::c_void
+    }
+
+    fn try_new_vsock_fd(&self) -> Result<i32> {
+        let vsock = self.vm.connectVsock(COMPOS_VSOCK_PORT as i32)?;
+        // ParcelableFileDescriptor won't release its fd so we have to dup it.
+        let vsock = vsock.as_ref().try_clone()?;
+        // Ownership of the fd is transferred to binder
+        Ok(vsock.into_raw_fd())
+    }
+
+    fn new_vsock_fd(&self) -> i32 {
+        self.try_new_vsock_fd().unwrap_or_else(|e| {
+            warn!("Connecting vsock failed: {}", e);
+            -1_i32
+        })
+    }
+
+    unsafe extern "C" fn request_fd(param: *mut raw::c_void) -> raw::c_int {
+        // SAFETY: This is only ever called by RpcPreconnectedClient, within the lifetime of the
+        // VsockFactory, with param taking the value returned by as_void_ptr (so a properly aligned
+        // non-null pointer to an initialized instance).
+        let holder = param as *mut Self;
+        holder.as_ref().unwrap().new_vsock_fd()
     }
 }
 
