@@ -34,6 +34,7 @@ rust_defaults {
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
         "libonce_cell",
+        "librustutils",
         "libserde_json",
         "libserde_xml_rs",
         "libserde",
