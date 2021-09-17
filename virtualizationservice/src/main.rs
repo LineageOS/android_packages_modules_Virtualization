@@ -30,6 +30,8 @@ use std::fs::{remove_dir_all, remove_file, read_dir};
 /// are reserved for the host or other usage.
 const FIRST_GUEST_CID: Cid = 10;
 
+const SYSPROP_LAST_CID: &str = "virtualizationservice.state.last_cid";
+
 const LOG_TAG: &str = "VirtualizationService";
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
