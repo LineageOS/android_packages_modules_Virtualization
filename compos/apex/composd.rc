@@ -14,7 +14,7 @@
 
 service composd /apex/com.android.compos/bin/composd
     class main
-    user system
+    user root
     group system
     interface aidl android.system.composd
     disabled
