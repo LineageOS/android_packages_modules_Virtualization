@@ -149,8 +149,6 @@ impl<'a> VsockFactory<'a> {
 
     fn try_new_vsock_fd(&self) -> Result<i32> {
         let vsock = self.vm.connectVsock(COMPOS_VSOCK_PORT as i32)?;
-        // ParcelableFileDescriptor won't release its fd so we have to dup it.
-        let vsock = vsock.as_ref().try_clone()?;
         // Ownership of the fd is transferred to binder
         Ok(vsock.into_raw_fd())
     }
