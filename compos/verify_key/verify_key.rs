@@ -20,16 +20,13 @@
 use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
 use compos_common::compos_client::VmInstance;
-use compos_common::COMPOS_DATA_ROOT;
+use compos_common::{
+    COMPOS_DATA_ROOT, CURRENT_DIR, INSTANCE_IMAGE_FILE, PENDING_DIR, PRIVATE_KEY_BLOB_FILE,
+    PUBLIC_KEY_FILE,
+};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-
-const CURRENT_DIR: &str = "current";
-const PENDING_DIR: &str = "pending";
-const PRIVATE_KEY_BLOB_FILE: &str = "key.blob";
-const PUBLIC_KEY_FILE: &str = "key.pubkey";
-const INSTANCE_IMAGE_FILE: &str = "instance.img";
 
 const MAX_FILE_SIZE_BYTES: u64 = 8 * 1024;
 

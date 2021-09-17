@@ -3,21 +3,15 @@ package {
 }
 
 rust_binary {
-    name: "composd",
-    srcs: ["src/composd_main.rs"],
+    name: "composd_cmd",
+    srcs: ["composd_cmd.rs"],
     edition: "2018",
-    prefer_rlib: true,
     rustlibs: [
         "android.system.composd-rust",
-        "compos_aidl_interface-rust",
-        "libandroid_logger",
         "libanyhow",
         "libbinder_rs",
-        "libcompos_common",
-        "libnum_traits",
-        "liblog_rust",
     ],
-    proc_macros: ["libnum_derive"],
+    prefer_rlib: true,
     apex_available: [
         "com.android.compos",
     ],

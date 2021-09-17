@@ -47,7 +47,6 @@ use std::time::Duration;
 pub struct VmInstance {
     #[allow(dead_code)] // Keeps the vm alive even if we don`t touch it
     vm: Strong<dyn IVirtualMachine>,
-    #[allow(dead_code)] // Likely to be useful
     cid: i32,
 }
 
@@ -131,6 +130,11 @@ impl VmInstance {
         .ok_or_else(|| anyhow!("Failed to connect to CompOS service"))?;
 
         FromIBinder::try_from(ibinder).context("Connecting to CompOS service")
+    }
+
+    /// Return the CID of the VM.
+    pub fn cid(&self) -> i32 {
+        self.cid
     }
 }
 
