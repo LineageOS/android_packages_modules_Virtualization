@@ -16,6 +16,6 @@
 package android.system.composd;
 
 interface IIsolatedCompilationService {
-    // TODO: Add real methods
-    void doSomething();
+    /// Run "odrefresh --force-compile" in CompOS
+    void runForcedCompile();
 }
