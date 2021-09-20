@@ -5,7 +5,10 @@
   },
   "task": {
     "type": "executable",
-    "command": "/apex/com.android.compos/bin/compsvc"
+    "command": "/apex/com.android.compos/bin/compsvc",
+    "args": [
+      "--log_to_stderr"
+    ]
   },
   "apexes": [
     {

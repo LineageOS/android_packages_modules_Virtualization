@@ -34,8 +34,9 @@ use binder::{
     FromIBinder,
 };
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
-use log::warn;
+use log::{info, warn};
 use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::os::raw;
 use std::os::unix::io::IntoRawFd;
 use std::path::Path;
@@ -45,7 +46,9 @@ use std::time::Duration;
 
 /// This owns an instance of the CompOS VM.
 pub struct VmInstance {
-    #[allow(dead_code)] // Keeps the vm alive even if we don`t touch it
+    #[allow(dead_code)] // Prevent service manager from killing the dynamic service
+    service: Strong<dyn IVirtualizationService>,
+    #[allow(dead_code)] // Keeps the VM alive even if we don`t touch it
     vm: Strong<dyn IVirtualMachine>,
     cid: i32,
 }
@@ -108,26 +111,16 @@ impl VmInstance {
         // TODO: Use onPayloadReady to avoid this
         thread::sleep(Duration::from_secs(3));
 
-        Ok(VmInstance { vm, cid })
+        Ok(VmInstance { service, vm, cid })
     }
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
     pub fn get_service(&self) -> Result<Strong<dyn ICompOsService>> {
         let mut vsock_factory = VsockFactory::new(&*self.vm);
-        let param = vsock_factory.as_void_ptr();
 
-        let ibinder = unsafe {
-            // SAFETY: AIBinder returned by RpcPreconnectedClient has correct reference count, and
-            // the ownership can be safely taken by new_spibinder.
-            // RpcPreconnectedClient does not take ownership of param, only passing it to
-            // request_fd.
-            let binder = binder_rpc_unstable_bindgen::RpcPreconnectedClient(
-                Some(VsockFactory::request_fd),
-                param,
-            ) as *mut AIBinder;
-            new_spibinder(binder)
-        }
-        .ok_or_else(|| anyhow!("Failed to connect to CompOS service"))?;
+        let ibinder = vsock_factory
+            .connect_rpc_client()
+            .ok_or_else(|| anyhow!("Failed to connect to CompOS service"))?;
 
         FromIBinder::try_from(ibinder).context("Connecting to CompOS service")
     }
@@ -145,6 +138,21 @@ struct VsockFactory<'a> {
 impl<'a> VsockFactory<'a> {
     fn new(vm: &'a dyn IVirtualMachine) -> Self {
         Self { vm }
+    }
+
+    fn connect_rpc_client(&mut self) -> Option<binder::SpIBinder> {
+        let param = self.as_void_ptr();
+
+        unsafe {
+            // SAFETY: AIBinder returned by RpcPreconnectedClient has correct reference count, and
+            // the ownership can be safely taken by new_spibinder.
+            // RpcPreconnectedClient does not take ownership of param, only passing it to
+            // request_fd.
+            let binder =
+                binder_rpc_unstable_bindgen::RpcPreconnectedClient(Some(Self::request_fd), param)
+                    as *mut AIBinder;
+            new_spibinder(binder)
+        }
     }
 
     fn as_void_ptr(&mut self) -> *mut raw::c_void {
@@ -168,8 +176,8 @@ impl<'a> VsockFactory<'a> {
         // SAFETY: This is only ever called by RpcPreconnectedClient, within the lifetime of the
         // VsockFactory, with param taking the value returned by as_void_ptr (so a properly aligned
         // non-null pointer to an initialized instance).
-        let holder = param as *mut Self;
-        holder.as_ref().unwrap().new_vsock_fd()
+        let vsock_factory = param as *mut Self;
+        vsock_factory.as_ref().unwrap().new_vsock_fd()
     }
 }
 
@@ -245,10 +253,14 @@ impl IVirtualMachineCallback for VmCallback {
     fn onPayloadStarted(
         &self,
         cid: i32,
-        _stream: Option<&binder::parcel::ParcelFileDescriptor>,
+        stream: Option<&ParcelFileDescriptor>,
     ) -> BinderResult<()> {
         self.0.set_started(cid);
-        // TODO: Use the stream?
+        if let Some(pfd) = stream {
+            if let Err(e) = start_logging(pfd) {
+                warn!("Can't log vm output: {}", e);
+            };
+        }
         log::info!("VM payload started, cid = {}", cid);
         Ok(())
     }
@@ -266,4 +278,20 @@ impl IVirtualMachineCallback for VmCallback {
         log::warn!("VM payload finished, cid = {}, exit code = {}", cid, exit_code);
         Ok(())
     }
+}
+
+fn start_logging(pfd: &ParcelFileDescriptor) -> Result<()> {
+    let reader = BufReader::new(pfd.as_ref().try_clone().context("Cloning fd failed")?);
+    thread::spawn(move || {
+        for line in reader.lines() {
+            match line {
+                Ok(line) => info!("VM: {}", line),
+                Err(e) => {
+                    warn!("Reading VM output failed: {}", e);
+                    break;
+                }
+            }
+        }
+    });
+    Ok(())
 }
