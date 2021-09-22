@@ -37,13 +37,22 @@ use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::process::exit;
 
+use android_system_composd::{
+    aidl::android::system::composd::IIsolatedCompilationService::IIsolatedCompilationService,
+    binder::wait_for_interface,
+};
 use compos_aidl_interface::aidl::com::android::compos::{
     FdAnnotation::FdAnnotation, ICompOsService::ICompOsService,
 };
 use compos_aidl_interface::binder::Strong;
-use compos_common::COMPOS_VSOCK_PORT;
+use compos_common::{COMPOS_VSOCK_PORT, VMADDR_CID_ANY};
 
 const FD_SERVER_BIN: &str = "/apex/com.android.virt/bin/fd_server";
+
+fn get_composd() -> Result<Strong<dyn IIsolatedCompilationService>> {
+    wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
+        .context("Failed to find IIsolatedCompilationService")
+}
 
 fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompOsService>> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
@@ -144,13 +153,7 @@ fn parse_args() -> Result<Config> {
     Ok(Config { args, fd_annotation: FdAnnotation { input_fds, output_fds }, cid, debuggable })
 }
 
-fn main() -> Result<()> {
-    let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
-    let log_level = if debuggable { log::Level::Trace } else { log::Level::Info };
-    android_logger::init_once(
-        android_logger::Config::default().with_tag("pvm_exec").with_min_level(log_level),
-    );
-
+fn try_main() -> Result<()> {
     // 1. Parse the command line arguments for collect execution data.
     let Config { args, fd_annotation, cid, debuggable } = parse_args()?;
 
@@ -165,8 +168,16 @@ fn main() -> Result<()> {
     });
 
     // 3. Send the command line args to the remote to execute.
-    let service = get_rpc_binder(cid)?;
-    let result = service.compile(&args, &fd_annotation).context("Binder call failed")?;
+    let result = if cid == VMADDR_CID_ANY {
+        // Sentinel value that indicates we should use composd
+        let composd = get_composd()?;
+        composd.compile(&args, &fd_annotation)
+    } else {
+        // Call directly into the VM
+        let compos_vm = get_rpc_binder(cid)?;
+        compos_vm.compile(&args, &fd_annotation)
+    };
+    let result = result.context("Binder call failed")?;
 
     // TODO: store/use the signature
     debug!(
@@ -184,4 +195,19 @@ fn main() -> Result<()> {
         exit(result.exitCode as i32);
     }
     Ok(())
+}
+
+fn main() {
+    let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
+    let log_level = if debuggable { log::Level::Trace } else { log::Level::Info };
+    android_logger::init_once(
+        android_logger::Config::default().with_tag("pvm_exec").with_min_level(log_level),
+    );
+
+    // Make sure we log and indicate failure if we were unable to run the command and get its exit
+    // code.
+    if let Err(e) = try_main() {
+        error!("{}", e);
+        std::process::exit(-1)
+    }
 }

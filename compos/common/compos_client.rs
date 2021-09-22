@@ -50,6 +50,7 @@ pub struct VmInstance {
     service: Strong<dyn IVirtualizationService>,
     #[allow(dead_code)] // Keeps the VM alive even if we don`t touch it
     vm: Strong<dyn IVirtualMachine>,
+    #[allow(dead_code)] // TODO: Do we need this?
     cid: i32,
 }
 
