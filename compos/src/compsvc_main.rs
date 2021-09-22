@@ -28,9 +28,16 @@ use compos_common::COMPOS_VSOCK_PORT;
 use log::debug;
 
 fn main() -> Result<()> {
-    android_logger::init_once(
-        android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
-    );
+    let args = clap::App::new("compsvc")
+        .arg(clap::Arg::with_name("log_to_stderr").long("log_to_stderr"))
+        .get_matches();
+    if args.is_present("log_to_stderr") {
+        env_logger::builder().filter_level(log::LevelFilter::Debug).init();
+    } else {
+        android_logger::init_once(
+            android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
+        );
+    }
 
     let mut service = compsvc::new_binder()?.as_binder();
     debug!("compsvc is starting as a rpc service.");
