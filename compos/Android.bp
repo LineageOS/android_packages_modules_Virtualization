@@ -42,6 +42,7 @@ rust_binary {
         "libbinder_rs",
         "libclap",
         "libcompos_common",
+        "libenv_logger",
         "liblibc",
         "liblog_rust",
         "libminijail_rust",

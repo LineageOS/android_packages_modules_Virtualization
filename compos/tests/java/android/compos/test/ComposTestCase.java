@@ -149,7 +149,7 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
                         getBuild(),
                         apkName,
                         packageName,
-                        "assets/vm_config.json",
+                        "assets/vm_test_config.json",
                         /* debug */ false);
         adbConnectToMicrodroid(getDevice(), mCid);
     }

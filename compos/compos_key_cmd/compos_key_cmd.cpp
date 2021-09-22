@@ -31,6 +31,7 @@
 #include <openssl/mem.h>
 #include <openssl/sha.h>
 #include <openssl/x509.h>
+#include <stdio.h>
 #include <unistd.h>
 
 #include <binder_rpc_unstable.hpp>
@@ -41,6 +42,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #include "compos_signature.pb.h"
 
@@ -56,6 +58,7 @@ using aidl::com::android::compos::CompOsKeyData;
 using aidl::com::android::compos::ICompOsService;
 using android::base::ErrnoError;
 using android::base::Error;
+using android::base::Fdopen;
 using android::base::Result;
 using android::base::unique_fd;
 using compos::proto::Signature;
@@ -94,12 +97,35 @@ static std::shared_ptr<ICompOsService> getService(int cid) {
 }
 
 namespace {
+
+void copyToLog(unique_fd&& fd) {
+    FILE* source = Fdopen(std::move(fd), "r");
+    size_t size = 0;
+    char* line = nullptr;
+
+    LOG(INFO) << "Started logging VM output";
+
+    for (;;) {
+        ssize_t len = getline(&line, &size, source);
+        if (len < 0) {
+            LOG(INFO) << "VM logging ended: " << ErrnoError().str();
+            break;
+        }
+        LOG(DEBUG) << "VM: " << std::string_view(line, len);
+    }
+    free(line);
+}
+
 class Callback : public BnVirtualMachineCallback {
 public:
-    ::ndk::ScopedAStatus onPayloadStarted(
-            int32_t in_cid, const ::ndk::ScopedFileDescriptor& /*in_stream*/) override {
-        // TODO: Consider copying stdout somewhere useful?
+    ::ndk::ScopedAStatus onPayloadStarted(int32_t in_cid,
+                                          const ::ndk::ScopedFileDescriptor& stream) override {
         LOG(INFO) << "Payload started! cid = " << in_cid;
+
+        unique_fd stream_fd(dup(stream.get()));
+        std::thread logger([fd = std::move(stream_fd)]() mutable { copyToLog(std::move(fd)); });
+        logger.detach();
+
         {
             std::unique_lock lock(mMutex);
             mStarted = true;
@@ -255,6 +281,7 @@ private:
     std::shared_ptr<Callback> mCallback;
     std::shared_ptr<IVirtualMachine> mVm;
 };
+
 } // namespace
 
 static Result<std::vector<uint8_t>> extractRsaPublicKey(
