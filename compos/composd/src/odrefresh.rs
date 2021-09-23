@@ -17,6 +17,7 @@
 //! Handle the details of executing odrefresh to generate compiled artifacts.
 
 use anyhow::{bail, Context, Result};
+use compos_common::VMADDR_CID_ANY;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::process::Command;
@@ -36,10 +37,10 @@ pub enum ExitCode {
     CleanupFailed = EX_MAX + 4,
 }
 
-pub fn run_forced_compile(cid: i32) -> Result<ExitCode> {
+pub fn run_forced_compile() -> Result<ExitCode> {
     // We don`t need to capture stdout/stderr - odrefresh writes to the log
     let mut odrefresh = Command::new(ODREFRESH_BIN)
-        .arg(format!("--use-compilation-os={}", cid))
+        .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY))
         .arg("--force-compile")
         .spawn()
         .context("Running odrefresh")?;
