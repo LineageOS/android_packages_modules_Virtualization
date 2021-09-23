@@ -18,7 +18,7 @@
 //! responsible for managing the lifecycle of the CompOS VM instances, providing key management for
 //! them, and orchestrating trusted compilation.
 
-mod compos_instance;
+mod instance_manager;
 mod odrefresh;
 mod service;
 
