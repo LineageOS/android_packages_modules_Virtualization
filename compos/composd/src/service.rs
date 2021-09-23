@@ -17,20 +17,26 @@
 //! Implementation of IIsolatedCompilationService, called from system server when compilation is
 //! desired.
 
-use crate::compos_instance::CompOsInstance;
+use crate::instance_manager::InstanceManager;
 use crate::odrefresh;
 use android_system_composd::aidl::android::system::composd::IIsolatedCompilationService::{
     BnIsolatedCompilationService, IIsolatedCompilationService,
 };
 use android_system_composd::binder::{self, BinderFeatures, Interface, Status, Strong};
 use anyhow::{bail, Context, Result};
+use compos_aidl_interface::aidl::com::android::compos::{
+    CompilationResult::CompilationResult, FdAnnotation::FdAnnotation,
+};
 use log::{error, info};
 use std::ffi::CString;
 
-pub struct IsolatedCompilationService {}
+#[derive(Default)]
+pub struct IsolatedCompilationService {
+    instance_manager: InstanceManager,
+}
 
 pub fn new_binder() -> Strong<dyn IIsolatedCompilationService> {
-    let service = IsolatedCompilationService {};
+    let service = IsolatedCompilationService::default();
     BnIsolatedCompilationService::new_binder(service, BinderFeatures::default())
 }
 
@@ -38,7 +44,17 @@ impl Interface for IsolatedCompilationService {}
 
 impl IIsolatedCompilationService for IsolatedCompilationService {
     fn runForcedCompile(&self) -> binder::Result<()> {
+        // TODO - check caller is system or shell/root?
         to_binder_result(self.do_run_forced_compile())
+    }
+
+    fn compile(
+        &self,
+        args: &[String],
+        fd_annotation: &FdAnnotation,
+    ) -> binder::Result<CompilationResult> {
+        // TODO - check caller is odrefresh
+        to_binder_result(self.do_compile(args, fd_annotation))
     }
 }
 
@@ -53,16 +69,26 @@ impl IsolatedCompilationService {
     fn do_run_forced_compile(&self) -> Result<()> {
         info!("runForcedCompile");
 
-        // TODO: Create instance if need be, handle instance failure, prevent
-        // multiple instances running
-        let comp_os = CompOsInstance::start_current_instance().context("Starting CompOS")?;
+        let comp_os = self.instance_manager.start_current_instance().context("Starting CompOS")?;
 
-        let exit_code = odrefresh::run_forced_compile(comp_os.cid())?;
+        let exit_code = odrefresh::run_forced_compile()?;
 
         if exit_code != odrefresh::ExitCode::CompilationSuccess {
             bail!("Unexpected odrefresh result: {:?}", exit_code);
         }
 
+        // The instance is needed until odrefresh is finished
+        drop(comp_os);
+
         Ok(())
+    }
+
+    fn do_compile(
+        &self,
+        args: &[String],
+        fd_annotation: &FdAnnotation,
+    ) -> Result<CompilationResult> {
+        let compos = self.instance_manager.get_running_service()?;
+        compos.compile(args, fd_annotation).context("Compiling")
     }
 }
