@@ -246,7 +246,8 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
     info!("notifying payload started");
     service.notifyPayloadStarted(local_cid as i32)?;
 
-    if let Some(code) = child.wait()?.code() {
+    let exit_status = child.wait()?;
+    if let Some(code) = exit_status.code() {
         info!("notifying payload finished");
         service.notifyPayloadFinished(local_cid as i32, code)?;
 
@@ -256,7 +257,7 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
             error!("task exited with exit code: {}", code);
         }
     } else {
-        error!("task terminated by signal");
+        error!("task terminated: {}", exit_status);
     }
     Ok(())
 }
