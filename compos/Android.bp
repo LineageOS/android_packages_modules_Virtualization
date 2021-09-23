@@ -34,6 +34,7 @@ rust_binary {
     rustlibs: [
         "android.hardware.security.keymint-V1-rust",
         "android.system.keystore2-V1-rust",
+        "android.system.virtualmachineservice-rust",
         "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",
@@ -46,6 +47,7 @@ rust_binary {
         "liblibc",
         "liblog_rust",
         "libminijail_rust",
+        "libnix",
         "libring",
         "libscopeguard",
     ],
