@@ -5,6 +5,7 @@ package {
 aidl_interface {
     name: "android.system.composd",
     srcs: ["android/system/composd/*.aidl"],
+    imports: ["compos_aidl_interface"],
     // TODO: Make this stable when the APEX becomes updatable.
     unstable: true,
     backend: {
