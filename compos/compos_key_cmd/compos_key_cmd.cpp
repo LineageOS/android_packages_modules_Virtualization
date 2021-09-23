@@ -126,16 +126,16 @@ public:
         std::thread logger([fd = std::move(stream_fd)]() mutable { copyToLog(std::move(fd)); });
         logger.detach();
 
-        {
-            std::unique_lock lock(mMutex);
-            mStarted = true;
-        }
-        mCv.notify_all();
         return ScopedAStatus::ok();
     }
 
     ::ndk::ScopedAStatus onPayloadReady(int32_t in_cid) override {
         LOG(INFO) << "Payload is ready! cid = " << in_cid;
+        {
+            std::unique_lock lock(mMutex);
+            mReady = true;
+        }
+        mCv.notify_all();
         return ScopedAStatus::ok();
     }
 
@@ -154,16 +154,16 @@ public:
         return ScopedAStatus::ok();
     }
 
-    bool waitForStarted() {
+    bool waitUntilReady() {
         std::unique_lock lock(mMutex);
-        return mCv.wait_for(lock, std::chrono::seconds(10), [this] { return mStarted || mDied; }) &&
+        return mCv.wait_for(lock, std::chrono::seconds(20), [this] { return mReady || mDied; }) &&
                 !mDied;
     }
 
 private:
     std::mutex mMutex;
     std::condition_variable mCv;
-    bool mStarted;
+    bool mReady;
     bool mDied;
 };
 
@@ -263,13 +263,9 @@ public:
         }
         LOG(INFO) << "Started VM";
 
-        if (!mCallback->waitForStarted()) {
+        if (!mCallback->waitUntilReady()) {
             return Error() << "VM Payload failed to start";
         }
-
-        // TODO(b/194677789): Implement a polling loop or find a more reliable
-        // way to detect when the service is listening.
-        sleep(3);
 
         return cid;
     }
