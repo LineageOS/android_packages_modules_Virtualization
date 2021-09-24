@@ -22,6 +22,7 @@ import android.platform.test.annotations.RootPermissionTest;
 import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
+import com.android.compatibility.common.util.PollingCheck;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -36,10 +37,11 @@ import org.junit.runner.RunWith;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class ComposTestCase extends VirtualizationTestCaseBase {
 
-    // Binaries used in test. (These paths are valid both in host and Microdroid.)
+    /** Path to odrefresh on Microdroid */
     private static final String ODREFRESH_BIN = "/apex/com.android.art/bin/odrefresh";
+
+    /** Path to compos_key_cmd on Microdroid */
     private static final String COMPOS_KEY_CMD_BIN = "/apex/com.android.compos/bin/compos_key_cmd";
-    private static final String COMPOSD_CMD_BIN = "/apex/com.android.compos/bin/composd_cmd";
 
     /** Output directory of odrefresh */
     private static final String ODREFRESH_OUTPUT_DIR =
@@ -48,34 +50,38 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     /** Timeout of odrefresh to finish */
     private static final int ODREFRESH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+    /** Wait time for compsvc to be ready on boot */
+    private static final int COMPSVC_READY_LATENCY_MS = 10 * 1000; // 10 seconds
+
     // ExitCode expanded from art/odrefresh/include/odrefresh/odrefresh.h.
     private static final int OKAY = 0;
     private static final int COMPILATION_SUCCESS = 80;
 
-    // Files that define the "current" instance of CompOS
-    private static final String COMPOS_CURRENT_ROOT =
-            "/data/misc/apexdata/com.android.compos/current/";
-    private static final String INSTANCE_IMAGE = COMPOS_CURRENT_ROOT + "instance.img";
-    private static final String PUBLIC_KEY = COMPOS_CURRENT_ROOT + "key.pubkey";
-    private static final String PRIVATE_KEY_BLOB = COMPOS_CURRENT_ROOT + "key.blob";
+    private String mCid;
 
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
+
+        prepareVirtualizationTestSetup(getDevice());
+
+        startComposVm();
     }
 
     @After
     public void tearDown() throws Exception {
-        CommandRunner android = new CommandRunner(getDevice());
+        if (mCid != null) {
+            shutdownMicrodroid(getDevice(), mCid);
+            mCid = null;
+        }
 
-        // kill stale VMs and directories
-        android.tryRun("killall", "crosvm");
-        android.tryRun("rm", "-rf", "/data/misc/virtualizationservice/*");
-        android.tryRun("stop", "virtualizationservice");
+        cleanUpVirtualizationTestSetup(getDevice());
     }
 
     @Test
     public void testOdrefresh() throws Exception {
+        waitForServiceRunning();
+
         CommandRunner android = new CommandRunner(getDevice());
 
         // Prepare the groundtruth. The compilation on Android should finish successfully.
@@ -97,26 +103,26 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
                 android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, ODREFRESH_BIN, "--check");
         assertThat(result.getExitCode()).isEqualTo(OKAY);
 
-        // Make sure the CompOS current directory actually exists
-        android.run("mkdir", "-p", COMPOS_CURRENT_ROOT);
-
-        // Create an empty image file
-        android.run(COMPOS_KEY_CMD_BIN, "make-instance", INSTANCE_IMAGE);
-
-        // Generate keys - should succeed
+        // Initialize the service with the generated key. Should succeed.
         android.run(
                 COMPOS_KEY_CMD_BIN,
-                "--start " + INSTANCE_IMAGE,
+                "--cid " + mCid,
                 "generate",
-                PRIVATE_KEY_BLOB,
-                PUBLIC_KEY);
+                TEST_ROOT + "test_key.blob",
+                TEST_ROOT + "test_key.pubkey");
+        android.run(COMPOS_KEY_CMD_BIN, "--cid " + mCid, "init-key", TEST_ROOT + "test_key.blob");
 
         // Expect the compilation in Compilation OS to finish successfully.
         {
             long start = System.currentTimeMillis();
-            result = android.runForResultWithTimeout(ODREFRESH_TIMEOUT_MS, COMPOSD_CMD_BIN);
+            result =
+                    android.runForResultWithTimeout(
+                            ODREFRESH_TIMEOUT_MS,
+                            ODREFRESH_BIN,
+                            "--use-compilation-os=" + mCid,
+                            "--force-compile");
             long elapsed = System.currentTimeMillis() - start;
-            assertThat(result.getExitCode()).isEqualTo(0);
+            assertThat(result.getExitCode()).isEqualTo(COMPILATION_SUCCESS);
             CLog.i("Comp OS compilation took " + elapsed + "ms");
         }
 
@@ -132,6 +138,32 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
         // Expect the output of Comp OS to be the same as compiled on Android.
         assertThat(actualChecksumSnapshot).isEqualTo(expectedChecksumSnapshot);
+    }
+
+    private void startComposVm() throws DeviceNotAvailableException {
+        final String apkName = "CompOSPayloadApp.apk";
+        final String packageName = "com.android.compos.payload";
+        mCid =
+                startMicrodroid(
+                        getDevice(),
+                        getBuild(),
+                        apkName,
+                        packageName,
+                        "assets/vm_test_config.json",
+                        /* debug */ false);
+        adbConnectToMicrodroid(getDevice(), mCid);
+    }
+
+    private void waitForServiceRunning() {
+        try {
+            PollingCheck.waitFor(COMPSVC_READY_LATENCY_MS, this::isServiceRunning);
+        } catch (Exception e) {
+            throw new RuntimeException("Service unavailable", e);
+        }
+    }
+
+    private boolean isServiceRunning() {
+        return tryRunOnMicrodroid("pidof compsvc") != null;
     }
 
     private String checksumDirectoryContent(CommandRunner runner, String path)
