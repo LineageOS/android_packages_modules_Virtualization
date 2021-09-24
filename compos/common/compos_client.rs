@@ -46,11 +46,8 @@ use std::time::Duration;
 
 /// This owns an instance of the CompOS VM.
 pub struct VmInstance {
-    #[allow(dead_code)] // Prevent service manager from killing the dynamic service
-    service: Strong<dyn IVirtualizationService>,
     #[allow(dead_code)] // Keeps the VM alive even if we don`t touch it
     vm: Strong<dyn IVirtualMachine>,
-    #[allow(dead_code)] // TODO: Do we need this?
     cid: i32,
 }
 
@@ -113,7 +110,7 @@ impl VmInstance {
 
         let cid = vm_state.wait_until_ready()?;
 
-        Ok(VmInstance { service, vm, cid })
+        Ok(VmInstance { vm, cid })
     }
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
@@ -129,6 +126,7 @@ impl VmInstance {
 
     /// Return the CID of the VM.
     pub fn cid(&self) -> i32 {
+        // TODO: Do we actually need/use this?
         self.cid
     }
 }
