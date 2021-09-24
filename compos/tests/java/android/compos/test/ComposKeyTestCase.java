@@ -22,7 +22,6 @@ import android.platform.test.annotations.RootPermissionTest;
 import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
-import com.android.compatibility.common.util.PollingCheck;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
@@ -35,44 +34,37 @@ import org.junit.runner.RunWith;
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
-
-    /** Wait time for service to be ready on boot */
-    private static final int READY_LATENCY_MS = 10 * 1000; // 10 seconds
-
-    // Path to compos_key_cmd tool
     private static final String COMPOS_KEY_CMD_BIN = "/apex/com.android.compos/bin/compos_key_cmd";
-
-    private String mCid;
+    private static final String INSTANCE_IMAGE = TEST_ROOT + "compos_instance.img";
 
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
-
-        prepareVirtualizationTestSetup(getDevice());
     }
 
     @After
     public void tearDown() throws Exception {
-        if (mCid != null) {
-            shutdownMicrodroid(getDevice(), mCid);
-            mCid = null;
-        }
+        CommandRunner android = new CommandRunner(getDevice());
 
-        cleanUpVirtualizationTestSetup(getDevice());
+        // kill stale VMs and directories
+        android.tryRun("killall", "crosvm");
+        android.tryRun("rm", "-rf", "/data/misc/virtualizationservice/*");
+        android.tryRun("stop", "virtualizationservice");
     }
+
 
     @Test
     public void testKeyService() throws Exception {
-        startVm();
-        waitForServiceRunning();
-
         CommandRunner android = new CommandRunner(getDevice());
         CommandResult result;
+
+        // Create an empty image file
+        android.run(COMPOS_KEY_CMD_BIN, "make-instance", INSTANCE_IMAGE);
 
         // Generate keys - should succeed
         android.run(
                 COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
+                "--start " + INSTANCE_IMAGE,
                 "generate",
                 TEST_ROOT + "test_key.blob",
                 TEST_ROOT + "test_key.pubkey");
@@ -80,7 +72,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         // Verify them - should also succeed, since we just generated them
         android.run(
                 COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
+                "--start " + INSTANCE_IMAGE,
                 "verify",
                 TEST_ROOT + "test_key.blob",
                 TEST_ROOT + "test_key.pubkey");
@@ -89,7 +81,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         result =
                 android.runForResult(
                         COMPOS_KEY_CMD_BIN,
-                        "--cid " + mCid,
+                        "--start " + INSTANCE_IMAGE,
                         "verify",
                         TEST_ROOT + "test_key.pubkey",
                         TEST_ROOT + "test_key.blob");
@@ -98,7 +90,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         // Generate another set of keys - should succeed
         android.run(
                 COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
+                "--start " + INSTANCE_IMAGE,
                 "generate",
                 TEST_ROOT + "test_key2.blob",
                 TEST_ROOT + "test_key2.pubkey");
@@ -106,7 +98,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         // They should also verify ok
         android.run(
                 COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
+                "--start " + INSTANCE_IMAGE,
                 "verify",
                 TEST_ROOT + "test_key2.blob",
                 TEST_ROOT + "test_key2.pubkey");
@@ -115,7 +107,7 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         result =
                 android.runForResult(
                         COMPOS_KEY_CMD_BIN,
-                        "--cid " + mCid,
+                        "--start " + INSTANCE_IMAGE,
                         "verify",
                         TEST_ROOT + "test_key.pubkey",
                         TEST_ROOT + "test_key2.blob");
@@ -126,52 +118,18 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         // very slow, a new test method unfortunately makes the whole test module to exceed the
         // timeout configured in the test infrastructure.
 
-        // Generate key - should succeed
-        android.run(
-                COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
-                "generate",
-                TEST_ROOT + "test_key3.blob",
-                TEST_ROOT + "test_key3.pubkey");
-
         // Generate some data to sign in a writable directory
         android.run("echo something > /data/local/tmp/something.txt");
 
         // Sign something - should succeed
         android.run(
                 COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
+                "--start " + INSTANCE_IMAGE,
                 "sign",
-                TEST_ROOT + "test_key3.blob",
+                TEST_ROOT + "test_key2.blob",
                 "/data/local/tmp/something.txt");
 
         // Check existence of the output signature - should succeed
         android.run("test -f /data/local/tmp/something.txt.signature");
-    }
-
-    private void startVm() throws Exception {
-        final String apkName = "CompOSPayloadApp.apk";
-        final String packageName = "com.android.compos.payload";
-        mCid =
-                startMicrodroid(
-                        getDevice(),
-                        getBuild(),
-                        apkName,
-                        packageName,
-                        "assets/vm_test_config.json",
-                        /* debug */ false);
-        adbConnectToMicrodroid(getDevice(), mCid);
-    }
-
-    private void waitForServiceRunning() {
-        try {
-            PollingCheck.waitFor(READY_LATENCY_MS, this::isServiceRunning);
-        } catch (Exception e) {
-            throw new RuntimeException("Service unavailable", e);
-        }
-    }
-
-    private boolean isServiceRunning() {
-        return tryRunOnMicrodroid("pidof compsvc") != null;
     }
 }
