@@ -18,7 +18,10 @@ package android.virt.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 
 import org.junit.After;
@@ -31,6 +34,22 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
 
+    private static final int MIN_MEM_ARM64 = 125;
+    private static final int MIN_MEM_X86_64 = 270;
+
+    private int minMemorySize() throws DeviceNotAvailableException {
+        CommandRunner android = new CommandRunner(getDevice());
+        String abi = android.run("getprop", "ro.product.cpu.abi");
+        assertTrue(abi != null && !abi.isEmpty());
+        if (abi.startsWith("arm64")) {
+            return MIN_MEM_ARM64;
+        } else if (abi.startsWith("x86_64")) {
+            return MIN_MEM_X86_64;
+        }
+        fail("Unsupported ABI: " + abi);
+        return 0;
+    }
+
     @Test
     public void testMicrodroidBoots() throws Exception {
         final String configPath = "assets/vm_config.json"; // path inside the APK
@@ -41,7 +60,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                         APK_NAME,
                         PACKAGE_NAME,
                         configPath,
-                        /* debug */ false);
+                        /* debug */ false,
+                        minMemorySize());
         adbConnectToMicrodroid(getDevice(), cid);
 
         // Wait until logd-init starts. The service is one of the last services that are started in
@@ -89,7 +109,14 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String configPath = "assets/vm_config.json"; // path inside the APK
         final boolean debug = true;
         final String cid =
-                startMicrodroid(getDevice(), getBuild(), APK_NAME, PACKAGE_NAME, configPath, debug);
+                startMicrodroid(
+                        getDevice(),
+                        getBuild(),
+                        APK_NAME,
+                        PACKAGE_NAME,
+                        configPath,
+                        debug,
+                        minMemorySize());
         adbConnectToMicrodroid(getDevice(), cid);
 
         assertThat(runOnMicrodroid("getenforce"), is("Permissive"));

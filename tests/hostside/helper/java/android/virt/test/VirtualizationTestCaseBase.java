@@ -167,7 +167,8 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
             String apkName,
             String packageName,
             String configPath,
-            boolean debug)
+            boolean debug,
+            int memoryMib)
             throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(androidDevice);
 
@@ -198,6 +199,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
                         "run-app",
                         "--daemonize",
                         "--log " + logPath,
+                        "--mem " + memoryMib,
                         debugFlag,
                         apkPath,
                         outApkIdsigPath,
