@@ -108,7 +108,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                         apkName,
                         packageName,
                         configPath,
-                        /* debug */ false);
+                        /* debug */ false,
+                        /* use default memoryMib */ 0);
         adbConnectToMicrodroid(androidDevice, sCid);
 
         // Root because authfs (started from shell in this test) currently require root to open
