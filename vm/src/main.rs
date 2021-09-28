@@ -62,6 +62,11 @@ enum Opt {
         /// Whether to run VM in debug mode.
         #[structopt(short, long)]
         debug: bool,
+
+        /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
+        /// in the VM config file.
+        #[structopt(short, long)]
+        mem: Option<u32>,
     },
     /// Run a virtual machine
     Run {
@@ -118,7 +123,7 @@ fn main() -> Result<(), Error> {
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::RunApp { apk, idsig, instance, config_path, daemonize, log, debug } => {
+        Opt::RunApp { apk, idsig, instance, config_path, daemonize, log, debug, mem } => {
             command_run_app(
                 service,
                 &apk,
@@ -128,10 +133,11 @@ fn main() -> Result<(), Error> {
                 daemonize,
                 log.as_deref(),
                 debug,
+                mem,
             )
         }
         Opt::Run { config, daemonize, log } => {
-            command_run(service, &config, daemonize, log.as_deref())
+            command_run(service, &config, daemonize, log.as_deref(), /* mem */ None)
         }
         Opt::Stop { cid } => command_stop(service, cid),
         Opt::List => command_list(service),

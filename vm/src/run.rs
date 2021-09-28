@@ -49,6 +49,7 @@ pub fn command_run_app(
     daemonize: bool,
     log_path: Option<&Path>,
     debug: bool,
+    mem: Option<u32>,
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
     let idsig_file = File::create(idsig).context("Failed to create idsig file")?;
@@ -76,8 +77,7 @@ pub fn command_run_app(
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         configPath: config_path.to_owned(),
         debug,
-        // Use the default.
-        memoryMib: 0,
+        memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
     });
     run(service, &config, &format!("{:?}!{:?}", apk, config_path), daemonize, log_path)
 }
@@ -88,10 +88,14 @@ pub fn command_run(
     config_path: &Path,
     daemonize: bool,
     log_path: Option<&Path>,
+    mem: Option<u32>,
 ) -> Result<(), Error> {
     let config_file = File::open(config_path).context("Failed to open config file")?;
-    let config =
+    let mut config =
         VmConfig::load(&config_file).context("Failed to parse config file")?.to_parcelable()?;
+    if let Some(mem) = mem {
+        config.memoryMib = mem as i32;
+    }
     run(
         service,
         &VirtualMachineConfig::RawConfig(config),
