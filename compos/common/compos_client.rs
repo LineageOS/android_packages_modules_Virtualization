@@ -55,6 +55,13 @@ pub struct VmInstance {
 }
 
 impl VmInstance {
+    /// Return a new connection to the Virtualization Service binder interface. This will start the
+    /// service if necessary.
+    pub fn connect_to_virtualization_service() -> Result<Strong<dyn IVirtualizationService>> {
+        wait_for_interface::<dyn IVirtualizationService>("android.system.virtualizationservice")
+            .context("Failed to find VirtualizationService")
+    }
+
     /// Start a new CompOS VM instance using the specified instance image file.
     pub fn start(instance_image: &Path) -> Result<VmInstance> {
         let instance_image =
@@ -84,10 +91,7 @@ impl VmInstance {
             ..Default::default()
         });
 
-        let service = wait_for_interface::<dyn IVirtualizationService>(
-            "android.system.virtualizationservice",
-        )
-        .context("Failed to find VirtualizationService")?;
+        let service = Self::connect_to_virtualization_service()?;
 
         let vm = service.createVm(&config, Some(&log_fd)).context("Failed to create VM")?;
         let vm_state = Arc::new(VmStateMonitor::default());
