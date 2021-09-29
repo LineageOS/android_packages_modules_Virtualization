@@ -30,13 +30,12 @@ use compos_aidl_interface::aidl::com::android::compos::{
 use log::{error, info};
 use std::ffi::CString;
 
-#[derive(Default)]
 pub struct IsolatedCompilationService {
     instance_manager: InstanceManager,
 }
 
-pub fn new_binder() -> Strong<dyn IIsolatedCompilationService> {
-    let service = IsolatedCompilationService::default();
+pub fn new_binder(instance_manager: InstanceManager) -> Strong<dyn IIsolatedCompilationService> {
+    let service = IsolatedCompilationService { instance_manager };
     BnIsolatedCompilationService::new_binder(service, BinderFeatures::default())
 }
 
