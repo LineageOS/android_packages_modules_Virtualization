@@ -172,7 +172,6 @@ android_filesystem {
     deps: [
         "android.hardware.security.keymint-service.microdroid",
         "microdroid_fstab",
-        "microdroid_precompiled_sepolicy",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
         "microdroid_vendor_manifest",
         "microdroid_vendor_compatibility_matrix",
@@ -183,6 +182,7 @@ android_filesystem {
                 "microdroid_vendor_sepolicy.cil",
                 "microdroid_plat_pub_versioned.cil",
                 "microdroid_plat_sepolicy_vers.txt",
+                "microdroid_precompiled_sepolicy",
             ],
         },
     },
