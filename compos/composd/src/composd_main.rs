@@ -22,8 +22,10 @@ mod instance_manager;
 mod odrefresh;
 mod service;
 
+use crate::instance_manager::InstanceManager;
 use android_system_composd::binder::{register_lazy_service, ProcessState};
 use anyhow::{Context, Result};
+use compos_common::compos_client::VmInstance;
 use log::{error, info};
 
 fn try_main() -> Result<()> {
@@ -33,8 +35,10 @@ fn try_main() -> Result<()> {
 
     ProcessState::start_thread_pool();
 
-    let service = service::new_binder();
-    register_lazy_service("android.system.composd", service.as_binder())
+    let virtualization_service = VmInstance::connect_to_virtualization_service()?;
+    let instance_manager = InstanceManager::new(virtualization_service);
+    let composd_service = service::new_binder(instance_manager);
+    register_lazy_service("android.system.composd", composd_service.as_binder())
         .context("Registering service")?;
 
     info!("Registered service, joining threadpool");
