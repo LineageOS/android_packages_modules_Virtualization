@@ -19,6 +19,7 @@
 //! them, and orchestrating trusted compilation.
 
 mod instance_manager;
+mod instance_starter;
 mod odrefresh;
 mod service;
 
