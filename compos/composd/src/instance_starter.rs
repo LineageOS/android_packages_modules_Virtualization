@@ -74,7 +74,7 @@ impl InstanceStarter {
         let compos_instance = self.start_existing_instance();
         match compos_instance {
             Ok(_) => return compos_instance,
-            Err(e) => warn!("Failed to start {}: {}", self.instance_name, e),
+            Err(e) => warn!("Failed to start: {}", e),
         }
 
         self.start_new_instance(service)
@@ -83,6 +83,8 @@ impl InstanceStarter {
     fn start_existing_instance(&self) -> Result<CompOsInstance> {
         // No point even trying if the files we need aren't there.
         self.check_files_exist()?;
+
+        info!("Starting {} CompOs instance", self.instance_name);
 
         let key_blob = fs::read(&self.key_blob).context("Reading private key blob")?;
         let public_key = fs::read(&self.public_key).context("Reading public key")?;
@@ -119,8 +121,13 @@ impl InstanceStarter {
 
         let key_data = service.generateSigningKey().context("Generating signing key")?;
         fs::write(&self.key_blob, &key_data.keyBlob).context("Writing key blob")?;
-        // TODO: Extract public key from cert
-        fs::write(&self.public_key, &key_data.certificate).context("Writing public key")?;
+
+        let key_result = composd_native::extract_rsa_public_key(&key_data.certificate);
+        let rsa_public_key = key_result.key;
+        if rsa_public_key.is_empty() {
+            bail!("Failed to extract public key from certificate: {}", key_result.error);
+        }
+        fs::write(&self.public_key, &rsa_public_key).context("Writing public key")?;
 
         // We don't need to verify the key, since we just generated it and have it in memory.
 
