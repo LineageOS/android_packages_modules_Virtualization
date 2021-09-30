@@ -1,0 +1,42 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_library {
+    name: "libcomposd_native_rust",
+    crate_name: "composd_native",
+    srcs: ["lib.rs"],
+    rustlibs: [
+        "libcxx",
+    ],
+    static_libs: [
+        "libcomposd_native_cpp",
+    ],
+    shared_libs: ["libcrypto"],
+    apex_available: ["com.android.compos"],
+}
+
+cc_library_static {
+    name: "libcomposd_native_cpp",
+    srcs: ["composd_native.cpp"],
+    shared_libs: ["libcrypto"],
+    generated_headers: ["composd_native_header"],
+    generated_sources: ["composd_native_code"],
+    apex_available: ["com.android.compos"],
+}
+
+genrule {
+    name: "composd_native_code",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) >> $(out)",
+    srcs: ["lib.rs"],
+    out: ["composd_native_cxx_generated.cc"],
+}
+
+genrule {
+    name: "composd_native_header",
+    tools: ["cxxbridge"],
+    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
+    srcs: ["lib.rs"],
+    out: ["lib.rs.h"],
+}
