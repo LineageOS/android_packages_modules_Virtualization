@@ -15,6 +15,7 @@ rust_binary {
         "libanyhow",
         "libbinder_rs",
         "libcompos_common",
+        "libcomposd_native_rust",
         "libnum_traits",
         "liblog_rust",
     ],
