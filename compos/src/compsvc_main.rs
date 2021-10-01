@@ -43,7 +43,14 @@ use std::os::unix::io::AsRawFd;
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = try_main() {
+        error!("failed with {:?}", e);
+        std::process::exit(1);
+    }
+}
+
+fn try_main() -> Result<()> {
     let args = clap::App::new("compsvc")
         .arg(clap::Arg::with_name("log_to_stderr").long("log_to_stderr"))
         .get_matches();

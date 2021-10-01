@@ -59,7 +59,7 @@ impl IAuthFsService for AuthFsService {
         create_dir(&mountpoint).map_err(|e| {
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
-                format!("Cannot create mount directory {:?}: {}", &mountpoint, e),
+                format!("Cannot create mount directory {:?}: {:?}", &mountpoint, e),
             )
         })?;
 
@@ -109,7 +109,7 @@ fn clean_up_working_directory() -> Result<()> {
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn try_main() -> Result<()> {
     let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
     let log_level = if debuggable { log::Level::Trace } else { log::Level::Info };
     android_logger::init_once(
@@ -127,4 +127,11 @@ fn main() -> Result<()> {
 
     ProcessState::join_thread_pool();
     bail!("Unexpected exit after join_thread_pool")
+}
+
+fn main() {
+    if let Err(e) = try_main() {
+        error!("failed with {:?}", e);
+        std::process::exit(1);
+    }
 }
