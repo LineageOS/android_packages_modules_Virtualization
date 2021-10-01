@@ -207,7 +207,7 @@ fn main() {
     // Make sure we log and indicate failure if we were unable to run the command and get its exit
     // code.
     if let Err(e) = try_main() {
-        error!("{}", e);
+        error!("{:?}", e);
         std::process::exit(-1)
     }
 }
