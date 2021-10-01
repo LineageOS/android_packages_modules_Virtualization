@@ -18,5 +18,11 @@ aidl_interface {
                 "com.android.compos",
             ],
         },
+        ndk: {
+            enabled: true,
+            apex_available: [
+                "com.android.compos",
+            ],
+        },
     },
 }
