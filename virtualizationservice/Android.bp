@@ -25,6 +25,7 @@ rust_defaults {
         "android.os.permissions_aidl-rust",
         "libandroid_logger",
         "libanyhow",
+        "libbinder_common",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
         "libcommand_fds",

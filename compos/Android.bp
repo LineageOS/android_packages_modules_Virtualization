@@ -40,6 +40,7 @@ rust_binary {
         "compos_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",
+        "libbinder_common",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
         "libclap",
