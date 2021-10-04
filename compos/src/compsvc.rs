@@ -19,9 +19,9 @@
 //! actual compiler.
 
 use anyhow::Result;
+use binder_common::new_binder_exception;
 use log::warn;
 use std::default::Default;
-use std::ffi::CString;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -36,7 +36,7 @@ use compos_aidl_interface::aidl::com::android::compos::{
     ICompOsService::{BnCompOsService, ICompOsService},
 };
 use compos_aidl_interface::binder::{
-    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong,
+    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Strong,
 };
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
@@ -153,8 +153,4 @@ impl ICompOsService for CompOsService {
 
 fn get_authfs_service() -> BinderResult<Strong<dyn IAuthFsService>> {
     Ok(authfs_aidl_interface::binder::get_interface(AUTHFS_SERVICE_NAME)?)
-}
-
-fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> Status {
-    Status::new_exception(exception, CString::new(message.as_ref()).as_deref().ok())
 }
