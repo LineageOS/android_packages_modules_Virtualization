@@ -30,7 +30,6 @@ use log::{debug, error};
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
-use std::ffi::CString;
 use std::fs::File;
 use std::io;
 use std::os::unix::fs::FileExt;
@@ -43,12 +42,9 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
 use authfs_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, StatusCode, Strong,
 };
+use binder_common::new_binder_exception;
 
 const RPC_SERVICE_PORT: u32 = 3264; // TODO: support dynamic port for multiple fd_server instances
-
-fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> Status {
-    Status::new_exception(exception, CString::new(message.as_ref()).as_deref().ok())
-}
 
 fn validate_and_cast_offset(offset: i64) -> Result<u64, Status> {
     offset.try_into().map_err(|_| {

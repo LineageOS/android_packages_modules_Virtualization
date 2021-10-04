@@ -19,6 +19,7 @@ use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
 use crate::{Cid, FIRST_GUEST_CID, SYSPROP_LAST_CID};
 
+use binder_common::new_binder_exception;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachine::{
     BnVirtualMachine, IVirtualMachine,
@@ -48,7 +49,6 @@ use log::{debug, error, warn, info};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
 use std::convert::TryInto;
-use std::ffi::CString;
 use std::fs::{File, OpenOptions, create_dir};
 use std::io::{Error, ErrorKind, Write};
 use std::num::NonZeroU32;
@@ -793,11 +793,6 @@ fn vsock_stream_to_pfd(stream: VsockStream) -> ParcelFileDescriptor {
     // SAFETY: ownership is transferred from stream to f
     let f = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
     ParcelFileDescriptor::new(f)
-}
-
-/// Constructs a new Binder error `Status` with the given `ExceptionCode` and message.
-fn new_binder_exception<T: AsRef<str>>(exception: ExceptionCode, message: T) -> Status {
-    Status::new_exception(exception, CString::new(message.as_ref()).ok().as_deref())
 }
 
 /// Simple utility for referencing Borrowed or Owned. Similar to std::borrow::Cow, but
