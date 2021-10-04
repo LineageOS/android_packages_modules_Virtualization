@@ -22,13 +22,13 @@ use crate::odrefresh;
 use android_system_composd::aidl::android::system::composd::IIsolatedCompilationService::{
     BnIsolatedCompilationService, IIsolatedCompilationService,
 };
-use android_system_composd::binder::{self, BinderFeatures, Interface, Status, Strong};
+use android_system_composd::binder::{self, BinderFeatures, Interface, Strong};
 use anyhow::{bail, Context, Result};
+use binder_common::new_binder_service_specific_error;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompilationResult::CompilationResult, FdAnnotation::FdAnnotation,
 };
 use log::{error, info};
-use std::ffi::CString;
 
 pub struct IsolatedCompilationService {
     instance_manager: InstanceManager,
@@ -59,8 +59,9 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
 
 fn to_binder_result<T>(result: Result<T>) -> binder::Result<T> {
     result.map_err(|e| {
-        error!("Returning binder error: {:#}", e);
-        Status::new_service_specific_error(-1, CString::new(format!("{:#}", e)).ok().as_deref())
+        let message = format!("{:?}", e);
+        error!("Returning binder error: {}", &message);
+        new_binder_service_specific_error(-1, message)
     })
 }
 
