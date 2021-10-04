@@ -21,7 +21,6 @@
 //! is able to retrieve "remote file descriptors".
 
 mod authfs;
-mod common;
 
 use anyhow::{bail, Context, Result};
 use log::*;
@@ -29,7 +28,6 @@ use std::ffi::OsString;
 use std::fs::{create_dir, read_dir, remove_dir_all, remove_file};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::common::new_binder_exception;
 use authfs_aidl_interface::aidl::com::android::virt::fs::AuthFsConfig::AuthFsConfig;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFs::IAuthFs;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::{
@@ -38,6 +36,7 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::{
 use authfs_aidl_interface::binder::{
     self, add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Strong,
 };
+use binder_common::new_binder_exception;
 
 const SERVICE_NAME: &str = "authfs_service";
 const SERVICE_ROOT: &str = "/data/misc/authfs";
