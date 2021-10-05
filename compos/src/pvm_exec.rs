@@ -202,12 +202,12 @@ fn try_main() -> Result<()> {
         // Sentinel value that indicates we should use composd
         let composd = get_composd()?;
         wait_for_fd_server_ready(ready_read_fd)?;
-        composd.compile(&args, &fd_annotation)
+        composd.compile_cmd(&args, &fd_annotation)
     } else {
         // Call directly into the VM
         let compos_vm = get_rpc_binder(cid)?;
         wait_for_fd_server_ready(ready_read_fd)?;
-        compos_vm.compile(&args, &fd_annotation)
+        compos_vm.compile_cmd(&args, &fd_annotation)
     };
     let result = result.context("Binder call failed")?;
 
