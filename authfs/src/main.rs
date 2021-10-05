@@ -28,6 +28,7 @@
 //! e.g. /mountpoint/42.
 
 use anyhow::{bail, Context, Result};
+use log::error;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
 use std::fs::File;
@@ -325,7 +326,7 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     Ok(file_pool)
 }
 
-fn main() -> Result<()> {
+fn try_main() -> Result<()> {
     let args = Args::from_args();
 
     let log_level = if args.debug { log::Level::Debug } else { log::Level::Info };
@@ -336,4 +337,11 @@ fn main() -> Result<()> {
     let file_pool = prepare_file_pool(&args)?;
     fusefs::loop_forever(file_pool, &args.mount_point, &args.extra_options)?;
     bail!("Unexpected exit after the handler loop")
+}
+
+fn main() {
+    if let Err(e) = try_main() {
+        error!("failed with {:?}", e);
+        std::process::exit(1);
+    }
 }
