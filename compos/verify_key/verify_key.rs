@@ -87,8 +87,9 @@ fn verify(instance_dir: &Path) -> Result<()> {
 
     let blob = read_small_file(blob).context("Failed to read key blob")?;
     let public_key = read_small_file(public_key).context("Failed to read public key")?;
+    let instance_image = File::open(instance_image).context("Failed to open instance image")?;
 
-    let vm_instance = VmInstance::start(&instance_image)?;
+    let vm_instance = VmInstance::start(instance_image)?;
     let service = vm_instance.get_service()?;
 
     let result = service.verifySigningKey(&blob, &public_key).context("Verifying signing key")?;
