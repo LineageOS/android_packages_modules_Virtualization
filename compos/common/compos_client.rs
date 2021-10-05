@@ -60,9 +60,7 @@ impl VmInstance {
     }
 
     /// Start a new CompOS VM instance using the specified instance image file.
-    pub fn start(instance_image: &Path) -> Result<VmInstance> {
-        let instance_image =
-            File::open(instance_image).context("Failed to open instance image file")?;
+    pub fn start(instance_image: File) -> Result<VmInstance> {
         let instance_fd = ParcelFileDescriptor::new(instance_image);
 
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
