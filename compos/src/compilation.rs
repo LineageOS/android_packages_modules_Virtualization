@@ -52,7 +52,7 @@ struct CompilerOutputParcelFds {
 
 /// Runs the compiler with given flags with file descriptors described in `fd_annotation` retrieved
 /// via `authfs_service`. Returns exit code of the compiler process.
-pub fn compile(
+pub fn compile_cmd(
     compiler_path: &Path,
     compiler_args: &[String],
     authfs_service: Strong<dyn IAuthFsService>,

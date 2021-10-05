@@ -47,13 +47,17 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
         to_binder_result(self.do_run_forced_compile())
     }
 
-    fn compile(
+    fn compile_cmd(
         &self,
         args: &[String],
         fd_annotation: &FdAnnotation,
     ) -> binder::Result<CompilationResult> {
         // TODO - check caller is odrefresh
         to_binder_result(self.do_compile(args, fd_annotation))
+    }
+
+    fn compile(&self, _marshaled: &[u8], _fd_annotation: &FdAnnotation) -> binder::Result<i8> {
+        Err(new_binder_service_specific_error(-1, "Not yet implemented"))
     }
 }
 
@@ -89,6 +93,6 @@ impl IsolatedCompilationService {
         fd_annotation: &FdAnnotation,
     ) -> Result<CompilationResult> {
         let compos = self.instance_manager.get_running_service()?;
-        compos.compile(args, fd_annotation).context("Compiling")
+        compos.compile_cmd(args, fd_annotation).context("Compiling")
     }
 }
