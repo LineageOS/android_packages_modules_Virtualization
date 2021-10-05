@@ -32,8 +32,11 @@ use binder::FromIBinder;
 use clap::{value_t, App, Arg};
 use log::{debug, error, warn};
 use minijail::Minijail;
-use nix::fcntl::{fcntl, FcntlArg::F_GETFD};
-use std::os::unix::io::RawFd;
+use nix::fcntl::{fcntl, FcntlArg::F_GETFD, OFlag};
+use nix::unistd::pipe2;
+use std::fs::File;
+use std::io::Read;
+use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::Path;
 use std::process::exit;
 
@@ -69,7 +72,11 @@ fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompOsService>> {
     }
 }
 
-fn spawn_fd_server(fd_annotation: &FdAnnotation, debuggable: bool) -> Result<Minijail> {
+fn spawn_fd_server(
+    fd_annotation: &FdAnnotation,
+    ready_file: File,
+    debuggable: bool,
+) -> Result<Minijail> {
     let mut inheritable_fds = if debuggable {
         vec![1, 2] // inherit/redirect stdout/stderr for debugging
     } else {
@@ -87,6 +94,10 @@ fn spawn_fd_server(fd_annotation: &FdAnnotation, debuggable: bool) -> Result<Min
         args.push(fd.to_string());
         inheritable_fds.push(*fd);
     }
+    let ready_fd = ready_file.as_raw_fd();
+    args.push("--ready-fd".to_string());
+    args.push(ready_fd.to_string());
+    inheritable_fds.push(ready_fd);
 
     let jail = Minijail::new()?;
     let _pid = jail.run(Path::new(FD_SERVER_BIN), &inheritable_fds, &args)?;
@@ -153,12 +164,31 @@ fn parse_args() -> Result<Config> {
     Ok(Config { args, fd_annotation: FdAnnotation { input_fds, output_fds }, cid, debuggable })
 }
 
+fn create_pipe() -> Result<(File, File)> {
+    let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC)?;
+    // SAFETY: We are the sole owners of these fds as they were just created.
+    let read_fd = unsafe { File::from_raw_fd(raw_read) };
+    let write_fd = unsafe { File::from_raw_fd(raw_write) };
+    Ok((read_fd, write_fd))
+}
+
+fn wait_for_fd_server_ready(mut ready_fd: File) -> Result<()> {
+    let mut buffer = [0];
+    // When fd_server is ready it closes its end of the pipe. And if it exits, the pipe is also
+    // closed. Either way this read will return 0 bytes at that point, and there's no point waiting
+    // any longer.
+    let _ = ready_fd.read(&mut buffer).context("Waiting for fd_server to be ready")?;
+    debug!("fd_server is ready");
+    Ok(())
+}
+
 fn try_main() -> Result<()> {
     // 1. Parse the command line arguments for collect execution data.
     let Config { args, fd_annotation, cid, debuggable } = parse_args()?;
 
     // 2. Spawn and configure a fd_server to serve remote read/write requests.
-    let fd_server_jail = spawn_fd_server(&fd_annotation, debuggable)?;
+    let (ready_read_fd, ready_write_fd) = create_pipe()?;
+    let fd_server_jail = spawn_fd_server(&fd_annotation, ready_write_fd, debuggable)?;
     let fd_server_lifetime = scopeguard::guard(fd_server_jail, |fd_server_jail| {
         if let Err(e) = fd_server_jail.kill() {
             if !matches!(e, minijail::Error::Killed(_)) {
@@ -171,10 +201,12 @@ fn try_main() -> Result<()> {
     let result = if cid == VMADDR_CID_ANY {
         // Sentinel value that indicates we should use composd
         let composd = get_composd()?;
+        wait_for_fd_server_ready(ready_read_fd)?;
         composd.compile(&args, &fd_annotation)
     } else {
         // Call directly into the VM
         let compos_vm = get_rpc_binder(cid)?;
+        wait_for_fd_server_ready(ready_read_fd)?;
         compos_vm.compile(&args, &fd_annotation)
     };
     let result = result.context("Binder call failed")?;
@@ -190,7 +222,7 @@ fn try_main() -> Result<()> {
     // Be explicit about the lifetime, which should last at least until the task is finished.
     drop(fd_server_lifetime);
 
-    if result.exitCode > 0 {
+    if result.exitCode != 0 {
         error!("remote execution failed with exit code {}", result.exitCode);
         exit(result.exitCode as i32);
     }
