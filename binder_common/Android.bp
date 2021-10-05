@@ -9,6 +9,7 @@ rust_library {
     edition: "2018",
     rustlibs: [
         "libbinder_rs",
+        "liblazy_static",
     ],
     apex_available: [
         "com.android.compos",
