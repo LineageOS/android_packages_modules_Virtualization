@@ -223,9 +223,12 @@ impl VmStateMonitor {
     }
 
     fn wait_until_ready(&self) -> Result<i32> {
+        // 10s is long enough on real hardware, but it can take 90s when using nested
+        // virtualization.
+        // TODO(b/200924405): Reduce timeout/detect nested virtualization
         let (state, result) = self
             .state_ready
-            .wait_timeout_while(self.mutex.lock().unwrap(), Duration::from_secs(20), |state| {
+            .wait_timeout_while(self.mutex.lock().unwrap(), Duration::from_secs(120), |state| {
                 state.cid.is_none() && !state.has_died
             })
             .unwrap();
