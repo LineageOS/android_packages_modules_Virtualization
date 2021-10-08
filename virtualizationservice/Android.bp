@@ -43,6 +43,8 @@ rust_defaults {
         "libvmconfig",
         "libzip",
         "libvsock",
+        // TODO(b/202115393) stabilize the interface
+        "packagemanager_aidl-rust",
     ],
     shared_libs: [
         "libbinder_rpc_unstable",
