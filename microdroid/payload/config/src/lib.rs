@@ -30,6 +30,10 @@ pub struct VmPayloadConfig {
     /// APEXes to activate in a VM
     #[serde(default)]
     pub apexes: Vec<ApexConfig>,
+
+    /// Tells VirtualizationService to use staged APEXes if possible
+    #[serde(default)]
+    pub prefer_staged: bool,
 }
 
 /// OS config

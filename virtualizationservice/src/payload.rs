@@ -20,9 +20,12 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use android_system_virtualizationservice::binder::ParcelFileDescriptor;
 use anyhow::{anyhow, Context, Result};
+use binder::{wait_for_interface, Strong};
+use log::info;
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
-use microdroid_payload_config::ApexConfig;
+use microdroid_payload_config::{ApexConfig, VmPayloadConfig};
 use once_cell::sync::OnceCell;
+use packagemanager_aidl::aidl::android::content::pm::IPackageManagerNative::IPackageManagerNative;
 use serde::Deserialize;
 use serde_xml_rs::from_reader;
 use std::fs::{File, OpenOptions};
@@ -34,6 +37,8 @@ use vmconfig::open_parcel_file;
 const MICRODROID_REQUIRED_APEXES: [&str; 2] = ["com.android.adbd", "com.android.os.statsd"];
 
 const APEX_INFO_LIST_PATH: &str = "/apex/apex-info-list.xml";
+
+const PACKAGE_MANAGER_NATIVE_SERVICE: &str = "package_native";
 
 /// Represents the list of APEXes
 #[derive(Debug, Deserialize)]
@@ -71,6 +76,32 @@ impl ApexInfoList {
             .ok_or_else(|| anyhow!("{} not found.", apex_name))?
             .path
             .clone())
+    }
+}
+
+struct PackageManager {
+    service: Strong<dyn IPackageManagerNative>,
+    // TODO(b/199146189) use IPackageManagerNative
+    apex_info_list: &'static ApexInfoList,
+}
+
+impl PackageManager {
+    fn new() -> Result<Self> {
+        let service = wait_for_interface(PACKAGE_MANAGER_NATIVE_SERVICE)
+            .context("Failed to find PackageManager")?;
+        let apex_info_list = ApexInfoList::load()?;
+        Ok(Self { service, apex_info_list })
+    }
+
+    fn get_apex_path(&self, name: &str, prefer_staged: bool) -> Result<PathBuf> {
+        if prefer_staged {
+            let apex_info = self.service.getStagedApexInfo(name)?;
+            if let Some(apex_info) = apex_info {
+                info!("prefer_staged: use {} for {}", apex_info.diskImagePath, name);
+                return Ok(PathBuf::from(apex_info.diskImagePath));
+            }
+        }
+        self.apex_info_list.get_path_for(name)
     }
 }
 
@@ -127,6 +158,7 @@ fn make_payload_disk(
     idsig_file: File,
     config_path: &str,
     apexes: &[ApexConfig],
+    prefer_staged: bool,
     temporary_directory: &Path,
 ) -> Result<DiskImage> {
     let metadata_file = make_metadata_file(config_path, apexes, temporary_directory)?;
@@ -137,9 +169,9 @@ fn make_payload_disk(
         writable: false,
     }];
 
-    let apex_info_list = ApexInfoList::load()?;
+    let pm = PackageManager::new()?;
     for (i, apex) in apexes.iter().enumerate() {
-        let apex_path = apex_info_list.get_path_for(&apex.name)?;
+        let apex_path = pm.get_apex_path(&apex.name, prefer_staged)?;
         let apex_file = open_parcel_file(&apex_path, false)?;
         partitions.push(Partition {
             label: format!("microdroid-apex-{}", i),
@@ -167,9 +199,10 @@ pub fn add_microdroid_images(
     apk_file: File,
     idsig_file: File,
     instance_file: File,
-    mut apexes: Vec<ApexConfig>,
+    vm_payload_config: &VmPayloadConfig,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
+    let mut apexes = vm_payload_config.apexes.clone();
     apexes.extend(
         MICRODROID_REQUIRED_APEXES.iter().map(|name| ApexConfig { name: name.to_string() }),
     );
@@ -180,6 +213,7 @@ pub fn add_microdroid_images(
         idsig_file,
         &config.configPath,
         &apexes,
+        vm_payload_config.prefer_staged,
         temporary_directory,
     )?);
 
