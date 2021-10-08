@@ -464,14 +464,13 @@ fn load_app_config(
 
     // Microdroid requires an additional payload disk image and the bootconfig partition.
     if os_name == "microdroid" {
-        let apexes = vm_payload_config.apexes.clone();
         add_microdroid_images(
             config,
             temporary_directory,
             apk_file,
             idsig_file,
             instance_file,
-            apexes,
+            &vm_payload_config,
             &mut vm_config,
         )?;
     }
