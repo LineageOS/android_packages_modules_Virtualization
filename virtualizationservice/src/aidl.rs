@@ -18,7 +18,6 @@ use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
 use crate::{Cid, FIRST_GUEST_CID, SYSPROP_LAST_CID};
-
 use ::binder::unstable_api::AsNative;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
@@ -34,7 +33,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice::binder::{
-    self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, Strong,
+    self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, StatusCode, Strong,
     ThreadState,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
@@ -51,6 +50,7 @@ use log::{debug, error, info, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
 use std::convert::TryInto;
+use std::ffi::CStr;
 use std::fs::{create_dir, File, OpenOptions};
 use std::io::{Error, ErrorKind, Write};
 use std::num::NonZeroU32;
@@ -85,7 +85,31 @@ pub struct VirtualizationService {
     state: Arc<Mutex<State>>,
 }
 
-impl Interface for VirtualizationService {}
+impl Interface for VirtualizationService {
+    fn dump(&self, mut file: &File, _args: &[&CStr]) -> Result<(), StatusCode> {
+        check_permission("android.permission.DUMP").or(Err(StatusCode::PERMISSION_DENIED))?;
+        let state = &mut *self.state.lock().unwrap();
+        let vms = state.vms();
+        writeln!(file, "Running {0} VMs:", vms.len()).or(Err(StatusCode::UNKNOWN_ERROR))?;
+        for vm in vms {
+            writeln!(file, "VM CID: {}", vm.cid).or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\tState: {:?}", vm.vm_state.lock().unwrap())
+                .or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\tPayload state {:?}", vm.payload_state())
+                .or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\tProtected: {}", vm.protected).or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\ttemporary_directory: {}", vm.temporary_directory.to_string_lossy())
+                .or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\trequester_uid: {}", vm.requester_uid)
+                .or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\trequester_sid: {}", vm.requester_sid)
+                .or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(file, "\trequester_debug_pid: {}", vm.requester_debug_pid)
+                .or(Err(StatusCode::UNKNOWN_ERROR))?;
+        }
+        Ok(())
+    }
+}
 
 impl IVirtualizationService for VirtualizationService {
     /// Creates (but does not start) a new VM with the given configuration, assigning it the next
