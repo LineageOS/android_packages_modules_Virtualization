@@ -1,0 +1,23 @@
+cc_library {
+    name: "libcompos_client",
+    srcs: ["libcompos_client.cc"],
+    min_sdk_version: "apex_inherit",
+    shared_libs: [
+        "android.system.composd-ndk",
+        "compos_aidl_interface-ndk",
+        "libbase",
+        "libbinder_ndk",
+        "libbinder_rpc_unstable",
+    ],
+    export_include_dirs: ["include"],
+    stubs: {
+        symbol_file: "libcompos_client.map.txt",
+    },
+    apex_available: [
+        "com.android.compos",
+    ],
+    visibility: [
+        "//packages/modules/Virtualization/compos:__subpackages__",
+        "//art/odrefresh:__subpackages__",
+    ],
+}

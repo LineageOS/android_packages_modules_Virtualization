@@ -38,12 +38,19 @@ apex {
     platform_apis: true,
 
     binaries: [
+        // Used in Android
         "compos_key_cmd",
         "compos_verify_key",
         "composd",
         "composd_cmd",
+        "pvm_exec", // to be superseded by libcompos_client
+
+        // Used in VM
         "compsvc",
-        "pvm_exec",
+    ],
+
+    native_shared_libs: [
+        "libcompos_client",
     ],
 
     apps: [
