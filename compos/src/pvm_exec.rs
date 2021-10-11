@@ -158,7 +158,7 @@ fn parse_args() -> Result<Config> {
     let output_fds = results?;
 
     let args: Vec<_> = matches.values_of("args").unwrap().map(|s| s.to_string()).collect();
-    let cid = value_t!(matches, "cid", u32)?;
+    let cid = value_t!(matches, "cid", i32)? as u32;
     let debuggable = matches.is_present("debug");
 
     Ok(Config { args, fd_annotation: FdAnnotation { input_fds, output_fds }, cid, debuggable })

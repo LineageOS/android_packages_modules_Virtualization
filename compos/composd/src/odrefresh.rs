@@ -40,7 +40,7 @@ pub enum ExitCode {
 pub fn run_forced_compile() -> Result<ExitCode> {
     // We don`t need to capture stdout/stderr - odrefresh writes to the log
     let mut odrefresh = Command::new(ODREFRESH_BIN)
-        .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY))
+        .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY as i32))
         .arg("--force-compile")
         .spawn()
         .context("Running odrefresh")?;
