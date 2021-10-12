@@ -17,6 +17,7 @@
 //! Common items useful for binder clients and/or servers.
 
 pub mod lazy_service;
+pub mod rpc_server;
 
 use binder::public_api::{ExceptionCode, Status};
 use std::ffi::CString;
