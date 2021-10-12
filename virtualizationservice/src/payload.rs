@@ -21,13 +21,14 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::binder::ParcelFileDescriptor;
 use anyhow::{anyhow, Context, Result};
 use binder::{wait_for_interface, Strong};
-use log::info;
+use log::{error, info};
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::{ApexConfig, VmPayloadConfig};
 use once_cell::sync::OnceCell;
 use packagemanager_aidl::aidl::android::content::pm::IPackageManagerNative::IPackageManagerNative;
 use serde::Deserialize;
 use serde_xml_rs::from_reader;
+use std::env;
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 use vmconfig::open_parcel_file;
@@ -107,17 +108,17 @@ impl PackageManager {
 
 fn make_metadata_file(
     config_path: &str,
-    apexes: &[ApexConfig],
+    apex_names: &[String],
     temporary_directory: &Path,
 ) -> Result<ParcelFileDescriptor> {
     let metadata_path = temporary_directory.join("metadata");
     let metadata = Metadata {
         version: 1,
-        apexes: apexes
+        apexes: apex_names
             .iter()
             .enumerate()
-            .map(|(i, apex)| ApexPayload {
-                name: apex.name.clone(),
+            .map(|(i, apex_name)| ApexPayload {
+                name: apex_name.clone(),
                 partition_name: format!("microdroid-apex-{}", i),
                 ..Default::default()
             })
@@ -157,7 +158,7 @@ fn make_payload_disk(
     apk_file: File,
     idsig_file: File,
     config_path: &str,
-    apexes: &[ApexConfig],
+    apexes: &[String],
     prefer_staged: bool,
     temporary_directory: &Path,
 ) -> Result<DiskImage> {
@@ -171,7 +172,7 @@ fn make_payload_disk(
 
     let pm = PackageManager::new()?;
     for (i, apex) in apexes.iter().enumerate() {
-        let apex_path = pm.get_apex_path(&apex.name, prefer_staged)?;
+        let apex_path = pm.get_apex_path(apex, prefer_staged)?;
         let apex_file = open_parcel_file(&apex_path, false)?;
         partitions.push(Partition {
             label: format!("microdroid-apex-{}", i),
@@ -193,6 +194,47 @@ fn make_payload_disk(
     Ok(DiskImage { image: None, partitions, writable: false })
 }
 
+fn find_apex_names_in_classpath_env(classpath_env_var: &str) -> Vec<String> {
+    let val = env::var(classpath_env_var).unwrap_or_else(|e| {
+        error!("Reading {} failed: {}", classpath_env_var, e);
+        String::from("")
+    });
+    val.split(':')
+        .filter_map(|path| {
+            Path::new(path)
+                .strip_prefix("/apex/")
+                .map(|stripped| {
+                    let first = stripped.iter().next().unwrap();
+                    first.to_str().unwrap().to_string()
+                })
+                .ok()
+        })
+        .collect()
+}
+
+// Collect APEX names from config
+fn collect_apex_names(apexes: &[ApexConfig]) -> Vec<String> {
+    // Process pseudo names like "{BOOTCLASSPATH}".
+    // For now we have following pseudo APEX names:
+    // - {BOOTCLASSPATH}: represents APEXes contributing "BOOTCLASSPATH" environment variable
+    // - {DEX2OATBOOTCLASSPATH}: represents APEXes contributing "DEX2OATBOOTCLASSPATH" environment variable
+    // - {SYSTEMSERVERCLASSPATH}: represents APEXes contributing "SYSTEMSERVERCLASSPATH" environment variable
+    let mut apex_names: Vec<String> = apexes
+        .iter()
+        .flat_map(|apex| match apex.name.as_str() {
+            "{BOOTCLASSPATH}" => find_apex_names_in_classpath_env("BOOTCLASSPATH"),
+            "{DEX2OATBOOTCLASSPATH}" => find_apex_names_in_classpath_env("DEX2OATBOOTCLASSPATH"),
+            "{SYSTEMSERVERCLASSPATH}" => find_apex_names_in_classpath_env("SYSTEMSERVERCLASSPATH"),
+            _ => vec![apex.name.clone()],
+        })
+        .collect();
+    // Add required APEXes
+    apex_names.extend(MICRODROID_REQUIRED_APEXES.iter().map(|name| name.to_string()));
+    apex_names.sort();
+    apex_names.dedup();
+    apex_names
+}
+
 pub fn add_microdroid_images(
     config: &VirtualMachineAppConfig,
     temporary_directory: &Path,
@@ -202,12 +244,9 @@ pub fn add_microdroid_images(
     vm_payload_config: &VmPayloadConfig,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
-    let mut apexes = vm_payload_config.apexes.clone();
-    apexes.extend(
-        MICRODROID_REQUIRED_APEXES.iter().map(|name| ApexConfig { name: name.to_string() }),
-    );
-    apexes.dedup_by(|a, b| a.name == b.name);
-
+    // collect APEX names from config
+    let apexes = collect_apex_names(&vm_payload_config.apexes);
+    info!("Microdroid payload APEXes: {:?}", apexes);
     vm_config.disks.push(make_payload_disk(
         apk_file,
         idsig_file,
@@ -236,4 +275,19 @@ pub fn add_microdroid_images(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_find_apex_names_in_classpath_env() {
+        let key = "TEST_BOOTCLASSPATH";
+        let classpath = "/apex/com.android.foo/javalib/foo.jar:/system/framework/framework.jar:/apex/com.android.bar/javalib/bar.jar";
+        env::set_var(key, classpath);
+        assert_eq!(
+            find_apex_names_in_classpath_env(key),
+            vec!["com.android.foo".to_owned(), "com.android.bar".to_owned()]
+        );
+    }
 }
