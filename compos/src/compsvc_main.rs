@@ -30,14 +30,14 @@ use android_system_virtualmachineservice::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use binder::{
-    unstable_api::{new_spibinder, AIBinder, AsNative},
+    unstable_api::{new_spibinder, AIBinder},
     FromIBinder,
 };
+use binder_common::rpc_server::run_rpc_server;
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
 use nix::ioctl_read_bad;
 use std::fs::OpenOptions;
-use std::os::raw;
 use std::os::unix::io::AsRawFd;
 
 /// The CID representing the host VM
@@ -62,23 +62,17 @@ fn try_main() -> Result<()> {
         );
     }
 
-    let mut service = compsvc::new_binder()?.as_binder();
+    let service = compsvc::new_binder()?.as_binder();
+    let vm_service = get_vm_service()?;
+    let local_cid = get_local_cid()?;
+
     debug!("compsvc is starting as a rpc service.");
 
-    let mut ready_notifier = ReadyNotifier::new()?;
-
-    // SAFETY: Service ownership is transferring to the server and won't be valid afterward.
-    // Plus the binder objects are threadsafe.
-    // RunRpcServerCallback does not retain a reference to ready_callback, and only ever
-    // calls it with the param we provide during the lifetime of ready_notifier.
-    let retval = unsafe {
-        binder_rpc_unstable_bindgen::RunRpcServerCallback(
-            service.as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder,
-            COMPOS_VSOCK_PORT,
-            Some(ReadyNotifier::ready_callback),
-            ready_notifier.as_void_ptr(),
-        )
-    };
+    let retval = run_rpc_server(service, COMPOS_VSOCK_PORT, || {
+        if let Err(e) = vm_service.notifyPayloadReady(local_cid as i32) {
+            error!("Unable to notify ready: {}", e);
+        }
+    });
     if retval {
         debug!("RPC server has shut down gracefully");
         Ok(())
@@ -87,61 +81,32 @@ fn try_main() -> Result<()> {
     }
 }
 
-struct ReadyNotifier {
-    vm_service: Strong<dyn IVirtualMachineService>,
-    local_cid: u32,
+fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
+    // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership
+    // can be safely taken by new_spibinder.
+    let ibinder = unsafe {
+        new_spibinder(binder_rpc_unstable_bindgen::RpcClient(
+            VMADDR_CID_HOST,
+            VM_BINDER_SERVICE_PORT as u32,
+        ) as *mut AIBinder)
+    }
+    .ok_or_else(|| anyhow!("Failed to connect to IVirtualMachineService"))?;
+
+    FromIBinder::try_from(ibinder).context("Connecting to IVirtualMachineService")
 }
 
-impl ReadyNotifier {
-    fn new() -> Result<Self> {
-        Ok(Self { vm_service: Self::get_vm_service()?, local_cid: Self::get_local_cid()? })
-    }
-
-    fn notify(&self) {
-        if let Err(e) = self.vm_service.notifyPayloadReady(self.local_cid as i32) {
-            error!("Unable to notify ready: {}", e);
-        }
-    }
-
-    fn as_void_ptr(&mut self) -> *mut raw::c_void {
-        self as *mut _ as *mut raw::c_void
-    }
-
-    unsafe extern "C" fn ready_callback(param: *mut raw::c_void) {
-        // SAFETY: This is only ever called by RunRpcServerCallback, within the lifetime of the
-        // ReadyNotifier, with param taking the value returned by as_void_ptr (so a properly aligned
-        // non-null pointer to an initialized instance).
-        let ready_notifier = param as *mut Self;
-        ready_notifier.as_ref().unwrap().notify()
-    }
-
-    fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
-        // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership
-        // can be safely taken by new_spibinder.
-        let ibinder = unsafe {
-            new_spibinder(binder_rpc_unstable_bindgen::RpcClient(
-                VMADDR_CID_HOST,
-                VM_BINDER_SERVICE_PORT as u32,
-            ) as *mut AIBinder)
-        }
-        .ok_or_else(|| anyhow!("Failed to connect to IVirtualMachineService"))?;
-
-        FromIBinder::try_from(ibinder).context("Connecting to IVirtualMachineService")
-    }
-
-    // TODO(b/199259751): remove this after VS can check the peer addresses of binder clients
-    fn get_local_cid() -> Result<u32> {
-        let f = OpenOptions::new()
-            .read(true)
-            .write(false)
-            .open("/dev/vsock")
-            .context("Failed to open /dev/vsock")?;
-        let mut cid = 0;
-        // SAFETY: the kernel only modifies the given u32 integer.
-        unsafe { vm_sockets_get_local_cid(f.as_raw_fd(), &mut cid) }
-            .context("Failed to get local CID")?;
-        Ok(cid)
-    }
+// TODO(b/199259751): remove this after VS can check the peer addresses of binder clients
+fn get_local_cid() -> Result<u32> {
+    let f = OpenOptions::new()
+        .read(true)
+        .write(false)
+        .open("/dev/vsock")
+        .context("Failed to open /dev/vsock")?;
+    let mut cid = 0;
+    // SAFETY: the kernel only modifies the given u32 integer.
+    unsafe { vm_sockets_get_local_cid(f.as_raw_fd(), &mut cid) }
+        .context("Failed to get local CID")?;
+    Ok(cid)
 }
 
 // TODO(b/199259751): remove this after VS can check the peer addresses of binder clients
