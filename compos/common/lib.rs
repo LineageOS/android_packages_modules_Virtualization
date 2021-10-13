@@ -33,11 +33,15 @@ pub const COMPOS_DATA_ROOT: &str = "/data/misc/apexdata/com.android.compos";
 
 /// The sub-directory where we store information relating to the pending instance
 /// of CompOS (based on staged APEXes).
-pub const PENDING_DIR: &str = "pending";
+pub const PENDING_INSTANCE_DIR: &str = "pending";
 
 /// The sub-directory where we store information relating to the current instance
 /// of CompOS (based on active APEXes).
-pub const CURRENT_DIR: &str = "current";
+pub const CURRENT_INSTANCE_DIR: &str = "current";
+
+/// The sub-directory where we store information relating to the instance of CompOS used for
+/// tests.
+pub const TEST_INSTANCE_DIR: &str = "test";
 
 /// The file that holds the encrypted private key for a CompOS instance.
 pub const PRIVATE_KEY_BLOB_FILE: &str = "key.blob";
