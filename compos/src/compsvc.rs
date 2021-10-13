@@ -22,6 +22,7 @@ use anyhow::Result;
 use binder_common::new_binder_exception;
 use log::warn;
 use std::default::Default;
+use std::env;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -83,6 +84,17 @@ impl ICompOsService for CompOsService {
         } else {
             Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Cannot re-initialize the key"))
         }
+    }
+
+    fn initializeClasspaths(
+        &self,
+        boot_classpath: &str,
+        dex2oat_boot_classpath: &str,
+    ) -> BinderResult<()> {
+        // TODO(198211396): Implement correctly.
+        env::set_var("BOOTCLASSPATH", boot_classpath);
+        env::set_var("DEX2OATBOOTCLASSPATH", dex2oat_boot_classpath);
+        Ok(())
     }
 
     fn compile_cmd(
