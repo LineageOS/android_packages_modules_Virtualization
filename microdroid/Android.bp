@@ -72,7 +72,7 @@ android_system_image {
 
         "apexd",
         "debuggerd",
-        "keystore2",
+        "keystore2_microdroid",
         "linker",
         "linkerconfig",
         "servicemanager",
