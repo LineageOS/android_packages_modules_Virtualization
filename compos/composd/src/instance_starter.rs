@@ -28,6 +28,7 @@ use compos_common::{
     COMPOS_DATA_ROOT, INSTANCE_IMAGE_FILE, PRIVATE_KEY_BLOB_FILE, PUBLIC_KEY_FILE,
 };
 use log::{info, warn};
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -100,7 +101,7 @@ impl InstanceStarter {
         // current set of APEXes) and the key blob can be successfully decrypted by the VM. So the
         // files have not been tampered with and we're good to go.
 
-        service.initializeSigningKey(&key_blob).context("Loading signing key")?;
+        Self::initialize_service(service, &key_blob)?;
 
         Ok(compos_instance)
     }
@@ -129,11 +130,23 @@ impl InstanceStarter {
         }
         fs::write(&self.public_key, &rsa_public_key).context("Writing public key")?;
 
-        // We don't need to verify the key, since we just generated it and have it in memory.
+        // Unlike when starting an existing instance, we don't need to verify the key, since we
+        // just generated it and have it in memory.
 
-        service.initializeSigningKey(&key_data.keyBlob).context("Loading signing key")?;
+        Self::initialize_service(service, &key_data.keyBlob)?;
 
         Ok(compos_instance)
+    }
+
+    fn initialize_service(service: &Strong<dyn ICompOsService>, key_blob: &[u8]) -> Result<()> {
+        // Key blob is assumed to be verified/trusted.
+        service.initializeSigningKey(key_blob).context("Loading signing key")?;
+
+        // TODO(198211396): Implement correctly.
+        service
+            .initializeClasspaths(&env::var("BOOTCLASSPATH")?, &env::var("DEX2OATBOOTCLASSPATH")?)
+            .context("Initializing *CLASSPATH")?;
+        Ok(())
     }
 
     fn start_vm(&self) -> Result<CompOsInstance> {

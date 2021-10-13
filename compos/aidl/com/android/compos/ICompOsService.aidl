@@ -33,6 +33,14 @@ interface ICompOsService {
     void initializeSigningKey(in byte[] keyBlob);
 
     /**
+     * Initializes the classpaths necessary for preparing and running compilation.
+     *
+     * TODO(198211396): Implement properly. We can't simply accepting the classpaths from Android
+     * since they are not derived from staged APEX (besides security reasons).
+     */
+    void initializeClasspaths(String bootClasspath, String dex2oatBootClasspath);
+
+    /**
      * Run dex2oat command with provided args, in a context that may be specified in FdAnnotation,
      * e.g. with file descriptors pre-opened. The service is responsible to decide what executables
      * it may run.
