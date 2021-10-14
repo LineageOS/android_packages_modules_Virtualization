@@ -87,7 +87,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
 
         // Make sure we're connected to the host adb; this connection seems to get dropped when a VM
         // exits.
-        for (int retry = 0; retry < 3; ++retry) {
+        for (int retry = 0; retry < 10; ++retry) {
             if (android.tryRun("true") != null) {
                 break;
             }
