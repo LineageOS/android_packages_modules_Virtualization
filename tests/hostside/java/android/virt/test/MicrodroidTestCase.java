@@ -35,7 +35,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
 
     private static final int MIN_MEM_ARM64 = 125;
-    private static final int MIN_MEM_X86_64 = 270;
+    private static final int MIN_MEM_X86_64 = 400;
 
     private int minMemorySize() throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(getDevice());
