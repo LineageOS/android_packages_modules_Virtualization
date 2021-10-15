@@ -29,8 +29,20 @@ parcelable VirtualMachineAppConfig {
     /** Path to a configuration in an APK. This is the actual configuration for a VM. */
     @utf8InCpp String configPath;
 
-    /** Whether to run the VM in debug mode or not */
-    boolean debug;
+    enum DebugLevel {
+        /** Not debuggable at all */
+        NONE,
+        /** Only the logs from app is shown */
+        APP_ONLY,
+        /**
+         * Fully debuggable. All logs are shown, kernel messages are shown, and adb shell is
+         * supported
+         */
+        FULL,
+    }
+
+    /** Debug level of the VM */
+    DebugLevel debugLevel;
 
     /**
      * The amount of RAM to give the VM, in MiB. If this is 0 or negative then it will default to

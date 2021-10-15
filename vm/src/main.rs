@@ -18,8 +18,10 @@ mod create_partition;
 mod run;
 mod sync;
 
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::PartitionType::PartitionType;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
+    VirtualMachineAppConfig::DebugLevel::DebugLevel,
+};
 use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong};
 use anyhow::{Context, Error};
 use create_partition::command_create_partition;
@@ -59,9 +61,9 @@ enum Opt {
         #[structopt(short, long)]
         log: Option<PathBuf>,
 
-        /// Whether to run VM in debug mode.
-        #[structopt(short, long)]
-        debug: bool,
+        /// Debug level of the VM. Supported values: "none" (default), "app_only", and "full".
+        #[structopt(short, long, default_value = "none", parse(try_from_str=parse_debug_level))]
+        debug: DebugLevel,
 
         /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
         /// in the VM config file.
@@ -102,6 +104,15 @@ enum Opt {
         #[structopt(short="t", long="type", default_value="raw", parse(try_from_str=parse_partition_type))]
         partition_type: PartitionType,
     },
+}
+
+fn parse_debug_level(s: &str) -> Result<DebugLevel, String> {
+    match s {
+        "none" => Ok(DebugLevel::NONE),
+        "app_only" => Ok(DebugLevel::APP_ONLY),
+        "full" => Ok(DebugLevel::FULL),
+        _ => Err(format!("Invalid debug level {}", s)),
+    }
 }
 
 fn parse_partition_type(s: &str) -> Result<PartitionType, String> {

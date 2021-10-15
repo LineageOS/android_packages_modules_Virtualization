@@ -27,6 +27,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachineCallback::IVirtualMachineCallback,
     IVirtualizationService::IVirtualizationService,
     PartitionType::PartitionType,
+    VirtualMachineAppConfig::DebugLevel::DebugLevel,
     VirtualMachineAppConfig::VirtualMachineAppConfig,
     VirtualMachineConfig::VirtualMachineConfig,
     VirtualMachineDebugInfo::VirtualMachineDebugInfo,
@@ -99,7 +100,7 @@ impl IVirtualizationService for VirtualizationService {
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         check_manage_access()?;
         let state = &mut *self.state.lock().unwrap();
-        let log_fd = log_fd.map(clone_file).transpose()?;
+        let mut log_fd = log_fd.map(clone_file).transpose()?;
         let requester_uid = ThreadState::get_calling_uid();
         let requester_sid = get_calling_sid()?;
         let requester_debug_pid = ThreadState::get_calling_pid();
@@ -126,6 +127,16 @@ impl IVirtualizationService for VirtualizationService {
                 ),
             )
         })?;
+
+        // Disable console logging if debug level != full. Note that kernel anyway doesn't use the
+        // console output when debug level != full. So, users won't be able to see the kernel
+        // output even without this overriding. This is to silence output from the bootloader which
+        // doesn't understand the bootconfig parameters.
+        if let VirtualMachineConfig::AppConfig(config) = config {
+            if config.debugLevel != DebugLevel::FULL {
+                log_fd = None;
+            }
+        }
 
         let config = match config {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
