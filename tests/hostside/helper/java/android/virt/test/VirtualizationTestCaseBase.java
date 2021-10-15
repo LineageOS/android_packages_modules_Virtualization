@@ -198,7 +198,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
 
         final String instanceImg = TEST_ROOT + INSTANCE_IMG;
         final String logPath = TEST_ROOT + "log.txt";
-        final String debugFlag = debug ? "--debug " : "";
+        final String debugFlag = debug ? "--debug full" : "";
 
         // Run the VM
         String ret =

@@ -228,11 +228,6 @@ bootimg {
             cmdline: microdroid_boot_cmdline + ["acpi=noirq"],
         },
     },
-    product_variables: {
-        debuggable: {
-            cmdline: ["printk.devkmsg=on"],
-        },
-    },
 
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "4",
@@ -325,10 +320,23 @@ genrule {
     cmd: "cat $(in) > $(out)",
 }
 
+// TODO(b/203031847) sign these bootconfig images using avb
 prebuilt_etc {
-    name: "microdroid_bootconfig_debug",
-    src: "bootconfig.debug",
-    filename: "microdroid_bootconfig.debug",
+    name: "microdroid_bootconfig_normal",
+    src: "bootconfig.normal",
+    filename: "microdroid_bootconfig.normal",
+}
+
+prebuilt_etc {
+    name: "microdroid_bootconfig_app_debuggable",
+    src: "bootconfig.app_debuggable",
+    filename: "microdroid_bootconfig.app_debuggable",
+}
+
+prebuilt_etc {
+    name: "microdroid_bootconfig_full_debuggable",
+    src: "bootconfig.full_debuggable",
+    filename: "microdroid_bootconfig.full_debuggable",
 }
 
 prebuilt_etc {
