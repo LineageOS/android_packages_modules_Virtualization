@@ -15,7 +15,8 @@
 //! Payload disk image
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    DiskImage::DiskImage, Partition::Partition, VirtualMachineAppConfig::VirtualMachineAppConfig,
+    DiskImage::DiskImage, Partition::Partition, VirtualMachineAppConfig::DebugLevel::DebugLevel,
+    VirtualMachineAppConfig::VirtualMachineAppConfig,
     VirtualMachineRawConfig::VirtualMachineRawConfig,
 };
 use android_system_virtualizationservice::binder::ParcelFileDescriptor;
@@ -290,16 +291,18 @@ pub fn add_microdroid_images(
         temporary_directory,
     )?);
 
-    if config.debug {
-        vm_config.disks[1].partitions.push(Partition {
-            label: "bootconfig".to_owned(),
-            image: Some(open_parcel_file(
-                Path::new("/apex/com.android.virt/etc/microdroid_bootconfig.debug"),
-                false,
-            )?),
-            writable: false,
-        });
-    }
+    let bootconfig_image = "/apex/com.android.virt/etc/microdroid_bootconfig.".to_owned()
+        + match config.debugLevel {
+            DebugLevel::NONE => "normal",
+            DebugLevel::APP_ONLY => "app_debuggable",
+            DebugLevel::FULL => "full_debuggable",
+            _ => return Err(anyhow!("unsupported debug level: {:?}", config.debugLevel)),
+        };
+    vm_config.disks[1].partitions.push(Partition {
+        label: "bootconfig".to_owned(),
+        image: Some(open_parcel_file(Path::new(&bootconfig_image), false)?),
+        writable: false,
+    });
 
     // instance image is at the second partition in the second disk.
     vm_config.disks[1].partitions.push(Partition {

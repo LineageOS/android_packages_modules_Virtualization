@@ -16,15 +16,12 @@
 
 use crate::create_partition::command_create_partition;
 use crate::sync::AtomicFlag;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualMachineCallback::{
-    BnVirtualMachineCallback, IVirtualMachineCallback,
-};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    IVirtualMachine::IVirtualMachine,
-    IVirtualizationService::IVirtualizationService,
-    PartitionType::PartitionType,
-    VirtualMachineAppConfig::VirtualMachineAppConfig,
-    VirtualMachineConfig::VirtualMachineConfig,
+    IVirtualMachine::IVirtualMachine, IVirtualMachineCallback::BnVirtualMachineCallback,
+    IVirtualMachineCallback::IVirtualMachineCallback,
+    IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
+    VirtualMachineAppConfig::DebugLevel::DebugLevel,
+    VirtualMachineAppConfig::VirtualMachineAppConfig, VirtualMachineConfig::VirtualMachineConfig,
     VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice::binder::{
@@ -48,7 +45,7 @@ pub fn command_run_app(
     config_path: &str,
     daemonize: bool,
     log_path: Option<&Path>,
-    debug: bool,
+    debug_level: DebugLevel,
     mem: Option<u32>,
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
@@ -76,7 +73,7 @@ pub fn command_run_app(
         idsig: idsig_fd.into(),
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         configPath: config_path.to_owned(),
-        debug,
+        debugLevel: debug_level,
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
     });
     run(service, &config, &format!("{:?}!{:?}", apk, config_path), daemonize, log_path)

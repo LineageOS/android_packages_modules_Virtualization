@@ -111,7 +111,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                         apkName,
                         packageName,
                         configPath,
-                        /* debug */ false,
+                        /* debug */ true,
                         /* use default memoryMib */ 0);
         adbConnectToMicrodroid(androidDevice, sCid);
 

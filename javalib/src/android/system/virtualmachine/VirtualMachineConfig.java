@@ -49,13 +49,36 @@ public final class VirtualMachineConfig {
     private static final String KEY_CERTS = "certs";
     private static final String KEY_APKPATH = "apkPath";
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
-    private static final String KEY_DEBUGMODE = "debugMode";
+    private static final String KEY_DEBUGLEVEL = "debugLevel";
     private static final String KEY_MEMORY_MIB = "memoryMib";
 
     // Paths to the APK file of this application.
     private final @NonNull String mApkPath;
     private final @NonNull Signature[] mCerts;
-    private final boolean mDebugMode;
+
+    /** A debug level defines the set of debug features that the VM can be configured to. */
+    public enum DebugLevel {
+        /**
+         * Not debuggable at all. No log is exported from the VM. Debugger can't be attached to the
+         * app process running in the VM. This is the default level.
+         */
+        NONE,
+
+        /**
+         * Only the app is debuggable. Log from the app is exported from the VM. Debugger can be
+         * attached to the app process. Rest of the VM is not debuggable.
+         */
+        APP_ONLY,
+
+        /**
+         * Fully debuggable. All logs (both logcat and kernel message) are exported. All processes
+         * running in the VM can be attached to the debugger. Rooting is possible.
+         */
+        FULL,
+    }
+
+    private final DebugLevel mDebugLevel;
+
     /**
      * The amount of RAM to give the VM, in MiB. If this is 0 or negative the default will be used.
      */
@@ -72,12 +95,12 @@ public final class VirtualMachineConfig {
             @NonNull String apkPath,
             @NonNull Signature[] certs,
             @NonNull String payloadConfigPath,
-            boolean debugMode,
+            DebugLevel debugLevel,
             int memoryMib) {
         mApkPath = apkPath;
         mCerts = certs;
         mPayloadConfigPath = payloadConfigPath;
-        mDebugMode = debugMode;
+        mDebugLevel = debugLevel;
         mMemoryMib = memoryMib;
     }
 
@@ -106,9 +129,9 @@ public final class VirtualMachineConfig {
         if (payloadConfigPath == null) {
             throw new VirtualMachineException("No payloadConfigPath");
         }
-        final boolean debugMode = b.getBoolean(KEY_DEBUGMODE);
+        final DebugLevel debugLevel = DebugLevel.values()[b.getInt(KEY_DEBUGLEVEL)];
         final int memoryMib = b.getInt(KEY_MEMORY_MIB);
-        return new VirtualMachineConfig(apkPath, certs, payloadConfigPath, debugMode, memoryMib);
+        return new VirtualMachineConfig(apkPath, certs, payloadConfigPath, debugLevel, memoryMib);
     }
 
     /** Persists this config to a stream, for example a file. */
@@ -123,7 +146,7 @@ public final class VirtualMachineConfig {
         String[] certs = certList.toArray(new String[0]);
         b.putStringArray(KEY_CERTS, certs);
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
-        b.putBoolean(KEY_DEBUGMODE, mDebugMode);
+        b.putInt(KEY_DEBUGLEVEL, mDebugLevel.ordinal());
         if (mMemoryMib > 0) {
             b.putInt(KEY_MEMORY_MIB, mMemoryMib);
         }
@@ -146,7 +169,8 @@ public final class VirtualMachineConfig {
         if (!Arrays.equals(this.mCerts, other.mCerts)) {
             return false;
         }
-        if (this.mDebugMode != other.mDebugMode) {
+        if (this.mDebugLevel != other.mDebugLevel) {
+            // TODO(jiyong): should we treat APP_ONLY and FULL the same?
             return false;
         }
         return true;
@@ -162,7 +186,17 @@ public final class VirtualMachineConfig {
         VirtualMachineAppConfig parcel = new VirtualMachineAppConfig();
         parcel.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
         parcel.configPath = mPayloadConfigPath;
-        parcel.debug = mDebugMode;
+        switch (mDebugLevel) {
+            case NONE:
+                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.NONE;
+                break;
+            case APP_ONLY:
+                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.APP_ONLY;
+                break;
+            case FULL:
+                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.FULL;
+                break;
+        }
         parcel.memoryMib = mMemoryMib;
         return parcel;
     }
@@ -171,7 +205,7 @@ public final class VirtualMachineConfig {
     public static class Builder {
         private Context mContext;
         private String mPayloadConfigPath;
-        private boolean mDebugMode;
+        private DebugLevel mDebugLevel;
         private int mMemoryMib;
         // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
@@ -179,12 +213,12 @@ public final class VirtualMachineConfig {
         public Builder(@NonNull Context context, @NonNull String payloadConfigPath) {
             mContext = context;
             mPayloadConfigPath = payloadConfigPath;
-            mDebugMode = false;
+            mDebugLevel = DebugLevel.NONE;
         }
 
-        /** Enables or disables the debug mode */
-        public Builder debugMode(boolean enableOrDisable) {
-            mDebugMode = enableOrDisable;
+        /** Sets the debug level */
+        public Builder debugLevel(DebugLevel debugLevel) {
+            mDebugLevel = debugLevel;
             return this;
         }
 
@@ -215,7 +249,7 @@ public final class VirtualMachineConfig {
             }
 
             return new VirtualMachineConfig(
-                    apkPath, certs, mPayloadConfigPath, mDebugMode, mMemoryMib);
+                    apkPath, certs, mPayloadConfigPath, mDebugLevel, mMemoryMib);
         }
     }
 }
