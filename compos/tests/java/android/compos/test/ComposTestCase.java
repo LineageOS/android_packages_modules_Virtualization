@@ -149,8 +149,6 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
     private String checksumDirectoryContent(CommandRunner runner, String path) throws Exception {
         // Sort by filename (second column) to make comparison easier.
-        // TODO(b/192690283): Figure out how to make this work for files odex/oat/art files.
-        return runner.run(
-                "find " + path + " -type f -exec sha256sum {} \\; | grep vdex | sort -k2");
+        return runner.run("find " + path + " -type f -exec sha256sum {} \\; | sort -k2");
     }
 }
