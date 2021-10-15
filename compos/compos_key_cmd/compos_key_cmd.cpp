@@ -53,6 +53,7 @@ using aidl::android::system::virtualizationservice::IVirtualizationService;
 using aidl::android::system::virtualizationservice::IVirtualMachine;
 using aidl::android::system::virtualizationservice::IVirtualMachineCallback;
 using aidl::android::system::virtualizationservice::PartitionType;
+using aidl::android::system::virtualizationservice::VirtualMachineAppConfig;
 using aidl::android::system::virtualizationservice::VirtualMachineConfig;
 using aidl::com::android::compos::CompOsKeyData;
 using aidl::com::android::compos::ICompOsService;
@@ -234,7 +235,7 @@ public:
         appConfig.idsig = std::move(idsigFd);
         appConfig.instanceImage = std::move(instanceFd);
         appConfig.configPath = kConfigFilePath;
-        appConfig.debug = false; // Don't disable selinux in VM
+        appConfig.debugLevel = VirtualMachineAppConfig::DebugLevel::NONE;
         appConfig.memoryMib = 0; // Use default
 
         LOG(INFO) << "Starting VM";
