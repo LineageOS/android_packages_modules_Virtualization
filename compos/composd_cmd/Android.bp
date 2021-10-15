@@ -10,6 +10,7 @@ rust_binary {
         "android.system.composd-rust",
         "libanyhow",
         "libbinder_rs",
+        "libclap",
     ],
     prefer_rlib: true,
     apex_available: [

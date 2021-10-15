@@ -37,10 +37,11 @@ pub enum ExitCode {
     CleanupFailed = EX_MAX + 4,
 }
 
-pub fn run_forced_compile() -> Result<ExitCode> {
+pub fn run_forced_compile(target_dir: &str) -> Result<ExitCode> {
     // We don`t need to capture stdout/stderr - odrefresh writes to the log
     let mut odrefresh = Command::new(ODREFRESH_BIN)
         .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY as i32))
+        .arg(format!("--dalvik-cache={}", target_dir))
         .arg("--force-compile")
         .spawn()
         .context("Running odrefresh")?;

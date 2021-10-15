@@ -42,9 +42,9 @@ pub fn new_binder(instance_manager: InstanceManager) -> Strong<dyn IIsolatedComp
 impl Interface for IsolatedCompilationService {}
 
 impl IIsolatedCompilationService for IsolatedCompilationService {
-    fn runForcedCompile(&self) -> binder::Result<()> {
+    fn runForcedCompileForTest(&self) -> binder::Result<()> {
         // TODO - check caller is system or shell/root?
-        to_binder_result(self.do_run_forced_compile())
+        to_binder_result(self.do_run_forced_compile_for_test())
     }
 
     fn compile_cmd(
@@ -70,12 +70,12 @@ fn to_binder_result<T>(result: Result<T>) -> binder::Result<T> {
 }
 
 impl IsolatedCompilationService {
-    fn do_run_forced_compile(&self) -> Result<()> {
-        info!("runForcedCompile");
+    fn do_run_forced_compile_for_test(&self) -> Result<()> {
+        info!("runForcedCompileForTest");
 
-        let comp_os = self.instance_manager.start_current_instance().context("Starting CompOS")?;
+        let comp_os = self.instance_manager.start_test_instance().context("Starting CompOS")?;
 
-        let exit_code = odrefresh::run_forced_compile()?;
+        let exit_code = odrefresh::run_forced_compile("test-artifacts")?;
 
         if exit_code != odrefresh::ExitCode::CompilationSuccess {
             bail!("Unexpected odrefresh result: {:?}", exit_code);
