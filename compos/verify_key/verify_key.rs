@@ -21,8 +21,8 @@ use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
 use compos_common::compos_client::VmInstance;
 use compos_common::{
-    COMPOS_DATA_ROOT, CURRENT_DIR, INSTANCE_IMAGE_FILE, PENDING_DIR, PRIVATE_KEY_BLOB_FILE,
-    PUBLIC_KEY_FILE,
+    COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, INSTANCE_IMAGE_FILE, PENDING_INSTANCE_DIR,
+    PRIVATE_KEY_BLOB_FILE, PUBLIC_KEY_FILE,
 };
 use std::fs::{self, File};
 use std::io::Read;
@@ -49,7 +49,9 @@ fn main() -> Result<()> {
     let do_pending = matches.value_of("instance").unwrap() == "pending";
 
     let instance_dir: PathBuf =
-        [COMPOS_DATA_ROOT, if do_pending { PENDING_DIR } else { CURRENT_DIR }].iter().collect();
+        [COMPOS_DATA_ROOT, if do_pending { PENDING_INSTANCE_DIR } else { CURRENT_INSTANCE_DIR }]
+            .iter()
+            .collect();
 
     if !instance_dir.is_dir() {
         bail!("{} is not a directory", instance_dir.display());
@@ -112,7 +114,7 @@ fn read_small_file(file: PathBuf) -> Result<Vec<u8>> {
 }
 
 fn promote_to_current(instance_dir: &Path) -> Result<()> {
-    let current_dir: PathBuf = [COMPOS_DATA_ROOT, CURRENT_DIR].iter().collect();
+    let current_dir: PathBuf = [COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR].iter().collect();
 
     // This may fail if the directory doesn't exist - which is fine, we only care about the rename
     // succeeding.

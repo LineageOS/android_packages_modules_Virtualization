@@ -19,8 +19,13 @@ import com.android.compos.CompilationResult;
 import com.android.compos.FdAnnotation;
 
 interface IIsolatedCompilationService {
-    /** Run "odrefresh --force-compile" in CompOS. */
-    void runForcedCompile();
+    /**
+     * Run "odrefresh --dalvik-cache=pending-test --force-compile" in a test instance of CompOS.
+     * This compiles BCP extensions and system server, even if the system artifacts are up to date,
+     * and writes the results to a test directory to avoid disrupting any real artifacts in
+     * existence.
+     */
+    void runForcedCompileForTest();
 
     /**
      * Run dex2oat in the currently running instance of the CompOS VM. This is a simple proxy

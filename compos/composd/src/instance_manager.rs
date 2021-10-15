@@ -22,7 +22,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use anyhow::{bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::Strong;
-use compos_common::CURRENT_DIR;
+use compos_common::{CURRENT_INSTANCE_DIR, TEST_INSTANCE_DIR};
 use std::sync::{Arc, Mutex, Weak};
 use virtualizationservice::IVirtualizationService::IVirtualizationService;
 
@@ -42,13 +42,22 @@ impl InstanceManager {
         Ok(instance.get_service())
     }
 
+    #[allow(dead_code)] // TODO: Make use of this
     pub fn start_current_instance(&self) -> Result<Arc<CompOsInstance>> {
+        self.start_instance(CURRENT_INSTANCE_DIR)
+    }
+
+    pub fn start_test_instance(&self) -> Result<Arc<CompOsInstance>> {
+        self.start_instance(TEST_INSTANCE_DIR)
+    }
+
+    fn start_instance(&self, instance_name: &str) -> Result<Arc<CompOsInstance>> {
         let mut state = self.state.lock().unwrap();
         state.mark_starting()?;
         // Don't hold the lock while we start the instance to avoid blocking other callers.
         drop(state);
 
-        let instance = self.try_start_current_instance();
+        let instance = self.try_start_instance(instance_name);
 
         let mut state = self.state.lock().unwrap();
         if let Ok(ref instance) = instance {
@@ -59,8 +68,8 @@ impl InstanceManager {
         instance
     }
 
-    fn try_start_current_instance(&self) -> Result<Arc<CompOsInstance>> {
-        let instance_starter = InstanceStarter::new(CURRENT_DIR);
+    fn try_start_instance(&self, instance_name: &str) -> Result<Arc<CompOsInstance>> {
+        let instance_starter = InstanceStarter::new(instance_name);
         let compos_instance = instance_starter.create_or_start_instance(&*self.service)?;
 
         Ok(Arc::new(compos_instance))
