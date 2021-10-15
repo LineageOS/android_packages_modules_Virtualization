@@ -259,7 +259,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         }
     }
 
-    public static void rootMicrodroid() throws DeviceNotAvailableException {
+    public static void rootMicrodroid() {
         runOnHost("adb", "-s", MICRODROID_SERIAL, "root");
 
         // TODO(192660959): Figure out the root cause and remove the sleep. For unknown reason,
@@ -280,8 +280,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
 
     // Establish an adb connection to microdroid by letting Android forward the connection to
     // microdroid. Wait until the connection is established and microdroid is booted.
-    public static void adbConnectToMicrodroid(ITestDevice androidDevice, String cid)
-            throws DeviceNotAvailableException {
+    public static void adbConnectToMicrodroid(ITestDevice androidDevice, String cid) {
         long start = System.currentTimeMillis();
         long timeoutMillis = MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES * 60 * 1000;
         long elapsed = 0;
