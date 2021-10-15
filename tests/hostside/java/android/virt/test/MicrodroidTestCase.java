@@ -60,7 +60,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                         APK_NAME,
                         PACKAGE_NAME,
                         configPath,
-                        /* debug */ false,
+                        /* debug */ true,
                         minMemorySize());
         adbConnectToMicrodroid(getDevice(), cid);
 
@@ -100,26 +100,6 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         // Check that no denials have happened so far
         assertThat(runOnMicrodroid("logcat -d -e 'avc:[[:space:]]{1,2}denied'"), is(""));
-
-        shutdownMicrodroid(getDevice(), cid);
-    }
-
-    @Test
-    public void testDebugMode() throws Exception {
-        final String configPath = "assets/vm_config.json"; // path inside the APK
-        final boolean debug = true;
-        final String cid =
-                startMicrodroid(
-                        getDevice(),
-                        getBuild(),
-                        APK_NAME,
-                        PACKAGE_NAME,
-                        configPath,
-                        debug,
-                        minMemorySize());
-        adbConnectToMicrodroid(getDevice(), cid);
-
-        assertThat(runOnMicrodroid("getenforce"), is("Permissive"));
 
         shutdownMicrodroid(getDevice(), cid);
     }

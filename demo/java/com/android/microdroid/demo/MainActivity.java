@@ -24,6 +24,7 @@ import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
+import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
 import android.util.Log;
@@ -253,8 +254,10 @@ public class MainActivity extends AppCompatActivity {
 
             try {
                 VirtualMachineConfig.Builder builder =
-                        new VirtualMachineConfig.Builder(getApplication(), "assets/vm_config.json")
-                                .debugMode(debug);
+                        new VirtualMachineConfig.Builder(getApplication(), "assets/vm_config.json");
+                if (debug) {
+                    builder.debugLevel(DebugLevel.FULL);
+                }
                 VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
                 mVirtualMachine = vmm.getOrCreate("demo_vm", config);
