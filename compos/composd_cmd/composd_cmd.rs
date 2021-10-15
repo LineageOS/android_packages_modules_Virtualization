@@ -23,12 +23,25 @@ use android_system_composd::{
 use anyhow::{Context, Result};
 
 fn main() -> Result<()> {
+    let app = clap::App::new("composd_cmd").arg(
+        clap::Arg::with_name("command")
+            .index(1)
+            .takes_value(true)
+            .required(true)
+            .possible_values(&["forced-compile-test"]),
+    );
+    let args = app.get_matches();
+    let command = args.value_of("command").unwrap();
+
     ProcessState::start_thread_pool();
 
     let service = wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
         .context("Failed to connect to composd service")?;
 
-    service.runForcedCompile().context("Compilation failed")?;
+    match command {
+        "forced-compile-test" => service.runForcedCompileForTest().context("Compilation failed")?,
+        _ => panic!("Unexpected command {}", command),
+    }
 
     println!("All Ok!");
 
