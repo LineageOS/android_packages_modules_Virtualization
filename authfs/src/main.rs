@@ -42,7 +42,7 @@ mod fsverity;
 mod fusefs;
 
 use auth::FakeAuthenticator;
-use file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
+use file::{RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
 use fusefs::{FileConfig, Inode};
 
@@ -81,6 +81,15 @@ struct Args {
     #[structopt(long, parse(try_from_str = parse_remote_new_rw_file_option))]
     remote_new_rw_file: Vec<OptionRemoteRwFile>,
 
+    /// A new directory that is assumed empty in the backing filesystem. New files created in this
+    /// directory are integrity-protected in the same way as --remote-new-verified-file. Can be
+    /// multiple.
+    ///
+    /// For example, `--remote-new-verified-dir 12:34` tells the filesystem to associate entry 12
+    /// with a remote dir FD 34.
+    #[structopt(long, parse(try_from_str = parse_remote_new_rw_dir_option))]
+    remote_new_rw_dir: Vec<OptionRemoteRwDir>,
+
     /// Enable debugging features.
     #[structopt(long)]
     debug: bool,
@@ -108,6 +117,13 @@ struct OptionRemoteRwFile {
     ino: Inode,
 
     /// ID to refer to the remote file.
+    remote_id: i32,
+}
+
+struct OptionRemoteRwDir {
+    ino: Inode,
+
+    /// ID to refer to the remote dir.
     remote_id: i32,
 }
 
@@ -140,6 +156,17 @@ fn parse_remote_new_rw_file_option(option: &str) -> Result<OptionRemoteRwFile> {
         bail!("Invalid option: {}", option);
     }
     Ok(OptionRemoteRwFile {
+        ino: strs[0].parse::<Inode>().unwrap(),
+        remote_id: strs[1].parse::<i32>().unwrap(),
+    })
+}
+
+fn parse_remote_new_rw_dir_option(option: &str) -> Result<OptionRemoteRwDir> {
+    let strs: Vec<&str> = option.split(':').collect();
+    if strs.len() != 2 {
+        bail!("Invalid option: {}", option);
+    }
+    Ok(OptionRemoteRwDir {
         ino: strs[0].parse::<Inode>().unwrap(),
         remote_id: strs[1].parse::<i32>().unwrap(),
     })
@@ -182,6 +209,14 @@ fn new_config_remote_new_verified_file(
     Ok(FileConfig::VerifiedNew { editor: VerifiedFileEditor::new(remote_file) })
 }
 
+fn new_config_remote_new_verified_dir(
+    service: file::VirtFdService,
+    remote_id: i32,
+) -> Result<FileConfig> {
+    let dir = RemoteDirEditor::new(service, remote_id);
+    Ok(FileConfig::VerifiedNewDirectory { dir })
+}
+
 fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
     let mut file_pool = BTreeMap::new();
 
@@ -213,6 +248,13 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
         file_pool.insert(
             config.ino,
             new_config_remote_new_verified_file(service.clone(), config.remote_id)?,
+        );
+    }
+
+    for config in &args.remote_new_rw_dir {
+        file_pool.insert(
+            config.ino,
+            new_config_remote_new_verified_dir(service.clone(), config.remote_id)?,
         );
     }
 

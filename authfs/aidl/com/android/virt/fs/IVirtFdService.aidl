@@ -53,5 +53,22 @@ interface IVirtFdService {
     /** Resizes the file backed by the given file ID to the new size. */
     void resize(int id, long size);
 
+    /** Returns the file size. */
     long getFileSize(int id);
+
+    /**
+     * Create a file given the directory ID.
+     *
+     * @param basename The file name to create. Must not contain directory separator.
+     * @return file ID that represents the new created file.
+     */
+    int createFileInDirectory(int id, String basename);
+
+    /**
+     * Create a directory inside the given directory ID.
+     *
+     * @param basename The directory name to create. Must not contain directory separator.
+     * @return file ID that represents the new created directory.
+     */
+    int createDirectoryInDirectory(int id, String basename);
 }
