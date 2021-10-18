@@ -173,10 +173,42 @@ impl<F: ReadByChunk, M: ReadByChunk> ReadByChunk for VerifiedFileReader<F, M> {
 mod tests {
     use super::*;
     use crate::auth::FakeAuthenticator;
-    use crate::file::{LocalFileReader, ReadByChunk};
+    use crate::file::ReadByChunk;
     use anyhow::Result;
+    use std::cmp::min;
     use std::fs::{self, File};
     use std::io::Read;
+    use std::os::unix::fs::FileExt;
+
+    struct LocalFileReader {
+        file: File,
+        size: u64,
+    }
+
+    impl LocalFileReader {
+        fn new(file: File) -> io::Result<LocalFileReader> {
+            let size = file.metadata()?.len();
+            Ok(LocalFileReader { file, size })
+        }
+
+        fn len(&self) -> u64 {
+            self.size
+        }
+    }
+
+    impl ReadByChunk for LocalFileReader {
+        fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
+            let start = chunk_index * CHUNK_SIZE;
+            if start >= self.size {
+                return Ok(0);
+            }
+            let end = min(self.size, start + CHUNK_SIZE);
+            let read_size = (end - start) as usize;
+            debug_assert!(read_size <= buf.len());
+            self.file.read_exact_at(&mut buf[..read_size], start)?;
+            Ok(read_size)
+        }
+    }
 
     type LocalVerifiedFileReader = VerifiedFileReader<LocalFileReader, LocalFileReader>;
 
