@@ -30,6 +30,8 @@ on early-init
     # payloads are not designed to run with bootstrap bionic
     setprop apex_config.done true
 
+    setprop ro.debuggable ${ro.boot.microdroid.debuggable:-0}
+
 on init
     # Mount binderfs
     mkdir /dev/binderfs
@@ -80,6 +82,7 @@ on init
     # TODO(b/185767624): remove hidl after full keymint support
     start hwservicemanager
 
+on init && property:ro.boot.adb.enabled=1
     start adbd
 
 on load_persist_props_action
