@@ -19,5 +19,4 @@ android_app {
     platform_apis: true,
     use_embedded_native_libs: true,
     v4_signature: true,
-    certificate: "platform",
 }
