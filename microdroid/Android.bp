@@ -354,7 +354,7 @@ prebuilt_etc {
             // For unknown reason, the signed bootloader doesn't work on x86_64. Until the problem
             // is fixed, let's use the unsigned bootloader for the architecture.
             // TODO(b/185115783): remove this
-            src: ":cuttlefish_crosvm_bootloader",
+            src: ":microdroid_crosvm_bootloader",
         },
     },
     filename: "microdroid_bootloader",
@@ -368,7 +368,7 @@ genrule {
     name: "microdroid_bootloader_gen",
     tools: ["avbtool"],
     srcs: [
-        ":cuttlefish_crosvm_bootloader",
+        ":microdroid_crosvm_bootloader",
         ":avb_testkey_rsa4096",
     ],
     out: ["bootloader-signed"],
@@ -378,7 +378,7 @@ genrule {
     // bootloader file whose size is 1. It can't pass avbtool.
     // 3. Add the hash footer. The partition size is set to (image size + 68KB)
     // rounded up to 4KB boundary.
-    cmd: "cp $(location :cuttlefish_crosvm_bootloader) $(out) && " +
+    cmd: "cp $(location :microdroid_crosvm_bootloader) $(out) && " +
         "if [ $$(stat --format=%s $(out)) -gt 4096 ]; then " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
