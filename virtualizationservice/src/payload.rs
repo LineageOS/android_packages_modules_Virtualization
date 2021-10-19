@@ -21,7 +21,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use android_system_virtualizationservice::binder::ParcelFileDescriptor;
 use anyhow::{anyhow, Context, Result};
-use binder::{wait_for_interface, Strong};
+use binder::wait_for_interface;
 use log::{error, info};
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::{ApexConfig, VmPayloadConfig};
@@ -108,27 +108,28 @@ impl ApexInfoList {
 }
 
 struct PackageManager {
-    service: Strong<dyn IPackageManagerNative>,
     // TODO(b/199146189) use IPackageManagerNative
     apex_info_list: &'static ApexInfoList,
 }
 
 impl PackageManager {
     fn new() -> Result<Self> {
-        let service = wait_for_interface(PACKAGE_MANAGER_NATIVE_SERVICE)
-            .context("Failed to find PackageManager")?;
         let apex_info_list = ApexInfoList::load()?;
-        Ok(Self { service, apex_info_list })
+        Ok(Self { apex_info_list })
     }
 
     fn get_apex_list(&self, prefer_staged: bool) -> Result<ApexInfoList> {
+        // get the list of active apexes
         let mut list = self.apex_info_list.clone();
+        // When prefer_staged, we override ApexInfo by consulting "package_native"
         if prefer_staged {
-            // When prefer_staged, we override ApexInfo by consulting "package_native"
-            let staged = self.service.getStagedApexModuleNames()?;
+            let pm =
+                wait_for_interface::<dyn IPackageManagerNative>(PACKAGE_MANAGER_NATIVE_SERVICE)
+                    .context("Failed to get service when prefer_staged is set.")?;
+            let staged = pm.getStagedApexModuleNames()?;
             for apex_info in list.list.iter_mut() {
                 if staged.contains(&apex_info.name) {
-                    let staged_apex_info = self.service.getStagedApexInfo(&apex_info.name)?;
+                    let staged_apex_info = pm.getStagedApexInfo(&apex_info.name)?;
                     if let Some(staged_apex_info) = staged_apex_info {
                         apex_info.path = PathBuf::from(staged_apex_info.diskImagePath);
                         // TODO(b/201788989) copy bootclasspath/systemserverclasspath
