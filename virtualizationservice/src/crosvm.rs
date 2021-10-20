@@ -238,12 +238,25 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
         command.arg("--mem").arg(memory_mib.to_string());
     }
 
-    if let Some(log_fd) = config.log_fd {
+    // Setup the serial devices.
+    // 1. uart device: used as the output device by bootloaders and as early console by linux
+    // 2. virtio-console device: used as the console device
+    //
+    // When log_fd is not specified, the devices are attached to sink, which means what's written
+    // there is discarded.
+    //
+    // Warning: Adding more serial devices requires you to shift the PCI device ID of the boot
+    // disks in bootconfig.x86_64. This is because x86 crosvm puts serial devices and the block
+    // devices in the same PCI bus and serial devices comes before the block devices. Arm crosvm
+    // doesn't have the issue.
+    let backend = if let Some(log_fd) = config.log_fd {
         command.stdout(log_fd);
+        "stdout"
     } else {
-        // Ignore console output.
-        command.arg("--serial=type=sink");
-    }
+        "sink"
+    };
+    command.arg(format!("--serial=type={},hardware=serial", backend));
+    command.arg(format!("--serial=type={},hardware=virtio-console", backend));
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
     let mut preserved_fds = config.indirect_files.iter().map(|file| file.as_raw_fd()).collect();
