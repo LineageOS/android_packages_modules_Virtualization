@@ -240,13 +240,13 @@ fn load_config(path: &Path) -> Result<VmPayloadConfig> {
 /// virtualizationservice in the host side.
 fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Result<()> {
     info!("executing main task {:?}...", task);
-    let mut child = build_command(task)?.spawn()?;
+    let mut command = build_command(task)?;
 
     let local_cid = get_local_cid()?;
     info!("notifying payload started");
     service.notifyPayloadStarted(local_cid as i32)?;
 
-    let exit_status = child.wait()?;
+    let exit_status = command.spawn()?.wait()?;
     if let Some(code) = exit_status.code() {
         info!("notifying payload finished");
         service.notifyPayloadFinished(local_cid as i32, code)?;
