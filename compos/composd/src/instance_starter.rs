@@ -21,6 +21,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
 };
 use anyhow::{bail, Context, Result};
+use binder_common::lazy_service::LazyServiceGuard;
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::{ParcelFileDescriptor, Strong};
 use compos_common::compos_client::{VmInstance, VmParameters};
@@ -33,9 +34,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub struct CompOsInstance {
+    service: Strong<dyn ICompOsService>,
     #[allow(dead_code)] // Keeps VirtualizationService & the VM alive
     vm_instance: VmInstance,
-    service: Strong<dyn ICompOsService>,
+    #[allow(dead_code)] // Keeps composd process alive
+    lazy_service_guard: LazyServiceGuard,
 }
 
 impl CompOsInstance {
@@ -167,7 +170,7 @@ impl InstanceStarter {
             VmInstance::start(virtualization_service, instance_image, &self.vm_parameters)
                 .context("Starting VM")?;
         let service = vm_instance.get_service().context("Connecting to CompOS")?;
-        Ok(CompOsInstance { vm_instance, service })
+        Ok(CompOsInstance { vm_instance, service, lazy_service_guard: Default::default() })
     }
 
     fn create_instance_image(
