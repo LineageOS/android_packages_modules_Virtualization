@@ -16,6 +16,7 @@
 
 //! Support for starting CompOS in a VM and connecting to the service
 
+use crate::timeouts::timeouts;
 use crate::{COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     IVirtualMachine::IVirtualMachine,
@@ -42,7 +43,6 @@ use std::os::unix::io::IntoRawFd;
 use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::Duration;
 
 /// This owns an instance of the CompOS VM.
 pub struct VmInstance {
@@ -235,14 +235,13 @@ impl VmStateMonitor {
     }
 
     fn wait_until_ready(&self) -> Result<i32> {
-        // 10s is long enough on real hardware, but it can take 90s when using nested
-        // virtualization.
-        // TODO(b/200924405): Reduce timeout/detect nested virtualization
         let (state, result) = self
             .state_ready
-            .wait_timeout_while(self.mutex.lock().unwrap(), Duration::from_secs(120), |state| {
-                state.cid.is_none() && !state.has_died
-            })
+            .wait_timeout_while(
+                self.mutex.lock().unwrap(),
+                timeouts()?.vm_max_time_to_ready,
+                |state| state.cid.is_none() && !state.has_died,
+            )
             .unwrap();
         if result.timed_out() {
             bail!("Timed out waiting for VM")

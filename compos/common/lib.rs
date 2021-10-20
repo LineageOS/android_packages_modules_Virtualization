@@ -17,6 +17,7 @@
 //! Common items used by CompOS server and/or clients
 
 pub mod compos_client;
+pub mod timeouts;
 
 /// Special CID indicating "any".
 pub const VMADDR_CID_ANY: u32 = -1i32 as u32;
