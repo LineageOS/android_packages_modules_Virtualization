@@ -51,9 +51,9 @@ android_system_image {
         "init_second_stage",
         "microdroid_build_prop",
         "microdroid_init_rc",
+        "microdroid_ueventd_rc",
         "microdroid_launcher",
 
-        "ueventd.rc",
         "libbinder",
         "libbinder_ndk",
         "libstdc++",
@@ -134,6 +134,13 @@ prebuilt_etc {
     src: "init.rc",
     relative_install_path: "init/hw",
     installable: false, // avoid collision with system partition's init.rc
+}
+
+prebuilt_etc {
+    name: "microdroid_ueventd_rc",
+    filename: "ueventd.rc",
+    src: "ueventd.rc",
+    installable: false, // avoid collision with system partition's ueventd.rc
 }
 
 prebuilt_root {
