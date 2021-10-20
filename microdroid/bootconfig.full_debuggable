@@ -3,6 +3,7 @@ androidboot.microdroid.debuggable=1
 
 # Kernel message is exported.
 kernel.printk.devkmsg=on
+kernel.console=hvc0
 
 # ADB is supported and rooting is possible. Note that
 # ro.adb.secure is still 0 (see build.prop) which means that adbd is started
