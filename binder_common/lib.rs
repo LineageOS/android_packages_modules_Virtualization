@@ -20,7 +20,7 @@ pub mod lazy_service;
 pub mod rpc_client;
 pub mod rpc_server;
 
-use binder::public_api::{ExceptionCode, Status};
+use binder::{ExceptionCode, Status};
 use std::ffi::CString;
 
 /// Constructs a new Binder error `Status` with the given `ExceptionCode` and message.
