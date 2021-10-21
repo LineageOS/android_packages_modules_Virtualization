@@ -4,19 +4,50 @@ package {
 
 cc_library {
     name: "libcompos_client",
-    srcs: ["libcompos_client.cc"],
+    whole_static_libs: ["libcompos_client_ffi"],
     min_sdk_version: "apex_inherit",
     shared_libs: [
-        "android.system.composd-ndk",
-        "compos_aidl_interface-ndk",
-        "libbase",
         "libbinder_ndk",
         "libbinder_rpc_unstable",
+        "libminijail",
     ],
     export_include_dirs: ["include"],
     stubs: {
         symbol_file: "libcompos_client.map.txt",
     },
+    apex_available: [
+        "com.android.compos",
+    ],
+    visibility: [
+        "//packages/modules/Virtualization/compos:__subpackages__",
+        "//art/odrefresh:__subpackages__",
+    ],
+}
+
+// TODO(203478530): Once rust_ffi supports stubs/symbol file, remove the wrapping cc_library above.
+rust_ffi {
+    name: "libcompos_client_ffi",
+    crate_name: "compos_client_ffi",
+    srcs: ["libcompos_client.rs"],
+    include_dirs: ["include"],
+    rustlibs: [
+        "android.system.composd-rust",
+        "compos_aidl_interface-rust",
+        "libandroid_logger",
+        "libanyhow",
+        "libbinder_common",
+        "libbinder_rs",
+        "libcompos_common",
+        "liblibc",
+        "liblog_rust",
+        "libminijail_rust",
+        "libnix",
+        "libscopeguard",
+    ],
+    prefer_rlib: true,
+    shared_libs: [
+        "libbinder_ndk",
+    ],
     apex_available: [
         "com.android.compos",
     ],
