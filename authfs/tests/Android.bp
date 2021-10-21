@@ -14,8 +14,26 @@ java_test_host {
         "VirtualizationTestHelper",
     ],
     test_suites: ["general-tests"],
+    target_required: ["open_then_run"],
     data: [
         ":authfs_test_files",
         ":MicrodroidTestApp.signed",
     ],
+}
+
+rust_test {
+    name: "open_then_run",
+    crate_name: "open_then_run",
+    srcs: ["open_then_run.rs"],
+    edition: "2018",
+    rustlibs: [
+        "libandroid_logger",
+        "libanyhow",
+        "libclap",
+        "libcommand_fds",
+        "liblog_rust",
+        "libnix",
+    ],
+    test_suites: ["general-tests"],
+    test_harness: false,
 }
