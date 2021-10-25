@@ -34,6 +34,7 @@ import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
+import com.android.tradefed.util.AbiUtils;
 import com.android.tradefed.util.CommandResult;
 
 import org.junit.After;
@@ -75,7 +76,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     private static boolean sAssumptionFailed;
 
     private ExecutorService mThreadPool = Executors.newCachedThreadPool();
-    private String mAbi;
+    private String mArch;
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo)
@@ -139,7 +140,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     @Before
     public void setUp() {
         assumeFalse(sAssumptionFailed);
-        mAbi = getAbi().getName();
+        mArch = AbiUtils.getArchForAbi(getAbi().getName());
     }
 
     @After
@@ -375,7 +376,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
     private String getOpenThenRunPath() {
         // Construct path to match PushFilePreparer's upload path.
-        return TEST_DIR + "/open_then_run/" + mAbi + "/open_then_run";
+        return TEST_DIR + "/open_then_run/" + mArch + "/open_then_run";
     }
 
     private void runFdServerOnAndroid(String helperFlags, String fdServerFlags)
