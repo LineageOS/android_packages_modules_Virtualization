@@ -36,9 +36,6 @@ use binder::{
 use binder_common::rpc_server::run_rpc_server;
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
-use nix::ioctl_read_bad;
-use std::fs::OpenOptions;
-use std::os::unix::io::AsRawFd;
 
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
@@ -64,12 +61,11 @@ fn try_main() -> Result<()> {
 
     let service = compsvc::new_binder()?.as_binder();
     let vm_service = get_vm_service()?;
-    let local_cid = get_local_cid()?;
 
     debug!("compsvc is starting as a rpc service.");
 
     let retval = run_rpc_server(service, COMPOS_VSOCK_PORT, || {
-        if let Err(e) = vm_service.notifyPayloadReady(local_cid as i32) {
+        if let Err(e) = vm_service.notifyPayloadReady() {
             error!("Unable to notify ready: {}", e);
         }
     });
@@ -94,26 +90,3 @@ fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
 
     FromIBinder::try_from(ibinder).context("Connecting to IVirtualMachineService")
 }
-
-// TODO(b/199259751): remove this after VS can check the peer addresses of binder clients
-fn get_local_cid() -> Result<u32> {
-    let f = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .open("/dev/vsock")
-        .context("Failed to open /dev/vsock")?;
-    let mut cid = 0;
-    // SAFETY: the kernel only modifies the given u32 integer.
-    unsafe { vm_sockets_get_local_cid(f.as_raw_fd(), &mut cid) }
-        .context("Failed to get local CID")?;
-    Ok(cid)
-}
-
-// TODO(b/199259751): remove this after VS can check the peer addresses of binder clients
-const IOCTL_VM_SOCKETS_GET_LOCAL_CID: usize = 0x7b9;
-ioctl_read_bad!(
-    /// Gets local cid from /dev/vsock
-    vm_sockets_get_local_cid,
-    IOCTL_VM_SOCKETS_GET_LOCAL_CID,
-    u32
-);
