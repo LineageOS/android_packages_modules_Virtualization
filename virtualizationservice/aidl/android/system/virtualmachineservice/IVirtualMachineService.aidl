@@ -31,19 +31,16 @@ interface IVirtualMachineService {
 
     /**
      * Notifies that the payload has started.
-     * TODO(b/191845268): remove cid parameter
      */
-    void notifyPayloadStarted(int cid);
+    void notifyPayloadStarted();
 
     /**
      * Notifies that the payload is ready to serve.
-     * TODO(b/191845268): remove cid parameter
      */
-    void notifyPayloadReady(int cid);
+    void notifyPayloadReady();
 
     /**
      * Notifies that the payload has finished.
-     * TODO(b/191845268): remove cid parameter
      */
-    void notifyPayloadFinished(int cid, int exitCode);
+    void notifyPayloadFinished(int exitCode);
 }
