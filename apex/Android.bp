@@ -59,6 +59,7 @@ apex {
         "microdroid.json",
         "microdroid_uboot_env",
         "microdroid_bootloader",
+        "microdroid_bootloader.avbpubkey",
         "microdroid_bootconfig_normal",
         "microdroid_bootconfig_app_debuggable",
         "microdroid_bootconfig_full_debuggable",
