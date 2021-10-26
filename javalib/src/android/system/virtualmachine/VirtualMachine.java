@@ -113,6 +113,9 @@ public class VirtualMachine {
     private @Nullable ParcelFileDescriptor mConsoleReader;
     private @Nullable ParcelFileDescriptor mConsoleWriter;
 
+    private @Nullable ParcelFileDescriptor mLogReader;
+    private @Nullable ParcelFileDescriptor mLogWriter;
+
     private final ExecutorService mExecutorService = Executors.newCachedThreadPool();
 
     static {
@@ -297,6 +300,12 @@ public class VirtualMachine {
                 mConsoleWriter = pipe[1];
             }
 
+            if (mLogReader == null && mLogWriter == null) {
+                ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+                mLogReader = pipe[0];
+                mLogWriter = pipe[1];
+            }
+
             VirtualMachineAppConfig appConfig = getConfig().toParcel();
 
             // Fill the idsig file by hashing the apk
@@ -310,7 +319,7 @@ public class VirtualMachine {
             android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
                     android.system.virtualizationservice.VirtualMachineConfig.appConfig(appConfig);
 
-            mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter);
+            mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, mLogWriter);
             mVirtualMachine.registerCallback(
                     new IVirtualMachineCallback.Stub() {
                         @Override
@@ -375,6 +384,14 @@ public class VirtualMachine {
             throw new VirtualMachineException("Console output not available");
         }
         return new FileInputStream(mConsoleReader.getFileDescriptor());
+    }
+
+    /** Returns the stream object representing the log output from the virtual machine. */
+    public @NonNull InputStream getLogOutputStream() throws VirtualMachineException {
+        if (mLogReader == null) {
+            throw new VirtualMachineException("Log output not available");
+        }
+        return new FileInputStream(mLogReader.getFileDescriptor());
     }
 
     /**

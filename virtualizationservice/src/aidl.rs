@@ -122,10 +122,12 @@ impl IVirtualizationService for VirtualizationService {
     fn createVm(
         &self,
         config: &VirtualMachineConfig,
+        console_fd: Option<&ParcelFileDescriptor>,
         log_fd: Option<&ParcelFileDescriptor>,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         check_manage_access()?;
         let state = &mut *self.state.lock().unwrap();
+        let mut console_fd = console_fd.map(clone_file).transpose()?;
         let mut log_fd = log_fd.map(clone_file).transpose()?;
         let requester_uid = ThreadState::get_calling_uid();
         let requester_sid = get_calling_sid()?;
@@ -160,6 +162,9 @@ impl IVirtualizationService for VirtualizationService {
         // doesn't understand the bootconfig parameters.
         if let VirtualMachineConfig::AppConfig(config) = config {
             if config.debugLevel != DebugLevel::FULL {
+                console_fd = None;
+            }
+            if config.debugLevel == DebugLevel::NONE {
                 log_fd = None;
             }
         }
@@ -212,6 +217,7 @@ impl IVirtualizationService for VirtualizationService {
             params: config.params.to_owned(),
             protected: config.protectedVm,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
+            console_fd,
             log_fd,
             indirect_files,
         };
