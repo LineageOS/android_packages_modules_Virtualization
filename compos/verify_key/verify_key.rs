@@ -19,7 +19,7 @@
 
 use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
-use compos_common::compos_client::VmInstance;
+use compos_common::compos_client::{VmInstance, VmParameters};
 use compos_common::{
     COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, INSTANCE_IMAGE_FILE, PENDING_INSTANCE_DIR,
     PRIVATE_KEY_BLOB_FILE, PUBLIC_KEY_FILE,
@@ -91,7 +91,9 @@ fn verify(instance_dir: &Path) -> Result<()> {
     let public_key = read_small_file(public_key).context("Failed to read public key")?;
     let instance_image = File::open(instance_image).context("Failed to open instance image")?;
 
-    let vm_instance = VmInstance::start(instance_image)?;
+    let virtualization_service = VmInstance::connect_to_virtualization_service()?;
+    let vm_instance =
+        VmInstance::start(&*virtualization_service, instance_image, &VmParameters::default())?;
     let service = vm_instance.get_service()?;
 
     let result = service.verifySigningKey(&blob, &public_key).context("Verifying signing key")?;
