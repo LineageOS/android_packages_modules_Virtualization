@@ -83,3 +83,20 @@ prebuilt_etc {
     filename: "init.rc",
     installable: false,
 }
+
+// Virt apex needs a custom signer for its payload
+python_binary_host {
+    name: "sign_virt_apex",
+    srcs: [
+        "sign_virt_apex.py",
+    ],
+    version: {
+        py2: {
+            enabled: false,
+        },
+        py3: {
+            enabled: true,
+            embedded_launcher: true,
+        },
+    },
+}
