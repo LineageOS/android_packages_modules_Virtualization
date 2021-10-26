@@ -16,10 +16,6 @@
           "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta.img"
         },
         {
-          "label": "vbmeta_system_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vbmeta_system.img"
-        },
-        {
           "label": "super",
           "path": "/apex/com.android.virt/etc/fs/microdroid_super.img"
         }

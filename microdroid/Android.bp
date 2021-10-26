@@ -438,21 +438,6 @@ vbmeta {
     partitions: [
         "microdroid_vendor",
         "microdroid_vendor_boot-5.10",
-    ],
-    chained_partitions: [
-        {
-            name: "vbmeta_system",
-            rollback_index_location: 1,
-            private_key: ":avb_testkey_rsa4096",
-        },
-    ],
-}
-
-vbmeta {
-    name: "microdroid_vbmeta_system",
-    partition_name: "vbmeta_system",
-    private_key: ":avb_testkey_rsa4096",
-    partitions: [
         "microdroid",
         "microdroid_boot-5.10",
     ],
