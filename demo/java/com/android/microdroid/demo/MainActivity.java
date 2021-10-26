@@ -261,6 +261,12 @@ public class MainActivity extends AppCompatActivity {
                 VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
                 mVirtualMachine = vmm.getOrCreate("demo_vm", config);
+                try {
+                    mVirtualMachine.setConfig(config);
+                } catch (VirtualMachineException e) {
+                    mVirtualMachine.delete();
+                    mVirtualMachine = vmm.create("demo_vm", config);
+                }
                 mVirtualMachine.run();
                 mVirtualMachine.setCallback(callback);
                 mStatus.postValue(mVirtualMachine.getStatus());

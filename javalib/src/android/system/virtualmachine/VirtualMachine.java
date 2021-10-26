@@ -401,6 +401,7 @@ public class VirtualMachine {
         final File vmRootDir = mConfigFilePath.getParentFile();
         mConfigFilePath.delete();
         mInstanceFilePath.delete();
+        mIdsigFilePath.delete();
         vmRootDir.delete();
     }
 
