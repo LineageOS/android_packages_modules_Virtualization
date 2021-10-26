@@ -29,6 +29,8 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use vsock::VsockStream;
+use android_system_virtualmachineservice::binder::Strong;
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
@@ -132,6 +134,8 @@ pub struct VmInstance {
     pub callbacks: VirtualMachineCallbacks,
     /// Input/output stream of the payload run in the VM.
     pub stream: Mutex<Option<VsockStream>>,
+    /// VirtualMachineService binder object for the VM.
+    pub vm_service: Mutex<Option<Strong<dyn IVirtualMachineService>>>,
     /// The latest lifecycle state which the payload reported itself to be in.
     payload_state: Mutex<PayloadState>,
 }
@@ -158,6 +162,7 @@ impl VmInstance {
             requester_debug_pid,
             callbacks: Default::default(),
             stream: Mutex::new(None),
+            vm_service: Mutex::new(None),
             payload_state: Mutex::new(PayloadState::Starting),
         })
     }
