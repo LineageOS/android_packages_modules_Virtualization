@@ -198,21 +198,6 @@ Result<T> report_test(std::string name, Result<T> result) {
     return result;
 }
 
-Result<unsigned> get_local_cid() {
-    // TODO: remove this after VS can check the peer addresses of binder clients
-    unique_fd fd(open("/dev/vsock", O_RDONLY));
-    if (fd.get() == -1) {
-        return ErrnoError() << "failed to open /dev/vsock";
-    }
-
-    unsigned cid;
-    if (ioctl(fd.get(), IOCTL_VM_SOCKETS_GET_LOCAL_CID, &cid) == -1) {
-        return ErrnoError() << "failed to IOCTL_VM_SOCKETS_GET_LOCAL_CID";
-    }
-
-    return cid;
-}
-
 Result<void> start_test_service() {
     class TestService : public aidl::com::android::microdroid::testservice::BnTestService {
         ndk::ScopedAStatus addInteger(int32_t a, int32_t b, int32_t* out) override {
@@ -232,9 +217,7 @@ Result<void> start_test_service() {
             std::cerr << "failed to connect VirtualMachineService";
             return;
         }
-        if (auto res = get_local_cid(); !res.ok()) {
-            std::cerr << "failed to get local cid: " << res.error();
-        } else if (!virtualMachineService->notifyPayloadReady(res.value()).isOk()) {
+        if (!virtualMachineService->notifyPayloadReady().isOk()) {
             std::cerr << "failed to notify payload ready to virtualizationservice";
         }
     };
