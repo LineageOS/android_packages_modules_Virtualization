@@ -21,7 +21,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachine::IVirtualMachine,
     IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
     IVirtualizationService::IVirtualizationService,
-    VirtualMachineAppConfig::VirtualMachineAppConfig,
+    VirtualMachineAppConfig::{DebugLevel::DebugLevel, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
 };
 use android_system_virtualizationservice::binder::{
@@ -51,6 +51,13 @@ pub struct VmInstance {
     cid: i32,
 }
 
+/// Parameters to be used when creating a virtual machine instance.
+#[derive(Default, Debug, Clone)]
+pub struct VmParameters {
+    /// Whether the VM should be debuggable.
+    pub debug_mode: bool,
+}
+
 impl VmInstance {
     /// Return a new connection to the Virtualization Service binder interface. This will start the
     /// service if necessary.
@@ -59,8 +66,12 @@ impl VmInstance {
             .context("Failed to find VirtualizationService")
     }
 
-    /// Start a new CompOS VM instance using the specified instance image file.
-    pub fn start(instance_image: File) -> Result<VmInstance> {
+    /// Start a new CompOS VM instance using the specified instance image file and parameters.
+    pub fn start(
+        service: &dyn IVirtualizationService,
+        instance_image: File,
+        parameters: &VmParameters,
+    ) -> Result<VmInstance> {
         let instance_fd = ParcelFileDescriptor::new(instance_image);
 
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
@@ -78,15 +89,16 @@ impl VmInstance {
         let log_fd = File::create(data_dir.join("vm.log")).context("Failed to create log file")?;
         let log_fd = ParcelFileDescriptor::new(log_fd);
 
+        let debug_level = if parameters.debug_mode { DebugLevel::FULL } else { DebugLevel::NONE };
+
         let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
             apk: Some(apk_fd),
             idsig: Some(idsig_fd),
             instanceImage: Some(instance_fd),
             configPath: "assets/vm_config.json".to_owned(),
+            debugLevel: debug_level,
             ..Default::default()
         });
-
-        let service = Self::connect_to_virtualization_service()?;
 
         let vm = service.createVm(&config, Some(&log_fd)).context("Failed to create VM")?;
         let vm_state = Arc::new(VmStateMonitor::default());
