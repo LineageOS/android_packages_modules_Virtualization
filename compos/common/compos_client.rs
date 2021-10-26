@@ -104,10 +104,12 @@ impl VmInstance {
         let vm_state = Arc::new(VmStateMonitor::default());
 
         let vm_state_clone = Arc::clone(&vm_state);
-        vm.as_binder().link_to_death(&mut DeathRecipient::new(move || {
+        let mut death_recipient = DeathRecipient::new(move || {
             vm_state_clone.set_died();
             log::error!("VirtualizationService died");
-        }))?;
+        });
+        // Note that dropping death_recipient cancels this, so we can't use a temporary here.
+        vm.as_binder().link_to_death(&mut death_recipient)?;
 
         let vm_state_clone = Arc::clone(&vm_state);
         let callback = BnVirtualMachineCallback::new_binder(
