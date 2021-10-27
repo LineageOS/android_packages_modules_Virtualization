@@ -17,10 +17,16 @@
 //! Simple command-line tool to drive composd for testing and debugging.
 
 use android_system_composd::{
-    aidl::android::system::composd::IIsolatedCompilationService::IIsolatedCompilationService,
-    binder::{wait_for_interface, ProcessState},
+    aidl::android::system::composd::{
+        ICompilationTaskCallback::{BnCompilationTaskCallback, ICompilationTaskCallback},
+        IIsolatedCompilationService::IIsolatedCompilationService,
+    },
+    binder::{wait_for_interface, Interface, ProcessState, Result as BinderResult},
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use binder::BinderFeatures;
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 fn main() -> Result<()> {
     let app = clap::App::new("composd_cmd").arg(
@@ -35,15 +41,88 @@ fn main() -> Result<()> {
 
     ProcessState::start_thread_pool();
 
-    let service = wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
-        .context("Failed to connect to composd service")?;
-
     match command {
-        "forced-compile-test" => service.runForcedCompileForTest().context("Compilation failed")?,
+        "forced-compile-test" => run_forced_compile_for_test()?,
         _ => panic!("Unexpected command {}", command),
     }
 
     println!("All Ok!");
 
     Ok(())
+}
+
+struct Callback(Arc<State>);
+
+#[derive(Default)]
+struct State {
+    mutex: Mutex<Option<Outcome>>,
+    completed: Condvar,
+}
+
+#[derive(Copy, Clone)]
+enum Outcome {
+    Succeeded,
+    Failed,
+}
+
+impl Interface for Callback {}
+
+impl ICompilationTaskCallback for Callback {
+    fn onSuccess(&self) -> BinderResult<()> {
+        self.0.set_outcome(Outcome::Succeeded);
+        Ok(())
+    }
+
+    fn onFailure(&self) -> BinderResult<()> {
+        self.0.set_outcome(Outcome::Failed);
+        Ok(())
+    }
+}
+
+impl State {
+    fn set_outcome(&self, outcome: Outcome) {
+        let mut guard = self.mutex.lock().unwrap();
+        *guard = Some(outcome);
+        drop(guard);
+        self.completed.notify_all();
+    }
+
+    fn wait(&self, duration: Duration) -> Result<Outcome> {
+        let (outcome, result) = self
+            .completed
+            .wait_timeout_while(self.mutex.lock().unwrap(), duration, |outcome| outcome.is_none())
+            .unwrap();
+        if result.timed_out() {
+            bail!("Timed out waiting for compilation")
+        }
+        Ok(outcome.unwrap())
+    }
+}
+
+fn run_forced_compile_for_test() -> Result<()> {
+    let service = wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
+        .context("Failed to connect to composd service")?;
+
+    let state = Arc::new(State::default());
+    let callback = Callback(state.clone());
+    let callback = BnCompilationTaskCallback::new_binder(callback, BinderFeatures::default());
+    let task = service.startTestCompile(&callback).context("Compilation failed")?;
+
+    // Make sure composd keeps going even if we don't hold a reference to its service.
+    drop(service);
+
+    // TODO: Handle composd dying without sending callback?
+
+    println!("Waiting");
+
+    match state.wait(Duration::from_secs(480)) {
+        Ok(Outcome::Succeeded) => Ok(()),
+        Ok(Outcome::Failed) => bail!("Compilation failed"),
+        Err(e) => {
+            if let Err(e) = task.cancel() {
+                eprintln!("Failed to cancel compilation: {:?}", e);
+            }
+            Err(e)
+        }
+    }
 }

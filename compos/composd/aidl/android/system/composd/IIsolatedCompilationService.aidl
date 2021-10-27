@@ -15,6 +15,8 @@
  */
 package android.system.composd;
 
+import android.system.composd.ICompilationTask;
+import android.system.composd.ICompilationTaskCallback;
 import com.android.compos.CompilationResult;
 import com.android.compos.FdAnnotation;
 
@@ -24,8 +26,11 @@ interface IIsolatedCompilationService {
      * This compiles BCP extensions and system server, even if the system artifacts are up to date,
      * and writes the results to a test directory to avoid disrupting any real artifacts in
      * existence.
+     * Compilation continues in the background, and success/failure is reported via the supplied
+     * callback, unless the returned ICompilationTask is cancelled. The caller should maintain
+     * a reference to the ICompilationTask until compilation completes or is cancelled.
      */
-    void runForcedCompileForTest();
+    ICompilationTask startTestCompile(ICompilationTaskCallback callback);
 
     /**
      * Run dex2oat in the currently running instance of the CompOS VM. This is a simple proxy
