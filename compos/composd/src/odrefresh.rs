@@ -21,6 +21,7 @@ use compos_common::VMADDR_CID_ANY;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use rustutils::system_properties;
+use shared_child::SharedChild;
 use std::process::Command;
 
 // TODO: What if this changes?
@@ -38,30 +39,42 @@ pub enum ExitCode {
     CleanupFailed = EX_MAX + 4,
 }
 
+pub struct Odrefresh {
+    child: SharedChild,
+}
+
 fn need_extra_time() -> Result<bool> {
     // Special case to add more time in nested VM
     let value = system_properties::read("ro.build.product")?;
     Ok(value == "vsoc_x86_64" || value == "vsoc_x86")
 }
 
-pub fn run_forced_compile(target_dir: &str) -> Result<ExitCode> {
-    // We don`t need to capture stdout/stderr - odrefresh writes to the log
-    let mut cmdline = Command::new(ODREFRESH_BIN);
-    if need_extra_time()? {
-        cmdline.arg("--max-execution-seconds=480").arg("--max-child-process-seconds=150");
+impl Odrefresh {
+    pub fn spawn_forced_compile(target_dir: &str) -> Result<Self> {
+        // We don`t need to capture stdout/stderr - odrefresh writes to the log
+        let mut cmdline = Command::new(ODREFRESH_BIN);
+        if need_extra_time()? {
+            cmdline.arg("--max-execution-seconds=480").arg("--max-child-process-seconds=150");
+        }
+        cmdline
+            .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY as i32))
+            .arg(format!("--dalvik-cache={}", target_dir))
+            .arg("--force-compile");
+        let child = SharedChild::spawn(&mut cmdline).context("Running odrefresh")?;
+        Ok(Odrefresh { child })
     }
-    cmdline
-        .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY as i32))
-        .arg(format!("--dalvik-cache={}", target_dir))
-        .arg("--force-compile");
-    let mut odrefresh = cmdline.spawn().context("Running odrefresh")?;
 
-    // TODO: timeout?
-    let status = odrefresh.wait()?;
+    pub fn wait_for_exit(&self) -> Result<ExitCode> {
+        // No timeout here - but clients can kill the process, which will end the wait.
+        let status = self.child.wait()?;
+        if let Some(exit_code) = status.code().and_then(FromPrimitive::from_i32) {
+            Ok(exit_code)
+        } else {
+            bail!("odrefresh exited with {}", status)
+        }
+    }
 
-    if let Some(exit_code) = status.code().and_then(FromPrimitive::from_i32) {
-        Ok(exit_code)
-    } else {
-        bail!("odrefresh exited with {}", status)
+    pub fn kill(&self) -> Result<()> {
+        self.child.kill().context("Killing odrefresh process failed")
     }
 }
