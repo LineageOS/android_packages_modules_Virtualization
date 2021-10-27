@@ -118,7 +118,7 @@ fn parse_args() -> Result<Args> {
     })?;
 
     let dir_files = parse_and_create_file_mapping(matches.values_of("open-dir"), |path| {
-        Dir::open(path, OFlag::O_DIRECTORY | OFlag::O_RDWR, Mode::S_IRWXU)
+        Dir::open(path, OFlag::O_DIRECTORY | OFlag::O_RDONLY, Mode::S_IRWXU)
             .with_context(|| format!("Open {} directory", path))
     })?;
 
