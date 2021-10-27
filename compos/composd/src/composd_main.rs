@@ -18,10 +18,12 @@
 //! responsible for managing the lifecycle of the CompOS VM instances, providing key management for
 //! them, and orchestrating trusted compilation.
 
+mod compilation_task;
 mod instance_manager;
 mod instance_starter;
 mod odrefresh;
 mod service;
+mod util;
 
 use crate::instance_manager::InstanceManager;
 use android_system_composd::binder::{register_lazy_service, ProcessState};
