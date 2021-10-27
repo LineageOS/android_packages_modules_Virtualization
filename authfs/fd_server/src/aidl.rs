@@ -83,8 +83,14 @@ impl FdService {
         BnVirtFdService::new_binder(FdService { fd_pool }, BinderFeatures::default())
     }
 
-    fn get_file_config(&self, id: i32) -> BinderResult<&FdConfig> {
-        self.fd_pool.get(&id).ok_or_else(|| Status::from(ERROR_UNKNOWN_FD))
+    /// Handles the requesting file `id` with `handler` if it is in the FD pool. This function
+    /// returns whatever the handler returns.
+    fn handle_fd<F, R>(&self, id: i32, handler: F) -> BinderResult<R>
+    where
+        F: FnOnce(&FdConfig) -> BinderResult<R>,
+    {
+        let fd_config = self.fd_pool.get(&id).ok_or_else(|| Status::from(ERROR_UNKNOWN_FD))?;
+        handler(fd_config)
     }
 }
 
@@ -95,21 +101,21 @@ impl IVirtFdService for FdService {
         let size: usize = validate_and_cast_size(size)?;
         let offset: u64 = validate_and_cast_offset(offset)?;
 
-        match self.get_file_config(id)? {
+        self.handle_fd(id, |config| match config {
             FdConfig::Readonly { file, .. } | FdConfig::ReadWrite(file) => {
                 read_into_buf(file, size, offset).map_err(|e| {
                     error!("readFile: read error: {}", e);
                     Status::from(ERROR_IO)
                 })
             }
-        }
+        })
     }
 
     fn readFsverityMerkleTree(&self, id: i32, offset: i64, size: i32) -> BinderResult<Vec<u8>> {
         let size: usize = validate_and_cast_size(size)?;
         let offset: u64 = validate_and_cast_offset(offset)?;
 
-        match &self.get_file_config(id)? {
+        self.handle_fd(id, |config| match config {
             FdConfig::Readonly { file, alt_merkle_tree, .. } => {
                 if let Some(tree_file) = &alt_merkle_tree {
                     read_into_buf(tree_file, size, offset).map_err(|e| {
@@ -134,11 +140,11 @@ impl IVirtFdService for FdService {
                 // use.
                 Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
             }
-        }
+        })
     }
 
     fn readFsveritySignature(&self, id: i32) -> BinderResult<Vec<u8>> {
-        match &self.get_file_config(id)? {
+        self.handle_fd(id, |config| match config {
             FdConfig::Readonly { file, alt_signature, .. } => {
                 if let Some(sig_file) = &alt_signature {
                     // Supposedly big enough buffer size to store signature.
@@ -163,11 +169,11 @@ impl IVirtFdService for FdService {
                 // There is no signature for a writable file.
                 Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
             }
-        }
+        })
     }
 
     fn writeFile(&self, id: i32, buf: &[u8], offset: i64) -> BinderResult<i32> {
-        match &self.get_file_config(id)? {
+        self.handle_fd(id, |config| match config {
             FdConfig::Readonly { .. } => Err(StatusCode::INVALID_OPERATION.into()),
             FdConfig::ReadWrite(file) => {
                 let offset: u64 = offset.try_into().map_err(|_| {
@@ -185,11 +191,11 @@ impl IVirtFdService for FdService {
                     Status::from(ERROR_IO)
                 })? as i32)
             }
-        }
+        })
     }
 
     fn resize(&self, id: i32, size: i64) -> BinderResult<()> {
-        match &self.get_file_config(id)? {
+        self.handle_fd(id, |config| match config {
             FdConfig::Readonly { .. } => Err(StatusCode::INVALID_OPERATION.into()),
             FdConfig::ReadWrite(file) => {
                 if size < 0 {
@@ -203,11 +209,11 @@ impl IVirtFdService for FdService {
                     Status::from(ERROR_IO)
                 })
             }
-        }
+        })
     }
 
     fn getFileSize(&self, id: i32) -> BinderResult<i64> {
-        match &self.get_file_config(id)? {
+        self.handle_fd(id, |config| match config {
             FdConfig::Readonly { file, .. } => {
                 let size = file
                     .metadata()
@@ -227,7 +233,7 @@ impl IVirtFdService for FdService {
                 // for a writable file.
                 Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
             }
-        }
+        })
     }
 }
 
