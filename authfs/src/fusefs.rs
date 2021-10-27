@@ -77,8 +77,15 @@ impl AuthFs {
         AuthFs { file_pool, max_write }
     }
 
-    fn get_file_config(&self, inode: &Inode) -> io::Result<&FileConfig> {
-        self.file_pool.get(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
+    /// Handles the file associated with `inode` if found. This function returns whatever the
+    /// handler returns.
+    fn handle_file<F, R>(&self, inode: &Inode, handler: F) -> io::Result<R>
+    where
+        F: FnOnce(&FileConfig) -> io::Result<R>,
+    {
+        let config =
+            self.file_pool.get(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
+        handler(config)
     }
 }
 
@@ -197,15 +204,15 @@ impl FileSystem for AuthFs {
         // `forget` will decrease it). It is not necessary here since the files are configured to
         // be static.
         let inode = num.parse::<Inode>().map_err(|_| io::Error::from_raw_os_error(libc::ENOENT))?;
-        let st = match self.get_file_config(&inode)? {
+        let st = self.handle_file(&inode, |config| match config {
             FileConfig::UnverifiedReadonly { file_size, .. }
             | FileConfig::VerifiedReadonly { file_size, .. } => {
-                create_stat(inode, *file_size, FileMode::ReadOnly)?
+                create_stat(inode, *file_size, FileMode::ReadOnly)
             }
             FileConfig::VerifiedNew { editor } => {
-                create_stat(inode, editor.size(), FileMode::ReadWrite)?
+                create_stat(inode, editor.size(), FileMode::ReadWrite)
             }
-        };
+        })?;
         Ok(Entry {
             inode,
             generation: 0,
@@ -221,18 +228,20 @@ impl FileSystem for AuthFs {
         inode: Inode,
         _handle: Option<Handle>,
     ) -> io::Result<(libc::stat64, Duration)> {
-        Ok((
-            match self.get_file_config(&inode)? {
-                FileConfig::UnverifiedReadonly { file_size, .. }
-                | FileConfig::VerifiedReadonly { file_size, .. } => {
-                    create_stat(inode, *file_size, FileMode::ReadOnly)?
-                }
-                FileConfig::VerifiedNew { editor } => {
-                    create_stat(inode, editor.size(), FileMode::ReadWrite)?
-                }
-            },
-            DEFAULT_METADATA_TIMEOUT,
-        ))
+        self.handle_file(&inode, |config| {
+            Ok((
+                match config {
+                    FileConfig::UnverifiedReadonly { file_size, .. }
+                    | FileConfig::VerifiedReadonly { file_size, .. } => {
+                        create_stat(inode, *file_size, FileMode::ReadOnly)?
+                    }
+                    FileConfig::VerifiedNew { editor } => {
+                        create_stat(inode, editor.size(), FileMode::ReadWrite)?
+                    }
+                },
+                DEFAULT_METADATA_TIMEOUT,
+            ))
+        })
     }
 
     fn open(
@@ -243,18 +252,20 @@ impl FileSystem for AuthFs {
     ) -> io::Result<(Option<Self::Handle>, fuse::sys::OpenOptions)> {
         // Since file handle is not really used in later operations (which use Inode directly),
         // return None as the handle.
-        match self.get_file_config(&inode)? {
-            FileConfig::VerifiedReadonly { .. } | FileConfig::UnverifiedReadonly { .. } => {
-                check_access_mode(flags, libc::O_RDONLY)?;
+        self.handle_file(&inode, |config| {
+            match config {
+                FileConfig::VerifiedReadonly { .. } | FileConfig::UnverifiedReadonly { .. } => {
+                    check_access_mode(flags, libc::O_RDONLY)?;
+                }
+                FileConfig::VerifiedNew { .. } => {
+                    // No need to check access modes since all the modes are allowed to the
+                    // read-writable file.
+                }
             }
-            FileConfig::VerifiedNew { .. } => {
-                // No need to check access modes since all the modes are allowed to the
-                // read-writable file.
-            }
-        }
-        // Always cache the file content. There is currently no need to support direct I/O or avoid
-        // the cache buffer. Memory mapping is only possible with cache enabled.
-        Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
+            // Always cache the file content. There is currently no need to support direct I/O or avoid
+            // the cache buffer. Memory mapping is only possible with cache enabled.
+            Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
+        })
     }
 
     fn read<W: io::Write + ZeroCopyWriter>(
@@ -268,19 +279,21 @@ impl FileSystem for AuthFs {
         _lock_owner: Option<u64>,
         _flags: u32,
     ) -> io::Result<usize> {
-        match self.get_file_config(&inode)? {
-            FileConfig::VerifiedReadonly { reader, file_size } => {
-                read_chunks(w, reader, *file_size, offset, size)
+        self.handle_file(&inode, |config| {
+            match config {
+                FileConfig::VerifiedReadonly { reader, file_size } => {
+                    read_chunks(w, reader, *file_size, offset, size)
+                }
+                FileConfig::UnverifiedReadonly { reader, file_size } => {
+                    read_chunks(w, reader, *file_size, offset, size)
+                }
+                FileConfig::VerifiedNew { editor } => {
+                    // Note that with FsOptions::WRITEBACK_CACHE, it's possible for the kernel to
+                    // request a read even if the file is open with O_WRONLY.
+                    read_chunks(w, editor, editor.size(), offset, size)
+                }
             }
-            FileConfig::UnverifiedReadonly { reader, file_size } => {
-                read_chunks(w, reader, *file_size, offset, size)
-            }
-            FileConfig::VerifiedNew { editor } => {
-                // Note that with FsOptions::WRITEBACK_CACHE, it's possible for the kernel to
-                // request a read even if the file is open with O_WRONLY.
-                read_chunks(w, editor, editor.size(), offset, size)
-            }
-        }
+        })
     }
 
     fn write<R: io::Read + ZeroCopyReader>(
@@ -295,14 +308,14 @@ impl FileSystem for AuthFs {
         _delayed_write: bool,
         _flags: u32,
     ) -> io::Result<usize> {
-        match self.get_file_config(&inode)? {
+        self.handle_file(&inode, |config| match config {
             FileConfig::VerifiedNew { editor } => {
                 let mut buf = vec![0; size as usize];
                 r.read_exact(&mut buf)?;
                 editor.write_at(&buf, offset)
             }
             _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
-        }
+        })
     }
 
     fn setattr(
@@ -313,44 +326,52 @@ impl FileSystem for AuthFs {
         _handle: Option<Handle>,
         valid: SetattrValid,
     ) -> io::Result<(libc::stat64, Duration)> {
-        match self.get_file_config(&inode)? {
-            FileConfig::VerifiedNew { editor } => {
-                // Initialize the default stat.
-                let mut new_attr = create_stat(inode, editor.size(), FileMode::ReadWrite)?;
-                // `valid` indicates what fields in `attr` are valid. Update to return correctly.
-                if valid.contains(SetattrValid::SIZE) {
-                    // st_size is i64, but the cast should be safe since kernel should not give a
-                    // negative size.
-                    debug_assert!(attr.st_size >= 0);
-                    new_attr.st_size = attr.st_size;
-                    editor.resize(attr.st_size as u64)?;
-                }
+        self.handle_file(&inode, |config| {
+            match config {
+                FileConfig::VerifiedNew { editor } => {
+                    // Initialize the default stat.
+                    let mut new_attr = create_stat(inode, editor.size(), FileMode::ReadWrite)?;
+                    // `valid` indicates what fields in `attr` are valid. Update to return correctly.
+                    if valid.contains(SetattrValid::SIZE) {
+                        // st_size is i64, but the cast should be safe since kernel should not give a
+                        // negative size.
+                        debug_assert!(attr.st_size >= 0);
+                        new_attr.st_size = attr.st_size;
+                        editor.resize(attr.st_size as u64)?;
+                    }
 
-                if valid.contains(SetattrValid::MODE) {
-                    warn!("Changing st_mode is not currently supported");
-                    return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                    if valid.contains(SetattrValid::MODE) {
+                        warn!("Changing st_mode is not currently supported");
+                        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                    }
+                    if valid.contains(SetattrValid::UID) {
+                        warn!("Changing st_uid is not currently supported");
+                        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                    }
+                    if valid.contains(SetattrValid::GID) {
+                        warn!("Changing st_gid is not currently supported");
+                        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+                    }
+                    if valid.contains(SetattrValid::CTIME) {
+                        debug!(
+                            "Ignoring ctime change as authfs does not maintain timestamp currently"
+                        );
+                    }
+                    if valid.intersects(SetattrValid::ATIME | SetattrValid::ATIME_NOW) {
+                        debug!(
+                            "Ignoring atime change as authfs does not maintain timestamp currently"
+                        );
+                    }
+                    if valid.intersects(SetattrValid::MTIME | SetattrValid::MTIME_NOW) {
+                        debug!(
+                            "Ignoring mtime change as authfs does not maintain timestamp currently"
+                        );
+                    }
+                    Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
                 }
-                if valid.contains(SetattrValid::UID) {
-                    warn!("Changing st_uid is not currently supported");
-                    return Err(io::Error::from_raw_os_error(libc::ENOSYS));
-                }
-                if valid.contains(SetattrValid::GID) {
-                    warn!("Changing st_gid is not currently supported");
-                    return Err(io::Error::from_raw_os_error(libc::ENOSYS));
-                }
-                if valid.contains(SetattrValid::CTIME) {
-                    debug!("Ignoring ctime change as authfs does not maintain timestamp currently");
-                }
-                if valid.intersects(SetattrValid::ATIME | SetattrValid::ATIME_NOW) {
-                    debug!("Ignoring atime change as authfs does not maintain timestamp currently");
-                }
-                if valid.intersects(SetattrValid::MTIME | SetattrValid::MTIME_NOW) {
-                    debug!("Ignoring mtime change as authfs does not maintain timestamp currently");
-                }
-                Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
+                _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
             }
-            _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
-        }
+        })
     }
 
     fn getxattr(
@@ -360,29 +381,31 @@ impl FileSystem for AuthFs {
         name: &CStr,
         size: u32,
     ) -> io::Result<GetxattrReply> {
-        match self.get_file_config(&inode)? {
-            FileConfig::VerifiedNew { editor } => {
-                // FUSE ioctl is limited, thus we can't implement fs-verity ioctls without a kernel
-                // change (see b/196635431). Until it's possible, use xattr to expose what we need
-                // as an authfs specific API.
-                if name != CStr::from_bytes_with_nul(b"authfs.fsverity.digest\0").unwrap() {
-                    return Err(io::Error::from_raw_os_error(libc::ENODATA));
-                }
+        self.handle_file(&inode, |config| {
+            match config {
+                FileConfig::VerifiedNew { editor } => {
+                    // FUSE ioctl is limited, thus we can't implement fs-verity ioctls without a kernel
+                    // change (see b/196635431). Until it's possible, use xattr to expose what we need
+                    // as an authfs specific API.
+                    if name != CStr::from_bytes_with_nul(b"authfs.fsverity.digest\0").unwrap() {
+                        return Err(io::Error::from_raw_os_error(libc::ENODATA));
+                    }
 
-                if size == 0 {
-                    // Per protocol, when size is 0, return the value size.
-                    Ok(GetxattrReply::Count(editor.get_fsverity_digest_size() as u32))
-                } else {
-                    let digest = editor.calculate_fsverity_digest()?;
-                    if digest.len() > size as usize {
-                        Err(io::Error::from_raw_os_error(libc::ERANGE))
+                    if size == 0 {
+                        // Per protocol, when size is 0, return the value size.
+                        Ok(GetxattrReply::Count(editor.get_fsverity_digest_size() as u32))
                     } else {
-                        Ok(GetxattrReply::Value(digest.to_vec()))
+                        let digest = editor.calculate_fsverity_digest()?;
+                        if digest.len() > size as usize {
+                            Err(io::Error::from_raw_os_error(libc::ERANGE))
+                        } else {
+                            Ok(GetxattrReply::Value(digest.to_vec()))
+                        }
                     }
                 }
+                _ => Err(io::Error::from_raw_os_error(libc::ENODATA)),
             }
-            _ => Err(io::Error::from_raw_os_error(libc::ENODATA)),
-        }
+        })
     }
 }
 
