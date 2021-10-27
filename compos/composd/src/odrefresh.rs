@@ -17,10 +17,10 @@
 //! Handle the details of executing odrefresh to generate compiled artifacts.
 
 use anyhow::{bail, Context, Result};
+use compos_common::timeouts::{need_extra_time, EXTENDED_TIMEOUTS};
 use compos_common::VMADDR_CID_ANY;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use rustutils::system_properties;
 use shared_child::SharedChild;
 use std::process::Command;
 
@@ -43,18 +43,20 @@ pub struct Odrefresh {
     child: SharedChild,
 }
 
-fn need_extra_time() -> Result<bool> {
-    // Special case to add more time in nested VM
-    let value = system_properties::read("ro.build.product")?;
-    Ok(value == "vsoc_x86_64" || value == "vsoc_x86")
-}
-
 impl Odrefresh {
     pub fn spawn_forced_compile(target_dir: &str) -> Result<Self> {
         // We don`t need to capture stdout/stderr - odrefresh writes to the log
         let mut cmdline = Command::new(ODREFRESH_BIN);
         if need_extra_time()? {
-            cmdline.arg("--max-execution-seconds=480").arg("--max-child-process-seconds=150");
+            cmdline
+                .arg(format!(
+                    "--max-execution-seconds={}",
+                    EXTENDED_TIMEOUTS.odrefresh_max_execution_time.as_secs()
+                ))
+                .arg(format!(
+                    "--max-child-process-seconds={}",
+                    EXTENDED_TIMEOUTS.odrefresh_max_child_process_time.as_secs()
+                ));
         }
         cmdline
             .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY as i32))
