@@ -21,10 +21,13 @@ use android_system_composd::{
         ICompilationTaskCallback::{BnCompilationTaskCallback, ICompilationTaskCallback},
         IIsolatedCompilationService::IIsolatedCompilationService,
     },
-    binder::{wait_for_interface, Interface, ProcessState, Result as BinderResult},
+    binder::{
+        wait_for_interface, BinderFeatures, DeathRecipient, IBinder, Interface, ProcessState,
+        Result as BinderResult,
+    },
 };
 use anyhow::{bail, Context, Result};
-use binder::BinderFeatures;
+use compos_common::timeouts::timeouts;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -111,11 +114,17 @@ fn run_forced_compile_for_test() -> Result<()> {
     // Make sure composd keeps going even if we don't hold a reference to its service.
     drop(service);
 
-    // TODO: Handle composd dying without sending callback?
+    let state_clone = state.clone();
+    let mut death_recipient = DeathRecipient::new(move || {
+        eprintln!("CompilationTask died");
+        state_clone.set_outcome(Outcome::Failed);
+    });
+    // Note that dropping death_recipient cancels this, so we can't use a temporary here.
+    task.as_binder().link_to_death(&mut death_recipient)?;
 
     println!("Waiting");
 
-    match state.wait(Duration::from_secs(480)) {
+    match state.wait(timeouts()?.odrefresh_max_execution_time) {
         Ok(Outcome::Succeeded) => Ok(()),
         Ok(Outcome::Failed) => bail!("Compilation failed"),
         Err(e) => {
