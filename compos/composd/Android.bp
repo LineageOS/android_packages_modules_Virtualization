@@ -20,6 +20,7 @@ rust_binary {
         "libnum_traits",
         "liblog_rust",
         "librustutils",
+        "libshared_child",
     ],
     proc_macros: ["libnum_derive"],
     apex_available: [
