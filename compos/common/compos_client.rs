@@ -85,6 +85,7 @@ impl VmInstance {
             .context("Failed to open config APK idsig file")?;
         let idsig_fd = ParcelFileDescriptor::new(idsig_fd);
 
+        // Console output and the system log output from the VM are redirected to this file.
         // TODO: Send this to stdout instead? Or specify None?
         let log_fd = File::create(data_dir.join("vm.log")).context("Failed to create log file")?;
         let log_fd = ParcelFileDescriptor::new(log_fd);
@@ -100,7 +101,9 @@ impl VmInstance {
             ..Default::default()
         });
 
-        let vm = service.createVm(&config, Some(&log_fd)).context("Failed to create VM")?;
+        let vm = service
+            .createVm(&config, Some(&log_fd), Some(&log_fd))
+            .context("Failed to create VM")?;
         let vm_state = Arc::new(VmStateMonitor::default());
 
         let vm_state_clone = Arc::clone(&vm_state);
