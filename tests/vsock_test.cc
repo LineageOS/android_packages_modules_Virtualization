@@ -85,7 +85,7 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
 
     VirtualMachineConfig config(std::move(raw_config));
     sp<IVirtualMachine> vm;
-    status = virtualization_service->createVm(config, std::nullopt, &vm);
+    status = virtualization_service->createVm(config, std::nullopt, std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error creating VM: " << status;
 
     int32_t cid;
