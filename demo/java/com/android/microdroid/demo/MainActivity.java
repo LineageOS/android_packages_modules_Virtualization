@@ -64,47 +64,14 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        TextView consoleView = (TextView) findViewById(R.id.consoleOutput);
-        TextView payloadView = (TextView) findViewById(R.id.payloadOutput);
         Button runStopButton = (Button) findViewById(R.id.runStopButton);
-        ScrollView scrollView = (ScrollView) findViewById(R.id.scrollConsoleOutput);
+        TextView consoleView = (TextView) findViewById(R.id.consoleOutput);
+        TextView logView = (TextView) findViewById(R.id.logOutput);
+        TextView payloadView = (TextView) findViewById(R.id.payloadOutput);
+        ScrollView scrollConsoleView = (ScrollView) findViewById(R.id.scrollConsoleOutput);
+        ScrollView scrollLogView = (ScrollView) findViewById(R.id.scrollLogOutput);
 
-        // When the console output or payload output is updated, append the new line to the
-        // corresponding text view.
         VirtualMachineModel model = new ViewModelProvider(this).get(VirtualMachineModel.class);
-        model.getConsoleOutput()
-                .observeForever(
-                        new Observer<String>() {
-                            @Override
-                            public void onChanged(String line) {
-                                consoleView.append(line + "\n");
-                                scrollView.fullScroll(View.FOCUS_DOWN);
-                            }
-                        });
-        model.getPayloadOutput()
-                .observeForever(
-                        new Observer<String>() {
-                            @Override
-                            public void onChanged(String line) {
-                                payloadView.append(line + "\n");
-                            }
-                        });
-
-        // When the VM status is updated, change the label of the button
-        model.getStatus()
-                .observeForever(
-                        new Observer<VirtualMachine.Status>() {
-                            @Override
-                            public void onChanged(VirtualMachine.Status status) {
-                                if (status == VirtualMachine.Status.RUNNING) {
-                                    runStopButton.setText("Stop");
-                                    consoleView.setText("");
-                                    payloadView.setText("");
-                                } else {
-                                    runStopButton.setText("Run");
-                                }
-                            }
-                        });
 
         // When the button is clicked, run or stop the VM
         runStopButton.setOnClickListener(
@@ -119,12 +86,86 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 });
+
+        // When the VM status is updated, change the label of the button
+        model.getStatus()
+                .observeForever(
+                        new Observer<VirtualMachine.Status>() {
+                            @Override
+                            public void onChanged(VirtualMachine.Status status) {
+                                if (status == VirtualMachine.Status.RUNNING) {
+                                    runStopButton.setText("Stop");
+                                    // Clear the outputs from the previous run
+                                    consoleView.setText("");
+                                    logView.setText("");
+                                    payloadView.setText("");
+                                } else {
+                                    runStopButton.setText("Run");
+                                }
+                            }
+                        });
+
+        // When the console, log, or payload output is updated, append the new line to the
+        // corresponding text view.
+        model.getConsoleOutput()
+                .observeForever(
+                        new Observer<String>() {
+                            @Override
+                            public void onChanged(String line) {
+                                consoleView.append(line + "\n");
+                                scrollConsoleView.fullScroll(View.FOCUS_DOWN);
+                            }
+                        });
+        model.getLogOutput()
+                .observeForever(
+                        new Observer<String>() {
+                            @Override
+                            public void onChanged(String line) {
+                                logView.append(line + "\n");
+                                scrollLogView.fullScroll(View.FOCUS_DOWN);
+                            }
+                        });
+        model.getPayloadOutput()
+                .observeForever(
+                        new Observer<String>() {
+                            @Override
+                            public void onChanged(String line) {
+                                payloadView.append(line + "\n");
+                            }
+                        });
     }
 
-    /** Models a virtual machine and console output from it. */
+    /** Reads data from an input stream and posts it to the output data */
+    static class Reader implements Runnable {
+        private final String mName;
+        private final MutableLiveData<String> mOutput;
+        private final InputStream mStream;
+
+        Reader(String name, MutableLiveData<String> output, InputStream stream) {
+            mName = name;
+            mOutput = output;
+            mStream = stream;
+        }
+
+        @Override
+        public void run() {
+            try {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(mStream));
+                String line;
+                while ((line = reader.readLine()) != null && !Thread.interrupted()) {
+                    mOutput.postValue(line);
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Exception while posting " + mName + " output: " + e.getMessage());
+            }
+        }
+    }
+
+    /** Models a virtual machine and outputs from it. */
     public static class VirtualMachineModel extends AndroidViewModel {
         private VirtualMachine mVirtualMachine;
         private final MutableLiveData<String> mConsoleOutput = new MutableLiveData<>();
+        private final MutableLiveData<String> mLogOutput = new MutableLiveData<>();
         private final MutableLiveData<String> mPayloadOutput = new MutableLiveData<>();
         private final MutableLiveData<VirtualMachine.Status> mStatus = new MutableLiveData<>();
         private ExecutorService mExecutorService;
@@ -134,20 +175,11 @@ public class MainActivity extends AppCompatActivity {
             mStatus.setValue(VirtualMachine.Status.DELETED);
         }
 
-        private static void postOutput(MutableLiveData<String> output, InputStream stream)
-                throws IOException {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
-            String line;
-            while ((line = reader.readLine()) != null && !Thread.interrupted()) {
-                output.postValue(line);
-            }
-        }
-
         /** Runs a VM */
         public void run(boolean debug) {
             // Create a VM and run it.
             // TODO(jiyong): remove the call to idsigPath
-            mExecutorService = Executors.newFixedThreadPool(3);
+            mExecutorService = Executors.newFixedThreadPool(4);
 
             VirtualMachineCallback callback =
                     new VirtualMachineCallback() {
@@ -162,23 +194,8 @@ public class MainActivity extends AppCompatActivity {
                                 return;
                             }
 
-                            mService.execute(
-                                    new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            try {
-                                                postOutput(
-                                                        mPayloadOutput,
-                                                        new FileInputStream(
-                                                                stream.getFileDescriptor()));
-                                            } catch (IOException e) {
-                                                Log.e(
-                                                        TAG,
-                                                        "IOException while reading payload: "
-                                                                + e.getMessage());
-                                            }
-                                        }
-                                    });
+                            InputStream input = new FileInputStream(stream.getFileDescriptor());
+                            mService.execute(new Reader("payload", mPayloadOutput, input));
                         }
 
                         @Override
@@ -261,29 +278,23 @@ public class MainActivity extends AppCompatActivity {
                 VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
                 mVirtualMachine = vmm.getOrCreate("demo_vm", config);
+                try {
+                    mVirtualMachine.setConfig(config);
+                } catch (VirtualMachineException e) {
+                    mVirtualMachine.delete();
+                    mVirtualMachine = vmm.create("demo_vm", config);
+                }
                 mVirtualMachine.run();
                 mVirtualMachine.setCallback(callback);
                 mStatus.postValue(mVirtualMachine.getStatus());
+
+                InputStream console = mVirtualMachine.getConsoleOutputStream();
+                InputStream log = mVirtualMachine.getLogOutputStream();
+                mExecutorService.execute(new Reader("console", mConsoleOutput, console));
+                mExecutorService.execute(new Reader("log", mLogOutput, log));
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
             }
-
-            // Read console output from the VM in the background
-            mExecutorService.execute(
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                postOutput(
-                                        mConsoleOutput, mVirtualMachine.getConsoleOutputStream());
-                            } catch (IOException | VirtualMachineException e) {
-                                Log.e(
-                                        TAG,
-                                        "Exception while posting console output: "
-                                                + e.getMessage());
-                            }
-                        }
-                    });
         }
 
         /** Stops the running VM */
@@ -301,6 +312,11 @@ public class MainActivity extends AppCompatActivity {
         /** Returns the console output from the VM */
         public LiveData<String> getConsoleOutput() {
             return mConsoleOutput;
+        }
+
+        /** Returns the log output from the VM */
+        public LiveData<String> getLogOutput() {
+            return mLogOutput;
         }
 
         /** Returns the payload output from the VM */
