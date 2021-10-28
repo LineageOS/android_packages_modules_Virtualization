@@ -57,12 +57,16 @@ enum Opt {
         #[structopt(short, long)]
         daemonize: bool,
 
+        /// Path to file for VM console output.
+        #[structopt(long)]
+        console: Option<PathBuf>,
+
         /// Path to file for VM log output.
-        #[structopt(short, long)]
+        #[structopt(long)]
         log: Option<PathBuf>,
 
         /// Debug level of the VM. Supported values: "none" (default), "app_only", and "full".
-        #[structopt(short, long, default_value = "none", parse(try_from_str=parse_debug_level))]
+        #[structopt(long, default_value = "none", parse(try_from_str=parse_debug_level))]
         debug: DebugLevel,
 
         /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
@@ -80,9 +84,9 @@ enum Opt {
         #[structopt(short, long)]
         daemonize: bool,
 
-        /// Path to file for VM log output.
-        #[structopt(short, long)]
-        log: Option<PathBuf>,
+        /// Path to file for VM console output.
+        #[structopt(long)]
+        console: Option<PathBuf>,
     },
     /// Stop a virtual machine running in the background
     Stop {
@@ -134,7 +138,7 @@ fn main() -> Result<(), Error> {
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::RunApp { apk, idsig, instance, config_path, daemonize, log, debug, mem } => {
+        Opt::RunApp { apk, idsig, instance, config_path, daemonize, console, log, debug, mem } => {
             command_run_app(
                 service,
                 &apk,
@@ -142,13 +146,14 @@ fn main() -> Result<(), Error> {
                 &instance,
                 &config_path,
                 daemonize,
+                console.as_deref(),
                 log.as_deref(),
                 debug,
                 mem,
             )
         }
-        Opt::Run { config, daemonize, log } => {
-            command_run(service, &config, daemonize, log.as_deref(), /* mem */ None)
+        Opt::Run { config, daemonize, console } => {
+            command_run(service, &config, daemonize, console.as_deref(), /* mem */ None)
         }
         Opt::Stop { cid } => command_stop(service, cid),
         Opt::List => command_list(service),
