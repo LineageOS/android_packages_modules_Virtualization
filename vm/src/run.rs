@@ -44,6 +44,7 @@ pub fn command_run_app(
     instance: &Path,
     config_path: &str,
     daemonize: bool,
+    console_path: Option<&Path>,
     log_path: Option<&Path>,
     debug_level: DebugLevel,
     mem: Option<u32>,
@@ -76,7 +77,14 @@ pub fn command_run_app(
         debugLevel: debug_level,
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
     });
-    run(service, &config, &format!("{:?}!{:?}", apk, config_path), daemonize, log_path)
+    run(
+        service,
+        &config,
+        &format!("{:?}!{:?}", apk, config_path),
+        daemonize,
+        console_path,
+        log_path,
+    )
 }
 
 /// Run a VM from the given configuration file.
@@ -84,7 +92,7 @@ pub fn command_run(
     service: Strong<dyn IVirtualizationService>,
     config_path: &Path,
     daemonize: bool,
-    log_path: Option<&Path>,
+    console_path: Option<&Path>,
     mem: Option<u32>,
 ) -> Result<(), Error> {
     let config_file = File::open(config_path).context("Failed to open config file")?;
@@ -98,7 +106,8 @@ pub fn command_run(
         &VirtualMachineConfig::RawConfig(config),
         &format!("{:?}", config_path),
         daemonize,
-        log_path,
+        console_path,
+        None,
     )
 }
 
@@ -119,9 +128,20 @@ fn run(
     config: &VirtualMachineConfig,
     config_path: &str,
     daemonize: bool,
+    console_path: Option<&Path>,
     log_path: Option<&Path>,
 ) -> Result<(), Error> {
-    let stdout = if let Some(log_path) = log_path {
+    let console = if let Some(console_path) = console_path {
+        Some(ParcelFileDescriptor::new(
+            File::create(console_path)
+                .with_context(|| format!("Failed to open console file {:?}", console_path))?,
+        ))
+    } else if daemonize {
+        None
+    } else {
+        Some(ParcelFileDescriptor::new(duplicate_stdout()?))
+    };
+    let log = if let Some(log_path) = log_path {
         Some(ParcelFileDescriptor::new(
             File::create(log_path)
                 .with_context(|| format!("Failed to open log file {:?}", log_path))?,
@@ -131,7 +151,9 @@ fn run(
     } else {
         Some(ParcelFileDescriptor::new(duplicate_stdout()?))
     };
-    let vm = service.createVm(config, stdout.as_ref()).context("Failed to create VM")?;
+
+    let vm =
+        service.createVm(config, console.as_ref(), log.as_ref()).context("Failed to create VM")?;
 
     let cid = vm.getCid().context("Failed to get CID")?;
     println!(
