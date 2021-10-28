@@ -69,7 +69,10 @@ fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
 
 fn main() {
     if let Err(e) = try_main() {
-        error!("failed with {:?}", e);
+        error!("Failed with {:?}. Shutting down...", e);
+        if let Err(e) = system_properties::write("sys.powerctl", "shutdown") {
+            error!("failed to shutdown {:?}", e);
+        }
         std::process::exit(1);
     }
 }
