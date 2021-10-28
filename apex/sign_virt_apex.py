@@ -214,17 +214,44 @@ def MakeSuperImage(args, partitions, output):
         RunCommand(args, cmd)
 
 
+def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
+    # read old pubkey before replacement
+    with open(bootloader_pubkey, 'rb') as f:
+        old_pubkey = f.read()
+
+    # replace bootloader pubkey
+    RunCommand(args, ['avbtool', 'extract_public_key', '--key', key, '--output', bootloader_pubkey])
+
+    # read new pubkey
+    with open(bootloader_pubkey, 'rb') as f:
+        new_pubkey = f.read()
+
+    assert len(old_pubkey) == len(new_pubkey)
+
+    # replace pubkey embedded in bootloader
+    with open(bootloader, 'r+b') as bl_f:
+        pos = bl_f.read().find(old_pubkey)
+        assert pos != -1
+        bl_f.seek(pos)
+        bl_f.write(new_pubkey)
+
+
 def SignVirtApex(args):
     key = args.key
     input_dir = args.input_dir
 
     # target files in the Virt APEX
+    bootloader_pubkey = os.path.join(input_dir, 'etc', 'microdroid_bootloader.avbpubkey')
     bootloader = os.path.join(input_dir, 'etc', 'microdroid_bootloader')
     boot_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_boot-5.10.img')
     vendor_boot_img = os.path.join(
         input_dir, 'etc', 'fs', 'microdroid_vendor_boot-5.10.img')
     super_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_super.img')
     vbmeta_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_vbmeta.img')
+
+    # Key(pubkey) for bootloader should match with the one used to make VBmeta below
+    # while it's okay to use different keys for other image files.
+    ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey)
 
     # re-sign bootloader, boot.img, vendor_boot.img
     AddHashFooter(args, key, bootloader)
