@@ -45,6 +45,7 @@ pub struct CrosvmConfig {
     pub params: Option<String>,
     pub protected: bool,
     pub memory_mib: Option<NonZeroU32>,
+    pub console_fd: Option<File>,
     pub log_fd: Option<File>,
     pub indirect_files: Vec<File>,
 }
@@ -251,23 +252,27 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
     // 2. virtio-console device: used as the console device
     // 3. virtio-console device: used as the logcat output
     //
-    // When log_fd is not specified, the devices are attached to sink, which means what's written
-    // there is discarded.
-    let path = config.log_fd.as_ref().map(|fd| add_preserved_fd(&mut preserved_fds, fd));
-    let backend = path.as_ref().map_or("sink", |_| "file");
-    let path_arg = path.as_ref().map_or(String::new(), |path| format!(",path={}", path));
+    // When [console|log]_fd is not specified, the devices are attached to sink, which means what's
+    // written there is discarded.
+    let mut format_serial_arg = |fd: &Option<File>| {
+        let path = fd.as_ref().map(|fd| add_preserved_fd(&mut preserved_fds, fd));
+        let type_arg = path.as_ref().map_or("type=sink", |_| "type=file");
+        let path_arg = path.as_ref().map_or(String::new(), |path| format!(",path={}", path));
+        format!("{}{}", type_arg, path_arg)
+    };
+    let console_arg = format_serial_arg(&config.console_fd);
+    let log_arg = format_serial_arg(&config.log_fd);
 
     // Warning: Adding more serial devices requires you to shift the PCI device ID of the boot
     // disks in bootconfig.x86_64. This is because x86 crosvm puts serial devices and the block
     // devices in the same PCI bus and serial devices comes before the block devices. Arm crosvm
     // doesn't have the issue.
     // /dev/ttyS0
-    command.arg(format!("--serial=type={}{},hardware=serial", backend, &path_arg));
+    command.arg(format!("--serial={},hardware=serial", &console_arg));
     // /dev/hvc0
-    command.arg(format!("--serial=type={}{},hardware=virtio-console,num=1", backend, &path_arg));
+    command.arg(format!("--serial={},hardware=virtio-console,num=1", &console_arg));
     // /dev/hvc1
-    // TODO(b/200914564) use a different fd for logcat log
-    command.arg(format!("--serial=type={}{},hardware=virtio-console,num=2", backend, &path_arg));
+    command.arg(format!("--serial={},hardware=virtio-console,num=2", &log_arg));
 
     if let Some(bootloader) = &config.bootloader {
         command.arg("--bios").arg(add_preserved_fd(&mut preserved_fds, bootloader));

@@ -2,12 +2,12 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test_helper_app {
+android_test {
     name: "MicrodroidTestApp",
+    test_suites: ["device-tests"],
     srcs: ["src/java/**/*.java"],
-    libs: [
-        "android.system.virtualmachine",
-    ],
+    static_libs: ["androidx.test.runner"],
+    libs: ["android.system.virtualmachine"],
     jni_libs: ["MicrodroidTestNativeLib"],
     platform_apis: true,
     use_embedded_native_libs: true,
