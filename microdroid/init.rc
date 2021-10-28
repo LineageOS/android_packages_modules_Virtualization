@@ -74,9 +74,11 @@ on init
     chmod 0664 /dev/cpuset/background/tasks
     chmod 0664 /dev/cpuset/system-background/tasks
 
+on init && property:ro.boot.logd.enabled=1
     # Start logd before any other services run to ensure we capture all of their logs.
     start logd
 
+on init
     start servicemanager
 
     # TODO(b/185767624): remove hidl after full keymint support
@@ -85,7 +87,7 @@ on init
 on init && property:ro.boot.adb.enabled=1
     start adbd
 
-on load_persist_props_action
+on load_persist_props_action && property:ro.boot.logd.enabled=1
     start logd
     start logd-reinit
 
@@ -192,6 +194,11 @@ service console /system/bin/sh
     group shell log readproc
     seclabel u:r:shell:s0
     setenv HOSTNAME console
+
+service seriallogging /system/bin/logcat -b all -v threadtime -f /dev/hvc1 *:V
+    disabled
+    user logd
+    group root logd
 
 on fs
     write /dev/event-log-tags "# content owned by logd

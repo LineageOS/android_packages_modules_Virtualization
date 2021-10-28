@@ -6,3 +6,6 @@ kernel.console = null
 
 # ADB is not enabled.
 androidboot.adb.enabled=0
+
+# logd is not enabled
+androidboot.logd.enabled=0
