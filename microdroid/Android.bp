@@ -379,6 +379,7 @@ prebuilt_etc {
 // MAX_VBMETA_SIZE=64KB, MAX_FOOTER_SIZE=4KB
 avb_hash_footer_kb = "68"
 
+// TODO(b/193504286) remove this when prebuilt bootloader exposes pubkey as well.
 genrule {
     name: "microdroid_bootloader_gen",
     tools: ["avbtool"],
@@ -402,6 +403,22 @@ genrule {
         "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
         "--image $(out)" +
         "; fi",
+}
+
+prebuilt_etc {
+    name: "microdroid_bootloader.avbpubkey",
+    src: ":microdroid_bootloader_pubkey_gen",
+}
+
+genrule {
+    name: "microdroid_bootloader_pubkey_gen",
+    tools: ["avbtool"],
+    srcs: [
+        ":microdroid_crosvm_bootloader",
+        ":avb_testkey_rsa4096",
+    ],
+    out: ["bootloader-pubkey"],
+    cmd: "$(location avbtool) extract_public_key --key $(location :avb_testkey_rsa4096) --output $(out)",
 }
 
 prebuilt_etc {
