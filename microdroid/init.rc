@@ -195,6 +195,11 @@ service console /system/bin/sh
     seclabel u:r:shell:s0
     setenv HOSTNAME console
 
+service seriallogging /system/bin/logcat -b all -v threadtime -f /dev/hvc1 *:V
+    disabled
+    user logd
+    group root logd
+
 on fs
     write /dev/event-log-tags "# content owned by logd
 "
