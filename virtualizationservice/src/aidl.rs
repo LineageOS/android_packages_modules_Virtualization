@@ -256,7 +256,13 @@ impl IVirtualizationService for VirtualizationService {
             )
         })?;
         let image = clone_file(image_fd)?;
-
+        // initialize the file. Any data in the file will be erased.
+        image.set_len(0).map_err(|e| {
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to reset a file: {}", e),
+            )
+        })?;
         let mut part = QcowFile::new(image, size).map_err(|e| {
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
