@@ -181,8 +181,8 @@ impl VmInstance {
     /// `self.vm_state` to avoid holding the lock on `vm_state` while it is running.
     fn monitor(&self, child: Arc<SharedChild>) {
         match child.wait() {
-            Err(e) => error!("Error waiting for crosvm instance to die: {}", e),
-            Ok(status) => info!("crosvm exited with status {}", status),
+            Err(e) => error!("Error waiting for crosvm({}) instance to die: {}", child.id(), e),
+            Ok(status) => info!("crosvm({}) exited with status {}", child.id(), status),
         }
 
         let mut vm_state = self.vm_state.lock().unwrap();
@@ -220,9 +220,11 @@ impl VmInstance {
     pub fn kill(&self) {
         let vm_state = &*self.vm_state.lock().unwrap();
         if let VmState::Running { child } = vm_state {
+            let id = child.id();
+            debug!("Killing crosvm({})", id);
             // TODO: Talk to crosvm to shutdown cleanly.
             if let Err(e) = child.kill() {
-                error!("Error killing crosvm instance: {}", e);
+                error!("Error killing crosvm({}) instance: {}", id, e);
             }
         }
     }
@@ -301,6 +303,7 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
 
     info!("Running {:?}", command);
     let result = SharedChild::spawn(&mut command)?;
+    debug!("Spawned crosvm({}).", result.id());
     Ok(result)
 }
 
