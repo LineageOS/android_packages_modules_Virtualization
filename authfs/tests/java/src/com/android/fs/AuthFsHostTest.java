@@ -57,6 +57,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     /** Mount point of authfs on Microdroid during the test */
     private static final String MOUNT_DIR = "/data/local/tmp";
 
+    /** Path to open_then_run on Android */
+    private static final String OPEN_THEN_RUN_BIN = TEST_DIR + "/open_then_run";
+
     /** Path to fd_server on Android */
     private static final String FD_SERVER_BIN = "/apex/com.android.virt/bin/fd_server";
 
@@ -374,18 +377,13 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         }
     }
 
-    private String getOpenThenRunPath() {
-        // Construct path to match PushFilePreparer's upload path.
-        return TEST_DIR + "/open_then_run/" + mArch + "/open_then_run";
-    }
-
     private void runFdServerOnAndroid(String helperFlags, String fdServerFlags)
             throws DeviceNotAvailableException {
         String cmd =
                 "cd "
                         + TEST_DIR
                         + " && "
-                        + getOpenThenRunPath()
+                        + OPEN_THEN_RUN_BIN
                         + " "
                         + helperFlags
                         + " -- "
