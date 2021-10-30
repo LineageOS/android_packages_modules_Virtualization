@@ -13,6 +13,7 @@ apex {
 
     key: "com.android.virt.key",
     certificate: ":com.android.virt.certificate",
+    custom_sign_tool: "sign_virt_apex",
 
     // crosvm and virtualizationservice are only enabled for 64-bit targets on device
     arch: {
@@ -100,4 +101,10 @@ python_binary_host {
             embedded_launcher: true,
         },
     },
+    required: [
+        "img2simg",
+        "lpmake",
+        "lpunpack",
+        "simg2img",
+    ],
 }
