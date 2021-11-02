@@ -166,18 +166,18 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "--ro-fds 3:4:5 --ro-fds 6");
 
         runAuthFsOnMicrodroid(
-                "--remote-ro-file-unverified 10:6 --remote-ro-file 11:3:cert.der --cid "
+                "--remote-ro-file-unverified 6 --remote-ro-file 3:cert.der --cid "
                         + VMADDR_CID_HOST);
 
         // Action
-        String actualHashUnverified4m = computeFileHashOnMicrodroid(MOUNT_DIR + "/10");
-        String actualHash4m = computeFileHashOnMicrodroid(MOUNT_DIR + "/11");
+        String actualHashUnverified4m = computeFileHashOnMicrodroid(MOUNT_DIR + "/6");
+        String actualHash4m = computeFileHashOnMicrodroid(MOUNT_DIR + "/3");
 
         // Verify
         String expectedHash4m = computeFileHashOnAndroid(TEST_DIR + "/input.4m");
 
-        assertEquals("Inconsistent hash from /authfs/10: ", expectedHash4m, actualHashUnverified4m);
-        assertEquals("Inconsistent hash from /authfs/11: ", expectedHash4m, actualHash4m);
+        assertEquals("Inconsistent hash from /authfs/6: ", expectedHash4m, actualHashUnverified4m);
+        assertEquals("Inconsistent hash from /authfs/3: ", expectedHash4m, actualHash4m);
     }
 
     // Separate the test from the above simply because exec in shell does not allow open too many
@@ -191,19 +191,18 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                     + " --open-ro 8:input.4k1.fsv_sig",
                 "--ro-fds 3:4:5 --ro-fds 6:7:8");
         runAuthFsOnMicrodroid(
-                "--remote-ro-file 10:3:cert.der --remote-ro-file 11:6:cert.der --cid "
-                        + VMADDR_CID_HOST);
+                "--remote-ro-file 3:cert.der --remote-ro-file 6:cert.der --cid " + VMADDR_CID_HOST);
 
         // Action
-        String actualHash4k = computeFileHashOnMicrodroid(MOUNT_DIR + "/10");
-        String actualHash4k1 = computeFileHashOnMicrodroid(MOUNT_DIR + "/11");
+        String actualHash4k = computeFileHashOnMicrodroid(MOUNT_DIR + "/3");
+        String actualHash4k1 = computeFileHashOnMicrodroid(MOUNT_DIR + "/6");
 
         // Verify
         String expectedHash4k = computeFileHashOnAndroid(TEST_DIR + "/input.4k");
         String expectedHash4k1 = computeFileHashOnAndroid(TEST_DIR + "/input.4k1");
 
-        assertEquals("Inconsistent hash from /authfs/10: ", expectedHash4k, actualHash4k);
-        assertEquals("Inconsistent hash from /authfs/11: ", expectedHash4k1, actualHash4k1);
+        assertEquals("Inconsistent hash from /authfs/3: ", expectedHash4k, actualHash4k);
+        assertEquals("Inconsistent hash from /authfs/6: ", expectedHash4k1, actualHash4k1);
     }
 
     @Test
@@ -213,21 +212,21 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "--open-ro 3:input.4m --open-ro 4:input.4m.merkle_dump.bad "
                         + "--open-ro 5:input.4m.fsv_sig",
                 "--ro-fds 3:4:5");
-        runAuthFsOnMicrodroid("--remote-ro-file 10:3:cert.der --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-file 3:cert.der --cid " + VMADDR_CID_HOST);
 
         // Verify
-        assertFalse(copyFileOnMicrodroid(MOUNT_DIR + "/10", "/dev/null"));
+        assertFalse(copyFileOnMicrodroid(MOUNT_DIR + "/3", "/dev/null"));
     }
 
     @Test
     public void testWriteThroughCorrectly() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 20:3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
 
         // Action
         String srcPath = "/system/bin/linker64";
-        String destPath = MOUNT_DIR + "/20";
+        String destPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
         assertTrue(copyFileOnMicrodroid(srcPath, destPath));
 
@@ -240,10 +239,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testWriteFailedIfDetectsTampering() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 20:3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
 
         String srcPath = "/system/bin/linker64";
-        String destPath = MOUNT_DIR + "/20";
+        String destPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
         assertTrue(copyFileOnMicrodroid(srcPath, destPath));
 
@@ -275,8 +274,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testFileResize() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 20:3 --cid " + VMADDR_CID_HOST);
-        String outputPath = MOUNT_DIR + "/20";
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        String outputPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
 
         // Action & Verify
@@ -306,10 +305,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testOutputDirectory_WriteNewFiles() throws Exception {
         // Setup
         String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
-        String authfsOutputDir = MOUNT_DIR + "/20";
+        String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 20:3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
         // Action & Verify
         // Can create a new file to write.
@@ -335,10 +334,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testOutputDirectory_MkdirAndWriteFile() throws Exception {
         // Setup
         String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
-        String authfsOutputDir = MOUNT_DIR + "/20";
+        String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 20:3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
         // Action
         // Can create nested directories and can create a file in one.
@@ -369,10 +368,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testOutputDirectory_CreateAndTruncateExistingFile() throws Exception {
         // Setup
         String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
-        String authfsOutputDir = MOUNT_DIR + "/20";
+        String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 20:3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
         // Action & Verify
         runOnMicrodroid("echo -n foo > " + authfsOutputDir + "/file");
@@ -390,10 +389,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testOutputDirectory_CannotRecreateDirectoryIfNameExists() throws Exception {
         // Setup
         String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
-        String authfsOutputDir = MOUNT_DIR + "/20";
+        String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 20:3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
         runOnMicrodroid("touch " + authfsOutputDir + "/some_file");
         runOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir");
