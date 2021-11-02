@@ -17,8 +17,15 @@
     <target_preparer class="com.android.tradefed.targetprep.TestAppInstallSetup">
         <option name="test-file-name" value="MicrodroidTestApp.apk" />
     </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+      <option
+        name="run-command"
+        value="pm grant com.android.microdroid.test android.permission.MANAGE_VIRTUAL_MACHINE" />
+    </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.microdroid.test" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
+        <option name="shell-timeout" value="300000" />
+        <option name="test-timeout" value="300000" />
     </test>
 </configuration>
