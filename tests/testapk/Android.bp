@@ -6,7 +6,10 @@ android_test {
     name: "MicrodroidTestApp",
     test_suites: ["device-tests"],
     srcs: ["src/java/**/*.java"],
-    static_libs: ["androidx.test.runner"],
+    static_libs: [
+        "androidx.test.runner",
+        "androidx.test.ext.junit",
+    ],
     libs: ["android.system.virtualmachine"],
     jni_libs: ["MicrodroidTestNativeLib"],
     platform_apis: true,
