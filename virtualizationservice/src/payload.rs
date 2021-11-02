@@ -132,7 +132,11 @@ impl PackageManager {
                     let staged_apex_info = pm.getStagedApexInfo(&apex_info.name)?;
                     if let Some(staged_apex_info) = staged_apex_info {
                         apex_info.path = PathBuf::from(staged_apex_info.diskImagePath);
-                        // TODO(b/201788989) copy bootclasspath/systemserverclasspath
+                        apex_info.boot_classpath = staged_apex_info.hasBootClassPathJars;
+                        apex_info.systemserver_classpath =
+                            staged_apex_info.hasSystemServerClassPathJars;
+                        apex_info.dex2oatboot_classpath =
+                            staged_apex_info.hasDex2OatBootClassPathJars;
                     }
                 }
             }
