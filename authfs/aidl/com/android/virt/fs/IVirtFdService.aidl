@@ -16,21 +16,16 @@
 
 package com.android.virt.fs;
 
-/** {@hide} */
+/**
+ * A service that works like a file server, where the files and directories are identified by "FD"
+ * as the unique identifier.
+ *
+ * When a binder error is returned and it is a service specific error, the error code is an errno
+ * value which is an int.
+ *
+ * {@hide}
+ */
 interface IVirtFdService {
-    /** Error when the requesting FD is unknown. */
-    const int ERROR_UNKNOWN_FD = 1;
-
-    /**
-     * Error when I/O fails. This can happen when actual I/O error happens to the backing file,
-     * when the given offset or size are invalid, or any problems that can fail a read/write
-     * request.
-     */
-    const int ERROR_IO = 2;
-
-    /** Error when the file is too large to handle correctly. */
-    const int ERROR_FILE_TOO_LARGE = 3;
-
     /** Maximum content size that the service allows the client to request. */
     const int MAX_REQUESTING_DATA = 16384;
 
