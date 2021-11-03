@@ -236,7 +236,7 @@ public:
         appConfig.idsig = std::move(idsigFd);
         appConfig.instanceImage = std::move(instanceFd);
         appConfig.configPath = kConfigFilePath;
-        appConfig.debugLevel = VirtualMachineAppConfig::DebugLevel::NONE;
+        appConfig.debugLevel = VirtualMachineAppConfig::DebugLevel::FULL;
         appConfig.memoryMib = 0; // Use default
 
         LOG(INFO) << "Starting VM";
