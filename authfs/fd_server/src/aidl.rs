@@ -16,6 +16,7 @@
 
 use anyhow::Result;
 use log::error;
+use nix::errno::Errno;
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::convert::TryInto;
@@ -26,30 +27,22 @@ use std::os::unix::io::AsRawFd;
 
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
-    BnVirtFdService, IVirtFdService, ERROR_FILE_TOO_LARGE, ERROR_IO, ERROR_UNKNOWN_FD,
-    MAX_REQUESTING_DATA,
+    BnVirtFdService, IVirtFdService, MAX_REQUESTING_DATA,
 };
 use authfs_aidl_interface::binder::{
-    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, StatusCode, Strong,
+    BinderFeatures, Interface, Result as BinderResult, Status, StatusCode, Strong,
 };
-use binder_common::new_binder_exception;
+use binder_common::new_binder_service_specific_error;
 
 fn validate_and_cast_offset(offset: i64) -> Result<u64, Status> {
-    offset.try_into().map_err(|_| {
-        new_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT, format!("Invalid offset: {}", offset))
-    })
+    offset.try_into().map_err(|_| new_errno_error(Errno::EINVAL))
 }
 
 fn validate_and_cast_size(size: i32) -> Result<usize, Status> {
     if size > MAX_REQUESTING_DATA {
-        Err(new_binder_exception(
-            ExceptionCode::ILLEGAL_ARGUMENT,
-            format!("Unexpectedly large size: {}", size),
-        ))
+        Err(new_errno_error(Errno::EFBIG))
     } else {
-        size.try_into().map_err(|_| {
-            new_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT, format!("Invalid size: {}", size))
-        })
+        size.try_into().map_err(|_| new_errno_error(Errno::EINVAL))
     }
 }
 
@@ -89,7 +82,7 @@ impl FdService {
     where
         F: FnOnce(&FdConfig) -> BinderResult<R>,
     {
-        let fd_config = self.fd_pool.get(&id).ok_or_else(|| Status::from(ERROR_UNKNOWN_FD))?;
+        let fd_config = self.fd_pool.get(&id).ok_or_else(|| new_errno_error(Errno::EBADF))?;
         handler(fd_config)
     }
 }
@@ -105,7 +98,7 @@ impl IVirtFdService for FdService {
             FdConfig::Readonly { file, .. } | FdConfig::ReadWrite(file) => {
                 read_into_buf(file, size, offset).map_err(|e| {
                     error!("readFile: read error: {}", e);
-                    Status::from(ERROR_IO)
+                    new_errno_error(Errno::EIO)
                 })
             }
         })
@@ -120,14 +113,14 @@ impl IVirtFdService for FdService {
                 if let Some(tree_file) = &alt_merkle_tree {
                     read_into_buf(tree_file, size, offset).map_err(|e| {
                         error!("readFsverityMerkleTree: read error: {}", e);
-                        Status::from(ERROR_IO)
+                        new_errno_error(Errno::EIO)
                     })
                 } else {
                     let mut buf = vec![0; size];
                     let s = fsverity::read_merkle_tree(file.as_raw_fd(), offset, &mut buf)
                         .map_err(|e| {
                             error!("readFsverityMerkleTree: failed to retrieve merkle tree: {}", e);
-                            Status::from(e.raw_os_error().unwrap_or(ERROR_IO))
+                            new_errno_error(Errno::EIO)
                         })?;
                     debug_assert!(s <= buf.len(), "Shouldn't return more bytes than asked");
                     buf.truncate(s);
@@ -138,7 +131,7 @@ impl IVirtFdService for FdService {
                 // For a writable file, Merkle tree is not expected to be served since Auth FS
                 // doesn't trust it anyway. Auth FS may keep the Merkle tree privately for its own
                 // use.
-                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
+                Err(new_errno_error(Errno::ENOSYS))
             }
         })
     }
@@ -152,13 +145,13 @@ impl IVirtFdService for FdService {
                     let offset = 0;
                     read_into_buf(sig_file, size, offset).map_err(|e| {
                         error!("readFsveritySignature: read error: {}", e);
-                        Status::from(ERROR_IO)
+                        new_errno_error(Errno::EIO)
                     })
                 } else {
                     let mut buf = vec![0; MAX_REQUESTING_DATA as usize];
                     let s = fsverity::read_signature(file.as_raw_fd(), &mut buf).map_err(|e| {
                         error!("readFsverityMerkleTree: failed to retrieve merkle tree: {}", e);
-                        Status::from(e.raw_os_error().unwrap_or(ERROR_IO))
+                        new_errno_error(Errno::EIO)
                     })?;
                     debug_assert!(s <= buf.len(), "Shouldn't return more bytes than asked");
                     buf.truncate(s);
@@ -167,7 +160,7 @@ impl IVirtFdService for FdService {
             }
             FdConfig::ReadWrite(_file) => {
                 // There is no signature for a writable file.
-                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
+                Err(new_errno_error(Errno::ENOSYS))
             }
         })
     }
@@ -176,19 +169,14 @@ impl IVirtFdService for FdService {
         self.handle_fd(id, |config| match config {
             FdConfig::Readonly { .. } => Err(StatusCode::INVALID_OPERATION.into()),
             FdConfig::ReadWrite(file) => {
-                let offset: u64 = offset.try_into().map_err(|_| {
-                    new_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT, "Invalid offset")
-                })?;
+                let offset: u64 = offset.try_into().map_err(|_| new_errno_error(Errno::EINVAL))?;
                 // Check buffer size just to make `as i32` safe below.
                 if buf.len() > i32::MAX as usize {
-                    return Err(new_binder_exception(
-                        ExceptionCode::ILLEGAL_ARGUMENT,
-                        "Buffer size is too big",
-                    ));
+                    return Err(new_errno_error(Errno::EOVERFLOW));
                 }
                 Ok(file.write_at(buf, offset).map_err(|e| {
                     error!("writeFile: write error: {}", e);
-                    Status::from(ERROR_IO)
+                    new_errno_error(Errno::EIO)
                 })? as i32)
             }
         })
@@ -199,14 +187,11 @@ impl IVirtFdService for FdService {
             FdConfig::Readonly { .. } => Err(StatusCode::INVALID_OPERATION.into()),
             FdConfig::ReadWrite(file) => {
                 if size < 0 {
-                    return Err(new_binder_exception(
-                        ExceptionCode::ILLEGAL_ARGUMENT,
-                        "Invalid size to resize to",
-                    ));
+                    return Err(new_errno_error(Errno::EINVAL));
                 }
                 file.set_len(size as u64).map_err(|e| {
                     error!("resize: set_len error: {}", e);
-                    Status::from(ERROR_IO)
+                    new_errno_error(Errno::EIO)
                 })
             }
         })
@@ -219,19 +204,19 @@ impl IVirtFdService for FdService {
                     .metadata()
                     .map_err(|e| {
                         error!("getFileSize error: {}", e);
-                        Status::from(ERROR_IO)
+                        new_errno_error(Errno::EIO)
                     })?
                     .len();
                 Ok(size.try_into().map_err(|e| {
                     error!("getFileSize: File too large: {}", e);
-                    Status::from(ERROR_FILE_TOO_LARGE)
+                    new_errno_error(Errno::EFBIG)
                 })?)
             }
             FdConfig::ReadWrite(_file) => {
                 // Content and metadata of a writable file needs to be tracked by authfs, since
                 // fd_server isn't considered trusted. So there is no point to support getFileSize
                 // for a writable file.
-                Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Unsupported"))
+                Err(new_errno_error(Errno::ENOSYS))
             }
         })
     }
@@ -243,4 +228,8 @@ fn read_into_buf(file: &File, max_size: usize, offset: u64) -> io::Result<Vec<u8
     let mut buf = vec![0; buf_size];
     file.read_exact_at(&mut buf, offset)?;
     Ok(buf)
+}
+
+fn new_errno_error(errno: Errno) -> Status {
+    new_binder_service_specific_error(errno as i32, errno.desc())
 }
