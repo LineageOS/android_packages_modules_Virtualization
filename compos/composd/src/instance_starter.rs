@@ -179,6 +179,7 @@ impl InstanceStarter {
     ) -> Result<()> {
         let instance_image = fs::OpenOptions::new()
             .create(true)
+            .truncate(true)
             .read(true)
             .write(true)
             .open(&self.instance_image)
