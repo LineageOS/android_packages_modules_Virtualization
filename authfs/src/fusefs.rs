@@ -16,7 +16,7 @@
 
 use anyhow::Result;
 use log::{debug, error, warn};
-use std::collections::{btree_map, BTreeMap};
+use std::collections::{btree_map, BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ffi::{CStr, OsStr};
 use std::fs::OpenOptions;
@@ -24,8 +24,8 @@ use std::io;
 use std::mem::MaybeUninit;
 use std::option::Option;
 use std::os::unix::{ffi::OsStrExt, io::AsRawFd};
-use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use fuse::filesystem::{
@@ -65,10 +65,15 @@ pub enum AuthFsEntry {
     VerifiedNewDirectory { dir: RemoteDirEditor },
 }
 
+// AuthFS needs to be `Sync` to be accepted by fuse::worker::start_message_loop as a `FileSystem`.
 struct AuthFs {
-    /// A table for looking up an `AuthFsEntry` given an `Inode`. This needs to be `Sync` to be
-    /// used in `fuse::worker::start_message_loop`.
-    inode_table: Arc<Mutex<BTreeMap<Inode, AuthFsEntry>>>,
+    /// Table for `Inode` to `AuthFsEntry` lookup. This needs to be `Sync` to be used in
+    /// `fuse::worker::start_message_loop`.
+    inode_table: Mutex<BTreeMap<Inode, AuthFsEntry>>,
+
+    /// Root directory entry table for path to `Inode` lookup. The root directory content should
+    /// remain constant throughout the filesystem's lifetime.
+    root_entries: HashMap<PathBuf, Inode>,
 
     /// Maximum bytes in the write transaction to the FUSE device. This limits the maximum buffer
     /// size in a read request (including FUSE protocol overhead) that the filesystem writes to.
@@ -76,9 +81,18 @@ struct AuthFs {
 }
 
 impl AuthFs {
-    pub fn new(root_entries: Arc<Mutex<BTreeMap<Inode, AuthFsEntry>>>, max_write: u32) -> AuthFs {
-        // TODO(203251769): Make root_entries a path -> entry map, then assign inodes internally.
-        AuthFs { inode_table: root_entries, max_write }
+    pub fn new(root_entries_by_path: HashMap<PathBuf, AuthFsEntry>, max_write: u32) -> AuthFs {
+        let mut next_inode = ROOT_INODE + 1;
+        let mut inode_table = BTreeMap::new();
+        let mut root_entries = HashMap::new();
+
+        root_entries_by_path.into_iter().for_each(|(path_buf, entry)| {
+            next_inode += 1;
+            root_entries.insert(path_buf, next_inode);
+            inode_table.insert(next_inode, entry);
+        });
+
+        AuthFs { inode_table: Mutex::new(inode_table), root_entries, max_write }
     }
 
     /// Handles the file associated with `inode` if found. This function returns whatever
@@ -254,17 +268,14 @@ impl FileSystem for AuthFs {
     }
 
     fn lookup(&self, _ctx: Context, parent: Inode, name: &CStr) -> io::Result<Entry> {
-        // TODO(victorhsieh): convert root directory (inode == 1) to a readonly directory. Right
-        // now, it's the (global) inode pool, so all inodes can be accessed from root.
         if parent == ROOT_INODE {
-            // Only accept file name that looks like an integrer. Files in the pool are simply
-            // exposed by their inode number. Also, there is currently no directory structure.
-            let num = name.to_str().map_err(|_| io::Error::from_raw_os_error(libc::EINVAL))?;
+            let inode = *self
+                .root_entries
+                .get(cstr_to_path(name))
+                .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
             // Normally, `lookup` is required to increase a reference count for the inode (while
-            // `forget` will decrease it). It is not necessary here since the files are configured
-            // to be static.
-            let inode =
-                num.parse::<Inode>().map_err(|_| io::Error::from_raw_os_error(libc::ENOENT))?;
+            // `forget` will decrease it). It is not yet necessary until we start to support
+            // deletion (only for `VerifiedNewDirectory`).
             let st = self.handle_inode(&inode, |config| match config {
                 AuthFsEntry::UnverifiedReadonly { file_size, .. }
                 | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
@@ -575,7 +586,7 @@ impl FileSystem for AuthFs {
 
 /// Mount and start the FUSE instance. This requires CAP_SYS_ADMIN.
 pub fn loop_forever(
-    root_entries: BTreeMap<Inode, AuthFsEntry>,
+    root_entries: HashMap<PathBuf, AuthFsEntry>,
     mountpoint: &Path,
     extra_options: &Option<String>,
 ) -> Result<(), fuse::Error> {
@@ -606,7 +617,7 @@ pub fn loop_forever(
         dev_fuse,
         max_write,
         max_read,
-        AuthFs::new(Arc::new(Mutex::new(root_entries)), max_write),
+        AuthFs::new(root_entries, max_write),
     )
 }
 

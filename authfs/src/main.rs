@@ -29,7 +29,7 @@
 
 use anyhow::{bail, Context, Result};
 use log::error;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -44,7 +44,7 @@ mod fusefs;
 use auth::FakeAuthenticator;
 use file::{RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
-use fusefs::{AuthFsEntry, Inode};
+use fusefs::AuthFsEntry;
 
 #[derive(StructOpt)]
 struct Args {
@@ -160,14 +160,14 @@ fn new_remote_new_verified_dir_entry(
     Ok(AuthFsEntry::VerifiedNewDirectory { dir })
 }
 
-fn prepare_root_dir_entries(args: &Args) -> Result<BTreeMap<Inode, AuthFsEntry>> {
-    let mut root_entries = BTreeMap::new();
+fn prepare_root_dir_entries(args: &Args) -> Result<HashMap<PathBuf, AuthFsEntry>> {
+    let mut root_entries = HashMap::new();
 
     let service = file::get_rpc_binder_service(args.cid)?;
 
     for config in &args.remote_ro_file {
         root_entries.insert(
-            config.remote_fd.try_into()?,
+            remote_fd_to_path_buf(config.remote_fd),
             new_remote_verified_file_entry(
                 service.clone(),
                 config.remote_fd,
@@ -179,7 +179,7 @@ fn prepare_root_dir_entries(args: &Args) -> Result<BTreeMap<Inode, AuthFsEntry>>
     for remote_fd in &args.remote_ro_file_unverified {
         let remote_fd = *remote_fd;
         root_entries.insert(
-            remote_fd.try_into()?,
+            remote_fd_to_path_buf(remote_fd),
             new_remote_unverified_file_entry(
                 service.clone(),
                 remote_fd,
@@ -191,7 +191,7 @@ fn prepare_root_dir_entries(args: &Args) -> Result<BTreeMap<Inode, AuthFsEntry>>
     for remote_fd in &args.remote_new_rw_file {
         let remote_fd = *remote_fd;
         root_entries.insert(
-            remote_fd.try_into()?,
+            remote_fd_to_path_buf(remote_fd),
             new_remote_new_verified_file_entry(service.clone(), remote_fd)?,
         );
     }
@@ -199,12 +199,16 @@ fn prepare_root_dir_entries(args: &Args) -> Result<BTreeMap<Inode, AuthFsEntry>>
     for remote_fd in &args.remote_new_rw_dir {
         let remote_fd = *remote_fd;
         root_entries.insert(
-            remote_fd.try_into()?,
+            remote_fd_to_path_buf(remote_fd),
             new_remote_new_verified_dir_entry(service.clone(), remote_fd)?,
         );
     }
 
     Ok(root_entries)
+}
+
+fn remote_fd_to_path_buf(fd: i32) -> PathBuf {
+    PathBuf::from(fd.to_string())
 }
 
 fn try_main() -> Result<()> {
