@@ -41,13 +41,14 @@ use crate::file::{
 };
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
 
-const DEFAULT_METADATA_TIMEOUT: std::time::Duration = Duration::from_secs(5);
-
 pub type Inode = u64;
 type Handle = u64;
 
-/// `FileConfig` defines the file type supported by AuthFS.
-pub enum FileConfig {
+const DEFAULT_METADATA_TIMEOUT: Duration = Duration::from_secs(5);
+const ROOT_INODE: Inode = 1;
+
+/// `AuthFsEntry` defines the filesystem entry type supported by AuthFS.
+pub enum AuthFsEntry {
     /// A file type that is verified against fs-verity signature (thus read-only). The file is
     /// served from a remote server.
     VerifiedReadonly {
@@ -65,46 +66,44 @@ pub enum FileConfig {
 }
 
 struct AuthFs {
-    /// Store `FileConfig`s using the `Inode` number as the search index.
-    ///
-    /// For further optimization to minimize the search cost, since Inode is integer, we may
-    /// consider storing them in a Vec if we can guarantee that the numbers are small and
-    /// consecutive.
-    file_pool: Arc<Mutex<BTreeMap<Inode, FileConfig>>>,
+    /// A table for looking up an `AuthFsEntry` given an `Inode`. This needs to be `Sync` to be
+    /// used in `fuse::worker::start_message_loop`.
+    inode_table: Arc<Mutex<BTreeMap<Inode, AuthFsEntry>>>,
 
-    /// Maximum bytes in the write transaction to the FUSE device. This limits the maximum size to
-    /// a read request (including FUSE protocol overhead).
+    /// Maximum bytes in the write transaction to the FUSE device. This limits the maximum buffer
+    /// size in a read request (including FUSE protocol overhead) that the filesystem writes to.
     max_write: u32,
 }
 
 impl AuthFs {
-    pub fn new(file_pool: Arc<Mutex<BTreeMap<Inode, FileConfig>>>, max_write: u32) -> AuthFs {
-        AuthFs { file_pool, max_write }
+    pub fn new(root_entries: Arc<Mutex<BTreeMap<Inode, AuthFsEntry>>>, max_write: u32) -> AuthFs {
+        // TODO(203251769): Make root_entries a path -> entry map, then assign inodes internally.
+        AuthFs { inode_table: root_entries, max_write }
     }
 
     /// Handles the file associated with `inode` if found. This function returns whatever
     /// `handle_fn` returns.
-    fn handle_file<F, R>(&self, inode: &Inode, handle_fn: F) -> io::Result<R>
+    fn handle_inode<F, R>(&self, inode: &Inode, handle_fn: F) -> io::Result<R>
     where
-        F: FnOnce(&FileConfig) -> io::Result<R>,
+        F: FnOnce(&AuthFsEntry) -> io::Result<R>,
     {
-        let file_pool = self.file_pool.lock().unwrap();
+        let inode_table = self.inode_table.lock().unwrap();
         let config =
-            file_pool.get(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
+            inode_table.get(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
         handle_fn(config)
     }
 
-    /// Inserts a new inode and corresponding `FileConfig` created by `create_fn` to the file pool,
-    /// then returns the new inode number.
+    /// Inserts a new inode and corresponding `AuthFsEntry` created by `create_fn` to the inode
+    /// table, then returns the new inode number.
     fn insert_new_inode<F>(&self, inode: &Inode, create_fn: F) -> io::Result<Inode>
     where
-        F: FnOnce(&mut FileConfig) -> io::Result<(Inode, FileConfig)>,
+        F: FnOnce(&mut AuthFsEntry) -> io::Result<(Inode, AuthFsEntry)>,
     {
-        let mut file_pool = self.file_pool.lock().unwrap();
+        let mut inode_table = self.inode_table.lock().unwrap();
         let mut config =
-            file_pool.get_mut(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
+            inode_table.get_mut(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
         let (new_inode, new_file_config) = create_fn(&mut config)?;
-        if let btree_map::Entry::Vacant(entry) = file_pool.entry(new_inode) {
+        if let btree_map::Entry::Vacant(entry) = inode_table.entry(new_inode) {
             entry.insert(new_file_config);
             Ok(new_inode)
         } else {
@@ -257,7 +256,7 @@ impl FileSystem for AuthFs {
     fn lookup(&self, _ctx: Context, parent: Inode, name: &CStr) -> io::Result<Entry> {
         // TODO(victorhsieh): convert root directory (inode == 1) to a readonly directory. Right
         // now, it's the (global) inode pool, so all inodes can be accessed from root.
-        if parent == 1 {
+        if parent == ROOT_INODE {
             // Only accept file name that looks like an integrer. Files in the pool are simply
             // exposed by their inode number. Also, there is currently no directory structure.
             let num = name.to_str().map_err(|_| io::Error::from_raw_os_error(libc::EINVAL))?;
@@ -266,15 +265,15 @@ impl FileSystem for AuthFs {
             // to be static.
             let inode =
                 num.parse::<Inode>().map_err(|_| io::Error::from_raw_os_error(libc::ENOENT))?;
-            let st = self.handle_file(&inode, |config| match config {
-                FileConfig::UnverifiedReadonly { file_size, .. }
-                | FileConfig::VerifiedReadonly { file_size, .. } => {
+            let st = self.handle_inode(&inode, |config| match config {
+                AuthFsEntry::UnverifiedReadonly { file_size, .. }
+                | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
                     create_stat(inode, *file_size, AccessMode::ReadOnly)
                 }
-                FileConfig::VerifiedNew { editor } => {
+                AuthFsEntry::VerifiedNew { editor } => {
                     create_stat(inode, editor.size(), AccessMode::ReadWrite)
                 }
-                FileConfig::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir } => {
                     create_dir_stat(inode, dir.number_of_entries())
                 }
             })?;
@@ -286,18 +285,18 @@ impl FileSystem for AuthFs {
                 attr_timeout: DEFAULT_METADATA_TIMEOUT,
             })
         } else {
-            let inode = self.handle_file(&parent, |config| match config {
-                FileConfig::VerifiedNewDirectory { dir } => {
+            let inode = self.handle_inode(&parent, |config| match config {
+                AuthFsEntry::VerifiedNewDirectory { dir } => {
                     let path: &Path = cstr_to_path(name);
                     dir.find_inode(path).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
                 }
                 _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
             })?;
-            let st = self.handle_file(&inode, |config| match config {
-                FileConfig::VerifiedNew { editor } => {
+            let st = self.handle_inode(&inode, |config| match config {
+                AuthFsEntry::VerifiedNew { editor } => {
                     create_stat(inode, editor.size(), AccessMode::ReadWrite)
                 }
-                FileConfig::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir } => {
                     create_dir_stat(inode, dir.number_of_entries())
                 }
                 _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
@@ -318,17 +317,17 @@ impl FileSystem for AuthFs {
         inode: Inode,
         _handle: Option<Handle>,
     ) -> io::Result<(libc::stat64, Duration)> {
-        self.handle_file(&inode, |config| {
+        self.handle_inode(&inode, |config| {
             Ok((
                 match config {
-                    FileConfig::UnverifiedReadonly { file_size, .. }
-                    | FileConfig::VerifiedReadonly { file_size, .. } => {
+                    AuthFsEntry::UnverifiedReadonly { file_size, .. }
+                    | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
                         create_stat(inode, *file_size, AccessMode::ReadOnly)?
                     }
-                    FileConfig::VerifiedNew { editor } => {
+                    AuthFsEntry::VerifiedNew { editor } => {
                         create_stat(inode, editor.size(), AccessMode::ReadWrite)?
                     }
-                    FileConfig::VerifiedNewDirectory { dir } => {
+                    AuthFsEntry::VerifiedNewDirectory { dir } => {
                         create_dir_stat(inode, dir.number_of_entries())?
                     }
                 },
@@ -345,16 +344,16 @@ impl FileSystem for AuthFs {
     ) -> io::Result<(Option<Self::Handle>, fuse::sys::OpenOptions)> {
         // Since file handle is not really used in later operations (which use Inode directly),
         // return None as the handle.
-        self.handle_file(&inode, |config| {
+        self.handle_inode(&inode, |config| {
             match config {
-                FileConfig::VerifiedReadonly { .. } | FileConfig::UnverifiedReadonly { .. } => {
+                AuthFsEntry::VerifiedReadonly { .. } | AuthFsEntry::UnverifiedReadonly { .. } => {
                     check_access_mode(flags, libc::O_RDONLY)?;
                 }
-                FileConfig::VerifiedNew { .. } => {
+                AuthFsEntry::VerifiedNew { .. } => {
                     // No need to check access modes since all the modes are allowed to the
                     // read-writable file.
                 }
-                FileConfig::VerifiedNewDirectory { .. } => {
+                AuthFsEntry::VerifiedNewDirectory { .. } => {
                     // TODO(victorhsieh): implement when needed.
                     return Err(io::Error::from_raw_os_error(libc::ENOSYS));
                 }
@@ -377,13 +376,13 @@ impl FileSystem for AuthFs {
         // TODO(205169366): Implement mode properly.
         // TODO(205172873): handle O_TRUNC and O_EXCL properly.
         let new_inode = self.insert_new_inode(&parent, |config| match config {
-            FileConfig::VerifiedNewDirectory { dir } => {
+            AuthFsEntry::VerifiedNewDirectory { dir } => {
                 let basename: &Path = cstr_to_path(name);
                 if dir.find_inode(basename).is_some() {
                     return Err(io::Error::from_raw_os_error(libc::EEXIST));
                 }
                 let (new_inode, new_file) = dir.create_file(basename)?;
-                Ok((new_inode, FileConfig::VerifiedNew { editor: new_file }))
+                Ok((new_inode, AuthFsEntry::VerifiedNew { editor: new_file }))
             }
             _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
         })?;
@@ -413,15 +412,15 @@ impl FileSystem for AuthFs {
         _lock_owner: Option<u64>,
         _flags: u32,
     ) -> io::Result<usize> {
-        self.handle_file(&inode, |config| {
+        self.handle_inode(&inode, |config| {
             match config {
-                FileConfig::VerifiedReadonly { reader, file_size } => {
+                AuthFsEntry::VerifiedReadonly { reader, file_size } => {
                     read_chunks(w, reader, *file_size, offset, size)
                 }
-                FileConfig::UnverifiedReadonly { reader, file_size } => {
+                AuthFsEntry::UnverifiedReadonly { reader, file_size } => {
                     read_chunks(w, reader, *file_size, offset, size)
                 }
-                FileConfig::VerifiedNew { editor } => {
+                AuthFsEntry::VerifiedNew { editor } => {
                     // Note that with FsOptions::WRITEBACK_CACHE, it's possible for the kernel to
                     // request a read even if the file is open with O_WRONLY.
                     read_chunks(w, editor, editor.size(), offset, size)
@@ -443,8 +442,8 @@ impl FileSystem for AuthFs {
         _delayed_write: bool,
         _flags: u32,
     ) -> io::Result<usize> {
-        self.handle_file(&inode, |config| match config {
-            FileConfig::VerifiedNew { editor } => {
+        self.handle_inode(&inode, |config| match config {
+            AuthFsEntry::VerifiedNew { editor } => {
                 let mut buf = vec![0; size as usize];
                 r.read_exact(&mut buf)?;
                 editor.write_at(&buf, offset)
@@ -461,9 +460,9 @@ impl FileSystem for AuthFs {
         _handle: Option<Handle>,
         valid: SetattrValid,
     ) -> io::Result<(libc::stat64, Duration)> {
-        self.handle_file(&inode, |config| {
+        self.handle_inode(&inode, |config| {
             match config {
-                FileConfig::VerifiedNew { editor } => {
+                AuthFsEntry::VerifiedNew { editor } => {
                     // Initialize the default stat.
                     let mut new_attr = create_stat(inode, editor.size(), AccessMode::ReadWrite)?;
                     // `valid` indicates what fields in `attr` are valid. Update to return correctly.
@@ -516,9 +515,9 @@ impl FileSystem for AuthFs {
         name: &CStr,
         size: u32,
     ) -> io::Result<GetxattrReply> {
-        self.handle_file(&inode, |config| {
+        self.handle_inode(&inode, |config| {
             match config {
-                FileConfig::VerifiedNew { editor } => {
+                AuthFsEntry::VerifiedNew { editor } => {
                     // FUSE ioctl is limited, thus we can't implement fs-verity ioctls without a kernel
                     // change (see b/196635431). Until it's possible, use xattr to expose what we need
                     // as an authfs specific API.
@@ -553,13 +552,13 @@ impl FileSystem for AuthFs {
     ) -> io::Result<Entry> {
         // TODO(205169366): Implement mode properly.
         let new_inode = self.insert_new_inode(&parent, |config| match config {
-            FileConfig::VerifiedNewDirectory { dir } => {
+            AuthFsEntry::VerifiedNewDirectory { dir } => {
                 let basename: &Path = cstr_to_path(name);
                 if dir.find_inode(basename).is_some() {
                     return Err(io::Error::from_raw_os_error(libc::EEXIST));
                 }
                 let (new_inode, new_dir) = dir.mkdir(basename)?;
-                Ok((new_inode, FileConfig::VerifiedNewDirectory { dir: new_dir }))
+                Ok((new_inode, AuthFsEntry::VerifiedNewDirectory { dir: new_dir }))
             }
             _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
         })?;
@@ -576,7 +575,7 @@ impl FileSystem for AuthFs {
 
 /// Mount and start the FUSE instance. This requires CAP_SYS_ADMIN.
 pub fn loop_forever(
-    file_pool: BTreeMap<Inode, FileConfig>,
+    root_entries: BTreeMap<Inode, AuthFsEntry>,
     mountpoint: &Path,
     extra_options: &Option<String>,
 ) -> Result<(), fuse::Error> {
@@ -607,7 +606,7 @@ pub fn loop_forever(
         dev_fuse,
         max_write,
         max_read,
-        AuthFs::new(Arc::new(Mutex::new(file_pool)), max_write),
+        AuthFs::new(Arc::new(Mutex::new(root_entries)), max_write),
     )
 }
 

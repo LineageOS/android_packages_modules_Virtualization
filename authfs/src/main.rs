@@ -44,7 +44,7 @@ mod fusefs;
 use auth::FakeAuthenticator;
 use file::{RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
-use fusefs::{FileConfig, Inode};
+use fusefs::{AuthFsEntry, Inode};
 
 #[derive(StructOpt)]
 struct Args {
@@ -115,15 +115,15 @@ fn parse_remote_ro_file_option(option: &str) -> Result<OptionRemoteRoFile> {
     })
 }
 
-fn new_config_remote_verified_file(
+fn new_remote_verified_file_entry(
     service: file::VirtFdService,
     remote_fd: i32,
     file_size: u64,
-) -> Result<FileConfig> {
+) -> Result<AuthFsEntry> {
     let signature = service.readFsveritySignature(remote_fd).context("Failed to read signature")?;
 
     let authenticator = FakeAuthenticator::always_succeed();
-    Ok(FileConfig::VerifiedReadonly {
+    Ok(AuthFsEntry::VerifiedReadonly {
         reader: VerifiedFileReader::new(
             &authenticator,
             RemoteFileReader::new(service.clone(), remote_fd),
@@ -135,40 +135,40 @@ fn new_config_remote_verified_file(
     })
 }
 
-fn new_config_remote_unverified_file(
+fn new_remote_unverified_file_entry(
     service: file::VirtFdService,
     remote_fd: i32,
     file_size: u64,
-) -> Result<FileConfig> {
+) -> Result<AuthFsEntry> {
     let reader = RemoteFileReader::new(service, remote_fd);
-    Ok(FileConfig::UnverifiedReadonly { reader, file_size })
+    Ok(AuthFsEntry::UnverifiedReadonly { reader, file_size })
 }
 
-fn new_config_remote_new_verified_file(
+fn new_remote_new_verified_file_entry(
     service: file::VirtFdService,
     remote_fd: i32,
-) -> Result<FileConfig> {
+) -> Result<AuthFsEntry> {
     let remote_file = RemoteFileEditor::new(service, remote_fd);
-    Ok(FileConfig::VerifiedNew { editor: VerifiedFileEditor::new(remote_file) })
+    Ok(AuthFsEntry::VerifiedNew { editor: VerifiedFileEditor::new(remote_file) })
 }
 
-fn new_config_remote_new_verified_dir(
+fn new_remote_new_verified_dir_entry(
     service: file::VirtFdService,
     remote_fd: i32,
-) -> Result<FileConfig> {
+) -> Result<AuthFsEntry> {
     let dir = RemoteDirEditor::new(service, remote_fd);
-    Ok(FileConfig::VerifiedNewDirectory { dir })
+    Ok(AuthFsEntry::VerifiedNewDirectory { dir })
 }
 
-fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
-    let mut file_pool = BTreeMap::new();
+fn prepare_root_dir_entries(args: &Args) -> Result<BTreeMap<Inode, AuthFsEntry>> {
+    let mut root_entries = BTreeMap::new();
 
     let service = file::get_rpc_binder_service(args.cid)?;
 
     for config in &args.remote_ro_file {
-        file_pool.insert(
+        root_entries.insert(
             config.remote_fd.try_into()?,
-            new_config_remote_verified_file(
+            new_remote_verified_file_entry(
                 service.clone(),
                 config.remote_fd,
                 service.getFileSize(config.remote_fd)?.try_into()?,
@@ -178,9 +178,9 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
 
     for remote_fd in &args.remote_ro_file_unverified {
         let remote_fd = *remote_fd;
-        file_pool.insert(
+        root_entries.insert(
             remote_fd.try_into()?,
-            new_config_remote_unverified_file(
+            new_remote_unverified_file_entry(
                 service.clone(),
                 remote_fd,
                 service.getFileSize(remote_fd)?.try_into()?,
@@ -190,21 +190,21 @@ fn prepare_file_pool(args: &Args) -> Result<BTreeMap<Inode, FileConfig>> {
 
     for remote_fd in &args.remote_new_rw_file {
         let remote_fd = *remote_fd;
-        file_pool.insert(
+        root_entries.insert(
             remote_fd.try_into()?,
-            new_config_remote_new_verified_file(service.clone(), remote_fd)?,
+            new_remote_new_verified_file_entry(service.clone(), remote_fd)?,
         );
     }
 
     for remote_fd in &args.remote_new_rw_dir {
         let remote_fd = *remote_fd;
-        file_pool.insert(
+        root_entries.insert(
             remote_fd.try_into()?,
-            new_config_remote_new_verified_dir(service.clone(), remote_fd)?,
+            new_remote_new_verified_dir_entry(service.clone(), remote_fd)?,
         );
     }
 
-    Ok(file_pool)
+    Ok(root_entries)
 }
 
 fn try_main() -> Result<()> {
@@ -215,8 +215,8 @@ fn try_main() -> Result<()> {
         android_logger::Config::default().with_tag("authfs").with_min_level(log_level),
     );
 
-    let file_pool = prepare_file_pool(&args)?;
-    fusefs::loop_forever(file_pool, &args.mount_point, &args.extra_options)?;
+    let root_entries = prepare_root_dir_entries(&args)?;
+    fusefs::loop_forever(root_entries, &args.mount_point, &args.extra_options)?;
     bail!("Unexpected exit after the handler loop")
 }
 
