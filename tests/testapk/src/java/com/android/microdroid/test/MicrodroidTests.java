@@ -97,6 +97,8 @@ public class MicrodroidTests {
         void forceStop(VirtualMachine vm) {
             try {
                 vm.stop();
+                this.onDied(vm);
+                Looper.myLooper().quitSafely();
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
             }
@@ -158,13 +160,13 @@ public class MicrodroidTests {
                     private boolean mPayloadStartedCalled = false;
 
                     @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        mPayloadReadyCalled = true;
+                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        mPayloadStartedCalled = true;
                     }
 
                     @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        mPayloadStartedCalled = true;
+                    public void onPayloadReady(VirtualMachine vm) {
+                        mPayloadReadyCalled = true;
                         forceStop(vm);
                     }
 
