@@ -8,9 +8,7 @@
     },
     {
       "name": "VirtualizationTestCases"
-    }
-  ],
-  "postsubmit": [
+    },
     {
       "name": "MicrodroidTestApp"
     }
