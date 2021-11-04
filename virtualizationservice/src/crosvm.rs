@@ -251,8 +251,9 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
 
     // Setup the serial devices.
     // 1. uart device: used as the output device by bootloaders and as early console by linux
-    // 2. virtio-console device: used as the console device
-    // 3. virtio-console device: used as the logcat output
+    // 2. virtio-console device: used as the console device where kmsg is redirected to
+    // 3. virtio-console device: used as the androidboot.console device (not used currently)
+    // 4. virtio-console device: used as the logcat output
     //
     // When [console|log]_fd is not specified, the devices are attached to sink, which means what's
     // written there is discarded.
@@ -273,8 +274,10 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
     command.arg(format!("--serial={},hardware=serial", &console_arg));
     // /dev/hvc0
     command.arg(format!("--serial={},hardware=virtio-console,num=1", &console_arg));
-    // /dev/hvc1
-    command.arg(format!("--serial={},hardware=virtio-console,num=2", &log_arg));
+    // /dev/hvc1 (not used currently)
+    command.arg("--serial=type=sink,hardware=virtio-console,num=2");
+    // /dev/hvc2
+    command.arg(format!("--serial={},hardware=virtio-console,num=3", &log_arg));
 
     if let Some(bootloader) = &config.bootloader {
         command.arg("--bios").arg(add_preserved_fd(&mut preserved_fds, bootloader));
