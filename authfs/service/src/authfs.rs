@@ -132,11 +132,11 @@ fn run_authfs(
         // TODO(b/185178698): Many input files need to be signed and verified.
         // or can we use debug cert for now, which is better than nothing?
         args.push(OsString::from("--remote-ro-file-unverified"));
-        args.push(OsString::from(format!("{}:{}", conf.fd, conf.fd)));
+        args.push(OsString::from(conf.fd.to_string()));
     }
     for conf in out_fds {
         args.push(OsString::from("--remote-new-rw-file"));
-        args.push(OsString::from(format!("{}:{}", conf.fd, conf.fd)));
+        args.push(OsString::from(conf.fd.to_string()));
     }
     if debuggable {
         args.push(OsString::from("--debug"));
