@@ -285,7 +285,7 @@ public class MainActivity extends AppCompatActivity {
                     mVirtualMachine = vmm.create("demo_vm", config);
                 }
                 mVirtualMachine.run();
-                mVirtualMachine.setCallback(callback);
+                mVirtualMachine.setCallback(Executors.newSingleThreadExecutor(), callback);
                 mStatus.postValue(mVirtualMachine.getStatus());
 
                 InputStream console = mVirtualMachine.getConsoleOutputStream();
