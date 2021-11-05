@@ -17,8 +17,8 @@
 package com.android.virt.fs;
 
 /**
- * A service that works like a file server, where the files and directories are identified by "FD"
- * as the unique identifier.
+ * A service that works like a file server, where the files and directories are identified by
+ * "remote FD" that may be pre-exchanged or created on request.
  *
  * When a binder error is returned and it is a service specific error, the error code is an errno
  * value which is an int.
@@ -30,28 +30,45 @@ interface IVirtFdService {
     const int MAX_REQUESTING_DATA = 16384;
 
     /**
-     * Returns the content of the given file ID, from the offset, for the amount of requested size
+     * Returns the content of the given remote FD, from the offset, for the amount of requested size
      * or until EOF.
      */
-    byte[] readFile(int id, long offset, int size);
+    byte[] readFile(int fd, long offset, int size);
 
     /**
-     * Returns the content of fs-verity compatible Merkle tree of the given file ID, from the
+     * Returns the content of fs-verity compatible Merkle tree of the given remote FD, from the
      * offset, for the amount of requested size or until EOF.
      */
-    byte[] readFsverityMerkleTree(int id, long offset, int size);
+    byte[] readFsverityMerkleTree(int fd, long offset, int size);
 
-    /** Returns the fs-verity signature of the given file ID. */
-    byte[] readFsveritySignature(int id);
+    /** Returns the fs-verity signature of the given remote FD. */
+    byte[] readFsveritySignature(int fd);
 
     /**
-     * Writes the buffer to the given file ID from the file's offset. Returns the number of bytes
+     * Writes the buffer to the given remote FD from the file's offset. Returns the number of bytes
      * written.
      */
-    int writeFile(int id, in byte[] buf, long offset);
+    int writeFile(int fd, in byte[] buf, long offset);
 
-    /** Resizes the file backed by the given file ID to the new size. */
-    void resize(int id, long size);
+    /** Resizes the file backed by the given remote FD to the new size. */
+    void resize(int fd, long size);
 
-    long getFileSize(int id);
+    /** Returns the file size. */
+    long getFileSize(int fd);
+
+    /**
+     * Create a file given the remote directory FD.
+     *
+     * @param basename The file name to create. Must not contain directory separator.
+     * @return file A remote FD that represents the new created file.
+     */
+    int createFileInDirectory(int fd, String basename);
+
+    /**
+     * Create a directory inside the given remote directory FD.
+     *
+     * @param basename The directory name to create. Must not contain directory separator.
+     * @return file FD that represents the new created directory.
+     */
+    int createDirectoryInDirectory(int id, String basename);
 }

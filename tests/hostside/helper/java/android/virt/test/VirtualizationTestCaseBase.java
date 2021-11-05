@@ -152,6 +152,12 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
                 .runTimedCmd(timeout, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
     }
 
+    // Asserts the command will fail on Microdroid.
+    public static void assertFailedOnMicrodroid(String... cmd) {
+        CommandResult result = runOnMicrodroidForResult(cmd);
+        assertThat(result.getStatus(), is(CommandStatus.FAILED));
+    }
+
     private static String join(String... strs) {
         return String.join(" ", Arrays.asList(strs));
     }
