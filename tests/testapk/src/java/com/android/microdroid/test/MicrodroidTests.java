@@ -19,8 +19,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNoException;
 
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
@@ -37,6 +35,10 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @RunWith(JUnit4.class)
 public class MicrodroidTests {
@@ -81,58 +83,23 @@ public class MicrodroidTests {
     }
 
     private abstract static class VmEventListener implements VirtualMachineCallback {
-        private final Handler mHandler;
+        private ExecutorService mExecutorService = Executors.newSingleThreadExecutor();
 
-        VmEventListener() {
-            Looper.prepare();
-            mHandler = new Handler(Looper.myLooper());
-        }
-
-        void runToFinish(VirtualMachine vm) throws VirtualMachineException {
-            vm.setCallback(mCallback);
+        void runToFinish(VirtualMachine vm) throws VirtualMachineException, InterruptedException {
+            vm.setCallback(mExecutorService, this);
             vm.run();
-            Looper.loop();
+            mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
         }
 
         void forceStop(VirtualMachine vm) {
             try {
                 vm.stop();
                 this.onDied(vm);
-                Looper.myLooper().quitSafely();
+                mExecutorService.shutdown();
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
             }
         }
-
-        // This is the actual listener that is registered. Since the listener is executed in another
-        // thread, post a runnable to the current thread to call the corresponding mHandler method
-        // in the current thread.
-        private final VirtualMachineCallback mCallback =
-                new VirtualMachineCallback() {
-                    @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        mHandler.post(() -> VmEventListener.this.onPayloadStarted(vm, stream));
-                    }
-
-                    @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        mHandler.post(() -> VmEventListener.this.onPayloadReady(vm));
-                    }
-
-                    @Override
-                    public void onPayloadFinished(VirtualMachine vm, int exitCode) {
-                        mHandler.post(() -> VmEventListener.this.onPayloadFinished(vm, exitCode));
-                    }
-
-                    @Override
-                    public void onDied(VirtualMachine vm) {
-                        mHandler.post(
-                                () -> {
-                                    VmEventListener.this.onDied(vm);
-                                    Looper.myLooper().quitSafely();
-                                });
-                    }
-                };
 
         @Override
         public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {}

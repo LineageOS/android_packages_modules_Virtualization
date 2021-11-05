@@ -19,6 +19,7 @@ package android.system.virtualmachine;
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 import static android.os.ParcelFileDescriptor.MODE_READ_WRITE;
 
+import android.annotation.CallbackExecutor;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
@@ -42,6 +43,7 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -109,6 +111,9 @@ public class VirtualMachine {
 
     /** The registered callback */
     private @Nullable VirtualMachineCallback mCallback;
+
+    /** The executor on which the callback will be executed */
+    private @NonNull Executor mCallbackExecutor;
 
     private @Nullable ParcelFileDescriptor mConsoleReader;
     private @Nullable ParcelFileDescriptor mConsoleWriter;
@@ -263,7 +268,10 @@ public class VirtualMachine {
      * Registers the callback object to get events from the virtual machine. If a callback was
      * already registered, it is replaced with the new one.
      */
-    public void setCallback(@Nullable VirtualMachineCallback callback) {
+    public void setCallback(
+            @NonNull @CallbackExecutor Executor executor,
+            @Nullable VirtualMachineCallback callback) {
+        mCallbackExecutor = executor;
         mCallback = callback;
     }
 
@@ -328,7 +336,8 @@ public class VirtualMachine {
                             if (cb == null) {
                                 return;
                             }
-                            cb.onPayloadStarted(VirtualMachine.this, stream);
+                            mCallbackExecutor.execute(
+                                    () -> cb.onPayloadStarted(VirtualMachine.this, stream));
                         }
 
                         @Override
@@ -337,7 +346,7 @@ public class VirtualMachine {
                             if (cb == null) {
                                 return;
                             }
-                            cb.onPayloadReady(VirtualMachine.this);
+                            mCallbackExecutor.execute(() -> cb.onPayloadReady(VirtualMachine.this));
                         }
 
                         @Override
@@ -346,7 +355,8 @@ public class VirtualMachine {
                             if (cb == null) {
                                 return;
                             }
-                            cb.onPayloadFinished(VirtualMachine.this, exitCode);
+                            mCallbackExecutor.execute(
+                                    () -> cb.onPayloadFinished(VirtualMachine.this, exitCode));
                         }
 
                         @Override
@@ -355,7 +365,7 @@ public class VirtualMachine {
                             if (cb == null) {
                                 return;
                             }
-                            cb.onDied(VirtualMachine.this);
+                            mCallbackExecutor.execute(() -> cb.onDied(VirtualMachine.this));
                         }
                     });
             service.asBinder()
