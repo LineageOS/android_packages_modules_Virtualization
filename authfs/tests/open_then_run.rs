@@ -122,8 +122,13 @@ fn parse_args() -> Result<Args> {
         // them for the provided program, and are not supposed to do anything else.
         OpenOptions::new()
             .custom_flags(libc::O_PATH | libc::O_DIRECTORY)
+            // The custom flags above is not taken into consideration by the unix implementation of
+            // OpenOptions for flag validation. So even though the man page of open(2) says that
+            // most flags include access mode are ignored, we still need to set a "valid" mode to
+            // make the library happy. The value does not appear to matter elsewhere in the library.
+            .read(true)
             .open(path)
-            .with_context(|| format!("Open {} directory", path))
+            .with_context(|| format!("Open {} directory as path", path))
     })?;
 
     let cmdline_args: Vec<_> = matches.values_of("args").unwrap().map(|s| s.to_string()).collect();

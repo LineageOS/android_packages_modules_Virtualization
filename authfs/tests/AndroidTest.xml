@@ -23,7 +23,7 @@
 
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
-        <!-- Prepare test directory. -->
+        <!-- Prepare test directories. -->
         <option name="run-command" value="mkdir -p /data/local/tmp/authfs/mnt" />
         <option name="teardown-command" value="rm -rf /data/local/tmp/authfs" />
     </target_preparer>
@@ -33,7 +33,7 @@
         <option name="abort-on-push-failure" value="true" />
 
         <!-- Test executable -->
-        <option name="push-file" key="open_then_run" value="/data/local/tmp/authfs/open_then_run" />
+        <option name="push-file" key="open_then_run" value="/data/local/tmp/open_then_run" />
 
         <!-- Test data files -->
         <option name="push-file" key="cert.der" value="/data/local/tmp/authfs/cert.der" />
