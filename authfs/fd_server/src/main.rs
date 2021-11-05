@@ -28,6 +28,7 @@ mod fsverity;
 use anyhow::{bail, Result};
 use binder_common::rpc_server::run_rpc_server;
 use log::debug;
+use nix::dir::Dir;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::os::unix::io::FromRawFd;
@@ -77,6 +78,12 @@ fn parse_arg_rw_fds(arg: &str) -> Result<(i32, FdConfig)> {
     Ok((fd, FdConfig::ReadWrite(file)))
 }
 
+fn parse_arg_rw_dirs(arg: &str) -> Result<(i32, FdConfig)> {
+    let fd = arg.parse::<i32>()?;
+
+    Ok((fd, FdConfig::OutputDir(Dir::from_fd(fd)?)))
+}
+
 struct Args {
     fd_pool: BTreeMap<i32, FdConfig>,
     ready_fd: Option<File>,
@@ -91,6 +98,10 @@ fn parse_args() -> Result<Args> {
              .number_of_values(1))
         .arg(clap::Arg::with_name("rw-fds")
              .long("rw-fds")
+             .multiple(true)
+             .number_of_values(1))
+        .arg(clap::Arg::with_name("rw-dirs")
+             .long("rw-dirs")
              .multiple(true)
              .number_of_values(1))
         .arg(clap::Arg::with_name("ready-fd")
@@ -108,6 +119,12 @@ fn parse_args() -> Result<Args> {
     if let Some(args) = matches.values_of("rw-fds") {
         for arg in args {
             let (fd, config) = parse_arg_rw_fds(arg)?;
+            fd_pool.insert(fd, config);
+        }
+    }
+    if let Some(args) = matches.values_of("rw-dirs") {
+        for arg in args {
+            let (fd, config) = parse_arg_rw_dirs(arg)?;
             fd_pool.insert(fd, config);
         }
     }
