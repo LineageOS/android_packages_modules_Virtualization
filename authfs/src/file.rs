@@ -1,5 +1,7 @@
+mod remote_dir;
 mod remote_file;
 
+pub use remote_dir::RemoteDirEditor;
 pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 
 use binder::unstable_api::{new_spibinder, AIBinder};
@@ -8,9 +10,10 @@ use std::io;
 
 use crate::common::CHUNK_SIZE;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::IVirtFdService;
-use authfs_aidl_interface::binder::Strong;
+use authfs_aidl_interface::binder::{Status, Strong};
 
 pub type VirtFdService = Strong<dyn IVirtFdService>;
+pub type VirtFdServiceStatus = Status;
 
 pub type ChunkBuffer = [u8; CHUNK_SIZE as usize];
 
