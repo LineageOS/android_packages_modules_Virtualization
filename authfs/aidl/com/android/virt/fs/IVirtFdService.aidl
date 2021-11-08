@@ -57,12 +57,20 @@ interface IVirtFdService {
     long getFileSize(int fd);
 
     /**
+     * Open a file given the remote directory FD.
+     *
+     * @param pathname The file path to open. Must be a related path.
+     * @return file A remote FD that represents the opened file.
+     */
+    int openFileInDirectory(int dirFd, String pathname);
+
+    /**
      * Create a file given the remote directory FD.
      *
      * @param basename The file name to create. Must not contain directory separator.
      * @return file A remote FD that represents the new created file.
      */
-    int createFileInDirectory(int fd, String basename);
+    int createFileInDirectory(int dirFd, String basename);
 
     /**
      * Create a directory inside the given remote directory FD.
@@ -70,5 +78,5 @@ interface IVirtFdService {
      * @param basename The directory name to create. Must not contain directory separator.
      * @return file FD that represents the new created directory.
      */
-    int createDirectoryInDirectory(int id, String basename);
+    int createDirectoryInDirectory(int dirFd, String basename);
 }
