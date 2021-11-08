@@ -44,7 +44,7 @@ microdroid_symlinks = [
 android_system_image {
     name: "microdroid",
     use_avb: true,
-    avb_private_key: ":avb_testkey_rsa4096",
+    avb_private_key: ":microdroid_sign_key",
     avb_algorithm: "SHA256_RSA4096",
     partition_name: "system",
     deps: [
@@ -193,7 +193,7 @@ android_filesystem {
             ],
         },
     },
-    avb_private_key: ":avb_testkey_rsa4096",
+    avb_private_key: ":microdroid_sign_key",
     avb_algorithm: "SHA256_RSA4096",
     file_contexts: ":microdroid_vendor_file_contexts.gen",
 }
@@ -248,7 +248,7 @@ bootimg {
     header_version: "4",
     partition_name: "boot",
     use_avb: true,
-    avb_private_key: ":avb_testkey_rsa4096",
+    avb_private_key: ":microdroid_sign_key",
 }
 
 android_filesystem {
@@ -285,7 +285,7 @@ bootimg {
     },
     partition_name: "vendor_boot",
     use_avb: true,
-    avb_private_key: ":avb_testkey_rsa4096",
+    avb_private_key: ":microdroid_sign_key",
 }
 
 android_filesystem {
@@ -338,11 +338,11 @@ genrule {
 vbmeta {
     name: "microdroid_vbmeta_bootconfig",
     partition_name: "vbmeta",
-    private_key: ":avb_testkey_rsa4096",
+    private_key: ":microdroid_sign_key",
     chained_partitions: [
         {
             name: "bootconfig",
-            private_key: ":avb_testkey_rsa4096",
+            private_key: ":microdroid_sign_key",
         },
     ],
 }
@@ -376,14 +376,14 @@ genrule {
     tools: ["avbtool"],
     srcs: [
         "bootconfig.normal",
-        ":avb_testkey_rsa4096",
+        ":microdroid_sign_key",
     ],
     out: ["microdroid_bootconfig.normal"],
     cmd: "cp $(location bootconfig.normal) $(out) && " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
         "--partition_name bootconfig " +
-        "--key $(location :avb_testkey_rsa4096) " +
+        "--key $(location :microdroid_sign_key) " +
         "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
         "--image $(out)",
 }
@@ -393,14 +393,14 @@ genrule {
     tools: ["avbtool"],
     srcs: [
         "bootconfig.app_debuggable",
-        ":avb_testkey_rsa4096",
+        ":microdroid_sign_key",
     ],
     out: ["microdroid_bootconfig.app_debuggable"],
     cmd: "cp $(location bootconfig.app_debuggable) $(out) && " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
         "--partition_name bootconfig " +
-        "--key $(location :avb_testkey_rsa4096) " +
+        "--key $(location :microdroid_sign_key) " +
         "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
         "--image $(out)",
 }
@@ -410,14 +410,14 @@ genrule {
     tools: ["avbtool"],
     srcs: [
         "bootconfig.full_debuggable",
-        ":avb_testkey_rsa4096",
+        ":microdroid_sign_key",
     ],
     out: ["microdroid_bootconfig.full_debuggable"],
     cmd: "cp $(location bootconfig.full_debuggable) $(out) && " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
         "--partition_name bootconfig " +
-        "--key $(location :avb_testkey_rsa4096) " +
+        "--key $(location :microdroid_sign_key) " +
         "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
         "--image $(out)",
 }
@@ -437,19 +437,18 @@ prebuilt_etc {
             // For unknown reason, the signed bootloader doesn't work on x86_64. Until the problem
             // is fixed, let's use the unsigned bootloader for the architecture.
             // TODO(b/185115783): remove this
-            src: ":microdroid_crosvm_bootloader",
+            src: ":microdroid_bootloader_pubkey_replaced",
         },
     },
     filename: "microdroid_bootloader",
 }
 
-// TODO(b/193504286) remove this when prebuilt bootloader exposes pubkey as well.
 genrule {
     name: "microdroid_bootloader_gen",
     tools: ["avbtool"],
     srcs: [
-        ":microdroid_crosvm_bootloader",
-        ":avb_testkey_rsa4096",
+        ":microdroid_bootloader_pubkey_replaced",
+        ":microdroid_sign_key",
     ],
     out: ["bootloader-signed"],
     // 1. Copy the input to the output becaise avbtool modifies --image in
@@ -458,31 +457,57 @@ genrule {
     // bootloader file whose size is 1. It can't pass avbtool.
     // 3. Add the hash footer. The partition size is set to (image size + 68KB)
     // rounded up to 4KB boundary.
-    cmd: "cp $(location :microdroid_crosvm_bootloader) $(out) && " +
+    cmd: "cp $(location :microdroid_bootloader_pubkey_replaced) $(out) && " +
         "if [ $$(stat --format=%s $(out)) -gt 4096 ]; then " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
         "--partition_name bootloader " +
-        "--key $(location :avb_testkey_rsa4096) " +
+        "--key $(location :microdroid_sign_key) " +
         "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
         "--image $(out)" +
         "; fi",
 }
 
-prebuilt_etc {
-    name: "microdroid_bootloader.avbpubkey",
-    src: ":microdroid_bootloader_pubkey_gen",
+// Replace avbpubkey of prebuilt bootloader with the avbpubkey of the signing key
+genrule {
+    name: "microdroid_bootloader_pubkey_replaced",
+    tools: ["replace_bytes"],
+    srcs: [
+        ":microdroid_crosvm_bootloader", // input
+        ":microdroid_bootloader_avbpubkey_gen", // new bytes
+    ],
+    out: ["bootloader-pubkey-replaced"],
+    // 1. Copy the input to the output (replace_bytes modifies the file in-place)
+    // 2. Check if the file is big enough. For arm and x86 we have fake
+    // bootloader file whose size is 1. (replace_bytes fails if key not found)
+    // 3. Replace embedded pubkey with new one.
+    cmd: "cp $(location :microdroid_crosvm_bootloader) $(out) && " +
+        "if [ $$(stat --format=%s $(out)) -gt 4096 ]; then " +
+        "$(location replace_bytes) $(out) " +
+        // TODO(b/193504286) use the avbpubkey exposed from the prebuilt.
+        // For now, replacing it with the same key to ensure that "replace_bytes" works and
+        // that microdroid_crosvm_bootloader embeds the same pubkey of microdroid_sign_key.
+        "$(location :microdroid_bootloader_avbpubkey_gen) " +
+        "$(location :microdroid_bootloader_avbpubkey_gen)" +
+        "; fi",
 }
 
+// Apex keeps a copy of avbpubkey embedded in bootloader so that embedded avbpubkey can be replaced
+// while re-signing bootloader.
+prebuilt_etc {
+    name: "microdroid_bootloader.avbpubkey",
+    src: ":microdroid_bootloader_avbpubkey_gen",
+}
+
+// Generate avbpukey from the signing key
 genrule {
-    name: "microdroid_bootloader_pubkey_gen",
+    name: "microdroid_bootloader_avbpubkey_gen",
     tools: ["avbtool"],
-    srcs: [
-        ":microdroid_crosvm_bootloader",
-        ":avb_testkey_rsa4096",
-    ],
-    out: ["bootloader-pubkey"],
-    cmd: "$(location avbtool) extract_public_key --key $(location :avb_testkey_rsa4096) --output $(out)",
+    srcs: [":microdroid_sign_key"],
+    out: ["bootloader.pubkey"],
+    cmd: "$(location avbtool) extract_public_key " +
+        "--key $(location :microdroid_sign_key) " +
+        "--output $(out)",
 }
 
 prebuilt_etc {
@@ -512,10 +537,18 @@ genrule {
     cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
 }
 
+// Note that keys can be different for filesystem images even though we're using the same key
+// for microdroid. However, the key signing VBmeta should match with the pubkey embedded in
+// bootloader.
+filegroup {
+    name: "microdroid_sign_key",
+    srcs: [":avb_testkey_rsa4096"],
+}
+
 vbmeta {
     name: "microdroid_vbmeta",
     partition_name: "vbmeta",
-    private_key: ":avb_testkey_rsa4096",
+    private_key: ":microdroid_sign_key",
     partitions: [
         "microdroid_vendor",
         "microdroid_vendor_boot-5.10",
