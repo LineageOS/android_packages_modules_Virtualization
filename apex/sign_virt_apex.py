@@ -76,7 +76,12 @@ def ReadBytesSize(value):
     return int(value.removesuffix(' bytes'))
 
 
-def AvbInfo(args, image_path, descriptor_name=None):
+def ExtractAvbPubkey(args, key, output):
+    RunCommand(args, ['avbtool', 'extract_public_key',
+               '--key', key, '--output', output])
+
+
+def AvbInfo(args, image_path):
     """Parses avbtool --info image output
 
     Args:
@@ -87,7 +92,7 @@ def AvbInfo(args, image_path, descriptor_name=None):
     Returns:
       A pair of
         - a dict that contains VBMeta info. None if there's no VBMeta info.
-        - a dict that contains target descriptor info. None if name is not specified or not found.
+        - a list of descriptors.
     """
     if not os.path.exists(image_path):
         raise ValueError('Failed to find image: {}'.format(image_path))
@@ -97,7 +102,7 @@ def AvbInfo(args, image_path, descriptor_name=None):
     if ret_code == 1:
         return None, None
 
-    info, descriptor = {}, None
+    info, descriptors = {}, []
 
     # Read `avbtool info_image` output as "key:value" lines
     matcher = re.compile(r'^(\s*)([^:]+):\s*(.*)$')
@@ -110,30 +115,39 @@ def AvbInfo(args, image_path, descriptor_name=None):
             yield line_info.group(1), line_info.group(2), line_info.group(3)
 
     gen = IterateLine(output)
+
+    def ReadDescriptors(cur_indent, cur_name, cur_value):
+        descriptor = cur_value if cur_name == 'Prop' else {}
+        descriptors.append((cur_name, descriptor))
+        for indent, key, value in gen:
+            if indent <= cur_indent:
+                # read descriptors recursively to pass the read key as descriptor name
+                ReadDescriptors(indent, key, value)
+                break
+            descriptor[key] = value
+
     # Read VBMeta info
     for _, key, value in gen:
         if key == 'Descriptors':
+            ReadDescriptors(*next(gen))
             break
         info[key] = value
 
-    if descriptor_name:
-        for indent, key, _ in gen:
-            # Read a target descriptor
-            if key == descriptor_name:
-                cur_indent = indent
-                descriptor = {}
-                for indent, key, value in gen:
-                    if indent == cur_indent:
-                        break
-                    descriptor[key] = value
-                break
+    return info, descriptors
 
-    return info, descriptor
+
+# Look up a list of (key, value) with a key. Returns the value of the first matching pair.
+def LookUp(pairs, key):
+    for k, v in pairs:
+        if key == k:
+            return v
+    return None
 
 
 def AddHashFooter(args, key, image_path):
-    info, descriptor = AvbInfo(args, image_path, 'Hash descriptor')
+    info, descriptors = AvbInfo(args, image_path)
     if info:
+        descriptor = LookUp(descriptors, 'Hash descriptor')
         image_size = ReadBytesSize(info['Image size'])
         algorithm = info['Algorithm']
         partition_name = descriptor['Partition Name']
@@ -149,8 +163,9 @@ def AddHashFooter(args, key, image_path):
 
 
 def AddHashTreeFooter(args, key, image_path):
-    info, descriptor = AvbInfo(args, image_path, 'Hashtree descriptor')
+    info, descriptors = AvbInfo(args, image_path)
     if info:
+        descriptor = LookUp(descriptors, 'Hashtree descriptor')
         image_size = ReadBytesSize(info['Image size'])
         algorithm = info['Algorithm']
         partition_name = descriptor['Partition Name']
@@ -166,9 +181,12 @@ def AddHashTreeFooter(args, key, image_path):
         RunCommand(args, cmd)
 
 
-def MakeVbmetaImage(args, key, vbmeta_img, images):
-    info, _ = AvbInfo(args, vbmeta_img)
-    if info:
+def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None):
+    info, descriptors = AvbInfo(args, vbmeta_img)
+    if info is None:
+        return
+
+    with TempDirectory() as work_dir:
         algorithm = info['Algorithm']
         rollback_index = info['Rollback Index']
         rollback_index_location = info['Rollback Index Location']
@@ -179,8 +197,21 @@ def MakeVbmetaImage(args, key, vbmeta_img, images):
                '--rollback_index', rollback_index,
                '--rollback_index_location', rollback_index_location,
                '--output', vbmeta_img]
-        for img in images:
-            cmd.extend(['--include_descriptors_from_image', img])
+        if images:
+            for img in images:
+                cmd.extend(['--include_descriptors_from_image', img])
+
+        # replace pubkeys of chained_partitions as well
+        for name, descriptor in descriptors:
+            if name == 'Chain Partition descriptor':
+                part_name = descriptor['Partition Name']
+                ril = descriptor['Rollback Index Location']
+                part_key = chained_partitions[part_name]
+                avbpubkey = os.path.join(work_dir, part_name + '.avbpubkey')
+                ExtractAvbPubkey(args, part_key, avbpubkey)
+                cmd.extend(['--chain_partition', '%s:%s:%s' %
+                           (part_name, ril, avbpubkey)])
+
         RunCommand(args, cmd)
         # libavb expects to be able to read the maximum vbmeta size, so we must provide a partition
         # which matches this or the read will fail.
@@ -219,8 +250,8 @@ def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
     with open(bootloader_pubkey, 'rb') as f:
         old_pubkey = f.read()
 
-    # replace bootloader pubkey
-    RunCommand(args, ['avbtool', 'extract_public_key', '--key', key, '--output', bootloader_pubkey])
+    # replace bootloader pubkey (overwrite the old one with the new one)
+    ExtractAvbPubkey(args, key, bootloader_pubkey)
 
     # read new pubkey
     with open(bootloader_pubkey, 'rb') as f:
@@ -241,13 +272,22 @@ def SignVirtApex(args):
     input_dir = args.input_dir
 
     # target files in the Virt APEX
-    bootloader_pubkey = os.path.join(input_dir, 'etc', 'microdroid_bootloader.avbpubkey')
+    bootloader_pubkey = os.path.join(
+        input_dir, 'etc', 'microdroid_bootloader.avbpubkey')
     bootloader = os.path.join(input_dir, 'etc', 'microdroid_bootloader')
     boot_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_boot-5.10.img')
     vendor_boot_img = os.path.join(
         input_dir, 'etc', 'fs', 'microdroid_vendor_boot-5.10.img')
     super_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_super.img')
     vbmeta_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_vbmeta.img')
+    vbmeta_bootconfig_img = os.path.join(
+        input_dir, 'etc', 'fs', 'microdroid_vbmeta_bootconfig.img')
+    bootconfig_normal = os.path.join(
+        input_dir, 'etc', 'microdroid_bootconfig.normal')
+    bootconfig_app_debuggable = os.path.join(
+        input_dir, 'etc', 'microdroid_bootconfig.app_debuggable')
+    bootconfig_full_debuggable = os.path.join(
+        input_dir, 'etc', 'microdroid_bootconfig.full_debuggable')
 
     # Key(pubkey) for bootloader should match with the one used to make VBmeta below
     # while it's okay to use different keys for other image files.
@@ -280,8 +320,20 @@ def SignVirtApex(args):
         # Ideally, making VBmeta should be done out of TempDirectory block. But doing it here
         # to avoid unpacking re-signed super.img for system/vendor images which are available
         # in this block.
-        MakeVbmetaImage(args, key, vbmeta_img, [
+        MakeVbmetaImage(args, key, vbmeta_img, images=[
                         boot_img, vendor_boot_img, system_a_img, vendor_a_img])
+
+    # Re-sign bootconfigs with the same key
+    bootconfig_sign_key = key
+    AddHashFooter(args, bootconfig_sign_key, bootconfig_normal)
+    AddHashFooter(args, bootconfig_sign_key, bootconfig_app_debuggable)
+    AddHashFooter(args, bootconfig_sign_key, bootconfig_full_debuggable)
+
+    # Re-sign vbmeta_bootconfig with a chained_partition to "bootconfig"
+    # Note that, for now, `key` and `bootconfig_sign_key` are the same, but technically they
+    # can be different. Vbmeta records pubkeys which signed chained partitions.
+    MakeVbmetaImage(args, key, vbmeta_bootconfig_img, chained_partitions={
+                    'bootconfig': bootconfig_sign_key})
 
 
 def main(argv):
