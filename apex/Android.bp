@@ -110,6 +110,41 @@ python_binary_host {
     ],
 }
 
+sh_test_host {
+    name: "sign_virt_apex_test",
+    src: "sign_virt_apex_test.sh",
+    test_config: "sign_virt_apex_test.xml",
+    data_bins: [
+        // deapexer
+        "deapexer",
+        "debugfs_static",
+
+        // sign_virt_apex
+        "avbtool",
+        "img2simg",
+        "lpmake",
+        "lpunpack",
+        "sign_virt_apex",
+        "simg2img",
+    ],
+    data_libs: [
+        "libbase",
+        "libc++",
+        "libcrypto_utils",
+        "libcrypto",
+        "libext4_utils",
+        "liblog",
+        "liblp",
+        "libsparse",
+        "libz",
+    ],
+    data: [
+        ":com.android.virt",
+        "test.com.android.virt.pem",
+    ],
+    test_suites: ["general-tests"],
+}
+
 // custom tool to replace bytes in a file
 python_binary_host {
     name: "replace_bytes",
