@@ -109,3 +109,20 @@ python_binary_host {
         "simg2img",
     ],
 }
+
+// custom tool to replace bytes in a file
+python_binary_host {
+    name: "replace_bytes",
+    srcs: [
+        "replace_bytes.py",
+    ],
+    version: {
+        py2: {
+            enabled: false,
+        },
+        py3: {
+            enabled: true,
+            embedded_launcher: true,
+        },
+    },
+}
