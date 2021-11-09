@@ -351,7 +351,6 @@ vbmeta {
 // MAX_VBMETA_SIZE=64KB, MAX_FOOTER_SIZE=4KB
 avb_hash_footer_kb = "68"
 
-// TODO(b/203031847) sign these bootconfig images using avb
 prebuilt_etc {
     name: "microdroid_bootconfig_normal",
     src: ":microdroid_bootconfig_normal_gen",
@@ -473,8 +472,9 @@ genrule {
     name: "microdroid_bootloader_pubkey_replaced",
     tools: ["replace_bytes"],
     srcs: [
-        ":microdroid_crosvm_bootloader", // input
-        ":microdroid_bootloader_avbpubkey_gen", // new bytes
+        ":microdroid_crosvm_bootloader", // input (bootloader)
+        ":microdroid_crosvm_bootloader.avbpubkey", // old bytes (old pubkey)
+        ":microdroid_bootloader_avbpubkey_gen", // new bytes (new pubkey)
     ],
     out: ["bootloader-pubkey-replaced"],
     // 1. Copy the input to the output (replace_bytes modifies the file in-place)
@@ -484,10 +484,7 @@ genrule {
     cmd: "cp $(location :microdroid_crosvm_bootloader) $(out) && " +
         "if [ $$(stat --format=%s $(out)) -gt 4096 ]; then " +
         "$(location replace_bytes) $(out) " +
-        // TODO(b/193504286) use the avbpubkey exposed from the prebuilt.
-        // For now, replacing it with the same key to ensure that "replace_bytes" works and
-        // that microdroid_crosvm_bootloader embeds the same pubkey of microdroid_sign_key.
-        "$(location :microdroid_bootloader_avbpubkey_gen) " +
+        "$(location :microdroid_crosvm_bootloader.avbpubkey) " +
         "$(location :microdroid_bootloader_avbpubkey_gen)" +
         "; fi",
 }
