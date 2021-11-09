@@ -27,6 +27,7 @@ apex {
                 "microdroid_boot-5.10",
                 "microdroid_vendor_boot-5.10",
                 "microdroid_vbmeta",
+                "microdroid_vbmeta_bootconfig",
             ],
         },
         x86_64: {
