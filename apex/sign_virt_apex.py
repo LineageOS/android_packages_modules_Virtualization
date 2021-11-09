@@ -22,6 +22,8 @@ sign_virt_apex uses external tools which are assumed to be available via PATH.
 - lpmake, lpunpack, simg2img, img2simg
 """
 import argparse
+import glob
+import hashlib
 import os
 import re
 import shutil
@@ -32,6 +34,8 @@ import tempfile
 
 def ParseArgs(argv):
     parser = argparse.ArgumentParser(description='Sign the Virt APEX')
+    parser.add_argument('--verify', action='store_true',
+                        help='Verify the Virt APEX')
     parser.add_argument(
         '-v', '--verbose',
         action='store_true',
@@ -336,10 +340,65 @@ def SignVirtApex(args):
                     'bootconfig': bootconfig_sign_key})
 
 
+def VerifyVirtApex(args):
+    # Generator to emit avbtool-signed items along with its pubkey digest.
+    # This supports lpmake-packed images as well.
+    def Recur(target_dir):
+        for file in glob.glob(os.path.join(target_dir, 'etc', '**', '*'), recursive=True):
+            cur_item = os.path.relpath(file, target_dir)
+
+            if not os.path.isfile(file):
+                continue
+
+            # avbpubkey
+            if cur_item == 'etc/microdroid_bootloader.avbpubkey':
+                with open(file, 'rb') as f:
+                    yield (cur_item, hashlib.sha1(f.read()).hexdigest())
+                continue
+
+            # avbtool signed
+            info, _ = AvbInfo(args, file)
+            if info:
+                yield (cur_item, info['Public key (sha1)'])
+                continue
+
+            # logical partition
+            with TempDirectory() as tmp_dir:
+                unsparsed = os.path.join(tmp_dir, os.path.basename(file))
+                _, rc = RunCommand(
+                    # exit with 255 if it's not sparsed
+                    args, ['simg2img', file, unsparsed], expected_return_values={0, 255})
+                if rc == 0:
+                    with TempDirectory() as unpack_dir:
+                        # exit with 64 if it's not a logical partition.
+                        _, rc = RunCommand(
+                            args, ['lpunpack', unsparsed, unpack_dir], expected_return_values={0, 64})
+                        if rc == 0:
+                            nested_items = list(Recur(unpack_dir))
+                            if len(nested_items) > 0:
+                                for (item, key) in nested_items:
+                                    yield ('%s!/%s' % (cur_item, item), key)
+                                continue
+    # Read pubkey digest
+    with TempDirectory() as tmp_dir:
+        pubkey_file = os.path.join(tmp_dir, 'avbpubkey')
+        ExtractAvbPubkey(args, args.key, pubkey_file)
+        with open(pubkey_file, 'rb') as f:
+            pubkey_digest = hashlib.sha1(f.read()).hexdigest()
+
+    # Check every avbtool-signed item against the input key
+    for (item, pubkey) in Recur(args.input_dir):
+        assert pubkey == pubkey_digest, '%s: key mismatch: %s != %s' % (
+            item, pubkey, pubkey_digest)
+
+
 def main(argv):
     try:
         args = ParseArgs(argv)
-        SignVirtApex(args)
+        if args.verify:
+            VerifyVirtApex(args)
+        else:
+            SignVirtApex(args)
     except Exception as e:
         print(e)
         sys.exit(1)
