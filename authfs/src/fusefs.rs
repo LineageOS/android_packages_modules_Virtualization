@@ -15,7 +15,7 @@
  */
 
 use anyhow::Result;
-use log::{debug, error, warn};
+use log::{debug, warn};
 use std::collections::{btree_map, BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ffi::{CStr, OsStr};
@@ -25,6 +25,7 @@ use std::mem::MaybeUninit;
 use std::option::Option;
 use std::os::unix::{ffi::OsStrExt, io::AsRawFd};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -82,6 +83,9 @@ struct AuthFs {
     /// Root directory entry table for path to `Inode` lookup. The root directory content should
     /// remain constant throughout the filesystem's lifetime.
     root_entries: HashMap<PathBuf, Inode>,
+
+    /// The next available inode number.
+    next_inode: AtomicU64,
 }
 
 impl AuthFs {
@@ -91,12 +95,16 @@ impl AuthFs {
         let mut root_entries = HashMap::new();
 
         root_entries_by_path.into_iter().for_each(|(path_buf, entry)| {
-            next_inode += 1;
             root_entries.insert(path_buf, next_inode);
             inode_table.insert(next_inode, entry);
+            next_inode += 1;
         });
 
-        AuthFs { inode_table: Mutex::new(inode_table), root_entries }
+        AuthFs {
+            inode_table: Mutex::new(inode_table),
+            root_entries,
+            next_inode: AtomicU64::new(next_inode),
+        }
     }
 
     /// Handles the file associated with `inode` if found. This function returns whatever
@@ -106,31 +114,41 @@ impl AuthFs {
         F: FnOnce(&AuthFsEntry) -> io::Result<R>,
     {
         let inode_table = self.inode_table.lock().unwrap();
-        let config =
+        let entry =
             inode_table.get(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
-        handle_fn(config)
+        handle_fn(entry)
     }
 
-    /// Inserts a new inode and corresponding `AuthFsEntry` created by `create_fn` to the inode
-    /// table, then returns the new inode number.
-    fn insert_new_inode<F>(&self, inode: &Inode, create_fn: F) -> io::Result<Inode>
+    /// Adds a new entry `name` created by `create_fn` at `parent_inode`.
+    ///
+    /// The operation involves two updates: adding the name with a new allocated inode to the
+    /// parent directory, and insert the new inode and the actual `AuthFsEntry` to the global inode
+    /// table.
+    ///
+    /// `create_fn` receives the parent directory, through which it can create the new entry at and
+    /// register the new inode to. Its returned entry is then added to the inode table.
+    fn create_new_entry<F>(
+        &self,
+        parent_inode: Inode,
+        name: &CStr,
+        create_fn: F,
+    ) -> io::Result<Inode>
     where
-        F: FnOnce(&mut AuthFsEntry) -> io::Result<(Inode, AuthFsEntry)>,
+        F: FnOnce(&mut AuthFsEntry, &Path, Inode) -> io::Result<AuthFsEntry>,
     {
         let mut inode_table = self.inode_table.lock().unwrap();
-        let mut config =
-            inode_table.get_mut(inode).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
-        let (new_inode, new_file_config) = create_fn(&mut config)?;
+        let mut parent_entry = inode_table
+            .get_mut(&parent_inode)
+            .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
+
+        let new_inode = self.next_inode.fetch_add(1, Ordering::Relaxed);
+        let basename: &Path = cstr_to_path(name);
+        let new_file_entry = create_fn(&mut parent_entry, basename, new_inode)?;
         if let btree_map::Entry::Vacant(entry) = inode_table.entry(new_inode) {
-            entry.insert(new_file_config);
+            entry.insert(new_file_entry);
             Ok(new_inode)
         } else {
-            // We can't assume fd_server is trusted, so the returned FD may collide with existing
-            // one, even when we are creating a new file. Do not override an existing FD. In terms
-            // of security, it is better to "leak" the file created earlier, than returning an
-            // existing inode as a new file.
-            error!("Inode {} already exists, do not override", new_inode);
-            Err(io::Error::from_raw_os_error(libc::EIO))
+            unreachable!("Unexpected duplication of inode {}", new_inode);
         }
     }
 }
@@ -390,17 +408,19 @@ impl FileSystem for AuthFs {
     ) -> io::Result<(Entry, Option<Self::Handle>, fuse::sys::OpenOptions)> {
         // TODO(205169366): Implement mode properly.
         // TODO(205172873): handle O_TRUNC and O_EXCL properly.
-        let new_inode = self.insert_new_inode(&parent, |config| match config {
-            AuthFsEntry::VerifiedNewDirectory { dir } => {
-                let basename: &Path = cstr_to_path(name);
-                if dir.find_inode(basename).is_some() {
-                    return Err(io::Error::from_raw_os_error(libc::EEXIST));
+        let new_inode =
+            self.create_new_entry(parent, name, |parent_entry, basename, new_inode| {
+                match parent_entry {
+                    AuthFsEntry::VerifiedNewDirectory { dir } => {
+                        if dir.find_inode(basename).is_some() {
+                            return Err(io::Error::from_raw_os_error(libc::EEXIST));
+                        }
+                        let new_file = dir.create_file(basename, new_inode)?;
+                        Ok(AuthFsEntry::VerifiedNew { editor: new_file })
+                    }
+                    _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
                 }
-                let (new_inode, new_file) = dir.create_file(basename)?;
-                Ok((new_inode, AuthFsEntry::VerifiedNew { editor: new_file }))
-            }
-            _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
-        })?;
+            })?;
 
         Ok((
             Entry {
@@ -566,17 +586,19 @@ impl FileSystem for AuthFs {
         _umask: u32,
     ) -> io::Result<Entry> {
         // TODO(205169366): Implement mode properly.
-        let new_inode = self.insert_new_inode(&parent, |config| match config {
-            AuthFsEntry::VerifiedNewDirectory { dir } => {
-                let basename: &Path = cstr_to_path(name);
-                if dir.find_inode(basename).is_some() {
-                    return Err(io::Error::from_raw_os_error(libc::EEXIST));
+        let new_inode =
+            self.create_new_entry(parent, name, |parent_entry, basename, new_inode| {
+                match parent_entry {
+                    AuthFsEntry::VerifiedNewDirectory { dir } => {
+                        if dir.find_inode(basename).is_some() {
+                            return Err(io::Error::from_raw_os_error(libc::EEXIST));
+                        }
+                        let new_dir = dir.mkdir(basename, new_inode)?;
+                        Ok(AuthFsEntry::VerifiedNewDirectory { dir: new_dir })
+                    }
+                    _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
                 }
-                let (new_inode, new_dir) = dir.mkdir(basename)?;
-                Ok((new_inode, AuthFsEntry::VerifiedNewDirectory { dir: new_dir }))
-            }
-            _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
-        })?;
+            })?;
 
         Ok(Entry {
             inode: new_inode,

@@ -58,12 +58,12 @@ impl RemoteDirEditor {
         self.entries.len() as u16 // limited to MAX_ENTRIES
     }
 
-    /// Creates a remote file at the current directory. If succeed, the returned remote FD is
-    /// stored in `entries` as the inode number.
+    /// Creates a remote file named `basename` with corresponding `inode` at the current directory.
     pub fn create_file(
         &mut self,
         basename: &Path,
-    ) -> io::Result<(Inode, VerifiedFileEditor<RemoteFileEditor>)> {
+        inode: Inode,
+    ) -> io::Result<VerifiedFileEditor<RemoteFileEditor>> {
         self.validate_argument(basename)?;
 
         let basename_str =
@@ -72,17 +72,16 @@ impl RemoteDirEditor {
             .service
             .createFileInDirectory(self.remote_dir_fd, basename_str)
             .map_err(into_io_error)?;
-        let new_inode = new_fd as Inode;
 
         let new_remote_file =
             VerifiedFileEditor::new(RemoteFileEditor::new(self.service.clone(), new_fd));
-        self.entries.insert(basename.to_path_buf(), new_inode);
-        Ok((new_inode, new_remote_file))
+        self.entries.insert(basename.to_path_buf(), inode);
+        Ok(new_remote_file)
     }
 
-    /// Creates a remote directory at the current directory. If succeed, the returned remote FD is
-    /// stored in `entries` as the inode number.
-    pub fn mkdir(&mut self, basename: &Path) -> io::Result<(Inode, RemoteDirEditor)> {
+    /// Creates a remote directory named `basename` with corresponding `inode` at the current
+    /// directory.
+    pub fn mkdir(&mut self, basename: &Path, inode: Inode) -> io::Result<RemoteDirEditor> {
         self.validate_argument(basename)?;
 
         let basename_str =
@@ -91,11 +90,10 @@ impl RemoteDirEditor {
             .service
             .createDirectoryInDirectory(self.remote_dir_fd, basename_str)
             .map_err(into_io_error)?;
-        let new_inode = new_fd as Inode;
 
         let new_remote_dir = RemoteDirEditor::new(self.service.clone(), new_fd);
-        self.entries.insert(basename.to_path_buf(), new_inode);
-        Ok((new_inode, new_remote_dir))
+        self.entries.insert(basename.to_path_buf(), inode);
+        Ok(new_remote_dir)
     }
 
     /// Returns the inode number of a file or directory named `name` previously created through
