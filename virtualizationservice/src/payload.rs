@@ -36,7 +36,8 @@ use vmconfig::open_parcel_file;
 
 /// The list of APEXes which microdroid requires.
 // TODO(b/192200378) move this to microdroid.json?
-const MICRODROID_REQUIRED_APEXES: [&str; 2] = ["com.android.adbd", "com.android.os.statsd"];
+const MICRODROID_REQUIRED_APEXES: [&str; 1] = ["com.android.os.statsd"];
+const MICRODROID_REQUIRED_APEXES_DEBUG: [&str; 1] = ["com.android.adbd"];
 
 const APEX_INFO_LIST_PATH: &str = "/apex/apex-info-list.xml";
 
@@ -199,12 +200,13 @@ fn make_payload_disk(
     config_path: &str,
     vm_payload_config: &VmPayloadConfig,
     temporary_directory: &Path,
+    debug_level: DebugLevel,
 ) -> Result<DiskImage> {
     let pm = PackageManager::new()?;
     let apex_list = pm.get_apex_list(vm_payload_config.prefer_staged)?;
 
     // collect APEX names from config
-    let apexes = collect_apex_names(&apex_list, &vm_payload_config.apexes);
+    let apexes = collect_apex_names(&apex_list, &vm_payload_config.apexes, debug_level);
     info!("Microdroid payload APEXes: {:?}", apexes);
 
     let metadata_file = make_metadata_file(config_path, &apexes, temporary_directory)?;
@@ -257,7 +259,11 @@ fn find_apex_names_in_classpath_env(classpath_env_var: &str) -> Vec<String> {
 }
 
 // Collect APEX names from config
-fn collect_apex_names(apex_list: &ApexInfoList, apexes: &[ApexConfig]) -> Vec<String> {
+fn collect_apex_names(
+    apex_list: &ApexInfoList,
+    apexes: &[ApexConfig],
+    debug_level: DebugLevel,
+) -> Vec<String> {
     // Process pseudo names like "{BOOTCLASSPATH}".
     // For now we have following pseudo APEX names:
     // - {BOOTCLASSPATH}: represents APEXes contributing "BOOTCLASSPATH" environment variable
@@ -274,6 +280,9 @@ fn collect_apex_names(apex_list: &ApexInfoList, apexes: &[ApexConfig]) -> Vec<St
         .collect();
     // Add required APEXes
     apex_names.extend(MICRODROID_REQUIRED_APEXES.iter().map(|name| name.to_string()));
+    if debug_level != DebugLevel::NONE {
+        apex_names.extend(MICRODROID_REQUIRED_APEXES_DEBUG.iter().map(|name| name.to_string()));
+    }
     apex_names.sort();
     apex_names.dedup();
     apex_names
@@ -294,6 +303,7 @@ pub fn add_microdroid_images(
         &config.configPath,
         vm_payload_config,
         temporary_directory,
+        config.debugLevel,
     )?);
 
     vm_config.disks[1].partitions.push(Partition {
