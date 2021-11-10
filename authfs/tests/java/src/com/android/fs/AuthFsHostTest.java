@@ -407,6 +407,38 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertFailedOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir/dir");
     }
 
+    @Test
+    public void testInputDirectory_CanReadFile() throws Exception {
+        // Setup
+        String authfsInputDir = MOUNT_DIR + "/3";
+        runFdServerOnAndroid("--open-dir 3:/system", "--ro-dirs 3");
+        // TODO(203251769): Replace /dev/null with real manifest file when it's generated. We
+        // currently hard-coded the files for the test manually, and ignore the integrity check.
+        runAuthFsOnMicrodroid("--remote-ro-dir 3:/dev/null:/system --cid " + VMADDR_CID_HOST);
+
+        // Action
+        String actualHash =
+                computeFileHashOnMicrodroid(authfsInputDir + "/system/framework/framework.jar");
+
+        // Verify
+        String expectedHash = computeFileHashOnAndroid("/system/framework/framework.jar");
+        assertEquals("Expect consistent hash through /authfs/3: ", expectedHash, actualHash);
+    }
+
+    @Test
+    public void testInputDirectory_OnlyAllowlistedFilesExist() throws Exception {
+        // Setup
+        String authfsInputDir = MOUNT_DIR + "/3";
+        runFdServerOnAndroid("--open-dir 3:/system", "--ro-dirs 3");
+        // TODO(203251769): Replace /dev/null with real manifest file when it's generated. We
+        // currently hard-coded the files for the test manually, and ignore the integrity check.
+        runAuthFsOnMicrodroid("--remote-ro-dir 3:/dev/null:/system --cid " + VMADDR_CID_HOST);
+
+        // Verify
+        runOnMicrodroid("test -f " + authfsInputDir + "/system/framework/services.jar");
+        assertFailedOnMicrodroid("test -f " + authfsInputDir + "/system/bin/sh");
+    }
+
     private void expectBackingFileConsistency(
             String authFsPath, String backendPath, String expectedHash)
             throws DeviceNotAvailableException {
