@@ -47,6 +47,14 @@ type Handle = u64;
 const DEFAULT_METADATA_TIMEOUT: Duration = Duration::from_secs(5);
 const ROOT_INODE: Inode = 1;
 
+/// Maximum bytes in the write transaction to the FUSE device. This limits the maximum buffer
+/// size in a read request (including FUSE protocol overhead) that the filesystem writes to.
+const MAX_WRITE_BYTES: u32 = 65536;
+
+/// Maximum bytes in a read operation.
+/// TODO(victorhsieh): This option is deprecated by FUSE. Figure out if we can remove this.
+const MAX_READ_BYTES: u32 = 65536;
+
 /// `AuthFsEntry` defines the filesystem entry type supported by AuthFS.
 pub enum AuthFsEntry {
     /// A file type that is verified against fs-verity signature (thus read-only). The file is
@@ -74,14 +82,10 @@ struct AuthFs {
     /// Root directory entry table for path to `Inode` lookup. The root directory content should
     /// remain constant throughout the filesystem's lifetime.
     root_entries: HashMap<PathBuf, Inode>,
-
-    /// Maximum bytes in the write transaction to the FUSE device. This limits the maximum buffer
-    /// size in a read request (including FUSE protocol overhead) that the filesystem writes to.
-    max_write: u32,
 }
 
 impl AuthFs {
-    pub fn new(root_entries_by_path: HashMap<PathBuf, AuthFsEntry>, max_write: u32) -> AuthFs {
+    pub fn new(root_entries_by_path: HashMap<PathBuf, AuthFsEntry>) -> AuthFs {
         let mut next_inode = ROOT_INODE + 1;
         let mut inode_table = BTreeMap::new();
         let mut root_entries = HashMap::new();
@@ -92,7 +96,7 @@ impl AuthFs {
             inode_table.insert(next_inode, entry);
         });
 
-        AuthFs { inode_table: Mutex::new(inode_table), root_entries, max_write }
+        AuthFs { inode_table: Mutex::new(inode_table), root_entries }
     }
 
     /// Handles the file associated with `inode` if found. This function returns whatever
@@ -258,7 +262,7 @@ impl FileSystem for AuthFs {
     type DirIter = EmptyDirectoryIterator;
 
     fn max_buffer_size(&self) -> u32 {
-        self.max_write
+        MAX_WRITE_BYTES
     }
 
     fn init(&self, _capable: FsOptions) -> io::Result<FsOptions> {
@@ -590,8 +594,6 @@ pub fn loop_forever(
     mountpoint: &Path,
     extra_options: &Option<String>,
 ) -> Result<(), fuse::Error> {
-    let max_read: u32 = 65536;
-    let max_write: u32 = 65536;
     let dev_fuse = OpenOptions::new()
         .read(true)
         .write(true)
@@ -604,7 +606,7 @@ pub fn loop_forever(
         MountOption::AllowOther,
         MountOption::UserId(0),
         MountOption::GroupId(0),
-        MountOption::MaxRead(max_read),
+        MountOption::MaxRead(MAX_READ_BYTES),
     ];
     if let Some(value) = extra_options {
         mount_options.push(MountOption::Extra(value));
@@ -615,9 +617,9 @@ pub fn loop_forever(
 
     fuse::worker::start_message_loop(
         dev_fuse,
-        max_write,
-        max_read,
-        AuthFs::new(root_entries, max_write),
+        MAX_WRITE_BYTES,
+        MAX_READ_BYTES,
+        AuthFs::new(root_entries),
     )
 }
 
