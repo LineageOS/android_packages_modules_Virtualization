@@ -1,12 +1,13 @@
-mod remote_dir;
+mod dir;
 mod remote_file;
 
-pub use remote_dir::RemoteDirEditor;
+pub use dir::{InMemoryDir, RemoteDirEditor};
 pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 
 use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::FromIBinder;
 use std::io;
+use std::path::{Path, MAIN_SEPARATOR};
 
 use crate::common::CHUNK_SIZE;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::IVirtFdService;
@@ -70,4 +71,13 @@ pub trait RandomWrite {
 
     /// Resizes the file to the new size.
     fn resize(&self, size: u64) -> io::Result<()>;
+}
+
+/// Checks whether the path is a simple file name without any directory separator.
+pub fn validate_basename(path: &Path) -> io::Result<()> {
+    if matches!(path.to_str(), Some(path_str) if !path_str.contains(MAIN_SEPARATOR)) {
+        Ok(())
+    } else {
+        Err(io::Error::from_raw_os_error(libc::EINVAL))
+    }
 }
