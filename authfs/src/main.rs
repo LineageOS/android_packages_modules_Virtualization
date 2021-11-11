@@ -29,7 +29,6 @@
 
 use anyhow::{bail, Context, Result};
 use log::error;
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -44,7 +43,7 @@ mod fusefs;
 use auth::FakeAuthenticator;
 use file::{RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
-use fusefs::AuthFsEntry;
+use fusefs::{AuthFs, AuthFsEntry};
 
 #[derive(StructOpt)]
 struct Args {
@@ -160,51 +159,49 @@ fn new_remote_new_verified_dir_entry(
     Ok(AuthFsEntry::VerifiedNewDirectory { dir })
 }
 
-fn prepare_root_dir_entries(args: &Args) -> Result<HashMap<PathBuf, AuthFsEntry>> {
-    let mut root_entries = HashMap::new();
-
+fn prepare_root_dir_entries(authfs: &mut AuthFs, args: &Args) -> Result<()> {
     let service = file::get_rpc_binder_service(args.cid)?;
 
     for config in &args.remote_ro_file {
-        root_entries.insert(
+        authfs.add_entry_at_root_dir(
             remote_fd_to_path_buf(config.remote_fd),
             new_remote_verified_file_entry(
                 service.clone(),
                 config.remote_fd,
                 service.getFileSize(config.remote_fd)?.try_into()?,
             )?,
-        );
+        )?;
     }
 
     for remote_fd in &args.remote_ro_file_unverified {
         let remote_fd = *remote_fd;
-        root_entries.insert(
+        authfs.add_entry_at_root_dir(
             remote_fd_to_path_buf(remote_fd),
             new_remote_unverified_file_entry(
                 service.clone(),
                 remote_fd,
                 service.getFileSize(remote_fd)?.try_into()?,
             )?,
-        );
+        )?;
     }
 
     for remote_fd in &args.remote_new_rw_file {
         let remote_fd = *remote_fd;
-        root_entries.insert(
+        authfs.add_entry_at_root_dir(
             remote_fd_to_path_buf(remote_fd),
             new_remote_new_verified_file_entry(service.clone(), remote_fd)?,
-        );
+        )?;
     }
 
     for remote_fd in &args.remote_new_rw_dir {
         let remote_fd = *remote_fd;
-        root_entries.insert(
+        authfs.add_entry_at_root_dir(
             remote_fd_to_path_buf(remote_fd),
             new_remote_new_verified_dir_entry(service.clone(), remote_fd)?,
-        );
+        )?;
     }
 
-    Ok(root_entries)
+    Ok(())
 }
 
 fn remote_fd_to_path_buf(fd: i32) -> PathBuf {
@@ -219,8 +216,9 @@ fn try_main() -> Result<()> {
         android_logger::Config::default().with_tag("authfs").with_min_level(log_level),
     );
 
-    let root_entries = prepare_root_dir_entries(&args)?;
-    fusefs::loop_forever(root_entries, &args.mount_point, &args.extra_options)?;
+    let mut authfs = AuthFs::new();
+    prepare_root_dir_entries(&mut authfs, &args)?;
+    fusefs::loop_forever(authfs, &args.mount_point, &args.extra_options)?;
     bail!("Unexpected exit after the handler loop")
 }
 

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 use std::io;
 use std::path::{Path, PathBuf};
 
 use super::remote_file::RemoteFileEditor;
-use super::{VirtFdService, VirtFdServiceStatus};
+use super::{validate_basename, VirtFdService, VirtFdServiceStatus};
 use crate::fsverity::VerifiedFileEditor;
 use crate::fusefs::Inode;
 
@@ -58,12 +58,12 @@ impl RemoteDirEditor {
         self.entries.len() as u16 // limited to MAX_ENTRIES
     }
 
-    /// Creates a remote file at the current directory. If succeed, the returned remote FD is
-    /// stored in `entries` as the inode number.
+    /// Creates a remote file named `basename` with corresponding `inode` at the current directory.
     pub fn create_file(
         &mut self,
         basename: &Path,
-    ) -> io::Result<(Inode, VerifiedFileEditor<RemoteFileEditor>)> {
+        inode: Inode,
+    ) -> io::Result<VerifiedFileEditor<RemoteFileEditor>> {
         self.validate_argument(basename)?;
 
         let basename_str =
@@ -72,17 +72,16 @@ impl RemoteDirEditor {
             .service
             .createFileInDirectory(self.remote_dir_fd, basename_str)
             .map_err(into_io_error)?;
-        let new_inode = new_fd as Inode;
 
         let new_remote_file =
             VerifiedFileEditor::new(RemoteFileEditor::new(self.service.clone(), new_fd));
-        self.entries.insert(basename.to_path_buf(), new_inode);
-        Ok((new_inode, new_remote_file))
+        self.entries.insert(basename.to_path_buf(), inode);
+        Ok(new_remote_file)
     }
 
-    /// Creates a remote directory at the current directory. If succeed, the returned remote FD is
-    /// stored in `entries` as the inode number.
-    pub fn mkdir(&mut self, basename: &Path) -> io::Result<(Inode, RemoteDirEditor)> {
+    /// Creates a remote directory named `basename` with corresponding `inode` at the current
+    /// directory.
+    pub fn mkdir(&mut self, basename: &Path, inode: Inode) -> io::Result<RemoteDirEditor> {
         self.validate_argument(basename)?;
 
         let basename_str =
@@ -91,11 +90,10 @@ impl RemoteDirEditor {
             .service
             .createDirectoryInDirectory(self.remote_dir_fd, basename_str)
             .map_err(into_io_error)?;
-        let new_inode = new_fd as Inode;
 
         let new_remote_dir = RemoteDirEditor::new(self.service.clone(), new_fd);
-        self.entries.insert(basename.to_path_buf(), new_inode);
-        Ok((new_inode, new_remote_dir))
+        self.entries.insert(basename.to_path_buf(), inode);
+        Ok(new_remote_dir)
     }
 
     /// Returns the inode number of a file or directory named `name` previously created through
@@ -106,7 +104,8 @@ impl RemoteDirEditor {
 
     fn validate_argument(&self, basename: &Path) -> io::Result<()> {
         // Kernel should only give us a basename.
-        debug_assert!(basename.parent().is_none());
+        debug_assert!(validate_basename(basename).is_ok());
+
         if self.entries.contains_key(basename) {
             Err(io::Error::from_raw_os_error(libc::EEXIST))
         } else if self.entries.len() >= MAX_ENTRIES.into() {
@@ -114,6 +113,43 @@ impl RemoteDirEditor {
         } else {
             Ok(())
         }
+    }
+}
+
+/// An in-memory directory representation of a directory structure.
+pub struct InMemoryDir(HashMap<PathBuf, Inode>);
+
+impl InMemoryDir {
+    /// Creates an empty instance of `InMemoryDir`.
+    pub fn new() -> Self {
+        // Hash map is empty since "." and ".." are excluded in entries.
+        InMemoryDir(HashMap::new())
+    }
+
+    /// Returns the number of entries in the directory (not including "." and "..").
+    pub fn number_of_entries(&self) -> u16 {
+        self.0.len() as u16 // limited to MAX_ENTRIES
+    }
+
+    /// Adds an entry (name and the inode number) to the directory. Fails if already exists. The
+    /// caller is responsible for ensure the inode uniqueness.
+    pub fn add_entry(&mut self, basename: &Path, inode: Inode) -> io::Result<()> {
+        validate_basename(basename)?;
+        if self.0.len() >= MAX_ENTRIES.into() {
+            return Err(io::Error::from_raw_os_error(libc::EMLINK));
+        }
+
+        if let hash_map::Entry::Vacant(entry) = self.0.entry(basename.to_path_buf()) {
+            entry.insert(inode);
+            Ok(())
+        } else {
+            Err(io::Error::from_raw_os_error(libc::EEXIST))
+        }
+    }
+
+    /// Looks up an entry inode by name. `None` if not found.
+    pub fn lookup_inode(&self, basename: &Path) -> Option<Inode> {
+        self.0.get(basename).copied()
     }
 }
 
