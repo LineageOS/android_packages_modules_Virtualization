@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cinttypes>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -172,7 +173,7 @@ int main(int argc, char* argv[]) {
             }
 
             double elapsed_time = res->elapsed.tv_sec + res->elapsed.tv_nsec / 1e9;
-            std::printf("total %zu bytes, took %.3g seconds ", res->size, elapsed_time);
+            std::printf("total %" PRIu64 " bytes, took %.3g seconds ", res->size, elapsed_time);
 
             double speed = res->size / elapsed_time;
             const char* unit;
