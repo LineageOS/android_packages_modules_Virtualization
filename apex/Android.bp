@@ -2,6 +2,14 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+microdroid_filesystem_images = [
+    "microdroid_super",
+    "microdroid_boot-5.10",
+    "microdroid_vendor_boot-5.10",
+    "microdroid_vbmeta",
+    "microdroid_vbmeta_bootconfig",
+]
+
 apex {
     name: "com.android.virt",
 
@@ -22,26 +30,14 @@ apex {
                 "crosvm",
                 "virtualizationservice",
             ],
-            filesystems: [
-                "microdroid_super",
-                "microdroid_boot-5.10",
-                "microdroid_vendor_boot-5.10",
-                "microdroid_vbmeta",
-                "microdroid_vbmeta_bootconfig",
-            ],
+            filesystems: microdroid_filesystem_images,
         },
         x86_64: {
             binaries: [
                 "crosvm",
                 "virtualizationservice",
             ],
-            filesystems: [
-                "microdroid_super",
-                "microdroid_boot-5.10",
-                "microdroid_vendor_boot-5.10",
-                "microdroid_vbmeta",
-                "microdroid_vbmeta_bootconfig",
-            ],
+            filesystems: microdroid_filesystem_images,
         },
     },
     binaries: [
