@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use log::{debug, warn};
 use std::collections::{btree_map, BTreeMap};
 use std::convert::TryFrom;
@@ -24,7 +24,7 @@ use std::io;
 use std::mem::MaybeUninit;
 use std::option::Option;
 use std::os::unix::{ffi::OsStrExt, io::AsRawFd};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -37,8 +37,8 @@ use fuse::mount::MountOption;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
-    InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor, RemoteFileEditor, RemoteFileReader,
-    RemoteMerkleTreeReader,
+    validate_basename, InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor, RemoteFileEditor,
+    RemoteFileReader, RemoteMerkleTreeReader,
 };
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
 
@@ -97,34 +97,79 @@ impl AuthFs {
         AuthFs { inode_table: Mutex::new(inode_table), next_inode: AtomicU64::new(ROOT_INODE + 1) }
     }
 
+    /// Add an `AuthFsEntry` as `basename` to the filesystem root.
     pub fn add_entry_at_root_dir(
         &mut self,
         basename: PathBuf,
         entry: AuthFsEntry,
     ) -> Result<Inode> {
-        if basename.is_absolute() {
-            bail!("Invalid entry name: {:?}", basename);
-        }
+        validate_basename(&basename)?;
+        self.add_entry_at_ro_dir_by_path(ROOT_INODE, &basename, entry)
+    }
 
-        let inode_table = &mut *self.inode_table.get_mut().unwrap();
-        match inode_table
-            .get_mut(&ROOT_INODE)
-            .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?
-        {
+    /// Add an `AuthFsEntry` by path from the `ReadonlyDirectory` represented by `dir_inode`. The
+    /// path must be a related path. If some ancestor directories do not exist, they will be
+    /// created (also as `ReadonlyDirectory`) automatically.
+    pub fn add_entry_at_ro_dir_by_path(
+        &mut self,
+        dir_inode: Inode,
+        path: &Path,
+        entry: AuthFsEntry,
+    ) -> Result<Inode> {
+        // 1. Make sure the parent directories all exist. Derive the entry's parent inode.
+        let parent_path =
+            path.parent().ok_or_else(|| anyhow!("No parent directory: {:?}", path))?;
+        let parent_inode =
+            parent_path.components().try_fold(dir_inode, |current_dir_inode, path_component| {
+                match path_component {
+                    Component::RootDir => bail!("Absolute path is not supported"),
+                    Component::Normal(name) => {
+                        let inode_table = self.inode_table.get_mut().unwrap();
+                        // Locate the internal directory structure.
+                        let current_dir_entry =
+                            inode_table.get_mut(&current_dir_inode).ok_or_else(|| {
+                                anyhow!("Unknown directory inode {}", current_dir_inode)
+                            })?;
+                        let dir = match current_dir_entry {
+                            AuthFsEntry::ReadonlyDirectory { dir } => dir,
+                            _ => unreachable!("Not a ReadonlyDirectory"),
+                        };
+                        // Return directory inode. Create first if not exists.
+                        if let Some(existing_inode) = dir.lookup_inode(name.as_ref()) {
+                            Ok(existing_inode)
+                        } else {
+                            let new_inode = self.next_inode.fetch_add(1, Ordering::Relaxed);
+                            let new_dir_entry =
+                                AuthFsEntry::ReadonlyDirectory { dir: InMemoryDir::new() };
+
+                            // Actually update the tables.
+                            dir.add_entry(name.as_ref(), new_inode)?;
+                            if inode_table.insert(new_inode, new_dir_entry).is_some() {
+                                bail!("Unexpected to find a duplicated inode");
+                            }
+                            Ok(new_inode)
+                        }
+                    }
+                    _ => Err(anyhow!("Path is not canonical: {:?}", path)),
+                }
+            })?;
+
+        // 2. Insert the entry to the parent directory, as well as the inode table.
+        let inode_table = self.inode_table.get_mut().unwrap();
+        match inode_table.get_mut(&parent_inode).expect("previously returned inode") {
             AuthFsEntry::ReadonlyDirectory { dir } => {
+                let basename =
+                    path.file_name().ok_or_else(|| anyhow!("Bad file name: {:?}", path))?;
                 let new_inode = self.next_inode.fetch_add(1, Ordering::Relaxed);
 
-                dir.add_entry(&basename, new_inode)?;
+                // Actually update the tables.
+                dir.add_entry(basename.as_ref(), new_inode)?;
                 if inode_table.insert(new_inode, entry).is_some() {
-                    bail!(
-                        "Found duplicated inode {} when adding {}",
-                        new_inode,
-                        basename.display()
-                    );
+                    bail!("Unexpected to find a duplicated inode");
                 }
                 Ok(new_inode)
             }
-            _ => bail!("Not a ReadonlyDirectory"),
+            _ => unreachable!("Not a ReadonlyDirectory"),
         }
     }
 }
@@ -333,9 +378,8 @@ impl FileSystem for AuthFs {
 
         // Create the entry's stat if found.
         let st = self.handle_inode(&inode, |entry| match entry {
-            AuthFsEntry::ReadonlyDirectory { .. } => {
-                unreachable!("FUSE shouldn't need to look up the root inode");
-                //create_dir_stat(inode, dir.number_of_entries())
+            AuthFsEntry::ReadonlyDirectory { dir } => {
+                create_dir_stat(inode, dir.number_of_entries())
             }
             AuthFsEntry::UnverifiedReadonly { file_size, .. }
             | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
@@ -612,6 +656,9 @@ impl FileSystem for AuthFs {
                         }
                         let new_dir = dir.mkdir(basename, new_inode)?;
                         Ok(AuthFsEntry::VerifiedNewDirectory { dir: new_dir })
+                    }
+                    AuthFsEntry::ReadonlyDirectory { .. } => {
+                        Err(io::Error::from_raw_os_error(libc::EACCES))
                     }
                     _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
                 }

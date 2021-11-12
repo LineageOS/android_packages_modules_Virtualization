@@ -30,7 +30,7 @@
 use anyhow::{bail, Context, Result};
 use log::error;
 use std::convert::TryInto;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 mod auth;
@@ -41,7 +41,9 @@ mod fsverity;
 mod fusefs;
 
 use auth::FakeAuthenticator;
-use file::{RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
+use file::{
+    InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
+};
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
 use fusefs::{AuthFs, AuthFsEntry};
 
@@ -80,6 +82,23 @@ struct Args {
     #[structopt(long)]
     remote_new_rw_file: Vec<i32>,
 
+    /// A read-only directory that represents a remote directory. The directory view is constructed
+    /// and finalized during the filesystem initialization based on the provided mapping file
+    /// (which is a serialized protobuf of android.security.fsverity.FSVerityDigests, which
+    /// essentially provides <file path, fs-verity digest> mappings of exported files). The mapping
+    /// file is supposed to come from a trusted location in order to provide a trusted view as well
+    /// as verified access of included files with their fs-verity digest. Not all files on the
+    /// remote host may be included in the mapping file, so the directory view may be partial. The
+    /// directory structure won't change throughout the filesystem lifetime.
+    ///
+    /// For example, `--remote-ro-dir 5:/path/to/mapping:/prefix/` tells the filesystem to
+    /// construct a directory structure defined in the mapping file at $MOUNTPOINT/5, which may
+    /// include a file like /5/system/framework/framework.jar. "/prefix/" tells the filesystem to
+    /// strip the path (e.g. "/system/") from the mount point to match the expected location of the
+    /// remote FD (e.g. a directory FD of "/system" in the remote).
+    #[structopt(long, parse(try_from_str = parse_remote_new_ro_dir_option))]
+    remote_ro_dir: Vec<OptionRemoteRoDir>,
+
     /// A new directory that is assumed empty in the backing filesystem. New files created in this
     /// directory are integrity-protected in the same way as --remote-new-verified-file. Can be
     /// multiple.
@@ -103,6 +122,20 @@ struct OptionRemoteRoFile {
     _certificate_path: PathBuf,
 }
 
+struct OptionRemoteRoDir {
+    /// ID to refer to the remote dir.
+    remote_dir_fd: i32,
+
+    /// A mapping file that describes the expecting file/directory structure and integrity metadata
+    /// in the remote directory. The file contains serialized protobuf of
+    /// android.security.fsverity.FSVerityDigests.
+    /// TODO(203251769): Really use the file when it's generated.
+    #[allow(dead_code)]
+    mapping_file_path: PathBuf,
+
+    prefix: PathBuf,
+}
+
 fn parse_remote_ro_file_option(option: &str) -> Result<OptionRemoteRoFile> {
     let strs: Vec<&str> = option.split(':').collect();
     if strs.len() != 2 {
@@ -111,6 +144,18 @@ fn parse_remote_ro_file_option(option: &str) -> Result<OptionRemoteRoFile> {
     Ok(OptionRemoteRoFile {
         remote_fd: strs[0].parse::<i32>()?,
         _certificate_path: PathBuf::from(strs[1]),
+    })
+}
+
+fn parse_remote_new_ro_dir_option(option: &str) -> Result<OptionRemoteRoDir> {
+    let strs: Vec<&str> = option.split(':').collect();
+    if strs.len() != 3 {
+        bail!("Invalid option: {}", option);
+    }
+    Ok(OptionRemoteRoDir {
+        remote_dir_fd: strs[0].parse::<i32>().unwrap(),
+        mapping_file_path: PathBuf::from(strs[1]),
+        prefix: PathBuf::from(strs[2]),
     })
 }
 
@@ -199,6 +244,39 @@ fn prepare_root_dir_entries(authfs: &mut AuthFs, args: &Args) -> Result<()> {
             remote_fd_to_path_buf(remote_fd),
             new_remote_new_verified_dir_entry(service.clone(), remote_fd)?,
         )?;
+    }
+
+    for config in &args.remote_ro_dir {
+        let dir_root_inode = authfs.add_entry_at_root_dir(
+            remote_fd_to_path_buf(config.remote_dir_fd),
+            AuthFsEntry::ReadonlyDirectory { dir: InMemoryDir::new() },
+        )?;
+
+        // TODO(203251769): Read actual path from config.mapping_file_path when it's generated.
+        let paths = vec![
+            Path::new("/system/framework/framework.jar"),
+            Path::new("/system/framework/services.jar"),
+        ];
+
+        for path in &paths {
+            let file_entry = {
+                // TODO(205883847): Not all files will be used. Open the remote file lazily.
+                let related_path = path.strip_prefix(&config.prefix)?;
+                let remote_file = RemoteFileReader::new_by_path(
+                    service.clone(),
+                    config.remote_dir_fd,
+                    related_path,
+                )?;
+                let file_size = service.getFileSize(remote_file.get_remote_fd())?.try_into()?;
+                // TODO(203251769): Switch to VerifiedReadonly
+                AuthFsEntry::UnverifiedReadonly { reader: remote_file, file_size }
+            };
+            authfs.add_entry_at_ro_dir_by_path(
+                dir_root_inode,
+                path.strip_prefix("/")?,
+                file_entry,
+            )?;
+        }
     }
 
     Ok(())
