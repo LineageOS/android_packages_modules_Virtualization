@@ -176,7 +176,7 @@ int main(int argc, char* argv[]) {
             std::printf("total %" PRIu64 " bytes, took %.3g seconds ", res->size, elapsed_time);
 
             double speed = res->size / elapsed_time;
-            const char* unit;
+            const char* unit = "bytes";
             if (speed >= 1000) {
                 speed /= 1024;
                 unit = "KB";
