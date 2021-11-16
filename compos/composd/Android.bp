@@ -19,6 +19,7 @@ rust_binary {
         "libcomposd_native_rust",
         "libnum_traits",
         "liblog_rust",
+        "librustutils",
         "libshared_child",
     ],
     proc_macros: ["libnum_derive"],
