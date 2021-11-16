@@ -25,12 +25,15 @@ use android_system_composd::aidl::android::system::composd::{
     ICompilationTaskCallback::ICompilationTaskCallback,
     IIsolatedCompilationService::{BnIsolatedCompilationService, IIsolatedCompilationService},
 };
-use android_system_composd::binder::{self, BinderFeatures, Interface, Strong};
+use android_system_composd::binder::{
+    self, BinderFeatures, ExceptionCode, Interface, Status, Strong, ThreadState,
+};
 use anyhow::{Context, Result};
 use binder_common::new_binder_service_specific_error;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompilationResult::CompilationResult, FdAnnotation::FdAnnotation,
 };
+use rustutils::users::{AID_ROOT, AID_SYSTEM};
 
 pub struct IsolatedCompilationService {
     instance_manager: InstanceManager,
@@ -48,7 +51,11 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
         &self,
         callback: &Strong<dyn ICompilationTaskCallback>,
     ) -> binder::Result<Strong<dyn ICompilationTask>> {
-        // TODO - check caller is system or shell/root?
+        let calling_uid = ThreadState::get_calling_uid();
+        // This should only be called by system server, or root while testing
+        if calling_uid != AID_SYSTEM && calling_uid != AID_ROOT {
+            return Err(Status::new_exception(ExceptionCode::SECURITY, None));
+        }
         to_binder_result(self.do_start_test_compile(callback))
     }
 
@@ -57,7 +64,11 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
         args: &[String],
         fd_annotation: &FdAnnotation,
     ) -> binder::Result<CompilationResult> {
-        // TODO - check caller is odrefresh
+        let calling_uid = ThreadState::get_calling_uid();
+        // This should only be called by odrefresh, which runs as root
+        if calling_uid != AID_ROOT {
+            return Err(Status::new_exception(ExceptionCode::SECURITY, None));
+        }
         to_binder_result(self.do_compile_cmd(args, fd_annotation))
     }
 
