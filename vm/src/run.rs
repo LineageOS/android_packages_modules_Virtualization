@@ -28,12 +28,14 @@ use android_system_virtualizationservice::binder::{
     BinderFeatures, DeathRecipient, IBinder, ParcelFileDescriptor, Strong,
 };
 use android_system_virtualizationservice::binder::{Interface, Result as BinderResult};
-use anyhow::{Context, Error};
+use anyhow::{bail, Context, Error};
+use microdroid_payload_config::VmPayloadConfig;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::os::unix::io::{AsRawFd, FromRawFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use vmconfig::{open_parcel_file, VmConfig};
+use zip::ZipArchive;
 
 /// Run a VM from the given APK, idsig, and config.
 #[allow(clippy::too_many_arguments)]
@@ -48,7 +50,23 @@ pub fn command_run_app(
     log_path: Option<&Path>,
     debug_level: DebugLevel,
     mem: Option<u32>,
+    extra_idsigs: &[PathBuf],
 ) -> Result<(), Error> {
+    let extra_apks = parse_extra_apk_list(apk, config_path)?;
+    if extra_apks.len() != extra_idsigs.len() {
+        bail!(
+            "Found {} extra apks, but there are {} extra idsigs",
+            extra_apks.len(),
+            extra_idsigs.len()
+        )
+    }
+
+    for i in 0..extra_apks.len() {
+        let extra_apk_fd = ParcelFileDescriptor::new(File::open(&extra_apks[i])?);
+        let extra_idsig_fd = ParcelFileDescriptor::new(File::create(&extra_idsigs[i])?);
+        service.createOrUpdateIdsigFile(&extra_apk_fd, &extra_idsig_fd)?;
+    }
+
     let apk_file = File::open(apk).context("Failed to open APK file")?;
     let idsig_file = File::create(idsig).context("Failed to create idsig file")?;
 
@@ -69,9 +87,13 @@ pub fn command_run_app(
         )?;
     }
 
+    let extra_idsig_files: Result<Vec<File>, _> = extra_idsigs.iter().map(File::open).collect();
+    let extra_idsig_fds = extra_idsig_files?.into_iter().map(ParcelFileDescriptor::new).collect();
+
     let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
         apk: apk_fd.into(),
         idsig: idsig_fd.into(),
+        extraIdsigs: extra_idsig_fds,
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         configPath: config_path.to_owned(),
         debugLevel: debug_level,
@@ -202,6 +224,13 @@ fn wait_for_death(binder: &mut impl IBinder, dead: AtomicFlag) -> Result<DeathRe
     });
     binder.link_to_death(&mut death_recipient)?;
     Ok(death_recipient)
+}
+
+fn parse_extra_apk_list(apk: &Path, config_path: &str) -> Result<Vec<String>, Error> {
+    let mut archive = ZipArchive::new(File::open(apk)?)?;
+    let config_file = archive.by_name(config_path)?;
+    let config: VmPayloadConfig = serde_json::from_reader(config_file)?;
+    Ok(config.extra_apks.into_iter().map(|x| x.path).collect())
 }
 
 #[derive(Debug)]
