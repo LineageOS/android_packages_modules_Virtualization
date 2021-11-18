@@ -38,7 +38,8 @@ interface ICompOsService {
      * TODO(198211396): Implement properly. We can't simply accepting the classpaths from Android
      * since they are not derived from staged APEX (besides security reasons).
      */
-    void initializeClasspaths(String bootClasspath, String dex2oatBootClasspath);
+    void initializeClasspaths(
+            String bootClasspath, String dex2oatBootClasspath, String systemServerClassPath);
 
     /**
      * Run dex2oat command with provided args, in a context that may be specified in FdAnnotation,
