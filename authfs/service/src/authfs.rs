@@ -26,11 +26,11 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFs::{BnAuthFs, IAuthFs};
-use authfs_aidl_interface::aidl::com::android::virt::fs::{
-    AuthFsConfig::AuthFsConfig, InputFdAnnotation::InputFdAnnotation,
-    OutputFdAnnotation::OutputFdAnnotation,
+use authfs_aidl_interface::aidl::com::android::virt::fs::AuthFsConfig::{
+    AuthFsConfig, InputDirFdAnnotation::InputDirFdAnnotation, InputFdAnnotation::InputFdAnnotation,
+    OutputDirFdAnnotation::OutputDirFdAnnotation, OutputFdAnnotation::OutputFdAnnotation,
 };
+use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFs::{BnAuthFs, IAuthFs};
 use authfs_aidl_interface::binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Strong,
 };
@@ -80,6 +80,8 @@ impl AuthFs {
             &mountpoint,
             &config.inputFdAnnotations,
             &config.outputFdAnnotations,
+            &config.inputDirFdAnnotations,
+            &config.outputDirFdAnnotations,
             debuggable,
         )?;
         wait_until_authfs_ready(&child, &mountpoint).map_err(|e| {
@@ -121,21 +123,32 @@ impl Drop for AuthFs {
 
 fn run_authfs(
     mountpoint: &OsStr,
-    in_fds: &[InputFdAnnotation],
-    out_fds: &[OutputFdAnnotation],
+    in_file_fds: &[InputFdAnnotation],
+    out_file_fds: &[OutputFdAnnotation],
+    in_dir_fds: &[InputDirFdAnnotation],
+    out_dir_fds: &[OutputDirFdAnnotation],
     debuggable: bool,
 ) -> Result<SharedChild> {
     let mut args = vec![mountpoint.to_owned(), OsString::from("--cid=2")];
     args.push(OsString::from("-o"));
     args.push(OsString::from("fscontext=u:object_r:authfs_fuse:s0"));
-    for conf in in_fds {
+    for conf in in_file_fds {
         // TODO(b/185178698): Many input files need to be signed and verified.
         // or can we use debug cert for now, which is better than nothing?
         args.push(OsString::from("--remote-ro-file-unverified"));
         args.push(OsString::from(conf.fd.to_string()));
     }
-    for conf in out_fds {
+    for conf in out_file_fds {
         args.push(OsString::from("--remote-new-rw-file"));
+        args.push(OsString::from(conf.fd.to_string()));
+    }
+    for conf in in_dir_fds {
+        args.push(OsString::from("--remote-ro-dir"));
+        // TODO(206869687): Replace /dev/null with the real path when possible.
+        args.push(OsString::from(format!("{}:{}:{}", conf.fd, conf.manifestPath, conf.prefix)));
+    }
+    for conf in out_dir_fds {
+        args.push(OsString::from("--remote-new-rw-dir"));
         args.push(OsString::from(conf.fd.to_string()));
     }
     if debuggable {
@@ -144,6 +157,7 @@ fn run_authfs(
 
     let mut command = Command::new(AUTHFS_BIN);
     command.args(&args);
+    debug!("Spawn authfs: {:?}", command);
     SharedChild::spawn(&mut command).context("Spawn authfs")
 }
 
