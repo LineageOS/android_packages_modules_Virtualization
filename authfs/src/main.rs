@@ -287,7 +287,7 @@ fn remote_fd_to_path_buf(fd: i32) -> PathBuf {
 }
 
 fn try_main() -> Result<()> {
-    let args = Args::from_args();
+    let args = Args::from_args_safe()?;
 
     let log_level = if args.debug { log::Level::Debug } else { log::Level::Info };
     android_logger::init_once(
