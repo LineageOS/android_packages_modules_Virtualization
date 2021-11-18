@@ -1,6 +1,0 @@
-LIBCOMPOS_CLIENT {
-    global:
-        AComposClient_Request; # apex
-    local:
-        *;
-};
