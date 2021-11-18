@@ -69,11 +69,3 @@ prebuilt_etc {
     filename: "init.rc",
     installable: false,
 }
-
-sdk {
-    name: "compos-module-sdk",
-
-    native_shared_libs: [
-        "libcompos_client",
-    ],
-}
