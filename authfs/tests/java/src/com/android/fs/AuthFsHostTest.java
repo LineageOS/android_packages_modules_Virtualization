@@ -412,7 +412,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Setup
         String authfsInputDir = MOUNT_DIR + "/3";
         runFdServerOnAndroid("--open-dir 3:/system", "--ro-dirs 3");
-        // TODO(203251769): Replace /dev/null with real manifest file when it's generated. We
+        // TODO(206869687): Replace /dev/null with real manifest file when it's generated. We
         // currently hard-coded the files for the test manually, and ignore the integrity check.
         runAuthFsOnMicrodroid("--remote-ro-dir 3:/dev/null:/system --cid " + VMADDR_CID_HOST);
 
@@ -430,7 +430,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Setup
         String authfsInputDir = MOUNT_DIR + "/3";
         runFdServerOnAndroid("--open-dir 3:/system", "--ro-dirs 3");
-        // TODO(203251769): Replace /dev/null with real manifest file when it's generated. We
+        // TODO(206869687): Replace /dev/null with real manifest file when it's generated. We
         // currently hard-coded the files for the test manually, and ignore the integrity check.
         runAuthFsOnMicrodroid("--remote-ro-dir 3:/dev/null:/system --cid " + VMADDR_CID_HOST);
 
