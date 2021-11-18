@@ -152,7 +152,11 @@ impl InstanceStarter {
 
         // TODO(198211396): Implement correctly.
         service
-            .initializeClasspaths(&env::var("BOOTCLASSPATH")?, &env::var("DEX2OATBOOTCLASSPATH")?)
+            .initializeClasspaths(
+                &env::var("BOOTCLASSPATH")?,
+                &env::var("DEX2OATBOOTCLASSPATH")?,
+                &env::var("SYSTEMSERVERCLASSPATH")?,
+            )
             .context("Initializing *CLASSPATH")?;
         Ok(())
     }

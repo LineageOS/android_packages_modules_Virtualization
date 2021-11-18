@@ -23,8 +23,11 @@ use std::path::Path;
 
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::{
-    AuthFsConfig::AuthFsConfig, IAuthFs::IAuthFs, IAuthFsService::IAuthFsService,
-    InputFdAnnotation::InputFdAnnotation, OutputFdAnnotation::OutputFdAnnotation,
+    AuthFsConfig::{
+        AuthFsConfig, InputFdAnnotation::InputFdAnnotation, OutputFdAnnotation::OutputFdAnnotation,
+    },
+    IAuthFs::IAuthFs,
+    IAuthFsService::IAuthFsService,
 };
 use authfs_aidl_interface::binder::{ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::FdAnnotation::FdAnnotation;
@@ -148,6 +151,8 @@ fn build_authfs_config(fd_annotation: &FdAnnotation) -> AuthFsConfig {
             .iter()
             .map(|fd| OutputFdAnnotation { fd: *fd })
             .collect(),
+        inputDirFdAnnotations: vec![],
+        outputDirFdAnnotations: vec![],
     }
 }
 
