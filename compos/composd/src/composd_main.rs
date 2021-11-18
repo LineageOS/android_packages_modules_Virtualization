@@ -35,8 +35,10 @@ use log::{error, info};
 use std::sync::Arc;
 
 fn try_main() -> Result<()> {
+    let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
+    let log_level = if debuggable { log::Level::Debug } else { log::Level::Info };
     android_logger::init_once(
-        android_logger::Config::default().with_tag("composd").with_min_level(log::Level::Info),
+        android_logger::Config::default().with_tag("composd").with_min_level(log_level),
     );
 
     ProcessState::start_thread_pool();
