@@ -40,8 +40,8 @@ use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::Path;
 use std::process::exit;
 
-use android_system_composd::{
-    aidl::android::system::composd::IIsolatedCompilationService::IIsolatedCompilationService,
+use android_system_composd_internal::{
+    aidl::android::system::composd::internal::ICompilationInternal::ICompilationInternal,
     binder::wait_for_interface,
 };
 use compos_aidl_interface::aidl::com::android::compos::{
@@ -52,9 +52,9 @@ use compos_common::{COMPOS_VSOCK_PORT, VMADDR_CID_ANY};
 
 const FD_SERVER_BIN: &str = "/apex/com.android.virt/bin/fd_server";
 
-fn get_composd() -> Result<Strong<dyn IIsolatedCompilationService>> {
-    wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
-        .context("Failed to find IIsolatedCompilationService")
+fn get_composd() -> Result<Strong<dyn ICompilationInternal>> {
+    wait_for_interface::<dyn ICompilationInternal>("android.system.composd.internal")
+        .context("Failed to find ICompilationInternal")
 }
 
 fn get_rpc_binder(cid: u32) -> Result<Strong<dyn ICompOsService>> {
