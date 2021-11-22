@@ -37,6 +37,8 @@ apex {
     updatable: false,
     platform_apis: true,
 
+    system_ext_specific: true,
+
     binaries: [
         // Used in Android
         "compos_key_cmd",
