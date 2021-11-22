@@ -10,6 +10,7 @@ TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
 
 ```
 adb install out/dist/MicrodroidDemoApp.apk
+adb shell pm grant com.android.microdroid.demo android.permission.MANAGE_VIRTUAL_MACHINE
 ```
 
 ## Running
