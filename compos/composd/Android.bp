@@ -21,6 +21,7 @@ rust_binary {
         "libminijail_rust",
         "libnix",
         "libnum_traits",
+        "liblibc",
         "liblog_rust",
         "librustutils",
         "libshared_child",
