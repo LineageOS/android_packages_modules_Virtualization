@@ -31,6 +31,10 @@ pub struct VmPayloadConfig {
     #[serde(default)]
     pub apexes: Vec<ApexConfig>,
 
+    /// Extra APKs to be passed to a VM
+    #[serde(default)]
+    pub extra_apks: Vec<ApkConfig>,
+
     /// Tells VirtualizationService to use staged APEXes if possible
     #[serde(default)]
     pub prefer_staged: bool,
@@ -90,4 +94,11 @@ impl Default for TaskType {
 pub struct ApexConfig {
     /// The name of APEX
     pub name: String,
+}
+
+/// APK config
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ApkConfig {
+    /// The path of APK
+    pub path: String,
 }
