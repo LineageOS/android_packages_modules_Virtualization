@@ -21,17 +21,8 @@
 
 PRODUCT_PACKAGES += \
     com.android.compos \
-    com.android.virt
+    com.android.virt \
 
+# TODO(b/207336449): Figure out how to get these off /system
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST += \
-    system/apex/com.android.compos.apex \
-    system/apex/com.android.virt.apex \
-    system/bin/crosvm \
-    system/lib64/%.dylib.so \
-    system/lib64/libfdt.so \
-    system/lib64/libgfxstream_backend.so \
-    system/lib64/libcuttlefish_allocd_utils.so \
-    system/lib64/libcuttlefish_fs.so \
-    system/lib64/libcuttlefish_utils.so
-
-$(call inherit-product, external/crosvm/seccomp/crosvm_seccomp_policy_product_packages.mk)
+     system/lib64/libgfxstream_backend.so \
