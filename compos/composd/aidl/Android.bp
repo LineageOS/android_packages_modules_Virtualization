@@ -5,7 +5,6 @@ package {
 aidl_interface {
     name: "android.system.composd",
     srcs: ["android/system/composd/*.aidl"],
-    imports: ["compos_aidl_interface"],
     // TODO: Make this stable when the APEX becomes updatable.
     unstable: true,
     backend: {
@@ -18,7 +17,17 @@ aidl_interface {
                 "com.android.compos",
             ],
         },
-        ndk: {
+    },
+}
+
+aidl_interface {
+    name: "android.system.composd.internal",
+    srcs: ["android/system/composd/internal/*.aidl"],
+    imports: ["compos_aidl_interface"],
+    // TODO: Make this stable when the APEX becomes updatable.
+    unstable: true,
+    backend: {
+        rust: {
             enabled: true,
             apex_available: [
                 "com.android.compos",

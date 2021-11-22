@@ -6,7 +6,7 @@ rust_binary {
     name: "pvm_exec",
     srcs: ["src/pvm_exec.rs"],
     rustlibs: [
-        "android.system.composd-rust",
+        "android.system.composd.internal-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",
