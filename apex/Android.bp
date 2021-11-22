@@ -17,6 +17,8 @@ apex {
     updatable: false,
     platform_apis: true,
 
+    system_ext_specific: true,
+
     manifest: "manifest.json",
 
     key: "com.android.virt.key",
