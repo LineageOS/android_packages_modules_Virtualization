@@ -42,6 +42,19 @@ interface ICompOsService {
             String bootClasspath, String dex2oatBootClasspath, String systemServerClassPath);
 
     /**
+     * Run odrefresh in the VM context.
+     *
+     * The execution is based on the VM's APEX mounts, files on Android's /system (by accessing
+     * through systemDirFd over AuthFS), and *CLASSPATH derived in the VM, to generate the same
+     * odrefresh output aritfacts to the output directory (through outputDirFd).
+     *
+     * The caller/Android is allowed to specify the zygote arch (ro.zygote).
+     *
+     * @return a CompilationResult
+     */
+    CompilationResult odrefresh(int systemDirFd, int outputDirFd, String zygoteArch);
+
+    /**
      * Run dex2oat command with provided args, in a context that may be specified in FdAnnotation,
      * e.g. with file descriptors pre-opened. The service is responsible to decide what executables
      * it may run.

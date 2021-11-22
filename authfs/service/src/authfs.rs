@@ -67,6 +67,14 @@ impl IAuthFs for AuthFs {
         })?;
         Ok(ParcelFileDescriptor::new(file))
     }
+
+    fn getMountPoint(&self) -> binder::Result<String> {
+        if let Some(s) = self.mountpoint.to_str() {
+            Ok(s.to_string())
+        } else {
+            Err(new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, "Bad string encoding"))
+        }
+    }
 }
 
 impl AuthFs {
