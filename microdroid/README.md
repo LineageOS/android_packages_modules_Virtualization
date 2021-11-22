@@ -21,11 +21,8 @@ $(call inherit-product, packages/modules/Virtualization/apex/product_packages.mk
 Build the target after adding the line, and flash it. This step needs to be done
 only once for the target.
 
-If you are using `yukawa` (VIM3L) or `aosp_cf_x86_64_phone` (Cuttlefish), adding
-above line is not necessary as it's already done.
-
-Instructions for building and flashing Android for `yukawa` can be found
-[here](../docs/getting_started/yukawa.md).
+If you are using `aosp_oriole` (Pixel 6) or `aosp_cf_x86_64_phone` (Cuttlefish),
+adding above line is not necessary as it's already done.
 
 ## Building and installing microdroid
 
