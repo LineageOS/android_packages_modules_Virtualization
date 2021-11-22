@@ -254,8 +254,17 @@ fn prepare_root_dir_entries(authfs: &mut AuthFs, args: &Args) -> Result<()> {
 
         // TODO(206869687): Read actual path from config.mapping_file_path when it's generated.
         let paths = vec![
+            Path::new("/system/framework/com.android.location.provider.jar"),
+            Path::new("/system/framework/ethernet-service.jar"),
+            Path::new("/system/framework/ext.jar"),
+            Path::new("/system/framework/framework-graphics.jar"),
             Path::new("/system/framework/framework.jar"),
+            Path::new("/system/framework/ims-common.jar"),
             Path::new("/system/framework/services.jar"),
+            Path::new("/system/framework/telephony-common.jar"),
+            Path::new("/system/framework/voip-common.jar"),
+            Path::new("/system/etc/boot-image.prof"),
+            Path::new("/system/etc/dirty-image-objects"),
         ];
 
         for path in &paths {
