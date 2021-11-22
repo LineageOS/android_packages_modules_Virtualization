@@ -33,6 +33,9 @@ use structopt::StructOpt;
 const VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER: &str =
     "android.system.virtualizationservice";
 
+#[derive(Debug)]
+struct Idsigs(Vec<PathBuf>);
+
 #[derive(StructOpt)]
 #[structopt(no_version, global_settings = &[AppSettings::DisableVersion])]
 enum Opt {
@@ -73,6 +76,10 @@ enum Opt {
         /// in the VM config file.
         #[structopt(short, long)]
         mem: Option<u32>,
+
+        /// Paths to extra idsig files.
+        #[structopt(long)]
+        extra_idsigs: Vec<PathBuf>,
     },
     /// Run a virtual machine
     Run {
@@ -138,20 +145,30 @@ fn main() -> Result<(), Error> {
         .context("Failed to find VirtualizationService")?;
 
     match opt {
-        Opt::RunApp { apk, idsig, instance, config_path, daemonize, console, log, debug, mem } => {
-            command_run_app(
-                service,
-                &apk,
-                &idsig,
-                &instance,
-                &config_path,
-                daemonize,
-                console.as_deref(),
-                log.as_deref(),
-                debug,
-                mem,
-            )
-        }
+        Opt::RunApp {
+            apk,
+            idsig,
+            instance,
+            config_path,
+            daemonize,
+            console,
+            log,
+            debug,
+            mem,
+            extra_idsigs,
+        } => command_run_app(
+            service,
+            &apk,
+            &idsig,
+            &instance,
+            &config_path,
+            daemonize,
+            console.as_deref(),
+            log.as_deref(),
+            debug,
+            mem,
+            &extra_idsigs,
+        ),
         Opt::Run { config, daemonize, console } => {
             command_run(service, &config, daemonize, console.as_deref(), /* mem */ None)
         }
