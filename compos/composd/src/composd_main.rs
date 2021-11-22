@@ -19,6 +19,7 @@
 //! them, and orchestrating trusted compilation.
 
 mod compilation_task;
+mod fd_server_helper;
 mod instance_manager;
 mod instance_starter;
 mod internal_service;
