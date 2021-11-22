@@ -18,6 +18,8 @@ rust_binary {
         "libbinder_rs",
         "libcompos_common",
         "libcomposd_native_rust",
+        "libminijail_rust",
+        "libnix",
         "libnum_traits",
         "liblog_rust",
         "librustutils",
