@@ -31,7 +31,7 @@ rust_ffi {
     srcs: ["libcompos_client.rs"],
     include_dirs: ["include"],
     rustlibs: [
-        "android.system.composd-rust",
+        "android.system.composd.internal-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",

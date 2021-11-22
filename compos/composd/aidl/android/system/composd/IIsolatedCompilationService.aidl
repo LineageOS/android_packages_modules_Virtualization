@@ -17,8 +17,6 @@ package android.system.composd;
 
 import android.system.composd.ICompilationTask;
 import android.system.composd.ICompilationTaskCallback;
-import com.android.compos.CompilationResult;
-import com.android.compos.FdAnnotation;
 
 interface IIsolatedCompilationService {
     /**
@@ -31,22 +29,4 @@ interface IIsolatedCompilationService {
      * a reference to the ICompilationTask until compilation completes or is cancelled.
      */
     ICompilationTask startTestCompile(ICompilationTaskCallback callback);
-
-    /**
-     * Run dex2oat in the currently running instance of the CompOS VM. This is a simple proxy
-     * to ICompOsService#compile_cmd.
-     *
-     * This method can only be called from odrefresh. If there is no currently running instance
-     * an error is returned.
-     */
-    CompilationResult compile_cmd(in String[] args, in FdAnnotation fd_annotation);
-
-    /**
-     * Run dex2oat in the currently running instance of the CompOS VM. This is a simple proxy
-     * to ICompOsService#compile.
-     *
-     * This method can only be called from libcompos_client. If there is no currently running
-     * instance an error is returned.
-     */
-    byte compile(in byte[] marshaledArguments, in FdAnnotation fd_annotation);
 }
