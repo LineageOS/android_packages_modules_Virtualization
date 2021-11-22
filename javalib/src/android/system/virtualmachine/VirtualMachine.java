@@ -33,6 +33,7 @@ import android.system.virtualizationservice.IVirtualizationService;
 import android.system.virtualizationservice.PartitionType;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
 import android.system.virtualizationservice.VirtualMachineState;
+import android.util.JsonReader;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,13 +41,17 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.zip.ZipFile;
 
 /**
  * A handle to the virtual machine. The virtual machine is local to the app which created the
@@ -66,6 +71,9 @@ public class VirtualMachine {
 
     /** Name of the idsig file for a VM */
     private static final String IDSIG_FILE = "idsig";
+
+    /** Name of the idsig files for extra APKs. */
+    private static final String EXTRA_IDSIG_FILE_PREFIX = "extra_idsig_";
 
     /** Name of the virtualization service. */
     private static final String SERVICE_NAME = "android.system.virtualizationservice";
@@ -100,6 +108,22 @@ public class VirtualMachine {
     /** Path to the idsig file for this VM. */
     private final @NonNull File mIdsigFilePath;
 
+    private static class ExtraApkSpec {
+        public final File apk;
+        public final File idsig;
+
+        ExtraApkSpec(File apk, File idsig) {
+            this.apk = apk;
+            this.idsig = idsig;
+        }
+    }
+
+    /**
+     * List of extra apks. Apks are specified by the vm config, and corresponding idsigs are to be
+     * generated.
+     */
+    private final @NonNull List<ExtraApkSpec> mExtraApks;
+
     /** Size of the instance image. 10 MB. */
     private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -128,16 +152,18 @@ public class VirtualMachine {
     }
 
     private VirtualMachine(
-            @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config) {
+            @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
+            throws VirtualMachineException {
         mPackageName = context.getPackageName();
         mName = name;
         mConfig = config;
+        mConfigFilePath = getConfigFilePath(context, name);
 
         final File vmRoot = new File(context.getFilesDir(), VM_DIR);
         final File thisVmDir = new File(vmRoot, mName);
-        mConfigFilePath = new File(thisVmDir, CONFIG_FILE);
         mInstanceFilePath = new File(thisVmDir, INSTANCE_IMAGE_FILE);
         mIdsigFilePath = new File(thisVmDir, IDSIG_FILE);
+        mExtraApks = setupExtraApks(context, config, thisVmDir);
     }
 
     /**
@@ -198,17 +224,18 @@ public class VirtualMachine {
     /** Loads a virtual machine that is already created before. */
     /* package */ static @NonNull VirtualMachine load(
             @NonNull Context context, @NonNull String name) throws VirtualMachineException {
-        VirtualMachine vm = new VirtualMachine(context, name, /* config */ null);
-
-        try (FileInputStream input = new FileInputStream(vm.mConfigFilePath)) {
-            VirtualMachineConfig config = VirtualMachineConfig.from(input);
-            vm.mConfig = config;
+        File configFilePath = getConfigFilePath(context, name);
+        VirtualMachineConfig config;
+        try (FileInputStream input = new FileInputStream(configFilePath)) {
+            config = VirtualMachineConfig.from(input);
         } catch (FileNotFoundException e) {
             // The VM doesn't exist.
             return null;
         } catch (IOException e) {
             throw new VirtualMachineException(e);
         }
+
+        VirtualMachine vm = new VirtualMachine(context, name, config);
 
         // If config file exists, but the instance image file doesn't, it means that the VM is
         // corrupted. That's different from the case that the VM doesn't exist. Throw an exception
@@ -292,6 +319,9 @@ public class VirtualMachine {
 
         try {
             mIdsigFilePath.createNewFile();
+            for (ExtraApkSpec extraApk : mExtraApks) {
+                extraApk.idsig.createNewFile();
+            }
         } catch (IOException e) {
             // If the file already exists, exception is not thrown.
             throw new VirtualMachineException("failed to create idsig file", e);
@@ -320,9 +350,20 @@ public class VirtualMachine {
             service.createOrUpdateIdsigFile(
                     appConfig.apk, ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_WRITE));
 
+            for (ExtraApkSpec extraApk : mExtraApks) {
+                service.createOrUpdateIdsigFile(
+                        ParcelFileDescriptor.open(extraApk.apk, MODE_READ_ONLY),
+                        ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_WRITE));
+            }
+
             // Re-open idsig file in read-only mode
             appConfig.idsig = ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_ONLY);
             appConfig.instanceImage = ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_WRITE);
+            List<ParcelFileDescriptor> extraIdsigs = new ArrayList<>();
+            for (ExtraApkSpec extraApk : mExtraApks) {
+                extraIdsigs.add(ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_ONLY));
+            }
+            appConfig.extraIdsigs = extraIdsigs;
 
             android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
                     android.system.virtualizationservice.VirtualMachineConfig.appConfig(appConfig);
@@ -426,6 +467,9 @@ public class VirtualMachine {
             throw new VirtualMachineException("Virtual machine is not stopped");
         }
         final File vmRootDir = mConfigFilePath.getParentFile();
+        for (ExtraApkSpec extraApks : mExtraApks) {
+            extraApks.idsig.delete();
+        }
         mConfigFilePath.delete();
         mInstanceFilePath.delete();
         mIdsigFilePath.delete();
@@ -506,5 +550,77 @@ public class VirtualMachine {
         sb.append("package: " + mPackageName);
         sb.append(")");
         return sb.toString();
+    }
+
+    private static List<String> parseExtraApkListFromPayloadConfig(JsonReader reader)
+            throws VirtualMachineException {
+        /**
+         * JSON schema from packages/modules/Virtualization/microdroid/payload/config/src/lib.rs:
+         *
+         * <p>{ "extra_apks": [ { "path": "/system/app/foo.apk", }, ... ], ... }
+         */
+        try {
+            List<String> apks = new ArrayList<>();
+
+            reader.beginObject();
+            while (reader.hasNext()) {
+                if (reader.nextName().equals("extra_apks")) {
+                    reader.beginArray();
+                    while (reader.hasNext()) {
+                        reader.beginObject();
+                        String name = reader.nextName();
+                        if (name.equals("path")) {
+                            apks.add(reader.nextString());
+                        } else {
+                            reader.skipValue();
+                        }
+                        reader.endObject();
+                    }
+                    reader.endArray();
+                } else {
+                    reader.skipValue();
+                }
+            }
+            reader.endObject();
+            return apks;
+        } catch (IOException e) {
+            throw new VirtualMachineException(e);
+        }
+    }
+
+    /**
+     * Reads the payload config inside the application, parses extra APK information, and then
+     * creates corresponding idsig file paths.
+     */
+    private static List<ExtraApkSpec> setupExtraApks(
+            @NonNull Context context, @NonNull VirtualMachineConfig config, @NonNull File vmDir)
+            throws VirtualMachineException {
+        try {
+            ZipFile zipFile = new ZipFile(context.getPackageCodePath());
+            String payloadPath = config.getPayloadConfigPath();
+            InputStream inputStream =
+                    zipFile.getInputStream(zipFile.getEntry(config.getPayloadConfigPath()));
+            List<String> apkList =
+                    parseExtraApkListFromPayloadConfig(
+                            new JsonReader(new InputStreamReader(inputStream)));
+
+            List<ExtraApkSpec> extraApks = new ArrayList<>();
+            for (int i = 0; i < apkList.size(); ++i) {
+                extraApks.add(
+                        new ExtraApkSpec(
+                                new File(apkList.get(i)),
+                                new File(vmDir, EXTRA_IDSIG_FILE_PREFIX + i)));
+            }
+
+            return extraApks;
+        } catch (IOException e) {
+            throw new VirtualMachineException("Couldn't parse extra apks from the vm config", e);
+        }
+    }
+
+    private static File getConfigFilePath(@NonNull Context context, @NonNull String name) {
+        final File vmRoot = new File(context.getFilesDir(), VM_DIR);
+        final File thisVmDir = new File(vmRoot, name);
+        return new File(thisVmDir, CONFIG_FILE);
     }
 }
