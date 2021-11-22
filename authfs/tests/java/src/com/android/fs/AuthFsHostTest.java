@@ -439,6 +439,18 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertFailedOnMicrodroid("test -f " + authfsInputDir + "/system/bin/sh");
     }
 
+    @Test
+    public void testStatfs() throws Exception {
+        // Setup
+        runFdServerOnAndroid("--open-dir 3:" + TEST_OUTPUT_DIR, "--rw-dirs 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+
+        // Verify
+        // Magic matches. Has only 2 inodes (root and "/3").
+        assertEquals(
+                FUSE_SUPER_MAGIC_HEX + " 2", runOnMicrodroid("stat -f -c '%t %c' " + MOUNT_DIR));
+    }
+
     private void expectBackingFileConsistency(
             String authFsPath, String backendPath, String expectedHash)
             throws DeviceNotAvailableException {
