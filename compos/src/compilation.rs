@@ -17,20 +17,25 @@
 use anyhow::{anyhow, bail, Context, Result};
 use log::error;
 use minijail::{self, Minijail};
-use std::fs::File;
+use std::env;
+use std::fs::{create_dir, File};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::{
     AuthFsConfig::{
-        AuthFsConfig, InputFdAnnotation::InputFdAnnotation, OutputFdAnnotation::OutputFdAnnotation,
+        AuthFsConfig, InputDirFdAnnotation::InputDirFdAnnotation,
+        InputFdAnnotation::InputFdAnnotation, OutputDirFdAnnotation::OutputDirFdAnnotation,
+        OutputFdAnnotation::OutputFdAnnotation,
     },
     IAuthFs::IAuthFs,
     IAuthFsService::IAuthFsService,
 };
 use authfs_aidl_interface::binder::{ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::FdAnnotation::FdAnnotation;
+
+const FD_SERVER_PORT: i32 = 3264; // TODO: support dynamic port
 
 /// The number that represents the file descriptor number expecting by the task. The number may be
 /// meaningless in the current process.
@@ -51,6 +56,60 @@ struct CompilerOutputParcelFds {
     oat: ParcelFileDescriptor,
     vdex: ParcelFileDescriptor,
     image: ParcelFileDescriptor,
+}
+
+pub fn odrefresh(
+    odrefresh_path: &Path,
+    system_dir_fd: i32,
+    output_dir_fd: i32,
+    zygote_arch: &str,
+    authfs_service: Strong<dyn IAuthFsService>,
+) -> Result<CompilerOutput> {
+    // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
+    // is out of scope.
+    let authfs_config = AuthFsConfig {
+        port: FD_SERVER_PORT,
+        inputDirFdAnnotations: vec![InputDirFdAnnotation {
+            fd: system_dir_fd,
+            // TODO(206869687): Replace /dev/null with the real path when possible.
+            manifestPath: "/dev/null".to_string(),
+            prefix: "/system".to_string(),
+        }],
+        outputDirFdAnnotations: vec![OutputDirFdAnnotation { fd: output_dir_fd }],
+        ..Default::default()
+    };
+    let authfs = authfs_service.mount(&authfs_config)?;
+    let mountpoint = PathBuf::from(authfs.getMountPoint()?);
+
+    let mut android_root = mountpoint.clone();
+    android_root.push(system_dir_fd.to_string());
+    android_root.push("system");
+    env::set_var("ANDROID_ROOT", &android_root);
+
+    let mut staging_dir = mountpoint;
+    staging_dir.push(output_dir_fd.to_string());
+    staging_dir.push("staging");
+    create_dir(&staging_dir).context("Create staging directory")?;
+
+    let args = vec![
+        "odrefresh".to_string(),
+        format!("--zygote-arch={}", zygote_arch),
+        format!("--staging-dir={}", staging_dir.display()),
+        "--force-compile".to_string(),
+    ];
+    let jail = spawn_jailed_task(odrefresh_path, &args, Vec::new() /* fd_mapping */)
+        .context("Spawn odrefresh")?;
+    match jail.wait() {
+        // TODO(161471326): On success, sign all files in the output directory.
+        Ok(()) => Ok(CompilerOutput::ExitCode(0)),
+        Err(minijail::Error::ReturnCode(exit_code)) => {
+            error!("dex2oat failed with exit code {}", exit_code);
+            Ok(CompilerOutput::ExitCode(exit_code as i8))
+        }
+        Err(e) => {
+            bail!("Unexpected minijail error: {}", e)
+        }
+    }
 }
 
 /// Runs the compiler with given flags with file descriptors described in `fd_annotation` retrieved
@@ -140,7 +199,7 @@ fn parse_compiler_args(
 
 fn build_authfs_config(fd_annotation: &FdAnnotation) -> AuthFsConfig {
     AuthFsConfig {
-        port: 3264, // TODO: support dynamic port
+        port: FD_SERVER_PORT,
         inputFdAnnotations: fd_annotation
             .input_fds
             .iter()
@@ -151,8 +210,7 @@ fn build_authfs_config(fd_annotation: &FdAnnotation) -> AuthFsConfig {
             .iter()
             .map(|fd| OutputFdAnnotation { fd: *fd })
             .collect(),
-        inputDirFdAnnotations: vec![],
-        outputDirFdAnnotations: vec![],
+        ..Default::default()
     }
 }
 
