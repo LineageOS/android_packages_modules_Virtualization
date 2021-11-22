@@ -15,46 +15,92 @@
  */
 
 //! A helper library to start a fd_server.
-//!
-//! TODO(205750213): Make it easy to spawn a fd_server.
 
 use anyhow::{Context, Result};
-use log::debug;
+use log::{debug, warn};
 use minijail::Minijail;
 use nix::fcntl::OFlag;
 use nix::unistd::pipe2;
 use std::fs::File;
 use std::io::Read;
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::Path;
 
 const FD_SERVER_BIN: &str = "/apex/com.android.virt/bin/fd_server";
 
-#[allow(dead_code)]
-fn spawn_fd_server(input_fds: &[i32], output_fds: &[i32], ready_file: File) -> Result<Minijail> {
-    let mut inheritable_fds = Vec::new();
-    let mut args = vec![FD_SERVER_BIN.to_string()];
-    for fd in input_fds {
-        args.push("--ro-fds".to_string());
-        args.push(fd.to_string());
-        inheritable_fds.push(*fd);
-    }
-    for fd in output_fds {
-        args.push("--rw-fds".to_string());
-        args.push(fd.to_string());
-        inheritable_fds.push(*fd);
-    }
-    let ready_fd = ready_file.as_raw_fd();
-    args.push("--ready-fd".to_string());
-    args.push(ready_fd.to_string());
-    inheritable_fds.push(ready_fd);
-
-    let jail = Minijail::new()?;
-    let _pid = jail.run(Path::new(FD_SERVER_BIN), &inheritable_fds, &args)?;
-    Ok(jail)
+/// Config for starting a `FdServer`
+#[derive(Default)]
+pub struct FdServerConfig {
+    /// List of file FDs exposed for read-only operations.
+    pub ro_file_fds: Vec<RawFd>,
+    /// List of file FDs exposed for read-write operations.
+    pub rw_file_fds: Vec<RawFd>,
+    /// List of directory FDs exposed for read-only operations.
+    pub ro_dir_fds: Vec<RawFd>,
+    /// List of directory FDs exposed for read-write operations.
+    pub rw_dir_fds: Vec<RawFd>,
 }
 
-#[allow(dead_code)]
+impl FdServerConfig {
+    /// Creates a `FdServer` based on the current config.
+    pub fn into_fd_server(self) -> Result<FdServer> {
+        let (ready_read_fd, ready_write_fd) = create_pipe()?;
+        let fd_server_jail = self.do_spawn_fd_server(ready_write_fd)?;
+        wait_for_fd_server_ready(ready_read_fd)?;
+        Ok(FdServer { jailed_process: fd_server_jail })
+    }
+
+    fn do_spawn_fd_server(self, ready_file: File) -> Result<Minijail> {
+        let mut inheritable_fds = Vec::new();
+        let mut args = vec![FD_SERVER_BIN.to_string()];
+        for fd in self.ro_file_fds {
+            args.push("--ro-fds".to_string());
+            args.push(fd.to_string());
+            inheritable_fds.push(fd);
+        }
+        for fd in self.rw_file_fds {
+            args.push("--rw-fds".to_string());
+            args.push(fd.to_string());
+            inheritable_fds.push(fd);
+        }
+        for fd in self.ro_dir_fds {
+            args.push("--ro-dirs".to_string());
+            args.push(fd.to_string());
+            inheritable_fds.push(fd);
+        }
+        for fd in self.rw_dir_fds {
+            args.push("--rw-dirs".to_string());
+            args.push(fd.to_string());
+            inheritable_fds.push(fd);
+        }
+        let ready_fd = ready_file.as_raw_fd();
+        args.push("--ready-fd".to_string());
+        args.push(ready_fd.to_string());
+        inheritable_fds.push(ready_fd);
+
+        debug!("Spawn fd_server {:?} (inheriting FDs: {:?})", args, inheritable_fds);
+        let jail = Minijail::new()?;
+        let _pid = jail.run(Path::new(FD_SERVER_BIN), &inheritable_fds, &args)?;
+        Ok(jail)
+    }
+}
+
+/// `FdServer` represents a running `fd_server` process. The process lifetime is associated with
+/// the instance lifetime.
+pub struct FdServer {
+    jailed_process: Minijail,
+}
+
+impl Drop for FdServer {
+    fn drop(&mut self) {
+        if let Err(e) = self.jailed_process.kill() {
+            if !matches!(e, minijail::Error::Killed(_)) {
+                warn!("Failed to kill fd_server: {}", e);
+            }
+        }
+    }
+}
+
 fn create_pipe() -> Result<(File, File)> {
     let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC)?;
     // SAFETY: We are the sole owners of these fds as they were just created.
@@ -63,7 +109,6 @@ fn create_pipe() -> Result<(File, File)> {
     Ok((read_fd, write_fd))
 }
 
-#[allow(dead_code)]
 fn wait_for_fd_server_ready(mut ready_fd: File) -> Result<()> {
     let mut buffer = [0];
     // When fd_server is ready it closes its end of the pipe. And if it exits, the pipe is also
