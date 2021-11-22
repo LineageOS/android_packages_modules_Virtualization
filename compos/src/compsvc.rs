@@ -26,7 +26,7 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
-use crate::compilation::{compile_cmd, CompilerOutput};
+use crate::compilation::{compile_cmd, odrefresh, CompilerOutput};
 use crate::compos_key_service::CompOsKeyService;
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
@@ -42,11 +42,13 @@ use compos_aidl_interface::binder::{
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
+const ODREFRESH_PATH: &str = "/apex/com.android.art/bin/odrefresh";
 
 /// Constructs a binder object that implements ICompOsService.
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
     let service = CompOsService {
         dex2oat_path: PathBuf::from(DEX2OAT_PATH),
+        odrefresh_path: PathBuf::from(ODREFRESH_PATH),
         key_service: CompOsKeyService::new()?,
         key_blob: Arc::new(RwLock::new(Vec::new())),
     };
@@ -55,6 +57,7 @@ pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
 
 struct CompOsService {
     dex2oat_path: PathBuf,
+    odrefresh_path: PathBuf,
     key_service: CompOsKeyService,
     key_blob: Arc<RwLock<Vec<u8>>>,
 }
@@ -97,6 +100,48 @@ impl ICompOsService for CompOsService {
         env::set_var("DEX2OATBOOTCLASSPATH", dex2oat_boot_classpath);
         env::set_var("SYSTEMSERVERCLASSPATH", system_server_classpath);
         Ok(())
+    }
+
+    fn odrefresh(
+        &self,
+        system_dir_fd: i32,
+        output_dir_fd: i32,
+        zygote_arch: &str,
+    ) -> BinderResult<CompilationResult> {
+        if system_dir_fd < 0 || output_dir_fd < 0 {
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_ARGUMENT,
+                "The remote FDs are expected to be non-negative",
+            ));
+        }
+        if zygote_arch != "zygote64" && zygote_arch != "zygote64_32" {
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_ARGUMENT,
+                "Invalid zygote arch",
+            ));
+        }
+
+        let authfs_service = get_authfs_service()?;
+        let output = odrefresh(
+            &self.odrefresh_path,
+            system_dir_fd,
+            output_dir_fd,
+            zygote_arch,
+            authfs_service,
+        )
+        .map_err(|e| {
+            warn!("odrefresh failed: {}", e);
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("odrefresh failed: {}", e),
+            )
+        })?;
+        match output {
+            CompilerOutput::ExitCode(exit_code) => {
+                Ok(CompilationResult { exitCode: exit_code, ..Default::default() })
+            }
+            _ => Err(new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, "odrefresh failed")),
+        }
     }
 
     fn compile_cmd(

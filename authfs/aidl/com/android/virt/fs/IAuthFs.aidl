@@ -22,4 +22,7 @@ import com.android.virt.fs.AuthFsConfig;
 interface IAuthFs {
     /** Returns a file descriptor given the name of a remote file descriptor. */
     ParcelFileDescriptor openFile(int remoteFdName, boolean writable);
+
+    /** Returns the mount path of the current IAuthFs instance. */
+    String getMountPoint();
 }
