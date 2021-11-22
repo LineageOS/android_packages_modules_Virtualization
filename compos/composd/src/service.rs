@@ -29,17 +29,16 @@ use android_system_composd::binder::{
     self, BinderFeatures, ExceptionCode, Interface, Status, Strong, ThreadState,
 };
 use anyhow::{Context, Result};
-use binder_common::new_binder_service_specific_error;
-use compos_aidl_interface::aidl::com::android::compos::{
-    CompilationResult::CompilationResult, FdAnnotation::FdAnnotation,
-};
 use rustutils::users::{AID_ROOT, AID_SYSTEM};
+use std::sync::Arc;
 
 pub struct IsolatedCompilationService {
-    instance_manager: InstanceManager,
+    instance_manager: Arc<InstanceManager>,
 }
 
-pub fn new_binder(instance_manager: InstanceManager) -> Strong<dyn IIsolatedCompilationService> {
+pub fn new_binder(
+    instance_manager: Arc<InstanceManager>,
+) -> Strong<dyn IIsolatedCompilationService> {
     let service = IsolatedCompilationService { instance_manager };
     BnIsolatedCompilationService::new_binder(service, BinderFeatures::default())
 }
@@ -58,23 +57,6 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
         }
         to_binder_result(self.do_start_test_compile(callback))
     }
-
-    fn compile_cmd(
-        &self,
-        args: &[String],
-        fd_annotation: &FdAnnotation,
-    ) -> binder::Result<CompilationResult> {
-        let calling_uid = ThreadState::get_calling_uid();
-        // This should only be called by odrefresh, which runs as root
-        if calling_uid != AID_ROOT {
-            return Err(Status::new_exception(ExceptionCode::SECURITY, None));
-        }
-        to_binder_result(self.do_compile_cmd(args, fd_annotation))
-    }
-
-    fn compile(&self, _marshaled: &[u8], _fd_annotation: &FdAnnotation) -> binder::Result<i8> {
-        Err(new_binder_service_specific_error(-1, "Not yet implemented"))
-    }
 }
 
 impl IsolatedCompilationService {
@@ -87,14 +69,5 @@ impl IsolatedCompilationService {
         let task = CompilationTask::start_test_compile(comp_os, callback)?;
 
         Ok(BnCompilationTask::new_binder(task, BinderFeatures::default()))
-    }
-
-    fn do_compile_cmd(
-        &self,
-        args: &[String],
-        fd_annotation: &FdAnnotation,
-    ) -> Result<CompilationResult> {
-        let compos = self.instance_manager.get_running_service()?;
-        compos.compile_cmd(args, fd_annotation).context("Compiling")
     }
 }
