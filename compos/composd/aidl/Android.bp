@@ -9,7 +9,7 @@ aidl_interface {
     unstable: true,
     backend: {
         java: {
-            apex_available: ["//apex_available:platform"],
+            apex_available: ["com.android.compos"],
         },
         rust: {
             enabled: true,
