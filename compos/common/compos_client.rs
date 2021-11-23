@@ -297,6 +297,12 @@ impl IVirtualMachineCallback for VmCallback {
         log::warn!("VM payload finished, cid = {}, exit code = {}", cid, exit_code);
         Ok(())
     }
+
+    fn onError(&self, cid: i32, error_code: i32, message: &str) -> BinderResult<()> {
+        self.0.set_died();
+        log::warn!("VM error, cid = {}, error code = {}, message = {}", cid, error_code, message,);
+        Ok(())
+    }
 }
 
 fn start_logging(pfd: &ParcelFileDescriptor) -> Result<()> {

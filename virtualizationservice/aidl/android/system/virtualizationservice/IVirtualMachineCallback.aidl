@@ -42,6 +42,11 @@ oneway interface IVirtualMachineCallback {
     void onPayloadFinished(int cid, int exitCode);
 
     /**
+     * Called when an error occurs in the VM.
+     */
+    void onError(int cid, int errorCode, in String message);
+
+    /**
      * Called when the VM dies.
      *
      * Note that this will not be called if the VirtualizationService itself dies, so you should

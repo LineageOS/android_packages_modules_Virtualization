@@ -44,5 +44,5 @@ enum VirtualMachineState {
     /**
      * The VM has died.
      */
-    DEAD = 5,
+    DEAD = 6,
 }
