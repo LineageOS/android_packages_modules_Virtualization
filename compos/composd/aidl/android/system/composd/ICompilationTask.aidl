@@ -23,5 +23,5 @@ interface ICompilationTask {
      * Attempt to cancel compilation. If successful compilation will end and no further success or
      * failed callbacks will be received (although any in flight may still be delivered).
      */
-    void cancel();
+    oneway void cancel();
 }
