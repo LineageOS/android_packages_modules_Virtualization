@@ -19,7 +19,7 @@ package android.system.composd;
  * Interface to be implemented by clients of IIsolatedCompilationService to be notified when a
  * requested compilation task completes.
  */
-interface ICompilationTaskCallback {
+oneway interface ICompilationTaskCallback {
     /**
      * Called if a compilation task has ended successfully, generating all the required artifacts.
      */
