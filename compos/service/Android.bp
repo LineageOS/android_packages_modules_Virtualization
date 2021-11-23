@@ -29,7 +29,9 @@ java_library {
     apex_available: [
         "com.android.compos",
     ],
-    // Access to SystemService etc
-    sdk_version: "system_server_current",
+    // Access to SystemService, ServiceManager#waitForService etc
+    libs: ["services"],
+    sdk_version: "",
+    platform_apis: true,
     installable: true,
 }
