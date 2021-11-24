@@ -271,6 +271,11 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
         Ok(())
     }
 
+    fn onError(&self, _cid: i32, error_code: i32, message: &str) -> BinderResult<()> {
+        eprintln!("VM encountered an error: code={}, message={}", error_code, message);
+        Ok(())
+    }
+
     fn onDied(&self, _cid: i32) -> BinderResult<()> {
         // No need to explicitly report the event to the user (e.g. via println!) because this
         // callback is registered only when the vm tool is invoked as interactive mode (e.g. not
