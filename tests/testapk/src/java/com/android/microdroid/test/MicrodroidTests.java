@@ -111,6 +111,9 @@ public class MicrodroidTests {
         public void onPayloadFinished(VirtualMachine vm, int exitCode) {}
 
         @Override
+        public void onError(VirtualMachine vm, int errorCode, String message) {}
+
+        @Override
         public void onDied(VirtualMachine vm) {}
     }
 

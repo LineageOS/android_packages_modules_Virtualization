@@ -401,6 +401,16 @@ public class VirtualMachine {
                         }
 
                         @Override
+                        public void onError(int cid, int errorCode, String message) {
+                            final VirtualMachineCallback cb = mCallback;
+                            if (cb == null) {
+                                return;
+                            }
+                            mCallbackExecutor.execute(
+                                    () -> cb.onError(VirtualMachine.this, errorCode, message));
+                        }
+
+                        @Override
                         public void onDied(int cid) {
                             final VirtualMachineCallback cb = mCallback;
                             if (cb == null) {
