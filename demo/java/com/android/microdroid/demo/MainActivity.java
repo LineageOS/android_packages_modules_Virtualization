@@ -263,6 +263,17 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         @Override
+                        public void onError(VirtualMachine vm, int errorCode, String message) {
+                            // This check doesn't 100% prevent race condition, but is fine for demo.
+                            if (!mService.isShutdown()) {
+                                mPayloadOutput.postValue(
+                                        String.format(
+                                                "(Error occurred. code: %d, message: %s)",
+                                                errorCode, message));
+                            }
+                        }
+
+                        @Override
                         public void onDied(VirtualMachine vm) {
                             mService.shutdownNow();
                             mStatus.postValue(VirtualMachine.Status.STOPPED);
