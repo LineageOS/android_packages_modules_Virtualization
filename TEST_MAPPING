@@ -11,6 +11,9 @@
     },
     {
       "name": "MicrodroidTestApp"
+    },
+    {
+      "name": "art_standalone_dexpreopt_tests"
     }
   ],
   "imports": [
