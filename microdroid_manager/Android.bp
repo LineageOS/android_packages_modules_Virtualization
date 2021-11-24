@@ -30,6 +30,7 @@ rust_defaults {
         "libserde",
         "libserde_cbor",
         "libserde_json",
+        "libthiserror",
         "libuuid",
         "libvsock",
         "librand",
