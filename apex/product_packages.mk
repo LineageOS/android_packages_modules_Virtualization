@@ -25,7 +25,6 @@ PRODUCT_PACKAGES += \
 
 # TODO(b/207336449): Figure out how to get these off /system
 PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST := \
-    system/lib64/libgfxstream_backend.so \
     system/framework/oat/%@service-compos.jar@classes.odex \
     system/framework/oat/%@service-compos.jar@classes.vdex \
 
