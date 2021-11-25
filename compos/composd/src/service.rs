@@ -53,21 +53,41 @@ pub fn new_binder(
 impl Interface for IsolatedCompilationService {}
 
 impl IIsolatedCompilationService for IsolatedCompilationService {
+    fn startStagedApexCompile(
+        &self,
+        callback: &Strong<dyn ICompilationTaskCallback>,
+    ) -> binder::Result<Strong<dyn ICompilationTask>> {
+        check_permissions()?;
+        to_binder_result(self.do_start_staged_apex_compile(callback))
+    }
+
     fn startTestCompile(
         &self,
         callback: &Strong<dyn ICompilationTaskCallback>,
     ) -> binder::Result<Strong<dyn ICompilationTask>> {
-        check_test_permissions()?;
+        check_permissions()?;
         to_binder_result(self.do_start_test_compile(callback))
     }
 
     fn startTestOdrefresh(&self) -> binder::Result<i8> {
-        check_test_permissions()?;
+        check_permissions()?;
         to_binder_result(self.do_odrefresh_for_test())
     }
 }
 
 impl IsolatedCompilationService {
+    fn do_start_staged_apex_compile(
+        &self,
+        callback: &Strong<dyn ICompilationTaskCallback>,
+    ) -> Result<Strong<dyn ICompilationTask>> {
+        // TODO: Try to start the current instance with staged APEXes to see if it works?
+        let comp_os = self.instance_manager.start_pending_instance().context("Starting CompOS")?;
+
+        let task = CompilationTask::start_staged_apex_compile(comp_os, callback)?;
+
+        Ok(BnCompilationTask::new_binder(task, BinderFeatures::default()))
+    }
+
     fn do_start_test_compile(
         &self,
         callback: &Strong<dyn ICompilationTaskCallback>,
@@ -114,7 +134,7 @@ impl IsolatedCompilationService {
     }
 }
 
-fn check_test_permissions() -> binder::Result<()> {
+fn check_permissions() -> binder::Result<()> {
     let calling_uid = ThreadState::get_calling_uid();
     // This should only be called by system server, or root while testing
     if calling_uid != AID_SYSTEM && calling_uid != AID_ROOT {
@@ -135,5 +155,5 @@ fn open_dir_path(path: &Path) -> Result<File> {
         // make the library happy. The value does not appear to matter elsewhere in the library.
         .read(true)
         .open(path)
-        .with_context(|| format!("Failed to open {} directory as path fd", path.display()))
+        .with_context(|| format!("Failed to open {:?} directory as path fd", path))
 }

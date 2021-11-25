@@ -20,6 +20,17 @@ import android.system.composd.ICompilationTaskCallback;
 
 interface IIsolatedCompilationService {
     /**
+     * Compile BCP extensions and system server, using any staged APEXes that are present in
+     * preference to active APEXes, writing the results to the pending artifacts directory to be
+     * verified by odsing on next boot.
+     *
+     * Compilation continues in the background, and success/failure is reported via the supplied
+     * callback, unless the returned ICompilationTask is cancelled. The caller should maintain
+     * a reference to the ICompilationTask until compilation completes or is cancelled.
+     */
+    ICompilationTask startStagedApexCompile(ICompilationTaskCallback callback);
+
+    /**
      * Run "odrefresh --dalvik-cache=pending-test --force-compile" in a test instance of CompOS.
      *
      * This compiles BCP extensions and system server, even if the system artifacts are up to date,
