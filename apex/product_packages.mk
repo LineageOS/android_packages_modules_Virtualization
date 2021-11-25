@@ -29,6 +29,6 @@ PRODUCT_ARTIFACT_PATH_REQUIREMENT_ALLOWED_LIST := \
     system/framework/oat/%@service-compos.jar@classes.odex \
     system/framework/oat/%@service-compos.jar@classes.vdex \
 
-# PRODUCT_APEX_SYSTEM_SERVER_JARS := com.android.compos:service-compos
+PRODUCT_APEX_SYSTEM_SERVER_JARS := com.android.compos:service-compos
 
-# PRODUCT_SYSTEM_EXT_PROPERTIES := ro.config.isolated_compilation_enabled=true
+PRODUCT_SYSTEM_EXT_PROPERTIES := ro.config.isolated_compilation_enabled=true
