@@ -33,7 +33,7 @@ use rustutils::system_properties::PropertyWatcher;
 use std::fs::{self, File, OpenOptions};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::{Duration, SystemTime};
 use vsock::VsockStream;
@@ -43,7 +43,16 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
 };
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
+const APK_DM_VERITY_ARGUMENT: ApkDmverityArgument = {
+    ApkDmverityArgument {
+        apk: "/dev/block/by-name/microdroid-apk",
+        idsig: "/dev/block/by-name/microdroid-apk-idsig",
+        name: "microdroid-apk",
+    }
+};
 const DM_MOUNTED_APK_PATH: &str = "/dev/block/mapper/microdroid-apk";
+const APKDMVERITY_BIN: &str = "/system/bin/apkdmverity";
+const ZIPFUSE_BIN: &str = "/system/bin/zipfuse";
 
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
@@ -135,7 +144,12 @@ fn try_start_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<()>
     }
 
     // Before reading a file from the APK, start zipfuse
-    system_properties::write("ctl.start", "zipfuse")?;
+    run_zipfuse(
+        "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:system_file:s0",
+        Path::new("/dev/block/mapper/microdroid-apk"),
+        Path::new("/mnt/apk"),
+    )
+    .context("Failed to run zipfuse")?;
 
     if !metadata.payload_config_path.is_empty() {
         let config = load_config(Path::new(&metadata.payload_config_path))?;
@@ -160,6 +174,37 @@ fn try_start_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<()>
     Ok(())
 }
 
+struct ApkDmverityArgument<'a> {
+    apk: &'a str,
+    idsig: &'a str,
+    name: &'a str,
+}
+
+fn run_apkdmverity(args: &[ApkDmverityArgument]) -> Result<Child> {
+    let mut cmd = Command::new(APKDMVERITY_BIN);
+
+    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+
+    for argument in args {
+        cmd.arg("--apk").arg(argument.apk).arg(argument.idsig).arg(argument.name);
+    }
+
+    cmd.spawn().context("Spawn apkdmverity")
+}
+
+fn run_zipfuse(option: &str, zip_path: &Path, mount_dir: &Path) -> Result<Child> {
+    Command::new(ZIPFUSE_BIN)
+        .arg("-o")
+        .arg(option)
+        .arg(zip_path)
+        .arg(mount_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .context("Spawn zipfuse")
+}
+
 // Verify payload before executing it. For APK payload, Full verification (which is slow) is done
 // when the root_hash values from the idsig file and the instance disk are different. This function
 // returns the verified root hash (for APK payload) and pubkeys (for APEX payloads) that can be
@@ -182,7 +227,7 @@ fn verify_payload(
     }
 
     // Start apkdmverity and wait for the dm-verify block
-    system_properties::write("ctl.start", "apkdmverity")?;
+    let mut apkdmverity_child = run_apkdmverity(&[APK_DM_VERITY_ARGUMENT])?;
 
     // While waiting for apkdmverity to mount APK, gathers public keys and root digests from
     // APEX payload.
@@ -206,7 +251,8 @@ fn verify_payload(
     // Start apexd to activate APEXes
     system_properties::write("ctl.start", "apexd-vm")?;
 
-    ioutil::wait_for_file(DM_MOUNTED_APK_PATH, WAIT_TIMEOUT)?;
+    // TODO(inseob): add timeout
+    apkdmverity_child.wait()?;
 
     // Do the full verification if the root_hash is un-trustful. This requires the full scanning of
     // the APK file and therefore can be very slow if the APK is large. Note that this step is
