@@ -18,6 +18,7 @@ use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
 use crate::{Cid, FIRST_GUEST_CID, SYSPROP_LAST_CID};
+use crate::selinux::{SeContext, getfilecon};
 use ::binder::unstable_api::AsNative;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
@@ -25,6 +26,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
     IVirtualizationService::IVirtualizationService,
+    Partition::Partition,
     PartitionType::PartitionType,
     VirtualMachineAppConfig::DebugLevel::DebugLevel,
     VirtualMachineAppConfig::VirtualMachineAppConfig,
@@ -169,6 +171,8 @@ impl IVirtualizationService for VirtualizationService {
             }
         }
 
+        let is_app_config = matches!(config, VirtualMachineConfig::AppConfig(_));
+
         let config = match config {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
                 load_app_config(config, &temporary_directory).map_err(|e| {
@@ -182,6 +186,25 @@ impl IVirtualizationService for VirtualizationService {
             VirtualMachineConfig::RawConfig(config) => BorrowedOrOwned::Borrowed(config),
         };
         let config = config.as_ref();
+
+        // Check if partition images are labeled incorrectly. This is to prevent random images
+        // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
+        // being loaded in a pVM.  Specifically, for images in the raw config, nothing is allowed
+        // to be labeled as app_data_file. For images in the app config, nothing but the instance
+        // partition is allowed to be labeled as such.
+        config
+            .disks
+            .iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter(|partition| {
+                if is_app_config {
+                    partition.label != "vm-instance"
+                } else {
+                    true // all partitions are checked
+                }
+            })
+            .try_for_each(check_label_for_partition)
+            .map_err(|e| new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string()))?;
 
         let zero_filler_path = temporary_directory.join("zero.img");
         write_zero_filler(&zero_filler_path).map_err(|e| {
@@ -604,6 +627,16 @@ fn check_debug_access() -> binder::Result<()> {
 /// Check whether the caller of the current Binder method is allowed to manage VMs
 fn check_manage_access() -> binder::Result<()> {
     check_permission("android.permission.MANAGE_VIRTUAL_MACHINE")
+}
+
+/// Check if a partition has selinux labels that are not allowed
+fn check_label_for_partition(partition: &Partition) -> Result<()> {
+    let ctx = getfilecon(partition.image.as_ref().unwrap().as_ref())?;
+    if ctx == SeContext::new("u:object_r:app_data_file:s0").unwrap() {
+        Err(anyhow!("Partition {} shouldn't be labeled as {}", &partition.label, ctx))
+    } else {
+        Ok(())
+    }
 }
 
 /// Implementation of the AIDL `IVirtualMachine` interface. Used as a handle to a VM.
