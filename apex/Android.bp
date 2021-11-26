@@ -16,9 +16,6 @@ apex {
     // TODO(jiyong): make it updatable
     updatable: false,
     platform_apis: true,
-    // b/207336449: this is to turn the symlink optimization off while keeping this APEX
-    // non-updatable. Can be removed when `updatable` becomes true.
-    installable: false,
 
     system_ext_specific: true,
 
