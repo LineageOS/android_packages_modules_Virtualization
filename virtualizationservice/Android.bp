@@ -36,9 +36,10 @@ rust_defaults {
         "libmicrodroid_payload_config",
         "libonce_cell",
         "librustutils",
+        "libselinux_bindgen",
+        "libserde",
         "libserde_json",
         "libserde_xml_rs",
-        "libserde",
         "libshared_child",
         "libvmconfig",
         "libzip",
@@ -48,6 +49,7 @@ rust_defaults {
     ],
     shared_libs: [
         "libbinder_rpc_unstable",
+        "libselinux",
     ],
 }
 
