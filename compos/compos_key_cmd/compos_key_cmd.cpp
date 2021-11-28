@@ -181,8 +181,12 @@ private:
 
 class TargetVm {
 public:
-    TargetVm(int cid, const std::string& logFile, const std::string& instanceImageFile)
-          : mCid(cid), mLogFile(logFile), mInstanceImageFile(instanceImageFile) {}
+    TargetVm(int cid, const std::string& logFile, const std::string& instanceImageFile,
+             bool debuggable)
+          : mCid(cid),
+            mLogFile(logFile),
+            mInstanceImageFile(instanceImageFile),
+            mDebuggable(debuggable) {}
 
     // Returns 0 if we are to connect to a local service, otherwise the CID of
     // either an existing VM or a VM we have started, depending on the command
@@ -244,7 +248,8 @@ public:
         appConfig.idsig = std::move(idsigFd);
         appConfig.instanceImage = std::move(instanceFd);
         appConfig.configPath = kConfigFilePath;
-        appConfig.debugLevel = VirtualMachineAppConfig::DebugLevel::FULL;
+        appConfig.debugLevel = mDebuggable ? VirtualMachineAppConfig::DebugLevel::FULL
+                                           : VirtualMachineAppConfig::DebugLevel::NONE;
         appConfig.memoryMib = 0; // Use default
 
         LOG(INFO) << "Starting VM";
@@ -287,6 +292,7 @@ private:
     const int mCid;
     const std::string mLogFile;
     const std::string mInstanceImageFile;
+    const bool mDebuggable;
     std::shared_ptr<Callback> mCallback;
     std::shared_ptr<IVirtualMachine> mVm;
 };
@@ -532,8 +538,18 @@ int main(int argc, char** argv) {
     int cid = 0;
     std::string imageFile;
     std::string logFile;
+    bool debuggable = false;
 
-    while (argc >= 3) {
+    for (;;) {
+        if (argc >= 2) {
+            if (argv[1] == "--debug"sv) {
+                debuggable = true;
+                argc -= 1;
+                argv += 1;
+                continue;
+            }
+        }
+        if (argc < 3) break;
         if (argv[1] == "--cid"sv) {
             cid = atoi(argv[2]);
             if (cid == 0) {
@@ -551,7 +567,7 @@ int main(int argc, char** argv) {
         argv += 2;
     }
 
-    TargetVm vm(cid, logFile, imageFile);
+    TargetVm vm(cid, logFile, imageFile, debuggable);
 
     if (argc == 4 && argv[1] == "generate"sv) {
         auto result = generate(vm, argv[2], argv[3]);
@@ -607,8 +623,9 @@ int main(int argc, char** argv) {
                   << "    <filename>.signature\n"
                   << "  make-instance <image file> Create an empty instance image file for a VM.\n"
                   << "\n"
-                  << "OPTIONS: --log <log file> (--cid <cid> | --start <image file>)\n"
+                  << "OPTIONS: --log <log file> --debug (--cid <cid> | --start <image file>)\n"
                   << "  Specify --log to write VM log to a file rather than stdout.\n"
+                  << "  Specify --debug with --start to make the VM fully debuggable.\n"
                   << "  Specify --cid to connect to a VM rather than the host.\n"
                   << "  Specify --start to start a VM from the given instance image file and\n "
                   << "    connect to that.\n";
