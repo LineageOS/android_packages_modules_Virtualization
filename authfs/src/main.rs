@@ -37,6 +37,7 @@ mod auth;
 mod common;
 mod crypto;
 mod file;
+mod fsstat;
 mod fsverity;
 mod fusefs;
 
@@ -44,6 +45,7 @@ use auth::FakeAuthenticator;
 use file::{
     InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
 };
+use fsstat::RemoteFsStatsReader;
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
 use fusefs::{AuthFs, AuthFsEntry};
 
@@ -204,9 +206,11 @@ fn new_remote_new_verified_dir_entry(
     Ok(AuthFsEntry::VerifiedNewDirectory { dir })
 }
 
-fn prepare_root_dir_entries(authfs: &mut AuthFs, args: &Args) -> Result<()> {
-    let service = file::get_rpc_binder_service(args.cid)?;
-
+fn prepare_root_dir_entries(
+    service: file::VirtFdService,
+    authfs: &mut AuthFs,
+    args: &Args,
+) -> Result<()> {
     for config in &args.remote_ro_file {
         authfs.add_entry_at_root_dir(
             remote_fd_to_path_buf(config.remote_fd),
@@ -303,8 +307,10 @@ fn try_main() -> Result<()> {
         android_logger::Config::default().with_tag("authfs").with_min_level(log_level),
     );
 
-    let mut authfs = AuthFs::new();
-    prepare_root_dir_entries(&mut authfs, &args)?;
+    let service = file::get_rpc_binder_service(args.cid)?;
+    let mut authfs = AuthFs::new(RemoteFsStatsReader::new(service.clone()));
+    prepare_root_dir_entries(service, &mut authfs, &args)?;
+
     fusefs::loop_forever(authfs, &args.mount_point, &args.extra_options)?;
     bail!("Unexpected exit after the handler loop")
 }
