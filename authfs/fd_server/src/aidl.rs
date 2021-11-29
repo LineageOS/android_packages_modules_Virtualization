@@ -18,6 +18,7 @@ use anyhow::Result;
 use log::error;
 use nix::{
     dir::Dir, errno::Errno, fcntl::openat, fcntl::OFlag, sys::stat::mkdirat, sys::stat::Mode,
+    sys::statvfs::statvfs, sys::statvfs::Statvfs,
 };
 use std::cmp::min;
 use std::collections::{btree_map, BTreeMap};
@@ -31,7 +32,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
-    BnVirtFdService, IVirtFdService, MAX_REQUESTING_DATA,
+    BnVirtFdService, FsStat::FsStat, IVirtFdService, MAX_REQUESTING_DATA,
 };
 use authfs_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, StatusCode, Strong,
@@ -331,6 +332,22 @@ impl IVirtFdService for FdService {
             _ => Err(new_errno_error(Errno::ENOTDIR)),
         })
     }
+
+    fn statfs(&self) -> BinderResult<FsStat> {
+        let st = statvfs("/data").map_err(new_errno_error)?;
+        try_into_fs_stat(st).map_err(|_e| new_errno_error(Errno::EINVAL))
+    }
+}
+
+fn try_into_fs_stat(st: Statvfs) -> Result<FsStat, std::num::TryFromIntError> {
+    Ok(FsStat {
+        blockSize: st.block_size().try_into()?,
+        fragmentSize: st.fragment_size().try_into()?,
+        blockNumbers: st.blocks().try_into()?,
+        blockAvailable: st.blocks_available().try_into()?,
+        inodesAvailable: st.files_available().try_into()?,
+        maxFilename: st.name_max().try_into()?,
+    })
 }
 
 fn read_into_buf(file: &File, max_size: usize, offset: u64) -> io::Result<Vec<u8>> {

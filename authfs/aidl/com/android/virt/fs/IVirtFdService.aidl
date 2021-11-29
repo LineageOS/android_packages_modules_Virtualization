@@ -79,4 +79,23 @@ interface IVirtFdService {
      * @return file FD that represents the new created directory.
      */
     int createDirectoryInDirectory(int dirFd, String basename);
+
+    /** Filesystem stats that AuthFS is interested in.*/
+    parcelable FsStat {
+        /** Block size of the filesystem */
+        long blockSize;
+        /** Fragment size of the filesystem */
+        long fragmentSize;
+        /** Number of blocks in the filesystem */
+        long blockNumbers;
+        /** Number of free blocks */
+        long blockAvailable;
+        /** Number of free inodes */
+        long inodesAvailable;
+        /** Maximum filename length */
+        long maxFilename;
+    }
+
+    /** Returns relevant filesystem stats. */
+    FsStat statfs();
 }
