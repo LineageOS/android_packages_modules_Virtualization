@@ -21,7 +21,7 @@ use std::convert::TryFrom;
 use std::ffi::{CStr, OsStr};
 use std::fs::OpenOptions;
 use std::io;
-use std::mem::MaybeUninit;
+use std::mem::{zeroed, MaybeUninit};
 use std::option::Option;
 use std::os::unix::{ffi::OsStrExt, io::AsRawFd};
 use std::path::{Component, Path, PathBuf};
@@ -40,6 +40,7 @@ use crate::file::{
     validate_basename, InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor, RemoteFileEditor,
     RemoteFileReader, RemoteMerkleTreeReader,
 };
+use crate::fsstat::RemoteFsStatsReader;
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
 
 pub type Inode = u64;
@@ -66,7 +67,7 @@ pub enum AuthFsEntry {
         reader: VerifiedFileReader<RemoteFileReader, RemoteMerkleTreeReader>,
         file_size: u64,
     },
-    /// A file type that is a read-only passthrough from a file on a remote serrver.
+    /// A file type that is a read-only passthrough from a file on a remote server.
     UnverifiedReadonly { reader: RemoteFileReader, file_size: u64 },
     /// A file type that is initially empty, and the content is stored on a remote server. File
     /// integrity is guaranteed with private Merkle tree.
@@ -84,17 +85,25 @@ pub struct AuthFs {
 
     /// The next available inode number.
     next_inode: AtomicU64,
+
+    /// A reader to access the remote filesystem stats, which is supposed to be of "the" output
+    /// directory. We assume all output are stored in the same partition.
+    remote_fs_stats_reader: RemoteFsStatsReader,
 }
 
 // Implementation for preparing an `AuthFs` instance, before starting to serve.
 // TODO(victorhsieh): Consider implement a builder to separate the mutable initialization from the
 // immutable / interiorly mutable serving phase.
 impl AuthFs {
-    pub fn new() -> AuthFs {
+    pub fn new(remote_fs_stats_reader: RemoteFsStatsReader) -> AuthFs {
         let mut inode_table = BTreeMap::new();
         inode_table.insert(ROOT_INODE, AuthFsEntry::ReadonlyDirectory { dir: InMemoryDir::new() });
 
-        AuthFs { inode_table: Mutex::new(inode_table), next_inode: AtomicU64::new(ROOT_INODE + 1) }
+        AuthFs {
+            inode_table: Mutex::new(inode_table),
+            next_inode: AtomicU64::new(ROOT_INODE + 1),
+            remote_fs_stats_reader,
+        }
     }
 
     /// Add an `AuthFsEntry` as `basename` to the filesystem root.
@@ -671,6 +680,32 @@ impl FileSystem for AuthFs {
             entry_timeout: DEFAULT_METADATA_TIMEOUT,
             attr_timeout: DEFAULT_METADATA_TIMEOUT,
         })
+    }
+
+    fn statfs(&self, _ctx: Context, _inode: Self::Inode) -> io::Result<libc::statvfs64> {
+        let remote_stat = self.remote_fs_stats_reader.statfs()?;
+
+        // Safe because we are zero-initializing a struct with only POD fields. Not all fields
+        // matter to FUSE. See also:
+        // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/fs/fuse/inode.c?h=v5.15#n460
+        let mut st: libc::statvfs64 = unsafe { zeroed() };
+
+        // Use the remote stat as a template, since it'd matter the most to consider the writable
+        // files/directories that are written to the remote.
+        st.f_bsize = remote_stat.block_size;
+        st.f_frsize = remote_stat.fragment_size;
+        st.f_blocks = remote_stat.block_numbers;
+        st.f_bavail = remote_stat.block_available;
+        st.f_favail = remote_stat.inodes_available;
+        st.f_namemax = remote_stat.max_filename;
+        // Assuming we are not privileged to use all free spaces on the remote server, set the free
+        // blocks/fragment to the same available amount.
+        st.f_bfree = st.f_bavail;
+        st.f_ffree = st.f_favail;
+        // Number of inodes on the filesystem
+        st.f_files = self.inode_table.lock().unwrap().len() as u64;
+
+        Ok(st)
     }
 }
 
