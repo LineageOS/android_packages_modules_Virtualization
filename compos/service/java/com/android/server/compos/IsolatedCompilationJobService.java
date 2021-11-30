@@ -68,20 +68,21 @@ public class IsolatedCompilationJobService extends JobService {
         CompilationJob newJob = new CompilationJob(callback);
         mCurrentJob.set(newJob);
 
-        try {
-            // This can take some time - we need to start up a VM - so we do it on a separate
-            // thread. This thread exits as soon as the compilation Ttsk has been started (or
-            // there's a failure), and then compilation continues in composd and the VM.
-            new Thread("IsolatedCompilationJob_starter") {
-                @Override
-                public void run() {
+        // This can take some time - we need to start up a VM - so we do it on a separate
+        // thread. This thread exits as soon as the compilation Task has been started (or
+        // there's a failure), and then compilation continues in composd and the VM.
+        new Thread("IsolatedCompilationJob_starter") {
+            @Override
+            public void run() {
+                try {
                     newJob.start();
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Starting CompilationJob failed", e);
+                    newJob.stop(); // Just in case it managed to start before failure
+                    jobFinished(params, /*wantReschedule=*/ false);
                 }
-            }.start();
-        } catch (RuntimeException e) {
-            Log.e(TAG, "Starting CompilationJob failed", e);
-            return false; // We're finished
-        }
+            }
+        }.start();
         return true; // Job is running in the background
     }
 
