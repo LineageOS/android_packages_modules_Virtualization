@@ -86,14 +86,20 @@ pub fn odrefresh(
     android_root.push("system");
     env::set_var("ANDROID_ROOT", &android_root);
 
+    let mut art_apex_data = mountpoint.clone();
+    art_apex_data.push(output_dir_fd.to_string());
+    env::set_var("ART_APEX_DATA", &art_apex_data);
+
     let mut staging_dir = mountpoint;
     staging_dir.push(output_dir_fd.to_string());
     staging_dir.push("staging");
-    create_dir(&staging_dir).context("Create staging directory")?;
+    create_dir(&staging_dir)
+        .with_context(|| format!("Create staging directory {}", staging_dir.display()))?;
 
     let args = vec![
         "odrefresh".to_string(),
         format!("--zygote-arch={}", zygote_arch),
+        "--no-refresh".to_string(),
         format!("--staging-dir={}", staging_dir.display()),
         "--force-compile".to_string(),
     ];
@@ -103,7 +109,7 @@ pub fn odrefresh(
         // TODO(161471326): On success, sign all files in the output directory.
         Ok(()) => Ok(CompilerOutput::ExitCode(0)),
         Err(minijail::Error::ReturnCode(exit_code)) => {
-            error!("dex2oat failed with exit code {}", exit_code);
+            error!("odrefresh failed with exit code {}", exit_code);
             Ok(CompilerOutput::ExitCode(exit_code as i8))
         }
         Err(e) => {
