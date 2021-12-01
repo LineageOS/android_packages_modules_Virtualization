@@ -52,6 +52,23 @@ impl CompilationTask {
         self.running_task.lock().unwrap().take()
     }
 
+    pub fn start_staged_apex_compile(
+        comp_os: Arc<CompOsInstance>,
+        callback: &Strong<dyn ICompilationTaskCallback>,
+    ) -> Result<CompilationTask> {
+        // TODO: Write to pending
+        // TODO: Delete any existing artifacts
+        let odrefresh = Odrefresh::spawn_compile("test-artifacts")?;
+        let odrefresh = Arc::new(odrefresh);
+        let task =
+            RunningTask { odrefresh: odrefresh.clone(), comp_os, callback: callback.clone() };
+        let task = CompilationTask { running_task: Arc::new(Mutex::new(Some(task))) };
+
+        task.clone().start_waiting_thread(odrefresh);
+
+        Ok(task)
+    }
+
     pub fn start_test_compile(
         comp_os: Arc<CompOsInstance>,
         callback: &Strong<dyn ICompilationTaskCallback>,
