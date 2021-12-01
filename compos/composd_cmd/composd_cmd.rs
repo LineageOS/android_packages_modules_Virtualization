@@ -18,12 +18,13 @@
 
 use android_system_composd::{
     aidl::android::system::composd::{
+        ICompilationTask::ICompilationTask,
         ICompilationTaskCallback::{BnCompilationTaskCallback, ICompilationTaskCallback},
         IIsolatedCompilationService::IIsolatedCompilationService,
     },
     binder::{
         wait_for_interface, BinderFeatures, DeathRecipient, IBinder, Interface, ProcessState,
-        Result as BinderResult,
+        Result as BinderResult, Strong,
     },
 };
 use anyhow::{bail, Context, Result};
@@ -37,7 +38,7 @@ fn main() -> Result<()> {
             .index(1)
             .takes_value(true)
             .required(true)
-            .possible_values(&["forced-compile-test", "forced-odrefresh"]),
+            .possible_values(&["staged-apex-compile", "forced-compile-test", "forced-odrefresh"]),
     );
     let args = app.get_matches();
     let command = args.value_of("command").unwrap();
@@ -45,6 +46,7 @@ fn main() -> Result<()> {
     ProcessState::start_thread_pool();
 
     match command {
+        "staged-apex-compile" => run_staged_apex_compile()?,
         "forced-compile-test" => run_forced_compile_for_test()?,
         "forced-odrefresh" => run_forced_odrefresh_for_test()?,
         _ => panic!("Unexpected command {}", command),
@@ -103,14 +105,28 @@ impl State {
     }
 }
 
+fn run_staged_apex_compile() -> Result<()> {
+    run_async_compilation(|service, callback| service.startStagedApexCompile(callback))
+}
+
 fn run_forced_compile_for_test() -> Result<()> {
+    run_async_compilation(|service, callback| service.startTestCompile(callback))
+}
+
+fn run_async_compilation<F>(start_compile_fn: F) -> Result<()>
+where
+    F: FnOnce(
+        &dyn IIsolatedCompilationService,
+        &Strong<dyn ICompilationTaskCallback>,
+    ) -> BinderResult<Strong<dyn ICompilationTask>>,
+{
     let service = wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
         .context("Failed to connect to composd service")?;
 
     let state = Arc::new(State::default());
     let callback = Callback(state.clone());
     let callback = BnCompilationTaskCallback::new_binder(callback, BinderFeatures::default());
-    let task = service.startTestCompile(&callback).context("Compilation failed")?;
+    let task = start_compile_fn(&*service, &callback).context("Compilation failed")?;
 
     // Make sure composd keeps going even if we don't hold a reference to its service.
     drop(service);
