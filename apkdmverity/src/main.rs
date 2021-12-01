@@ -28,6 +28,7 @@ mod util;
 use anyhow::{bail, Context, Result};
 use clap::{App, Arg};
 use idsig::{HashAlgorithm, V4Signature};
+use itertools::Itertools;
 use rustutils::system_properties;
 use std::fmt::Debug;
 use std::fs;
@@ -38,42 +39,35 @@ use std::path::{Path, PathBuf};
 fn main() -> Result<()> {
     let matches = App::new("apkdmverity")
         .about("Creates a dm-verity block device out of APK signed with APK signature scheme V4.")
-        .arg(
-            Arg::with_name("apk")
-                .help("Input APK file. Must be signed using the APK signature scheme V4.")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("idsig")
-                .help("The idsig file having the merkle tree and the signing info.")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("name")
-                .help(
-                    "Name of the dm-verity block device. The block device is created at \
-                      \"/dev/mapper/<name>\".",
-                )
-                .required(true),
-        )
+        .arg(Arg::from_usage(
+            "--apk... <apk_path> <idsig_path> <name> \
+                            'Input APK file, idsig file, and the name of the block device. The APK \
+                            file must be signed using the APK signature scheme 4. The block device \
+                            is created at \"/dev/mapper/<name>\".'",
+        ))
         .arg(Arg::with_name("verbose").short("v").long("verbose").help("Shows verbose output"))
         .get_matches();
 
-    let apk = matches.value_of("apk").unwrap();
-    let idsig = matches.value_of("idsig").unwrap();
-    let name = matches.value_of("name").unwrap();
+    let apks = matches.values_of("apk").unwrap();
+    assert!(apks.len() % 3 == 0);
+
     let roothash = if let Ok(val) = system_properties::read("microdroid_manager.apk_root_hash") {
         Some(util::parse_hexstring(&val)?)
     } else {
         // This failure is not an error. We will use the roothash read from the idsig file.
         None
     };
-    let ret = enable_verity(apk, idsig, name, roothash.as_deref())?;
-    if matches.is_present("verbose") {
-        println!(
-            "data_device: {:?}, hash_device: {:?}, mapper_device: {:?}",
-            ret.data_device, ret.hash_device, ret.mapper_device
-        );
+
+    let verbose = matches.is_present("verbose");
+
+    for (apk, idsig, name) in apks.tuples() {
+        let ret = enable_verity(apk, idsig, name, roothash.as_deref())?;
+        if verbose {
+            println!(
+                "data_device: {:?}, hash_device: {:?}, mapper_device: {:?}",
+                ret.data_device, ret.hash_device, ret.mapper_device
+            );
+        }
     }
     Ok(())
 }
