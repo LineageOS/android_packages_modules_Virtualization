@@ -138,6 +138,7 @@ public class IsolatedCompilationJobService extends JobService {
             }
 
             try {
+                // TODO(b/205296305) Call startStagedApexCompile instead
                 ICompilationTask composTask = composd.startTestCompile(this);
                 mTask.set(composTask);
                 composTask.asBinder().linkToDeath(this, 0);
