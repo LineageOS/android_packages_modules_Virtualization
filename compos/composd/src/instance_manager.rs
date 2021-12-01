@@ -23,7 +23,7 @@ use anyhow::{bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::Strong;
 use compos_common::compos_client::VmParameters;
-use compos_common::{CURRENT_INSTANCE_DIR, TEST_INSTANCE_DIR};
+use compos_common::{PENDING_INSTANCE_DIR, TEST_INSTANCE_DIR};
 use std::sync::{Arc, Mutex, Weak};
 use virtualizationservice::IVirtualizationService::IVirtualizationService;
 
@@ -43,9 +43,8 @@ impl InstanceManager {
         Ok(instance.get_service())
     }
 
-    #[allow(dead_code)] // TODO: Make use of this
-    pub fn start_current_instance(&self) -> Result<Arc<CompOsInstance>> {
-        self.start_instance(CURRENT_INSTANCE_DIR, VmParameters::default())
+    pub fn start_pending_instance(&self) -> Result<Arc<CompOsInstance>> {
+        self.start_instance(PENDING_INSTANCE_DIR, VmParameters::default())
     }
 
     pub fn start_test_instance(&self) -> Result<Arc<CompOsInstance>> {

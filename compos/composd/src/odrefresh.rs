@@ -44,7 +44,15 @@ pub struct Odrefresh {
 }
 
 impl Odrefresh {
+    pub fn spawn_compile(target_dir: &str) -> Result<Self> {
+        Self::spawn_odrefresh(target_dir, "--compile")
+    }
+
     pub fn spawn_forced_compile(target_dir: &str) -> Result<Self> {
+        Self::spawn_odrefresh(target_dir, "--force-compile")
+    }
+
+    fn spawn_odrefresh(target_dir: &str, compile_arg: &str) -> Result<Self> {
         // We don`t need to capture stdout/stderr - odrefresh writes to the log
         let mut cmdline = Command::new(ODREFRESH_BIN);
         if need_extra_time()? {
@@ -61,7 +69,7 @@ impl Odrefresh {
         cmdline
             .arg(format!("--use-compilation-os={}", VMADDR_CID_ANY as i32))
             .arg(format!("--dalvik-cache={}", target_dir))
-            .arg("--force-compile");
+            .arg(compile_arg);
         let child = SharedChild::spawn(&mut cmdline).context("Running odrefresh")?;
         Ok(Odrefresh { child })
     }
