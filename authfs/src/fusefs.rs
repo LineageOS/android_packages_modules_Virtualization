@@ -215,13 +215,13 @@ impl AuthFs {
         F: FnOnce(&mut AuthFsEntry, &Path, Inode) -> io::Result<AuthFsEntry>,
     {
         let mut inode_table = self.inode_table.lock().unwrap();
-        let mut parent_entry = inode_table
+        let parent_entry = inode_table
             .get_mut(&parent_inode)
             .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
 
         let new_inode = self.next_inode.fetch_add(1, Ordering::Relaxed);
         let basename: &Path = cstr_to_path(name);
-        let new_file_entry = create_fn(&mut parent_entry, basename, new_inode)?;
+        let new_file_entry = create_fn(parent_entry, basename, new_inode)?;
         if let btree_map::Entry::Vacant(entry) = inode_table.entry(new_inode) {
             entry.insert(new_file_entry);
             Ok(new_inode)

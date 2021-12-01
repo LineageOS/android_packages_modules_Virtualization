@@ -110,8 +110,8 @@ impl FdService {
         F: FnOnce(&mut FdConfig) -> BinderResult<(i32, FdConfig)>,
     {
         let mut fd_pool = self.fd_pool.lock().unwrap();
-        let mut fd_config = fd_pool.get_mut(&fd).ok_or_else(|| new_errno_error(Errno::EBADF))?;
-        let (new_fd, new_fd_config) = create_fn(&mut fd_config)?;
+        let fd_config = fd_pool.get_mut(&fd).ok_or_else(|| new_errno_error(Errno::EBADF))?;
+        let (new_fd, new_fd_config) = create_fn(fd_config)?;
         if let btree_map::Entry::Vacant(entry) = fd_pool.entry(new_fd) {
             entry.insert(new_fd_config);
             Ok(new_fd)
