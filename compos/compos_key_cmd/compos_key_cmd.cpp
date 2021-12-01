@@ -101,6 +101,10 @@ namespace {
 
 void copyToLog(unique_fd&& fd) {
     FILE* source = Fdopen(std::move(fd), "r");
+    if (source == nullptr) {
+        LOG(INFO) << "Can't log VM output";
+        return;
+    }
     size_t size = 0;
     char* line = nullptr;
 
@@ -237,7 +241,7 @@ public:
         }
 
         ScopedFileDescriptor instanceFd(
-                TEMP_FAILURE_RETRY(open(mInstanceImageFile.c_str(), O_RDONLY | O_CLOEXEC)));
+                TEMP_FAILURE_RETRY(open(mInstanceImageFile.c_str(), O_RDWR | O_CLOEXEC)));
         if (instanceFd.get() == -1) {
             return ErrnoError() << "Failed to open instance image file";
         }
