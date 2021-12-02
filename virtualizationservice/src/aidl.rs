@@ -644,6 +644,7 @@ fn check_label_for_partition(partition: &Partition) -> Result<()> {
 struct VirtualMachine {
     instance: Arc<VmInstance>,
     /// Keeps our service process running as long as this VM instance exists.
+    #[allow(dead_code)]
     lazy_service_guard: LazyServiceGuard,
 }
 
@@ -775,7 +776,7 @@ impl VirtualMachineCallbacks {
 
 /// The mutable state of the VirtualizationService. There should only be one instance of this
 /// struct.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct State {
     /// The VMs which have been started. When VMs are started a weak reference is added to this list
     /// while a strong reference is returned to the caller over Binder. Once all copies of the
@@ -819,12 +820,6 @@ impl State {
         let pos = self.debug_held_vms.iter().position(|vm| vm.getCid() == Ok(cid))?;
         let vm = self.debug_held_vms.swap_remove(pos);
         Some(vm)
-    }
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State { vms: vec![], debug_held_vms: vec![] }
     }
 }
 

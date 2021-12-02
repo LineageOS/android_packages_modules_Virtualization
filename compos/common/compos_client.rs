@@ -199,16 +199,10 @@ impl<'a> VsockFactory<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct VmState {
     has_died: bool,
     cid: Option<i32>,
-}
-
-impl Default for VmState {
-    fn default() -> Self {
-        Self { has_died: false, cid: None }
-    }
 }
 
 #[derive(Debug)]

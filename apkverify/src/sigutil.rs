@@ -104,8 +104,8 @@ impl<R: Read + Seek> ApkSections<R> {
             let mut data = data(self)?;
             while data.limit() > 0 {
                 let chunk_size = min(CHUNK_SIZE_BYTES, data.limit());
-                let mut slice = &mut chunk[..(chunk_size as usize)];
-                data.read_exact(&mut slice)?;
+                let slice = &mut chunk[..(chunk_size as usize)];
+                data.read_exact(slice)?;
                 digests_of_chunks.put_slice(
                     digester.digest(slice, CHUNK_HEADER_MID, chunk_size as u32).as_ref(),
                 );
