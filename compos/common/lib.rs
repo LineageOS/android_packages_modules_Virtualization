@@ -52,3 +52,10 @@ pub const PUBLIC_KEY_FILE: &str = "key.pubkey";
 
 /// The file that holds the instance image for a CompOS instance.
 pub const INSTANCE_IMAGE_FILE: &str = "instance.img";
+
+/// The path within our config APK of our default VM configuration file, used at boot time.
+pub const DEFAULT_VM_CONFIG_PATH: &str = "assets/vm_config.json";
+
+/// The path within our config APK of the VM configuration file we use when compiling staged
+/// APEXes before reboot.
+pub const PREFER_STAGED_VM_CONFIG_PATH: &str = "assets/vm_config_staged.json";
