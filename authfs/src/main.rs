@@ -311,7 +311,7 @@ fn try_main() -> Result<()> {
     let mut authfs = AuthFs::new(RemoteFsStatsReader::new(service.clone()));
     prepare_root_dir_entries(service, &mut authfs, &args)?;
 
-    fusefs::loop_forever(authfs, &args.mount_point, &args.extra_options)?;
+    fusefs::mount_and_enter_message_loop(authfs, &args.mount_point, &args.extra_options)?;
     bail!("Unexpected exit after the handler loop")
 }
 
