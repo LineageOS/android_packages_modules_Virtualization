@@ -74,8 +74,9 @@ constexpr const char* kConfigApkPath =
 constexpr const char* kConfigApkIdsigPath =
         "/apex/com.android.compos/etc/CompOSPayloadApp.apk.idsig";
 
-// This is a path inside the APK
-constexpr const char* kConfigFilePath = "assets/vm_config.json";
+// These are paths inside the APK
+constexpr const char* kDefaultConfigFilePath = "assets/vm_config.json";
+constexpr const char* kPreferStagedConfigFilePath = "assets/vm_config_staged.json";
 
 static bool writeBytesToFile(const std::vector<uint8_t>& bytes, const std::string& path) {
     std::string str(bytes.begin(), bytes.end());
@@ -186,11 +187,12 @@ private:
 class TargetVm {
 public:
     TargetVm(int cid, const std::string& logFile, const std::string& instanceImageFile,
-             bool debuggable)
+             bool debuggable, bool preferStaged)
           : mCid(cid),
             mLogFile(logFile),
             mInstanceImageFile(instanceImageFile),
-            mDebuggable(debuggable) {}
+            mDebuggable(debuggable),
+            mPreferStaged(preferStaged) {}
 
     // Returns 0 if we are to connect to a local service, otherwise the CID of
     // either an existing VM or a VM we have started, depending on the command
@@ -251,7 +253,7 @@ public:
         appConfig.apk = std::move(apkFd);
         appConfig.idsig = std::move(idsigFd);
         appConfig.instanceImage = std::move(instanceFd);
-        appConfig.configPath = kConfigFilePath;
+        appConfig.configPath = mPreferStaged ? kPreferStagedConfigFilePath : kDefaultConfigFilePath;
         appConfig.debugLevel = mDebuggable ? VirtualMachineAppConfig::DebugLevel::FULL
                                            : VirtualMachineAppConfig::DebugLevel::NONE;
         appConfig.memoryMib = 0; // Use default
@@ -297,6 +299,7 @@ private:
     const std::string mLogFile;
     const std::string mInstanceImageFile;
     const bool mDebuggable;
+    const bool mPreferStaged;
     std::shared_ptr<Callback> mCallback;
     std::shared_ptr<IVirtualMachine> mVm;
 };
@@ -543,17 +546,25 @@ int main(int argc, char** argv) {
     std::string imageFile;
     std::string logFile;
     bool debuggable = false;
+    bool preferStaged = false;
 
     for (;;) {
+        // Options with no associated value
         if (argc >= 2) {
             if (argv[1] == "--debug"sv) {
                 debuggable = true;
                 argc -= 1;
                 argv += 1;
                 continue;
+            } else if (argv[1] == "--staged"sv) {
+                preferStaged = true;
+                argc -= 1;
+                argv += 1;
+                continue;
             }
         }
         if (argc < 3) break;
+        // Options requiring a value
         if (argv[1] == "--cid"sv) {
             cid = atoi(argv[2]);
             if (cid == 0) {
@@ -571,7 +582,7 @@ int main(int argc, char** argv) {
         argv += 2;
     }
 
-    TargetVm vm(cid, logFile, imageFile, debuggable);
+    TargetVm vm(cid, logFile, imageFile, debuggable, preferStaged);
 
     if (argc == 4 && argv[1] == "generate"sv) {
         auto result = generate(vm, argv[2], argv[3]);
@@ -627,9 +638,11 @@ int main(int argc, char** argv) {
                   << "    <filename>.signature\n"
                   << "  make-instance <image file> Create an empty instance image file for a VM.\n"
                   << "\n"
-                  << "OPTIONS: --log <log file> --debug (--cid <cid> | --start <image file>)\n"
+                  << "OPTIONS: --log <log file> --debug --staged\n"
+                  << "    (--cid <cid> | --start <image file>)\n"
                   << "  Specify --log to write VM log to a file rather than stdout.\n"
                   << "  Specify --debug with --start to make the VM fully debuggable.\n"
+                  << "  Specify --staged with --start to prefer staged APEXes in the VM.\n"
                   << "  Specify --cid to connect to a VM rather than the host.\n"
                   << "  Specify --start to start a VM from the given instance image file and\n "
                   << "    connect to that.\n";
