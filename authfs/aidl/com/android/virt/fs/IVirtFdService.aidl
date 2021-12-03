@@ -57,7 +57,7 @@ interface IVirtFdService {
     long getFileSize(int fd);
 
     /**
-     * Open a file given the remote directory FD.
+     * Opens a file given the remote directory FD.
      *
      * @param pathname The file path to open. Must be a related path.
      * @return file A remote FD that represents the opened file.
@@ -65,7 +65,7 @@ interface IVirtFdService {
     int openFileInDirectory(int dirFd, String pathname);
 
     /**
-     * Create a file given the remote directory FD.
+     * Creates a file given the remote directory FD.
      *
      * @param basename The file name to create. Must not contain directory separator.
      * @return file A remote FD that represents the new created file.
@@ -73,12 +73,26 @@ interface IVirtFdService {
     int createFileInDirectory(int dirFd, String basename);
 
     /**
-     * Create a directory inside the given remote directory FD.
+     * Creates a directory inside the given remote directory FD.
      *
      * @param basename The directory name to create. Must not contain directory separator.
      * @return file FD that represents the new created directory.
      */
     int createDirectoryInDirectory(int dirFd, String basename);
+
+    /**
+     * Deletes a file in the given directory.
+     *
+     * @param basename The file name to delete. Must not contain directory separator.
+     */
+    void deleteFile(int dirFd, String basename);
+
+    /**
+     * Deletes a sub-directory in the given directory.
+     *
+     * @param basename The directory name to delete. Must not contain directory separator.
+     */
+    void deleteDirectory(int dirFd, String basename);
 
     /** Filesystem stats that AuthFS is interested in.*/
     parcelable FsStat {

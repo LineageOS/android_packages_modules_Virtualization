@@ -72,6 +72,24 @@ pub enum AuthFsEntry {
     VerifiedNewDirectory { dir: RemoteDirEditor },
 }
 
+impl AuthFsEntry {
+    fn expect_empty_writable_directory(&self) -> io::Result<()> {
+        match self {
+            AuthFsEntry::VerifiedNewDirectory { dir } => {
+                if dir.number_of_entries() == 0 {
+                    Ok(())
+                } else {
+                    Err(io::Error::from_raw_os_error(libc::ENOTEMPTY))
+                }
+            }
+            AuthFsEntry::ReadonlyDirectory { .. } => {
+                Err(io::Error::from_raw_os_error(libc::EACCES))
+            }
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+        }
+    }
+}
+
 struct InodeState {
     /// Actual inode entry.
     entry: AuthFsEntry,
@@ -85,15 +103,19 @@ struct InodeState {
     ///
     /// Note: This is not to be confused with hardlinks, which AuthFS doesn't currently implement.
     handle_ref_count: u64,
+
+    /// Whether the inode is already unlinked, i.e. should be removed, once `handle_ref_count` is
+    /// down to zero.
+    unlinked: bool,
 }
 
 impl InodeState {
     fn new(entry: AuthFsEntry) -> Self {
-        InodeState { entry, handle_ref_count: 0 }
+        InodeState { entry, handle_ref_count: 0, unlinked: false }
     }
 
     fn new_with_ref_count(entry: AuthFsEntry, handle_ref_count: u64) -> Self {
-        InodeState { entry, handle_ref_count }
+        InodeState { entry, handle_ref_count, unlinked: false }
     }
 }
 
@@ -411,7 +433,7 @@ impl FileSystem for AuthFs {
                 }
                 AuthFsEntry::VerifiedNewDirectory { dir } => {
                     let path = cstr_to_path(name);
-                    dir.find_inode(path).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
+                    dir.find_inode(path)
                 }
                 _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
             })?;
@@ -452,10 +474,10 @@ impl FileSystem for AuthFs {
 
     fn forget(&self, _ctx: Context, inode: Self::Inode, count: u64) {
         let mut inode_table = self.inode_table.lock().unwrap();
-        let _ = handle_inode_mut_locked(
+        let delete_now = handle_inode_mut_locked(
             &mut inode_table,
             &inode,
-            |InodeState { handle_ref_count, .. }| {
+            |InodeState { handle_ref_count, unlinked, .. }| {
                 if count > *handle_ref_count {
                     error!(
                         "Trying to decrease refcount of inode {} by {} (> current {})",
@@ -464,11 +486,22 @@ impl FileSystem for AuthFs {
                     panic!(); // log to logcat with error!
                 }
                 *handle_ref_count = handle_ref_count.saturating_sub(count);
-                // TODO(208892249): Remove the inode with zero ref count from inode_table, if the
-                // inode is marked for deletion.
-                Ok(())
+                Ok(*unlinked && *handle_ref_count == 0)
             },
         );
+
+        match delete_now {
+            Ok(true) => {
+                let _ = inode_table.remove(&inode).expect("Removed an existing entry");
+            }
+            Ok(false) => { /* Let the inode stay */ }
+            Err(e) => {
+                warn!(
+                    "Unexpected failure when tries to forget an inode {} by refcount {}: {:?}",
+                    inode, count, e
+                );
+            }
+        }
     }
 
     fn getattr(
@@ -544,7 +577,7 @@ impl FileSystem for AuthFs {
             name,
             |parent_entry, basename, new_inode| match parent_entry {
                 AuthFsEntry::VerifiedNewDirectory { dir } => {
-                    if dir.find_inode(basename).is_some() {
+                    if dir.has_entry(basename) {
                         return Err(io::Error::from_raw_os_error(libc::EEXIST));
                     }
                     let new_file = dir.create_file(basename, new_inode)?;
@@ -723,7 +756,7 @@ impl FileSystem for AuthFs {
             name,
             |parent_entry, basename, new_inode| match parent_entry {
                 AuthFsEntry::VerifiedNewDirectory { dir } => {
-                    if dir.find_inode(basename).is_some() {
+                    if dir.has_entry(basename) {
                         return Err(io::Error::from_raw_os_error(libc::EEXIST));
                     }
                     let new_dir = dir.mkdir(basename, new_inode)?;
@@ -743,6 +776,68 @@ impl FileSystem for AuthFs {
             entry_timeout: DEFAULT_METADATA_TIMEOUT,
             attr_timeout: DEFAULT_METADATA_TIMEOUT,
         })
+    }
+
+    fn unlink(&self, _ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<()> {
+        let mut inode_table = self.inode_table.lock().unwrap();
+        handle_inode_mut_locked(
+            &mut inode_table,
+            &parent,
+            |InodeState { entry, unlinked, .. }| match entry {
+                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                    let basename: &Path = cstr_to_path(name);
+                    // Delete the file from in both the local and remote directories.
+                    let _inode = dir.delete_file(basename)?;
+                    *unlinked = true;
+                    Ok(())
+                }
+                AuthFsEntry::ReadonlyDirectory { .. } => {
+                    Err(io::Error::from_raw_os_error(libc::EACCES))
+                }
+                AuthFsEntry::VerifiedNew { .. } => {
+                    // Deleting a entry in filesystem root is not currently supported.
+                    Err(io::Error::from_raw_os_error(libc::ENOSYS))
+                }
+                AuthFsEntry::UnverifiedReadonly { .. } | AuthFsEntry::VerifiedReadonly { .. } => {
+                    Err(io::Error::from_raw_os_error(libc::ENOTDIR))
+                }
+            },
+        )
+    }
+
+    fn rmdir(&self, _ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<()> {
+        let mut inode_table = self.inode_table.lock().unwrap();
+
+        // Check before actual removal, with readonly borrow.
+        handle_inode_locked(&inode_table, &parent, |inode_state| match &inode_state.entry {
+            AuthFsEntry::VerifiedNewDirectory { dir } => {
+                let basename: &Path = cstr_to_path(name);
+                let existing_inode = dir.find_inode(basename)?;
+                handle_inode_locked(&inode_table, &existing_inode, |inode_state| {
+                    inode_state.entry.expect_empty_writable_directory()
+                })
+            }
+            AuthFsEntry::ReadonlyDirectory { .. } => {
+                Err(io::Error::from_raw_os_error(libc::EACCES))
+            }
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+        })?;
+
+        // Look up again, this time with mutable borrow. This needs to be done separately because
+        // the previous lookup needs to borrow multiple entry references in the table.
+        handle_inode_mut_locked(
+            &mut inode_table,
+            &parent,
+            |InodeState { entry, unlinked, .. }| match entry {
+                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                    let basename: &Path = cstr_to_path(name);
+                    let _inode = dir.force_delete_directory(basename)?;
+                    *unlinked = true;
+                    Ok(())
+                }
+                _ => unreachable!("Mismatched entry type that is just checked"),
+            },
+        )
     }
 
     fn statfs(&self, _ctx: Context, _inode: Self::Inode) -> io::Result<libc::statvfs64> {
