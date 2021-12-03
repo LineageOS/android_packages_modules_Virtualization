@@ -105,8 +105,11 @@ fn verify(debug_mode: bool, instance_dir: &Path) -> Result<()> {
     let instance_image = File::open(instance_image).context("Failed to open instance image")?;
 
     let virtualization_service = VmInstance::connect_to_virtualization_service()?;
-    let vm_instance =
-        VmInstance::start(&*virtualization_service, instance_image, &VmParameters { debug_mode })?;
+    let vm_instance = VmInstance::start(
+        &*virtualization_service,
+        instance_image,
+        &VmParameters { debug_mode, ..Default::default() },
+    )?;
     let service = vm_instance.get_service()?;
 
     let result = service.verifySigningKey(&blob, &public_key).context("Verifying signing key")?;
