@@ -112,8 +112,8 @@ impl IsolatedCompilationService {
     }
 
     fn do_odrefresh(&self, compos: Arc<CompOsInstance>, staging_dir_path: &Path) -> Result<i8> {
-        let output_dir = open_dir_path(staging_dir_path)?;
-        let system_dir = open_dir_path(Path::new("/system"))?;
+        let output_dir = open_dir(staging_dir_path)?;
+        let system_dir = open_dir(Path::new("/system"))?;
 
         // Spawn a fd_server to serve the FDs.
         let fd_server_config = FdServerConfig {
@@ -144,16 +144,12 @@ fn check_permissions() -> binder::Result<()> {
     }
 }
 
-/// Returns an owned FD of the directory path. It currently returns a `File` as a FD owner, but
+/// Returns an owned FD of the directory. It currently returns a `File` as a FD owner, but
 /// it's better to use `std::os::unix::io::OwnedFd` once/if it becomes standard.
-fn open_dir_path(path: &Path) -> Result<File> {
+fn open_dir(path: &Path) -> Result<File> {
     OpenOptions::new()
-        .custom_flags(libc::O_PATH | libc::O_DIRECTORY)
-        // The custom flags above is not taken into consideration by the unix implementation of
-        // OpenOptions for flag validation. So even though the man page of open(2) says that
-        // most flags include access mode are ignored, we still need to set a "valid" mode to
-        // make the library happy. The value does not appear to matter elsewhere in the library.
-        .read(true)
+        .custom_flags(libc::O_DIRECTORY)
+        .read(true) // O_DIRECTORY can only be opened with read
         .open(path)
         .with_context(|| format!("Failed to open {:?} directory as path fd", path))
 }
