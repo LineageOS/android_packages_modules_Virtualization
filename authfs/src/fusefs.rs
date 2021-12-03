@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
+mod mount;
+
 use anyhow::{anyhow, bail, Result};
 use log::{debug, warn};
 use std::collections::{btree_map, BTreeMap};
 use std::convert::TryFrom;
 use std::ffi::{CStr, OsStr};
-use std::fs::OpenOptions;
 use std::io;
 use std::mem::{zeroed, MaybeUninit};
 use std::option::Option;
-use std::os::unix::{ffi::OsStrExt, io::AsRawFd};
+use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -33,7 +34,6 @@ use fuse::filesystem::{
     Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, GetxattrReply,
     SetattrValid, ZeroCopyReader, ZeroCopyWriter,
 };
-use fuse::mount::MountOption;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
@@ -43,19 +43,14 @@ use crate::file::{
 use crate::fsstat::RemoteFsStatsReader;
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
 
+pub use self::mount::mount_and_enter_message_loop;
+use self::mount::MAX_WRITE_BYTES;
+
 pub type Inode = u64;
 type Handle = u64;
 
 const DEFAULT_METADATA_TIMEOUT: Duration = Duration::from_secs(5);
 const ROOT_INODE: Inode = 1;
-
-/// Maximum bytes in the write transaction to the FUSE device. This limits the maximum buffer
-/// size in a read request (including FUSE protocol overhead) that the filesystem writes to.
-const MAX_WRITE_BYTES: u32 = 65536;
-
-/// Maximum bytes in a read operation.
-/// TODO(victorhsieh): This option is deprecated by FUSE. Figure out if we can remove this.
-const MAX_READ_BYTES: u32 = 65536;
 
 /// `AuthFsEntry` defines the filesystem entry type supported by AuthFS.
 pub enum AuthFsEntry {
@@ -707,36 +702,6 @@ impl FileSystem for AuthFs {
 
         Ok(st)
     }
-}
-
-/// Mount and start the FUSE instance. This requires CAP_SYS_ADMIN.
-pub fn loop_forever(
-    authfs: AuthFs,
-    mountpoint: &Path,
-    extra_options: &Option<String>,
-) -> Result<(), fuse::Error> {
-    let dev_fuse = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open("/dev/fuse")
-        .expect("Failed to open /dev/fuse");
-
-    let mut mount_options = vec![
-        MountOption::FD(dev_fuse.as_raw_fd()),
-        MountOption::RootMode(libc::S_IFDIR | libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH),
-        MountOption::AllowOther,
-        MountOption::UserId(0),
-        MountOption::GroupId(0),
-        MountOption::MaxRead(MAX_READ_BYTES),
-    ];
-    if let Some(value) = extra_options {
-        mount_options.push(MountOption::Extra(value));
-    }
-
-    fuse::mount(mountpoint, "authfs", libc::MS_NOSUID | libc::MS_NODEV, &mount_options)
-        .expect("Failed to mount fuse");
-
-    fuse::worker::start_message_loop(dev_fuse, MAX_WRITE_BYTES, MAX_READ_BYTES, authfs)
 }
 
 fn cstr_to_path(cstr: &CStr) -> &Path {
