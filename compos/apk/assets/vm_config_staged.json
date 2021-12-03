@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "os": {
+    "name": "microdroid"
+  },
+  "task": {
+    "type": "executable",
+    "command": "/apex/com.android.compos/bin/compsvc",
+    "args": [
+      "--log_to_stderr"
+    ]
+  },
+  "prefer_staged": true,
+  "apexes": [
+    {
+      "name": "com.android.art"
+    },
+    {
+      "name": "com.android.compos"
+    },
+    {
+      "name": "{DEX2OATBOOTCLASSPATH}"
+    },
+    {
+      "name": "{BOOTCLASSPATH}"
+    },
+    {
+      "name": "{SYSTEMSERVERCLASSPATH}"
+    }
+  ]
+}
