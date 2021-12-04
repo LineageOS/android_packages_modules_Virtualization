@@ -7,12 +7,17 @@ rust_library {
     crate_name: "composd_native",
     srcs: ["lib.rs"],
     rustlibs: [
+        "libanyhow",
         "libcxx",
+        "liblibc",
     ],
     static_libs: [
         "libcomposd_native_cpp",
     ],
-    shared_libs: ["libcrypto"],
+    shared_libs: [
+        "libartpalette-system",
+        "libcrypto",
+    ],
     apex_available: ["com.android.compos"],
 }
 
