@@ -15,6 +15,7 @@ apex {
 
     // TODO(jiyong): make it updatable
     updatable: false,
+    future_updatable: true,
     platform_apis: true,
 
     system_ext_specific: true,
