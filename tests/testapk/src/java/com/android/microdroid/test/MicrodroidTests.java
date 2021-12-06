@@ -15,14 +15,21 @@
  */
 package com.android.microdroid.test;
 
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNot.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNoException;
+import static org.junit.Assume.assumeThat;
+
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
+import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
 
@@ -36,6 +43,9 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -144,6 +154,67 @@ public class MicrodroidTests {
                     public void onDied(VirtualMachine vm) {
                         assertTrue(mPayloadReadyCalled);
                         assertTrue(mPayloadStartedCalled);
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
+    }
+
+    @Test
+    public void changingDebugLevelInvalidatesVmIdentity()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assumeThat("Skip on Cuttlefish. b/195765441",
+                android.os.Build.DEVICE, is(not("vsoc_x86_64")));
+
+        VirtualMachineConfig.Builder builder =
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json");
+        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        mInner.mVm = mInner.mVmm.getOrCreate("test_vm", normalConfig);
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        // TODO(b/208639280): remove this sleep. For now, we need to wait for a few
+                        // seconds so that crosvm can actually persist instance.img.
+                        try {
+                            Thread.sleep(30 * 1000);
+                        } catch (InterruptedException e) { }
+                        forceStop(vm);
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
+
+        // Launch the same VM with different debug level. The Java API prohibits this (thankfully).
+        // For testing, we do that by creating another VM with debug level, and copy the config file
+        // from the new VM directory to the old VM directory.
+        VirtualMachineConfig debugConfig = builder.debugLevel(DebugLevel.FULL).build();
+        VirtualMachine newVm  = mInner.mVmm.getOrCreate("test_debug_vm", debugConfig);
+        File vmRoot = new File(mInner.mContext.getFilesDir(), "vm");
+        File newVmConfig = new File(new File(vmRoot, "test_debug_vm"), "config.xml");
+        File oldVmConfig = new File(new File(vmRoot, "test_vm"), "config.xml");
+        Files.copy(newVmConfig.toPath(), oldVmConfig.toPath(), REPLACE_EXISTING);
+        newVm.delete();
+        mInner.mVm = mInner.mVmm.get("test_vm"); // re-load with the copied-in config file.
+        listener =
+                new VmEventListener() {
+                    private boolean mPayloadStarted = false;
+                    private boolean mErrorOccurred = false;
+
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        mPayloadStarted = true;
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onError(VirtualMachine vm, int errorCode, String message) {
+                        mErrorOccurred = true;
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onDied(VirtualMachine vm) {
+                        assertFalse(mPayloadStarted);
+                        assertTrue(mErrorOccurred);
                     }
                 };
         listener.runToFinish(mInner.mVm);

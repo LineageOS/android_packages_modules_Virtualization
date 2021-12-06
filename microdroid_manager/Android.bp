@@ -24,6 +24,7 @@ rust_defaults {
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
         "libnix",
+        "libonce_cell",
         "libprotobuf",
         "libring",
         "librustutils",

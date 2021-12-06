@@ -27,6 +27,7 @@ use idsig::V4Signature;
 use log::{error, info, warn};
 use microdroid_metadata::{write_metadata, Metadata};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
+use once_cell::sync::OnceCell;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
@@ -215,6 +216,13 @@ fn verify_payload(
 ) -> Result<MicrodroidData> {
     let start_time = SystemTime::now();
 
+    if let Some(saved_bootconfig) = saved_data.map(|d| &d.bootconfig) {
+        ensure!(
+            saved_bootconfig.as_ref() == get_bootconfig()?.as_slice(),
+            MicrodroidError::PayloadChanged(String::from("Bootconfig has changed."))
+        );
+    }
+
     let root_hash = saved_data.map(|d| &d.apk_data.root_hash);
     let root_hash_from_idsig = get_apk_root_hash_from_idsig()?;
     let root_hash_trustful = root_hash == Some(&root_hash_from_idsig);
@@ -275,6 +283,7 @@ fn verify_payload(
     Ok(MicrodroidData {
         apk_data: ApkData { root_hash: root_hash_from_idsig, pubkey: apk_pubkey },
         apex_data: apex_data_from_payload,
+        bootconfig: get_bootconfig()?.clone().into_boxed_slice(),
     })
 }
 
@@ -295,6 +304,13 @@ fn get_apk_root_hash_from_idsig() -> Result<Box<RootHash>> {
     let mut idsig = File::open("/dev/block/by-name/microdroid-apk-idsig")?;
     let idsig = V4Signature::from(&mut idsig)?;
     Ok(idsig.hashing_info.raw_root_hash)
+}
+
+fn get_bootconfig() -> Result<&'static Vec<u8>> {
+    static VAL: OnceCell<Vec<u8>> = OnceCell::new();
+    VAL.get_or_try_init(|| {
+        fs::read("/proc/bootconfig").context("Failed to read bootconfig")
+    })
 }
 
 fn load_config(path: &Path) -> Result<VmPayloadConfig> {
