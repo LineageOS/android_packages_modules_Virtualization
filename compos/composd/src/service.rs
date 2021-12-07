@@ -20,7 +20,6 @@
 use crate::compilation_task::CompilationTask;
 use crate::fd_server_helper::FdServerConfig;
 use crate::instance_manager::InstanceManager;
-use crate::instance_starter::CompOsInstance;
 use crate::util::to_binder_result;
 use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::{BnCompilationTask, ICompilationTask},
@@ -31,12 +30,11 @@ use android_system_composd::binder::{
     self, BinderFeatures, ExceptionCode, Interface, Status, Strong, ThreadState,
 };
 use anyhow::{Context, Result};
-use compos_common::COMPOS_DATA_ROOT;
 use rustutils::{system_properties, users::AID_ROOT, users::AID_SYSTEM};
-use std::fs::{create_dir, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 
 pub struct IsolatedCompilationService {
@@ -100,19 +98,12 @@ impl IsolatedCompilationService {
     }
 
     fn do_odrefresh_for_test(&self) -> Result<i8> {
-        let mut staging_dir_path = PathBuf::from(COMPOS_DATA_ROOT);
-        staging_dir_path.push("test-artifacts");
-        to_binder_result(create_dir(&staging_dir_path))?;
-
         let compos = self
             .instance_manager
             .start_test_instance()
             .context("Starting CompOS for odrefresh test")?;
-        self.do_odrefresh(compos, &staging_dir_path)
-    }
 
-    fn do_odrefresh(&self, compos: Arc<CompOsInstance>, staging_dir_path: &Path) -> Result<i8> {
-        let output_dir = open_dir(staging_dir_path)?;
+        let output_dir = open_dir(composd_native::palette_create_odrefresh_staging_directory()?)?;
         let system_dir = open_dir(Path::new("/system"))?;
 
         // Spawn a fd_server to serve the FDs.
