@@ -18,8 +18,11 @@ package com.android.server.compos;
 
 import static java.util.Objects.requireNonNull;
 
+import android.app.job.JobInfo;
 import android.app.job.JobParameters;
+import android.app.job.JobScheduler;
 import android.app.job.JobService;
+import android.content.ComponentName;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -28,6 +31,7 @@ import android.system.composd.ICompilationTaskCallback;
 import android.system.composd.IIsolatedCompilationService;
 import android.util.Log;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -37,35 +41,66 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class IsolatedCompilationJobService extends JobService {
     private static final String TAG = IsolatedCompilationJobService.class.getName();
+    private static final int DAILY_JOB_ID = 5132250;
+    private static final int STAGED_APEX_JOB_ID = 5132251;
 
     private final AtomicReference<CompilationJob> mCurrentJob = new AtomicReference<>();
 
+    static void scheduleDailyJob(JobScheduler scheduler) {
+        // TODO(b/205296305) Remove this
+        ComponentName serviceName =
+                new ComponentName("android", IsolatedCompilationJobService.class.getName());
+
+        int result = scheduler.schedule(new JobInfo.Builder(DAILY_JOB_ID, serviceName)
+                .setRequiresDeviceIdle(true)
+                .setRequiresCharging(true)
+                .setPeriodic(TimeUnit.DAYS.toMillis(1))
+                .build());
+        if (result != JobScheduler.RESULT_SUCCESS) {
+            Log.e(TAG, "Failed to schedule daily job");
+        }
+    }
+
+    static void scheduleStagedApexJob(JobScheduler scheduler) {
+        ComponentName serviceName =
+                new ComponentName("android", IsolatedCompilationJobService.class.getName());
+
+        int result = scheduler.schedule(new JobInfo.Builder(STAGED_APEX_JOB_ID, serviceName)
+                // Wait in case more APEXes are staged
+                .setMinimumLatency(TimeUnit.MINUTES.toMillis(60))
+                // We consume CPU, battery, and storage
+                .setRequiresDeviceIdle(true)
+                .setRequiresBatteryNotLow(true)
+                .setRequiresStorageNotLow(true)
+                .build());
+        if (result != JobScheduler.RESULT_SUCCESS) {
+            Log.e(TAG, "Failed to schedule staged APEX job");
+        }
+    }
+
+    static boolean isStagedApexJobScheduled(JobScheduler scheduler) {
+        return scheduler.getPendingJob(STAGED_APEX_JOB_ID) != null;
+    }
+
     @Override
     public boolean onStartJob(JobParameters params) {
-        Log.i(TAG, "starting job");
+        int jobId = params.getJobId();
 
-        CompilationJob oldJob = mCurrentJob.getAndSet(null);
-        if (oldJob != null) {
-            // This should probably never happen, but just in case
-            oldJob.stop();
-        }
+        Log.i(TAG, "Starting job " + jobId);
 
         // This function (and onStopJob) are only ever called on the main thread, so we don't have
         // to worry about two starts at once, or start and stop happening at once. But onCompletion
         // can be called on any thread, so we need to be careful with that.
 
-        CompilationCallback callback = new CompilationCallback() {
-            @Override
-            public void onSuccess() {
-                onCompletion(params, true);
-            }
+        CompilationJob oldJob = mCurrentJob.get();
+        if (oldJob != null) {
+            // We're already running a job, give up on this one
+            Log.w(TAG, "Another job is in progress, skipping");
+            return false;  // Already finished
+        }
 
-            @Override
-            public void onFailure() {
-                onCompletion(params, false);
-            }
-        };
-        CompilationJob newJob = new CompilationJob(callback);
+        CompilationJob newJob = new CompilationJob(IsolatedCompilationJobService.this::onCompletion,
+                params);
         mCurrentJob.set(newJob);
 
         // This can take some time - we need to start up a VM - so we do it on a separate
@@ -75,9 +110,10 @@ public class IsolatedCompilationJobService extends JobService {
             @Override
             public void run() {
                 try {
-                    newJob.start();
+                    newJob.start(jobId);
                 } catch (RuntimeException e) {
                     Log.e(TAG, "Starting CompilationJob failed", e);
+                    mCurrentJob.set(null);
                     newJob.stop(); // Just in case it managed to start before failure
                     jobFinished(params, /*wantReschedule=*/ false);
                 }
@@ -112,23 +148,23 @@ public class IsolatedCompilationJobService extends JobService {
     }
 
     interface CompilationCallback {
-        void onSuccess();
-
-        void onFailure();
+        void onCompletion(JobParameters params, boolean succeeded);
     }
 
     static class CompilationJob extends ICompilationTaskCallback.Stub
             implements IBinder.DeathRecipient {
         private final AtomicReference<ICompilationTask> mTask = new AtomicReference<>();
         private final CompilationCallback mCallback;
+        private final JobParameters mParams;
         private volatile boolean mStopRequested = false;
         private volatile boolean mCanceled = false;
 
-        CompilationJob(CompilationCallback callback) {
+        CompilationJob(CompilationCallback callback, JobParameters params) {
             mCallback = requireNonNull(callback);
+            mParams = params;
         }
 
-        void start() {
+        void start(int jobId) {
             IBinder binder = ServiceManager.waitForService("android.system.composd");
             IIsolatedCompilationService composd =
                     IIsolatedCompilationService.Stub.asInterface(binder);
@@ -138,8 +174,12 @@ public class IsolatedCompilationJobService extends JobService {
             }
 
             try {
-                // TODO(b/205296305) Call startStagedApexCompile instead
-                ICompilationTask composTask = composd.startTestCompile(this);
+                ICompilationTask composTask;
+                if (jobId == DAILY_JOB_ID) {
+                    composTask = composd.startTestCompile(this);
+                } else {
+                    composTask = composd.startStagedApexCompile(this);
+                }
                 mTask.set(composTask);
                 composTask.asBinder().linkToDeath(this, 0);
             } catch (RemoteException e) {
@@ -180,17 +220,18 @@ public class IsolatedCompilationJobService extends JobService {
 
         @Override
         public void onSuccess() {
-            mTask.set(null);
-            if (!mCanceled) {
-                mCallback.onSuccess();
-            }
+            onCompletion(true);
         }
 
         @Override
         public void onFailure() {
+            onCompletion(false);
+        }
+
+        private void onCompletion(boolean succeeded) {
             mTask.set(null);
             if (!mCanceled) {
-                mCallback.onFailure();
+                mCallback.onCompletion(mParams, succeeded);
             }
         }
     }
