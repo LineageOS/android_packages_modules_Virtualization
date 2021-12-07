@@ -14,8 +14,10 @@ cc_binary {
         "-Wall",
         "-Wextra",
     ],
+    defaults: [
+        "keymint_use_latest_hal_aidl_ndk_shared",
+    ],
     shared_libs: [
-        "android.hardware.security.keymint-V1-ndk",
         "lib_android_keymaster_keymint_utils",
         "libbase",
         "libbinder_ndk",
