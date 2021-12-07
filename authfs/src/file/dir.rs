@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+use log::warn;
 use std::collections::{hash_map, HashMap};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -24,6 +25,16 @@ use crate::fsverity::VerifiedFileEditor;
 use crate::fusefs::Inode;
 
 const MAX_ENTRIES: u16 = 100; // Arbitrary limit
+
+struct DirEntry {
+    inode: Inode,
+
+    // This information is duplicated since it is also available in `AuthFs::inode_table` via the
+    // type system. But it makes it simple to deal with deletion, where otherwise we need to get a
+    // mutable parent directory in the table, and query the table for directory/file type checking
+    // at the same time.
+    is_dir: bool,
+}
 
 /// A remote directory backed by a remote directory FD, where the provider/fd_server is not
 /// trusted.
@@ -43,9 +54,9 @@ pub struct RemoteDirEditor {
     service: VirtFdService,
     remote_dir_fd: i32,
 
-    /// Mapping of entry names to the corresponding inode number. The actual file/directory is
-    /// stored in the global pool in fusefs.
-    entries: HashMap<PathBuf, Inode>,
+    /// Mapping of entry names to the corresponding inode. The actual file/directory is stored in
+    /// the global pool in fusefs.
+    entries: HashMap<PathBuf, DirEntry>,
 }
 
 impl RemoteDirEditor {
@@ -75,7 +86,7 @@ impl RemoteDirEditor {
 
         let new_remote_file =
             VerifiedFileEditor::new(RemoteFileEditor::new(self.service.clone(), new_fd));
-        self.entries.insert(basename.to_path_buf(), inode);
+        self.entries.insert(basename.to_path_buf(), DirEntry { inode, is_dir: false });
         Ok(new_remote_file)
     }
 
@@ -92,14 +103,68 @@ impl RemoteDirEditor {
             .map_err(into_io_error)?;
 
         let new_remote_dir = RemoteDirEditor::new(self.service.clone(), new_fd);
-        self.entries.insert(basename.to_path_buf(), inode);
+        self.entries.insert(basename.to_path_buf(), DirEntry { inode, is_dir: true });
         Ok(new_remote_dir)
+    }
+
+    /// Deletes a file
+    pub fn delete_file(&mut self, basename: &Path) -> io::Result<Inode> {
+        let inode = self.force_delete_entry(basename, /* expect_dir */ false)?;
+
+        let basename_str =
+            basename.to_str().ok_or_else(|| io::Error::from_raw_os_error(libc::EINVAL))?;
+        if let Err(e) = self.service.deleteFile(self.remote_dir_fd, basename_str) {
+            // Ignore the error to honor the local state.
+            warn!("Deletion on the host is reportedly failed: {:?}", e);
+        }
+        Ok(inode)
+    }
+
+    /// Forces to delete a directory. The caller must only call if `basename` is a directory and
+    /// empty.
+    pub fn force_delete_directory(&mut self, basename: &Path) -> io::Result<Inode> {
+        let inode = self.force_delete_entry(basename, /* expect_dir */ true)?;
+
+        let basename_str =
+            basename.to_str().ok_or_else(|| io::Error::from_raw_os_error(libc::EINVAL))?;
+        if let Err(e) = self.service.deleteDirectory(self.remote_dir_fd, basename_str) {
+            // Ignore the error to honor the local state.
+            warn!("Deletion on the host is reportedly failed: {:?}", e);
+        }
+        Ok(inode)
     }
 
     /// Returns the inode number of a file or directory named `name` previously created through
     /// `RemoteDirEditor`.
-    pub fn find_inode(&self, name: &Path) -> Option<Inode> {
-        self.entries.get(name).copied()
+    pub fn find_inode(&self, name: &Path) -> io::Result<Inode> {
+        self.entries
+            .get(name)
+            .map(|entry| entry.inode)
+            .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
+    }
+
+    /// Returns whether the directory has an entry of the given name.
+    pub fn has_entry(&self, name: &Path) -> bool {
+        self.entries.contains_key(name)
+    }
+
+    fn force_delete_entry(&mut self, basename: &Path, expect_dir: bool) -> io::Result<Inode> {
+        // Kernel should only give us a basename.
+        debug_assert!(validate_basename(basename).is_ok());
+
+        if let Some(entry) = self.entries.get(basename) {
+            match (expect_dir, entry.is_dir) {
+                (true, false) => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+                (false, true) => Err(io::Error::from_raw_os_error(libc::EISDIR)),
+                _ => {
+                    let inode = entry.inode;
+                    let _ = self.entries.remove(basename);
+                    Ok(inode)
+                }
+            }
+        } else {
+            Err(io::Error::from_raw_os_error(libc::ENOENT))
+        }
     }
 
     fn validate_argument(&self, basename: &Path) -> io::Result<()> {

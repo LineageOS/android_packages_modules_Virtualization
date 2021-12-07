@@ -386,6 +386,51 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     }
 
     @Test
+    public void testOutputDirectory_CanDeleteFile() throws Exception {
+        // Setup
+        String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
+        String authfsOutputDir = MOUNT_DIR + "/3";
+        sAndroid.run("mkdir " + androidOutputDir);
+        runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+
+        runOnMicrodroid("echo -n foo > " + authfsOutputDir + "/file");
+        runOnMicrodroid("test -f " + authfsOutputDir + "/file");
+        sAndroid.run("test -f " + androidOutputDir + "/file");
+
+        // Action & Verify
+        runOnMicrodroid("rm " + authfsOutputDir + "/file");
+        runOnMicrodroid("test ! -f " + authfsOutputDir + "/file");
+        sAndroid.run("test ! -f " + androidOutputDir + "/file");
+    }
+
+    @Test
+    public void testOutputDirectory_CanDeleteDirectoryOnlyIfEmpty() throws Exception {
+        // Setup
+        String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
+        String authfsOutputDir = MOUNT_DIR + "/3";
+        sAndroid.run("mkdir " + androidOutputDir);
+        runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("echo -n foo > " + authfsOutputDir + "/dir/file");
+        sAndroid.run("test -d " + androidOutputDir + "/dir/dir2");
+
+        // Action & Verify
+        runOnMicrodroid("rmdir " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("test ! -d " + authfsOutputDir + "/dir/dir2");
+        sAndroid.run("test ! -d " + androidOutputDir + "/dir/dir2");
+        // Can only delete a directory if empty
+        assertFailedOnMicrodroid("rmdir " + authfsOutputDir + "/dir");
+        runOnMicrodroid("test -d " + authfsOutputDir + "/dir");  // still there
+        runOnMicrodroid("rm " + authfsOutputDir + "/dir/file");
+        runOnMicrodroid("rmdir " + authfsOutputDir + "/dir");
+        runOnMicrodroid("test ! -d " + authfsOutputDir + "/dir");
+        sAndroid.run("test ! -d " + androidOutputDir + "/dir");
+    }
+
+    @Test
     public void testOutputDirectory_CannotRecreateDirectoryIfNameExists() throws Exception {
         // Setup
         String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
@@ -405,6 +450,40 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertFailedOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir");
         assertFailedOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir/file");
         assertFailedOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir/dir");
+    }
+
+    @Test
+    public void testOutputDirectory_WriteToFdOfDeletedFile() throws Exception {
+        // Setup
+        String authfsOutputDir = MOUNT_DIR + "/3";
+        String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
+        sAndroid.run("mkdir " + androidOutputDir);
+        runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+
+        // Create a file with some data. Test the existence.
+        String outputPath = authfsOutputDir + "/out";
+        String androidOutputPath = androidOutputDir + "/out";
+        runOnMicrodroid("echo -n 123 > " + outputPath);
+        runOnMicrodroid("test -f " + outputPath);
+        sAndroid.run("test -f " + androidOutputPath);
+
+        // Action
+        String output = runOnMicrodroid(
+                // Open the file for append and read
+                "exec 4>>" + outputPath + " 5<" + outputPath + "; "
+                // Delete the file from the directory
+                + "rm " + outputPath + "; "
+                // Append more data to the file descriptor
+                + "echo -n 456 >&4; "
+                // Print the whole file from the file descriptor
+                + "cat <&5");
+
+        // Verify
+        // Output contains all written data, while the files are deleted.
+        assertEquals("123456", output);
+        runOnMicrodroid("test ! -f " + outputPath);
+        sAndroid.run("test ! -f " + androidOutputDir + "/out");
     }
 
     @Test

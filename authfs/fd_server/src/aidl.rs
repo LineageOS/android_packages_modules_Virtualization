@@ -18,7 +18,7 @@ use anyhow::Result;
 use log::error;
 use nix::{
     dir::Dir, errno::Errno, fcntl::openat, fcntl::OFlag, sys::stat::mkdirat, sys::stat::Mode,
-    sys::statvfs::statvfs, sys::statvfs::Statvfs,
+    sys::statvfs::statvfs, sys::statvfs::Statvfs, unistd::unlinkat, unistd::UnlinkatFlags,
 };
 use std::cmp::min;
 use std::collections::{btree_map, BTreeMap};
@@ -264,14 +264,14 @@ impl IVirtFdService for FdService {
         })
     }
 
-    fn openFileInDirectory(&self, fd: i32, file_path: &str) -> BinderResult<i32> {
+    fn openFileInDirectory(&self, dir_fd: i32, file_path: &str) -> BinderResult<i32> {
         let path_buf = PathBuf::from(file_path);
         // Checks if the path is a simple, related path.
         if path_buf.components().any(|c| !matches!(c, Component::Normal(_))) {
             return Err(new_errno_error(Errno::EINVAL));
         }
 
-        self.insert_new_fd(fd, |config| match config {
+        self.insert_new_fd(dir_fd, |config| match config {
             FdConfig::InputDir(dir) => {
                 let file = open_readonly_at(dir.as_raw_fd(), &path_buf).map_err(new_errno_error)?;
 
@@ -288,11 +288,10 @@ impl IVirtFdService for FdService {
         })
     }
 
-    fn createFileInDirectory(&self, fd: i32, basename: &str) -> BinderResult<i32> {
-        if basename.contains(MAIN_SEPARATOR) {
-            return Err(new_errno_error(Errno::EINVAL));
-        }
-        self.insert_new_fd(fd, |config| match config {
+    fn createFileInDirectory(&self, dir_fd: i32, basename: &str) -> BinderResult<i32> {
+        validate_basename(basename)?;
+
+        self.insert_new_fd(dir_fd, |config| match config {
             FdConfig::InputDir(_) => Err(new_errno_error(Errno::EACCES)),
             FdConfig::OutputDir(dir) => {
                 let new_fd = openat(
@@ -313,9 +312,8 @@ impl IVirtFdService for FdService {
     }
 
     fn createDirectoryInDirectory(&self, dir_fd: i32, basename: &str) -> BinderResult<i32> {
-        if basename.contains(MAIN_SEPARATOR) {
-            return Err(new_errno_error(Errno::EINVAL));
-        }
+        validate_basename(basename)?;
+
         self.insert_new_fd(dir_fd, |config| match config {
             FdConfig::InputDir(_) => Err(new_errno_error(Errno::EACCES)),
             FdConfig::OutputDir(_) => {
@@ -329,6 +327,34 @@ impl IVirtFdService for FdService {
                 .map_err(new_errno_error)?;
                 Ok((new_dir.as_raw_fd(), FdConfig::OutputDir(new_dir)))
             }
+            _ => Err(new_errno_error(Errno::ENOTDIR)),
+        })
+    }
+
+    fn deleteFile(&self, dir_fd: i32, basename: &str) -> BinderResult<()> {
+        validate_basename(basename)?;
+
+        self.handle_fd(dir_fd, |config| match config {
+            FdConfig::OutputDir(_dir) => {
+                unlinkat(Some(dir_fd), basename, UnlinkatFlags::NoRemoveDir)
+                    .map_err(new_errno_error)?;
+                Ok(())
+            }
+            FdConfig::InputDir(_) => Err(new_errno_error(Errno::EACCES)),
+            _ => Err(new_errno_error(Errno::ENOTDIR)),
+        })
+    }
+
+    fn deleteDirectory(&self, dir_fd: i32, basename: &str) -> BinderResult<()> {
+        validate_basename(basename)?;
+
+        self.handle_fd(dir_fd, |config| match config {
+            FdConfig::OutputDir(_dir) => {
+                unlinkat(Some(dir_fd), basename, UnlinkatFlags::RemoveDir)
+                    .map_err(new_errno_error)?;
+                Ok(())
+            }
+            FdConfig::InputDir(_) => Err(new_errno_error(Errno::EACCES)),
             _ => Err(new_errno_error(Errno::ENOTDIR)),
         })
     }
@@ -367,4 +393,12 @@ fn open_readonly_at(dir_fd: RawFd, path: &Path) -> nix::Result<File> {
     // SAFETY: new_fd is just created successfully and not owned.
     let new_file = unsafe { File::from_raw_fd(new_fd) };
     Ok(new_file)
+}
+
+fn validate_basename(name: &str) -> BinderResult<()> {
+    if name.contains(MAIN_SEPARATOR) {
+        Err(new_errno_error(Errno::EINVAL))
+    } else {
+        Ok(())
+    }
 }
