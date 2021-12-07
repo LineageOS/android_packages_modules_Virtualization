@@ -64,4 +64,9 @@ interface IVirtualMachineService {
      * Error code indicating that the payload is verified, but has changed since the last boot.
      */
     const int ERROR_PAYLOAD_CHANGED = 2;
+
+    /**
+     * Error code indicating that the payload config is invalid.
+     */
+    const int ERROR_PAYLOAD_INVALID_CONFIG = 3;
 }

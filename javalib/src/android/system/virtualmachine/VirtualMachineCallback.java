@@ -33,7 +33,12 @@ import java.lang.annotation.RetentionPolicy;
 public interface VirtualMachineCallback {
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({ERROR_UNKNOWN, ERROR_PAYLOAD_VERIFICATION_FAILED, ERROR_PAYLOAD_CHANGED})
+    @IntDef({
+        ERROR_UNKNOWN,
+        ERROR_PAYLOAD_VERIFICATION_FAILED,
+        ERROR_PAYLOAD_CHANGED,
+        ERROR_PAYLOAD_INVALID_CONFIG
+    })
     @interface ErrorCode {}
 
     /** Error code for all other errors not listed below. */
@@ -47,6 +52,9 @@ public interface VirtualMachineCallback {
 
     /** Error code indicating that the payload is verified, but has changed since the last boot. */
     int ERROR_PAYLOAD_CHANGED = 2;
+
+    /** Error code indicating that the payload config is invalid. */
+    int ERROR_PAYLOAD_INVALID_CONFIG = 3;
 
     /** Called when the payload starts in the VM. */
     void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
