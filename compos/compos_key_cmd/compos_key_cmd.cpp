@@ -39,12 +39,14 @@
 #include <condition_variable>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
 
 #include "compos_signature.pb.h"
+#include "odsign_info.pb.h"
 
 using namespace std::literals;
 
@@ -62,10 +64,12 @@ using android::base::Error;
 using android::base::Fdopen;
 using android::base::Result;
 using android::base::unique_fd;
+using android::base::WriteFully;
 using compos::proto::Signature;
 using ndk::ScopedAStatus;
 using ndk::ScopedFileDescriptor;
 using ndk::SharedRefBase;
+using odsign::proto::OdsignInfo;
 
 constexpr unsigned int kRpcPort = 6432;
 
@@ -403,19 +407,10 @@ static Result<bool> verify(TargetVm& vm, const std::string& blob_file,
     return result;
 }
 
-static Result<void> signFile(ICompOsService* service, const std::string& file) {
+static Result<std::vector<uint8_t>> computeDigest(const std::string& file) {
     unique_fd fd(TEMP_FAILURE_RETRY(open(file.c_str(), O_RDONLY | O_CLOEXEC)));
     if (!fd.ok()) {
         return ErrnoError() << "Failed to open";
-    }
-
-    std::filesystem::path signature_path{file};
-    signature_path += ".signature";
-    unique_fd out_fd(TEMP_FAILURE_RETRY(open(signature_path.c_str(),
-                                             O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
-                                             S_IRUSR | S_IWUSR | S_IRGRP)));
-    if (!out_fd.ok()) {
-        return ErrnoError() << "Unable to create signature file";
     }
 
     struct stat filestat;
@@ -443,12 +438,30 @@ static Result<void> signFile(ICompOsService* service, const std::string& file) {
     }
     std::unique_ptr<libfsverity_digest, decltype(&std::free)> digestOwner{digest, std::free};
 
-    std::vector<uint8_t> buffer(sizeof(fsverity_formatted_digest) + digest->digest_size);
+    return std::vector(&digest->digest[0], &digest->digest[digest->digest_size]);
+}
+
+static Result<void> signFile(ICompOsService* service, const std::string& file) {
+    std::filesystem::path signature_path{file};
+    signature_path += ".signature";
+    unique_fd out_fd(TEMP_FAILURE_RETRY(open(signature_path.c_str(),
+                                             O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
+                                             S_IRUSR | S_IWUSR | S_IRGRP)));
+    if (!out_fd.ok()) {
+        return ErrnoError() << "Unable to create signature file";
+    }
+
+    auto digest = computeDigest(file);
+    if (!digest.ok()) {
+        return digest.error();
+    }
+
+    std::vector<uint8_t> buffer(sizeof(fsverity_formatted_digest) + digest->size());
     auto to_be_signed = new (buffer.data()) fsverity_formatted_digest;
     memcpy(to_be_signed->magic, "FSVerity", sizeof(to_be_signed->magic));
-    to_be_signed->digest_algorithm = __cpu_to_le16(digest->digest_algorithm);
-    to_be_signed->digest_size = __cpu_to_le16(digest->digest_size);
-    memcpy(to_be_signed->digest, digest->digest, digest->digest_size);
+    to_be_signed->digest_algorithm = __cpu_to_le16(FS_VERITY_HASH_ALG_SHA256);
+    to_be_signed->digest_size = __cpu_to_le16(digest->size());
+    memcpy(to_be_signed->digest, digest->data(), digest->size());
 
     std::vector<uint8_t> signature;
     auto status = service->sign(buffer, &signature);
@@ -457,7 +470,7 @@ static Result<void> signFile(ICompOsService* service, const std::string& file) {
     }
 
     Signature compos_signature;
-    compos_signature.set_digest(digest->digest, digest->digest_size);
+    compos_signature.set_digest(digest->data(), digest->size());
     compos_signature.set_signature(signature.data(), signature.size());
     if (!compos_signature.SerializeToFileDescriptor(out_fd.get())) {
         return Error() << "Failed to write signature";
@@ -496,6 +509,87 @@ static Result<void> sign(TargetVm& vm, const std::string& blob_file,
             return Error() << result.error() << ": " << file;
         }
     }
+    return {};
+}
+
+static std::string toHex(const std::vector<uint8_t>& digest) {
+    std::stringstream ss;
+    for (auto it = digest.begin(); it != digest.end(); ++it) {
+        ss << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>(*it);
+    }
+    return ss.str();
+}
+
+static Result<void> signInfo(TargetVm& vm, const std::string& blob_file,
+                             const std::string& info_file, const std::vector<std::string>& files) {
+    unique_fd info_fd(
+            TEMP_FAILURE_RETRY(open(info_file.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
+                                    S_IRUSR | S_IWUSR | S_IRGRP)));
+    if (!info_fd.ok()) {
+        return ErrnoError() << "Unable to create " << info_file;
+    }
+
+    std::string signature_file = info_file + ".signature";
+    unique_fd signature_fd(TEMP_FAILURE_RETRY(open(signature_file.c_str(),
+                                                   O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
+                                                   S_IRUSR | S_IWUSR | S_IRGRP)));
+    if (!signature_fd.ok()) {
+        return ErrnoError() << "Unable to create " << signature_file;
+    }
+
+    auto cid = vm.resolveCid();
+    if (!cid.ok()) {
+        return cid.error();
+    }
+    auto service = getService(*cid);
+    if (!service) {
+        return Error() << "No service";
+    }
+
+    auto blob = readBytesFromFile(blob_file);
+    if (!blob.ok()) {
+        return blob.error();
+    }
+
+    auto initialized = service->initializeSigningKey(blob.value());
+    if (!initialized.isOk()) {
+        return Error() << "Failed to initialize signing key: " << initialized.getDescription();
+    }
+
+    std::map<std::string, std::string> file_digests;
+
+    for (auto& file : files) {
+        auto digest = computeDigest(file);
+        if (!digest.ok()) {
+            return digest.error();
+        }
+        file_digests.emplace(file, toHex(*digest));
+    }
+
+    OdsignInfo info;
+    info.mutable_file_hashes()->insert(file_digests.begin(), file_digests.end());
+
+    std::vector<uint8_t> serialized(info.ByteSizeLong());
+    if (!info.SerializeToArray(serialized.data(), serialized.size())) {
+        return Error() << "Failed to serialize protobuf";
+    }
+
+    if (!WriteFully(info_fd, serialized.data(), serialized.size()) ||
+        close(info_fd.release()) != 0) {
+        return Error() << "Failed to write info file";
+    }
+
+    std::vector<uint8_t> signature;
+    auto status = service->sign(serialized, &signature);
+    if (!status.isOk()) {
+        return Error() << "Failed to sign: " << status.getDescription();
+    }
+
+    if (!WriteFully(signature_fd, signature.data(), signature.size()) ||
+        close(signature_fd.release()) != 0) {
+        return Error() << "Failed to write signature";
+    }
+
     return {};
 }
 
@@ -616,6 +710,17 @@ int main(int argc, char** argv) {
         } else {
             std::cerr << result.error() << '\n';
         }
+    } else if (argc >= 5 && argv[1] == "sign-info"sv) {
+        const std::string blob_file = argv[2];
+        const std::string info_file = argv[3];
+        const std::vector<std::string> files{&argv[4], &argv[argc]};
+        auto result = signInfo(vm, blob_file, info_file, files);
+        if (result.ok()) {
+            std::cerr << "Info file generated and signed.\n";
+            return 0;
+        } else {
+            std::cerr << result.error() << '\n';
+        }
     } else if (argc == 3 && argv[1] == "init-key"sv) {
         auto result = initializeKey(vm, argv[2]);
         if (result.ok()) {
@@ -631,16 +736,20 @@ int main(int argc, char** argv) {
             std::cerr << result.error() << '\n';
         }
     } else {
-        std::cerr << "Usage: compos_key_cmd [OPTIONS] generate|verify|sign|make-instance|init-key\n"
+        std::cerr << "Usage: compos_key_cmd [OPTIONS] COMMAND\n"
+                  << "Where COMMAND can be:\n"
+                  << "  make-instance <image file> Create an empty instance image file for a VM.\n"
                   << "  generate <blob file> <public key file> Generate new key pair and write\n"
                   << "    the private key blob and public key to the specified files.\n "
                   << "  verify <blob file> <public key file> Verify that the content of the\n"
                   << "    specified private key blob and public key files are valid.\n "
                   << "  init-key <blob file> Initialize the service key.\n"
                   << "  sign <blob file> <files to be signed> Generate signatures for one or\n"
-                  << "    more files using the supplied private key blob. Signature is stored in\n"
-                  << "    <filename>.signature\n"
-                  << "  make-instance <image file> Create an empty instance image file for a VM.\n"
+                  << "    more files using the supplied private key blob. Signature is stored \n"
+                  << "    in <filename>.signature\n"
+                  << "  sign-info <blob file> <info file> <files to be signed> Generate\n"
+                  << "    an info file listing the paths and root digests of each of the files to\n"
+                  << "    be signed, along with a signature of that file.\n"
                   << "\n"
                   << "OPTIONS: --log <log file> --debug --staged\n"
                   << "    (--cid <cid> | --start <image file>)\n"

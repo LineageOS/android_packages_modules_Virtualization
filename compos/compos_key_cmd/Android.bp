@@ -9,6 +9,7 @@ cc_binary {
 
     static_libs: [
         "lib_compos_proto",
+        "lib_odsign_proto",
     ],
 
     shared_libs: [
