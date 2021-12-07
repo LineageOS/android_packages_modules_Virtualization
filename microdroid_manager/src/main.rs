@@ -39,7 +39,7 @@ use std::time::{Duration, SystemTime};
 use vsock::VsockStream;
 
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-    ERROR_PAYLOAD_CHANGED, ERROR_PAYLOAD_VERIFICATION_FAILED, ERROR_UNKNOWN, VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
+    ERROR_PAYLOAD_CHANGED, ERROR_PAYLOAD_VERIFICATION_FAILED, ERROR_PAYLOAD_INVALID_CONFIG, ERROR_UNKNOWN, VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
 };
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -66,6 +66,8 @@ enum MicrodroidError {
     PayloadChanged(String),
     #[error("Payload verification has failed: {0}")]
     PayloadVerificationFailed(String),
+    #[error("Payload config is invalid: {0}")]
+    InvalidConfig(String),
 }
 
 fn translate_error(err: &Error) -> (i32, String) {
@@ -75,6 +77,7 @@ fn translate_error(err: &Error) -> (i32, String) {
             MicrodroidError::PayloadVerificationFailed(msg) => {
                 (ERROR_PAYLOAD_VERIFICATION_FAILED, msg.to_string())
             }
+            MicrodroidError::InvalidConfig(msg) => (ERROR_PAYLOAD_INVALID_CONFIG, msg.to_string()),
         }
     } else {
         (ERROR_UNKNOWN, err.to_string())
@@ -112,16 +115,27 @@ fn try_main() -> Result<()> {
     info!("started.");
 
     let service = get_vms_rpc_binder().context("cannot connect to VirtualMachineService")?;
-    if let Err(err) = try_start_payload(&service) {
-        let (error_code, message) = translate_error(&err);
-        service.notifyError(error_code, &message)?;
-        Err(err)
-    } else {
-        Ok(())
+    match try_run_payload(&service) {
+        Ok(code) => {
+            info!("notifying payload finished");
+            service.notifyPayloadFinished(code)?;
+            if code == 0 {
+                info!("task successfully finished");
+            } else {
+                error!("task exited with exit code: {}", code);
+            }
+            Ok(())
+        }
+        Err(err) => {
+            error!("task terminated: {:?}", err);
+            let (error_code, message) = translate_error(&err);
+            service.notifyError(error_code, &message)?;
+            Err(err)
+        }
     }
 }
 
-fn try_start_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<()> {
+fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     let metadata = load_metadata().context("Failed to load payload metadata")?;
 
     let mut instance = InstanceDisk::new().context("Failed to load instance.img")?;
@@ -151,27 +165,26 @@ fn try_start_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<()>
     )
     .context("Failed to run zipfuse")?;
 
-    if !metadata.payload_config_path.is_empty() {
-        let config = load_config(Path::new(&metadata.payload_config_path))?;
+    ensure!(
+        !metadata.payload_config_path.is_empty(),
+        MicrodroidError::InvalidConfig("No payload_config_path in metadata".to_string())
+    );
+    let config = load_config(Path::new(&metadata.payload_config_path))?;
 
-        let fake_secret = "This is a placeholder for a value that is derived from the images that are loaded in the VM.";
-        if let Err(err) = rustutils::system_properties::write("ro.vmsecret.keymint", fake_secret) {
-            warn!("failed to set ro.vmsecret.keymint: {}", err);
-        }
-
-        // Wait until apex config is done. (e.g. linker configuration for apexes)
-        // TODO(jooyung): wait until sys.boot_completed?
-        wait_for_apex_config_done()?;
-
-        if let Some(main_task) = &config.task {
-            exec_task(main_task, service).map_err(|e| {
-                error!("failed to execute task: {}", e);
-                e
-            })?;
-        }
+    let fake_secret = "This is a placeholder for a value that is derived from the images that are loaded in the VM.";
+    if let Err(err) = rustutils::system_properties::write("ro.vmsecret.keymint", fake_secret) {
+        warn!("failed to set ro.vmsecret.keymint: {}", err);
     }
 
-    Ok(())
+    // Wait until apex config is done. (e.g. linker configuration for apexes)
+    // TODO(jooyung): wait until sys.boot_completed?
+    wait_for_apex_config_done()?;
+
+    ensure!(
+        config.task.is_some(),
+        MicrodroidError::InvalidConfig("No task in VM config".to_string())
+    );
+    exec_task(&config.task.unwrap(), service)
 }
 
 struct ApkDmverityArgument<'a> {
@@ -305,7 +318,7 @@ fn load_config(path: &Path) -> Result<VmPayloadConfig> {
 
 /// Executes the given task. Stdout of the task is piped into the vsock stream to the
 /// virtualizationservice in the host side.
-fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Result<()> {
+fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     info!("executing main task {:?}...", task);
     let mut command = build_command(task)?;
 
@@ -319,19 +332,7 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
     }
 
     let exit_status = command.spawn()?.wait()?;
-    if let Some(code) = exit_status.code() {
-        info!("notifying payload finished");
-        service.notifyPayloadFinished(code)?;
-
-        if code == 0 {
-            info!("task successfully finished");
-        } else {
-            error!("task exited with exit code: {}", code);
-        }
-    } else {
-        error!("task terminated: {}", exit_status);
-    }
-    Ok(())
+    exit_status.code().ok_or_else(|| anyhow!("Failed to get exit_code from the paylaod."))
 }
 
 fn build_command(task: &Task) -> Result<Command> {
