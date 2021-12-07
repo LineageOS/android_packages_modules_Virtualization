@@ -17,17 +17,20 @@
 package com.android.server.compos;
 
 import android.annotation.NonNull;
-import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
-import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.ApexStagedEvent;
+import android.content.pm.IPackageManagerNative;
+import android.content.pm.IStagedApexObserver;
+import android.content.pm.StagedApexInfo;
+import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.provider.DeviceConfig;
 import android.util.Log;
 
 import com.android.server.SystemService;
 
 import java.io.File;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A system service responsible for performing Isolated Compilation (compiling boot & system server
@@ -37,8 +40,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class IsolatedCompilationService extends SystemService {
     private static final String TAG = IsolatedCompilationService.class.getName();
-    private static final int JOB_ID = 5132250;
-    private static final long JOB_PERIOD_MILLIS = TimeUnit.DAYS.toMillis(1);
 
     public IsolatedCompilationService(@NonNull Context context) {
         super(context);
@@ -59,24 +60,15 @@ public class IsolatedCompilationService extends SystemService {
             return;
         }
 
-        ComponentName serviceName =
-                new ComponentName("android", IsolatedCompilationJobService.class.getName());
 
         JobScheduler scheduler = getContext().getSystemService(JobScheduler.class);
         if (scheduler == null) {
             Log.e(TAG, "No scheduler");
             return;
         }
-        int result =
-                scheduler.schedule(
-                        new JobInfo.Builder(JOB_ID, serviceName)
-                                .setRequiresDeviceIdle(true)
-                                .setRequiresCharging(true)
-                                .setPeriodic(JOB_PERIOD_MILLIS)
-                                .build());
-        if (result != JobScheduler.RESULT_SUCCESS) {
-            Log.e(TAG, "Failed to schedule job");
-        }
+
+        IsolatedCompilationJobService.scheduleDailyJob(scheduler);
+        StagedApexObserver.registerForStagedApexUpdates(scheduler);
     }
 
     private static boolean isIsolatedCompilationSupported() {
@@ -93,5 +85,67 @@ public class IsolatedCompilationService extends SystemService {
         }
 
         return true;
+    }
+
+    private static class StagedApexObserver extends IStagedApexObserver.Stub {
+        private final JobScheduler mScheduler;
+        private final IPackageManagerNative mPackageNative;
+
+        static void registerForStagedApexUpdates(JobScheduler scheduler) {
+            final IPackageManagerNative packageNative = IPackageManagerNative.Stub.asInterface(
+                    ServiceManager.getService("package_native"));
+            if (packageNative == null) {
+                Log.e(TAG, "No IPackageManagerNative");
+                return;
+            }
+
+            StagedApexObserver observer = new StagedApexObserver(scheduler, packageNative);
+            try {
+                packageNative.registerStagedApexObserver(observer);
+                // In the unlikely event that an APEX has been staged before we get here, we may
+                // have to schedule compilation immediately.
+                observer.checkModules(packageNative.getStagedApexModuleNames());
+            } catch (RemoteException e) {
+                Log.e(TAG, "Failed to initialize observer", e);
+            }
+        }
+
+        private StagedApexObserver(JobScheduler scheduler,
+                IPackageManagerNative packageNative) {
+            mScheduler = scheduler;
+            mPackageNative = packageNative;
+        }
+
+        @Override
+        public void onApexStaged(ApexStagedEvent event) {
+            Log.d(TAG, "onApexStaged");
+            checkModules(event.stagedApexModuleNames);
+        }
+
+        void checkModules(String[] moduleNames) {
+            if (IsolatedCompilationJobService.isStagedApexJobScheduled(mScheduler)) {
+                Log.d(TAG, "Job already scheduled");
+                // We're going to run anyway, we don't need to check this update
+                return;
+            }
+            boolean needCompilation = false;
+            for (String moduleName : moduleNames) {
+                try {
+                    StagedApexInfo apexInfo = mPackageNative.getStagedApexInfo(moduleName);
+                    if (apexInfo != null && (apexInfo.hasBootClassPathJars
+                            || apexInfo.hasDex2OatBootClassPathJars
+                            || apexInfo.hasSystemServerClassPathJars)) {
+                        Log.i(TAG, "Classpath affecting module updated: " + moduleName);
+                        needCompilation = true;
+                        break;
+                    }
+                } catch (RemoteException e) {
+                    Log.w(TAG, "Failed to get getStagedApexInfo for " + moduleName);
+                }
+            }
+            if (needCompilation) {
+                IsolatedCompilationJobService.scheduleStagedApexJob(mScheduler);
+            }
+        }
     }
 }
