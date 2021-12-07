@@ -152,9 +152,13 @@ public:
 
     ::ndk::ScopedAStatus onError(int32_t in_cid, int32_t in_error_code,
                                  const std::string& in_message) override {
-        // For now, just log the error as onDied() will follow.
         LOG(WARNING) << "VM error! cid = " << in_cid << ", error_code = " << in_error_code
                      << ", message = " << in_message;
+        {
+            std::unique_lock lock(mMutex);
+            mDied = true;
+        }
+        mCv.notify_all();
         return ScopedAStatus::ok();
     }
 
