@@ -8,7 +8,6 @@ cc_binary {
     apex_available: ["com.android.compos"],
 
     static_libs: [
-        "lib_compos_proto",
         "lib_odsign_proto",
     ],
 

@@ -141,12 +141,13 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
         android.run(
                 COMPOS_KEY_CMD_BIN,
                 "--cid " + mCid,
-                "sign",
+                "sign-info",
                 TEST_ROOT + "test_key3.blob",
+                TEST_ROOT + "test.info",
                 "/data/local/tmp/something.txt");
 
         // Check existence of the output signature - should succeed
-        android.run("test -f /data/local/tmp/something.txt.signature");
+        android.run("test -f " + TEST_ROOT + "test.info.signature");
     }
 
     private void startVm() throws Exception {
