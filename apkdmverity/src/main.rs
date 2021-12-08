@@ -29,7 +29,6 @@ use anyhow::{bail, Context, Result};
 use clap::{App, Arg};
 use idsig::{HashAlgorithm, V4Signature};
 use itertools::Itertools;
-use rustutils::system_properties;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
@@ -40,27 +39,26 @@ fn main() -> Result<()> {
     let matches = App::new("apkdmverity")
         .about("Creates a dm-verity block device out of APK signed with APK signature scheme V4.")
         .arg(Arg::from_usage(
-            "--apk... <apk_path> <idsig_path> <name> \
-                            'Input APK file, idsig file, and the name of the block device. The APK \
-                            file must be signed using the APK signature scheme 4. The block device \
-                            is created at \"/dev/mapper/<name>\".'",
-        ))
+            "--apk... <apk_path> <idsig_path> <name> <root_hash> \
+                            'Input APK file, idsig file, name of the block device, and root hash. \
+                            The APK file must be signed using the APK signature scheme 4. The \
+                            block device is created at \"/dev/mapper/<name>\".' root_hash is \
+                            optional; idsig file's root hash will be used if specified as \"none\"."
+            ))
         .arg(Arg::with_name("verbose").short("v").long("verbose").help("Shows verbose output"))
         .get_matches();
 
     let apks = matches.values_of("apk").unwrap();
-    assert!(apks.len() % 3 == 0);
-
-    let roothash = if let Ok(val) = system_properties::read("microdroid_manager.apk_root_hash") {
-        Some(util::parse_hexstring(&val)?)
-    } else {
-        // This failure is not an error. We will use the roothash read from the idsig file.
-        None
-    };
+    assert!(apks.len() % 4 == 0);
 
     let verbose = matches.is_present("verbose");
 
-    for (apk, idsig, name) in apks.tuples() {
+    for (apk, idsig, name, roothash) in apks.tuples() {
+        let roothash = if roothash != "none" {
+            Some(util::parse_hexstring(roothash).expect("failed to parse roothash"))
+        } else {
+            None
+        };
         let ret = enable_verity(apk, idsig, name, roothash.as_deref())?;
         if verbose {
             println!(
