@@ -68,9 +68,9 @@ public class IsolatedCompilationJobService extends JobService {
         int result = scheduler.schedule(new JobInfo.Builder(STAGED_APEX_JOB_ID, serviceName)
                 // Wait in case more APEXes are staged
                 .setMinimumLatency(TimeUnit.MINUTES.toMillis(60))
-                // We consume CPU, battery, and storage
+                // We consume CPU, power, and storage
                 .setRequiresDeviceIdle(true)
-                .setRequiresBatteryNotLow(true)
+                .setRequiresCharging(true)
                 .setRequiresStorageNotLow(true)
                 .build());
         if (result != JobScheduler.RESULT_SUCCESS) {
