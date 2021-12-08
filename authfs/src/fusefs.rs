@@ -37,8 +37,8 @@ use fuse::filesystem::{
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
-    validate_basename, InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor, RemoteFileEditor,
-    RemoteFileReader, RemoteMerkleTreeReader,
+    validate_basename, Attr, InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor,
+    RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
 };
 use crate::fsstat::RemoteFsStatsReader;
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
@@ -66,16 +66,16 @@ pub enum AuthFsEntry {
     UnverifiedReadonly { reader: RemoteFileReader, file_size: u64 },
     /// A file type that is initially empty, and the content is stored on a remote server. File
     /// integrity is guaranteed with private Merkle tree.
-    VerifiedNew { editor: VerifiedFileEditor<RemoteFileEditor> },
+    VerifiedNew { editor: VerifiedFileEditor<RemoteFileEditor>, attr: Attr },
     /// A directory type that is initially empty. One can create new file (`VerifiedNew`) and new
     /// directory (`VerifiedNewDirectory` itself) with integrity guaranteed within the VM.
-    VerifiedNewDirectory { dir: RemoteDirEditor },
+    VerifiedNewDirectory { dir: RemoteDirEditor, attr: Attr },
 }
 
 impl AuthFsEntry {
-    fn expect_empty_writable_directory(&self) -> io::Result<()> {
+    fn expect_empty_deletable_directory(&self) -> io::Result<()> {
         match self {
-            AuthFsEntry::VerifiedNewDirectory { dir } => {
+            AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                 if dir.number_of_entries() == 0 {
                     Ok(())
                 } else {
@@ -304,7 +304,7 @@ cfg_if::cfg_if! {
 #[allow(clippy::enum_variant_names)]
 enum AccessMode {
     ReadOnly,
-    ReadWrite,
+    Variable(u32),
 }
 
 fn create_stat(
@@ -317,10 +317,11 @@ fn create_stat(
 
     st.st_ino = ino;
     st.st_mode = match access_mode {
-        // Until needed, let's just grant the owner access.
-        // TODO(205169366): Implement mode properly.
-        AccessMode::ReadOnly => libc::S_IFREG | libc::S_IRUSR,
-        AccessMode::ReadWrite => libc::S_IFREG | libc::S_IRUSR | libc::S_IWUSR,
+        AccessMode::ReadOnly => {
+            // Until needed, let's just grant the owner access.
+            libc::S_IFREG | libc::S_IRUSR
+        }
+        AccessMode::Variable(mode) => libc::S_IFREG | mode,
     };
     st.st_nlink = 1;
     st.st_uid = 0;
@@ -334,18 +335,22 @@ fn create_stat(
     Ok(st)
 }
 
-fn create_dir_stat(ino: libc::ino_t, file_number: u16) -> io::Result<libc::stat64> {
+fn create_dir_stat(
+    ino: libc::ino_t,
+    file_number: u16,
+    access_mode: AccessMode,
+) -> io::Result<libc::stat64> {
     // SAFETY: stat64 is a plan C struct without pointer.
     let mut st = unsafe { MaybeUninit::<libc::stat64>::zeroed().assume_init() };
 
     st.st_ino = ino;
-    // TODO(205169366): Implement mode properly.
-    st.st_mode = libc::S_IFDIR
-        | libc::S_IXUSR
-        | libc::S_IWUSR
-        | libc::S_IRUSR
-        | libc::S_IXGRP
-        | libc::S_IXOTH;
+    st.st_mode = match access_mode {
+        AccessMode::ReadOnly => {
+            // Until needed, let's just grant the owner access and search to group and others.
+            libc::S_IFDIR | libc::S_IXUSR | libc::S_IRUSR | libc::S_IXGRP | libc::S_IXOTH
+        }
+        AccessMode::Variable(mode) => libc::S_IFDIR | mode,
+    };
 
     // 2 extra for . and ..
     st.st_nlink = file_number
@@ -431,7 +436,7 @@ impl FileSystem for AuthFs {
                     let path = cstr_to_path(name);
                     dir.lookup_inode(path).ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))
                 }
-                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                     let path = cstr_to_path(name);
                     dir.find_inode(path)
                 }
@@ -445,18 +450,20 @@ impl FileSystem for AuthFs {
             |InodeState { entry, handle_ref_count, .. }| {
                 let st = match entry {
                     AuthFsEntry::ReadonlyDirectory { dir } => {
-                        create_dir_stat(inode, dir.number_of_entries())
+                        create_dir_stat(inode, dir.number_of_entries(), AccessMode::ReadOnly)
                     }
                     AuthFsEntry::UnverifiedReadonly { file_size, .. }
                     | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
                         create_stat(inode, *file_size, AccessMode::ReadOnly)
                     }
-                    AuthFsEntry::VerifiedNew { editor } => {
-                        create_stat(inode, editor.size(), AccessMode::ReadWrite)
+                    AuthFsEntry::VerifiedNew { editor, attr, .. } => {
+                        create_stat(inode, editor.size(), AccessMode::Variable(attr.mode()))
                     }
-                    AuthFsEntry::VerifiedNewDirectory { dir } => {
-                        create_dir_stat(inode, dir.number_of_entries())
-                    }
+                    AuthFsEntry::VerifiedNewDirectory { dir, attr } => create_dir_stat(
+                        inode,
+                        dir.number_of_entries(),
+                        AccessMode::Variable(attr.mode()),
+                    ),
                 }?;
                 *handle_ref_count += 1;
                 Ok(st)
@@ -514,18 +521,20 @@ impl FileSystem for AuthFs {
             Ok((
                 match config {
                     AuthFsEntry::ReadonlyDirectory { dir } => {
-                        create_dir_stat(inode, dir.number_of_entries())
+                        create_dir_stat(inode, dir.number_of_entries(), AccessMode::ReadOnly)
                     }
                     AuthFsEntry::UnverifiedReadonly { file_size, .. }
                     | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
                         create_stat(inode, *file_size, AccessMode::ReadOnly)
                     }
-                    AuthFsEntry::VerifiedNew { editor } => {
-                        create_stat(inode, editor.size(), AccessMode::ReadWrite)
+                    AuthFsEntry::VerifiedNew { editor, attr, .. } => {
+                        create_stat(inode, editor.size(), AccessMode::Variable(attr.mode()))
                     }
-                    AuthFsEntry::VerifiedNewDirectory { dir } => {
-                        create_dir_stat(inode, dir.number_of_entries())
-                    }
+                    AuthFsEntry::VerifiedNewDirectory { dir, attr } => create_dir_stat(
+                        inode,
+                        dir.number_of_entries(),
+                        AccessMode::Variable(attr.mode()),
+                    ),
                 }?,
                 DEFAULT_METADATA_TIMEOUT,
             ))
@@ -546,8 +555,8 @@ impl FileSystem for AuthFs {
                     check_access_mode(flags, libc::O_RDONLY)?;
                 }
                 AuthFsEntry::VerifiedNew { .. } => {
-                    // No need to check access modes since all the modes are allowed to the
-                    // read-writable file.
+                    // TODO(victorhsieh): Imeplement ACL check using the attr and ctx. Always allow
+                    // for now.
                 }
                 AuthFsEntry::ReadonlyDirectory { .. }
                 | AuthFsEntry::VerifiedNewDirectory { .. } => {
@@ -566,22 +575,22 @@ impl FileSystem for AuthFs {
         _ctx: Context,
         parent: Self::Inode,
         name: &CStr,
-        _mode: u32,
+        mode: u32,
         _flags: u32,
-        _umask: u32,
+        umask: u32,
     ) -> io::Result<(Entry, Option<Self::Handle>, fuse::sys::OpenOptions)> {
-        // TODO(205169366): Implement mode properly.
         // TODO(205172873): handle O_TRUNC and O_EXCL properly.
         let new_inode = self.create_new_entry_with_ref_count(
             parent,
             name,
             |parent_entry, basename, new_inode| match parent_entry {
-                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                     if dir.has_entry(basename) {
                         return Err(io::Error::from_raw_os_error(libc::EEXIST));
                     }
-                    let new_file = dir.create_file(basename, new_inode)?;
-                    Ok(AuthFsEntry::VerifiedNew { editor: new_file })
+                    let mode = mode & !umask;
+                    let (new_file, new_attr) = dir.create_file(basename, new_inode, mode)?;
+                    Ok(AuthFsEntry::VerifiedNew { editor: new_file, attr: new_attr })
                 }
                 _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
             },
@@ -591,7 +600,7 @@ impl FileSystem for AuthFs {
             Entry {
                 inode: new_inode,
                 generation: 0,
-                attr: create_stat(new_inode, /* file_size */ 0, AccessMode::ReadWrite)?,
+                attr: create_stat(new_inode, /* file_size */ 0, AccessMode::Variable(mode))?,
                 entry_timeout: DEFAULT_METADATA_TIMEOUT,
                 attr_timeout: DEFAULT_METADATA_TIMEOUT,
             },
@@ -620,12 +629,15 @@ impl FileSystem for AuthFs {
                 AuthFsEntry::UnverifiedReadonly { reader, file_size } => {
                     read_chunks(w, reader, *file_size, offset, size)
                 }
-                AuthFsEntry::VerifiedNew { editor } => {
+                AuthFsEntry::VerifiedNew { editor, .. } => {
                     // Note that with FsOptions::WRITEBACK_CACHE, it's possible for the kernel to
                     // request a read even if the file is open with O_WRONLY.
                     read_chunks(w, editor, editor.size(), offset, size)
                 }
-                _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
+                AuthFsEntry::ReadonlyDirectory { .. }
+                | AuthFsEntry::VerifiedNewDirectory { .. } => {
+                    Err(io::Error::from_raw_os_error(libc::EISDIR))
+                }
             }
         })
     }
@@ -643,12 +655,17 @@ impl FileSystem for AuthFs {
         _flags: u32,
     ) -> io::Result<usize> {
         self.handle_inode(&inode, |config| match config {
-            AuthFsEntry::VerifiedNew { editor } => {
+            AuthFsEntry::VerifiedNew { editor, .. } => {
                 let mut buf = vec![0; size as usize];
                 r.read_exact(&mut buf)?;
                 editor.write_at(&buf, offset)
             }
-            _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
+            AuthFsEntry::VerifiedReadonly { .. } | AuthFsEntry::UnverifiedReadonly { .. } => {
+                Err(io::Error::from_raw_os_error(libc::EPERM))
+            }
+            AuthFsEntry::ReadonlyDirectory { .. } | AuthFsEntry::VerifiedNewDirectory { .. } => {
+                Err(io::Error::from_raw_os_error(libc::EISDIR))
+            }
         })
     }
 
@@ -656,55 +673,51 @@ impl FileSystem for AuthFs {
         &self,
         _ctx: Context,
         inode: Inode,
-        attr: libc::stat64,
+        in_attr: libc::stat64,
         _handle: Option<Handle>,
         valid: SetattrValid,
     ) -> io::Result<(libc::stat64, Duration)> {
-        self.handle_inode(&inode, |config| {
-            match config {
-                AuthFsEntry::VerifiedNew { editor } => {
-                    // Initialize the default stat.
-                    let mut new_attr = create_stat(inode, editor.size(), AccessMode::ReadWrite)?;
-                    // `valid` indicates what fields in `attr` are valid. Update to return correctly.
-                    if valid.contains(SetattrValid::SIZE) {
-                        // st_size is i64, but the cast should be safe since kernel should not give a
-                        // negative size.
-                        debug_assert!(attr.st_size >= 0);
-                        new_attr.st_size = attr.st_size;
-                        editor.resize(attr.st_size as u64)?;
-                    }
+        let mut inode_table = self.inode_table.lock().unwrap();
+        handle_inode_mut_locked(&mut inode_table, &inode, |InodeState { entry, .. }| match entry {
+            AuthFsEntry::VerifiedNew { editor, attr } => {
+                check_unsupported_setattr_request(valid)?;
 
-                    if valid.contains(SetattrValid::MODE) {
-                        warn!("Changing st_mode is not currently supported");
-                        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
-                    }
-                    if valid.contains(SetattrValid::UID) {
-                        warn!("Changing st_uid is not currently supported");
-                        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
-                    }
-                    if valid.contains(SetattrValid::GID) {
-                        warn!("Changing st_gid is not currently supported");
-                        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
-                    }
-                    if valid.contains(SetattrValid::CTIME) {
-                        debug!(
-                            "Ignoring ctime change as authfs does not maintain timestamp currently"
-                        );
-                    }
-                    if valid.intersects(SetattrValid::ATIME | SetattrValid::ATIME_NOW) {
-                        debug!(
-                            "Ignoring atime change as authfs does not maintain timestamp currently"
-                        );
-                    }
-                    if valid.intersects(SetattrValid::MTIME | SetattrValid::MTIME_NOW) {
-                        debug!(
-                            "Ignoring mtime change as authfs does not maintain timestamp currently"
-                        );
-                    }
-                    Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
+                // Initialize the default stat.
+                let mut new_attr =
+                    create_stat(inode, editor.size(), AccessMode::Variable(attr.mode()))?;
+                // `valid` indicates what fields in `attr` are valid. Update to return correctly.
+                if valid.contains(SetattrValid::SIZE) {
+                    // st_size is i64, but the cast should be safe since kernel should not give a
+                    // negative size.
+                    debug_assert!(in_attr.st_size >= 0);
+                    new_attr.st_size = in_attr.st_size;
+                    editor.resize(in_attr.st_size as u64)?;
                 }
-                _ => Err(io::Error::from_raw_os_error(libc::EBADF)),
+                if valid.contains(SetattrValid::MODE) {
+                    attr.set_mode(in_attr.st_mode)?;
+                    new_attr.st_mode = in_attr.st_mode;
+                }
+                Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
             }
+            AuthFsEntry::VerifiedNewDirectory { dir, attr } => {
+                check_unsupported_setattr_request(valid)?;
+                if valid.contains(SetattrValid::SIZE) {
+                    return Err(io::Error::from_raw_os_error(libc::EISDIR));
+                }
+
+                // Initialize the default stat.
+                let mut new_attr = create_dir_stat(
+                    inode,
+                    dir.number_of_entries(),
+                    AccessMode::Variable(attr.mode()),
+                )?;
+                if valid.contains(SetattrValid::MODE) {
+                    attr.set_mode(in_attr.st_mode)?;
+                    new_attr.st_mode = in_attr.st_mode;
+                }
+                Ok((new_attr, DEFAULT_METADATA_TIMEOUT))
+            }
+            _ => Err(io::Error::from_raw_os_error(libc::EPERM)),
         })
     }
 
@@ -717,7 +730,7 @@ impl FileSystem for AuthFs {
     ) -> io::Result<GetxattrReply> {
         self.handle_inode(&inode, |config| {
             match config {
-                AuthFsEntry::VerifiedNew { editor } => {
+                AuthFsEntry::VerifiedNew { editor, .. } => {
                     // FUSE ioctl is limited, thus we can't implement fs-verity ioctls without a kernel
                     // change (see b/196635431). Until it's possible, use xattr to expose what we need
                     // as an authfs specific API.
@@ -747,20 +760,20 @@ impl FileSystem for AuthFs {
         _ctx: Context,
         parent: Self::Inode,
         name: &CStr,
-        _mode: u32,
-        _umask: u32,
+        mode: u32,
+        umask: u32,
     ) -> io::Result<Entry> {
-        // TODO(205169366): Implement mode properly.
         let new_inode = self.create_new_entry_with_ref_count(
             parent,
             name,
             |parent_entry, basename, new_inode| match parent_entry {
-                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                     if dir.has_entry(basename) {
                         return Err(io::Error::from_raw_os_error(libc::EEXIST));
                     }
-                    let new_dir = dir.mkdir(basename, new_inode)?;
-                    Ok(AuthFsEntry::VerifiedNewDirectory { dir: new_dir })
+                    let mode = mode & !umask;
+                    let (new_dir, new_attr) = dir.mkdir(basename, new_inode, mode)?;
+                    Ok(AuthFsEntry::VerifiedNewDirectory { dir: new_dir, attr: new_attr })
                 }
                 AuthFsEntry::ReadonlyDirectory { .. } => {
                     Err(io::Error::from_raw_os_error(libc::EACCES))
@@ -772,7 +785,7 @@ impl FileSystem for AuthFs {
         Ok(Entry {
             inode: new_inode,
             generation: 0,
-            attr: create_dir_stat(new_inode, /* file_number */ 0)?,
+            attr: create_dir_stat(new_inode, /* file_number */ 0, AccessMode::Variable(mode))?,
             entry_timeout: DEFAULT_METADATA_TIMEOUT,
             attr_timeout: DEFAULT_METADATA_TIMEOUT,
         })
@@ -784,7 +797,7 @@ impl FileSystem for AuthFs {
             &mut inode_table,
             &parent,
             |InodeState { entry, unlinked, .. }| match entry {
-                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                     let basename: &Path = cstr_to_path(name);
                     // Delete the file from in both the local and remote directories.
                     let _inode = dir.delete_file(basename)?;
@@ -810,11 +823,11 @@ impl FileSystem for AuthFs {
 
         // Check before actual removal, with readonly borrow.
         handle_inode_locked(&inode_table, &parent, |inode_state| match &inode_state.entry {
-            AuthFsEntry::VerifiedNewDirectory { dir } => {
+            AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                 let basename: &Path = cstr_to_path(name);
                 let existing_inode = dir.find_inode(basename)?;
                 handle_inode_locked(&inode_table, &existing_inode, |inode_state| {
-                    inode_state.entry.expect_empty_writable_directory()
+                    inode_state.entry.expect_empty_deletable_directory()
                 })
             }
             AuthFsEntry::ReadonlyDirectory { .. } => {
@@ -829,7 +842,7 @@ impl FileSystem for AuthFs {
             &mut inode_table,
             &parent,
             |InodeState { entry, unlinked, .. }| match entry {
-                AuthFsEntry::VerifiedNewDirectory { dir } => {
+                AuthFsEntry::VerifiedNewDirectory { dir, .. } => {
                     let basename: &Path = cstr_to_path(name);
                     let _inode = dir.force_delete_directory(basename)?;
                     *unlinked = true;
@@ -895,6 +908,27 @@ where
     } else {
         Err(io::Error::from_raw_os_error(libc::ENOENT))
     }
+}
+
+fn check_unsupported_setattr_request(valid: SetattrValid) -> io::Result<()> {
+    if valid.contains(SetattrValid::UID) {
+        warn!("Changing st_uid is not currently supported");
+        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+    }
+    if valid.contains(SetattrValid::GID) {
+        warn!("Changing st_gid is not currently supported");
+        return Err(io::Error::from_raw_os_error(libc::ENOSYS));
+    }
+    if valid.intersects(
+        SetattrValid::CTIME
+            | SetattrValid::ATIME
+            | SetattrValid::ATIME_NOW
+            | SetattrValid::MTIME
+            | SetattrValid::MTIME_NOW,
+    ) {
+        debug!("Ignoring ctime/atime/mtime change as authfs does not maintain timestamp currently");
+    }
+    Ok(())
 }
 
 fn cstr_to_path(cstr: &CStr) -> &Path {

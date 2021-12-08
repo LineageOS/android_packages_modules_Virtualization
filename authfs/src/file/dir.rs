@@ -15,10 +15,12 @@
  */
 
 use log::warn;
+use nix::sys::stat::Mode;
 use std::collections::{hash_map, HashMap};
 use std::io;
 use std::path::{Path, PathBuf};
 
+use super::attr::Attr;
 use super::remote_file::RemoteFileEditor;
 use super::{validate_basename, VirtFdService, VirtFdServiceStatus};
 use crate::fsverity::VerifiedFileEditor;
@@ -74,37 +76,43 @@ impl RemoteDirEditor {
         &mut self,
         basename: &Path,
         inode: Inode,
-    ) -> io::Result<VerifiedFileEditor<RemoteFileEditor>> {
-        self.validate_argument(basename)?;
-
+        mode: libc::mode_t,
+    ) -> io::Result<(VerifiedFileEditor<RemoteFileEditor>, Attr)> {
+        let mode = self.validate_arguments(basename, mode)?;
         let basename_str =
             basename.to_str().ok_or_else(|| io::Error::from_raw_os_error(libc::EINVAL))?;
         let new_fd = self
             .service
-            .createFileInDirectory(self.remote_dir_fd, basename_str)
+            .createFileInDirectory(self.remote_dir_fd, basename_str, mode as i32)
             .map_err(into_io_error)?;
 
         let new_remote_file =
             VerifiedFileEditor::new(RemoteFileEditor::new(self.service.clone(), new_fd));
         self.entries.insert(basename.to_path_buf(), DirEntry { inode, is_dir: false });
-        Ok(new_remote_file)
+        let new_attr = Attr::new_file_with_mode(self.service.clone(), new_fd, mode);
+        Ok((new_remote_file, new_attr))
     }
 
     /// Creates a remote directory named `basename` with corresponding `inode` at the current
     /// directory.
-    pub fn mkdir(&mut self, basename: &Path, inode: Inode) -> io::Result<RemoteDirEditor> {
-        self.validate_argument(basename)?;
-
+    pub fn mkdir(
+        &mut self,
+        basename: &Path,
+        inode: Inode,
+        mode: libc::mode_t,
+    ) -> io::Result<(RemoteDirEditor, Attr)> {
+        let mode = self.validate_arguments(basename, mode)?;
         let basename_str =
             basename.to_str().ok_or_else(|| io::Error::from_raw_os_error(libc::EINVAL))?;
         let new_fd = self
             .service
-            .createDirectoryInDirectory(self.remote_dir_fd, basename_str)
+            .createDirectoryInDirectory(self.remote_dir_fd, basename_str, mode as i32)
             .map_err(into_io_error)?;
 
         let new_remote_dir = RemoteDirEditor::new(self.service.clone(), new_fd);
         self.entries.insert(basename.to_path_buf(), DirEntry { inode, is_dir: true });
-        Ok(new_remote_dir)
+        let new_attr = Attr::new_dir_with_mode(self.service.clone(), new_fd, mode);
+        Ok((new_remote_dir, new_attr))
     }
 
     /// Deletes a file
@@ -167,17 +175,19 @@ impl RemoteDirEditor {
         }
     }
 
-    fn validate_argument(&self, basename: &Path) -> io::Result<()> {
+    fn validate_arguments(&self, basename: &Path, mode: u32) -> io::Result<u32> {
         // Kernel should only give us a basename.
         debug_assert!(validate_basename(basename).is_ok());
 
         if self.entries.contains_key(basename) {
-            Err(io::Error::from_raw_os_error(libc::EEXIST))
-        } else if self.entries.len() >= MAX_ENTRIES.into() {
-            Err(io::Error::from_raw_os_error(libc::EMLINK))
-        } else {
-            Ok(())
+            return Err(io::Error::from_raw_os_error(libc::EEXIST));
         }
+
+        if self.entries.len() >= MAX_ENTRIES.into() {
+            return Err(io::Error::from_raw_os_error(libc::EMLINK));
+        }
+
+        Ok(Mode::from_bits_truncate(mode).bits())
     }
 }
 
