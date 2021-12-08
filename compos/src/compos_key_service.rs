@@ -77,7 +77,7 @@ impl CompOsKeyService {
         })
     }
 
-    pub fn do_generate(&self) -> Result<CompOsKeyData> {
+    pub fn generate(&self) -> Result<CompOsKeyData> {
         let key_descriptor = BLOB_KEY_DESCRIPTOR;
         let key_parameters =
             [PURPOSE_SIGN, ALGORITHM, PADDING, DIGEST, KEY_SIZE, EXPONENT, NO_AUTH_REQUIRED];
@@ -97,11 +97,11 @@ impl CompOsKeyService {
         }
     }
 
-    pub fn do_verify(&self, key_blob: &[u8], public_key: &[u8]) -> Result<()> {
+    pub fn verify(&self, key_blob: &[u8], public_key: &[u8]) -> Result<()> {
         let mut data = [0u8; 32];
         self.random.fill(&mut data).context("No random data")?;
 
-        let signature = self.do_sign(key_blob, &data)?;
+        let signature = self.sign(key_blob, &data)?;
 
         let public_key =
             signature::UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256, public_key);
@@ -110,7 +110,7 @@ impl CompOsKeyService {
         Ok(())
     }
 
-    pub fn do_sign(&self, key_blob: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    pub fn sign(&self, key_blob: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         let key_descriptor = KeyDescriptor { blob: Some(key_blob.to_vec()), ..BLOB_KEY_DESCRIPTOR };
         let operation_parameters = [PURPOSE_SIGN, ALGORITHM, PADDING, DIGEST];
         let forced = false;
