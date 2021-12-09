@@ -43,7 +43,7 @@ mod fusefs;
 
 use auth::FakeAuthenticator;
 use file::{
-    InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
+    Attr, InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
 };
 use fsstat::RemoteFsStatsReader;
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
@@ -194,16 +194,20 @@ fn new_remote_new_verified_file_entry(
     service: file::VirtFdService,
     remote_fd: i32,
 ) -> Result<AuthFsEntry> {
-    let remote_file = RemoteFileEditor::new(service, remote_fd);
-    Ok(AuthFsEntry::VerifiedNew { editor: VerifiedFileEditor::new(remote_file) })
+    let remote_file = RemoteFileEditor::new(service.clone(), remote_fd);
+    Ok(AuthFsEntry::VerifiedNew {
+        editor: VerifiedFileEditor::new(remote_file),
+        attr: Attr::new_file(service, remote_fd),
+    })
 }
 
 fn new_remote_new_verified_dir_entry(
     service: file::VirtFdService,
     remote_fd: i32,
 ) -> Result<AuthFsEntry> {
-    let dir = RemoteDirEditor::new(service, remote_fd);
-    Ok(AuthFsEntry::VerifiedNewDirectory { dir })
+    let dir = RemoteDirEditor::new(service.clone(), remote_fd);
+    let attr = Attr::new_dir(service, remote_fd);
+    Ok(AuthFsEntry::VerifiedNewDirectory { dir, attr })
 }
 
 fn prepare_root_dir_entries(
