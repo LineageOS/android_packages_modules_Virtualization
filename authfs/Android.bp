@@ -20,6 +20,7 @@ rust_defaults {
         "libfuse_rust",
         "liblibc",
         "liblog_rust",
+        "libnix",
         "libstructopt",
         "libthiserror",
     ],
