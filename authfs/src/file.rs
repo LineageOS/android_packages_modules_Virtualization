@@ -1,6 +1,8 @@
+mod attr;
 mod dir;
 mod remote_file;
 
+pub use attr::Attr;
 pub use dir::{InMemoryDir, RemoteDirEditor};
 pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader};
 

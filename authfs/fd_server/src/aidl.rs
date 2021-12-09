@@ -17,8 +17,9 @@
 use anyhow::Result;
 use log::error;
 use nix::{
-    dir::Dir, errno::Errno, fcntl::openat, fcntl::OFlag, sys::stat::mkdirat, sys::stat::Mode,
-    sys::statvfs::statvfs, sys::statvfs::Statvfs, unistd::unlinkat, unistd::UnlinkatFlags,
+    dir::Dir, errno::Errno, fcntl::openat, fcntl::OFlag, sys::stat::fchmod, sys::stat::mkdirat,
+    sys::stat::mode_t, sys::stat::Mode, sys::statvfs::statvfs, sys::statvfs::Statvfs,
+    unistd::unlinkat, unistd::UnlinkatFlags,
 };
 use std::cmp::min;
 use std::collections::{btree_map, BTreeMap};
@@ -39,17 +40,8 @@ use authfs_aidl_interface::binder::{
 };
 use binder_common::{new_binder_exception, new_binder_service_specific_error};
 
-fn validate_and_cast_offset(offset: i64) -> Result<u64, Status> {
-    offset.try_into().map_err(|_| new_errno_error(Errno::EINVAL))
-}
-
-fn validate_and_cast_size(size: i32) -> Result<usize, Status> {
-    if size > MAX_REQUESTING_DATA {
-        Err(new_errno_error(Errno::EFBIG))
-    } else {
-        size.try_into().map_err(|_| new_errno_error(Errno::EINVAL))
-    }
-}
+/// Bitflags of forbidden file mode, e.g. setuid, setgid and sticky bit.
+const FORBIDDEN_MODES: Mode = Mode::from_bits_truncate(!0o777);
 
 /// Configuration of a file descriptor to be served/exposed/shared.
 pub enum FdConfig {
@@ -288,19 +280,20 @@ impl IVirtFdService for FdService {
         })
     }
 
-    fn createFileInDirectory(&self, dir_fd: i32, basename: &str) -> BinderResult<i32> {
+    fn createFileInDirectory(&self, dir_fd: i32, basename: &str, mode: i32) -> BinderResult<i32> {
         validate_basename(basename)?;
 
         self.insert_new_fd(dir_fd, |config| match config {
             FdConfig::InputDir(_) => Err(new_errno_error(Errno::EACCES)),
             FdConfig::OutputDir(dir) => {
+                let mode = validate_file_mode(mode)?;
                 let new_fd = openat(
                     dir.as_raw_fd(),
                     basename,
                     // TODO(205172873): handle the case when the file already exist, e.g. truncate
                     // or fail, and possibly allow the client to specify. For now, always truncate.
                     OFlag::O_CREAT | OFlag::O_RDWR | OFlag::O_TRUNC,
-                    Mode::S_IRUSR | Mode::S_IWUSR,
+                    mode,
                 )
                 .map_err(new_errno_error)?;
                 // SAFETY: new_fd is just created and not an error.
@@ -311,13 +304,19 @@ impl IVirtFdService for FdService {
         })
     }
 
-    fn createDirectoryInDirectory(&self, dir_fd: i32, basename: &str) -> BinderResult<i32> {
+    fn createDirectoryInDirectory(
+        &self,
+        dir_fd: i32,
+        basename: &str,
+        mode: i32,
+    ) -> BinderResult<i32> {
         validate_basename(basename)?;
 
         self.insert_new_fd(dir_fd, |config| match config {
             FdConfig::InputDir(_) => Err(new_errno_error(Errno::EACCES)),
             FdConfig::OutputDir(_) => {
-                mkdirat(dir_fd, basename, Mode::S_IRWXU).map_err(new_errno_error)?;
+                let mode = validate_file_mode(mode)?;
+                mkdirat(dir_fd, basename, mode).map_err(new_errno_error)?;
                 let new_dir = Dir::openat(
                     dir_fd,
                     basename,
@@ -359,6 +358,16 @@ impl IVirtFdService for FdService {
         })
     }
 
+    fn chmod(&self, fd: i32, mode: i32) -> BinderResult<()> {
+        self.handle_fd(fd, |config| match config {
+            FdConfig::ReadWrite(_) | FdConfig::OutputDir(_) => {
+                let mode = validate_file_mode(mode)?;
+                fchmod(fd, mode).map_err(new_errno_error)
+            }
+            _ => Err(new_errno_error(Errno::EACCES)),
+        })
+    }
+
     fn statfs(&self) -> BinderResult<FsStat> {
         let st = statvfs("/data").map_err(new_errno_error)?;
         try_into_fs_stat(st).map_err(|_e| new_errno_error(Errno::EINVAL))
@@ -395,10 +404,31 @@ fn open_readonly_at(dir_fd: RawFd, path: &Path) -> nix::Result<File> {
     Ok(new_file)
 }
 
+fn validate_and_cast_offset(offset: i64) -> Result<u64, Status> {
+    offset.try_into().map_err(|_| new_errno_error(Errno::EINVAL))
+}
+
+fn validate_and_cast_size(size: i32) -> Result<usize, Status> {
+    if size > MAX_REQUESTING_DATA {
+        Err(new_errno_error(Errno::EFBIG))
+    } else {
+        size.try_into().map_err(|_| new_errno_error(Errno::EINVAL))
+    }
+}
+
 fn validate_basename(name: &str) -> BinderResult<()> {
     if name.contains(MAIN_SEPARATOR) {
         Err(new_errno_error(Errno::EINVAL))
     } else {
         Ok(())
+    }
+}
+
+fn validate_file_mode(mode: i32) -> BinderResult<Mode> {
+    let mode = Mode::from_bits(mode as mode_t).ok_or_else(|| new_errno_error(Errno::EINVAL))?;
+    if mode.intersects(FORBIDDEN_MODES) {
+        Err(new_errno_error(Errno::EPERM))
+    } else {
+        Ok(mode)
     }
 }

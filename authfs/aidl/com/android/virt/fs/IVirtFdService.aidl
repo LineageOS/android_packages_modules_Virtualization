@@ -68,17 +68,19 @@ interface IVirtFdService {
      * Creates a file given the remote directory FD.
      *
      * @param basename The file name to create. Must not contain directory separator.
+     * @param mode File mode of the new file. See open(2).
      * @return file A remote FD that represents the new created file.
      */
-    int createFileInDirectory(int dirFd, String basename);
+    int createFileInDirectory(int dirFd, String basename, int mode);
 
     /**
      * Creates a directory inside the given remote directory FD.
      *
      * @param basename The directory name to create. Must not contain directory separator.
+     * @param mode File mode of the new directory. See mkdir(2).
      * @return file FD that represents the new created directory.
      */
-    int createDirectoryInDirectory(int dirFd, String basename);
+    int createDirectoryInDirectory(int dirFd, String basename, int mode);
 
     /**
      * Deletes a file in the given directory.
@@ -93,6 +95,14 @@ interface IVirtFdService {
      * @param basename The directory name to delete. Must not contain directory separator.
      */
     void deleteDirectory(int dirFd, String basename);
+
+    /**
+     * Changes mode of the FD.
+     *
+     * @param fd The FD to change.
+     * @param mode New file mode to pass to chmod(2)/fchmod(2).
+     */
+    void chmod(int fd, int mode);
 
     /** Filesystem stats that AuthFS is interested in.*/
     parcelable FsStat {
