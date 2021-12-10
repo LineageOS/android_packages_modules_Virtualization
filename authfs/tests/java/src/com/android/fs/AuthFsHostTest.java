@@ -519,6 +519,47 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     }
 
     @Test
+    public void testReadOutputDirectory() throws Exception {
+        // Setup
+        runFdServerOnAndroid("--open-dir 3:" + TEST_OUTPUT_DIR, "--rw-dirs 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+
+        // Action
+        String authfsOutputDir = MOUNT_DIR + "/3";
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/dir/dir2/dir3");
+        runOnMicrodroid("touch " + authfsOutputDir + "/dir/dir2/dir3/file1");
+        runOnMicrodroid("touch " + authfsOutputDir + "/dir/dir2/dir3/file2");
+        runOnMicrodroid("touch " + authfsOutputDir + "/dir/dir2/dir3/file3");
+        runOnMicrodroid("touch " + authfsOutputDir + "/file");
+
+        // Verify
+        String[] actual = runOnMicrodroid("cd " + authfsOutputDir + "; find |sort").split("\n");
+        String[] expected = new String[] {
+                ".",
+                "./dir",
+                "./dir/dir2",
+                "./dir/dir2/dir3",
+                "./dir/dir2/dir3/file1",
+                "./dir/dir2/dir3/file2",
+                "./dir/dir2/dir3/file3",
+                "./file"};
+        assertEquals(expected, actual);
+
+        // Add more entries.
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/dir2");
+        runOnMicrodroid("touch " + authfsOutputDir + "/file2");
+        // Check new entries. Also check that the types are correct.
+        actual = runOnMicrodroid(
+                "cd " + authfsOutputDir + "; find -maxdepth 1 -type f |sort").split("\n");
+        expected = new String[] {"./file", "./file2"};
+        assertEquals(expected, actual);
+        actual = runOnMicrodroid(
+                "cd " + authfsOutputDir + "; find -maxdepth 1 -type d |sort").split("\n");
+        expected = new String[] {".", "./dir", "./dir2"};
+        assertEquals(expected, actual);
+    }
+
+    @Test
     public void testChmod_File() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/file", "--rw-fds 3");
