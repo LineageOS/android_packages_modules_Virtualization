@@ -38,10 +38,10 @@ rust_test {
     rustlibs: [
         "libandroid_logger",
         "libanyhow",
-        "liblibc",
         "libclap",
         "libcommand_fds",
         "liblog_rust",
+        "libnix",
     ],
     test_suites: ["general-tests"],
     test_harness: false,

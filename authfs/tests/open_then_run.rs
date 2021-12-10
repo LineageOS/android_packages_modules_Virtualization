@@ -22,8 +22,9 @@ use anyhow::{bail, Context, Result};
 use clap::{App, Arg, Values};
 use command_fds::{CommandFdExt, FdMapping};
 use log::{debug, error};
+use nix::{dir::Dir, fcntl::OFlag, sys::stat::Mode};
 use std::fs::{File, OpenOptions};
-use std::os::unix::{fs::OpenOptionsExt, io::AsRawFd, io::RawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::process::Command;
 
 // `PseudoRawFd` is just an integer and not necessarily backed by a real FD. It is used to denote
@@ -31,30 +32,31 @@ use std::process::Command;
 // with this alias is to improve readability by distinguishing from actual RawFd.
 type PseudoRawFd = RawFd;
 
-struct FileMapping {
-    file: File,
+struct FileMapping<T: AsRawFd> {
+    file: T,
     target_fd: PseudoRawFd,
 }
 
-impl FileMapping {
+impl<T: AsRawFd> FileMapping<T> {
     fn as_fd_mapping(&self) -> FdMapping {
         FdMapping { parent_fd: self.file.as_raw_fd(), child_fd: self.target_fd }
     }
 }
 
 struct Args {
-    ro_files: Vec<FileMapping>,
-    rw_files: Vec<FileMapping>,
-    dir_files: Vec<FileMapping>,
+    ro_files: Vec<FileMapping<File>>,
+    rw_files: Vec<FileMapping<File>>,
+    dir_files: Vec<FileMapping<Dir>>,
     cmdline_args: Vec<String>,
 }
 
-fn parse_and_create_file_mapping<F>(
+fn parse_and_create_file_mapping<F, T>(
     values: Option<Values<'_>>,
     opener: F,
-) -> Result<Vec<FileMapping>>
+) -> Result<Vec<FileMapping<T>>>
 where
-    F: Fn(&str) -> Result<File>,
+    F: Fn(&str) -> Result<T>,
+    T: AsRawFd,
 {
     if let Some(options) = values {
         options
@@ -116,19 +118,8 @@ fn parse_args() -> Result<Args> {
     })?;
 
     let dir_files = parse_and_create_file_mapping(matches.values_of("open-dir"), |path| {
-        // The returned FD represents a path (that's supposed to be a directory), and is not really
-        // a file. It's better to use std::os::unix::io::OwnedFd but it's currently experimental.
-        // Ideally, all FDs opened by this program should be `OwnedFd` since we are only opening
-        // them for the provided program, and are not supposed to do anything else.
-        OpenOptions::new()
-            .custom_flags(libc::O_PATH | libc::O_DIRECTORY)
-            // The custom flags above is not taken into consideration by the unix implementation of
-            // OpenOptions for flag validation. So even though the man page of open(2) says that
-            // most flags include access mode are ignored, we still need to set a "valid" mode to
-            // make the library happy. The value does not appear to matter elsewhere in the library.
-            .read(true)
-            .open(path)
-            .with_context(|| format!("Open {} directory as path", path))
+        Dir::open(path, OFlag::O_DIRECTORY | OFlag::O_RDONLY, Mode::S_IRWXU)
+            .with_context(|| format!("Open {} directory", path))
     })?;
 
     let cmdline_args: Vec<_> = matches.values_of("args").unwrap().map(|s| s.to_string()).collect();
