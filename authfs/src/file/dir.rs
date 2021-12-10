@@ -17,18 +17,20 @@
 use log::warn;
 use nix::sys::stat::Mode;
 use std::collections::{hash_map, HashMap};
+use std::ffi::{CString, OsString};
 use std::io;
+use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
 use super::attr::Attr;
 use super::remote_file::RemoteFileEditor;
 use super::{validate_basename, VirtFdService, VirtFdServiceStatus};
 use crate::fsverity::VerifiedFileEditor;
-use crate::fusefs::Inode;
+use crate::fusefs::{AuthFsDirEntry, Inode};
 
 const MAX_ENTRIES: u16 = 100; // Arbitrary limit
 
-struct DirEntry {
+struct InodeInfo {
     inode: Inode,
 
     // This information is duplicated since it is also available in `AuthFs::inode_table` via the
@@ -58,7 +60,7 @@ pub struct RemoteDirEditor {
 
     /// Mapping of entry names to the corresponding inode. The actual file/directory is stored in
     /// the global pool in fusefs.
-    entries: HashMap<PathBuf, DirEntry>,
+    entries: HashMap<PathBuf, InodeInfo>,
 }
 
 impl RemoteDirEditor {
@@ -88,7 +90,7 @@ impl RemoteDirEditor {
 
         let new_remote_file =
             VerifiedFileEditor::new(RemoteFileEditor::new(self.service.clone(), new_fd));
-        self.entries.insert(basename.to_path_buf(), DirEntry { inode, is_dir: false });
+        self.entries.insert(basename.to_path_buf(), InodeInfo { inode, is_dir: false });
         let new_attr = Attr::new_file_with_mode(self.service.clone(), new_fd, mode);
         Ok((new_remote_file, new_attr))
     }
@@ -110,7 +112,7 @@ impl RemoteDirEditor {
             .map_err(into_io_error)?;
 
         let new_remote_dir = RemoteDirEditor::new(self.service.clone(), new_fd);
-        self.entries.insert(basename.to_path_buf(), DirEntry { inode, is_dir: true });
+        self.entries.insert(basename.to_path_buf(), InodeInfo { inode, is_dir: true });
         let new_attr = Attr::new_dir_with_mode(self.service.clone(), new_fd, mode);
         Ok((new_remote_dir, new_attr))
     }
@@ -156,6 +158,15 @@ impl RemoteDirEditor {
         self.entries.contains_key(name)
     }
 
+    pub fn retrieve_entries(&self) -> io::Result<Vec<AuthFsDirEntry>> {
+        self.entries
+            .iter()
+            .map(|(name, InodeInfo { inode, is_dir })| {
+                Ok(AuthFsDirEntry { inode: *inode, name: path_to_cstring(name)?, is_dir: *is_dir })
+            })
+            .collect::<io::Result<Vec<_>>>()
+    }
+
     fn force_delete_entry(&mut self, basename: &Path, expect_dir: bool) -> io::Result<Inode> {
         // Kernel should only give us a basename.
         debug_assert!(validate_basename(basename).is_ok());
@@ -192,7 +203,7 @@ impl RemoteDirEditor {
 }
 
 /// An in-memory directory representation of a directory structure.
-pub struct InMemoryDir(HashMap<PathBuf, Inode>);
+pub struct InMemoryDir(HashMap<PathBuf, InodeInfo>);
 
 impl InMemoryDir {
     /// Creates an empty instance of `InMemoryDir`.
@@ -206,16 +217,26 @@ impl InMemoryDir {
         self.0.len() as u16 // limited to MAX_ENTRIES
     }
 
-    /// Adds an entry (name and the inode number) to the directory. Fails if already exists. The
+    /// Adds a directory name and its inode number to the directory. Fails if already exists. The
     /// caller is responsible for ensure the inode uniqueness.
-    pub fn add_entry(&mut self, basename: &Path, inode: Inode) -> io::Result<()> {
+    pub fn add_dir(&mut self, basename: &Path, inode: Inode) -> io::Result<()> {
+        self.add_entry(basename, InodeInfo { inode, is_dir: true })
+    }
+
+    /// Adds a file name and its inode number to the directory. Fails if already exists. The
+    /// caller is responsible for ensure the inode uniqueness.
+    pub fn add_file(&mut self, basename: &Path, inode: Inode) -> io::Result<()> {
+        self.add_entry(basename, InodeInfo { inode, is_dir: false })
+    }
+
+    fn add_entry(&mut self, basename: &Path, dir_entry: InodeInfo) -> io::Result<()> {
         validate_basename(basename)?;
         if self.0.len() >= MAX_ENTRIES.into() {
             return Err(io::Error::from_raw_os_error(libc::EMLINK));
         }
 
         if let hash_map::Entry::Vacant(entry) = self.0.entry(basename.to_path_buf()) {
-            entry.insert(inode);
+            entry.insert(dir_entry);
             Ok(())
         } else {
             Err(io::Error::from_raw_os_error(libc::EEXIST))
@@ -224,8 +245,22 @@ impl InMemoryDir {
 
     /// Looks up an entry inode by name. `None` if not found.
     pub fn lookup_inode(&self, basename: &Path) -> Option<Inode> {
-        self.0.get(basename).copied()
+        self.0.get(basename).map(|entry| entry.inode)
     }
+
+    pub fn retrieve_entries(&self) -> io::Result<Vec<AuthFsDirEntry>> {
+        self.0
+            .iter()
+            .map(|(name, InodeInfo { inode, is_dir })| {
+                Ok(AuthFsDirEntry { inode: *inode, name: path_to_cstring(name)?, is_dir: *is_dir })
+            })
+            .collect::<io::Result<Vec<_>>>()
+    }
+}
+
+fn path_to_cstring(path: &Path) -> io::Result<CString> {
+    let bytes = OsString::from(path).into_vec();
+    CString::new(bytes).map_err(|_| io::Error::from_raw_os_error(libc::EILSEQ))
 }
 
 fn into_io_error(e: VirtFdServiceStatus) -> io::Error {

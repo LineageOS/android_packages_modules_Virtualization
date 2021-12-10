@@ -17,23 +17,23 @@
 mod mount;
 
 use anyhow::{anyhow, bail, Result};
+use fuse::filesystem::{
+    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, GetxattrReply,
+    SetattrValid, ZeroCopyReader, ZeroCopyWriter,
+};
+use fuse::sys::OpenOptions as FuseOpenOptions;
 use log::{debug, error, warn};
 use std::collections::{btree_map, BTreeMap};
-use std::convert::TryFrom;
-use std::ffi::{CStr, OsStr};
+use std::convert::{TryFrom, TryInto};
+use std::ffi::{CStr, CString, OsStr};
 use std::io;
 use std::mem::{zeroed, MaybeUninit};
 use std::option::Option;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-use fuse::filesystem::{
-    Context, DirEntry, DirectoryIterator, Entry, FileSystem, FsOptions, GetxattrReply,
-    SetattrValid, ZeroCopyReader, ZeroCopyWriter,
-};
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
@@ -119,6 +119,69 @@ impl InodeState {
     }
 }
 
+/// Data type that a directory implementation should be able to present its entry to `AuthFs`.
+#[derive(Clone)]
+pub struct AuthFsDirEntry {
+    pub inode: Inode,
+    pub name: CString,
+    pub is_dir: bool,
+}
+
+/// A snapshot of a directory entries for supporting `readdir` operation.
+///
+/// The `readdir` implementation is required by FUSE to not return any entries that have been
+/// returned previously (while it's fine to not return new entries). Snapshot is the easiest way to
+/// be compliant. See `fuse::filesystem::readdir` for more details.
+///
+/// A `DirEntriesSnapshot` is created on `opendir`, and is associated with the returned
+/// `Handle`/FD. The snapshot is deleted when the handle is released in `releasedir`.
+type DirEntriesSnapshot = Vec<AuthFsDirEntry>;
+
+/// An iterator for reading from `DirEntriesSnapshot`.
+pub struct DirEntriesSnapshotIterator {
+    /// A reference to the `DirEntriesSnapshot` in `AuthFs`.
+    snapshot: Arc<DirEntriesSnapshot>,
+
+    /// A value determined by `Self` to identify the last entry. 0 is a reserved value by FUSE to
+    /// mean reading from the beginning.
+    prev_offset: usize,
+}
+
+impl<'a> DirectoryIterator for DirEntriesSnapshotIterator {
+    fn next(&mut self) -> Option<DirEntry> {
+        // This iterator should not be the only reference to the snapshot. The snapshot should
+        // still be hold in `dir_handle_table`, i.e. when the FD is not yet closed.
+        //
+        // This code is unreachable when `readdir` is called with a closed FD. Only when the FD is
+        // not yet closed, `DirEntriesSnapshotIterator` can be created (but still short-lived
+        // during `readdir`).
+        debug_assert!(Arc::strong_count(&self.snapshot) >= 2);
+
+        // Since 0 is reserved, let's use 1-based index for the offset. This allows us to
+        // resume from the previous read in the snapshot easily.
+        let current_offset = if self.prev_offset == 0 {
+            1 // first element in the vector
+        } else {
+            self.prev_offset + 1 // next element in the vector
+        };
+        if current_offset > self.snapshot.len() {
+            None
+        } else {
+            let AuthFsDirEntry { inode, name, is_dir } = &self.snapshot[current_offset - 1];
+            let entry = DirEntry {
+                offset: current_offset as u64,
+                ino: *inode,
+                name,
+                type_: if *is_dir { libc::DT_DIR.into() } else { libc::DT_REG.into() },
+            };
+            self.prev_offset = current_offset;
+            Some(entry)
+        }
+    }
+}
+
+type DirHandleTable = BTreeMap<Handle, Arc<DirEntriesSnapshot>>;
+
 // AuthFS needs to be `Sync` to be accepted by fuse::worker::start_message_loop as a `FileSystem`.
 pub struct AuthFs {
     /// Table for `Inode` to `InodeState` lookup. This needs to be `Sync` to be used in
@@ -127,6 +190,18 @@ pub struct AuthFs {
 
     /// The next available inode number.
     next_inode: AtomicU64,
+
+    /// Table for `Handle` to `Arc<DirEntriesSnapshot>` lookup. On `opendir`, a new directory handle
+    /// is created and the snapshot of the current directory is created. This is not super
+    /// efficient, but is the simplest way to be compliant to the FUSE contract (see
+    /// `fuse::filesystem::readdir`).
+    ///
+    /// Currently, no code locks `dir_handle_table` and `inode_table` at the same time to avoid
+    /// deadlock.
+    dir_handle_table: Mutex<DirHandleTable>,
+
+    /// The next available handle number.
+    next_handle: AtomicU64,
 
     /// A reader to access the remote filesystem stats, which is supposed to be of "the" output
     /// directory. We assume all output are stored in the same partition.
@@ -147,6 +222,8 @@ impl AuthFs {
         AuthFs {
             inode_table: Mutex::new(inode_table),
             next_inode: AtomicU64::new(ROOT_INODE + 1),
+            dir_handle_table: Mutex::new(BTreeMap::new()),
+            next_handle: AtomicU64::new(1),
             remote_fs_stats_reader,
         }
     }
@@ -199,7 +276,7 @@ impl AuthFs {
                                 AuthFsEntry::ReadonlyDirectory { dir: InMemoryDir::new() };
 
                             // Actually update the tables.
-                            dir.add_entry(name.as_ref(), new_inode)?;
+                            dir.add_dir(name.as_ref(), new_inode)?;
                             if inode_table
                                 .insert(new_inode, InodeState::new(new_dir_entry))
                                 .is_some()
@@ -223,7 +300,7 @@ impl AuthFs {
                 let new_inode = self.next_inode.fetch_add(1, Ordering::Relaxed);
 
                 // Actually update the tables.
-                dir.add_entry(basename.as_ref(), new_inode)?;
+                dir.add_file(basename.as_ref(), new_inode)?;
                 if inode_table.insert(new_inode, InodeState::new(entry)).is_some() {
                     bail!("Unexpected to find a duplicated inode");
                 }
@@ -281,6 +358,20 @@ impl AuthFs {
             Ok(new_inode)
         } else {
             unreachable!("Unexpected duplication of inode {}", new_inode);
+        }
+    }
+
+    fn open_dir_store_snapshot(
+        &self,
+        dir_entries: Vec<AuthFsDirEntry>,
+    ) -> io::Result<(Option<Handle>, FuseOpenOptions)> {
+        let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
+        let mut dir_handle_table = self.dir_handle_table.lock().unwrap();
+        if let btree_map::Entry::Vacant(value) = dir_handle_table.entry(handle) {
+            value.insert(Arc::new(dir_entries));
+            Ok((Some(handle), FuseOpenOptions::empty()))
+        } else {
+            unreachable!("Unexpected to see new handle {} to existing in the table", handle);
         }
     }
 }
@@ -402,19 +493,10 @@ fn read_chunks<W: io::Write, T: ReadByChunk>(
     Ok(total)
 }
 
-// TODO(205715172): Support enumerating directory entries.
-pub struct EmptyDirectoryIterator {}
-
-impl DirectoryIterator for EmptyDirectoryIterator {
-    fn next(&mut self) -> Option<DirEntry> {
-        None
-    }
-}
-
 impl FileSystem for AuthFs {
     type Inode = Inode;
     type Handle = Handle;
-    type DirIter = EmptyDirectoryIterator;
+    type DirIter = DirEntriesSnapshotIterator;
 
     fn max_buffer_size(&self) -> u32 {
         MAX_WRITE_BYTES
@@ -546,7 +628,7 @@ impl FileSystem for AuthFs {
         _ctx: Context,
         inode: Self::Inode,
         flags: u32,
-    ) -> io::Result<(Option<Self::Handle>, fuse::sys::OpenOptions)> {
+    ) -> io::Result<(Option<Self::Handle>, FuseOpenOptions)> {
         // Since file handle is not really used in later operations (which use Inode directly),
         // return None as the handle.
         self.handle_inode(&inode, |config| {
@@ -566,7 +648,7 @@ impl FileSystem for AuthFs {
             }
             // Always cache the file content. There is currently no need to support direct I/O or
             // avoid the cache buffer. Memory mapping is only possible with cache enabled.
-            Ok((None, fuse::sys::OpenOptions::KEEP_CACHE))
+            Ok((None, FuseOpenOptions::KEEP_CACHE))
         })
     }
 
@@ -578,7 +660,7 @@ impl FileSystem for AuthFs {
         mode: u32,
         _flags: u32,
         umask: u32,
-    ) -> io::Result<(Entry, Option<Self::Handle>, fuse::sys::OpenOptions)> {
+    ) -> io::Result<(Entry, Option<Self::Handle>, FuseOpenOptions)> {
         // TODO(205172873): handle O_TRUNC and O_EXCL properly.
         let new_inode = self.create_new_entry_with_ref_count(
             parent,
@@ -606,7 +688,7 @@ impl FileSystem for AuthFs {
             },
             // See also `open`.
             /* handle */ None,
-            fuse::sys::OpenOptions::KEEP_CACHE,
+            FuseOpenOptions::KEEP_CACHE,
         ))
     }
 
@@ -851,6 +933,53 @@ impl FileSystem for AuthFs {
                 _ => unreachable!("Mismatched entry type that is just checked"),
             },
         )
+    }
+
+    fn opendir(
+        &self,
+        _ctx: Context,
+        inode: Self::Inode,
+        _flags: u32,
+    ) -> io::Result<(Option<Self::Handle>, FuseOpenOptions)> {
+        let entries = self.handle_inode(&inode, |config| match config {
+            AuthFsEntry::VerifiedNewDirectory { dir, .. } => dir.retrieve_entries(),
+            AuthFsEntry::ReadonlyDirectory { dir } => dir.retrieve_entries(),
+            _ => Err(io::Error::from_raw_os_error(libc::ENOTDIR)),
+        })?;
+        self.open_dir_store_snapshot(entries)
+    }
+
+    fn readdir(
+        &self,
+        _ctx: Context,
+        _inode: Self::Inode,
+        handle: Self::Handle,
+        _size: u32,
+        offset: u64,
+    ) -> io::Result<Self::DirIter> {
+        let dir_handle_table = self.dir_handle_table.lock().unwrap();
+        if let Some(entry) = dir_handle_table.get(&handle) {
+            Ok(DirEntriesSnapshotIterator {
+                snapshot: entry.clone(),
+                prev_offset: offset.try_into().unwrap(),
+            })
+        } else {
+            Err(io::Error::from_raw_os_error(libc::EBADF))
+        }
+    }
+
+    fn releasedir(
+        &self,
+        _ctx: Context,
+        inode: Self::Inode,
+        _flags: u32,
+        handle: Self::Handle,
+    ) -> io::Result<()> {
+        let mut dir_handle_table = self.dir_handle_table.lock().unwrap();
+        if dir_handle_table.remove(&handle).is_none() {
+            unreachable!("Unknown directory handle {}, inode {}", handle, inode);
+        }
+        Ok(())
     }
 
     fn statfs(&self, _ctx: Context, _inode: Self::Inode) -> io::Result<libc::statvfs64> {
