@@ -24,7 +24,7 @@ use log::warn;
 use std::default::Default;
 use std::env;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 use crate::compilation::{compile_cmd, odrefresh, CompilerOutput};
 use crate::compos_key_service::CompOsKeyService;
@@ -50,7 +50,7 @@ pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
         dex2oat_path: PathBuf::from(DEX2OAT_PATH),
         odrefresh_path: PathBuf::from(ODREFRESH_PATH),
         key_service: CompOsKeyService::new()?,
-        key_blob: Arc::new(RwLock::new(Vec::new())),
+        key_blob: RwLock::new(Vec::new()),
     };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
 }
@@ -59,7 +59,7 @@ struct CompOsService {
     dex2oat_path: PathBuf,
     odrefresh_path: PathBuf,
     key_service: CompOsKeyService,
-    key_blob: Arc<RwLock<Vec<u8>>>,
+    key_blob: RwLock<Vec<u8>>,
 }
 
 impl CompOsService {
@@ -69,7 +69,7 @@ impl CompOsService {
         fsverity_digest: &fsverity::Sha256Digest,
     ) -> Vec<u8> {
         let formatted_digest = fsverity::to_formatted_digest(fsverity_digest);
-        self.key_service.do_sign(key_blob, &formatted_digest[..]).unwrap_or_else(|e| {
+        self.key_service.sign(key_blob, &formatted_digest[..]).unwrap_or_else(|e| {
             warn!("Failed to sign the fsverity digest, returning empty signature.  Error: {}", e);
             Vec::new()
         })
@@ -189,12 +189,12 @@ impl ICompOsService for CompOsService {
 
     fn generateSigningKey(&self) -> BinderResult<CompOsKeyData> {
         self.key_service
-            .do_generate()
+            .generate()
             .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
     }
 
     fn verifySigningKey(&self, key_blob: &[u8], public_key: &[u8]) -> BinderResult<bool> {
-        Ok(if let Err(e) = self.key_service.do_verify(key_blob, public_key) {
+        Ok(if let Err(e) = self.key_service.verify(key_blob, public_key) {
             warn!("Signing key verification failed: {}", e.to_string());
             false
         } else {
@@ -208,7 +208,7 @@ impl ICompOsService for CompOsService {
             Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))
         } else {
             self.key_service
-                .do_sign(key, data)
+                .sign(key, data)
                 .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
         }
     }
