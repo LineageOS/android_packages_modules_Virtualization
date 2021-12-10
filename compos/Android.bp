@@ -50,6 +50,8 @@ rust_binary {
         "liblog_rust",
         "libminijail_rust",
         "libnix",
+        "libodsign_proto_rust",
+        "libprotobuf",
         "libring",
         "libscopeguard",
     ],
