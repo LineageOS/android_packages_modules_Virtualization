@@ -28,7 +28,7 @@ mod fsverity;
 use anyhow::{bail, Result};
 use binder_common::rpc_server::run_rpc_server;
 use log::debug;
-use nix::dir::Dir;
+use nix::{dir::Dir, sys::stat::umask, sys::stat::Mode};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::os::unix::io::FromRawFd;
@@ -157,10 +157,15 @@ fn main() -> Result<()> {
     );
 
     let args = parse_args()?;
+
+    // Allow open/create/mkdir from authfs to create with expecting mode. It's possible to still
+    // use a custom mask on creation, then report the actual file mode back to authfs. But there
+    // is no demand now.
+    let old_umask = umask(Mode::empty());
+    debug!("Setting umask to 0 (old: {:03o})", old_umask.bits());
+
     let service = FdService::new_binder(args.fd_pool).as_binder();
-
     debug!("fd_server is starting as a rpc service.");
-
     let mut ready_fd = args.ready_fd;
     let retval = run_rpc_server(service, RPC_SERVICE_PORT, || {
         debug!("fd_server is ready");
