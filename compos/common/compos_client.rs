@@ -87,14 +87,17 @@ impl VmInstance {
             .context("Failed to open config APK idsig file")?;
         let idsig_fd = ParcelFileDescriptor::new(idsig_fd);
 
-        let (log_fd, debug_level) = if parameters.debug_mode {
-            // Console output and the system log output from the VM are redirected to this file.
-            let log_fd =
-                File::create(data_dir.join("vm.log")).context("Failed to create log file")?;
+        let (console_fd, log_fd, debug_level) = if parameters.debug_mode {
+            // Console output and the system log output from the VM are redirected to file.
+            let console_fd = File::create(data_dir.join("vm_console.log"))
+                .context("Failed to create console log file")?;
+            let log_fd = File::create(data_dir.join("vm.log"))
+                .context("Failed to create system log file")?;
+            let console_fd = ParcelFileDescriptor::new(console_fd);
             let log_fd = ParcelFileDescriptor::new(log_fd);
-            (Some(log_fd), DebugLevel::FULL)
+            (Some(console_fd), Some(log_fd), DebugLevel::FULL)
         } else {
-            (None, DebugLevel::NONE)
+            (None, None, DebugLevel::NONE)
         };
 
         let config_path = parameters.config_path.as_deref().unwrap_or(DEFAULT_VM_CONFIG_PATH);
@@ -108,7 +111,7 @@ impl VmInstance {
         });
 
         let vm = service
-            .createVm(&config, log_fd.as_ref(), log_fd.as_ref())
+            .createVm(&config, console_fd.as_ref(), log_fd.as_ref())
             .context("Failed to create VM")?;
         let vm_state = Arc::new(VmStateMonitor::default());
 
