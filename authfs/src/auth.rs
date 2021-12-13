@@ -20,7 +20,7 @@ use std::io;
 // verify the signature, not the full certificate chain.
 
 pub trait Authenticator {
-    fn verify(&self, signature: &[u8], signed_data: &[u8]) -> io::Result<bool>;
+    fn verify(&self, signature: Option<&[u8]>, signed_data: &[u8]) -> io::Result<bool>;
 }
 
 pub struct FakeAuthenticator {
@@ -39,7 +39,7 @@ impl FakeAuthenticator {
 }
 
 impl Authenticator for FakeAuthenticator {
-    fn verify(&self, _signature_pem: &[u8], _signed_data: &[u8]) -> io::Result<bool> {
+    fn verify(&self, _signature_pem: Option<&[u8]>, _signed_data: &[u8]) -> io::Result<bool> {
         Ok(self.should_allow)
     }
 }
