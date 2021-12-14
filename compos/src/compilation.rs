@@ -15,10 +15,10 @@
  */
 
 use anyhow::{anyhow, bail, Context, Result};
-use log::error;
+use log::{debug, error, info};
 use minijail::{self, Minijail};
 use std::env;
-use std::fs::{create_dir, File};
+use std::fs::File;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 
@@ -60,11 +60,13 @@ struct CompilerOutputParcelFds {
 
 pub fn odrefresh(
     odrefresh_path: &Path,
+    target_dir_name: &str,
     system_dir_fd: i32,
     output_dir_fd: i32,
+    staging_dir_fd: i32,
     zygote_arch: &str,
     authfs_service: Strong<dyn IAuthFsService>,
-) -> Result<CompilerOutput> {
+) -> Result<i8> {
     // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
     // is out of scope.
     let authfs_config = AuthFsConfig {
@@ -75,7 +77,10 @@ pub fn odrefresh(
             manifestPath: "/dev/null".to_string(),
             prefix: "/system".to_string(),
         }],
-        outputDirFdAnnotations: vec![OutputDirFdAnnotation { fd: output_dir_fd }],
+        outputDirFdAnnotations: vec![
+            OutputDirFdAnnotation { fd: output_dir_fd },
+            OutputDirFdAnnotation { fd: staging_dir_fd },
+        ],
         ..Default::default()
     };
     let authfs = authfs_service.mount(&authfs_config)?;
@@ -91,26 +96,25 @@ pub fn odrefresh(
     env::set_var("ART_APEX_DATA", &art_apex_data);
 
     let mut staging_dir = mountpoint;
-    staging_dir.push(output_dir_fd.to_string());
-    staging_dir.push("staging");
-    create_dir(&staging_dir)
-        .with_context(|| format!("Create staging directory {}", staging_dir.display()))?;
+    staging_dir.push(staging_dir_fd.to_string());
 
     let args = vec![
         "odrefresh".to_string(),
         format!("--zygote-arch={}", zygote_arch),
+        format!("--dalvik-cache={}", target_dir_name),
         "--no-refresh".to_string(),
         format!("--staging-dir={}", staging_dir.display()),
         "--force-compile".to_string(),
     ];
+    debug!("Running odrefresh with args: {:?}", &args);
     let jail = spawn_jailed_task(odrefresh_path, &args, Vec::new() /* fd_mapping */)
         .context("Spawn odrefresh")?;
     match jail.wait() {
         // TODO(161471326): On success, sign all files in the output directory.
-        Ok(()) => Ok(CompilerOutput::ExitCode(0)),
+        Ok(()) => Ok(0i8),
         Err(minijail::Error::ReturnCode(exit_code)) => {
-            error!("odrefresh failed with exit code {}", exit_code);
-            Ok(CompilerOutput::ExitCode(exit_code as i8))
+            info!("odrefresh exited with exit code {}", exit_code);
+            Ok(exit_code as i8)
         }
         Err(e) => {
             bail!("Unexpected minijail error: {}", e)
