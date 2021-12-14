@@ -14,21 +14,15 @@
  * limitations under the License.
  */
 
-use crate::fd_server_helper::FdServerConfig;
 use crate::instance_starter::CompOsInstance;
 use crate::odrefresh;
-use crate::service::open_dir;
 use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::ICompilationTask, ICompilationTaskCallback::ICompilationTaskCallback,
 };
 use android_system_composd::binder::{Interface, Result as BinderResult, Strong};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use log::{error, warn};
-use num_traits::FromPrimitive;
-use rustutils::system_properties;
-use std::os::unix::io::AsRawFd;
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -58,21 +52,21 @@ impl OdrefreshTask {
 
     pub fn start(
         comp_os: Arc<CompOsInstance>,
-        output_dir_path: PathBuf,
+        target_dir_name: String,
         callback: &Strong<dyn ICompilationTaskCallback>,
     ) -> Result<OdrefreshTask> {
         let service = comp_os.get_service();
         let task = RunningTask { comp_os, callback: callback.clone() };
         let task = OdrefreshTask { running_task: Arc::new(Mutex::new(Some(task))) };
 
-        task.clone().start_thread(service, output_dir_path);
+        task.clone().start_thread(service, target_dir_name);
 
         Ok(task)
     }
 
-    fn start_thread(self, service: Strong<dyn ICompOsService>, output_dir_path: PathBuf) {
+    fn start_thread(self, service: Strong<dyn ICompOsService>, target_dir_name: String) {
         thread::spawn(move || {
-            let exit_code = try_odrefresh(service, &output_dir_path);
+            let exit_code = odrefresh::run_in_vm(service, &target_dir_name);
 
             let task = self.take();
             // We don't do the callback if cancel has already happened.
@@ -93,33 +87,6 @@ impl OdrefreshTask {
                 }
             }
         });
-    }
-}
-
-fn try_odrefresh(
-    service: Strong<dyn ICompOsService>,
-    output_dir_path: &Path,
-) -> Result<odrefresh::ExitCode> {
-    let output_dir = open_dir(output_dir_path)?;
-    let system_dir = open_dir(Path::new("/system"))?;
-
-    // Spawn a fd_server to serve the FDs.
-    let fd_server_config = FdServerConfig {
-        ro_dir_fds: vec![system_dir.as_raw_fd()],
-        rw_dir_fds: vec![output_dir.as_raw_fd()],
-        ..Default::default()
-    };
-    let fd_server_raii = fd_server_config.into_fd_server()?;
-
-    let zygote_arch = system_properties::read("ro.zygote")?;
-    let exit_code =
-        service.odrefresh(system_dir.as_raw_fd(), output_dir.as_raw_fd(), &zygote_arch)?.exitCode;
-
-    drop(fd_server_raii);
-    if let Some(exit_code) = FromPrimitive::from_i8(exit_code) {
-        Ok(exit_code)
-    } else {
-        bail!("odrefresh exited with {}", exit_code)
     }
 }
 
