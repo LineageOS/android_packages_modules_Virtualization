@@ -18,8 +18,8 @@
 //! desired.
 
 use crate::compilation_task::CompilationTask;
-use crate::fd_server_helper::FdServerConfig;
 use crate::instance_manager::InstanceManager;
+use crate::odrefresh;
 use crate::odrefresh_task::OdrefreshTask;
 use crate::util::to_binder_result;
 use android_system_composd::aidl::android::system::composd::{
@@ -31,11 +31,7 @@ use android_system_composd::binder::{
     self, BinderFeatures, ExceptionCode, Interface, Status, Strong, ThreadState,
 };
 use anyhow::{Context, Result};
-use rustutils::{system_properties, users::AID_ROOT, users::AID_SYSTEM};
-use std::fs::{File, OpenOptions};
-use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::AsRawFd;
-use std::path::Path;
+use rustutils::{users::AID_ROOT, users::AID_SYSTEM};
 use std::sync::Arc;
 
 pub struct IsolatedCompilationService {
@@ -110,12 +106,10 @@ impl IsolatedCompilationService {
         &self,
         callback: &Strong<dyn ICompilationTaskCallback>,
     ) -> Result<Strong<dyn ICompilationTask>> {
-        let output_dir_path =
-            composd_native::palette_create_odrefresh_staging_directory()?.to_path_buf();
-
         let comp_os = self.instance_manager.start_test_instance().context("Starting CompOS")?;
 
-        let task = OdrefreshTask::start(comp_os, output_dir_path, callback)?;
+        let target_dir_name = "test-instance".to_owned();
+        let task = OdrefreshTask::start(comp_os, target_dir_name, callback)?;
 
         Ok(BnCompilationTask::new_binder(task, BinderFeatures::default()))
     }
@@ -125,26 +119,10 @@ impl IsolatedCompilationService {
             .instance_manager
             .start_test_instance()
             .context("Starting CompOS for odrefresh test")?;
+        let service = compos.get_service();
 
-        let output_dir = open_dir(composd_native::palette_create_odrefresh_staging_directory()?)?;
-        let system_dir = open_dir(Path::new("/system"))?;
-
-        // Spawn a fd_server to serve the FDs.
-        let fd_server_config = FdServerConfig {
-            ro_dir_fds: vec![system_dir.as_raw_fd()],
-            rw_dir_fds: vec![output_dir.as_raw_fd()],
-            ..Default::default()
-        };
-        let fd_server_raii = fd_server_config.into_fd_server()?;
-
-        let zygote_arch = system_properties::read("ro.zygote")?;
-        let result = compos.get_service().odrefresh(
-            system_dir.as_raw_fd(),
-            output_dir.as_raw_fd(),
-            &zygote_arch,
-        );
-        drop(fd_server_raii);
-        Ok(result?.exitCode)
+        let exit_code = odrefresh::run_in_vm(service, "test-artifacts")?;
+        Ok(exit_code as i8)
     }
 }
 
@@ -156,14 +134,4 @@ fn check_permissions() -> binder::Result<()> {
     } else {
         Ok(())
     }
-}
-
-/// Returns an owned FD of the directory. It currently returns a `File` as a FD owner, but
-/// it's better to use `std::os::unix::io::OwnedFd` once/if it becomes standard.
-pub fn open_dir(path: &Path) -> Result<File> {
-    OpenOptions::new()
-        .custom_flags(libc::O_DIRECTORY)
-        .read(true) // O_DIRECTORY can only be opened with read
-        .open(path)
-        .with_context(|| format!("Failed to open {:?} directory as path fd", path))
 }
