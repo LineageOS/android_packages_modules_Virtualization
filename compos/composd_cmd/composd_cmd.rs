@@ -34,11 +34,9 @@ use std::time::Duration;
 
 fn main() -> Result<()> {
     let app = clap::App::new("composd_cmd").arg(
-        clap::Arg::with_name("command")
-            .index(1)
-            .takes_value(true)
-            .required(true)
-            .possible_values(&["staged-apex-compile", "forced-compile-test", "forced-odrefresh"]),
+        clap::Arg::with_name("command").index(1).takes_value(true).required(true).possible_values(
+            &["staged-apex-compile", "forced-compile-test", "forced-odrefresh", "async-odrefresh"],
+        ),
     );
     let args = app.get_matches();
     let command = args.value_of("command").unwrap();
@@ -49,6 +47,7 @@ fn main() -> Result<()> {
         "staged-apex-compile" => run_staged_apex_compile()?,
         "forced-compile-test" => run_forced_compile_for_test()?,
         "forced-odrefresh" => run_forced_odrefresh_for_test()?,
+        "async-odrefresh" => run_async_odrefresh_for_test()?,
         _ => panic!("Unexpected command {}", command),
     }
 
@@ -111,6 +110,10 @@ fn run_staged_apex_compile() -> Result<()> {
 
 fn run_forced_compile_for_test() -> Result<()> {
     run_async_compilation(|service, callback| service.startTestCompile(callback))
+}
+
+fn run_async_odrefresh_for_test() -> Result<()> {
+    run_async_compilation(|service, callback| service.startAsyncOdrefresh(callback))
 }
 
 fn run_async_compilation<F>(start_compile_fn: F) -> Result<()>
