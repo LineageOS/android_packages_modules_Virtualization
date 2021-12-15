@@ -46,13 +46,18 @@ interface ICompOsService {
      *
      * The execution is based on the VM's APEX mounts, files on Android's /system (by accessing
      * through systemDirFd over AuthFS), and *CLASSPATH derived in the VM, to generate the same
-     * odrefresh output aritfacts to the output directory (through outputDirFd).
+     * odrefresh output artifacts to the output directory (through outputDirFd).
      *
-     * The caller/Android is allowed to specify the zygote arch (ro.zygote).
-     *
-     * @return a CompilationResult
+     * @param systemDirFd An fd referring to /system
+     * @param outputDirFd An fd referring to the output directory, ART_APEX_DATA
+     * @param stagingDirFd An fd referring to the staging directory, e.g. ART_APEX_DATA/staging
+     * @param targetDirName The sub-directory of the output directory to which artifacts are to be
+     *                      written (e.g. dalvik-cache)
+     * @param zygoteArch The zygote architecture (ro.zygote)
+     * @return odrefresh exit code
      */
-    CompilationResult odrefresh(int systemDirFd, int outputDirFd, String zygoteArch);
+    byte odrefresh(int systemDirFd, int outputDirFd, int stagingDirFd, String targetDirName,
+            String zygoteArch);
 
     /**
      * Run dex2oat command with provided args, in a context that may be specified in FdAnnotation,
