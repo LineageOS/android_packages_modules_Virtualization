@@ -36,9 +36,9 @@ There are various tests that spawn guest VMs and check different aspects of the 
 all can run via `atest`.
 
 ```shell
-atest VirtualizationTestCasea
-atest MicrodroidHostTestHostCases
-atest MicrodroidDemoTestApp
+atest VirtualizationTestCases
+atest MicrodroidHostTestCases
+atest MicrodroidTestApp
 ```
 
 If you run into problems, inspect the logs produced by `atest`. Their location is printed at the
