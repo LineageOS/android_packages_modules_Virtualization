@@ -106,9 +106,11 @@ impl ICompOsService for CompOsService {
         &self,
         system_dir_fd: i32,
         output_dir_fd: i32,
+        staging_dir_fd: i32,
+        target_dir_name: &str,
         zygote_arch: &str,
-    ) -> BinderResult<CompilationResult> {
-        if system_dir_fd < 0 || output_dir_fd < 0 {
+    ) -> BinderResult<i8> {
+        if system_dir_fd < 0 || output_dir_fd < 0 || staging_dir_fd < 0 {
             return Err(new_binder_exception(
                 ExceptionCode::ILLEGAL_ARGUMENT,
                 "The remote FDs are expected to be non-negative",
@@ -122,10 +124,12 @@ impl ICompOsService for CompOsService {
         }
 
         let authfs_service = get_authfs_service()?;
-        let output = odrefresh(
+        odrefresh(
             &self.odrefresh_path,
+            target_dir_name,
             system_dir_fd,
             output_dir_fd,
+            staging_dir_fd,
             zygote_arch,
             authfs_service,
         )
@@ -135,13 +139,7 @@ impl ICompOsService for CompOsService {
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("odrefresh failed: {}", e),
             )
-        })?;
-        match output {
-            CompilerOutput::ExitCode(exit_code) => {
-                Ok(CompilationResult { exitCode: exit_code, ..Default::default() })
-            }
-            _ => Err(new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, "odrefresh failed")),
-        }
+        })
     }
 
     fn compile_cmd(
