@@ -34,7 +34,9 @@ use std::process::Command;
 
 // TODO: What if this changes?
 const EX_MAX: i8 = 78;
+
 const ODREFRESH_BIN: &str = "/apex/com.android.art/bin/odrefresh";
+const ART_APEX_DATA: &str = "/data/misc/apexdata/com.android.art";
 
 #[derive(Debug, PartialEq, Eq, FromPrimitive)]
 #[repr(i8)]
@@ -97,22 +99,27 @@ impl Odrefresh {
     }
 }
 
-pub fn run_in_vm(service: Strong<dyn ICompOsService>, _target_dir_name: &str) -> Result<ExitCode> {
-    // TODO: Use target_dir_name
+pub fn run_in_vm(service: Strong<dyn ICompOsService>, target_dir_name: &str) -> Result<ExitCode> {
     let staging_dir = open_dir(composd_native::palette_create_odrefresh_staging_directory()?)?;
     let system_dir = open_dir(Path::new("/system"))?;
+    let output_dir = open_dir(Path::new(ART_APEX_DATA))?;
 
     // Spawn a fd_server to serve the FDs.
     let fd_server_config = FdServerConfig {
         ro_dir_fds: vec![system_dir.as_raw_fd()],
-        rw_dir_fds: vec![staging_dir.as_raw_fd()],
+        rw_dir_fds: vec![staging_dir.as_raw_fd(), output_dir.as_raw_fd()],
         ..Default::default()
     };
     let fd_server_raii = fd_server_config.into_fd_server()?;
 
     let zygote_arch = system_properties::read("ro.zygote")?;
-    let exit_code =
-        service.odrefresh(system_dir.as_raw_fd(), staging_dir.as_raw_fd(), &zygote_arch)?.exitCode;
+    let exit_code = service.odrefresh(
+        system_dir.as_raw_fd(),
+        output_dir.as_raw_fd(),
+        staging_dir.as_raw_fd(),
+        target_dir_name,
+        &zygote_arch,
+    )?;
 
     drop(fd_server_raii);
     if let Some(exit_code) = FromPrimitive::from_i8(exit_code) {
