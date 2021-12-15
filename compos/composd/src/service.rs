@@ -108,7 +108,7 @@ impl IsolatedCompilationService {
     ) -> Result<Strong<dyn ICompilationTask>> {
         let comp_os = self.instance_manager.start_test_instance().context("Starting CompOS")?;
 
-        let target_dir_name = "test-instance".to_owned();
+        let target_dir_name = "test-artifacts".to_owned();
         let task = OdrefreshTask::start(comp_os, target_dir_name, callback)?;
 
         Ok(BnCompilationTask::new_binder(task, BinderFeatures::default()))
