@@ -14,18 +14,27 @@
  * limitations under the License.
  */
 
+//! Handle running odrefresh in the VM, with an async interface to allow cancellation
+
+use crate::fd_server_helper::FdServerConfig;
 use crate::instance_starter::CompOsInstance;
-use crate::odrefresh;
 use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::ICompilationTask, ICompilationTaskCallback::ICompilationTaskCallback,
 };
 use android_system_composd::binder::{Interface, Result as BinderResult, Strong};
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_common::odrefresh::ExitCode;
 use log::{error, warn};
+use rustutils::system_properties;
+use std::fs::{File, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+const ART_APEX_DATA: &str = "/data/misc/apexdata/com.android.art";
 
 #[derive(Clone)]
 pub struct OdrefreshTask {
@@ -41,6 +50,12 @@ impl ICompilationTask for OdrefreshTask {
         drop(task);
         Ok(())
     }
+}
+
+struct RunningTask {
+    callback: Strong<dyn ICompilationTaskCallback>,
+    #[allow(dead_code)] // Keeps the CompOS VM alive
+    comp_os: Arc<CompOsInstance>,
 }
 
 impl OdrefreshTask {
@@ -67,7 +82,7 @@ impl OdrefreshTask {
 
     fn start_thread(self, service: Strong<dyn ICompOsService>, target_dir_name: String) {
         thread::spawn(move || {
-            let exit_code = odrefresh::run_in_vm(service, &target_dir_name);
+            let exit_code = run_in_vm(service, &target_dir_name);
 
             let task = self.take();
             // We don't do the callback if cancel has already happened.
@@ -91,8 +106,42 @@ impl OdrefreshTask {
     }
 }
 
-struct RunningTask {
-    callback: Strong<dyn ICompilationTaskCallback>,
-    #[allow(dead_code)] // Keeps the CompOS VM alive
-    comp_os: Arc<CompOsInstance>,
+fn run_in_vm(service: Strong<dyn ICompOsService>, target_dir_name: &str) -> Result<ExitCode> {
+    let staging_dir = open_dir(composd_native::palette_create_odrefresh_staging_directory()?)?;
+    let system_dir = open_dir(Path::new("/system"))?;
+    let output_dir = open_dir(Path::new(ART_APEX_DATA))?;
+
+    // Spawn a fd_server to serve the FDs.
+    let fd_server_config = FdServerConfig {
+        ro_dir_fds: vec![system_dir.as_raw_fd()],
+        rw_dir_fds: vec![staging_dir.as_raw_fd(), output_dir.as_raw_fd()],
+        ..Default::default()
+    };
+    let fd_server_raii = fd_server_config.into_fd_server()?;
+
+    let zygote_arch = system_properties::read("ro.zygote")?;
+    let exit_code = service.odrefresh(
+        system_dir.as_raw_fd(),
+        output_dir.as_raw_fd(),
+        staging_dir.as_raw_fd(),
+        target_dir_name,
+        &zygote_arch,
+    )?;
+
+    drop(fd_server_raii);
+    if let Some(exit_code) = ExitCode::from_i32(exit_code.into()) {
+        Ok(exit_code)
+    } else {
+        bail!("odrefresh exited with {}", exit_code)
+    }
+}
+
+/// Returns an owned FD of the directory. It currently returns a `File` as a FD owner, but
+/// it's better to use `std::os::unix::io::OwnedFd` once/if it becomes standard.
+fn open_dir(path: &Path) -> Result<File> {
+    OpenOptions::new()
+        .custom_flags(libc::O_DIRECTORY)
+        .read(true) // O_DIRECTORY can only be opened with read
+        .open(path)
+        .with_context(|| format!("Failed to open {:?} directory as path fd", path))
 }
