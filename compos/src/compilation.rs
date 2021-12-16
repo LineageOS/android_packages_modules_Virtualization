@@ -18,10 +18,12 @@ use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, error, info};
 use minijail::{self, Minijail};
 use std::env;
-use std::fs::File;
+use std::fs::{read_dir, File};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 
+use crate::artifact_signer::ArtifactSigner;
+use crate::compos_key_service::Signer;
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::{
     AuthFsConfig::{
@@ -34,6 +36,7 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::{
 };
 use authfs_aidl_interface::binder::{ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::FdAnnotation::FdAnnotation;
+use compos_common::odrefresh::ExitCode;
 
 const FD_SERVER_PORT: i32 = 3264; // TODO: support dynamic port
 
@@ -58,28 +61,51 @@ struct CompilerOutputParcelFds {
     image: ParcelFileDescriptor,
 }
 
-pub fn odrefresh(
-    odrefresh_path: &Path,
-    target_dir_name: &str,
+pub struct OdrefreshContext<'a> {
     system_dir_fd: i32,
     output_dir_fd: i32,
     staging_dir_fd: i32,
-    zygote_arch: &str,
+    target_dir_name: &'a str,
+    zygote_arch: &'a str,
+}
+
+impl<'a> OdrefreshContext<'a> {
+    pub fn new(
+        system_dir_fd: i32,
+        output_dir_fd: i32,
+        staging_dir_fd: i32,
+        target_dir_name: &'a str,
+        zygote_arch: &'a str,
+    ) -> Result<Self> {
+        if system_dir_fd < 0 || output_dir_fd < 0 || staging_dir_fd < 0 {
+            bail!("The remote FDs are expected to be non-negative");
+        }
+        if zygote_arch != "zygote64" && zygote_arch != "zygote64_32" {
+            bail!("Invalid zygote arch");
+        }
+        Ok(Self { system_dir_fd, output_dir_fd, staging_dir_fd, target_dir_name, zygote_arch })
+    }
+}
+
+pub fn odrefresh(
+    odrefresh_path: &Path,
+    context: OdrefreshContext,
     authfs_service: Strong<dyn IAuthFsService>,
-) -> Result<i8> {
+    signer: Signer,
+) -> Result<ExitCode> {
     // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
     // is out of scope.
     let authfs_config = AuthFsConfig {
         port: FD_SERVER_PORT,
         inputDirFdAnnotations: vec![InputDirFdAnnotation {
-            fd: system_dir_fd,
+            fd: context.system_dir_fd,
             // TODO(206869687): Replace /dev/null with the real path when possible.
             manifestPath: "/dev/null".to_string(),
             prefix: "/system".to_string(),
         }],
         outputDirFdAnnotations: vec![
-            OutputDirFdAnnotation { fd: output_dir_fd },
-            OutputDirFdAnnotation { fd: staging_dir_fd },
+            OutputDirFdAnnotation { fd: context.output_dir_fd },
+            OutputDirFdAnnotation { fd: context.staging_dir_fd },
         ],
         ..Default::default()
     };
@@ -87,21 +113,21 @@ pub fn odrefresh(
     let mountpoint = PathBuf::from(authfs.getMountPoint()?);
 
     let mut android_root = mountpoint.clone();
-    android_root.push(system_dir_fd.to_string());
+    android_root.push(context.system_dir_fd.to_string());
     android_root.push("system");
     env::set_var("ANDROID_ROOT", &android_root);
+    debug!("ANDROID_ROOT={:?}", &android_root);
 
-    let mut art_apex_data = mountpoint.clone();
-    art_apex_data.push(output_dir_fd.to_string());
+    let art_apex_data = mountpoint.join(context.output_dir_fd.to_string());
     env::set_var("ART_APEX_DATA", &art_apex_data);
+    debug!("ART_APEX_DATA={:?}", &art_apex_data);
 
-    let mut staging_dir = mountpoint;
-    staging_dir.push(staging_dir_fd.to_string());
+    let staging_dir = mountpoint.join(context.staging_dir_fd.to_string());
 
     let args = vec![
         "odrefresh".to_string(),
-        format!("--zygote-arch={}", zygote_arch),
-        format!("--dalvik-cache={}", target_dir_name),
+        format!("--zygote-arch={}", context.zygote_arch),
+        format!("--dalvik-cache={}", context.target_dir_name),
         "--no-refresh".to_string(),
         format!("--staging-dir={}", staging_dir.display()),
         "--force-compile".to_string(),
@@ -109,17 +135,47 @@ pub fn odrefresh(
     debug!("Running odrefresh with args: {:?}", &args);
     let jail = spawn_jailed_task(odrefresh_path, &args, Vec::new() /* fd_mapping */)
         .context("Spawn odrefresh")?;
-    match jail.wait() {
-        // TODO(161471326): On success, sign all files in the output directory.
-        Ok(()) => Ok(0i8),
-        Err(minijail::Error::ReturnCode(exit_code)) => {
-            info!("odrefresh exited with exit code {}", exit_code);
-            Ok(exit_code as i8)
-        }
+    let exit_code = match jail.wait() {
+        Ok(_) => Result::<u8>::Ok(0),
+        Err(minijail::Error::ReturnCode(exit_code)) => Ok(exit_code),
         Err(e) => {
             bail!("Unexpected minijail error: {}", e)
         }
+    }?;
+
+    let exit_code = ExitCode::from_i32(exit_code.into())
+        .ok_or_else(|| anyhow!("Unexpected odrefresh exit code: {}", exit_code))?;
+    info!("odrefresh exited with {:?}", exit_code);
+
+    if exit_code == ExitCode::CompilationSuccess {
+        // authfs only shows us the files we created, so it's ok to just sign everything under
+        // the target directory.
+        let target_dir = art_apex_data.join(context.target_dir_name);
+        let mut artifact_signer = ArtifactSigner::new(&target_dir);
+        add_artifacts(&target_dir, &mut artifact_signer)?;
+
+        artifact_signer.write_info_and_signature(signer, &target_dir.join("compos.info"))?;
     }
+
+    Ok(exit_code)
+}
+
+fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {
+    for entry in
+        read_dir(&target_dir).with_context(|| format!("Traversing {}", target_dir.display()))?
+    {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            add_artifacts(&entry.path(), artifact_signer)?;
+        } else if file_type.is_file() {
+            artifact_signer.add_artifact(&entry.path())?;
+        } else {
+            // authfs shouldn't create anything else, but just in case
+            bail!("Unexpected file type in artifacts: {:?}", entry);
+        }
+    }
+    Ok(())
 }
 
 /// Runs the compiler with given flags with file descriptors described in `fd_annotation` retrieved

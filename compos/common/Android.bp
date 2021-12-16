@@ -14,8 +14,10 @@ rust_library {
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
         "liblog_rust",
+        "libnum_traits",
         "librustutils",
     ],
+    proc_macros: ["libnum_derive"],
     shared_libs: [
         "libbinder_rpc_unstable",
     ],

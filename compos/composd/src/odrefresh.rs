@@ -20,10 +20,9 @@ use crate::fd_server_helper::FdServerConfig;
 use anyhow::{bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::Strong;
+use compos_common::odrefresh::{ExitCode, ODREFRESH_PATH};
 use compos_common::timeouts::{need_extra_time, EXTENDED_TIMEOUTS};
 use compos_common::VMADDR_CID_ANY;
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 use rustutils::system_properties;
 use shared_child::SharedChild;
 use std::fs::{File, OpenOptions};
@@ -32,22 +31,7 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::process::Command;
 
-// TODO: What if this changes?
-const EX_MAX: i8 = 78;
-
-const ODREFRESH_BIN: &str = "/apex/com.android.art/bin/odrefresh";
 const ART_APEX_DATA: &str = "/data/misc/apexdata/com.android.art";
-
-#[derive(Debug, PartialEq, Eq, FromPrimitive)]
-#[repr(i8)]
-pub enum ExitCode {
-    // Copied from art/odrefresh/include/odrefresh/odrefresh.h
-    Okay = 0i8,
-    CompilationRequired = EX_MAX + 1,
-    CompilationSuccess = EX_MAX + 2,
-    CompilationFailed = EX_MAX + 3,
-    CleanupFailed = EX_MAX + 4,
-}
 
 pub struct Odrefresh {
     child: SharedChild,
@@ -64,7 +48,7 @@ impl Odrefresh {
 
     fn spawn_odrefresh(target_dir: &str, compile_arg: &str) -> Result<Self> {
         // We don`t need to capture stdout/stderr - odrefresh writes to the log
-        let mut cmdline = Command::new(ODREFRESH_BIN);
+        let mut cmdline = Command::new(ODREFRESH_PATH);
         if need_extra_time()? {
             cmdline
                 .arg(format!(
@@ -87,7 +71,7 @@ impl Odrefresh {
     pub fn wait_for_exit(&self) -> Result<ExitCode> {
         // No timeout here - but clients can kill the process, which will end the wait.
         let status = self.child.wait()?;
-        if let Some(exit_code) = status.code().and_then(FromPrimitive::from_i32) {
+        if let Some(exit_code) = status.code().and_then(ExitCode::from_i32) {
             Ok(exit_code)
         } else {
             bail!("odrefresh exited with {}", status)
@@ -122,7 +106,7 @@ pub fn run_in_vm(service: Strong<dyn ICompOsService>, target_dir_name: &str) -> 
     )?;
 
     drop(fd_server_raii);
-    if let Some(exit_code) = FromPrimitive::from_i8(exit_code) {
+    if let Some(exit_code) = ExitCode::from_i32(exit_code.into()) {
         Ok(exit_code)
     } else {
         bail!("odrefresh exited with {}", exit_code)
