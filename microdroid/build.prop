@@ -6,3 +6,6 @@ service.adb.listen_addrs=vsock:5555
 # TODO(b/189164487): support build related properties
 ro.build.version.release=11
 ro.build.version.security_patch=2021-07-05
+
+# Payload metadata partition
+apexd.payload_metadata.path=/dev/block/by-name/payload-metadata
