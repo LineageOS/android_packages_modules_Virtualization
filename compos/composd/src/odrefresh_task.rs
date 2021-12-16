@@ -22,12 +22,12 @@ use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::ICompilationTask, ICompilationTaskCallback::ICompilationTaskCallback,
 };
 use android_system_composd::binder::{Interface, Result as BinderResult, Strong};
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_common::odrefresh::ExitCode;
 use log::{error, warn};
 use rustutils::system_properties;
-use std::fs::{File, OpenOptions};
+use std::fs::{remove_dir_all, File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -107,9 +107,17 @@ impl OdrefreshTask {
 }
 
 fn run_in_vm(service: Strong<dyn ICompOsService>, target_dir_name: &str) -> Result<ExitCode> {
+    let output_root = Path::new(ART_APEX_DATA);
+
+    // We need to remove the target directory because odrefresh running in compos will create it
+    // (and can't see the existing one, since authfs doesn't show it existing files in an output
+    // directory).
+    let target_path = output_root.join(target_dir_name);
+    remove_dir_all(&target_path).with_context(|| anyhow!("Deleting {}", target_path.display()))?;
+
     let staging_dir = open_dir(composd_native::palette_create_odrefresh_staging_directory()?)?;
     let system_dir = open_dir(Path::new("/system"))?;
-    let output_dir = open_dir(Path::new(ART_APEX_DATA))?;
+    let output_dir = open_dir(output_root)?;
 
     // Spawn a fd_server to serve the FDs.
     let fd_server_config = FdServerConfig {
