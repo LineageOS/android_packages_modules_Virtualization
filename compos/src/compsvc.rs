@@ -101,6 +101,7 @@ impl ICompOsService for CompOsService {
         staging_dir_fd: i32,
         target_dir_name: &str,
         zygote_arch: &str,
+        system_server_compiler_filter: &str,
     ) -> BinderResult<i8> {
         let context = to_binder_result(OdrefreshContext::new(
             system_dir_fd,
@@ -108,6 +109,7 @@ impl ICompOsService for CompOsService {
             staging_dir_fd,
             target_dir_name,
             zygote_arch,
+            system_server_compiler_filter,
         ))?;
 
         let authfs_service = get_authfs_service()?;

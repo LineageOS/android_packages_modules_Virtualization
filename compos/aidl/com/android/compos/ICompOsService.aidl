@@ -45,10 +45,11 @@ interface ICompOsService {
      * @param targetDirName The sub-directory of the output directory to which artifacts are to be
      *                      written (e.g. dalvik-cache)
      * @param zygoteArch The zygote architecture (ro.zygote)
+     * @param systemServerCompilerFilter The compiler filter used to compile system server
      * @return odrefresh exit code
      */
     byte odrefresh(int systemDirFd, int outputDirFd, int stagingDirFd, String targetDirName,
-            String zygoteArch);
+            String zygoteArch, String systemServerCompilerFilter);
 
     /**
      * Run dex2oat command with provided args, in a context that may be specified in FdAnnotation,
