@@ -101,7 +101,7 @@ impl CompOsKeyService {
         let mut data = [0u8; 32];
         self.random.fill(&mut data).context("No random data")?;
 
-        let signature = self.sign(key_blob, &data)?;
+        let signature = self.new_signer(key_blob).sign(&data)?;
 
         let public_key =
             signature::UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256, public_key);
@@ -110,8 +110,19 @@ impl CompOsKeyService {
         Ok(())
     }
 
-    pub fn sign(&self, key_blob: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        let key_descriptor = KeyDescriptor { blob: Some(key_blob.to_vec()), ..BLOB_KEY_DESCRIPTOR };
+    pub fn new_signer(&self, key_blob: &[u8]) -> Signer {
+        Signer { key_blob: key_blob.to_vec(), security_level: self.security_level.clone() }
+    }
+}
+
+pub struct Signer {
+    key_blob: Vec<u8>,
+    security_level: Strong<dyn IKeystoreSecurityLevel>,
+}
+
+impl Signer {
+    pub fn sign(self, data: &[u8]) -> Result<Vec<u8>> {
+        let key_descriptor = KeyDescriptor { blob: Some(self.key_blob), ..BLOB_KEY_DESCRIPTOR };
         let operation_parameters = [PURPOSE_SIGN, ALGORITHM, PADDING, DIGEST];
         let forced = false;
 

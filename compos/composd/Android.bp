@@ -20,13 +20,11 @@ rust_binary {
         "libcomposd_native_rust",
         "libminijail_rust",
         "libnix",
-        "libnum_traits",
         "liblibc",
         "liblog_rust",
         "librustutils",
         "libshared_child",
     ],
-    proc_macros: ["libnum_derive"],
     apex_available: [
         "com.android.compos",
     ],
