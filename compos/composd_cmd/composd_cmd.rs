@@ -34,9 +34,11 @@ use std::time::Duration;
 
 fn main() -> Result<()> {
     let app = clap::App::new("composd_cmd").arg(
-        clap::Arg::with_name("command").index(1).takes_value(true).required(true).possible_values(
-            &["staged-apex-compile", "forced-compile-test", "forced-odrefresh", "async-odrefresh"],
-        ),
+        clap::Arg::with_name("command")
+            .index(1)
+            .takes_value(true)
+            .required(true)
+            .possible_values(&["staged-apex-compile", "forced-compile-test", "async-odrefresh"]),
     );
     let args = app.get_matches();
     let command = args.value_of("command").unwrap();
@@ -46,7 +48,6 @@ fn main() -> Result<()> {
     match command {
         "staged-apex-compile" => run_staged_apex_compile()?,
         "forced-compile-test" => run_forced_compile_for_test()?,
-        "forced-odrefresh" => run_forced_odrefresh_for_test()?,
         "async-odrefresh" => run_async_odrefresh_for_test()?,
         _ => panic!("Unexpected command {}", command),
     }
@@ -154,12 +155,4 @@ where
             Err(e)
         }
     }
-}
-
-fn run_forced_odrefresh_for_test() -> Result<()> {
-    let service = wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
-        .context("Failed to connect to composd service")?;
-    let compilation_result = service.startTestOdrefresh().context("Compilation failed")?;
-    println!("odrefresh exit code: {:?}", compilation_result);
-    Ok(())
 }

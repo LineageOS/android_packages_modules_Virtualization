@@ -16,22 +16,14 @@
 
 //! Handle the details of executing odrefresh to generate compiled artifacts.
 
-use crate::fd_server_helper::FdServerConfig;
+// TODO: Delete
+
 use anyhow::{bail, Context, Result};
-use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
-use compos_aidl_interface::binder::Strong;
 use compos_common::odrefresh::{ExitCode, ODREFRESH_PATH};
 use compos_common::timeouts::{need_extra_time, EXTENDED_TIMEOUTS};
 use compos_common::VMADDR_CID_ANY;
-use rustutils::system_properties;
 use shared_child::SharedChild;
-use std::fs::{File, OpenOptions};
-use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::AsRawFd;
-use std::path::Path;
 use std::process::Command;
-
-const ART_APEX_DATA: &str = "/data/misc/apexdata/com.android.art";
 
 pub struct Odrefresh {
     child: SharedChild,
@@ -81,44 +73,4 @@ impl Odrefresh {
     pub fn kill(&self) -> Result<()> {
         self.child.kill().context("Killing odrefresh process failed")
     }
-}
-
-pub fn run_in_vm(service: Strong<dyn ICompOsService>, target_dir_name: &str) -> Result<ExitCode> {
-    let staging_dir = open_dir(composd_native::palette_create_odrefresh_staging_directory()?)?;
-    let system_dir = open_dir(Path::new("/system"))?;
-    let output_dir = open_dir(Path::new(ART_APEX_DATA))?;
-
-    // Spawn a fd_server to serve the FDs.
-    let fd_server_config = FdServerConfig {
-        ro_dir_fds: vec![system_dir.as_raw_fd()],
-        rw_dir_fds: vec![staging_dir.as_raw_fd(), output_dir.as_raw_fd()],
-        ..Default::default()
-    };
-    let fd_server_raii = fd_server_config.into_fd_server()?;
-
-    let zygote_arch = system_properties::read("ro.zygote")?;
-    let exit_code = service.odrefresh(
-        system_dir.as_raw_fd(),
-        output_dir.as_raw_fd(),
-        staging_dir.as_raw_fd(),
-        target_dir_name,
-        &zygote_arch,
-    )?;
-
-    drop(fd_server_raii);
-    if let Some(exit_code) = ExitCode::from_i32(exit_code.into()) {
-        Ok(exit_code)
-    } else {
-        bail!("odrefresh exited with {}", exit_code)
-    }
-}
-
-/// Returns an owned FD of the directory. It currently returns a `File` as a FD owner, but
-/// it's better to use `std::os::unix::io::OwnedFd` once/if it becomes standard.
-fn open_dir(path: &Path) -> Result<File> {
-    OpenOptions::new()
-        .custom_flags(libc::O_DIRECTORY)
-        .read(true) // O_DIRECTORY can only be opened with read
-        .open(path)
-        .with_context(|| format!("Failed to open {:?} directory as path fd", path))
 }
