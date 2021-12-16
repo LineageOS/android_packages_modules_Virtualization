@@ -26,6 +26,8 @@ use log::{error, warn};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+// TODO: Delete
+
 #[derive(Clone)]
 pub struct CompilationTask {
     running_task: Arc<Mutex<Option<RunningTask>>>,
