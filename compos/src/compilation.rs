@@ -20,7 +20,7 @@ use minijail::{self, Minijail};
 use std::env;
 use std::fs::{read_dir, File};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::path::{Path, PathBuf};
+use std::path::{self, Path, PathBuf};
 
 use crate::artifact_signer::ArtifactSigner;
 use crate::compos_key_service::Signer;
@@ -83,6 +83,11 @@ impl<'a> OdrefreshContext<'a> {
         if zygote_arch != "zygote64" && zygote_arch != "zygote64_32" {
             bail!("Invalid zygote arch");
         }
+        // Disallow any sort of path traversal
+        if target_dir_name.contains(path::MAIN_SEPARATOR) {
+            bail!("Invalid target directory {}", target_dir_name);
+        }
+
         Ok(Self { system_dir_fd, output_dir_fd, staging_dir_fd, target_dir_name, zygote_arch })
     }
 }
