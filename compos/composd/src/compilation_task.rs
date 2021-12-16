@@ -15,12 +15,13 @@
  */
 
 use crate::instance_starter::CompOsInstance;
-use crate::odrefresh::{self, Odrefresh};
+use crate::odrefresh::Odrefresh;
 use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::ICompilationTask, ICompilationTaskCallback::ICompilationTaskCallback,
 };
 use android_system_composd::binder::{Interface, Result as BinderResult, Strong};
 use anyhow::Result;
+use compos_common::odrefresh::ExitCode;
 use log::{error, warn};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -91,7 +92,7 @@ impl CompilationTask {
             // We don't do the callback if cancel has already happened.
             if let Some(task) = task {
                 let result = match exit_code {
-                    Ok(odrefresh::ExitCode::CompilationSuccess) => task.callback.onSuccess(),
+                    Ok(ExitCode::CompilationSuccess) => task.callback.onSuccess(),
                     Ok(exit_code) => {
                         error!("Unexpected odrefresh result: {:?}", exit_code);
                         task.callback.onFailure()

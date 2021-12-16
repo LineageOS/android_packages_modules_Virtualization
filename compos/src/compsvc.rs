@@ -26,8 +26,8 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
-use crate::compilation::{compile_cmd, odrefresh, CompilerOutput};
-use crate::compos_key_service::CompOsKeyService;
+use crate::compilation::{compile_cmd, odrefresh, CompilerOutput, OdrefreshContext};
+use crate::compos_key_service::{CompOsKeyService, Signer};
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
@@ -39,10 +39,10 @@ use compos_aidl_interface::aidl::com::android::compos::{
 use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Strong,
 };
+use compos_common::odrefresh::ODREFRESH_PATH;
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
-const ODREFRESH_PATH: &str = "/apex/com.android.art/bin/odrefresh";
 
 /// Constructs a binder object that implements ICompOsService.
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
@@ -65,14 +65,21 @@ struct CompOsService {
 impl CompOsService {
     fn generate_raw_fsverity_signature(
         &self,
-        key_blob: &[u8],
         fsverity_digest: &fsverity::Sha256Digest,
-    ) -> Vec<u8> {
+    ) -> BinderResult<Vec<u8>> {
         let formatted_digest = fsverity::to_formatted_digest(fsverity_digest);
-        self.key_service.sign(key_blob, &formatted_digest[..]).unwrap_or_else(|e| {
-            warn!("Failed to sign the fsverity digest, returning empty signature.  Error: {}", e);
-            Vec::new()
-        })
+        self.new_signer()?
+            .sign(&formatted_digest[..])
+            .map_err(|e| new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string()))
+    }
+
+    fn new_signer(&self) -> BinderResult<Signer> {
+        let key = &*self.key_blob.read().unwrap();
+        if key.is_empty() {
+            Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))
+        } else {
+            Ok(self.key_service.new_signer(key))
+        }
     }
 }
 
@@ -110,36 +117,27 @@ impl ICompOsService for CompOsService {
         target_dir_name: &str,
         zygote_arch: &str,
     ) -> BinderResult<i8> {
-        if system_dir_fd < 0 || output_dir_fd < 0 || staging_dir_fd < 0 {
-            return Err(new_binder_exception(
-                ExceptionCode::ILLEGAL_ARGUMENT,
-                "The remote FDs are expected to be non-negative",
-            ));
-        }
-        if zygote_arch != "zygote64" && zygote_arch != "zygote64_32" {
-            return Err(new_binder_exception(
-                ExceptionCode::ILLEGAL_ARGUMENT,
-                "Invalid zygote arch",
-            ));
-        }
-
-        let authfs_service = get_authfs_service()?;
-        odrefresh(
-            &self.odrefresh_path,
-            target_dir_name,
+        let context = OdrefreshContext::new(
             system_dir_fd,
             output_dir_fd,
             staging_dir_fd,
+            target_dir_name,
             zygote_arch,
-            authfs_service,
         )
-        .map_err(|e| {
-            warn!("odrefresh failed: {}", e);
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("odrefresh failed: {}", e),
-            )
-        })
+        .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT, e.to_string()))?;
+
+        let authfs_service = get_authfs_service()?;
+        let exit_code =
+            odrefresh(&self.odrefresh_path, context, authfs_service, self.new_signer()?).map_err(
+                |e| {
+                    warn!("odrefresh failed: {:?}", e);
+                    new_binder_exception(
+                        ExceptionCode::SERVICE_SPECIFIC,
+                        format!("odrefresh failed: {}", e),
+                    )
+                },
+            )?;
+        Ok(exit_code as i8)
     }
 
     fn compile_cmd(
@@ -157,23 +155,15 @@ impl ICompOsService for CompOsService {
             })?;
         match output {
             CompilerOutput::Digests { oat, vdex, image } => {
-                let key = &*self.key_blob.read().unwrap();
-                if key.is_empty() {
-                    Err(new_binder_exception(
-                        ExceptionCode::ILLEGAL_STATE,
-                        "Key is not initialized",
-                    ))
-                } else {
-                    let oat_signature = self.generate_raw_fsverity_signature(key, &oat);
-                    let vdex_signature = self.generate_raw_fsverity_signature(key, &vdex);
-                    let image_signature = self.generate_raw_fsverity_signature(key, &image);
-                    Ok(CompilationResult {
-                        exitCode: 0,
-                        oatSignature: oat_signature,
-                        vdexSignature: vdex_signature,
-                        imageSignature: image_signature,
-                    })
-                }
+                let oat_signature = self.generate_raw_fsverity_signature(&oat)?;
+                let vdex_signature = self.generate_raw_fsverity_signature(&vdex)?;
+                let image_signature = self.generate_raw_fsverity_signature(&image)?;
+                Ok(CompilationResult {
+                    exitCode: 0,
+                    oatSignature: oat_signature,
+                    vdexSignature: vdex_signature,
+                    imageSignature: image_signature,
+                })
             }
             CompilerOutput::ExitCode(exit_code) => {
                 Ok(CompilationResult { exitCode: exit_code, ..Default::default() })
@@ -201,14 +191,9 @@ impl ICompOsService for CompOsService {
     }
 
     fn sign(&self, data: &[u8]) -> BinderResult<Vec<u8>> {
-        let key = &*self.key_blob.read().unwrap();
-        if key.is_empty() {
-            Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))
-        } else {
-            self.key_service
-                .sign(key, data)
-                .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
-        }
+        self.new_signer()?
+            .sign(data)
+            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
     }
 }
 
