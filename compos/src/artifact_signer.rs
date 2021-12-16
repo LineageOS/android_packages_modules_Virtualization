@@ -19,7 +19,7 @@
 
 #![allow(dead_code)] // Will be used soon
 
-use crate::compos_key_service::CompOsKeyService;
+use crate::compos_key_service::Signer;
 use crate::fsverity;
 use anyhow::{anyhow, Context, Result};
 use odsign_proto::odsign_info::OdsignInfo;
@@ -27,31 +27,25 @@ use protobuf::Message;
 use std::fs::File;
 use std::io::Write;
 use std::os::unix::io::AsRawFd;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const TARGET_DIRECTORY: &str = "/data/misc/apexdata/com.android.art/dalvik-cache";
 const SIGNATURE_EXTENSION: &str = ".signature";
 
 /// Accumulates and then signs information about generated artifacts.
 pub struct ArtifactSigner<'a> {
-    key_blob: Vec<u8>,
-    key_service: &'a CompOsKeyService,
-    base_directory: PathBuf,
+    base_directory: &'a Path,
     file_digests: Vec<(String, String)>, // (File name, digest in hex)
 }
 
 impl<'a> ArtifactSigner<'a> {
     /// base_directory specifies the directory under which the artifacts are currently located;
     /// they will eventually be moved under TARGET_DIRECTORY once they are verified and activated.
-    pub fn new(
-        key_blob: Vec<u8>,
-        key_service: &'a CompOsKeyService,
-        base_directory: PathBuf,
-    ) -> Self {
-        ArtifactSigner { key_blob, key_service, base_directory, file_digests: Vec::new() }
+    pub fn new(base_directory: &'a Path) -> Self {
+        Self { base_directory, file_digests: Vec::new() }
     }
 
-    pub fn add_artifact(&mut self, path: PathBuf) -> Result<()> {
+    pub fn add_artifact(&mut self, path: &Path) -> Result<()> {
         // The path we store is where the file will be when it is verified, not where it is now.
         let suffix = path
             .strip_prefix(&self.base_directory)
@@ -59,7 +53,7 @@ impl<'a> ArtifactSigner<'a> {
         let target_path = Path::new(TARGET_DIRECTORY).join(suffix);
         let target_path = target_path.to_str().ok_or_else(|| anyhow!("Invalid path"))?;
 
-        let file = File::open(&path)?;
+        let file = File::open(path).with_context(|| format!("Opening {}", path.display()))?;
         let digest = fsverity::measure(file.as_raw_fd())?;
         let digest = to_hex_string(&digest);
 
@@ -69,12 +63,12 @@ impl<'a> ArtifactSigner<'a> {
 
     /// Consume this ArtifactSigner and write details of all its artifacts to the given path,
     /// with accompanying sigature file.
-    pub fn write_info_and_signature(self, info_path: &Path) -> Result<()> {
+    pub fn write_info_and_signature(self, signer: Signer, info_path: &Path) -> Result<()> {
         let mut info = OdsignInfo::new();
         info.mut_file_hashes().extend(self.file_digests.into_iter());
         let bytes = info.write_to_bytes()?;
 
-        let signature = self.key_service.sign(&self.key_blob, &bytes)?;
+        let signature = signer.sign(&bytes)?;
 
         let mut file = File::create(info_path)?;
         file.write_all(&bytes)?;

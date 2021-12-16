@@ -17,6 +17,7 @@
 //! Common items used by CompOS server and/or clients
 
 pub mod compos_client;
+pub mod odrefresh;
 pub mod timeouts;
 
 /// Special CID indicating "any".
