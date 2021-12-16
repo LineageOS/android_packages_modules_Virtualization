@@ -162,9 +162,6 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
         String actualChecksumSnapshot = checksumDirectoryContent(android, ODREFRESH_OUTPUT_DIR);
 
         // Expect the output to be valid.
-        result = runOdrefresh(android, "--verify");
-        assertThat(result.getExitCode()).isEqualTo(OKAY);
-        // --check can delete the output, so run later.
         result = runOdrefresh(android, "--check");
         assertThat(result.getExitCode()).isEqualTo(OKAY);
 
