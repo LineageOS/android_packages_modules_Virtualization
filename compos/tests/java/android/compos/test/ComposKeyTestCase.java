@@ -151,13 +151,12 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
     }
 
     private void startVm() throws Exception {
-        final String apkName = "CompOSPayloadApp.apk";
         final String packageName = "com.android.compos.payload";
         mCid =
                 startMicrodroid(
                         getDevice(),
                         getBuild(),
-                        apkName,
+                        /* apkName, no need to install */ null,
                         packageName,
                         "assets/vm_test_config.json",
                         /* debug */ true,
