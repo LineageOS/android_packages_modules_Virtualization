@@ -26,7 +26,6 @@ mod internal_service;
 mod odrefresh;
 mod odrefresh_task;
 mod service;
-mod util;
 
 use crate::instance_manager::InstanceManager;
 use android_system_composd::binder::{register_lazy_service, ProcessState};

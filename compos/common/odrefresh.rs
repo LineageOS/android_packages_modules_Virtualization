@@ -16,12 +16,15 @@
 
 //! Helpers for running odrefresh
 
+use anyhow::{anyhow, Result};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 /// The path to the odrefresh binary
 pub const ODREFRESH_PATH: &str = "/apex/com.android.art/bin/odrefresh";
 
+// The highest "standard" exit code defined in sysexits.h (as EX__MAX); odrefresh error codes
+// start above here to avoid clashing.
 // TODO: What if this changes?
 const EX_MAX: i8 = 78;
 
@@ -30,7 +33,7 @@ const EX_MAX: i8 = 78;
 #[repr(i8)]
 pub enum ExitCode {
     /// No compilation required, all artifacts look good
-    Okay = 0i8,
+    Okay = 0,
     /// Compilation required
     CompilationRequired = EX_MAX + 1,
     /// New artifacts successfully generated
@@ -43,7 +46,8 @@ pub enum ExitCode {
 
 impl ExitCode {
     /// Map an integer to the corresponding ExitCode enum, if there is one
-    pub fn from_i32(exit_code: i32) -> Option<Self> {
+    pub fn from_i32(exit_code: i32) -> Result<Self> {
         FromPrimitive::from_i32(exit_code)
+            .ok_or_else(|| anyhow!("Unexpected odrefresh exit code: {}", exit_code))
     }
 }

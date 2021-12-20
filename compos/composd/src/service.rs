@@ -20,7 +20,6 @@
 use crate::compilation_task::CompilationTask;
 use crate::instance_manager::InstanceManager;
 use crate::odrefresh_task::OdrefreshTask;
-use crate::util::to_binder_result;
 use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::{BnCompilationTask, ICompilationTask},
     ICompilationTaskCallback::ICompilationTaskCallback,
@@ -30,6 +29,7 @@ use android_system_composd::binder::{
     self, BinderFeatures, ExceptionCode, Interface, Status, Strong, ThreadState,
 };
 use anyhow::{Context, Result};
+use compos_common::binder::to_binder_result;
 use rustutils::{users::AID_ROOT, users::AID_SYSTEM};
 use std::sync::Arc;
 

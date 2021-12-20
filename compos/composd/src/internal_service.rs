@@ -17,7 +17,7 @@
 //! Implementation of ICompilationInternal, called from odrefresh during compilation.
 
 use crate::instance_manager::InstanceManager;
-use crate::util::to_binder_result;
+use compos_common::binder::to_binder_result;
 use android_system_composd_internal::aidl::android::system::composd::internal::ICompilationInternal::{
     BnCompilationInternal, ICompilationInternal,
 };

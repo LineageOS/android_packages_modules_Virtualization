@@ -16,6 +16,7 @@
 
 //! Common items used by CompOS server and/or clients
 
+pub mod binder;
 pub mod compos_client;
 pub mod odrefresh;
 pub mod timeouts;
