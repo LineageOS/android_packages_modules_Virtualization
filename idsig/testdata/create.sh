@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sizes="512 4K 1M 10000000"
+sizes="512 4K 1M 10000000 272629760"
 for size in $sizes; do
   echo $size
   dd if=/dev/random of=input.$size bs=$size count=1
