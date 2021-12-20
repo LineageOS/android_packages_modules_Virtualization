@@ -63,8 +63,8 @@ impl Odrefresh {
     pub fn wait_for_exit(&self) -> Result<ExitCode> {
         // No timeout here - but clients can kill the process, which will end the wait.
         let status = self.child.wait()?;
-        if let Some(exit_code) = status.code().and_then(ExitCode::from_i32) {
-            Ok(exit_code)
+        if let Some(exit_code) = status.code() {
+            ExitCode::from_i32(exit_code)
         } else {
             bail!("odrefresh exited with {}", status)
         }

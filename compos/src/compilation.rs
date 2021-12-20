@@ -148,8 +148,7 @@ pub fn odrefresh(
         }
     }?;
 
-    let exit_code = ExitCode::from_i32(exit_code.into())
-        .ok_or_else(|| anyhow!("Unexpected odrefresh exit code: {}", exit_code))?;
+    let exit_code = ExitCode::from_i32(exit_code.into())?;
     info!("odrefresh exited with {:?}", exit_code);
 
     if exit_code == ExitCode::CompilationSuccess {
