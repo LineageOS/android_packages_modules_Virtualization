@@ -11,6 +11,7 @@ rust_library {
         "android.system.virtualizationservice-rust",
         "compos_aidl_interface-rust",
         "libanyhow",
+        "libbinder_common",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
         "liblog_rust",
