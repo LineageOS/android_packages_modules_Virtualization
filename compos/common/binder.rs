@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
-use android_system_composd::binder::Result as BinderResult;
+//! Helper for converting Error types to what Binder expects
+
 use anyhow::Result;
-use binder_common::new_binder_service_specific_error;
-use log::error;
+use binder::public_api::{ExceptionCode, Result as BinderResult};
+use binder_common::new_binder_exception;
+use log::warn;
 use std::fmt::Debug;
 
+/// Convert a Result<T, E> to BinderResult<T> to allow it to be returned from a binder RPC,
+/// preserving the content as far as possible.
+/// Also log the error if there is one.
 pub fn to_binder_result<T, E: Debug>(result: Result<T, E>) -> BinderResult<T> {
     result.map_err(|e| {
         let message = format!("{:?}", e);
-        error!("Returning binder error: {}", &message);
-        new_binder_service_specific_error(-1, message)
+        warn!("Returning binder error: {}", &message);
+        new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, message)
     })
 }

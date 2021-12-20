@@ -18,8 +18,9 @@
 //! file descriptors backed by authfs (via authfs_service) and pass the file descriptors to the
 //! actual compiler.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use binder_common::new_binder_exception;
+use compos_common::binder::to_binder_result;
 use log::warn;
 use std::default::Default;
 use std::env;
@@ -68,9 +69,7 @@ impl CompOsService {
         fsverity_digest: &fsverity::Sha256Digest,
     ) -> BinderResult<Vec<u8>> {
         let formatted_digest = fsverity::to_formatted_digest(fsverity_digest);
-        self.new_signer()?
-            .sign(&formatted_digest[..])
-            .map_err(|e| new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string()))
+        to_binder_result(self.new_signer()?.sign(&formatted_digest[..]))
     }
 
     fn new_signer(&self) -> BinderResult<Signer> {
@@ -117,26 +116,19 @@ impl ICompOsService for CompOsService {
         target_dir_name: &str,
         zygote_arch: &str,
     ) -> BinderResult<i8> {
-        let context = OdrefreshContext::new(
+        let context = to_binder_result(OdrefreshContext::new(
             system_dir_fd,
             output_dir_fd,
             staging_dir_fd,
             target_dir_name,
             zygote_arch,
-        )
-        .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT, e.to_string()))?;
+        ))?;
 
         let authfs_service = get_authfs_service()?;
-        let exit_code =
-            odrefresh(&self.odrefresh_path, context, authfs_service, self.new_signer()?).map_err(
-                |e| {
-                    warn!("odrefresh failed: {:?}", e);
-                    new_binder_exception(
-                        ExceptionCode::SERVICE_SPECIFIC,
-                        format!("odrefresh failed: {}", e),
-                    )
-                },
-            )?;
+        let exit_code = to_binder_result(
+            odrefresh(&self.odrefresh_path, context, authfs_service, self.new_signer()?)
+                .context("odrefresh failed"),
+        )?;
         Ok(exit_code as i8)
     }
 
@@ -146,13 +138,10 @@ impl ICompOsService for CompOsService {
         fd_annotation: &FdAnnotation,
     ) -> BinderResult<CompilationResult> {
         let authfs_service = get_authfs_service()?;
-        let output =
-            compile_cmd(&self.dex2oat_path, args, authfs_service, fd_annotation).map_err(|e| {
-                new_binder_exception(
-                    ExceptionCode::SERVICE_SPECIFIC,
-                    format!("Compilation failed: {}", e),
-                )
-            })?;
+        let output = to_binder_result(
+            compile_cmd(&self.dex2oat_path, args, authfs_service, fd_annotation)
+                .context("Compilation failed"),
+        )?;
         match output {
             CompilerOutput::Digests { oat, vdex, image } => {
                 let oat_signature = self.generate_raw_fsverity_signature(&oat)?;
@@ -176,14 +165,12 @@ impl ICompOsService for CompOsService {
     }
 
     fn generateSigningKey(&self) -> BinderResult<CompOsKeyData> {
-        self.key_service
-            .generate()
-            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
+        to_binder_result(self.key_service.generate())
     }
 
     fn verifySigningKey(&self, key_blob: &[u8], public_key: &[u8]) -> BinderResult<bool> {
         Ok(if let Err(e) = self.key_service.verify(key_blob, public_key) {
-            warn!("Signing key verification failed: {}", e.to_string());
+            warn!("Signing key verification failed: {:?}", e);
             false
         } else {
             true
@@ -191,9 +178,7 @@ impl ICompOsService for CompOsService {
     }
 
     fn sign(&self, data: &[u8]) -> BinderResult<Vec<u8>> {
-        self.new_signer()?
-            .sign(data)
-            .map_err(|e| new_binder_exception(ExceptionCode::ILLEGAL_STATE, e.to_string()))
+        to_binder_result(self.new_signer()?.sign(data))
     }
 }
 
