@@ -126,6 +126,8 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     private CommandResult runOdrefresh(CommandRunner android, String command) throws Exception {
         return android.runForResultWithTimeout(
                 ODREFRESH_TIMEOUT_MS,
+                // TODO(b/210472252): Remove this when the VM handles STANDALONE_SYSTEMSERVER_JARS
+                "STANDALONE_SYSTEMSERVER_JARS=",
                 ODREFRESH_BIN,
                 "--dalvik-cache=" + TEST_ARTIFACTS_DIR,
                 command);
