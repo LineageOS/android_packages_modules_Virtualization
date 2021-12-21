@@ -120,34 +120,6 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
                         TEST_ROOT + "test_key.pubkey",
                         TEST_ROOT + "test_key2.blob");
         assertThat(result.getStatus()).isEqualTo(CommandStatus.FAILED);
-
-        // Now, continue to test the signing operation. It's the best to do this in a new test
-        // method. Since we boot a VM for each test method, and booting a VM on cuttlefish/GCE is
-        // very slow, a new test method unfortunately makes the whole test module to exceed the
-        // timeout configured in the test infrastructure.
-
-        // Generate key - should succeed
-        android.run(
-                COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
-                "generate",
-                TEST_ROOT + "test_key3.blob",
-                TEST_ROOT + "test_key3.pubkey");
-
-        // Generate some data to sign in a writable directory
-        android.run("echo something > /data/local/tmp/something.txt");
-
-        // Sign something - should succeed
-        android.run(
-                COMPOS_KEY_CMD_BIN,
-                "--cid " + mCid,
-                "sign-info",
-                TEST_ROOT + "test_key3.blob",
-                TEST_ROOT + "test.info",
-                "/data/local/tmp/something.txt");
-
-        // Check existence of the output signature - should succeed
-        android.run("test -f " + TEST_ROOT + "test.info.signature");
     }
 
     private void startVm() throws Exception {
