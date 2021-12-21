@@ -40,20 +40,14 @@
         <option name="push-file" key="input.4m" value="/data/local/tmp/authfs/input.4m" />
         <option name="push-file" key="input.4k1" value="/data/local/tmp/authfs/input.4k1" />
         <option name="push-file" key="input.4k" value="/data/local/tmp/authfs/input.4k" />
-        <option name="push-file" key="input.4m.fsv_sig"
-            value="/data/local/tmp/authfs/input.4m.fsv_sig" />
-        <option name="push-file" key="input.4k1.fsv_sig"
-            value="/data/local/tmp/authfs/input.4k1.fsv_sig" />
-        <option name="push-file" key="input.4k.fsv_sig"
-            value="/data/local/tmp/authfs/input.4k.fsv_sig" />
-        <option name="push-file" key="input.4m.merkle_dump"
-            value="/data/local/tmp/authfs/input.4m.merkle_dump" />
-        <option name="push-file" key="input.4m.merkle_dump.bad"
-            value="/data/local/tmp/authfs/input.4m.merkle_dump.bad" />
-        <option name="push-file" key="input.4k1.merkle_dump"
-            value="/data/local/tmp/authfs/input.4k1.merkle_dump" />
-        <option name="push-file" key="input.4k.merkle_dump"
-            value="/data/local/tmp/authfs/input.4k.merkle_dump" />
+        <option name="push-file" key="input.4m.fsv_meta"
+            value="/data/local/tmp/authfs/input.4m.fsv_meta" />
+        <option name="push-file" key="input.4k1.fsv_meta"
+            value="/data/local/tmp/authfs/input.4k1.fsv_meta" />
+        <option name="push-file" key="input.4k.fsv_meta"
+            value="/data/local/tmp/authfs/input.4k.fsv_meta" />
+        <option name="push-file" key="input.4m.fsv_meta.bad_merkle"
+            value="/data/local/tmp/authfs/input.4m.fsv_meta.bad_merkle" />
     </target_preparer>
 
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >

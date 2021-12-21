@@ -27,7 +27,7 @@
 //! of the actual file name, the exposed file names through AuthFS are currently integer, e.g.
 //! /mountpoint/42.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use log::error;
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
@@ -166,7 +166,7 @@ fn new_remote_verified_file_entry(
     remote_fd: i32,
     file_size: u64,
 ) -> Result<AuthFsEntry> {
-    let signature = service.readFsveritySignature(remote_fd).context("Failed to read signature")?;
+    let signature = service.readFsveritySignature(remote_fd).ok();
 
     let authenticator = FakeAuthenticator::always_succeed();
     Ok(AuthFsEntry::VerifiedReadonly {
@@ -174,7 +174,7 @@ fn new_remote_verified_file_entry(
             &authenticator,
             RemoteFileReader::new(service.clone(), remote_fd),
             file_size,
-            signature,
+            signature.as_deref(),
             RemoteMerkleTreeReader::new(service.clone(), remote_fd),
         )?,
         file_size,
