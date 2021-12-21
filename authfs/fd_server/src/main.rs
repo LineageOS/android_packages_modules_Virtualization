@@ -34,6 +34,7 @@ use std::fs::File;
 use std::os::unix::io::FromRawFd;
 
 use aidl::{FdConfig, FdService};
+use authfs_fsverity_metadata::parse_fsverity_metadata;
 
 const RPC_SERVICE_PORT: u32 = 3264; // TODO: support dynamic port for multiple fd_server instances
 
@@ -54,17 +55,19 @@ fn fd_to_file(fd: i32) -> Result<File> {
 fn parse_arg_ro_fds(arg: &str) -> Result<(i32, FdConfig)> {
     let result: Result<Vec<i32>, _> = arg.split(':').map(|x| x.parse::<i32>()).collect();
     let fds = result?;
-    if fds.len() > 3 {
+    if fds.len() > 2 {
         bail!("Too many options: {}", arg);
     }
     Ok((
         fds[0],
         FdConfig::Readonly {
             file: fd_to_file(fds[0])?,
-            // Alternative Merkle tree, if provided
-            alt_merkle_tree: fds.get(1).map(|fd| fd_to_file(*fd)).transpose()?,
-            // Alternative signature, if provided
-            alt_signature: fds.get(2).map(|fd| fd_to_file(*fd)).transpose()?,
+            // Alternative metadata source, if provided
+            alt_metadata: fds
+                .get(1)
+                .map(|fd| fd_to_file(*fd))
+                .transpose()?
+                .and_then(|f| parse_fsverity_metadata(f).ok()),
         },
     ))
 }

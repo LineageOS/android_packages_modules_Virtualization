@@ -161,9 +161,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testReadWithFsverityVerification_RemoteFile() throws Exception {
         // Setup
         runFdServerOnAndroid(
-                "--open-ro 3:input.4m --open-ro 4:input.4m.merkle_dump --open-ro 5:input.4m.fsv_sig"
-                        + " --open-ro 6:input.4m",
-                "--ro-fds 3:4:5 --ro-fds 6");
+                "--open-ro 3:input.4m --open-ro 4:input.4m.fsv_meta --open-ro 6:input.4m",
+                "--ro-fds 3:4 --ro-fds 6");
 
         runAuthFsOnMicrodroid(
                 "--remote-ro-file-unverified 6 --remote-ro-file 3:cert.der --cid "
@@ -186,10 +185,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testReadWithFsverityVerification_RemoteSmallerFile() throws Exception {
         // Setup
         runFdServerOnAndroid(
-                "--open-ro 3:input.4k --open-ro 4:input.4k.merkle_dump --open-ro"
-                    + " 5:input.4k.fsv_sig --open-ro 6:input.4k1 --open-ro 7:input.4k1.merkle_dump"
-                    + " --open-ro 8:input.4k1.fsv_sig",
-                "--ro-fds 3:4:5 --ro-fds 6:7:8");
+                "--open-ro 3:input.4k --open-ro 4:input.4k.fsv_meta --open-ro"
+                    + " 6:input.4k1 --open-ro 7:input.4k1.fsv_meta",
+                "--ro-fds 3:4 --ro-fds 6:7");
         runAuthFsOnMicrodroid(
                 "--remote-ro-file 3:cert.der --remote-ro-file 6:cert.der --cid " + VMADDR_CID_HOST);
 
@@ -209,9 +207,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     public void testReadWithFsverityVerification_TamperedMerkleTree() throws Exception {
         // Setup
         runFdServerOnAndroid(
-                "--open-ro 3:input.4m --open-ro 4:input.4m.merkle_dump.bad "
-                        + "--open-ro 5:input.4m.fsv_sig",
-                "--ro-fds 3:4:5");
+                "--open-ro 3:input.4m --open-ro 4:input.4m.fsv_meta.bad_merkle",
+                "--ro-fds 3:4");
         runAuthFsOnMicrodroid("--remote-ro-file 3:cert.der --cid " + VMADDR_CID_HOST);
 
         // Verify
