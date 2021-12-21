@@ -176,10 +176,6 @@ impl ICompOsService for CompOsService {
             true
         })
     }
-
-    fn sign(&self, data: &[u8]) -> BinderResult<Vec<u8>> {
-        to_binder_result(self.new_signer()?.sign(data))
-    }
 }
 
 fn get_authfs_service() -> BinderResult<Strong<dyn IAuthFsService>> {
