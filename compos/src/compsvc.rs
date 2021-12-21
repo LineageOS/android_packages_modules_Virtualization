@@ -100,11 +100,13 @@ impl ICompOsService for CompOsService {
         boot_classpath: &str,
         dex2oat_boot_classpath: &str,
         system_server_classpath: &str,
+        standalone_systemserver_jars: &str,
     ) -> BinderResult<()> {
         // TODO(198211396): Implement correctly.
         env::set_var("BOOTCLASSPATH", boot_classpath);
         env::set_var("DEX2OATBOOTCLASSPATH", dex2oat_boot_classpath);
         env::set_var("SYSTEMSERVERCLASSPATH", system_server_classpath);
+        env::set_var("STANDALONE_SYSTEMSERVER_JARS", standalone_systemserver_jars);
         Ok(())
     }
 
