@@ -405,121 +405,6 @@ static Result<bool> verify(TargetVm& vm, const std::string& blob_file,
     return result;
 }
 
-static Result<std::vector<uint8_t>> computeDigest(const std::string& file) {
-    unique_fd fd(TEMP_FAILURE_RETRY(open(file.c_str(), O_RDONLY | O_CLOEXEC)));
-    if (!fd.ok()) {
-        return ErrnoError() << "Failed to open";
-    }
-
-    struct stat filestat;
-    if (fstat(fd, &filestat) != 0) {
-        return ErrnoError() << "Failed to fstat";
-    }
-
-    struct libfsverity_merkle_tree_params params = {
-            .version = 1,
-            .hash_algorithm = FS_VERITY_HASH_ALG_SHA256,
-            .file_size = static_cast<uint64_t>(filestat.st_size),
-            .block_size = 4096,
-    };
-
-    auto read_callback = [](void* file, void* buf, size_t count) {
-        int* fd = static_cast<int*>(file);
-        if (TEMP_FAILURE_RETRY(read(*fd, buf, count)) < 0) return -errno;
-        return 0;
-    };
-
-    struct libfsverity_digest* digest;
-    int ret = libfsverity_compute_digest(&fd, read_callback, &params, &digest);
-    if (ret < 0) {
-        return Error(-ret) << "Failed to compute fs-verity digest";
-    }
-    std::unique_ptr<libfsverity_digest, decltype(&std::free)> digestOwner{digest, std::free};
-
-    return std::vector(&digest->digest[0], &digest->digest[digest->digest_size]);
-}
-
-static std::string toHex(const std::vector<uint8_t>& digest) {
-    std::stringstream ss;
-    for (auto it = digest.begin(); it != digest.end(); ++it) {
-        ss << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned>(*it);
-    }
-    return ss.str();
-}
-
-static Result<void> signInfo(TargetVm& vm, const std::string& blob_file,
-                             const std::string& info_file, const std::vector<std::string>& files) {
-    unique_fd info_fd(
-            TEMP_FAILURE_RETRY(open(info_file.c_str(), O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
-                                    S_IRUSR | S_IWUSR | S_IRGRP)));
-    if (!info_fd.ok()) {
-        return ErrnoError() << "Unable to create " << info_file;
-    }
-
-    std::string signature_file = info_file + ".signature";
-    unique_fd signature_fd(TEMP_FAILURE_RETRY(open(signature_file.c_str(),
-                                                   O_CREAT | O_WRONLY | O_TRUNC | O_CLOEXEC,
-                                                   S_IRUSR | S_IWUSR | S_IRGRP)));
-    if (!signature_fd.ok()) {
-        return ErrnoError() << "Unable to create " << signature_file;
-    }
-
-    auto cid = vm.resolveCid();
-    if (!cid.ok()) {
-        return cid.error();
-    }
-    auto service = getService(*cid);
-    if (!service) {
-        return Error() << "No service";
-    }
-
-    auto blob = readBytesFromFile(blob_file);
-    if (!blob.ok()) {
-        return blob.error();
-    }
-
-    auto initialized = service->initializeSigningKey(blob.value());
-    if (!initialized.isOk()) {
-        return Error() << "Failed to initialize signing key: " << initialized.getDescription();
-    }
-
-    std::map<std::string, std::string> file_digests;
-
-    for (auto& file : files) {
-        auto digest = computeDigest(file);
-        if (!digest.ok()) {
-            return digest.error();
-        }
-        file_digests.emplace(file, toHex(*digest));
-    }
-
-    OdsignInfo info;
-    info.mutable_file_hashes()->insert(file_digests.begin(), file_digests.end());
-
-    std::vector<uint8_t> serialized(info.ByteSizeLong());
-    if (!info.SerializeToArray(serialized.data(), serialized.size())) {
-        return Error() << "Failed to serialize protobuf";
-    }
-
-    if (!WriteFully(info_fd, serialized.data(), serialized.size()) ||
-        close(info_fd.release()) != 0) {
-        return Error() << "Failed to write info file";
-    }
-
-    std::vector<uint8_t> signature;
-    auto status = service->sign(serialized, &signature);
-    if (!status.isOk()) {
-        return Error() << "Failed to sign: " << status.getDescription();
-    }
-
-    if (!WriteFully(signature_fd, signature.data(), signature.size()) ||
-        close(signature_fd.release()) != 0) {
-        return Error() << "Failed to write signature";
-    }
-
-    return {};
-}
-
 static Result<void> initializeKey(TargetVm& vm, const std::string& blob_file) {
     auto cid = vm.resolveCid();
     if (!cid.ok()) {
@@ -628,17 +513,6 @@ int main(int argc, char** argv) {
         } else {
             std::cerr << result.error() << '\n';
         }
-    } else if (argc >= 5 && argv[1] == "sign-info"sv) {
-        const std::string blob_file = argv[2];
-        const std::string info_file = argv[3];
-        const std::vector<std::string> files{&argv[4], &argv[argc]};
-        auto result = signInfo(vm, blob_file, info_file, files);
-        if (result.ok()) {
-            std::cerr << "Info file generated and signed.\n";
-            return 0;
-        } else {
-            std::cerr << result.error() << '\n';
-        }
     } else if (argc == 3 && argv[1] == "init-key"sv) {
         auto result = initializeKey(vm, argv[2]);
         if (result.ok()) {
@@ -662,9 +536,6 @@ int main(int argc, char** argv) {
                   << "  verify <blob file> <public key file> Verify that the content of the\n"
                   << "    specified private key blob and public key files are valid.\n "
                   << "  init-key <blob file> Initialize the service key.\n"
-                  << "  sign-info <blob file> <info file> <files to be signed> Generate\n"
-                  << "    an info file listing the paths and root digests of each of the files to\n"
-                  << "    be signed, along with a signature of that file.\n"
                   << "\n"
                   << "OPTIONS: --log <log file> --debug --staged\n"
                   << "    (--cid <cid> | --start <image file>)\n"
