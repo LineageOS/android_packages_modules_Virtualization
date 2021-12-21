@@ -104,14 +104,4 @@ interface ICompOsService {
      * @return whether the inputs are valid and correspond to each other.
      */
     boolean verifySigningKey(in byte[] keyBlob, in byte[] publicKey);
-
-    /**
-     * Signs some data with the initialized key. The call will fail with EX_ILLEGAL_STATE if not
-     * yet initialized.
-     *
-     * @param data The data to be signed. (Large data sizes may cause failure.)
-     * @return the signature.
-     */
-    // STOPSHIP(b/193241041): We must not expose this from the PVM.
-    byte[] sign(in byte[] data);
 }
