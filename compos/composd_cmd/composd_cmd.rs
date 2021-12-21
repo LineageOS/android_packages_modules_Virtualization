@@ -38,7 +38,7 @@ fn main() -> Result<()> {
             .index(1)
             .takes_value(true)
             .required(true)
-            .possible_values(&["staged-apex-compile", "forced-compile-test", "async-odrefresh"]),
+            .possible_values(&["staged-apex-compile", "test-compile"]),
     );
     let args = app.get_matches();
     let command = args.value_of("command").unwrap();
@@ -47,8 +47,7 @@ fn main() -> Result<()> {
 
     match command {
         "staged-apex-compile" => run_staged_apex_compile()?,
-        "forced-compile-test" => run_forced_compile_for_test()?,
-        "async-odrefresh" => run_async_odrefresh_for_test()?,
+        "test-compile" => run_test_compile()?,
         _ => panic!("Unexpected command {}", command),
     }
 
@@ -109,12 +108,8 @@ fn run_staged_apex_compile() -> Result<()> {
     run_async_compilation(|service, callback| service.startStagedApexCompile(callback))
 }
 
-fn run_forced_compile_for_test() -> Result<()> {
+fn run_test_compile() -> Result<()> {
     run_async_compilation(|service, callback| service.startTestCompile(callback))
-}
-
-fn run_async_odrefresh_for_test() -> Result<()> {
-    run_async_compilation(|service, callback| service.startAsyncOdrefresh(callback))
 }
 
 fn run_async_compilation<F>(start_compile_fn: F) -> Result<()>
