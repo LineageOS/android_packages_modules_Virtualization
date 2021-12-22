@@ -59,7 +59,6 @@ apex {
     ],
 
     prebuilts: [
-        "CompOSPayloadApp.apk.idsig",
         "com.android.compos.init.rc",
     ],
 }

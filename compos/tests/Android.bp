@@ -14,7 +14,4 @@ java_test_host {
         "VirtualizationTestHelper",
     ],
     test_suites: ["general-tests"],
-    data: [
-        ":CompOSPayloadApp.signing",
-    ],
 }
