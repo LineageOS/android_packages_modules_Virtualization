@@ -72,6 +72,7 @@ impl VmInstance {
     pub fn start(
         service: &dyn IVirtualizationService,
         instance_image: File,
+        idsig: &Path,
         parameters: &VmParameters,
     ) -> Result<VmInstance> {
         let instance_fd = ParcelFileDescriptor::new(instance_image);
@@ -83,9 +84,18 @@ impl VmInstance {
             .context("Failed to open config APK file")?;
         let apk_fd = ParcelFileDescriptor::new(apk_fd);
 
-        let idsig_fd = File::open(apex_dir.join("etc/CompOSPayloadApp.apk.idsig"))
-            .context("Failed to open config APK idsig file")?;
-        let idsig_fd = ParcelFileDescriptor::new(idsig_fd);
+        if !idsig.exists() {
+            // Prepare idsig file via VirtualizationService
+            let idsig_file = File::create(idsig).context("Failed to create idsig file")?;
+            let idsig_fd = ParcelFileDescriptor::new(idsig_file);
+            service
+                .createOrUpdateIdsigFile(&apk_fd, &idsig_fd)
+                .context("Failed to update idsig file")?;
+        }
+
+        // Open idsig as read-only
+        let idsig_file = File::open(idsig).context("Failed to open idsig file")?;
+        let idsig_fd = ParcelFileDescriptor::new(idsig_file);
 
         let (console_fd, log_fd, debug_level) = if parameters.debug_mode {
             // Console output and the system log output from the VM are redirected to file.
