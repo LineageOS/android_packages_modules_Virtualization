@@ -186,9 +186,11 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
             throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(androidDevice);
 
-        // Install APK
-        File apkFile = findTestFile(buildInfo, apkName);
-        androidDevice.installPackage(apkFile, /* reinstall */ true);
+        // Install APK if necessary
+        if (apkName != null) {
+            File apkFile = findTestFile(buildInfo, apkName);
+            androidDevice.installPackage(apkFile, /* reinstall */ true);
+        }
 
         // Get the path to the installed apk. Note that
         // getDevice().getAppPackageInfo(...).getCodePath() doesn't work due to the incorrect

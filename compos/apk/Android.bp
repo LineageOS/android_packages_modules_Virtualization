@@ -3,42 +3,7 @@ package {
 }
 
 android_app {
-    name: "CompOSPayloadApp.unsigned",
+    name: "CompOSPayloadApp",
     sdk_version: "current",
     apex_available: ["com.android.compos"],
-}
-
-// TODO(b/190409306) this is temporary until we have a solid way to pass merkle tree
-java_genrule {
-    name: "CompOSPayloadApp.signing",
-    out: [
-        "CompOSPayloadApp.apk",
-        "CompOSPayloadApp.apk.idsig",
-    ],
-    srcs: [":CompOSPayloadApp.unsigned"],
-    tools: ["apksigner"],
-    tool_files: ["test.keystore"],
-    cmd: "$(location apksigner) sign " +
-        "--ks $(location test.keystore) " +
-        "--ks-pass=pass:testkey --key-pass=pass:testkey " +
-        "--in $(in) " +
-        "--out $(genDir)/CompOSPayloadApp.apk",
-    // $(genDir)/CompOSPayloadApp.apk.idsig is generated implicitly
-}
-
-android_app_import {
-    name: "CompOSPayloadApp",
-    // Make sure the build system doesn't try to resign the APK
-    dex_preopt: {
-        enabled: false,
-    },
-    apk: ":CompOSPayloadApp.signing{CompOSPayloadApp.apk}",
-    presigned: true,
-    filename: "CompOSPayloadApp.apk",
-    apex_available: ["com.android.compos"],
-}
-
-prebuilt_etc {
-    name: "CompOSPayloadApp.apk.idsig",
-    src: ":CompOSPayloadApp.signing{CompOSPayloadApp.apk.idsig}",
 }
