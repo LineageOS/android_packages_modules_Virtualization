@@ -34,6 +34,7 @@ use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
 use std::fs::{self, create_dir, File, OpenOptions};
+use std::io::BufRead;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -435,7 +436,31 @@ fn get_public_key_from_apk(apk: &str, root_hash_trustful: bool) -> Result<Box<[u
 
 fn get_bootconfig() -> Result<&'static Vec<u8>> {
     static VAL: OnceCell<Vec<u8>> = OnceCell::new();
-    VAL.get_or_try_init(|| fs::read("/proc/bootconfig").context("Failed to read bootconfig"))
+    VAL.get_or_try_init(|| -> Result<Vec<u8>> {
+        let f = File::open("/proc/bootconfig")?;
+
+        // Filter-out androidboot.vbmeta.device which contains UUID of the vbmeta partition. That
+        // UUID could change everytime when the same VM is started because the composite disk image
+        // is ephemeral. A change in UUID is okay as long as other configs (e.g.
+        // androidboot.vbmeta.digest) remain same.
+        Ok(std::io::BufReader::new(f)
+            .lines()
+            // note: this try_fold is to early return when we fail to read a line from the file
+            .try_fold(Vec::new(), |mut lines, line| {
+                line.map(|s| {
+                    lines.push(s);
+                    lines
+                })
+            })?
+            .into_iter()
+            .filter(|line| {
+                let tokens: Vec<&str> = line.splitn(2, '=').collect();
+                // note: if `line` doesn't have =, tokens[0] is the entire line.
+                tokens[0].trim() != "androidboot.vbmeta.device"
+            })
+            .flat_map(|line| (line + "\n").into_bytes())
+            .collect())
+    })
 }
 
 fn load_config(path: &Path) -> Result<VmPayloadConfig> {
