@@ -67,6 +67,7 @@ apex {
         "microdroid_bootconfig_full_debuggable",
     ],
     file_contexts: ":com.android.virt-file_contexts",
+    canned_fs_config: "canned_fs_config",
 }
 
 apex_key {
