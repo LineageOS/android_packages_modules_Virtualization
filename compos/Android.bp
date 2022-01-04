@@ -52,6 +52,7 @@ rust_binary {
         "libnix",
         "libodsign_proto_rust",
         "libprotobuf",
+        "libregex",
         "libring",
         "libscopeguard",
     ],

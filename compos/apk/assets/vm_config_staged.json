@@ -19,6 +19,9 @@
       "name": "com.android.compos"
     },
     {
+      "name": "com.android.sdkext"
+    },
+    {
       "name": "{CLASSPATH}"
     }
   ]
