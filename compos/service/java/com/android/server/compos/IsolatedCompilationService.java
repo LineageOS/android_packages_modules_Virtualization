@@ -132,9 +132,7 @@ public class IsolatedCompilationService extends SystemService {
             for (String moduleName : moduleNames) {
                 try {
                     StagedApexInfo apexInfo = mPackageNative.getStagedApexInfo(moduleName);
-                    if (apexInfo != null && (apexInfo.hasBootClassPathJars
-                            || apexInfo.hasDex2OatBootClassPathJars
-                            || apexInfo.hasSystemServerClassPathJars)) {
+                    if (apexInfo != null && apexInfo.hasClassPathJars) {
                         Log.i(TAG, "Classpath affecting module updated: " + moduleName);
                         needCompilation = true;
                         break;

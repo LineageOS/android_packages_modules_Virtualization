@@ -58,11 +58,7 @@ struct ApexInfo {
     path: PathBuf,
 
     #[serde(default)]
-    boot_classpath: bool,
-    #[serde(default)]
-    systemserver_classpath: bool,
-    #[serde(default)]
-    dex2oatboot_classpath: bool,
+    has_classpath_jar: bool,
 }
 
 impl ApexInfoList {
@@ -76,17 +72,19 @@ impl ApexInfoList {
                 .context(format!("Failed to parse {}", APEX_INFO_LIST_PATH))?;
 
             // For active APEXes, we refer env variables to see if it contributes to classpath
+            // TODO(b/210472252): Don't hard code the env variable names
             let boot_classpath_apexes = find_apex_names_in_classpath_env("BOOTCLASSPATH");
             let systemserver_classpath_apexes =
                 find_apex_names_in_classpath_env("SYSTEMSERVERCLASSPATH");
             let dex2oatboot_classpath_apexes =
                 find_apex_names_in_classpath_env("DEX2OATBOOTCLASSPATH");
+            let standalone_jar_apexes =
+                find_apex_names_in_classpath_env("STANDALONE_SYSTEMSERVER_JARS");
             for apex_info in apex_info_list.list.iter_mut() {
-                apex_info.boot_classpath = boot_classpath_apexes.contains(&apex_info.name);
-                apex_info.systemserver_classpath =
-                    systemserver_classpath_apexes.contains(&apex_info.name);
-                apex_info.dex2oatboot_classpath =
-                    dex2oatboot_classpath_apexes.contains(&apex_info.name);
+                apex_info.has_classpath_jar = boot_classpath_apexes.contains(&apex_info.name)
+                    || systemserver_classpath_apexes.contains(&apex_info.name)
+                    || dex2oatboot_classpath_apexes.contains(&apex_info.name)
+                    || standalone_jar_apexes.contains(&apex_info.name);
             }
             Ok(apex_info_list)
         })
@@ -133,11 +131,7 @@ impl PackageManager {
                     let staged_apex_info = pm.getStagedApexInfo(&apex_info.name)?;
                     if let Some(staged_apex_info) = staged_apex_info {
                         apex_info.path = PathBuf::from(staged_apex_info.diskImagePath);
-                        apex_info.boot_classpath = staged_apex_info.hasBootClassPathJars;
-                        apex_info.systemserver_classpath =
-                            staged_apex_info.hasSystemServerClassPathJars;
-                        apex_info.dex2oatboot_classpath =
-                            staged_apex_info.hasDex2OatBootClassPathJars;
+                        apex_info.has_classpath_jar = staged_apex_info.hasClassPathJars;
                     }
                 }
             }
@@ -293,17 +287,13 @@ fn collect_apex_names(
     apexes: &[ApexConfig],
     debug_level: DebugLevel,
 ) -> Vec<String> {
-    // Process pseudo names like "{BOOTCLASSPATH}".
+    // Process pseudo names like "{CLASSPATH}".
     // For now we have following pseudo APEX names:
-    // - {BOOTCLASSPATH}: represents APEXes contributing "BOOTCLASSPATH" environment variable
-    // - {DEX2OATBOOTCLASSPATH}: represents APEXes contributing "DEX2OATBOOTCLASSPATH" environment variable
-    // - {SYSTEMSERVERCLASSPATH}: represents APEXes contributing "SYSTEMSERVERCLASSPATH" environment variable
+    // - {CLASSPATH}: represents APEXes contributing to any derive_classpath environment variable
     let mut apex_names: Vec<String> = apexes
         .iter()
         .flat_map(|apex| match apex.name.as_str() {
-            "{BOOTCLASSPATH}" => apex_list.get_matching(|apex| apex.boot_classpath),
-            "{DEX2OATBOOTCLASSPATH}" => apex_list.get_matching(|apex| apex.dex2oatboot_classpath),
-            "{SYSTEMSERVERCLASSPATH}" => apex_list.get_matching(|apex| apex.systemserver_classpath),
+            "{CLASSPATH}" => apex_list.get_matching(|apex| apex.has_classpath_jar),
             _ => vec![apex.name.clone()],
         })
         .collect();
