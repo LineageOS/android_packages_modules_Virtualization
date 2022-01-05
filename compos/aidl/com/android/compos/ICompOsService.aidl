@@ -38,8 +38,8 @@ interface ICompOsService {
      * TODO(198211396): Implement properly. We can't simply accepting the classpaths from Android
      * since they are not derived from staged APEX (besides security reasons).
      */
-    void initializeClasspaths(
-            String bootClasspath, String dex2oatBootClasspath, String systemServerClassPath);
+    void initializeClasspaths(String bootClasspath, String dex2oatBootClasspath,
+            String systemServerClasspath, String standaloneSystemServerJars);
 
     /**
      * Run odrefresh in the VM context.
