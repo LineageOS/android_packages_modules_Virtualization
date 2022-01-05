@@ -161,6 +161,7 @@ impl InstanceStarter {
                 &env::var("BOOTCLASSPATH")?,
                 &env::var("DEX2OATBOOTCLASSPATH")?,
                 &env::var("SYSTEMSERVERCLASSPATH")?,
+                &env::var("STANDALONE_SYSTEMSERVER_JARS")?,
             )
             .context("Initializing *CLASSPATH")?;
         Ok(())
