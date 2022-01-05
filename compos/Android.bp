@@ -3,33 +3,6 @@ package {
 }
 
 rust_binary {
-    name: "pvm_exec",
-    srcs: ["src/pvm_exec.rs"],
-    rustlibs: [
-        "android.system.composd.internal-rust",
-        "compos_aidl_interface-rust",
-        "libandroid_logger",
-        "libanyhow",
-        "libbinder_rpc_unstable_bindgen",
-        "libbinder_rs",
-        "libclap",
-        "libcompos_common",
-        "liblibc",
-        "liblog_rust",
-        "libminijail_rust",
-        "libnix",
-        "libscopeguard",
-    ],
-    prefer_rlib: true,
-    shared_libs: [
-        "libbinder_rpc_unstable",
-    ],
-    apex_available: [
-        "com.android.compos",
-    ],
-}
-
-rust_binary {
     name: "compsvc",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
