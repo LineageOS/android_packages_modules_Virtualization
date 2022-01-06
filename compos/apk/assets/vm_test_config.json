@@ -1,21 +1,24 @@
 {
-    "version": 1,
-    "os": {
-        "name": "microdroid"
+  "version": 1,
+  "os": {
+    "name": "microdroid"
+  },
+  "task": {
+    "type": "executable",
+    "command": "/apex/com.android.compos/bin/compsvc"
+  },
+  "apexes": [
+    {
+      "name": "com.android.art"
     },
-    "task": {
-        "type": "executable",
-        "command": "/apex/com.android.compos/bin/compsvc"
+    {
+      "name": "com.android.compos"
     },
-    "apexes": [
-        {
-            "name": "com.android.art"
-        },
-        {
-            "name": "com.android.compos"
-        },
-        {
-            "name": "{CLASSPATH}"
-        }
-    ]
+    {
+      "name": "com.android.sdkext"
+    },
+    {
+      "name": "{CLASSPATH}"
+    }
+  ]
 }

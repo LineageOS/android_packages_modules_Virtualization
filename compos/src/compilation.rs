@@ -15,12 +15,15 @@
  */
 
 use anyhow::{anyhow, bail, Context, Result};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use minijail::{self, Minijail};
+use regex::Regex;
 use std::env;
+use std::ffi::OsString;
 use std::fs::{read_dir, File};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::{self, Path, PathBuf};
+use std::process::Command;
 
 use crate::artifact_signer::ArtifactSigner;
 use crate::compos_key_service::Signer;
@@ -129,6 +132,8 @@ pub fn odrefresh(
 
     let staging_dir = mountpoint.join(context.staging_dir_fd.to_string());
 
+    set_classpaths(&android_root)?;
+
     let args = vec![
         "odrefresh".to_string(),
         format!("--zygote-arch={}", context.zygote_arch),
@@ -162,6 +167,53 @@ pub fn odrefresh(
     }
 
     Ok(exit_code)
+}
+
+fn set_classpaths(android_root: &Path) -> Result<()> {
+    let export_lines = run_derive_classpath(android_root)?;
+    load_classpath_vars(&export_lines)
+}
+
+fn run_derive_classpath(android_root: &Path) -> Result<String> {
+    let classpaths_root = android_root.join("etc/classpaths");
+
+    let mut bootclasspath_arg = OsString::new();
+    bootclasspath_arg.push("--bootclasspath-fragment=");
+    bootclasspath_arg.push(classpaths_root.join("bootclasspath.pb"));
+
+    let mut systemserverclasspath_arg = OsString::new();
+    systemserverclasspath_arg.push("--systemserverclasspath-fragment=");
+    systemserverclasspath_arg.push(classpaths_root.join("systemserverclasspath.pb"));
+
+    let result = Command::new("/apex/com.android.sdkext/bin/derive_classpath")
+        .arg(bootclasspath_arg)
+        .arg(systemserverclasspath_arg)
+        .arg("/proc/self/fd/1")
+        .output()
+        .context("Failed to run derive_classpath")?;
+
+    if !result.status.success() {
+        bail!("derive_classpath returned {}", result.status);
+    }
+
+    String::from_utf8(result.stdout).context("Converting derive_classpath output")
+}
+
+fn load_classpath_vars(export_lines: &str) -> Result<()> {
+    // Each line should be in the format "export <var name> <value>"
+    let pattern = Regex::new(r"^export ([^ ]+) ([^ ]+)$").context("Failed to construct Regex")?;
+    for line in export_lines.lines() {
+        if let Some(captures) = pattern.captures(line) {
+            let name = &captures[1];
+            let value = &captures[2];
+            // TODO(b/213416778) Don't modify our env, construct a fresh one for odrefresh
+            env::set_var(name, value);
+        } else {
+            warn!("Malformed line from derive_classpath: {}", line);
+        }
+    }
+
+    Ok(())
 }
 
 fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {

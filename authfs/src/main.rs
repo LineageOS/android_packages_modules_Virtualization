@@ -272,6 +272,8 @@ fn prepare_root_dir_entries(
             Path::new("/system/framework/telephony-common.jar"),
             Path::new("/system/framework/voip-common.jar"),
             Path::new("/system/etc/boot-image.prof"),
+            Path::new("/system/etc/classpaths/bootclasspath.pb"),
+            Path::new("/system/etc/classpaths/systemserverclasspath.pb"),
             Path::new("/system/etc/dirty-image-objects"),
         ];
 

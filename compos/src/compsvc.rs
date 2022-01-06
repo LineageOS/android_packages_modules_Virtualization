@@ -23,7 +23,6 @@ use binder_common::new_binder_exception;
 use compos_common::binder::to_binder_result;
 use log::warn;
 use std::default::Default;
-use std::env;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
@@ -93,21 +92,6 @@ impl ICompOsService for CompOsService {
         } else {
             Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Cannot re-initialize the key"))
         }
-    }
-
-    fn initializeClasspaths(
-        &self,
-        boot_classpath: &str,
-        dex2oat_boot_classpath: &str,
-        system_server_classpath: &str,
-        standalone_systemserver_jars: &str,
-    ) -> BinderResult<()> {
-        // TODO(198211396): Implement correctly.
-        env::set_var("BOOTCLASSPATH", boot_classpath);
-        env::set_var("DEX2OATBOOTCLASSPATH", dex2oat_boot_classpath);
-        env::set_var("SYSTEMSERVERCLASSPATH", system_server_classpath);
-        env::set_var("STANDALONE_SYSTEMSERVER_JARS", standalone_systemserver_jars);
-        Ok(())
     }
 
     fn odrefresh(
