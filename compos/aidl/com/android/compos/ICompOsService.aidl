@@ -33,15 +33,6 @@ interface ICompOsService {
     void initializeSigningKey(in byte[] keyBlob);
 
     /**
-     * Initializes the classpaths necessary for preparing and running compilation.
-     *
-     * TODO(198211396): Implement properly. We can't simply accepting the classpaths from Android
-     * since they are not derived from staged APEX (besides security reasons).
-     */
-    void initializeClasspaths(String bootClasspath, String dex2oatBootClasspath,
-            String systemServerClasspath, String standaloneSystemServerJars);
-
-    /**
      * Run odrefresh in the VM context.
      *
      * The execution is based on the VM's APEX mounts, files on Android's /system (by accessing
