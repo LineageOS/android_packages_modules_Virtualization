@@ -13,3 +13,6 @@ bootdelay=0
 # loadaddr variable.
 loadaddr=0x02000000
 fdtaddr=0x40000000
+
+# Microdroid doesn't use keymint yet
+android_keymint_needed=N
