@@ -7,3 +7,6 @@ bootcmd=verified_boot_android virtio 0 a
 
 bootdelay=0
 fdtaddr=0x80000000
+
+# Microdroid doesn't use keymint yet
+android_keymint_needed=N
