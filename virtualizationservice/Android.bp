@@ -36,6 +36,7 @@ rust_defaults {
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
         "libonce_cell",
+        "libregex",
         "librustutils",
         "libselinux_bindgen",
         "libserde",
