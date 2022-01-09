@@ -221,6 +221,7 @@ microdroid_boot_cmdline = [
 
 bootimg {
     name: "microdroid_boot-5.10",
+    ramdisk_module: "microdroid_ramdisk-5.10",
     // We don't have kernel for arm and x86. But Soong demands one when it builds for
     // arm or x86 target. Satisfy that by providing an empty file as the kernel.
     kernel_prebuilt: "empty_kernel",
@@ -246,16 +247,6 @@ bootimg {
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "4",
     partition_name: "boot",
-    use_avb: true,
-    avb_private_key: ":microdroid_sign_key",
-}
-
-bootimg {
-    name: "microdroid_init_boot",
-    ramdisk_module: "microdroid_ramdisk-5.10",
-    kernel_prebuilt: "empty_kernel",
-    header_version: "4",
-    partition_name: "init_boot",
     use_avb: true,
     avb_private_key: ":microdroid_sign_key",
 }
@@ -560,7 +551,6 @@ vbmeta {
         "microdroid_vendor_boot-5.10",
         "microdroid",
         "microdroid_boot-5.10",
-        "microdroid_init_boot",
     ],
 }
 
