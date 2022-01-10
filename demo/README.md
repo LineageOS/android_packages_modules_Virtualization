@@ -9,9 +9,12 @@ TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
 ## Installing
 
 ```
-adb install out/dist/MicrodroidDemoApp.apk
+adb install -t out/dist/MicrodroidDemoApp.apk
 adb shell pm grant com.android.microdroid.demo android.permission.MANAGE_VIRTUAL_MACHINE
 ```
+
+Don't run the app before granting the permission. Or you will have to uninstall
+the app, and then re-install it.
 
 ## Running
 
