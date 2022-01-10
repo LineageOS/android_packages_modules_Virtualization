@@ -5,7 +5,6 @@ package {
 microdroid_filesystem_images = [
     "microdroid_super",
     "microdroid_boot-5.10",
-    "microdroid_init_boot",
     "microdroid_vendor_boot-5.10",
     "microdroid_vbmeta",
     "microdroid_vbmeta_bootconfig",
