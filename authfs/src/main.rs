@@ -269,6 +269,7 @@ fn prepare_root_dir_entries(
             Path::new("/system/framework/framework.jar"),
             Path::new("/system/framework/ims-common.jar"),
             Path::new("/system/framework/services.jar"),
+            Path::new("/system/framework/services.jar.prof"),
             Path::new("/system/framework/telephony-common.jar"),
             Path::new("/system/framework/voip-common.jar"),
             Path::new("/system/etc/boot-image.prof"),
