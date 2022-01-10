@@ -8,10 +8,6 @@
           "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
         },
         {
-          "label": "init_boot_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_init_boot.img"
-        },
-        {
           "label": "vendor_boot_a",
           "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
         },

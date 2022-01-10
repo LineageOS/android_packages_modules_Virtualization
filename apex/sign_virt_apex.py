@@ -282,8 +282,6 @@ def SignVirtApex(args):
     boot_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_boot-5.10.img')
     vendor_boot_img = os.path.join(
         input_dir, 'etc', 'fs', 'microdroid_vendor_boot-5.10.img')
-    init_boot_img = os.path.join(
-        input_dir, 'etc', 'fs', 'microdroid_init_boot.img')
     super_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_super.img')
     vbmeta_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_vbmeta.img')
     vbmeta_bootconfig_img = os.path.join(
@@ -299,11 +297,10 @@ def SignVirtApex(args):
     # while it's okay to use different keys for other image files.
     ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey)
 
-    # re-sign bootloader, boot.img, vendor_boot.img, and init_boot.img
+    # re-sign bootloader, boot.img, vendor_boot.img
     AddHashFooter(args, key, bootloader)
     AddHashFooter(args, key, boot_img)
     AddHashFooter(args, key, vendor_boot_img)
-    AddHashFooter(args, key, init_boot_img)
 
     # re-sign super.img
     with TempDirectory() as work_dir:
@@ -323,12 +320,12 @@ def SignVirtApex(args):
         # re-pack super.img
         MakeSuperImage(args, partitions, super_img)
 
-        # re-generate vbmeta from re-signed {boot, vendor_boot, init_boot, system_a, vendor_a}.img
+        # re-generate vbmeta from re-signed {boot, vendor_boot, system_a, vendor_a}.img
         # Ideally, making VBmeta should be done out of TempDirectory block. But doing it here
         # to avoid unpacking re-signed super.img for system/vendor images which are available
         # in this block.
         MakeVbmetaImage(args, key, vbmeta_img, images=[
-                        boot_img, vendor_boot_img, init_boot_img, system_a_img, vendor_a_img])
+                        boot_img, vendor_boot_img, system_a_img, vendor_a_img])
 
     # Re-sign bootconfigs with the same key
     bootconfig_sign_key = key
