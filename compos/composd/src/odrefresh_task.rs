@@ -131,12 +131,15 @@ fn run_in_vm(service: Strong<dyn ICompOsService>, target_dir_name: &str) -> Resu
     let fd_server_raii = fd_server_config.into_fd_server()?;
 
     let zygote_arch = system_properties::read("ro.zygote")?;
+    let system_server_compiler_filter =
+        system_properties::read("dalvik.vm.systemservercompilerfilter").unwrap_or_default();
     let exit_code = service.odrefresh(
         system_dir.as_raw_fd(),
         output_dir.as_raw_fd(),
         staging_dir.as_raw_fd(),
         target_dir_name,
         &zygote_arch,
+        &system_server_compiler_filter,
     )?;
 
     drop(fd_server_raii);
