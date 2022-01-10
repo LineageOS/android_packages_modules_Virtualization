@@ -58,6 +58,10 @@ pub const INSTANCE_IMAGE_FILE: &str = "instance.img";
 /// The file that holds the idsig for the CompOS Payload APK.
 pub const IDSIG_FILE: &str = "idsig";
 
+/// The file that holds the idsig for the build manifest APK (that makes enumerated files from
+/// /system available in CompOS).
+pub const IDSIG_MANIFEST_APK_FILE: &str = "idsig_manifest_apk";
+
 /// The path within our config APK of our default VM configuration file, used at boot time.
 pub const DEFAULT_VM_CONFIG_PATH: &str = "assets/vm_config.json";
 

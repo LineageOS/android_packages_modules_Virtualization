@@ -11,6 +11,11 @@
     ]
   },
   "prefer_staged": true,
+  "extra_apks": [
+    {
+      "path": "/system/etc/security/fsverity/BuildManifest.apk"
+    }
+  ],
   "apexes": [
     {
       "name": "com.android.art"
