@@ -45,6 +45,8 @@ pub struct CrosvmConfig {
     pub params: Option<String>,
     pub protected: bool,
     pub memory_mib: Option<NonZeroU32>,
+    pub cpus: Option<NonZeroU32>,
+    pub cpu_affinity: Option<String>,
     pub console_fd: Option<File>,
     pub log_fd: Option<File>,
     pub indirect_files: Vec<File>,
@@ -244,6 +246,14 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
 
     if let Some(memory_mib) = config.memory_mib {
         command.arg("--mem").arg(memory_mib.to_string());
+    }
+
+    if let Some(cpus) = config.cpus {
+        command.arg("--cpus").arg(cpus.to_string());
+    }
+
+    if let Some(cpu_affinity) = config.cpu_affinity {
+        command.arg("--cpu-affinity").arg(cpu_affinity);
     }
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
