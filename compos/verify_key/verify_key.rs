@@ -21,8 +21,9 @@ use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
 use compos_common::compos_client::{VmInstance, VmParameters};
 use compos_common::{
-    COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, IDSIG_FILE, INSTANCE_IMAGE_FILE, PENDING_INSTANCE_DIR,
-    PRIVATE_KEY_BLOB_FILE, PUBLIC_KEY_FILE, TEST_INSTANCE_DIR,
+    COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE,
+    INSTANCE_IMAGE_FILE, PENDING_INSTANCE_DIR, PRIVATE_KEY_BLOB_FILE, PUBLIC_KEY_FILE,
+    TEST_INSTANCE_DIR,
 };
 use std::fs::{self, File};
 use std::io::Read;
@@ -100,6 +101,7 @@ fn verify(debug_mode: bool, instance_dir: &Path) -> Result<()> {
     let public_key = instance_dir.join(PUBLIC_KEY_FILE);
     let instance_image = instance_dir.join(INSTANCE_IMAGE_FILE);
     let idsig = instance_dir.join(IDSIG_FILE);
+    let idsig_manifest_apk = instance_dir.join(IDSIG_MANIFEST_APK_FILE);
 
     let blob = read_small_file(blob).context("Failed to read key blob")?;
     let public_key = read_small_file(public_key).context("Failed to read public key")?;
@@ -110,6 +112,7 @@ fn verify(debug_mode: bool, instance_dir: &Path) -> Result<()> {
         &*virtualization_service,
         instance_image,
         &idsig,
+        &idsig_manifest_apk,
         &VmParameters { debug_mode, ..Default::default() },
     )?;
     let service = vm_instance.get_service()?;
