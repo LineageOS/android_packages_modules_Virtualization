@@ -70,6 +70,7 @@ pub struct OdrefreshContext<'a> {
     staging_dir_fd: i32,
     target_dir_name: &'a str,
     zygote_arch: &'a str,
+    system_server_compiler_filter: &'a str,
 }
 
 impl<'a> OdrefreshContext<'a> {
@@ -79,11 +80,12 @@ impl<'a> OdrefreshContext<'a> {
         staging_dir_fd: i32,
         target_dir_name: &'a str,
         zygote_arch: &'a str,
+        system_server_compiler_filter: &'a str,
     ) -> Result<Self> {
         if system_dir_fd < 0 || output_dir_fd < 0 || staging_dir_fd < 0 {
             bail!("The remote FDs are expected to be non-negative");
         }
-        if zygote_arch != "zygote64" && zygote_arch != "zygote64_32" {
+        if !matches!(zygote_arch, "zygote64" | "zygote64_32") {
             bail!("Invalid zygote arch");
         }
         // Disallow any sort of path traversal
@@ -91,7 +93,20 @@ impl<'a> OdrefreshContext<'a> {
             bail!("Invalid target directory {}", target_dir_name);
         }
 
-        Ok(Self { system_dir_fd, output_dir_fd, staging_dir_fd, target_dir_name, zygote_arch })
+        // We're not validating/allowlisting the compiler filter, and just assume the compiler will
+        // reject an invalid string. We need to accept "verify" filter anyway, and potential
+        // performance degration by the attacker is not currently in scope. This also allows ART to
+        // specify new compiler filter and configure through system property without change to
+        // CompOS.
+
+        Ok(Self {
+            system_dir_fd,
+            output_dir_fd,
+            staging_dir_fd,
+            target_dir_name,
+            zygote_arch,
+            system_server_compiler_filter,
+        })
     }
 }
 
@@ -134,14 +149,22 @@ pub fn odrefresh(
 
     set_classpaths(&android_root)?;
 
-    let args = vec![
+    let mut args = vec![
         "odrefresh".to_string(),
         format!("--zygote-arch={}", context.zygote_arch),
         format!("--dalvik-cache={}", context.target_dir_name),
-        "--no-refresh".to_string(),
         format!("--staging-dir={}", staging_dir.display()),
-        "--force-compile".to_string(),
+        "--no-refresh".to_string(),
     ];
+
+    if !context.system_server_compiler_filter.is_empty() {
+        args.push(format!(
+            "--system-server-compiler-filter={}",
+            context.system_server_compiler_filter
+        ));
+    }
+    args.push("--force-compile".to_string());
+
     debug!("Running odrefresh with args: {:?}", &args);
     let jail = spawn_jailed_task(odrefresh_path, &args, Vec::new() /* fd_mapping */)
         .context("Spawn odrefresh")?;
