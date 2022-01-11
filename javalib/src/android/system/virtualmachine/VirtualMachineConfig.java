@@ -52,7 +52,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
     private static final String KEY_DEBUGLEVEL = "debugLevel";
     private static final String KEY_MEMORY_MIB = "memoryMib";
-    private static final String KEY_NUM_CPUS = "numCpu";
+    private static final String KEY_NUM_CPUS = "numCpus";
     private static final String KEY_CPU_AFFINITY = "cpuAffinity";
 
     // Paths to the APK file of this application.
@@ -296,7 +296,7 @@ public final class VirtualMachineConfig {
             }
 
             final int availableCpus = Runtime.getRuntime().availableProcessors();
-            if (mNumCpus < 0 || mNumCpus > availableCpus) {
+            if (mNumCpus < 1 || mNumCpus > availableCpus) {
                 throw new IllegalArgumentException("Number of vCPUs (" + mNumCpus + ") is out of "
                         + "range [1, " + availableCpus + "]");
             }
