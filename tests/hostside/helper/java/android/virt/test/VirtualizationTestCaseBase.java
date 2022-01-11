@@ -34,6 +34,7 @@ import com.android.tradefed.util.RunUtil;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -182,7 +183,9 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
             String packageName,
             String configPath,
             boolean debug,
-            int memoryMib)
+            int memoryMib,
+            Optional<Integer> numCpus,
+            Optional<String> cpuAffinity)
             throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(androidDevice);
 
@@ -216,6 +219,8 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
                         "--daemonize",
                         "--log " + logPath,
                         "--mem " + memoryMib,
+                        numCpus.isPresent() ? "--cpus " + numCpus.get() : "",
+                        cpuAffinity.isPresent() ? "--cpu-affinity " + cpuAffinity.get() : "",
                         debugFlag,
                         apkPath,
                         outApkIdsigPath,

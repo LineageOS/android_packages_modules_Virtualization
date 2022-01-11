@@ -95,6 +95,7 @@ impl VmConfig {
             disks: self.disks.iter().map(DiskImage::to_parcelable).collect::<Result<_, Error>>()?,
             protectedVm: self.protected,
             memoryMib: memory_mib,
+            ..Default::default()
         })
     }
 }
