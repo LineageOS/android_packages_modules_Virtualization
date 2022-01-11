@@ -43,6 +43,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -119,7 +120,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                         packageName,
                         configPath,
                         /* debug */ true,
-                        /* use default memoryMib */ 0);
+                        /* use default memoryMib */ 0,
+                        Optional.empty(),
+                        Optional.empty());
         adbConnectToMicrodroid(androidDevice, sCid);
 
         // Root because authfs (started from shell in this test) currently require root to open
