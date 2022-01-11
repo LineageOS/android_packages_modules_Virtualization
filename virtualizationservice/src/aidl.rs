@@ -266,6 +266,8 @@ impl IVirtualizationService for VirtualizationService {
             params: config.params.to_owned(),
             protected,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
+            cpus: config.numCpus.try_into().ok().and_then(NonZeroU32::new),
+            cpu_affinity: config.cpuAffinity.clone(),
             console_fd,
             log_fd,
             indirect_files,
@@ -562,6 +564,9 @@ fn load_app_config(
     if config.memoryMib > 0 {
         vm_config.memoryMib = config.memoryMib;
     }
+
+    vm_config.numCpus = config.numCpus;
+    vm_config.cpuAffinity = config.cpuAffinity.clone();
 
     // Microdroid requires an additional payload disk image and the bootconfig partition.
     if os_name == "microdroid" {

@@ -34,6 +34,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Represents a configuration of a virtual machine. A configuration consists of hardware
@@ -51,6 +52,8 @@ public final class VirtualMachineConfig {
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
     private static final String KEY_DEBUGLEVEL = "debugLevel";
     private static final String KEY_MEMORY_MIB = "memoryMib";
+    private static final String KEY_NUM_CPUS = "numCpu";
+    private static final String KEY_CPU_AFFINITY = "cpuAffinity";
 
     // Paths to the APK file of this application.
     private final @NonNull String mApkPath;
@@ -85,6 +88,18 @@ public final class VirtualMachineConfig {
     private final int mMemoryMib;
 
     /**
+     * Number of vCPUs in the VM. Defaults to 1 when not specified.
+     */
+    private final int mNumCpus;
+
+    /**
+     * Comma-separated list of CPUs or CPU ranges to run vCPUs on (e.g. 0,1-3,5), or
+     * colon-separated list of assignments of vCPU to host CPU assignments (e.g. 0=0:1=1:2=2).
+     * Default is no mask which means a vCPU can run on any host CPU.
+     */
+    private final String mCpuAffinity;
+
+    /**
      * Path within the APK to the payload config file that defines software aspects of this config.
      */
     private final @NonNull String mPayloadConfigPath;
@@ -96,12 +111,16 @@ public final class VirtualMachineConfig {
             @NonNull Signature[] certs,
             @NonNull String payloadConfigPath,
             DebugLevel debugLevel,
-            int memoryMib) {
+            int memoryMib,
+            int numCpus,
+            String cpuAffinity) {
         mApkPath = apkPath;
         mCerts = certs;
         mPayloadConfigPath = payloadConfigPath;
         mDebugLevel = debugLevel;
         mMemoryMib = memoryMib;
+        mNumCpus = numCpus;
+        mCpuAffinity = cpuAffinity;
     }
 
     /** Loads a config from a stream, for example a file. */
@@ -131,7 +150,10 @@ public final class VirtualMachineConfig {
         }
         final DebugLevel debugLevel = DebugLevel.values()[b.getInt(KEY_DEBUGLEVEL)];
         final int memoryMib = b.getInt(KEY_MEMORY_MIB);
-        return new VirtualMachineConfig(apkPath, certs, payloadConfigPath, debugLevel, memoryMib);
+        final int numCpus = b.getInt(KEY_NUM_CPUS);
+        final String cpuAffinity = b.getString(KEY_CPU_AFFINITY);
+        return new VirtualMachineConfig(apkPath, certs, payloadConfigPath, debugLevel, memoryMib,
+                numCpus, cpuAffinity);
     }
 
     /** Persists this config to a stream, for example a file. */
@@ -198,6 +220,8 @@ public final class VirtualMachineConfig {
                 break;
         }
         parcel.memoryMib = mMemoryMib;
+        parcel.numCpus = mNumCpus;
+        parcel.cpuAffinity = mCpuAffinity;
         return parcel;
     }
 
@@ -207,6 +231,8 @@ public final class VirtualMachineConfig {
         private String mPayloadConfigPath;
         private DebugLevel mDebugLevel;
         private int mMemoryMib;
+        private int mNumCpus;
+        private String mCpuAffinity;
         // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
         /** Creates a builder for the given context (APK), and the payload config file in APK. */
@@ -214,6 +240,8 @@ public final class VirtualMachineConfig {
             mContext = context;
             mPayloadConfigPath = payloadConfigPath;
             mDebugLevel = DebugLevel.NONE;
+            mNumCpus = 1;
+            mCpuAffinity = null;
         }
 
         /** Sets the debug level */
@@ -228,6 +256,25 @@ public final class VirtualMachineConfig {
          */
         public Builder memoryMib(int memoryMib) {
             mMemoryMib = memoryMib;
+            return this;
+        }
+
+        /**
+         * Sets the number of vCPUs in the VM. Defaults to 1.
+         */
+        public Builder numCpus(int num) {
+            mNumCpus = num;
+            return this;
+        }
+
+        /**
+         * Sets on which host CPUs the vCPUs can run. The format is a comma-separated list of CPUs
+         * or CPU ranges to run vCPUs on. e.g. "0,1-3,5" to choose host CPUs 0, 1, 2, 3, and 5.
+         * Or this can be a colon-separated list of assignments of vCPU to host CPU assignments.
+         * e.g. "0=0:1=1:2=2" to map vCPU 0 to host CPU 0, and so on.
+         */
+        public Builder cpuAffinity(String affinity) {
+            mCpuAffinity = affinity;
             return this;
         }
 
@@ -248,8 +295,22 @@ public final class VirtualMachineConfig {
                 throw new RuntimeException(e);
             }
 
+            final int availableCpus = Runtime.getRuntime().availableProcessors();
+            if (mNumCpus < 0 || mNumCpus > availableCpus) {
+                throw new IllegalArgumentException("Number of vCPUs (" + mNumCpus + ") is out of "
+                        + "range [1, " + availableCpus + "]");
+            }
+
+            if (mCpuAffinity != null
+                    && !Pattern.matches("[\\d]+(-[\\d]+)?(,[\\d]+(-[\\d]+)?)*", mCpuAffinity)
+                    && !Pattern.matches("[\\d]+=[\\d]+(:[\\d]+=[\\d]+)*", mCpuAffinity)) {
+                throw new IllegalArgumentException("CPU affinity [" + mCpuAffinity + "]"
+                        + " is invalid");
+            }
+
             return new VirtualMachineConfig(
-                    apkPath, certs, mPayloadConfigPath, mDebugLevel, mMemoryMib);
+                    apkPath, certs, mPayloadConfigPath, mDebugLevel, mMemoryMib, mNumCpus,
+                    mCpuAffinity);
         }
     }
 }

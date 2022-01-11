@@ -77,6 +77,14 @@ enum Opt {
         #[structopt(short, long)]
         mem: Option<u32>,
 
+        /// Number of vCPUs in the VM. If unspecified, defaults to 1.
+        #[structopt(long)]
+        cpus: Option<u32>,
+
+        /// Host CPUs where vCPUs are run on. If unspecified, vCPU runs on any host CPU.
+        #[structopt(long)]
+        cpu_affinity: Option<String>,
+
         /// Paths to extra idsig files.
         #[structopt(long)]
         extra_idsigs: Vec<PathBuf>,
@@ -90,6 +98,18 @@ enum Opt {
         /// Detach VM from the terminal and run in the background
         #[structopt(short, long)]
         daemonize: bool,
+
+        /// Number of vCPUs in the VM. If unspecified, defaults to 1.
+        #[structopt(long)]
+        cpus: Option<u32>,
+
+        /// Host CPUs where vCPUs are run on. If unspecified, vCPU runs on any host CPU. The format
+        /// can be either a comma-separated list of CPUs or CPU ranges to run vCPUs on (e.g.
+        /// "0,1-3,5" to choose host CPUs 0, 1, 2, 3, and 5, or a colon-separated list of
+        /// assignments of vCPU-to-host-CPU assignments e.g. "0=0:1=1:2=2" to map vCPU 0 to host
+        /// CPU 0 and so on.
+        #[structopt(long)]
+        cpu_affinity: Option<String>,
 
         /// Path to file for VM console output.
         #[structopt(long)]
@@ -155,6 +175,8 @@ fn main() -> Result<(), Error> {
             log,
             debug,
             mem,
+            cpus,
+            cpu_affinity,
             extra_idsigs,
         } => command_run_app(
             service,
@@ -167,10 +189,20 @@ fn main() -> Result<(), Error> {
             log.as_deref(),
             debug,
             mem,
+            cpus,
+            cpu_affinity,
             &extra_idsigs,
         ),
-        Opt::Run { config, daemonize, console } => {
-            command_run(service, &config, daemonize, console.as_deref(), /* mem */ None)
+        Opt::Run { config, daemonize, cpus, cpu_affinity, console } => {
+            command_run(
+                service,
+                &config,
+                daemonize,
+                console.as_deref(),
+                /* mem */ None,
+                cpus,
+                cpu_affinity,
+            )
         }
         Opt::Stop { cid } => command_stop(service, cid),
         Opt::List => command_list(service),
