@@ -16,6 +16,11 @@
       "name": "art_standalone_dexpreopt_tests"
     }
   ],
+  "postsubmit": [
+    {
+      "name": "odsign_e2e_tests"
+    }
+  ],
   "imports": [
     {
       "path": "packages/modules/Virtualization/apkdmverity"
