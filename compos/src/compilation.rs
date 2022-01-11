@@ -151,6 +151,7 @@ pub fn odrefresh(
 
     let mut args = vec![
         "odrefresh".to_string(),
+        "--compilation-os-mode".to_string(),
         format!("--zygote-arch={}", context.zygote_arch),
         format!("--dalvik-cache={}", context.target_dir_name),
         format!("--staging-dir={}", staging_dir.display()),
@@ -163,7 +164,8 @@ pub fn odrefresh(
             context.system_server_compiler_filter
         ));
     }
-    args.push("--force-compile".to_string());
+
+    args.push("--compile".to_string());
 
     debug!("Running odrefresh with args: {:?}", &args);
     let jail = spawn_jailed_task(odrefresh_path, &args, Vec::new() /* fd_mapping */)
