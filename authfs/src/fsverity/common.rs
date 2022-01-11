@@ -24,8 +24,8 @@ use crate::crypto::{CryptoError, Sha256Hash, Sha256Hasher};
 
 #[derive(Error, Debug)]
 pub enum FsverityError {
-    #[error("Cannot verify a signature")]
-    BadSignature,
+    #[error("Invalid digest")]
+    InvalidDigest,
     #[error("Insufficient data, only got {0}")]
     InsufficientData(usize),
     #[error("Cannot verify a block")]
