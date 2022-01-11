@@ -52,4 +52,16 @@ parcelable VirtualMachineAppConfig {
      * the value in microdroid.json, if any, or the crosvm default.
      */
     int memoryMib;
+
+    /**
+     * Number of vCPUs in the VM. Defaults to 1.
+     */
+    int numCpus = 1;
+
+    /**
+     * Comma-separated list of CPUs or CPU ranges to run vCPUs on (e.g. 0,1-3,5), or
+     * colon-separated list of assignments of vCPU to host CPU assignments (e.g. 0=0:1=1:2=2).
+     * Default is no mask which means a vCPU can run on any host CPU.
+     */
+    @nullable String cpuAffinity;
 }

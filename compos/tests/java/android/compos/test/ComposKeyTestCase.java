@@ -32,6 +32,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.Optional;
+
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
@@ -132,7 +134,9 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
                         packageName,
                         "assets/vm_test_config.json",
                         /* debug */ true,
-                        /* use default memoryMib */ 0);
+                        /* use default memoryMib */ 0,
+                        Optional.empty(),
+                        Optional.empty());
         adbConnectToMicrodroid(getDevice(), mCid);
     }
 
