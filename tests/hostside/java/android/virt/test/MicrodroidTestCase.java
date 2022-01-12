@@ -36,8 +36,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
 
-    private static final int MIN_MEM_ARM64 = 256;
-    private static final int MIN_MEM_X86_64 = 400;
+    private static final int MIN_MEM_ARM64 = 145;
+    private static final int MIN_MEM_X86_64 = 196;
 
     // Number of vCPUs and their affinity to host CPUs for testing purpose
     private static final int NUM_VCPUS = 3;
