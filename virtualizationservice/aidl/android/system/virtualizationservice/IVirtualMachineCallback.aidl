@@ -15,8 +15,6 @@
  */
 package android.system.virtualizationservice;
 
-import android.system.virtualizationservice.IVirtualMachine;
-
 /**
  * An object which a client may register with the VirtualizationService to get callbacks about the
  * state of a particular VM.
