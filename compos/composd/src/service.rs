@@ -71,8 +71,7 @@ impl IsolatedCompilationService {
         // TODO: Try to start the current instance with staged APEXes to see if it works?
         let comp_os = self.instance_manager.start_pending_instance().context("Starting CompOS")?;
 
-        // TODO: Write to compos-pending instead
-        let target_dir_name = "test-artifacts".to_owned();
+        let target_dir_name = "compos-pending".to_owned();
         let task = OdrefreshTask::start(comp_os, target_dir_name, callback)?;
 
         Ok(BnCompilationTask::new_binder(task, BinderFeatures::default()))
