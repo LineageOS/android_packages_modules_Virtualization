@@ -152,7 +152,6 @@ fn run_authfs(
     }
     for conf in in_dir_fds {
         args.push(OsString::from("--remote-ro-dir"));
-        // TODO(206869687): Replace /dev/null with the real path when possible.
         args.push(OsString::from(format!("{}:{}:{}", conf.fd, conf.manifestPath, conf.prefix)));
     }
     for conf in out_dir_fds {

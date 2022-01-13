@@ -27,9 +27,11 @@
 //! of the actual file name, the exposed file names through AuthFS are currently integer, e.g.
 //! /mountpoint/42.
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use log::error;
+use protobuf::Message;
 use std::convert::TryInto;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -47,6 +49,7 @@ use file::{
 };
 use fsstat::RemoteFsStatsReader;
 use fsverity::{VerifiedFileEditor, VerifiedFileReader};
+use fsverity_digests_proto::fsverity_digests::FSVerityDigests;
 use fusefs::{AuthFs, AuthFsEntry};
 
 #[derive(StructOpt)]
@@ -93,10 +96,10 @@ struct Args {
     /// remote host may be included in the mapping file, so the directory view may be partial. The
     /// directory structure won't change throughout the filesystem lifetime.
     ///
-    /// For example, `--remote-ro-dir 5:/path/to/mapping:/prefix/` tells the filesystem to
+    /// For example, `--remote-ro-dir 5:/path/to/mapping:prefix/` tells the filesystem to
     /// construct a directory structure defined in the mapping file at $MOUNTPOINT/5, which may
-    /// include a file like /5/system/framework/framework.jar. "/prefix/" tells the filesystem to
-    /// strip the path (e.g. "/system/") from the mount point to match the expected location of the
+    /// include a file like /5/system/framework/framework.jar. "prefix/" tells the filesystem to
+    /// strip the path (e.g. "system/") from the mount point to match the expected location of the
     /// remote FD (e.g. a directory FD of "/system" in the remote).
     #[structopt(long, parse(try_from_str = parse_remote_new_ro_dir_option))]
     remote_ro_dir: Vec<OptionRemoteRoDir>,
@@ -131,11 +134,9 @@ struct OptionRemoteRoDir {
     /// A mapping file that describes the expecting file/directory structure and integrity metadata
     /// in the remote directory. The file contains serialized protobuf of
     /// android.security.fsverity.FSVerityDigests.
-    /// TODO(206869687): Really use the file when it's generated.
-    #[allow(dead_code)]
     mapping_file_path: PathBuf,
 
-    prefix: PathBuf,
+    prefix: String,
 }
 
 fn parse_remote_ro_file_option(option: &str) -> Result<OptionRemoteRoFile> {
@@ -157,7 +158,7 @@ fn parse_remote_new_ro_dir_option(option: &str) -> Result<OptionRemoteRoDir> {
     Ok(OptionRemoteRoDir {
         remote_dir_fd: strs[0].parse::<i32>().unwrap(),
         mapping_file_path: PathBuf::from(strs[1]),
-        prefix: PathBuf::from(strs[2]),
+        prefix: String::from(strs[2]),
     })
 }
 
@@ -260,42 +261,25 @@ fn prepare_root_dir_entries(
             AuthFsEntry::ReadonlyDirectory { dir: InMemoryDir::new() },
         )?;
 
-        // TODO(206869687): Read actual path from config.mapping_file_path when it's generated.
-        let paths = vec![
-            Path::new("/system/framework/com.android.location.provider.jar"),
-            Path::new("/system/framework/ethernet-service.jar"),
-            Path::new("/system/framework/ext.jar"),
-            Path::new("/system/framework/framework-graphics.jar"),
-            Path::new("/system/framework/framework.jar"),
-            Path::new("/system/framework/ims-common.jar"),
-            Path::new("/system/framework/services.jar"),
-            Path::new("/system/framework/services.jar.prof"),
-            Path::new("/system/framework/telephony-common.jar"),
-            Path::new("/system/framework/voip-common.jar"),
-            Path::new("/system/etc/boot-image.prof"),
-            Path::new("/system/etc/classpaths/bootclasspath.pb"),
-            Path::new("/system/etc/classpaths/systemserverclasspath.pb"),
-            Path::new("/system/etc/dirty-image-objects"),
-        ];
-
-        for path in &paths {
+        // Build the directory tree based on the mapping file.
+        let mut reader = File::open(&config.mapping_file_path)?;
+        let proto = FSVerityDigests::parse_from_reader(&mut reader)?;
+        for path_str in proto.digests.keys() {
             let file_entry = {
+                let remote_path_str = path_str.strip_prefix(&config.prefix).ok_or_else(|| {
+                    anyhow!("Expect path {} to match prefix {}", path_str, config.prefix)
+                })?;
                 // TODO(205883847): Not all files will be used. Open the remote file lazily.
-                let related_path = path.strip_prefix(&config.prefix)?;
                 let remote_file = RemoteFileReader::new_by_path(
                     service.clone(),
                     config.remote_dir_fd,
-                    related_path,
+                    Path::new(remote_path_str),
                 )?;
                 let file_size = service.getFileSize(remote_file.get_remote_fd())?.try_into()?;
                 // TODO(206869687): Switch to VerifiedReadonly
                 AuthFsEntry::UnverifiedReadonly { reader: remote_file, file_size }
             };
-            authfs.add_entry_at_ro_dir_by_path(
-                dir_root_inode,
-                path.strip_prefix("/")?,
-                file_entry,
-            )?;
+            authfs.add_entry_at_ro_dir_by_path(dir_root_inode, Path::new(path_str), file_entry)?;
         }
     }
 
