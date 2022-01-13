@@ -122,9 +122,9 @@ pub fn odrefresh(
         port: FD_SERVER_PORT,
         inputDirFdAnnotations: vec![InputDirFdAnnotation {
             fd: context.system_dir_fd,
-            // TODO(206869687): Replace /dev/null with the real path when possible.
-            manifestPath: "/dev/null".to_string(),
-            prefix: "/system".to_string(),
+            // 0 is the index of extra_apks in vm_config_extra_apk.json
+            manifestPath: "/mnt/extra-apk/0/assets/build_manifest.pb".to_string(),
+            prefix: "system/".to_string(),
         }],
         outputDirFdAnnotations: vec![
             OutputDirFdAnnotation { fd: context.output_dir_fd },
