@@ -86,7 +86,7 @@ enum Opt {
         cpu_affinity: Option<String>,
 
         /// Paths to extra idsig files.
-        #[structopt(long)]
+        #[structopt(long = "extra-idsig")]
         extra_idsigs: Vec<PathBuf>,
     },
     /// Run a virtual machine
