@@ -178,6 +178,7 @@ android_filesystem {
     partition_name: "vendor",
     use_avb: true,
     deps: [
+        "android.hardware.security.dice-service.microdroid",
         "android.hardware.security.keymint-service.microdroid",
         "microdroid_fstab",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
