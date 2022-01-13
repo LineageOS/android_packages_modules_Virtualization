@@ -25,7 +25,6 @@ import android.content.pm.IStagedApexObserver;
 import android.content.pm.StagedApexInfo;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.provider.DeviceConfig;
 import android.util.Log;
 
 import com.android.server.SystemService;
@@ -72,13 +71,6 @@ public class IsolatedCompilationService extends SystemService {
     }
 
     private static boolean isIsolatedCompilationSupported() {
-        // Check that the relevant experiment is enabled on this device
-        // TODO - Remove this once we are ready for wider use.
-        if (!DeviceConfig.getBoolean(
-                "virtualization_framework_native", "isolated_compilation_enabled", false)) {
-            return false;
-        }
-
         // Check that KVM is enabled on the device
         if (!new File("/dev/kvm").exists()) {
             return false;
