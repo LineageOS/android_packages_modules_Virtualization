@@ -40,12 +40,17 @@ impl FSVerityMetadata {
     /// Read the raw Merkle tree from the metadata, if it exists. The API semantics is similar to a
     /// regular pread(2), and may not return full requested buffer.
     pub fn read_merkle_tree(&self, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+        let file_size = self.metadata_file.metadata()?.size();
         let start = self.merkle_tree_offset + offset;
-        let end = min(self.metadata_file.metadata()?.size(), start + buf.len() as u64);
+        let end = min(file_size, start + buf.len() as u64);
         let read_size = (end - start) as usize;
         debug_assert!(read_size <= buf.len());
-        self.metadata_file.read_exact_at(&mut buf[..read_size], start)?;
-        Ok(read_size)
+        if read_size == 0 {
+            Ok(0)
+        } else {
+            self.metadata_file.read_exact_at(&mut buf[..read_size], start)?;
+            Ok(read_size)
+        }
     }
 }
 

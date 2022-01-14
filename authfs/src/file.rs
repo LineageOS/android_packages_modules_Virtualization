@@ -8,10 +8,11 @@ pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader
 
 use binder::unstable_api::{new_spibinder, AIBinder};
 use binder::FromIBinder;
+use std::convert::TryFrom;
 use std::io;
 use std::path::{Path, MAIN_SEPARATOR};
 
-use crate::common::CHUNK_SIZE;
+use crate::common::{divide_roundup, CHUNK_SIZE};
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::IVirtFdService;
 use authfs_aidl_interface::binder::{Status, Strong};
 
@@ -81,5 +82,41 @@ pub fn validate_basename(path: &Path) -> io::Result<()> {
         Ok(())
     } else {
         Err(io::Error::from_raw_os_error(libc::EINVAL))
+    }
+}
+
+pub struct EagerChunkReader {
+    buffer: Vec<u8>,
+}
+
+impl EagerChunkReader {
+    pub fn new<F: ReadByChunk>(chunked_file: F, file_size: u64) -> io::Result<EagerChunkReader> {
+        let last_index = divide_roundup(file_size, CHUNK_SIZE);
+        let file_size = usize::try_from(file_size).unwrap();
+        let mut buffer = Vec::with_capacity(file_size);
+        let mut chunk_buffer = [0; CHUNK_SIZE as usize];
+        for index in 0..last_index {
+            let size = chunked_file.read_chunk(index, &mut chunk_buffer)?;
+            buffer.extend_from_slice(&chunk_buffer[..size]);
+        }
+        if buffer.len() < file_size {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Insufficient data size ({} < {})", buffer.len(), file_size),
+            ))
+        } else {
+            Ok(EagerChunkReader { buffer })
+        }
+    }
+}
+
+impl ReadByChunk for EagerChunkReader {
+    fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
+        if let Some(chunk) = &self.buffer.chunks(CHUNK_SIZE as usize).nth(chunk_index as usize) {
+            buf[..chunk.len()].copy_from_slice(chunk);
+            Ok(chunk.len())
+        } else {
+            Ok(0) // Read beyond EOF is normal
+        }
     }
 }
