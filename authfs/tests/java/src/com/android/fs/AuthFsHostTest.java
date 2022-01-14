@@ -70,12 +70,12 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     /** Path to authfs on Microdroid */
     private static final String AUTHFS_BIN = "/system/bin/authfs";
 
-    /** Idsig paths to be created for each APK in the "extra_apks" of vm_config.json. */
+    /** Idsig paths to be created for each APK in the "extra_apks" of vm_config_extra_apk.json. */
     private static final String[] EXTRA_IDSIG_PATHS = new String[] {
         TEST_DIR + "BuildManifest.apk.idsig",
     };
 
-    /** Build manifest path in the VM. 0 is the index of extra_apks in vm_config.json. */
+    /** Build manifest path in the VM. 0 is the index of extra_apks in vm_config_extra_apk.json. */
     private static final String BUILD_MANIFEST_PATH = "/mnt/extra-apk/0/assets/build_manifest.pb";
 
     /** Plenty of time for authfs to get ready */
@@ -83,6 +83,14 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
     /** FUSE's magic from statfs(2) */
     private static final String FUSE_SUPER_MAGIC_HEX = "65735546";
+
+    // fs-verity digest (sha256) of testdata/input.{4k, 4k1, 4m}
+    private static final String DIGEST_4K =
+            "sha256-9828cd65f4744d6adda216d3a63d8205375be485bfa261b3b8153d3358f5a576";
+    private static final String DIGEST_4K1 =
+            "sha256-3c70dcd4685ed256ebf1ef116c12e472f35b5017eaca422c0483dadd7d0b5a9f";
+    private static final String DIGEST_4M =
+            "sha256-f18a268d565348fb4bbf11f10480b198f98f2922eb711de149857b3cecf98a8d";
 
     private static final int VMADDR_CID_HOST = 2;
 
@@ -177,7 +185,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "--ro-fds 3:4 --ro-fds 6");
 
         runAuthFsOnMicrodroid(
-                "--remote-ro-file-unverified 6 --remote-ro-file 3:cert.der --cid "
+                "--remote-ro-file-unverified 6 --remote-ro-file 3:" + DIGEST_4M + " --cid "
                         + VMADDR_CID_HOST);
 
         // Action
@@ -201,7 +209,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                     + " 6:input.4k1 --open-ro 7:input.4k1.fsv_meta",
                 "--ro-fds 3:4 --ro-fds 6:7");
         runAuthFsOnMicrodroid(
-                "--remote-ro-file 3:cert.der --remote-ro-file 6:cert.der --cid " + VMADDR_CID_HOST);
+                "--remote-ro-file 3:" + DIGEST_4K + " --remote-ro-file 6:" + DIGEST_4K1 + " --cid "
+                + VMADDR_CID_HOST);
 
         // Action
         String actualHash4k = computeFileHashOnMicrodroid(MOUNT_DIR + "/3");
@@ -221,7 +230,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runFdServerOnAndroid(
                 "--open-ro 3:input.4m --open-ro 4:input.4m.fsv_meta.bad_merkle",
                 "--ro-fds 3:4");
-        runAuthFsOnMicrodroid("--remote-ro-file 3:cert.der --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-file 3:" + DIGEST_4M + " --cid " + VMADDR_CID_HOST);
 
         // Verify
         assertFalse(copyFileOnMicrodroid(MOUNT_DIR + "/3", "/dev/null"));
