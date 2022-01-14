@@ -16,17 +16,30 @@
 
 //! Rust bindgen interface for FSVerity Metadata file (.fsv_meta)
 use authfs_fsverity_metadata_bindgen::{
-    fsverity_metadata_header, FSVERITY_SIGNATURE_TYPE_NONE, FSVERITY_SIGNATURE_TYPE_PKCS7,
-    FSVERITY_SIGNATURE_TYPE_RAW,
+    fsverity_descriptor, fsverity_metadata_header, FSVERITY_HASH_ALG_SHA256,
+    FSVERITY_SIGNATURE_TYPE_NONE, FSVERITY_SIGNATURE_TYPE_PKCS7, FSVERITY_SIGNATURE_TYPE_RAW,
 };
 
+use ring::digest::{Context, SHA256};
 use std::cmp::min;
-use std::os::unix::fs::MetadataExt;
+use std::ffi::OsString;
+use std::fs::File;
+use std::io::{self, Read, Seek};
+use std::mem::{size_of, zeroed};
+use std::os::unix::fs::{FileExt, MetadataExt};
+use std::path::{Path, PathBuf};
+use std::slice::from_raw_parts_mut;
+
+/// Offset of `descriptor` in `struct fsverity_metadatata_header`.
+const DESCRIPTOR_OFFSET: usize = 4;
 
 /// Structure for parsed metadata.
 pub struct FSVerityMetadata {
     /// Header for the metadata.
     pub header: fsverity_metadata_header,
+
+    /// fs-verity digest of the file, with hash algorithm defined in the fs-verity descriptor.
+    pub digest: Vec<u8>,
 
     /// Optional signature for the metadata.
     pub signature: Option<Vec<u8>>,
@@ -54,14 +67,6 @@ impl FSVerityMetadata {
     }
 }
 
-use std::ffi::OsString;
-use std::fs::File;
-use std::io::{self, Read, Seek};
-use std::mem::{size_of, zeroed};
-use std::os::unix::fs::FileExt;
-use std::path::{Path, PathBuf};
-use std::slice::from_raw_parts_mut;
-
 /// Common block and page size in Linux.
 pub const CHUNK_SIZE: u64 = authfs_fsverity_metadata_bindgen::CHUNK_SIZE;
 
@@ -75,23 +80,42 @@ pub fn get_fsverity_metadata_path(path: &Path) -> PathBuf {
 
 /// Parse metadata from given file, and returns a structure for the metadata.
 pub fn parse_fsverity_metadata(mut metadata_file: File) -> io::Result<Box<FSVerityMetadata>> {
-    let header_size = size_of::<fsverity_metadata_header>();
+    let (header, digest) = {
+        // SAFETY: The header doesn't include any pointers.
+        let mut header: fsverity_metadata_header = unsafe { zeroed() };
 
-    // SAFETY: the header doesn't include any pointers
-    let header: fsverity_metadata_header = unsafe {
-        let mut header: fsverity_metadata_header = zeroed();
-        let buffer = from_raw_parts_mut(
-            &mut header as *mut fsverity_metadata_header as *mut u8,
-            header_size,
-        );
-        metadata_file.read_exact(buffer)?;
+        // SAFETY: fsverity_metadata_header is packed, so reading/write from/to the back_buffer
+        // won't overflow.
+        let back_buffer = unsafe {
+            from_raw_parts_mut(
+                &mut header as *mut fsverity_metadata_header as *mut u8,
+                size_of::<fsverity_metadata_header>(),
+            )
+        };
+        metadata_file.read_exact(back_buffer)?;
+
+        // Digest needs to be calculated with the raw value (without changing the endianness).
+        let digest = match header.descriptor.hash_algorithm {
+            FSVERITY_HASH_ALG_SHA256 => {
+                let mut context = Context::new(&SHA256);
+                context.update(
+                    &back_buffer
+                        [DESCRIPTOR_OFFSET..DESCRIPTOR_OFFSET + size_of::<fsverity_descriptor>()],
+                );
+                Ok(context.finish().as_ref().to_owned())
+            }
+            alg => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Unsupported hash algorithm {}, continue (likely failing soon)", alg),
+            )),
+        }?;
 
         // TODO(inseob): This doesn't seem ideal. Maybe we can consider nom?
         header.version = u32::from_le(header.version);
         header.descriptor.data_size = u64::from_le(header.descriptor.data_size);
         header.signature_type = u32::from_le(header.signature_type);
         header.signature_size = u32::from_le(header.signature_size);
-        header
+        (header, digest)
     };
 
     if header.version != 1 {
@@ -113,5 +137,5 @@ pub fn parse_fsverity_metadata(mut metadata_file: File) -> io::Result<Box<FSVeri
     let merkle_tree_offset =
         (metadata_file.stream_position()? + CHUNK_SIZE - 1) / CHUNK_SIZE * CHUNK_SIZE;
 
-    Ok(Box::new(FSVerityMetadata { header, signature, metadata_file, merkle_tree_offset }))
+    Ok(Box::new(FSVerityMetadata { header, digest, signature, metadata_file, merkle_tree_offset }))
 }
