@@ -38,5 +38,5 @@
     }
   ],
   "memory_mib": 2048,
-  "protected": true
+  "protected": false
 }
