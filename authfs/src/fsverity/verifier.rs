@@ -49,6 +49,12 @@ fn verity_check<T: ReadByChunk>(
 
     let chunk_hash = hash_with_padding(chunk, CHUNK_SIZE as usize)?;
 
+    // When the file is smaller or equal to CHUNK_SIZE, the root of Merkle tree is defined as the
+    // hash of the file content, plus padding.
+    if file_size <= CHUNK_SIZE {
+        return Ok(chunk_hash);
+    }
+
     fsverity_walk(chunk_index, file_size, merkle_tree)?.try_fold(
         chunk_hash,
         |actual_hash, result| {
@@ -141,9 +147,14 @@ impl<F: ReadByChunk, M: ReadByChunk> VerifiedFileReader<F, M> {
         merkle_tree: M,
     ) -> Result<VerifiedFileReader<F, M>, FsverityError> {
         let mut buf = [0u8; CHUNK_SIZE as usize];
-        let size = merkle_tree.read_chunk(0, &mut buf)?;
-        if buf.len() != size {
-            return Err(FsverityError::InsufficientData(size));
+        if file_size <= CHUNK_SIZE {
+            let _size = chunked_file.read_chunk(0, &mut buf)?;
+            // The rest of buffer is 0-padded.
+        } else {
+            let size = merkle_tree.read_chunk(0, &mut buf)?;
+            if buf.len() != size {
+                return Err(FsverityError::InsufficientData(size));
+            }
         }
         let root_hash = Sha256Hasher::new()?.update(&buf[..])?.finalize()?;
         let formatted_digest = build_fsverity_formatted_digest(&root_hash, file_size)?;
