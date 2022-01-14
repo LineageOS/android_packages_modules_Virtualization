@@ -45,10 +45,11 @@ mod fusefs;
 
 use auth::FakeAuthenticator;
 use file::{
-    Attr, InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
+    Attr, EagerChunkReader, InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader,
+    RemoteMerkleTreeReader,
 };
 use fsstat::RemoteFsStatsReader;
-use fsverity::{VerifiedFileEditor, VerifiedFileReader};
+use fsverity::{merkle_tree_size, VerifiedFileEditor, VerifiedFileReader};
 use fsverity_digests_proto::fsverity_digests::FSVerityDigests;
 use fusefs::{AuthFs, AuthFsEntry};
 
@@ -176,7 +177,10 @@ fn new_remote_verified_file_entry(
             RemoteFileReader::new(service.clone(), remote_fd),
             file_size,
             signature.as_deref(),
-            RemoteMerkleTreeReader::new(service.clone(), remote_fd),
+            EagerChunkReader::new(
+                RemoteMerkleTreeReader::new(service.clone(), remote_fd),
+                merkle_tree_size(file_size),
+            )?,
         )?,
         file_size,
     })
