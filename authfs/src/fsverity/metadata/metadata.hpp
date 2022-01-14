@@ -47,6 +47,9 @@
 
 const uint64_t CHUNK_SIZE = 4096;
 
+// Give the macro value a name to export.
+const uint8_t FSVERITY_HASH_ALG_SHA256 = FS_VERITY_HASH_ALG_SHA256;
+
 enum class FSVERITY_SIGNATURE_TYPE : __le32 {
     NONE = 0,
     PKCS7 = 1,
