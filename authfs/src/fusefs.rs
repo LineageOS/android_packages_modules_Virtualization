@@ -37,8 +37,8 @@ use std::time::Duration;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
-    validate_basename, Attr, InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor,
-    RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader,
+    validate_basename, Attr, EagerChunkReader, InMemoryDir, RandomWrite, ReadByChunk,
+    RemoteDirEditor, RemoteFileEditor, RemoteFileReader,
 };
 use crate::fsstat::RemoteFsStatsReader;
 use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
@@ -59,7 +59,7 @@ pub enum AuthFsEntry {
     /// A file type that is verified against fs-verity signature (thus read-only). The file is
     /// served from a remote server.
     VerifiedReadonly {
-        reader: VerifiedFileReader<RemoteFileReader, RemoteMerkleTreeReader>,
+        reader: VerifiedFileReader<RemoteFileReader, EagerChunkReader>,
         file_size: u64,
     },
     /// A file type that is a read-only passthrough from a file on a remote server.
