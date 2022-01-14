@@ -18,16 +18,11 @@ use libc::EIO;
 use std::io;
 
 use super::common::{build_fsverity_digest, merkle_tree_height, FsverityError};
-use super::sys::{FS_VERITY_HASH_ALG_SHA256, FS_VERITY_MAGIC};
-use crate::auth::Authenticator;
 use crate::common::{divide_roundup, CHUNK_SIZE};
 use crate::crypto::{CryptoError, Sha256Hasher};
 use crate::file::{ChunkBuffer, ReadByChunk};
 
 const ZEROS: [u8; CHUNK_SIZE as usize] = [0u8; CHUNK_SIZE as usize];
-
-// The size of `struct fsverity_formatted_digest` in Linux with SHA-256.
-const SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256: usize = 12 + Sha256Hasher::HASH_SIZE;
 
 type HashBuffer = [u8; Sha256Hasher::HASH_SIZE];
 
@@ -116,21 +111,6 @@ fn fsverity_walk<T: ReadByChunk>(
     }))
 }
 
-fn build_fsverity_formatted_digest(
-    root_hash: &HashBuffer,
-    file_size: u64,
-) -> Result<[u8; SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256], CryptoError> {
-    let digest = build_fsverity_digest(root_hash, file_size)?;
-    // Little-endian byte representation of fsverity_formatted_digest from linux/fsverity.h
-    // Not FFI-ed as it seems easier to deal with the raw bytes manually.
-    let mut formatted_digest = [0u8; SIZE_OF_FSVERITY_FORMATTED_DIGEST_SHA256];
-    formatted_digest[0..8].copy_from_slice(FS_VERITY_MAGIC);
-    formatted_digest[8..10].copy_from_slice(&(FS_VERITY_HASH_ALG_SHA256 as u16).to_le_bytes());
-    formatted_digest[10..12].copy_from_slice(&(Sha256Hasher::HASH_SIZE as u16).to_le_bytes());
-    formatted_digest[12..].copy_from_slice(&digest);
-    Ok(formatted_digest)
-}
-
 pub struct VerifiedFileReader<F: ReadByChunk, M: ReadByChunk> {
     chunked_file: F,
     file_size: u64,
@@ -139,11 +119,10 @@ pub struct VerifiedFileReader<F: ReadByChunk, M: ReadByChunk> {
 }
 
 impl<F: ReadByChunk, M: ReadByChunk> VerifiedFileReader<F, M> {
-    pub fn new<A: Authenticator>(
-        authenticator: &A,
+    pub fn new(
         chunked_file: F,
         file_size: u64,
-        sig: Option<&[u8]>,
+        expected_digest: &[u8],
         merkle_tree: M,
     ) -> Result<VerifiedFileReader<F, M>, FsverityError> {
         let mut buf = [0u8; CHUNK_SIZE as usize];
@@ -157,12 +136,11 @@ impl<F: ReadByChunk, M: ReadByChunk> VerifiedFileReader<F, M> {
             }
         }
         let root_hash = Sha256Hasher::new()?.update(&buf[..])?.finalize()?;
-        let formatted_digest = build_fsverity_formatted_digest(&root_hash, file_size)?;
-        let valid = authenticator.verify(sig, &formatted_digest)?;
-        if valid {
+        if expected_digest == build_fsverity_digest(&root_hash, file_size)? {
+            // Once verified, use the root_hash for verification going forward.
             Ok(VerifiedFileReader { chunked_file, file_size, merkle_tree, root_hash })
         } else {
-            Err(FsverityError::BadSignature)
+            Err(FsverityError::InvalidDigest)
         }
     }
 }
@@ -183,7 +161,6 @@ impl<F: ReadByChunk, M: ReadByChunk> ReadByChunk for VerifiedFileReader<F, M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::FakeAuthenticator;
     use crate::file::ReadByChunk;
     use anyhow::Result;
     use authfs_fsverity_metadata::{parse_fsverity_metadata, FSVerityMetadata};
@@ -245,13 +222,11 @@ mod tests {
         let file_reader = LocalFileReader::new(File::open(content_path)?)?;
         let file_size = file_reader.len();
         let metadata = parse_fsverity_metadata(File::open(metadata_path)?)?;
-        let authenticator = FakeAuthenticator::always_succeed();
         Ok((
             VerifiedFileReader::new(
-                &authenticator,
                 file_reader,
                 file_size,
-                metadata.signature.clone().as_deref(),
+                &metadata.digest.clone(),
                 MerkleTreeReader { metadata },
             )?,
             file_size,
@@ -310,23 +285,6 @@ mod tests {
             assert!(file_reader.read_chunk(i, &mut buf).is_err());
         }
         assert!(file_reader.read_chunk(last_index, &mut buf).is_ok());
-        Ok(())
-    }
-
-    #[test]
-    fn invalid_signature() -> Result<()> {
-        let authenticator = FakeAuthenticator::always_fail();
-        let file_reader = LocalFileReader::new(File::open("testdata/input.4m")?)?;
-        let file_size = file_reader.len();
-        let metadata = parse_fsverity_metadata(File::open("testdata/input.4m.fsv_meta")?)?;
-        assert!(VerifiedFileReader::new(
-            &authenticator,
-            file_reader,
-            file_size,
-            metadata.signature.clone().as_deref(),
-            MerkleTreeReader { metadata },
-        )
-        .is_err());
         Ok(())
     }
 }
