@@ -274,7 +274,7 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         @Override
-                        public void onDied(VirtualMachine vm) {
+                        public void onDied(VirtualMachine vm, @DeathReason int reason) {
                             mService.shutdownNow();
                             mStatus.postValue(VirtualMachine.Status.STOPPED);
                         }
