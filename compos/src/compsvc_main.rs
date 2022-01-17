@@ -20,6 +20,7 @@ mod artifact_signer;
 mod compilation;
 mod compos_key_service;
 mod compsvc;
+mod dice;
 mod fsverity;
 
 use android_system_virtualmachineservice::{
