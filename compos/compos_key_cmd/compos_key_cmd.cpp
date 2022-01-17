@@ -165,7 +165,7 @@ public:
     }
 
     ::ndk::ScopedAStatus onDied(int32_t in_cid, DeathReason reason) override {
-        LOG(WARNING) << "VM died! cid = " << in_cid << " reason = " << static_cast<int>(reason);
+        LOG(WARNING) << "VM died! cid = " << in_cid << " reason = " << toString(reason);
         {
             std::unique_lock lock(mMutex);
             mDied = true;
