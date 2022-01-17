@@ -72,6 +72,7 @@ android_system_image {
 
         "apexd",
         "debuggerd",
+        "diced",
         "keystore2_microdroid",
         "linker",
         "linkerconfig",

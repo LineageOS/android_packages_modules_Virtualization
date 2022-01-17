@@ -88,6 +88,9 @@ on init
     # TODO(b/185767624): remove hidl after full keymint support
     start hwservicemanager
 
+    # TODO(b/214231981): start diced (and servicemanager) earlier than microdroid_manager.
+    start diced
+
 on init && property:ro.boot.adb.enabled=1
     start adbd
 
