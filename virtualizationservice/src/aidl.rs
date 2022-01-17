@@ -22,6 +22,7 @@ use crate::selinux::{SeContext, getfilecon};
 use ::binder::unstable_api::AsNative;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    DeathReason::DeathReason,
     DiskImage::DiskImage,
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
@@ -811,10 +812,10 @@ impl VirtualMachineCallbacks {
     }
 
     /// Call all registered callbacks to say that the VM has died.
-    pub fn callback_on_died(&self, cid: Cid) {
+    pub fn callback_on_died(&self, cid: Cid, reason: DeathReason) {
         let callbacks = &*self.0.lock().unwrap();
         for callback in callbacks {
-            if let Err(e) = callback.onDied(cid as i32) {
+            if let Err(e) = callback.onDied(cid as i32, reason) {
                 error!("Error notifying exit of VM CID {}: {}", cid, e);
             }
         }
