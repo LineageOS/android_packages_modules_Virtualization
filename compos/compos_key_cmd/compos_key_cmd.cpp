@@ -50,6 +50,7 @@
 using namespace std::literals;
 
 using aidl::android::system::virtualizationservice::BnVirtualMachineCallback;
+using aidl::android::system::virtualizationservice::DeathReason;
 using aidl::android::system::virtualizationservice::IVirtualizationService;
 using aidl::android::system::virtualizationservice::IVirtualMachine;
 using aidl::android::system::virtualizationservice::IVirtualMachineCallback;
@@ -163,8 +164,8 @@ public:
         return ScopedAStatus::ok();
     }
 
-    ::ndk::ScopedAStatus onDied(int32_t in_cid) override {
-        LOG(WARNING) << "VM died! cid = " << in_cid;
+    ::ndk::ScopedAStatus onDied(int32_t in_cid, DeathReason reason) override {
+        LOG(WARNING) << "VM died! cid = " << in_cid << " reason = " << static_cast<int>(reason);
         {
             std::unique_lock lock(mMutex);
             mDied = true;

@@ -19,6 +19,7 @@
 use crate::timeouts::timeouts;
 use crate::{COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT, DEFAULT_VM_CONFIG_PATH};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    DeathReason::DeathReason,
     IVirtualMachine::IVirtualMachine,
     IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
     IVirtualizationService::IVirtualizationService,
@@ -289,9 +290,9 @@ struct VmCallback(Arc<VmStateMonitor>);
 impl Interface for VmCallback {}
 
 impl IVirtualMachineCallback for VmCallback {
-    fn onDied(&self, cid: i32) -> BinderResult<()> {
+    fn onDied(&self, cid: i32, reason: DeathReason) -> BinderResult<()> {
         self.0.set_died();
-        log::warn!("VM died, cid = {}", cid);
+        log::warn!("VM died, cid = {}, reason = {:?}", cid, reason);
         Ok(())
     }
 
