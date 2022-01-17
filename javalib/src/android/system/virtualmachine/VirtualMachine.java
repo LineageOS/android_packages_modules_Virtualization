@@ -411,12 +411,12 @@ public class VirtualMachine {
                         }
 
                         @Override
-                        public void onDied(int cid) {
+                        public void onDied(int cid, int reason) {
                             final VirtualMachineCallback cb = mCallback;
                             if (cb == null) {
                                 return;
                             }
-                            mCallbackExecutor.execute(() -> cb.onDied(VirtualMachine.this));
+                            mCallbackExecutor.execute(() -> cb.onDied(VirtualMachine.this, reason));
                         }
                     });
             service.asBinder()
@@ -426,7 +426,8 @@ public class VirtualMachine {
                                 public void binderDied() {
                                     final VirtualMachineCallback cb = mCallback;
                                     if (cb != null) {
-                                        cb.onDied(VirtualMachine.this);
+                                        cb.onDied(VirtualMachine.this, VirtualMachineCallback
+                                                .DEATH_REASON_VIRTUALIZATIONSERVICE_DIED);
                                     }
                                 }
                             },

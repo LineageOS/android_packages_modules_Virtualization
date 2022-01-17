@@ -105,7 +105,7 @@ public class MicrodroidTests {
         void forceStop(VirtualMachine vm) {
             try {
                 vm.stop();
-                this.onDied(vm);
+                this.onDied(vm, VirtualMachineCallback.DEATH_REASON_KILLED);
                 mExecutorService.shutdown();
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
@@ -125,7 +125,7 @@ public class MicrodroidTests {
         public void onError(VirtualMachine vm, int errorCode, String message) {}
 
         @Override
-        public void onDied(VirtualMachine vm) {}
+        public void onDied(VirtualMachine vm, @DeathReason int reason) {}
     }
 
     private static final int MIN_MEM_ARM64 = 135;
@@ -166,7 +166,7 @@ public class MicrodroidTests {
                     }
 
                     @Override
-                    public void onDied(VirtualMachine vm) {
+                    public void onDied(VirtualMachine vm, @DeathReason int reason) {
                         assertTrue(mPayloadReadyCalled);
                         assertTrue(mPayloadStartedCalled);
                     }
@@ -227,7 +227,7 @@ public class MicrodroidTests {
                     }
 
                     @Override
-                    public void onDied(VirtualMachine vm) {
+                    public void onDied(VirtualMachine vm, @DeathReason int reason) {
                         assertFalse(mPayloadStarted);
                         assertTrue(mErrorOccurred);
                     }

@@ -15,6 +15,8 @@
  */
 package android.system.virtualizationservice;
 
+import android.system.virtualizationservice.DeathReason;
+
 /**
  * An object which a client may register with the VirtualizationService to get callbacks about the
  * state of a particular VM.
@@ -50,5 +52,5 @@ oneway interface IVirtualMachineCallback {
      * Note that this will not be called if the VirtualizationService itself dies, so you should
      * also use `link_to_death` to handle that.
      */
-    void onDied(int cid);
+    void onDied(int cid, in DeathReason reason);
 }

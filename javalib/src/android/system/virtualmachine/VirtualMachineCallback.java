@@ -56,6 +56,39 @@ public interface VirtualMachineCallback {
     /** Error code indicating that the payload config is invalid. */
     int ERROR_PAYLOAD_INVALID_CONFIG = 3;
 
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({
+        DEATH_REASON_VIRTUALIZATIONSERVICE_DIED,
+        DEATH_REASON_SHUTDOWN,
+        DEATH_REASON_REBOOT,
+        DEATH_REASON_KILLED,
+        DEATH_REASON_UNKNOWN,
+        DEATH_REASON_INFRASTRUCTURE_ERROR
+    })
+    @interface DeathReason {}
+
+    /**
+     * virtualizationservice itself died, taking the VM down with it. This is a negative number to
+     * avoid conflicting with the other death reasons which match the ones in the AIDL interface.
+     */
+    int DEATH_REASON_VIRTUALIZATIONSERVICE_DIED = -1;
+
+    /** The VM requested to shut down. */
+    int DEATH_REASON_SHUTDOWN = 0;
+
+    /** The VM requested to reboot, possibly as the result of a kernel panic. */
+    int DEATH_REASON_REBOOT = 1;
+
+    /** The VM was killed. */
+    int DEATH_REASON_KILLED = 2;
+
+    /** The VM died for an unknown reason. */
+    int DEATH_REASON_UNKNOWN = 3;
+
+    /** There was an error waiting for the VM. */
+    int DEATH_REASON_INFRASTRUCTURE_ERROR = 4;
+
     /** Called when the payload starts in the VM. */
     void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
 
@@ -69,5 +102,5 @@ public interface VirtualMachineCallback {
     void onError(@NonNull VirtualMachine vm, @ErrorCode int errorCode, @NonNull String message);
 
     /** Called when the VM died. */
-    void onDied(@NonNull VirtualMachine vm);
+    void onDied(@NonNull VirtualMachine vm, @DeathReason int reason);
 }
