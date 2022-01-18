@@ -28,6 +28,7 @@ use std::sync::RwLock;
 
 use crate::compilation::{compile_cmd, odrefresh, CompilerOutput, OdrefreshContext};
 use crate::compos_key_service::{CompOsKeyService, Signer};
+use crate::dice::Dice;
 use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
@@ -78,6 +79,11 @@ impl CompOsService {
         } else {
             Ok(self.key_service.new_signer(key))
         }
+    }
+
+    fn get_boot_certificate_chain(&self) -> Result<Vec<u8>> {
+        let dice = Dice::new()?;
+        dice.get_boot_certificate_chain()
     }
 }
 
@@ -163,6 +169,10 @@ impl ICompOsService for CompOsService {
         } else {
             true
         })
+    }
+
+    fn getBootCertificateChain(&self) -> BinderResult<Vec<u8>> {
+        to_binder_result(self.get_boot_certificate_chain())
     }
 }
 
