@@ -16,59 +16,24 @@
 
 //! Implementation of ICompilationInternal, called from odrefresh during compilation.
 
-use crate::instance_manager::InstanceManager;
-use compos_common::binder::to_binder_result;
 use android_system_composd_internal::aidl::android::system::composd::internal::ICompilationInternal::{
     BnCompilationInternal, ICompilationInternal,
 };
-use android_system_composd::binder::{
-    self, BinderFeatures, ExceptionCode, Interface, Status, Strong, ThreadState,
-};
-use anyhow::{Context, Result};
+use android_system_composd::binder::{self, BinderFeatures, Interface, Strong};
 use binder_common::new_binder_service_specific_error;
-use compos_aidl_interface::aidl::com::android::compos::{
-    CompilationResult::CompilationResult, FdAnnotation::FdAnnotation,
-};
-use rustutils::users::AID_ROOT;
-use std::sync::Arc;
+use compos_aidl_interface::aidl::com::android::compos::FdAnnotation::FdAnnotation;
 
-pub struct CompilationInternalService {
-    instance_manager: Arc<InstanceManager>,
-}
+pub struct CompilationInternalService {}
 
-pub fn new_binder(instance_manager: Arc<InstanceManager>) -> Strong<dyn ICompilationInternal> {
-    let service = CompilationInternalService { instance_manager };
+pub fn new_binder() -> Strong<dyn ICompilationInternal> {
+    let service = CompilationInternalService {};
     BnCompilationInternal::new_binder(service, BinderFeatures::default())
 }
 
 impl Interface for CompilationInternalService {}
 
 impl ICompilationInternal for CompilationInternalService {
-    fn compile_cmd(
-        &self,
-        args: &[String],
-        fd_annotation: &FdAnnotation,
-    ) -> binder::Result<CompilationResult> {
-        let calling_uid = ThreadState::get_calling_uid();
-        // This should only be called by odrefresh, which runs as root
-        if calling_uid != AID_ROOT {
-            return Err(Status::new_exception(ExceptionCode::SECURITY, None));
-        }
-        to_binder_result(self.do_compile_cmd(args, fd_annotation))
-    }
-
     fn compile(&self, _marshaled: &[u8], _fd_annotation: &FdAnnotation) -> binder::Result<i8> {
         Err(new_binder_service_specific_error(-1, "Not yet implemented"))
-    }
-}
-
-impl CompilationInternalService {
-    fn do_compile_cmd(
-        &self,
-        args: &[String],
-        fd_annotation: &FdAnnotation,
-    ) -> Result<CompilationResult> {
-        let compos = self.instance_manager.get_running_service()?;
-        compos.compile_cmd(args, fd_annotation).context("Compiling")
     }
 }
