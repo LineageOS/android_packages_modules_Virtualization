@@ -2,8 +2,8 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_binary {
-    name: "compsvc",
+rust_defaults {
+    name: "compsvc_defaults",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
         "android.hardware.security.dice-V1-rust",
@@ -36,7 +36,18 @@ rust_binary {
     shared_libs: [
         "libbinder_rpc_unstable",
     ],
+}
+
+rust_binary {
+    name: "compsvc",
+    defaults: ["compsvc_defaults"],
     apex_available: [
         "com.android.compos",
     ],
+}
+
+rust_test {
+    name: "compsvc_device_tests",
+    defaults: ["compsvc_defaults"],
+    test_suites: ["device-tests"],
 }
