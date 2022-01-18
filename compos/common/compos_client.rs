@@ -39,6 +39,7 @@ use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsSe
 use log::{info, warn};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::num::NonZeroU32;
 use std::os::raw;
 use std::os::unix::io::IntoRawFd;
 use std::path::Path;
@@ -57,6 +58,11 @@ pub struct VmInstance {
 pub struct VmParameters {
     /// Whether the VM should be debuggable.
     pub debug_mode: bool,
+    /// Number of vCPUs to have in the VM. If None, defaults to 1.
+    pub cpus: Option<NonZeroU32>,
+    /// Comma separated list of host CPUs where vCPUs are assigned to. If None, any host CPU can be
+    /// used to run any vCPU.
+    pub cpu_set: Option<String>,
     /// If present, overrides the path to the VM config JSON file
     pub config_path: Option<String>,
 }
@@ -113,6 +119,8 @@ impl VmInstance {
             configPath: config_path.to_owned(),
             debugLevel: debug_level,
             extraIdsigs: vec![idsig_manifest_apk_fd],
+            numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
+            cpuAffinity: parameters.cpu_set.clone(),
             ..Default::default()
         });
 
