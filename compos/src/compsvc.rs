@@ -26,14 +26,12 @@ use std::default::Default;
 use std::path::PathBuf;
 use std::sync::RwLock;
 
-use crate::compilation::{compile_cmd, odrefresh, CompilerOutput, OdrefreshContext};
+use crate::compilation::{odrefresh, OdrefreshContext};
 use crate::compos_key_service::{CompOsKeyService, Signer};
 use crate::dice::Dice;
-use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
-    CompilationResult::CompilationResult,
     FdAnnotation::FdAnnotation,
     ICompOsService::{BnCompOsService, ICompOsService},
 };
@@ -43,12 +41,10 @@ use compos_aidl_interface::binder::{
 use compos_common::odrefresh::ODREFRESH_PATH;
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
-const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
 
 /// Constructs a binder object that implements ICompOsService.
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
     let service = CompOsService {
-        dex2oat_path: PathBuf::from(DEX2OAT_PATH),
         odrefresh_path: PathBuf::from(ODREFRESH_PATH),
         key_service: CompOsKeyService::new()?,
         key_blob: RwLock::new(Vec::new()),
@@ -57,21 +53,12 @@ pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
 }
 
 struct CompOsService {
-    dex2oat_path: PathBuf,
     odrefresh_path: PathBuf,
     key_service: CompOsKeyService,
     key_blob: RwLock<Vec<u8>>,
 }
 
 impl CompOsService {
-    fn generate_raw_fsverity_signature(
-        &self,
-        fsverity_digest: &fsverity::Sha256Digest,
-    ) -> BinderResult<Vec<u8>> {
-        let formatted_digest = fsverity::to_formatted_digest(fsverity_digest);
-        to_binder_result(self.new_signer()?.sign(&formatted_digest[..]))
-    }
-
     fn new_signer(&self) -> BinderResult<Signer> {
         let key = &*self.key_blob.read().unwrap();
         if key.is_empty() {
@@ -124,34 +111,6 @@ impl ICompOsService for CompOsService {
                 .context("odrefresh failed"),
         )?;
         Ok(exit_code as i8)
-    }
-
-    fn compile_cmd(
-        &self,
-        args: &[String],
-        fd_annotation: &FdAnnotation,
-    ) -> BinderResult<CompilationResult> {
-        let authfs_service = get_authfs_service()?;
-        let output = to_binder_result(
-            compile_cmd(&self.dex2oat_path, args, authfs_service, fd_annotation)
-                .context("Compilation failed"),
-        )?;
-        match output {
-            CompilerOutput::Digests { oat, vdex, image } => {
-                let oat_signature = self.generate_raw_fsverity_signature(&oat)?;
-                let vdex_signature = self.generate_raw_fsverity_signature(&vdex)?;
-                let image_signature = self.generate_raw_fsverity_signature(&image)?;
-                Ok(CompilationResult {
-                    exitCode: 0,
-                    oatSignature: oat_signature,
-                    vdexSignature: vdex_signature,
-                    imageSignature: image_signature,
-                })
-            }
-            CompilerOutput::ExitCode(exit_code) => {
-                Ok(CompilationResult { exitCode: exit_code, ..Default::default() })
-            }
-        }
     }
 
     fn compile(&self, _marshaled: &[u8], _fd_annotation: &FdAnnotation) -> BinderResult<i8> {
