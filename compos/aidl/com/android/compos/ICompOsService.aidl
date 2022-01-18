@@ -17,7 +17,6 @@
 package com.android.compos;
 
 import com.android.compos.CompOsKeyData;
-import com.android.compos.CompilationResult;
 import com.android.compos.FdAnnotation;
 
 /** {@hide} */
@@ -50,19 +49,6 @@ interface ICompOsService {
      */
     byte odrefresh(int systemDirFd, int outputDirFd, int stagingDirFd, String targetDirName,
             String zygoteArch, String systemServerCompilerFilter);
-
-    /**
-     * Run dex2oat command with provided args, in a context that may be specified in FdAnnotation,
-     * e.g. with file descriptors pre-opened. The service is responsible to decide what executables
-     * it may run.
-     *
-     * @param args The command line arguments to run. The 0-th args is normally the program name,
-     *             which may not be used by the service. The service may be configured to always use
-     *             a fixed executable, or possibly use the 0-th args are the executable lookup hint.
-     * @param fd_annotation Additional file descriptor information of the execution
-     * @return a CompilationResult
-     */
-    CompilationResult compile_cmd(in String[] args, in FdAnnotation fd_annotation);
 
     /**
      * Runs dexopt compilation encoded in the marshaled dexopt arguments.
