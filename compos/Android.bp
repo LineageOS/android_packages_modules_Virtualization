@@ -30,7 +30,6 @@ rust_binary {
         "libprotobuf",
         "libregex",
         "libring",
-        "librustutils",
         "libscopeguard",
     ],
     prefer_rlib: true,
