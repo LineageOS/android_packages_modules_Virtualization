@@ -23,7 +23,13 @@ use anyhow::{bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::Strong;
 use compos_common::compos_client::VmParameters;
-use compos_common::{PENDING_INSTANCE_DIR, PREFER_STAGED_VM_CONFIG_PATH, TEST_INSTANCE_DIR};
+use compos_common::{
+    DEX2OAT_CPU_SET_PROP_NAME, DEX2OAT_THREADS_PROP_NAME, PENDING_INSTANCE_DIR,
+    PREFER_STAGED_VM_CONFIG_PATH, TEST_INSTANCE_DIR,
+};
+use rustutils::system_properties;
+use std::num::NonZeroU32;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex, Weak};
 use virtualizationservice::IVirtualizationService::IVirtualizationService;
 
@@ -45,7 +51,12 @@ impl InstanceManager {
 
     pub fn start_pending_instance(&self) -> Result<Arc<CompOsInstance>> {
         let config_path = Some(PREFER_STAGED_VM_CONFIG_PATH.to_owned());
-        let vm_parameters = VmParameters { config_path, ..Default::default() };
+        let mut vm_parameters = VmParameters { config_path, ..Default::default() };
+        vm_parameters.cpus = NonZeroU32::from_str(
+            &system_properties::read(DEX2OAT_THREADS_PROP_NAME).unwrap_or_default(),
+        )
+        .ok();
+        vm_parameters.cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME).ok();
         self.start_instance(PENDING_INSTANCE_DIR, vm_parameters)
     }
 
