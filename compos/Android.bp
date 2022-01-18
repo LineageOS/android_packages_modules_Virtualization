@@ -6,7 +6,9 @@ rust_binary {
     name: "compsvc",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
+        "android.hardware.security.dice-V1-rust",
         "android.hardware.security.keymint-V1-rust",
+        "android.security.dice-rust",
         "android.system.keystore2-V1-rust",
         "android.system.virtualmachineservice-rust",
         "authfs_aidl_interface-rust",
