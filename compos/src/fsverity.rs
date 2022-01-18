@@ -20,19 +20,7 @@ use std::ffi::CString;
 use std::io;
 use std::os::unix::io::RawFd;
 
-/// Magic used in fs-verity digest
-const FS_VERITY_MAGIC: &[u8; 8] = b"FSVerity";
-
-/// Hash algorithm to use from linux/fsverity.h
-const FS_VERITY_HASH_ALG_SHA256: u8 = 1;
-
 const SHA256_HASH_SIZE: usize = 32;
-
-/// Size of `struct fsverity_formatted_digest` with SHA-256 in bytes.
-const FORMATTED_SHA256_DIGEST_SIZE: usize = 12 + SHA256_HASH_SIZE;
-
-/// Bytes of `struct fsverity_formatted_digest` in Linux with SHA-256.
-pub type FormattedSha256Digest = [u8; FORMATTED_SHA256_DIGEST_SIZE];
 
 /// Bytes of SHA256 digest
 pub type Sha256Digest = [u8; SHA256_HASH_SIZE];
@@ -55,13 +43,4 @@ pub fn measure(fd: RawFd) -> Result<Sha256Digest> {
     } else {
         Ok(buf)
     }
-}
-
-pub fn to_formatted_digest(digest: &Sha256Digest) -> FormattedSha256Digest {
-    let mut formatted_digest: FormattedSha256Digest = [0; FORMATTED_SHA256_DIGEST_SIZE];
-    formatted_digest[0..8].copy_from_slice(FS_VERITY_MAGIC);
-    formatted_digest[8..10].copy_from_slice(&(FS_VERITY_HASH_ALG_SHA256 as u16).to_le_bytes());
-    formatted_digest[10..12].copy_from_slice(&(SHA256_HASH_SIZE as u16).to_le_bytes());
-    formatted_digest[12..].copy_from_slice(digest);
-    formatted_digest
 }
