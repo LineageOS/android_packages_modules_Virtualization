@@ -29,6 +29,8 @@ use android_system_composd::{
 };
 use anyhow::{bail, Context, Result};
 use compos_common::timeouts::timeouts;
+use std::fs::File;
+use std::io::Write;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -38,7 +40,7 @@ fn main() -> Result<()> {
             .index(1)
             .takes_value(true)
             .required(true)
-            .possible_values(&["staged-apex-compile", "test-compile"]),
+            .possible_values(&["staged-apex-compile", "test-compile", "dice"]),
     );
     let args = app.get_matches();
     let command = args.value_of("command").unwrap();
@@ -48,6 +50,7 @@ fn main() -> Result<()> {
     match command {
         "staged-apex-compile" => run_staged_apex_compile()?,
         "test-compile" => run_test_compile()?,
+        "dice" => write_dice()?,
         _ => panic!("Unexpected command {}", command),
     }
 
@@ -110,6 +113,16 @@ fn run_staged_apex_compile() -> Result<()> {
 
 fn run_test_compile() -> Result<()> {
     run_async_compilation(|service, callback| service.startTestCompile(callback))
+}
+
+fn write_dice() -> Result<()> {
+    let service = wait_for_interface::<dyn IIsolatedCompilationService>("android.system.composd")
+        .context("Failed to connect to composd service")?;
+
+    let bcc = service.getBcc()?;
+    let mut file =
+        File::create("/data/misc/apexdata/com.android.compos/bcc").context("Creating bcc file")?;
+    file.write_all(&bcc).context("Writing bcc")
 }
 
 fn run_async_compilation<F>(start_compile_fn: F) -> Result<()>
