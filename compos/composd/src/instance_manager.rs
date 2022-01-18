@@ -19,8 +19,7 @@
 
 use crate::instance_starter::{CompOsInstance, InstanceStarter};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice;
-use anyhow::{bail, Context, Result};
-use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
+use anyhow::{bail, Result};
 use compos_aidl_interface::binder::Strong;
 use compos_common::compos_client::VmParameters;
 use compos_common::{
@@ -41,12 +40,6 @@ pub struct InstanceManager {
 impl InstanceManager {
     pub fn new(service: Strong<dyn IVirtualizationService>) -> Self {
         Self { service, state: Default::default() }
-    }
-
-    pub fn get_running_service(&self) -> Result<Strong<dyn ICompOsService>> {
-        let mut state = self.state.lock().unwrap();
-        let instance = state.get_running_instance().context("No running instance")?;
-        Ok(instance.get_service())
     }
 
     pub fn start_pending_instance(&self) -> Result<Arc<CompOsInstance>> {
@@ -141,18 +134,5 @@ impl State {
         self.is_starting = false;
         self.running_instance = Some(Arc::downgrade(instance));
         Ok(())
-    }
-
-    // Return the running instance if we are in the Started state.
-    fn get_running_instance(&mut self) -> Option<Arc<CompOsInstance>> {
-        if self.is_starting {
-            return None;
-        }
-        let instance = self.running_instance.as_ref()?.upgrade();
-        if instance.is_none() {
-            // No point keeping an orphaned weak reference
-            self.running_instance = None;
-        }
-        instance
     }
 }
