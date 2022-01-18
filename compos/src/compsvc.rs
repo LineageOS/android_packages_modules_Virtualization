@@ -21,6 +21,7 @@
 use anyhow::{Context, Result};
 use binder_common::new_binder_exception;
 use compos_common::binder::to_binder_result;
+use compos_common::DEX2OAT_THREADS_PROP_NAME;
 use log::warn;
 use std::default::Default;
 use std::path::PathBuf;
@@ -41,6 +42,7 @@ use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Strong,
 };
 use compos_common::odrefresh::ODREFRESH_PATH;
+use rustutils::system_properties;
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 const DEX2OAT_PATH: &str = "/apex/com.android.art/bin/dex2oat64";
@@ -132,6 +134,10 @@ impl ICompOsService for CompOsService {
         fd_annotation: &FdAnnotation,
     ) -> BinderResult<CompilationResult> {
         let authfs_service = get_authfs_service()?;
+        to_binder_result(
+            system_properties::write(DEX2OAT_THREADS_PROP_NAME, &num_cpus::get().to_string())
+                .context(format!("Can't write {}", DEX2OAT_THREADS_PROP_NAME)),
+        )?;
         let output = to_binder_result(
             compile_cmd(&self.dex2oat_path, args, authfs_service, fd_annotation)
                 .context("Compilation failed"),
