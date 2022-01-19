@@ -9,7 +9,6 @@ rust_binary {
     prefer_rlib: true,
     rustlibs: [
         "android.system.composd-rust",
-        "android.system.composd.internal-rust",
         "android.system.virtualizationservice-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",

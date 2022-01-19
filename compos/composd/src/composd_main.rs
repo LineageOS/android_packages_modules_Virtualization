@@ -21,7 +21,6 @@
 mod fd_server_helper;
 mod instance_manager;
 mod instance_starter;
-mod internal_service;
 mod odrefresh_task;
 mod service;
 
@@ -46,10 +45,6 @@ fn try_main() -> Result<()> {
     let composd_service = service::new_binder(instance_manager);
     register_lazy_service("android.system.composd", composd_service.as_binder())
         .context("Registering composd service")?;
-
-    let internal_service = internal_service::new_binder();
-    register_lazy_service("android.system.composd.internal", internal_service.as_binder())
-        .context("Registering internal service")?;
 
     info!("Registered services, joining threadpool");
     ProcessState::join_thread_pool();
