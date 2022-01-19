@@ -17,7 +17,7 @@
 //! Helper for converting Error types to what Binder expects
 
 use anyhow::Result;
-use binder::{ExceptionCode, Result as BinderResult};
+use binder::public_api::{ExceptionCode, Result as BinderResult};
 use binder_common::new_binder_exception;
 use log::warn;
 use std::fmt::Debug;
