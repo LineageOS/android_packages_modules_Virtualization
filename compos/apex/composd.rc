@@ -17,6 +17,5 @@ service composd /apex/com.android.compos/bin/composd
     user root
     group system
     interface aidl android.system.composd
-    interface aidl android.system.composd.internal
     disabled
     oneshot
