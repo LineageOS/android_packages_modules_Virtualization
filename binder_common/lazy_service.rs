@@ -17,7 +17,7 @@
 //! Rust API for lazy (aka dynamic) AIDL services.
 //! See https://source.android.com/devices/architecture/aidl/dynamic-aidl.
 
-use binder::force_lazy_services_persist;
+use binder::public_api::force_lazy_services_persist;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 
