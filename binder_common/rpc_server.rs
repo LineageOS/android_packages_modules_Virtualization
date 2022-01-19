@@ -16,8 +16,8 @@
 
 //! Helpers for implementing an RPC Binder server.
 
-use binder::public_api::SpIBinder;
 use binder::unstable_api::AsNative;
+use binder::SpIBinder;
 use std::os::raw;
 
 /// Run a binder RPC server, serving the supplied binder service implementation on the given vsock
