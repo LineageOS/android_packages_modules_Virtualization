@@ -374,6 +374,7 @@ pub fn add_microdroid_images(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_find_apex_names_in_classpath() {
         let vars = r#"
@@ -386,5 +387,36 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
         let expected: HashSet<_> = expected.into_iter().map(ToString::to_string).collect();
 
         assert_eq!(find_apex_names_in_classpath(vars).unwrap(), expected);
+    }
+
+    #[test]
+    fn test_collect_apex_names() {
+        let apex_list = ApexInfoList {
+            list: vec![
+                ApexInfo {
+                    name: "hasnt_classpath".to_string(),
+                    path: PathBuf::from("path0"),
+                    has_classpath_jar: false,
+                },
+                ApexInfo {
+                    name: "has_classpath".to_string(),
+                    path: PathBuf::from("path1"),
+                    has_classpath_jar: true,
+                },
+            ],
+        };
+        let apexes = vec![
+            ApexConfig { name: "config_name".to_string() },
+            ApexConfig { name: "{CLASSPATH}".to_string() },
+        ];
+        assert_eq!(
+            collect_apex_names(&apex_list, &apexes, DebugLevel::FULL),
+            vec![
+                "com.android.adbd".to_string(),
+                "com.android.os.statsd".to_string(),
+                "config_name".to_string(),
+                "has_classpath".to_string(),
+            ]
+        );
     }
 }
