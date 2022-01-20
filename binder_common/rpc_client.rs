@@ -16,14 +16,14 @@
 
 //! Helpers for implementing an RPC Binder client.
 
-use binder::public_api::{StatusCode, Strong};
 use binder::unstable_api::{new_spibinder, AIBinder};
+use binder::{StatusCode, Strong};
 
 /// Connects to a binder RPC server.
 pub fn connect_rpc_binder<T: binder::FromIBinder + ?Sized>(
     cid: u32,
     port: u32,
-) -> binder::Result<Strong<T>> {
+) -> Result<Strong<T>, StatusCode> {
     // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
     // safely taken by new_spibinder.
     let ibinder = unsafe {
