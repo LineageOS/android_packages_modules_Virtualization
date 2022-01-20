@@ -15,28 +15,6 @@
 //! Native helpers for composd.
 
 pub use art::*;
-pub use crypto::*;
-
-#[cxx::bridge]
-mod crypto {
-    /// Contains either a key or a reason why the key could not be extracted.
-    struct KeyResult {
-        /// The extracted key. If empty, the attempt to extract the key failed.
-        key: Vec<u8>,
-        /// A description of what went wrong if the attempt failed.
-        error: String,
-    }
-
-    unsafe extern "C++" {
-        include!("composd_native.h");
-
-        // SAFETY: The C++ implementation manages its own memory, and does not retain or abuse
-        // the der_certificate reference. cxx handles the mapping of the return value.
-
-        /// Parse the supplied DER X.509 certificate and extract the subject's RsaPublicKey.
-        fn extract_rsa_public_key(der_certificate: &[u8]) -> KeyResult;
-    }
-}
 
 mod art {
     use anyhow::{anyhow, Result};

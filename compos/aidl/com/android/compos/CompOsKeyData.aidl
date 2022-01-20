@@ -19,9 +19,10 @@ package com.android.compos;
 /** {@hide} */
 parcelable CompOsKeyData {
     /**
-     * Self-signed certificate (X.509 DER) containing the public key.
+     * The public key, as a DER-encoded RSAPublicKey
+     * (https://datatracker.ietf.org/doc/html/rfc8017#appendix-A.1.1).
      */
-    byte[] certificate;
+    byte[] publicKey;
 
     /**
      * Opaque encrypted blob containing the private key and related metadata.

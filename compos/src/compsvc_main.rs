@@ -17,9 +17,8 @@
 //! A tool to start a standalone compsvc server that serves over RPC binder.
 
 mod artifact_signer;
-mod blob_encryptor;
+mod blob_encryption;
 mod compilation;
-mod compos_key_service;
 mod compsvc;
 mod dice;
 mod fsverity;
