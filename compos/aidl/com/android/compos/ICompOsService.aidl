@@ -17,7 +17,6 @@
 package com.android.compos;
 
 import com.android.compos.CompOsKeyData;
-import com.android.compos.FdAnnotation;
 
 /** {@hide} */
 interface ICompOsService {
@@ -49,21 +48,6 @@ interface ICompOsService {
      */
     byte odrefresh(int systemDirFd, int outputDirFd, int stagingDirFd, String targetDirName,
             String zygoteArch, String systemServerCompilerFilter);
-
-    /**
-     * Runs dexopt compilation encoded in the marshaled dexopt arguments.
-     *
-     * To keep ART indepdendantly updatable, the compilation arguments are not stabilized. As a
-     * result, the arguments are marshaled into byte array.  Upon received, the service asks ART to
-     * return relevant information (since ART is able to unmarshal its own encoding), in order to
-     * set up the execution context (mainly file descriptors for compiler input and output) then
-     * invokes the compiler.
-     *
-     * @param marshaledArguments The marshaled dexopt arguments.
-     * @param fd_annotation Additional file descriptor information of the execution.
-     * @return exit code
-     */
-    byte compile(in byte[] marshaledArguments, in FdAnnotation fd_annotation);
 
     /**
      * Generate a new public/private key pair suitable for signing CompOs output files.
