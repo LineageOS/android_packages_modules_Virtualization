@@ -16,11 +16,14 @@
 #include <aidl/android/system/keystore2/IKeystoreService.h>
 #include <aidl/android/system/virtualmachineservice/IVirtualMachineService.h>
 #include <aidl/com/android/microdroid/testservice/BnTestService.h>
+#include <android-base/file.h>
+#include <android-base/properties.h>
 #include <android-base/result.h>
 #include <android-base/unique_fd.h>
 #include <android/binder_auto_utils.h>
 #include <android/binder_manager.h>
 #include <fcntl.h>
+#include <fsverity_digests.pb.h>
 #include <linux/vm_sockets.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -29,6 +32,7 @@
 #include <unistd.h>
 
 #include <binder_rpc_unstable.hpp>
+#include <string>
 
 using aidl::android::hardware::security::keymint::Algorithm;
 using aidl::android::hardware::security::keymint::Digest;
@@ -191,8 +195,8 @@ Result<T> report_test(std::string name, Result<T> result) {
         outcome << "PASS";
     } else {
         outcome << "FAIL: " << result.error();
-        // Pollute stdout with the error in case the property is truncated.
-        std::cout << "[" << name << "] test failed: " << result.error() << "\n";
+        // Pollute stderr with the error in case the property is truncated.
+        std::cerr << "[" << name << "] test failed: " << result.error() << "\n";
     }
     __system_property_set(property.c_str(), outcome.str().c_str());
     return result;
@@ -202,6 +206,17 @@ Result<void> start_test_service() {
     class TestService : public aidl::com::android::microdroid::testservice::BnTestService {
         ndk::ScopedAStatus addInteger(int32_t a, int32_t b, int32_t* out) override {
             *out = a + b;
+            return ndk::ScopedAStatus::ok();
+        }
+
+        ndk::ScopedAStatus readProperty(const std::string& prop, std::string* out) override {
+            *out = android::base::GetProperty(prop, "");
+            if (out->empty()) {
+                std::string msg = "cannot find property " + prop;
+                return ndk::ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                        msg.c_str());
+            }
+
             return ndk::ScopedAStatus::ok();
         }
     };
@@ -230,6 +245,21 @@ Result<void> start_test_service() {
     return {};
 }
 
+Result<void> verify_apk() {
+    const char* path = "/mnt/extra-apk/0/assets/build_manifest.pb";
+
+    std::string str;
+    if (!android::base::ReadFileToString(path, &str)) {
+        return ErrnoError() << "failed to read build_manifest.pb";
+    }
+
+    if (!android::security::fsverity::FSVerityDigests().ParseFromString(str)) {
+        return Error() << "invalid build_manifest.pb";
+    }
+
+    return {};
+}
+
 } // Anonymous namespace
 
 extern "C" int android_native_main(int argc, char* argv[]) {
@@ -248,6 +278,9 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     }
     testlib_sub();
     printf("\n");
+
+    // Extra apks may be missing; this is not a fatal error
+    report_test("extra_apk", verify_apk());
 
     __system_property_set("debug.microdroid.app.run", "true");
     if (!report_test("keystore", test_keystore()).ok()) return 1;

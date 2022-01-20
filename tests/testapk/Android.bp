@@ -9,6 +9,7 @@ android_test {
     static_libs: [
         "androidx.test.runner",
         "androidx.test.ext.junit",
+        "com.android.microdroid.testservice-java",
     ],
     libs: ["android.system.virtualmachine"],
     jni_libs: ["MicrodroidTestNativeLib"],
@@ -28,6 +29,11 @@ cc_library_shared {
         "libbinder_ndk",
         "libbinder_rpc_unstable",
         "MicrodroidTestNativeLibSub",
+    ],
+    static_libs: [
+        "libfsverity_digests_proto_cc",
+        "liblog",
+        "libprotobuf-cpp-lite-ndk",
     ],
 }
 
