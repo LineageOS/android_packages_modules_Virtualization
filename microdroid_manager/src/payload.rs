@@ -14,6 +14,8 @@
 
 //! Routines for handling payload
 
+mod apex;
+
 use crate::instance::ApexData;
 use crate::ioutil::wait_for_file;
 use anyhow::Result;
@@ -61,5 +63,3 @@ pub fn to_metadata(apex_data: &[ApexData]) -> Metadata {
         ..Default::default()
     }
 }
-
-mod apex;
