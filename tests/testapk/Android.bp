@@ -9,6 +9,7 @@ android_test {
     static_libs: [
         "androidx.test.runner",
         "androidx.test.ext.junit",
+        "com.android.microdroid.testservice-java",
     ],
     libs: ["android.system.virtualmachine"],
     jni_libs: ["MicrodroidTestNativeLib"],
