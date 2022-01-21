@@ -97,15 +97,6 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String label = "u:object_r:system_file:s0";
         assertThat(runOnMicrodroid("ls", "-Z", testLib), is(label + " " + testLib));
 
-        // Check if the command in vm_config.json was executed by examining the side effect of the
-        // command
-        assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.run"), is("true"));
-        assertThat(runOnMicrodroid("getprop", "debug.microdroid.app.sublib.run"), is("true"));
-
-        // Check that keystore was found by the payload. Wait until the property is set.
-        tryRunOnMicrodroid("watch -e \"getprop debug.microdroid.test.keystore | grep '^$'\"");
-        assertThat(runOnMicrodroid("getprop", "debug.microdroid.test.keystore"), is("PASS"));
-
         // Check that no denials have happened so far
         assertThat(runOnMicrodroid("logcat -d -e 'avc:[[:space:]]{1,2}denied'"), is(""));
 
