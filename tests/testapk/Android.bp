@@ -30,6 +30,11 @@ cc_library_shared {
         "libbinder_rpc_unstable",
         "MicrodroidTestNativeLibSub",
     ],
+    static_libs: [
+        "libfsverity_digests_proto_cc",
+        "liblog",
+        "libprotobuf-cpp-lite-ndk",
+    ],
 }
 
 cc_library_shared {
