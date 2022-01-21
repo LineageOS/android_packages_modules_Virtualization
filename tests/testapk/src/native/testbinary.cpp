@@ -16,6 +16,7 @@
 #include <aidl/android/system/keystore2/IKeystoreService.h>
 #include <aidl/android/system/virtualmachineservice/IVirtualMachineService.h>
 #include <aidl/com/android/microdroid/testservice/BnTestService.h>
+#include <android-base/properties.h>
 #include <android-base/result.h>
 #include <android-base/unique_fd.h>
 #include <android/binder_auto_utils.h>
@@ -29,6 +30,7 @@
 #include <unistd.h>
 
 #include <binder_rpc_unstable.hpp>
+#include <string>
 
 using aidl::android::hardware::security::keymint::Algorithm;
 using aidl::android::hardware::security::keymint::Digest;
@@ -202,6 +204,17 @@ Result<void> start_test_service() {
     class TestService : public aidl::com::android::microdroid::testservice::BnTestService {
         ndk::ScopedAStatus addInteger(int32_t a, int32_t b, int32_t* out) override {
             *out = a + b;
+            return ndk::ScopedAStatus::ok();
+        }
+
+        ndk::ScopedAStatus readProperty(const std::string& prop, std::string* out) override {
+            *out = android::base::GetProperty(prop, "");
+            if (out->empty()) {
+                std::string msg = "cannot find property " + prop;
+                return ndk::ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                        msg.c_str());
+            }
+
             return ndk::ScopedAStatus::ok();
         }
     };
