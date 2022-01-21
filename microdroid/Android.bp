@@ -72,11 +72,11 @@ android_system_image {
 
         "apexd",
         "debuggerd",
-        "diced",
+        "diced.microdroid",
         "keystore2_microdroid",
         "linker",
         "linkerconfig",
-        "servicemanager",
+        "servicemanager.microdroid",
         "tombstoned",
         "cgroups.json",
         "public.libraries.android.txt",
