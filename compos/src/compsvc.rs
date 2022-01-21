@@ -32,7 +32,6 @@ use crate::dice::Dice;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
-    FdAnnotation::FdAnnotation,
     ICompOsService::{BnCompOsService, ICompOsService},
 };
 use compos_aidl_interface::binder::{
@@ -111,10 +110,6 @@ impl ICompOsService for CompOsService {
                 .context("odrefresh failed"),
         )?;
         Ok(exit_code as i8)
-    }
-
-    fn compile(&self, _marshaled: &[u8], _fd_annotation: &FdAnnotation) -> BinderResult<i8> {
-        Err(new_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION, "Not yet implemented"))
     }
 
     fn generateSigningKey(&self) -> BinderResult<CompOsKeyData> {
