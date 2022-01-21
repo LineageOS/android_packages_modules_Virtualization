@@ -14,6 +14,10 @@
 // limitations under the License.
 
 // Autogenerate the class (and respective headers) with logging methods and constants
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 genrule {
     name: "statslog_virtualization_header.rs",
     tools: ["stats-log-api-gen"],
