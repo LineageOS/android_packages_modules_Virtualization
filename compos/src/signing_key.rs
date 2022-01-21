@@ -29,16 +29,12 @@ use ring::{
 };
 
 pub struct SigningKey {
-    dice: Dice,
+    _unused: (), // Prevent construction other than by new()
 }
 
 impl SigningKey {
     pub fn new() -> Result<Self> {
-        Ok(Self { dice: Dice::new()? })
-    }
-
-    pub fn get_boot_certificate_chain(&self) -> Result<Vec<u8>> {
-        Dice::new()?.get_boot_certificate_chain()
+        Ok(Self { _unused: () })
     }
 
     pub fn generate(&self) -> Result<CompOsKeyData> {
@@ -47,7 +43,7 @@ impl SigningKey {
             bail!("Failed to generate key pair: {}", key_result.error);
         }
 
-        let encrypted = encrypt_private_key(&self.dice, &key_result.private_key)?;
+        let encrypted = encrypt_private_key(&Dice::new()?, &key_result.private_key)?;
         Ok(CompOsKeyData { publicKey: key_result.public_key, keyBlob: encrypted })
     }
 
@@ -58,7 +54,7 @@ impl SigningKey {
         let mut data = [0u8; 32]; // Size is fairly arbitrary.
         SystemRandom::new().fill(&mut data).context("No random data")?;
 
-        let signature = self.new_signer(key_blob).sign(&data)?;
+        let signature = self.new_signer(key_blob)?.sign(&data)?;
 
         let public_key =
             signature::UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256, public_key);
@@ -67,8 +63,8 @@ impl SigningKey {
         Ok(())
     }
 
-    pub fn new_signer(&self, key_blob: &[u8]) -> Signer {
-        Signer { key_blob: key_blob.to_owned(), dice: self.dice.clone() }
+    pub fn new_signer(&self, key_blob: &[u8]) -> Result<Signer> {
+        Ok(Signer { key_blob: key_blob.to_owned(), dice: Dice::new()? })
     }
 }
 

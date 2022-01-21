@@ -62,7 +62,7 @@ impl CompOsService {
         if key.is_empty() {
             Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))
         } else {
-            Ok(self.signing_key.new_signer(key))
+            to_binder_result(self.signing_key.new_signer(key))
         }
     }
 }
@@ -117,10 +117,6 @@ impl ICompOsService for CompOsService {
         } else {
             true
         })
-    }
-
-    fn getBootCertificateChain(&self) -> BinderResult<Vec<u8>> {
-        to_binder_result(self.signing_key.get_boot_certificate_chain())
     }
 }
 

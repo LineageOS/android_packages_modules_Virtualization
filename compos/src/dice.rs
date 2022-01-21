@@ -20,7 +20,6 @@ use android_security_dice::aidl::android::security::dice::IDiceNode::IDiceNode;
 use android_security_dice::binder::{wait_for_interface, Strong};
 use anyhow::{Context, Result};
 
-#[derive(Clone)]
 pub struct Dice {
     node: Strong<dyn IDiceNode>,
 }
@@ -30,15 +29,6 @@ impl Dice {
         let dice_service = wait_for_interface::<dyn IDiceNode>("android.security.dice.IDiceNode")
             .context("No IDiceNode service")?;
         Ok(Self { node: dice_service })
-    }
-
-    pub fn get_boot_certificate_chain(&self) -> Result<Vec<u8>> {
-        let input_values = []; // Get our BCC, not a child's
-        let bcc = self
-            .node
-            .getAttestationChain(&input_values)
-            .context("Getting attestation chain failed")?;
-        Ok(bcc.data)
     }
 
     pub fn get_sealing_cdi(&self) -> Result<Vec<u8>> {
