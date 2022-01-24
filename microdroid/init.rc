@@ -17,25 +17,6 @@ on early-init
 
     start ueventd
 
-    mkdir /mnt/apk 0755 system system
-    mkdir /mnt/extra-apk 0755 root root
-    # Microdroid_manager starts apkdmverity/zipfuse/apexd
-    start microdroid_manager
-
-    # restorecon so microdroid_manager can create subdirectories
-    restorecon /mnt/extra-apk
-
-    # Wait for apexd to finish activating APEXes before starting more processes.
-    wait_for_prop apexd.status activated
-    perform_apex_config
-
-    # Notify to microdroid_manager that perform_apex_config is done.
-    # Microdroid_manager shouldn't execute payload before this, because app
-    # payloads are not designed to run with bootstrap bionic
-    setprop apex_config.done true
-
-    setprop ro.debuggable ${ro.boot.microdroid.debuggable:-0}
-
 on init
     # Mount binderfs
     mkdir /dev/binderfs
@@ -78,18 +59,35 @@ on init
     chmod 0664 /dev/cpuset/background/tasks
     chmod 0664 /dev/cpuset/system-background/tasks
 
-on init && property:ro.boot.logd.enabled=1
-    # Start logd before any other services run to ensure we capture all of their logs.
-    start logd
-
-on init
     start servicemanager
+
+    start diced
+
+    mkdir /mnt/apk 0755 system system
+    mkdir /mnt/extra-apk 0755 root root
+    # Microdroid_manager starts apkdmverity/zipfuse/apexd
+    start microdroid_manager
+
+    # restorecon so microdroid_manager can create subdirectories
+    restorecon /mnt/extra-apk
+
+    # Wait for apexd to finish activating APEXes before starting more processes.
+    wait_for_prop apexd.status activated
+    perform_apex_config
+
+    # Notify to microdroid_manager that perform_apex_config is done.
+    # Microdroid_manager shouldn't execute payload before this, because app
+    # payloads are not designed to run with bootstrap bionic
+    setprop apex_config.done true
+
+    setprop ro.debuggable ${ro.boot.microdroid.debuggable:-0}
 
     # TODO(b/185767624): remove hidl after full keymint support
     start hwservicemanager
 
-    # TODO(b/214231981): start diced (and servicemanager) earlier than microdroid_manager.
-    start diced
+on init && property:ro.boot.logd.enabled=1
+    # Start logd before any other services run to ensure we capture all of their logs.
+    start logd
 
 on init && property:ro.boot.adb.enabled=1
     start adbd
