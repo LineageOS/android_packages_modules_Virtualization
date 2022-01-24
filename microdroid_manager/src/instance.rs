@@ -33,7 +33,9 @@
 //! The payload of a partition is encrypted/signed by a key that is unique to the loader and to the
 //! VM as well. Failing to decrypt/authenticate a partition by a loader stops the boot process.
 
+use android_security_dice::aidl::android::security::dice::IDiceNode::IDiceNode;
 use anyhow::{anyhow, bail, Context, Result};
+use binder::wait_for_interface;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use ring::aead::{Aad, Algorithm, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use ring::hkdf::{Salt, HKDF_SHA256};
@@ -131,7 +133,7 @@ impl InstanceDisk {
 
         // Decrypt and authenticate the data (along with the header). The data is decrypted in
         // place. `open_in_place` returns slice to the decrypted part in the buffer.
-        let plaintext_len = get_key().open_in_place(nonce, Aad::from(&header), &mut data)?.len();
+        let plaintext_len = get_key()?.open_in_place(nonce, Aad::from(&header), &mut data)?.len();
         // Truncate to remove the tag
         data.truncate(plaintext_len);
 
@@ -174,7 +176,7 @@ impl InstanceDisk {
 
         // Then encrypt and sign the data. The non-encrypted input data is copied to a vector
         // because it is encrypted in place, and also the tag is appended.
-        get_key().seal_in_place_append_tag(nonce, Aad::from(&header), &mut data)?;
+        get_key()?.seal_in_place_append_tag(nonce, Aad::from(&header), &mut data)?;
 
         // Persist the encrypted payload data
         self.file.write_all(&data)?;
@@ -276,17 +278,18 @@ impl std::ops::Deref for ZeroOnDropKey {
 
 /// Returns the key that is used to encrypt the microdroid manager partition. It is derived from
 /// the sealing CDI of the previous stage, which is Android Boot Loader (ABL).
-fn get_key() -> ZeroOnDropKey {
-    // Sealing CDI from the previous stage. For now, this is hardcoded.
-    // TODO(jiyong): actually read this from the previous stage
-    const SEALING_CDI: [u8; 32] = [10; 32];
+fn get_key() -> Result<ZeroOnDropKey> {
+    // Sealing CDI from the previous stage.
+    let diced = wait_for_interface::<dyn IDiceNode>("android.security.dice.IDiceNode")
+        .context("IDiceNode service not found")?;
+    let bcc_handover = diced.derive(&[]).context("Failed to get BccHandover")?;
 
     // Derive a key from the Sealing CDI
     // Step 1 is extraction: https://datatracker.ietf.org/doc/html/rfc5869#section-2.2 where a
     // pseduo random key (PRK) is extracted from (Input Keying Material - IKM, which is secret) and
     // optional salt.
     let salt = Salt::new(HKDF_SHA256, &[]); // use 0 as salt
-    let prk = salt.extract(&SEALING_CDI); // Sealing CDI as IKM
+    let prk = salt.extract(&bcc_handover.cdiSeal); // Sealing CDI as IKM
 
     // Step 2 is expansion: https://datatracker.ietf.org/doc/html/rfc5869#section-2.3 where the PRK
     // (optionally with the `info` which gives contextual information) is expanded into the output
@@ -308,7 +311,7 @@ fn get_key() -> ZeroOnDropKey {
         ::std::ptr::write_volatile::<[u8; 32]>(&mut key, [0; 32]);
     }
 
-    ret
+    Ok(ret)
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
