@@ -17,7 +17,6 @@ cc_binary {
         "libbase",
         "libbinder_ndk",
         "libbinder_rpc_unstable",
-        "libcrypto",
         "libfsverity",
         "libprotobuf-cpp-lite",
     ],

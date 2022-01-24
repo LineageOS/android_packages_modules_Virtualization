@@ -26,7 +26,7 @@ use std::path::{self, Path, PathBuf};
 use std::process::Command;
 
 use crate::artifact_signer::ArtifactSigner;
-use crate::compos_key_service::Signer;
+use crate::signing_key::Signer;
 use authfs_aidl_interface::aidl::com::android::virt::fs::{
     AuthFsConfig::{
         AuthFsConfig, InputDirFdAnnotation::InputDirFdAnnotation,

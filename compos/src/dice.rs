@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//! Handles the use of DICE as the source of our unique signing key via diced / IDiceNode.
+//! Handles the use of DICE (via diced / IDiceNode) for accessing our VM's unique secret.
 
 use android_security_dice::aidl::android::security::dice::IDiceNode::IDiceNode;
 use android_security_dice::binder::{wait_for_interface, Strong};
@@ -31,12 +31,9 @@ impl Dice {
         Ok(Self { node: dice_service })
     }
 
-    pub fn get_boot_certificate_chain(&self) -> Result<Vec<u8>> {
-        let input_values = []; // Get our BCC, not a child's
-        let bcc = self
-            .node
-            .getAttestationChain(&input_values)
-            .context("Getting attestation chain failed")?;
-        Ok(bcc.data)
+    pub fn get_sealing_cdi(&self) -> Result<Vec<u8>> {
+        let input_values = [];
+        let bcc_handover = self.node.derive(&input_values).context("Failed to retrieve CDI")?;
+        Ok(bcc_handover.cdiSeal.to_vec())
     }
 }
