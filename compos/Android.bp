@@ -2,14 +2,12 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_binary {
-    name: "compsvc",
+rust_defaults {
+    name: "compsvc_defaults",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
         "android.hardware.security.dice-V1-rust",
-        "android.hardware.security.keymint-V1-rust",
         "android.security.dice-rust",
-        "android.system.keystore2-V1-rust",
         "android.system.virtualmachineservice-rust",
         "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
@@ -20,6 +18,7 @@ rust_binary {
         "libbinder_rs",
         "libclap",
         "libcompos_common",
+        "libcompos_native_rust",
         "libenv_logger",
         "liblibc",
         "liblog_rust",
@@ -35,8 +34,20 @@ rust_binary {
     prefer_rlib: true,
     shared_libs: [
         "libbinder_rpc_unstable",
+        "libcrypto",
     ],
+}
+
+rust_binary {
+    name: "compsvc",
+    defaults: ["compsvc_defaults"],
     apex_available: [
         "com.android.compos",
     ],
+}
+
+rust_test {
+    name: "compsvc_device_tests",
+    defaults: ["compsvc_defaults"],
+    test_suites: ["device-tests"],
 }
