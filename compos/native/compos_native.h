@@ -18,4 +18,6 @@
 
 #include "lib.rs.h"
 
-KeyResult extract_rsa_public_key(rust::Slice<const uint8_t> der_certificate);
+KeyResult generate_key_pair();
+
+SignResult sign(rust::Slice<const uint8_t> private_key, rust::Slice<const uint8_t> data);

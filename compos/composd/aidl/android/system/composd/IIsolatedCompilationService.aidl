@@ -42,10 +42,4 @@ interface IIsolatedCompilationService {
      * a reference to the ICompilationTask until compilation completes or is cancelled.
      */
     ICompilationTask startTestCompile(ICompilationTaskCallback callback);
-
-    /**
-     * For testing.
-     * TODO(b/214233409): Remove
-     */
-    byte[] getBcc();
 }
