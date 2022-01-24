@@ -27,8 +27,7 @@ use std::path::PathBuf;
 use std::sync::RwLock;
 
 use crate::compilation::{odrefresh, OdrefreshContext};
-use crate::compos_key_service::{CompOsKeyService, Signer};
-use crate::dice::Dice;
+use crate::signing_key::{Signer, SigningKey};
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
@@ -45,7 +44,7 @@ const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
     let service = CompOsService {
         odrefresh_path: PathBuf::from(ODREFRESH_PATH),
-        key_service: CompOsKeyService::new()?,
+        signing_key: SigningKey::new()?,
         key_blob: RwLock::new(Vec::new()),
     };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
@@ -53,7 +52,7 @@ pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
 
 struct CompOsService {
     odrefresh_path: PathBuf,
-    key_service: CompOsKeyService,
+    signing_key: SigningKey,
     key_blob: RwLock<Vec<u8>>,
 }
 
@@ -63,13 +62,8 @@ impl CompOsService {
         if key.is_empty() {
             Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))
         } else {
-            Ok(self.key_service.new_signer(key))
+            to_binder_result(self.signing_key.new_signer(key))
         }
-    }
-
-    fn get_boot_certificate_chain(&self) -> Result<Vec<u8>> {
-        let dice = Dice::new()?;
-        dice.get_boot_certificate_chain()
     }
 }
 
@@ -113,20 +107,16 @@ impl ICompOsService for CompOsService {
     }
 
     fn generateSigningKey(&self) -> BinderResult<CompOsKeyData> {
-        to_binder_result(self.key_service.generate())
+        to_binder_result(self.signing_key.generate())
     }
 
     fn verifySigningKey(&self, key_blob: &[u8], public_key: &[u8]) -> BinderResult<bool> {
-        Ok(if let Err(e) = self.key_service.verify(key_blob, public_key) {
+        Ok(if let Err(e) = self.signing_key.verify(key_blob, public_key) {
             warn!("Signing key verification failed: {:?}", e);
             false
         } else {
             true
         })
-    }
-
-    fn getBootCertificateChain(&self) -> BinderResult<Vec<u8>> {
-        to_binder_result(self.get_boot_certificate_chain())
     }
 }
 

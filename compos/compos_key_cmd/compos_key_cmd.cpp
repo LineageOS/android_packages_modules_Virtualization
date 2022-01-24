@@ -27,10 +27,6 @@
 #include <asm/byteorder.h>
 #include <libfsverity.h>
 #include <linux/fsverity.h>
-#include <openssl/evp.h>
-#include <openssl/mem.h>
-#include <openssl/sha.h>
-#include <openssl/x509.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -331,37 +327,6 @@ private:
 
 } // namespace
 
-static Result<std::vector<uint8_t>> extractRsaPublicKey(
-        const std::vector<uint8_t>& der_certificate) {
-    auto data = der_certificate.data();
-    bssl::UniquePtr<X509> x509(d2i_X509(nullptr, &data, der_certificate.size()));
-    if (!x509) {
-        return Error() << "Failed to parse certificate";
-    }
-    if (data != der_certificate.data() + der_certificate.size()) {
-        return Error() << "Certificate has unexpected trailing data";
-    }
-
-    bssl::UniquePtr<EVP_PKEY> pkey(X509_get_pubkey(x509.get()));
-    if (EVP_PKEY_base_id(pkey.get()) != EVP_PKEY_RSA) {
-        return Error() << "Subject key is not RSA";
-    }
-    RSA* rsa = EVP_PKEY_get0_RSA(pkey.get());
-    if (!rsa) {
-        return Error() << "Failed to extract RSA key";
-    }
-
-    uint8_t* out = nullptr;
-    int size = i2d_RSAPublicKey(rsa, &out);
-    if (size < 0 || !out) {
-        return Error() << "Failed to convert to RSAPublicKey";
-    }
-
-    bssl::UniquePtr<uint8_t> buffer(out);
-    std::vector<uint8_t> result(out, out + size);
-    return result;
-}
-
 static Result<void> generate(TargetVm& vm, const std::string& blob_file,
                              const std::string& public_key_file) {
     auto cid = vm.resolveCid();
@@ -379,15 +344,11 @@ static Result<void> generate(TargetVm& vm, const std::string& blob_file,
         return Error() << "Failed to generate key: " << status.getDescription();
     }
 
-    auto public_key = extractRsaPublicKey(key_data.certificate);
-    if (!public_key.ok()) {
-        return Error() << "Failed to extract public key from cert: " << public_key.error();
-    }
     if (!writeBytesToFile(key_data.keyBlob, blob_file)) {
         return Error() << "Failed to write keyBlob to " << blob_file;
     }
 
-    if (!writeBytesToFile(public_key.value(), public_key_file)) {
+    if (!writeBytesToFile(key_data.publicKey, public_key_file)) {
         return Error() << "Failed to write public key to " << public_key_file;
     }
 

@@ -8,40 +8,10 @@ rust_library {
     srcs: ["lib.rs"],
     rustlibs: [
         "libanyhow",
-        "libcxx",
         "liblibc",
-    ],
-    static_libs: [
-        "libcomposd_native_cpp",
     ],
     shared_libs: [
         "libartpalette-system",
-        "libcrypto",
     ],
     apex_available: ["com.android.compos"],
-}
-
-cc_library_static {
-    name: "libcomposd_native_cpp",
-    srcs: ["composd_native.cpp"],
-    shared_libs: ["libcrypto"],
-    generated_headers: ["composd_native_header"],
-    generated_sources: ["composd_native_code"],
-    apex_available: ["com.android.compos"],
-}
-
-genrule {
-    name: "composd_native_code",
-    tools: ["cxxbridge"],
-    cmd: "$(location cxxbridge) $(in) >> $(out)",
-    srcs: ["lib.rs"],
-    out: ["composd_native_cxx_generated.cc"],
-}
-
-genrule {
-    name: "composd_native_header",
-    tools: ["cxxbridge"],
-    cmd: "$(location cxxbridge) $(in) --header >> $(out)",
-    srcs: ["lib.rs"],
-    out: ["lib.rs.h"],
 }

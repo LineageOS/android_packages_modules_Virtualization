@@ -66,9 +66,4 @@ interface ICompOsService {
      * @return whether the inputs are valid and correspond to each other.
      */
     boolean verifySigningKey(in byte[] keyBlob, in byte[] publicKey);
-
-    /**
-     * Returns the DICE BCC for this instance of CompOS, allowing signatures to be verified.
-     */
-    byte[] getBootCertificateChain();
 }

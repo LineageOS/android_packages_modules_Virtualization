@@ -19,8 +19,8 @@
 
 #![allow(dead_code)] // Will be used soon
 
-use crate::compos_key_service::Signer;
 use crate::fsverity;
+use crate::signing_key::Signer;
 use anyhow::{anyhow, Context, Result};
 use odsign_proto::odsign_info::OdsignInfo;
 use protobuf::Message;
