@@ -61,6 +61,7 @@ on init
 
     start servicemanager
 
+    start vendor.dice-microdroid
     start diced
 
     mkdir /mnt/apk 0755 system system
