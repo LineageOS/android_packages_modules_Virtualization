@@ -61,12 +61,6 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
         check_permissions()?;
         to_binder_result(self.do_start_test_compile(callback))
     }
-
-    // TODO(b/214233409): Remove
-    fn getBcc(&self) -> binder::Result<Vec<u8>> {
-        check_permissions()?;
-        to_binder_result(self.do_get_bcc())
-    }
 }
 
 impl IsolatedCompilationService {
@@ -93,11 +87,6 @@ impl IsolatedCompilationService {
         let task = OdrefreshTask::start(comp_os, target_dir_name, callback)?;
 
         Ok(BnCompilationTask::new_binder(task, BinderFeatures::default()))
-    }
-
-    fn do_get_bcc(&self) -> Result<Vec<u8>> {
-        let comp_os = self.instance_manager.start_test_instance().context("Starting CompOS")?;
-        comp_os.get_service().getBootCertificateChain().context("getBcc")
     }
 }
 

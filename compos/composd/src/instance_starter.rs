@@ -138,13 +138,7 @@ impl InstanceStarter {
 
         let key_data = service.generateSigningKey().context("Generating signing key")?;
         fs::write(&self.key_blob, &key_data.keyBlob).context("Writing key blob")?;
-
-        let key_result = composd_native::extract_rsa_public_key(&key_data.certificate);
-        let rsa_public_key = key_result.key;
-        if rsa_public_key.is_empty() {
-            bail!("Failed to extract public key from certificate: {}", key_result.error);
-        }
-        fs::write(&self.public_key, &rsa_public_key).context("Writing public key")?;
+        fs::write(&self.public_key, &key_data.publicKey).context("Writing public key")?;
 
         // Unlike when starting an existing instance, we don't need to verify the key, since we
         // just generated it and have it in memory.
