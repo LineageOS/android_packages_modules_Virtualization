@@ -46,6 +46,9 @@ use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
+// Enough memory to complete odrefresh in the VM.
+const VM_MEMORY_MIB: i32 = 1024;
+
 /// This owns an instance of the CompOS VM.
 pub struct VmInstance {
     #[allow(dead_code)] // Keeps the VM alive even if we don`t touch it
@@ -119,9 +122,9 @@ impl VmInstance {
             configPath: config_path.to_owned(),
             debugLevel: debug_level,
             extraIdsigs: vec![idsig_manifest_apk_fd],
+            memoryMib: VM_MEMORY_MIB,
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
             cpuAffinity: parameters.cpu_set.clone(),
-            ..Default::default()
         });
 
         let vm = service

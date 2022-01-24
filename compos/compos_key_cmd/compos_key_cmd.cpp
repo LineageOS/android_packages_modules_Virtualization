@@ -73,6 +73,8 @@ using odsign::proto::OdsignInfo;
 
 constexpr unsigned int kRpcPort = 6432;
 
+constexpr int kVmMemoryMib = 1024;
+
 constexpr const char* kConfigApkPath =
         "/apex/com.android.compos/app/CompOSPayloadApp/CompOSPayloadApp.apk";
 
@@ -279,7 +281,7 @@ public:
         appConfig.configPath = mPreferStaged ? kPreferStagedConfigFilePath : kDefaultConfigFilePath;
         appConfig.debugLevel = mDebuggable ? VirtualMachineAppConfig::DebugLevel::FULL
                                            : VirtualMachineAppConfig::DebugLevel::NONE;
-        appConfig.memoryMib = 0; // Use default
+        appConfig.memoryMib = kVmMemoryMib;
 
         LOG(INFO) << "Starting VM";
         auto status = service->createVm(config, logFd, logFd, &mVm);
