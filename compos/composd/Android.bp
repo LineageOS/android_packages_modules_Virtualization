@@ -18,6 +18,7 @@ rust_binary {
         "libcompos_common",
         "libcomposd_native_rust",
         "libminijail_rust",
+        "libnum_cpus",
         "libnix",
         "liblibc",
         "liblog_rust",
