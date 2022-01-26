@@ -43,6 +43,10 @@ message ApexPayload {
   // The timestamp in seconds when the APEX was last updated. This should match the value in
   // apex-info-list.xml.
   uint64 last_update_seconds = 5;
+
+  // Required.
+  // Whether the APEX is a factory version or not.
+  bool is_factory = 6;
 }
 
 message ApkPayload {

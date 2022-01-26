@@ -66,6 +66,9 @@ struct ApexInfo {
     // The field claims to be milliseconds but is actually seconds.
     #[serde(rename = "lastUpdateMillis")]
     last_update_seconds: u64,
+
+    #[serde(rename = "isFactory")]
+    is_factory: bool,
 }
 
 impl ApexInfoList {
@@ -137,6 +140,8 @@ impl PackageManager {
                         let metadata = metadata(&apex_info.path)?;
                         apex_info.last_update_seconds =
                             metadata.modified()?.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
+                        // by definition, staged apex can't be a factory apex.
+                        apex_info.is_factory = false;
                     }
                 }
             }
@@ -158,10 +163,12 @@ fn make_metadata_file(
             .iter()
             .enumerate()
             .map(|(i, apex_name)| {
+                let apex_info = apex_list.get(apex_name)?;
                 Ok(ApexPayload {
                     name: apex_name.clone(),
                     partition_name: format!("microdroid-apex-{}", i),
-                    last_update_seconds: apex_list.get(apex_name)?.last_update_seconds,
+                    last_update_seconds: apex_info.last_update_seconds,
+                    is_factory: apex_info.is_factory,
                     ..Default::default()
                 })
             })
@@ -411,12 +418,14 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     path: PathBuf::from("path0"),
                     has_classpath_jar: false,
                     last_update_seconds: 12345678,
+                    is_factory: true,
                 },
                 ApexInfo {
                     name: "has_classpath".to_string(),
                     path: PathBuf::from("path1"),
                     has_classpath_jar: true,
                     last_update_seconds: 87654321,
+                    is_factory: false,
                 },
             ],
         };
