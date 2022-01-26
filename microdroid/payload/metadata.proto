@@ -38,6 +38,11 @@ message ApexPayload {
   // When specified, apex payload should be verified with the public key and root digest.
   bytes public_key = 3;
   bytes root_digest = 4;
+
+  // Required.
+  // The timestamp in seconds when the APEX was last updated. This should match the value in
+  // apex-info-list.xml.
+  uint64 last_update_seconds = 5;
 }
 
 message ApkPayload {
