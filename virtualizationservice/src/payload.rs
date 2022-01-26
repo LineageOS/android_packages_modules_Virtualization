@@ -31,9 +31,10 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_xml_rs::from_reader;
 use std::collections::HashSet;
-use std::fs::{File, OpenOptions};
+use std::fs::{metadata, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::SystemTime;
 use vmconfig::open_parcel_file;
 
 /// The list of APEXes which microdroid requires.
@@ -61,6 +62,10 @@ struct ApexInfo {
 
     #[serde(default)]
     has_classpath_jar: bool,
+
+    // The field claims to be milliseconds but is actually seconds.
+    #[serde(rename = "lastUpdateMillis")]
+    last_update_seconds: u64,
 }
 
 impl ApexInfoList {
@@ -92,14 +97,15 @@ impl ApexInfoList {
         self.list.iter().filter(|info| predicate(info)).map(|info| info.name.clone()).collect()
     }
 
-    fn get_path_for(&self, apex_name: &str) -> Result<PathBuf> {
-        Ok(self
-            .list
+    fn get(&self, apex_name: &str) -> Result<&ApexInfo> {
+        self.list
             .iter()
             .find(|apex| apex.name == apex_name)
-            .ok_or_else(|| anyhow!("{} not found.", apex_name))?
-            .path
-            .clone())
+            .ok_or_else(|| anyhow!("{} not found.", apex_name))
+    }
+
+    fn get_path_for(&self, apex_name: &str) -> Result<PathBuf> {
+        Ok(self.get(apex_name)?.path.clone())
     }
 }
 
@@ -125,10 +131,12 @@ impl PackageManager {
             let staged = pm.getStagedApexModuleNames()?;
             for apex_info in list.list.iter_mut() {
                 if staged.contains(&apex_info.name) {
-                    let staged_apex_info = pm.getStagedApexInfo(&apex_info.name)?;
-                    if let Some(staged_apex_info) = staged_apex_info {
+                    if let Some(staged_apex_info) = pm.getStagedApexInfo(&apex_info.name)? {
                         apex_info.path = PathBuf::from(staged_apex_info.diskImagePath);
                         apex_info.has_classpath_jar = staged_apex_info.hasClassPathJars;
+                        let metadata = metadata(&apex_info.path)?;
+                        apex_info.last_update_seconds =
+                            metadata.modified()?.duration_since(SystemTime::UNIX_EPOCH)?.as_secs();
                     }
                 }
             }
@@ -141,6 +149,7 @@ fn make_metadata_file(
     config_path: &str,
     apex_names: &[String],
     temporary_directory: &Path,
+    apex_list: &ApexInfoList,
 ) -> Result<ParcelFileDescriptor> {
     let metadata_path = temporary_directory.join("metadata");
     let metadata = Metadata {
@@ -148,12 +157,15 @@ fn make_metadata_file(
         apexes: apex_names
             .iter()
             .enumerate()
-            .map(|(i, apex_name)| ApexPayload {
-                name: apex_name.clone(),
-                partition_name: format!("microdroid-apex-{}", i),
-                ..Default::default()
+            .map(|(i, apex_name)| {
+                Ok(ApexPayload {
+                    name: apex_name.clone(),
+                    partition_name: format!("microdroid-apex-{}", i),
+                    last_update_seconds: apex_list.get(apex_name)?.last_update_seconds,
+                    ..Default::default()
+                })
             })
-            .collect(),
+            .collect::<Result<_>>()?,
         apk: Some(ApkPayload {
             name: "apk".to_owned(),
             payload_partition_name: "microdroid-apk".to_owned(),
@@ -212,7 +224,8 @@ fn make_payload_disk(
     let apexes = collect_apex_names(&apex_list, &vm_payload_config.apexes, app_config.debugLevel);
     info!("Microdroid payload APEXes: {:?}", apexes);
 
-    let metadata_file = make_metadata_file(&app_config.configPath, &apexes, temporary_directory)?;
+    let metadata_file =
+        make_metadata_file(&app_config.configPath, &apexes, temporary_directory, &apex_list)?;
     // put metadata at the first partition
     let mut partitions = vec![Partition {
         label: "payload-metadata".to_owned(),
@@ -397,11 +410,13 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     name: "hasnt_classpath".to_string(),
                     path: PathBuf::from("path0"),
                     has_classpath_jar: false,
+                    last_update_seconds: 12345678,
                 },
                 ApexInfo {
                     name: "has_classpath".to_string(),
                     path: PathBuf::from("path1"),
                     has_classpath_jar: true,
+                    last_update_seconds: 87654321,
                 },
             ],
         };
