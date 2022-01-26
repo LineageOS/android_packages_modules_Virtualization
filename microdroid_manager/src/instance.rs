@@ -335,4 +335,5 @@ pub struct ApexData {
     pub name: String,
     pub public_key: Vec<u8>,
     pub root_digest: Vec<u8>,
+    pub last_update_seconds: u64,
 }
