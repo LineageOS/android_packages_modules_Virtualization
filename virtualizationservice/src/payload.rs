@@ -113,7 +113,6 @@ impl ApexInfoList {
 }
 
 struct PackageManager {
-    // TODO(b/199146189) use IPackageManagerNative
     apex_info_list: &'static ApexInfoList,
 }
 
