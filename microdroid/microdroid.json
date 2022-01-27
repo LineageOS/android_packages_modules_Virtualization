@@ -37,6 +37,6 @@
       "writable": true
     }
   ],
-  "memory_mib": 2048,
+  "memory_mib": 256,
   "protected": false
 }
