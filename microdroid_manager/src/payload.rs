@@ -48,6 +48,7 @@ pub fn get_apex_data_from_payload(metadata: &Metadata) -> Result<Vec<ApexData>> 
                 public_key: result.public_key,
                 root_digest: result.root_digest,
                 last_update_seconds: apex.last_update_seconds,
+                is_factory: apex.is_factory,
             })
         })
         .collect()
@@ -63,6 +64,7 @@ pub fn to_metadata(apex_data: &[ApexData]) -> Metadata {
                 public_key: data.public_key.clone(),
                 root_digest: data.root_digest.clone(),
                 last_update_seconds: data.last_update_seconds,
+                is_factory: data.is_factory,
                 ..Default::default()
             })
             .collect(),
