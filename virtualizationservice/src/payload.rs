@@ -53,7 +53,7 @@ struct ApexInfoList {
     list: Vec<ApexInfo>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 struct ApexInfo {
     #[serde(rename = "moduleName")]
     name: String,
@@ -72,6 +72,9 @@ struct ApexInfo {
 
     #[serde(rename = "isActive")]
     is_active: bool,
+
+    #[serde(rename = "provideSharedApexLibs")]
+    provide_shared_apex_libs: bool,
 }
 
 impl ApexInfoList {
@@ -333,6 +336,7 @@ fn collect_apex_infos<'a>(
         .filter(|ai| {
             apex_configs.iter().any(|cfg| ai.matches(cfg) && ai.is_active)
                 || additional_apexes.iter().any(|name| name == &ai.name && ai.is_active)
+                || ai.provide_shared_apex_libs
         })
         .collect()
 }
@@ -415,6 +419,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 12345678,
                     is_factory: true,
                     is_active: true,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 1
@@ -424,6 +429,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 12345678,
                     is_factory: true,
                     is_active: false,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 2
@@ -433,6 +439,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 12345678 + 1,
                     is_factory: false,
                     is_active: true,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 3
@@ -442,6 +449,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 12345678,
                     is_factory: true,
                     is_active: true,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 4
@@ -451,6 +459,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 87654321,
                     is_factory: true,
                     is_active: false,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 5
@@ -460,6 +469,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 87654321 + 1,
                     is_factory: false,
                     is_active: true,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 6
@@ -469,6 +479,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 87654321,
                     is_factory: true,
                     is_active: false,
+                    ..Default::default()
                 },
                 ApexInfo {
                     // 7
@@ -478,6 +489,25 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     last_update_seconds: 87654321 + 1,
                     is_factory: false,
                     is_active: true,
+                    ..Default::default()
+                },
+                ApexInfo {
+                    // 8
+                    name: "sharedlibs".to_string(),
+                    path: PathBuf::from("apex-foo"),
+                    last_update_seconds: 87654321,
+                    is_factory: true,
+                    provide_shared_apex_libs: true,
+                    ..Default::default()
+                },
+                ApexInfo {
+                    // 9
+                    name: "sharedlibs".to_string(),
+                    path: PathBuf::from("apex-foo/updated"),
+                    last_update_seconds: 87654321 + 1,
+                    is_active: true,
+                    provide_shared_apex_libs: true,
+                    ..Default::default()
                 },
             ],
         };
@@ -488,10 +518,15 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
         assert_eq!(
             collect_apex_infos(&apex_info_list, &apex_configs, DebugLevel::FULL),
             vec![
+                // Pass active/required APEXes
                 &apex_info_list.list[0],
                 &apex_info_list.list[2],
+                // Pass active APEXes specified in the config
                 &apex_info_list.list[5],
                 &apex_info_list.list[7],
+                // Pass both preinstalled(inactive) and updated(active) for "sharedlibs" APEXes
+                &apex_info_list.list[8],
+                &apex_info_list.list[9],
             ]
         );
     }
