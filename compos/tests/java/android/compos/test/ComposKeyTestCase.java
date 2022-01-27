@@ -38,13 +38,25 @@ import java.util.Optional;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
 
-    /** Wait time for service to be ready on boot */
+    /**
+     * Wait time for service to be ready on boot
+     */
     private static final int READY_LATENCY_MS = 10 * 1000; // 10 seconds
 
-    /** Path to compos_key_cmd tool */
+    /**
+     * Path to compos_key_cmd tool
+     */
     private static final String COMPOS_KEY_CMD_BIN = "/apex/com.android.compos/bin/compos_key_cmd";
 
-    /** Config of the test VM. This is a path inside the APK. */
+    /**
+     * Path to the com.android.compos.payload APK
+     */
+    private static final String COMPOS_PAYLOAD_APK_PATH =
+            "/apex/com.android.compos/app/CompOSPayloadApp/CompOSPayloadApp.apk";
+
+    /**
+     * Config of the test VM. This is a path inside the APK.
+     */
     private static final String VM_TEST_CONFIG_PATH = "assets/vm_test_config.json";
 
     private String mCid;
@@ -134,7 +146,9 @@ public final class ComposKeyTestCase extends VirtualizationTestCaseBase {
                         getDevice(),
                         getBuild(),
                         /* apkName, no need to install */ null,
-                        packageName,
+                        COMPOS_PAYLOAD_APK_PATH,
+                        /* packageName - not needed, we know the path */ null,
+                        /* extraIdSigPaths */ null,
                         VM_TEST_CONFIG_PATH,
                         /* debug */ true,
                         /* use default memoryMib */ 0,

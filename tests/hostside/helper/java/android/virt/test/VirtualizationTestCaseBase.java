@@ -204,6 +204,24 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
             Optional<Integer> numCpus,
             Optional<String> cpuAffinity)
             throws DeviceNotAvailableException {
+        return startMicrodroid(androidDevice, buildInfo, apkName, null, packageName,
+                extraIdsigPaths, configPath, debug,
+                memoryMib, numCpus, cpuAffinity);
+    }
+
+    public static String startMicrodroid(
+            ITestDevice androidDevice,
+            IBuildInfo buildInfo,
+            String apkName,
+            String apkPath,
+            String packageName,
+            String[] extraIdsigPaths,
+            String configPath,
+            boolean debug,
+            int memoryMib,
+            Optional<Integer> numCpus,
+            Optional<String> cpuAffinity)
+            throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(androidDevice);
 
         // Install APK if necessary
@@ -215,9 +233,11 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         // Get the path to the installed apk. Note that
         // getDevice().getAppPackageInfo(...).getCodePath() doesn't work due to the incorrect
         // parsing of the "=" character. (b/190975227). So we use the `pm path` command directly.
-        String apkPath = android.run("pm", "path", packageName);
-        assertTrue(apkPath.startsWith("package:"));
-        apkPath = apkPath.substring("package:".length());
+        if (apkPath == null) {
+            apkPath = android.run("pm", "path", packageName);
+            assertTrue(apkPath.startsWith("package:"));
+            apkPath = apkPath.substring("package:".length());
+        }
 
         android.run("mkdir", "-p", TEST_ROOT);
 
