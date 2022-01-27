@@ -28,9 +28,6 @@ interface IVirtualMachine {
     /**
      * Register a Binder object to get callbacks when the state of the VM changes, such as if it
      * dies.
-     *
-     * TODO(jiyong): this should be registered when IVirtualizationService.run is called. Otherwise,
-     * we might miss some events that happen before the registration is done.
      */
     void registerCallback(IVirtualMachineCallback callback);
 
