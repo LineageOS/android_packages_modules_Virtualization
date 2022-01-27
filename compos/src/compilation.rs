@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, info, warn};
 use minijail::{self, Minijail};
 use regex::Regex;
+use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
 use std::fs::read_dir;
-use std::os::unix::io::AsRawFd;
 use std::path::{self, Path, PathBuf};
 use std::process::Command;
 
@@ -34,14 +34,10 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::{
     },
     IAuthFsService::IAuthFsService,
 };
-use authfs_aidl_interface::binder::{ParcelFileDescriptor, Strong};
+use authfs_aidl_interface::binder::Strong;
 use compos_common::odrefresh::ExitCode;
 
 const FD_SERVER_PORT: i32 = 3264; // TODO: support dynamic port
-
-/// The number that represents the file descriptor number expecting by the task. The number may be
-/// meaningless in the current process.
-pub type PseudoRawFd = i32;
 
 pub struct OdrefreshContext<'a> {
     system_dir_fd: i32,
@@ -114,19 +110,22 @@ pub fn odrefresh(
     let authfs = authfs_service.mount(&authfs_config)?;
     let mountpoint = PathBuf::from(authfs.getMountPoint()?);
 
+    // Make a copy of our environment as the basis of the one we will give odrefresh
+    let mut odrefresh_vars = EnvMap::from_current_env();
+
     let mut android_root = mountpoint.clone();
     android_root.push(context.system_dir_fd.to_string());
     android_root.push("system");
-    env::set_var("ANDROID_ROOT", &android_root);
+    odrefresh_vars.set("ANDROID_ROOT", path_to_str(&android_root)?);
     debug!("ANDROID_ROOT={:?}", &android_root);
 
     let art_apex_data = mountpoint.join(context.output_dir_fd.to_string());
-    env::set_var("ART_APEX_DATA", &art_apex_data);
+    odrefresh_vars.set("ART_APEX_DATA", path_to_str(&art_apex_data)?);
     debug!("ART_APEX_DATA={:?}", &art_apex_data);
 
     let staging_dir = mountpoint.join(context.staging_dir_fd.to_string());
 
-    set_classpaths(&android_root)?;
+    set_classpaths(&mut odrefresh_vars, &android_root)?;
 
     let mut args = vec![
         "odrefresh".to_string(),
@@ -147,7 +146,7 @@ pub fn odrefresh(
     args.push("--compile".to_string());
 
     debug!("Running odrefresh with args: {:?}", &args);
-    let jail = spawn_jailed_task(odrefresh_path, &args, Vec::new() /* fd_mapping */)
+    let jail = spawn_jailed_task(odrefresh_path, &args, &odrefresh_vars.into_env())
         .context("Spawn odrefresh")?;
     let exit_code = match jail.wait() {
         Ok(_) => Result::<u8>::Ok(0),
@@ -173,9 +172,13 @@ pub fn odrefresh(
     Ok(exit_code)
 }
 
-fn set_classpaths(android_root: &Path) -> Result<()> {
+fn path_to_str(path: &Path) -> Result<&str> {
+    path.to_str().ok_or_else(|| anyhow!("Bad path {:?}", path))
+}
+
+fn set_classpaths(odrefresh_vars: &mut EnvMap, android_root: &Path) -> Result<()> {
     let export_lines = run_derive_classpath(android_root)?;
-    load_classpath_vars(&export_lines)
+    load_classpath_vars(odrefresh_vars, &export_lines)
 }
 
 fn run_derive_classpath(android_root: &Path) -> Result<String> {
@@ -203,15 +206,14 @@ fn run_derive_classpath(android_root: &Path) -> Result<String> {
     String::from_utf8(result.stdout).context("Converting derive_classpath output")
 }
 
-fn load_classpath_vars(export_lines: &str) -> Result<()> {
+fn load_classpath_vars(odrefresh_vars: &mut EnvMap, export_lines: &str) -> Result<()> {
     // Each line should be in the format "export <var name> <value>"
     let pattern = Regex::new(r"^export ([^ ]+) ([^ ]+)$").context("Failed to construct Regex")?;
     for line in export_lines.lines() {
         if let Some(captures) = pattern.captures(line) {
             let name = &captures[1];
             let value = &captures[2];
-            // TODO(b/213416778) Don't modify our env, construct a fresh one for odrefresh
-            env::set_var(name, value);
+            odrefresh_vars.set(name, value);
         } else {
             warn!("Malformed line from derive_classpath: {}", line);
         }
@@ -238,14 +240,28 @@ fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Res
     Ok(())
 }
 
-fn spawn_jailed_task(
-    executable: &Path,
-    args: &[String],
-    fd_mapping: Vec<(ParcelFileDescriptor, PseudoRawFd)>,
-) -> Result<Minijail> {
+fn spawn_jailed_task(executable: &Path, args: &[String], env_vars: &[String]) -> Result<Minijail> {
     // TODO(b/185175567): Run in a more restricted sandbox.
     let jail = Minijail::new()?;
-    let preserve_fds: Vec<_> = fd_mapping.iter().map(|(f, id)| (f.as_raw_fd(), *id)).collect();
-    let _pid = jail.run_remap(executable, preserve_fds.as_slice(), args)?;
+    let keep_fds = [];
+    let command = minijail::Command::new_for_path(executable, &keep_fds, args, Some(env_vars))?;
+    let _pid = jail.run_command(command)?;
     Ok(jail)
+}
+
+struct EnvMap(HashMap<String, String>);
+
+impl EnvMap {
+    fn from_current_env() -> Self {
+        Self(env::vars().collect())
+    }
+
+    fn set(&mut self, key: &str, value: &str) {
+        self.0.insert(key.to_owned(), value.to_owned());
+    }
+
+    fn into_env(self) -> Vec<String> {
+        // execve() expects an array of "k=v" strings, rather than a list of (k, v) pairs.
+        self.0.into_iter().map(|(k, v)| k + "=" + &v).collect()
+    }
 }

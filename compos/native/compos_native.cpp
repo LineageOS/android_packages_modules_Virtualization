@@ -42,7 +42,7 @@ KeyResult generate_key_pair() {
     bssl::UniquePtr<RSA> key_pair(RSA_new());
 
     // This function specifies that the public exponent is always 65537, which is good because
-    // that's  what odsign is expecting.
+    // that's what odsign is expecting.
     if (!RSA_generate_key_fips(key_pair.get(), KEY_BITS, /*callback=*/nullptr)) {
         return make_key_error("Failed to generate key pair");
     }
