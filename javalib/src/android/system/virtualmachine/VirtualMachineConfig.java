@@ -51,6 +51,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_APKPATH = "apkPath";
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
     private static final String KEY_DEBUGLEVEL = "debugLevel";
+    private static final String KEY_PROTECTED_VM = "protectedVm";
     private static final String KEY_MEMORY_MIB = "memoryMib";
     private static final String KEY_NUM_CPUS = "numCpus";
     private static final String KEY_CPU_AFFINITY = "cpuAffinity";
@@ -83,6 +84,11 @@ public final class VirtualMachineConfig {
     private final DebugLevel mDebugLevel;
 
     /**
+     * Whether to run the VM in protected mode, so the host can't access its memory.
+     */
+    private final boolean mProtectedVm;
+
+    /**
      * The amount of RAM to give the VM, in MiB. If this is 0 or negative the default will be used.
      */
     private final int mMemoryMib;
@@ -111,6 +117,7 @@ public final class VirtualMachineConfig {
             @NonNull Signature[] certs,
             @NonNull String payloadConfigPath,
             DebugLevel debugLevel,
+            boolean protectedVm,
             int memoryMib,
             int numCpus,
             String cpuAffinity) {
@@ -118,6 +125,7 @@ public final class VirtualMachineConfig {
         mCerts = certs;
         mPayloadConfigPath = payloadConfigPath;
         mDebugLevel = debugLevel;
+        mProtectedVm = protectedVm;
         mMemoryMib = memoryMib;
         mNumCpus = numCpus;
         mCpuAffinity = cpuAffinity;
@@ -149,11 +157,12 @@ public final class VirtualMachineConfig {
             throw new VirtualMachineException("No payloadConfigPath");
         }
         final DebugLevel debugLevel = DebugLevel.values()[b.getInt(KEY_DEBUGLEVEL)];
+        final boolean protectedVm = b.getBoolean(KEY_PROTECTED_VM);
         final int memoryMib = b.getInt(KEY_MEMORY_MIB);
         final int numCpus = b.getInt(KEY_NUM_CPUS);
         final String cpuAffinity = b.getString(KEY_CPU_AFFINITY);
-        return new VirtualMachineConfig(apkPath, certs, payloadConfigPath, debugLevel, memoryMib,
-                numCpus, cpuAffinity);
+        return new VirtualMachineConfig(apkPath, certs, payloadConfigPath, debugLevel, protectedVm,
+                memoryMib, numCpus, cpuAffinity);
     }
 
     /** Persists this config to a stream, for example a file. */
@@ -169,6 +178,7 @@ public final class VirtualMachineConfig {
         b.putStringArray(KEY_CERTS, certs);
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
         b.putInt(KEY_DEBUGLEVEL, mDebugLevel.ordinal());
+        b.putBoolean(KEY_PROTECTED_VM, mProtectedVm);
         if (mMemoryMib > 0) {
             b.putInt(KEY_MEMORY_MIB, mMemoryMib);
         }
@@ -219,6 +229,7 @@ public final class VirtualMachineConfig {
                 parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.FULL;
                 break;
         }
+        parcel.protectedVm = mProtectedVm;
         parcel.memoryMib = mMemoryMib;
         parcel.numCpus = mNumCpus;
         parcel.cpuAffinity = mCpuAffinity;
@@ -230,6 +241,7 @@ public final class VirtualMachineConfig {
         private Context mContext;
         private String mPayloadConfigPath;
         private DebugLevel mDebugLevel;
+        private boolean mProtectedVm;
         private int mMemoryMib;
         private int mNumCpus;
         private String mCpuAffinity;
@@ -240,6 +252,7 @@ public final class VirtualMachineConfig {
             mContext = context;
             mPayloadConfigPath = payloadConfigPath;
             mDebugLevel = DebugLevel.NONE;
+            mProtectedVm = false;
             mNumCpus = 1;
             mCpuAffinity = null;
         }
@@ -247,6 +260,12 @@ public final class VirtualMachineConfig {
         /** Sets the debug level */
         public Builder debugLevel(DebugLevel debugLevel) {
             mDebugLevel = debugLevel;
+            return this;
+        }
+
+        /** Sets whether to protect the VM memory from the host. Defaults to false. */
+        public Builder protectedVm(boolean protectedVm) {
+            mProtectedVm = protectedVm;
             return this;
         }
 
@@ -309,8 +328,8 @@ public final class VirtualMachineConfig {
             }
 
             return new VirtualMachineConfig(
-                    apkPath, certs, mPayloadConfigPath, mDebugLevel, mMemoryMib, mNumCpus,
-                    mCpuAffinity);
+                    apkPath, certs, mPayloadConfigPath, mDebugLevel, mProtectedVm, mMemoryMib,
+                    mNumCpus, mCpuAffinity);
         }
     }
 }
