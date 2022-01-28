@@ -9,6 +9,7 @@ rust_defaults {
     edition: "2018",
     prefer_rlib: true,
     rustlibs: [
+        "android.hardware.security.dice-V1-rust",
         "android.security.dice-rust",
         "android.system.virtualizationservice-rust",
         "android.system.virtualmachineservice-rust",
@@ -18,6 +19,7 @@ rust_defaults {
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
         "libbyteorder",
+        "libdiced_utils",
         "libglob",
         "libidsig",
         "libitertools",
