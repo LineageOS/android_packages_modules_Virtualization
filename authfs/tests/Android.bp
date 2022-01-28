@@ -14,7 +14,7 @@ java_test_host {
         "VirtualizationTestHelper",
     ],
     test_suites: ["general-tests"],
-    target_required: ["open_then_run_module"],
+    data_device_bins: ["open_then_run"],
     data: [
         ":authfs_test_files",
         ":MicrodroidTestApp.signed",
@@ -22,16 +22,7 @@ java_test_host {
 }
 
 rust_test {
-    // PushFilePreparer can sometimes push the directory (if named "open_then_run", which contains
-    // the actual executable in a per-architecture sub-directory) instead of the executable. This
-    // makes it harder to use because the host Java test have to detect the executable path
-    // dynamically, e.g. if it's a directory, append the device's architecture to build the actual
-    // executable path. By simply renaming the module (thus the host directory), this forces
-    // PushFilePreparer to always push the executable to the destination, so that the Java test can
-    // easily locate the executable with a constant path.
-    name: "open_then_run_module",
-    stem: "open_then_run",
-
+    name: "open_then_run",
     crate_name: "open_then_run",
     srcs: ["open_then_run.rs"],
     edition: "2018",
