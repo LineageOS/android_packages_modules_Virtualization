@@ -471,8 +471,7 @@ fn wait_for_apex_config_done() -> Result<()> {
     let mut prop = PropertyWatcher::new(APEX_CONFIG_DONE_PROP)?;
     loop {
         prop.wait()?;
-        let val = system_properties::read(APEX_CONFIG_DONE_PROP)?;
-        if val == "true" {
+        if system_properties::read_bool(APEX_CONFIG_DONE_PROP, false)? {
             break;
         }
     }
@@ -542,7 +541,7 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
 
     // Start logging if enabled
     // TODO(b/200914564) set filterspec if debug_level is app_only
-    if system_properties::read(LOGD_ENABLED_PROP)? == "1" {
+    if system_properties::read_bool(LOGD_ENABLED_PROP, false)? {
         system_properties::write("ctl.start", "seriallogging")?;
     }
 
