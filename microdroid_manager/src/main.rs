@@ -26,7 +26,7 @@ use binder::{FromIBinder, Strong};
 use glob::glob;
 use idsig::V4Signature;
 use itertools::sorted;
-use log::{error, info, warn};
+use log::{error, info};
 use microdroid_metadata::{write_metadata, Metadata};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use once_cell::sync::OnceCell;
@@ -181,11 +181,6 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         ));
     }
     mount_extra_apks(&config)?;
-
-    let fake_secret = "This is a placeholder for a value that is derived from the images that are loaded in the VM.";
-    if let Err(err) = rustutils::system_properties::write("ro.vmsecret.keymint", fake_secret) {
-        warn!("failed to set ro.vmsecret.keymint: {}", err);
-    }
 
     // Wait until apex config is done. (e.g. linker configuration for apexes)
     // TODO(jooyung): wait until sys.boot_completed?

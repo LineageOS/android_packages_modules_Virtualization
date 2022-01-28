@@ -83,9 +83,6 @@ on init
 
     setprop ro.debuggable ${ro.boot.microdroid.debuggable:-0}
 
-    # TODO(b/185767624): remove hidl after full keymint support
-    start hwservicemanager
-
 on init && property:ro.boot.logd.enabled=1
     # Start logd before any other services run to ensure we capture all of their logs.
     start logd
@@ -138,20 +135,14 @@ on post-fs
     # We restorecon /data in case the userdata partition has been reset.
     restorecon /data
 
-    # set up keystore directory structure first so that we can end early boot
+    # set up misc directory structure first so that we can end early boot
     # and start apexd
     mkdir /data/misc 01771 system misc
-    mkdir /data/misc/keystore 0700 keystore keystore
     # work around b/183668221
-    restorecon /data/misc /data/misc/keystore
-
-    start keystore2
+    restorecon /data/misc
 
     mkdir /data/misc/authfs 0700 root root
     start authfs_service
-
-on late-fs
-    start vendor.keymint-microdroid
 
 on post-fs-data
     mark_post_data
@@ -168,12 +159,6 @@ on post-fs-data
     mkdir /data/vendor/tombstones 0771 root root
 
     start tombstoned
-
-    # Boot level 30
-    # odsign signing keys have MAX_BOOT_LEVEL=30
-    # This is currently the earliest boot level, but we start at 30
-    # to leave room for earlier levels.
-    setprop keystore.boot_level 30
 
     # For security reasons, /data/local/tmp should always be empty.
     # Do not place files or directories in /data/local/tmp
