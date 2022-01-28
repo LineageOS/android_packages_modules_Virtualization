@@ -176,9 +176,6 @@ public class MicrodroidTests {
                                     testService.readProperty("debug.microdroid.app.sublib.run"),
                                     "true");
                             assertEquals(
-                                    testService.readProperty("debug.microdroid.test.keystore"),
-                                    "PASS");
-                            assertEquals(
                                     testService.readProperty("debug.microdroid.test.extra_apk"),
                                     "PASS");
                         } catch (Exception e) {
