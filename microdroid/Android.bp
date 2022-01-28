@@ -73,7 +73,6 @@ android_system_image {
         "apexd",
         "debuggerd",
         "diced.microdroid",
-        "keystore2_microdroid",
         "linker",
         "linkerconfig",
         "servicemanager.microdroid",
@@ -81,15 +80,10 @@ android_system_image {
         "cgroups.json",
         "public.libraries.android.txt",
 
-        // TODO(b/185767624): remove hidl after full keymint support
-        "hwservicemanager",
-
         "microdroid_plat_sepolicy_and_mapping.sha256",
         "microdroid_file_contexts",
-        "microdroid_hwservice_contexts",
         "microdroid_property_contexts",
         "microdroid_service_contexts",
-        "microdroid_keystore2_key_contexts",
         "microdroid_compatibility_matrix",
         "microdroid_manifest",
 
@@ -179,7 +173,6 @@ android_filesystem {
     use_avb: true,
     deps: [
         "android.hardware.security.dice-service.microdroid",
-        "android.hardware.security.keymint-service.microdroid",
         "microdroid_fstab",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
         "microdroid_vendor_manifest",
