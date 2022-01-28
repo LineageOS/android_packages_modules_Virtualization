@@ -19,10 +19,15 @@ mod ioutil;
 mod payload;
 
 use crate::instance::{ApkData, InstanceDisk, MicrodroidData, RootHash};
+use android_hardware_security_dice::aidl::android::hardware::security::dice::{
+    Config::Config, InputValues::InputValues, Mode::Mode,
+};
+use android_security_dice::aidl::android::security::dice::IDiceMaintenance::IDiceMaintenance;
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify};
 use binder::unstable_api::{new_spibinder, AIBinder};
-use binder::{FromIBinder, Strong};
+use binder::{wait_for_interface, FromIBinder, Strong};
+use diced_utils::cbor::encode_header;
 use glob::glob;
 use idsig::V4Signature;
 use itertools::sorted;
@@ -31,8 +36,10 @@ use microdroid_metadata::{write_metadata, Metadata};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use once_cell::sync::OnceCell;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
+use ring::digest;
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
+use std::convert::TryInto;
 use std::fs::{self, create_dir, File, OpenOptions};
 use std::io::BufRead;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -61,6 +68,8 @@ const VMADDR_CID_HOST: u32 = 2;
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
 const LOGD_ENABLED_PROP: &str = "ro.boot.logd.enabled";
+const ADBD_ENABLED_PROP: &str = "ro.boot.adb.enabled";
+const DEBUGGABLE_PROP: &str = "ro.boot.microdroid.debuggable";
 
 #[derive(thiserror::Error, Debug)]
 enum MicrodroidError {
@@ -137,6 +146,61 @@ fn try_main() -> Result<()> {
     }
 }
 
+fn is_debuggable() -> Result<bool> {
+    // Read all the properties so the behaviour is most similar between debug and non-debug boots.
+    // Defensively default to debug enabled for unrecognised values.
+    let adb = system_properties::read_bool(ADBD_ENABLED_PROP, true)?;
+    let logd = system_properties::read_bool(LOGD_ENABLED_PROP, true)?;
+    let debuggable = system_properties::read_bool(DEBUGGABLE_PROP, true)?;
+    Ok(adb || logd || debuggable)
+}
+
+fn dice_derivation(verified_data: MicrodroidData, payload_config_path: &str) -> Result<()> {
+    // Calculate compound digests of code and authorities
+    let mut code_hash_ctx = digest::Context::new(&digest::SHA512);
+    let mut authority_hash_ctx = digest::Context::new(&digest::SHA512);
+    code_hash_ctx.update(verified_data.apk_data.root_hash.as_ref());
+    authority_hash_ctx.update(verified_data.apk_data.pubkey.as_ref());
+    for extra_apk in verified_data.extra_apks_data {
+        code_hash_ctx.update(extra_apk.root_hash.as_ref());
+        authority_hash_ctx.update(extra_apk.pubkey.as_ref());
+    }
+    for apex in verified_data.apex_data {
+        code_hash_ctx.update(apex.root_digest.as_ref());
+        authority_hash_ctx.update(apex.public_key.as_ref());
+    }
+    let code_hash = code_hash_ctx.finish().as_ref().try_into().unwrap();
+    let authority_hash = authority_hash_ctx.finish().as_ref().try_into().unwrap();
+
+    // {
+    //   -70002: "Microdroid payload",
+    //   -71000: payload_config_path
+    // }
+    let mut config_desc = vec![
+        0xa2, 0x3a, 0x00, 0x01, 0x11, 0x71, 0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72, 0x6f,
+        0x69, 0x64, 0x20, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x3a, 0x00, 0x01, 0x15, 0x57,
+    ];
+    let config_path_bytes = payload_config_path.as_bytes();
+    encode_header(3, config_path_bytes.len().try_into().unwrap(), &mut config_desc)?;
+    config_desc.extend_from_slice(config_path_bytes);
+
+    // Send the details to diced
+    let diced =
+        wait_for_interface::<dyn IDiceMaintenance>("android.security.dice.IDiceMaintenance")
+            .context("IDiceMaintenance service not found")?;
+    diced
+        .demoteSelf(&[InputValues {
+            codeHash: code_hash,
+            config: Config { desc: config_desc },
+            authorityHash: authority_hash,
+            authorityDescriptor: None,
+            mode: if is_debuggable()? { Mode::DEBUG } else { Mode::NORMAL },
+            hidden: [0; 64],
+        }])
+        .context("IDiceMaintenance::demoteSelf failed")?;
+    Ok(())
+}
+
 fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     let metadata = load_metadata().context("Failed to load payload metadata")?;
 
@@ -181,6 +245,9 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         ));
     }
     mount_extra_apks(&config)?;
+
+    info!("DICE derivation for payload");
+    dice_derivation(verified_data, &metadata.payload_config_path)?;
 
     // Wait until apex config is done. (e.g. linker configuration for apexes)
     // TODO(jooyung): wait until sys.boot_completed?
