@@ -31,7 +31,7 @@ use crate::signing_key::{Signer, SigningKey};
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
-    ICompOsService::{BnCompOsService, ICompOsService},
+    ICompOsService::{BnCompOsService, CompilationMode::CompilationMode, ICompOsService},
 };
 use compos_aidl_interface::binder::{
     BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Strong,
@@ -82,6 +82,7 @@ impl ICompOsService for CompOsService {
 
     fn odrefresh(
         &self,
+        compilation_mode: CompilationMode,
         system_dir_fd: i32,
         output_dir_fd: i32,
         staging_dir_fd: i32,
@@ -90,6 +91,7 @@ impl ICompOsService for CompOsService {
         system_server_compiler_filter: &str,
     ) -> BinderResult<i8> {
         let context = to_binder_result(OdrefreshContext::new(
+            compilation_mode,
             system_dir_fd,
             output_dir_fd,
             staging_dir_fd,
