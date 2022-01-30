@@ -24,4 +24,7 @@ interface ITestService {
 
     /* read a system property. */
     String readProperty(String prop);
+
+    /* get the VM's stable secret. */
+    byte[] insecurelyExposeSecret();
 }
