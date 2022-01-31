@@ -80,6 +80,9 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     /** Path to open_then_run on Android */
     private static final String OPEN_THEN_RUN_BIN = "/data/local/tmp/open_then_run";
 
+    /** Path to fsverity on Android */
+    private static final String FSVERITY_BIN = "/data/local/tmp/fsverity";
+
     /** Mount point of authfs on Microdroid during the test */
     private static final String MOUNT_DIR = "/data/local/tmp";
 
@@ -249,6 +252,23 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
         // Verify
         assertThat(copyFile(sMicrodroid, MOUNT_DIR + "/3", "/dev/null")).isFailed();
+    }
+
+    @Test
+    public void testReadWithFsverityVerification_FdServerUsesRealFsverityData() throws Exception {
+        // Setup (fs-verity is enabled for input.apk in AndroidTest.xml)
+        runFdServerOnAndroid("--open-ro 3:input.apk", "--ro-fds 3");
+        String expectedDigest = sAndroid.run(
+                FSVERITY_BIN + " digest --compact " + TEST_DIR + "/input.apk");
+        runAuthFsOnMicrodroid(
+                "--remote-ro-file 3:sha256-" + expectedDigest + " --cid " + VMADDR_CID_HOST);
+
+        // Action
+        String actualHash = computeFileHash(sMicrodroid, MOUNT_DIR + "/3");
+
+        // Verify
+        String expectedHash = computeFileHash(sAndroid, TEST_DIR + "/input.apk");
+        assertEquals("Inconsistent hash from /authfs/3: ", expectedHash, actualHash);
     }
 
     @Test
