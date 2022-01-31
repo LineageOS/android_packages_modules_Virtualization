@@ -28,6 +28,7 @@ rust_defaults {
         "libprotobuf",
         "libregex",
         "libring",
+        "librustutils",
         "libscopeguard",
     ],
     prefer_rlib: true,
