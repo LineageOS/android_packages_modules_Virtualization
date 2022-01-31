@@ -179,6 +179,7 @@ public final class VirtualMachineConfig {
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
         b.putInt(KEY_DEBUGLEVEL, mDebugLevel.ordinal());
         b.putBoolean(KEY_PROTECTED_VM, mProtectedVm);
+        b.putInt(KEY_NUM_CPUS, mNumCpus);
         if (mMemoryMib > 0) {
             b.putInt(KEY_MEMORY_MIB, mMemoryMib);
         }
@@ -245,7 +246,6 @@ public final class VirtualMachineConfig {
         private int mMemoryMib;
         private int mNumCpus;
         private String mCpuAffinity;
-        // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
         /** Creates a builder for the given context (APK), and the payload config file in APK. */
         public Builder(@NonNull Context context, @NonNull String payloadConfigPath) {
