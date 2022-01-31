@@ -18,6 +18,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use log::{debug, info, warn};
 use minijail::{self, Minijail};
 use regex::Regex;
+use rustutils::system_properties;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
@@ -35,11 +36,13 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::{
     IAuthFsService::IAuthFsService,
 };
 use authfs_aidl_interface::binder::Strong;
+use compos_aidl_interface::aidl::com::android::compos::ICompOsService::CompilationMode::CompilationMode;
 use compos_common::odrefresh::ExitCode;
 
 const FD_SERVER_PORT: i32 = 3264; // TODO: support dynamic port
 
 pub struct OdrefreshContext<'a> {
+    compilation_mode: CompilationMode,
     system_dir_fd: i32,
     output_dir_fd: i32,
     staging_dir_fd: i32,
@@ -50,6 +53,7 @@ pub struct OdrefreshContext<'a> {
 
 impl<'a> OdrefreshContext<'a> {
     pub fn new(
+        compilation_mode: CompilationMode,
         system_dir_fd: i32,
         output_dir_fd: i32,
         staging_dir_fd: i32,
@@ -57,6 +61,13 @@ impl<'a> OdrefreshContext<'a> {
         zygote_arch: &'a str,
         system_server_compiler_filter: &'a str,
     ) -> Result<Self> {
+        if compilation_mode != CompilationMode::NORMAL_COMPILE {
+            let debuggable = system_properties::read_bool("ro.boot.microdroid.debuggable", false)?;
+            if !debuggable {
+                bail!("Requested compilation mode only available in debuggable VMs");
+            }
+        }
+
         if system_dir_fd < 0 || output_dir_fd < 0 || staging_dir_fd < 0 {
             bail!("The remote FDs are expected to be non-negative");
         }
@@ -75,6 +86,7 @@ impl<'a> OdrefreshContext<'a> {
         // CompOS.
 
         Ok(Self {
+            compilation_mode,
             system_dir_fd,
             output_dir_fd,
             staging_dir_fd,
@@ -143,18 +155,21 @@ pub fn odrefresh(
         ));
     }
 
-    args.push("--compile".to_string());
+    let compile_flag = match context.compilation_mode {
+        CompilationMode::NORMAL_COMPILE => "--compile",
+        CompilationMode::TEST_COMPILE => "--force-compile",
+        other => bail!("Unknown compilation mode {:?}", other),
+    };
+    args.push(compile_flag.to_string());
 
     debug!("Running odrefresh with args: {:?}", &args);
     let jail = spawn_jailed_task(odrefresh_path, &args, &odrefresh_vars.into_env())
         .context("Spawn odrefresh")?;
     let exit_code = match jail.wait() {
-        Ok(_) => Result::<u8>::Ok(0),
-        Err(minijail::Error::ReturnCode(exit_code)) => Ok(exit_code),
-        Err(e) => {
-            bail!("Unexpected minijail error: {}", e)
-        }
-    }?;
+        Ok(_) => 0,
+        Err(minijail::Error::ReturnCode(exit_code)) => exit_code,
+        Err(e) => bail!("Unexpected minijail error: {}", e),
+    };
 
     let exit_code = ExitCode::from_i32(exit_code.into())?;
     info!("odrefresh exited with {:?}", exit_code);
