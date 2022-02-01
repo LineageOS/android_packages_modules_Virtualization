@@ -72,6 +72,10 @@ enum Opt {
         #[structopt(long, default_value = "none", parse(try_from_str=parse_debug_level))]
         debug: DebugLevel,
 
+        /// Run VM in protected mode.
+        #[structopt(short, long)]
+        protected: bool,
+
         /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
         /// in the VM config file.
         #[structopt(short, long)]
@@ -174,6 +178,7 @@ fn main() -> Result<(), Error> {
             console,
             log,
             debug,
+            protected,
             mem,
             cpus,
             cpu_affinity,
@@ -188,6 +193,7 @@ fn main() -> Result<(), Error> {
             console.as_deref(),
             log.as_deref(),
             debug,
+            protected,
             mem,
             cpus,
             cpu_affinity,

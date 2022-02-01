@@ -50,6 +50,7 @@ pub fn command_run_app(
     console_path: Option<&Path>,
     log_path: Option<&Path>,
     debug_level: DebugLevel,
+    protected: bool,
     mem: Option<u32>,
     cpus: Option<u32>,
     cpu_affinity: Option<String>,
@@ -100,6 +101,7 @@ pub fn command_run_app(
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         configPath: config_path.to_owned(),
         debugLevel: debug_level,
+        protectedVm: protected,
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
         numCpus: cpus.unwrap_or(1) as i32,
         cpuAffinity: cpu_affinity,

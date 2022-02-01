@@ -50,7 +50,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use binder_common::{lazy_service::LazyServiceGuard, new_binder_exception};
 use disk::QcowFile;
 use idsig::{HashAlgorithm, V4Signature};
-use kvm::{Kvm, Cap};
 use log::{debug, error, info, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
@@ -190,9 +189,7 @@ impl IVirtualizationService for VirtualizationService {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
                 load_app_config(config, &temporary_directory).map_err(|e| {
                     error!("Failed to load app config from {}: {}", &config.configPath, e);
-                    // At this point, we do not know the protected status of Vm
-                    // setting it to false, though this may not be correct.
-                    write_vm_creation_stats(false, false);
+                    write_vm_creation_stats(config.protectedVm, false);
                     new_binder_exception(
                         ExceptionCode::SERVICE_SPECIFIC,
                         format!("Failed to load app config from {}: {}", &config.configPath, e),
@@ -202,7 +199,15 @@ impl IVirtualizationService for VirtualizationService {
             VirtualMachineConfig::RawConfig(config) => BorrowedOrOwned::Borrowed(config),
         };
         let config = config.as_ref();
-        let protected_vm = config.protectedVm;
+        let protected = config.protectedVm;
+
+        // Debug level FULL is only supported for non-protected VMs.
+        if is_debug_level_full && protected {
+            return Err(new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                "FULL debug level not supported for protected VMs.",
+            ));
+        };
 
         // Check if partition images are labeled incorrectly. This is to prevent random images
         // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
@@ -226,7 +231,7 @@ impl IVirtualizationService for VirtualizationService {
         let zero_filler_path = temporary_directory.join("zero.img");
         write_zero_filler(&zero_filler_path).map_err(|e| {
             error!("Failed to make composite image: {}", e);
-            write_vm_creation_stats(protected_vm, false);
+            write_vm_creation_stats(protected, false);
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("Failed to make composite image: {}", e),
@@ -247,24 +252,6 @@ impl IVirtualizationService for VirtualizationService {
                 )
             })
             .collect::<Result<Vec<DiskFile>, _>>()?;
-
-        let protected_vm_supported = Kvm::new()
-            .map_err(|e| new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string()))?
-            .check_extension(Cap::ArmProtectedVm);
-        let protected = config.protectedVm && protected_vm_supported;
-        if config.protectedVm && !protected_vm_supported {
-            warn!("Protected VM was requested, but it isn't supported on this machine. Ignored.");
-        }
-
-        // And force run in non-protected mode when debug level is FULL
-        let protected = if is_debug_level_full {
-            if protected {
-                warn!("VM will run in FULL debug level. Running in non-protected mode");
-            }
-            false
-        } else {
-            protected
-        };
 
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
@@ -292,7 +279,7 @@ impl IVirtualizationService for VirtualizationService {
             )
             .map_err(|e| {
                 error!("Failed to create VM with config {:?}: {}", config, e);
-                write_vm_creation_stats(protected_vm, false);
+                write_vm_creation_stats(protected, false);
                 new_binder_exception(
                     ExceptionCode::SERVICE_SPECIFIC,
                     format!("Failed to create VM: {}", e),
@@ -300,7 +287,7 @@ impl IVirtualizationService for VirtualizationService {
             })?,
         );
         state.add_vm(Arc::downgrade(&instance));
-        write_vm_creation_stats(protected_vm, true);
+        write_vm_creation_stats(protected, true);
         Ok(VirtualMachine::create(instance))
     }
 
@@ -587,6 +574,7 @@ fn load_app_config(
         vm_config.memoryMib = config.memoryMib;
     }
 
+    vm_config.protectedVm = config.protectedVm;
     vm_config.numCpus = config.numCpus;
     vm_config.cpuAffinity = config.cpuAffinity.clone();
 

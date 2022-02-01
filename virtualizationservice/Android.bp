@@ -31,7 +31,6 @@ rust_defaults {
         "libcommand_fds",
         "libdisk",
         "libidsig",
-        "libkvm",
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
