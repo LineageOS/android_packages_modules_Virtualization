@@ -10,6 +10,7 @@ android_test {
         "androidx.test.runner",
         "androidx.test.ext.junit",
         "com.android.microdroid.testservice-java",
+        "truth-prebuilt",
     ],
     libs: ["android.system.virtualmachine"],
     jni_libs: ["MicrodroidTestNativeLib"],
@@ -22,6 +23,7 @@ cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/testbinary.cpp"],
     shared_libs: [
+        "android.security.dice-ndk",
         "android.system.virtualmachineservice-ndk",
         "com.android.microdroid.testservice-ndk",
         "libbase",
