@@ -122,6 +122,7 @@ impl VmInstance {
             configPath: config_path.to_owned(),
             debugLevel: debug_level,
             extraIdsigs: vec![idsig_manifest_apk_fd],
+            protectedVm: false,
             memoryMib: VM_MEMORY_MIB,
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
             cpuAffinity: parameters.cpu_set.clone(),
