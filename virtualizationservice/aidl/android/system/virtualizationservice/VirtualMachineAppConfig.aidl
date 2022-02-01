@@ -47,6 +47,9 @@ parcelable VirtualMachineAppConfig {
     /** Debug level of the VM */
     DebugLevel debugLevel;
 
+    /** Whether the VM should be a protected VM. */
+    boolean protectedVm;
+
     /**
      * The amount of RAM to give the VM, in MiB. If this is 0 or negative then it will default to
      * the value in microdroid.json, if any, or the crosvm default.
