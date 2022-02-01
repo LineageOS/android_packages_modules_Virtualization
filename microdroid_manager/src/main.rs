@@ -36,6 +36,7 @@ use microdroid_metadata::{write_metadata, Metadata};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use once_cell::sync::OnceCell;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
+use rand::Fill;
 use ring::digest;
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
@@ -195,7 +196,7 @@ fn dice_derivation(verified_data: MicrodroidData, payload_config_path: &str) -> 
             authorityHash: authority_hash,
             authorityDescriptor: None,
             mode: if is_debuggable()? { Mode::DEBUG } else { Mode::NORMAL },
-            hidden: [0; 64],
+            hidden: verified_data.salt.try_into().unwrap(),
         }])
         .context("IDiceMaintenance::demoteSelf failed")?;
     Ok(())
@@ -438,9 +439,19 @@ fn verify_payload(
 
     info!("payload verification successful. took {:#?}", start_time.elapsed().unwrap());
 
+    // Use the salt from a verified instance, or generate a salt for a new instance.
+    let salt = if let Some(saved_data) = saved_data {
+        saved_data.salt.clone()
+    } else {
+        let mut salt = vec![0u8; 64];
+        salt.as_mut_slice().try_fill(&mut rand::thread_rng())?;
+        salt
+    };
+
     // At this point, we can ensure that the root_hash from the idsig file is trusted, either by
     // fully verifying the APK or by comparing it with the saved root_hash.
     Ok(MicrodroidData {
+        salt,
         apk_data: ApkData { root_hash: root_hash_from_idsig, pubkey: main_apk_pubkey },
         extra_apks_data,
         apex_data: apex_data_from_payload,
