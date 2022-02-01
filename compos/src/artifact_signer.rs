@@ -20,7 +20,7 @@
 #![allow(dead_code)] // Will be used soon
 
 use crate::fsverity;
-use crate::signing_key::Signer;
+use crate::signing_key::DiceSigner;
 use anyhow::{anyhow, Context, Result};
 use odsign_proto::odsign_info::OdsignInfo;
 use protobuf::Message;
@@ -63,7 +63,7 @@ impl<'a> ArtifactSigner<'a> {
 
     /// Consume this ArtifactSigner and write details of all its artifacts to the given path,
     /// with accompanying sigature file.
-    pub fn write_info_and_signature(self, signer: Signer, info_path: &Path) -> Result<()> {
+    pub fn write_info_and_signature(self, signer: DiceSigner, info_path: &Path) -> Result<()> {
         let mut info = OdsignInfo::new();
         info.mut_file_hashes().extend(self.file_digests.into_iter());
         let bytes = info.write_to_bytes()?;
