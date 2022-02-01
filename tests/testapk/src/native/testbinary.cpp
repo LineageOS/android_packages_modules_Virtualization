@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <aidl/android/security/dice/IDiceNode.h>
 #include <aidl/android/system/virtualmachineservice/IVirtualMachineService.h>
 #include <aidl/com/android/microdroid/testservice/BnTestService.h>
 #include <android-base/file.h>
@@ -31,6 +32,9 @@
 
 #include <binder_rpc_unstable.hpp>
 #include <string>
+
+using aidl::android::hardware::security::dice::BccHandover;
+using aidl::android::security::dice::IDiceNode;
 
 using aidl::android::system::virtualmachineservice::IVirtualMachineService;
 
@@ -72,6 +76,23 @@ Result<void> start_test_service() {
                                                                         msg.c_str());
             }
 
+            return ndk::ScopedAStatus::ok();
+        }
+
+        ndk::ScopedAStatus insecurelyExposeSecret(std::vector<uint8_t>* out) override {
+            ndk::SpAIBinder binder(AServiceManager_getService("android.security.dice.IDiceNode"));
+            auto service = IDiceNode::fromBinder(binder);
+            if (service == nullptr) {
+                return ndk::ScopedAStatus::
+                        fromServiceSpecificErrorWithMessage(0, "Failed to find diced");
+            }
+            BccHandover handover;
+            auto deriveStatus = service->derive({}, &handover);
+            if (!deriveStatus.isOk()) {
+                return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(0,
+                                                                               "Failed call diced");
+            }
+            *out = {handover.cdiSeal.begin(), handover.cdiSeal.end()};
             return ndk::ScopedAStatus::ok();
         }
     };

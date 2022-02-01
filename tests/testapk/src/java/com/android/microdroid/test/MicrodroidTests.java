@@ -15,14 +15,14 @@
  */
 package com.android.microdroid.test;
 
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNot.not;
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.TruthJUnit.assume;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeNoException;
-import static org.junit.Assume.assumeThat;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
@@ -52,6 +52,7 @@ import org.junit.runners.JUnit4;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -212,8 +213,10 @@ public class MicrodroidTests {
     @Test
     public void changingDebugLevelInvalidatesVmIdentity()
             throws VirtualMachineException, InterruptedException, IOException {
-        assumeThat("Skip on Cuttlefish. b/195765441",
-                android.os.Build.DEVICE, is(not("vsoc_x86_64")));
+        assume()
+            .withMessage("Skip on Cuttlefish. b/195765441")
+            .that(android.os.Build.DEVICE)
+            .isNotEqualTo("vsoc_x86_64");
 
         VirtualMachineConfig.Builder builder =
                 new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json");
@@ -268,5 +271,65 @@ public class MicrodroidTests {
                     }
                 };
         listener.runToFinish(mInner.mVm);
+    }
+
+    private byte[] launchVmAndGetSecret(String instanceName)
+            throws VirtualMachineException, InterruptedException {
+        VirtualMachineConfig.Builder builder =
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json");
+        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        mInner.mVm = mInner.mVmm.getOrCreate(instanceName, normalConfig);
+        final CompletableFuture<byte[]> secret = new CompletableFuture<>();
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        try {
+                            ITestService testService = ITestService.Stub.asInterface(
+                                    vm.connectToVsockServer(ITestService.SERVICE_PORT).get());
+                            secret.complete(testService.insecurelyExposeSecret());
+                        } catch (Exception e) {
+                            fail("Exception while connecting to service: " + e.toString());
+                        }
+                        // TODO(b/208639280): remove this sleep. For now, we need to wait for a few
+                        // seconds so that crosvm can actually persist instance.img.
+                        try {
+                            Thread.sleep(30 * 1000);
+                        } catch (InterruptedException e) { }
+                        forceStop(vm);
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
+        return secret.getNow(null);
+    }
+
+    @Test
+    public void instancesOfSameVmHaveDifferentSecrets()
+            throws VirtualMachineException, InterruptedException {
+        assume()
+            .withMessage("Skip on Cuttlefish. b/195765441")
+            .that(android.os.Build.DEVICE)
+            .isNotEqualTo("vsoc_x86_64");
+
+        byte[] vm_a_secret = launchVmAndGetSecret("test_vm_a");
+        byte[] vm_b_secret = launchVmAndGetSecret("test_vm_b");
+        assertThat(vm_a_secret).isNotNull();
+        assertThat(vm_b_secret).isNotNull();
+        assertThat(vm_a_secret).isNotEqualTo(vm_b_secret);
+    }
+
+    @Test
+    public void sameInstanceKeepsSameSecrets()
+            throws VirtualMachineException, InterruptedException {
+        assume()
+            .withMessage("Skip on Cuttlefish. b/195765441")
+            .that(android.os.Build.DEVICE)
+            .isNotEqualTo("vsoc_x86_64");
+
+        byte[] vm_secret_first_boot = launchVmAndGetSecret("test_vm");
+        byte[] vm_secret_second_boot = launchVmAndGetSecret("test_vm");
+        assertThat(vm_secret_first_boot).isNotNull();
+        assertThat(vm_secret_second_boot).isNotNull();
+        assertThat(vm_secret_first_boot).isEqualTo(vm_secret_second_boot);
     }
 }
