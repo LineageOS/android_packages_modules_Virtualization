@@ -294,6 +294,8 @@ def SignVirtApex(args):
         input_dir, 'etc', 'microdroid_bootconfig.app_debuggable')
     bootconfig_full_debuggable = os.path.join(
         input_dir, 'etc', 'microdroid_bootconfig.full_debuggable')
+    uboot_env_img = os.path.join(
+        input_dir, 'etc', 'uboot_env.img')
 
     # Key(pubkey) for bootloader should match with the one used to make VBmeta below
     # while it's okay to use different keys for other image files.
@@ -330,17 +332,21 @@ def SignVirtApex(args):
         MakeVbmetaImage(args, key, vbmeta_img, images=[
                         boot_img, vendor_boot_img, init_boot_img, system_a_img, vendor_a_img])
 
-    # Re-sign bootconfigs with the same key
+    # Re-sign bootconfigs and the uboot_env with the same key
     bootconfig_sign_key = key
     AddHashFooter(args, bootconfig_sign_key, bootconfig_normal)
     AddHashFooter(args, bootconfig_sign_key, bootconfig_app_debuggable)
     AddHashFooter(args, bootconfig_sign_key, bootconfig_full_debuggable)
+    AddHashFooter(args, bootconfig_sign_key, uboot_env_img)
 
-    # Re-sign vbmeta_bootconfig with a chained_partition to "bootconfig"
-    # Note that, for now, `key` and `bootconfig_sign_key` are the same, but technically they
-    # can be different. Vbmeta records pubkeys which signed chained partitions.
+    # Re-sign vbmeta_bootconfig with chained_partitions to "bootconfig" and
+    # "uboot_env". Note that, for now, `key` and `bootconfig_sign_key` are the
+    # same, but technically they can be different. Vbmeta records pubkeys which
+    # signed chained partitions.
     MakeVbmetaImage(args, key, vbmeta_bootconfig_img, chained_partitions={
-                    'bootconfig': bootconfig_sign_key})
+                    'bootconfig': bootconfig_sign_key,
+                    'uboot_env': bootconfig_sign_key,
+    })
 
 
 def VerifyVirtApex(args):
