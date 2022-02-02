@@ -348,6 +348,10 @@ vbmeta {
             name: "bootconfig",
             private_key: ":microdroid_sign_key",
         },
+        {
+            name: "uboot_env",
+            private_key: ":microdroid_sign_key",
+        },
     ],
 }
 
@@ -524,18 +528,42 @@ prebuilt_etc {
 
 genrule {
     name: "microdroid_uboot_env_gen",
-    tools: ["mkenvimage_host"],
-    srcs: ["uboot-env.txt"],
+    tools: [
+        "mkenvimage_host",
+        "avbtool",
+    ],
+    srcs: [
+        "uboot-env.txt",
+        ":microdroid_sign_key",
+    ],
     out: ["output.img"],
-    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
+    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(location uboot-env.txt) && " +
+        "$(location avbtool) add_hash_footer " +
+        "--algorithm SHA256_RSA4096 " +
+        "--partition_name uboot_env " +
+        "--key $(location :microdroid_sign_key) " +
+        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
+        "--image $(out)",
 }
 
 genrule {
     name: "microdroid_uboot_env_gen_x86_64",
-    tools: ["mkenvimage_host"],
-    srcs: ["uboot-env-x86_64.txt"],
+    tools: [
+        "mkenvimage_host",
+        "avbtool",
+    ],
+    srcs: [
+        "uboot-env-x86_64.txt",
+        ":microdroid_sign_key",
+    ],
     out: ["output.img"],
-    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(in)",
+    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(location uboot-env-x86_64.txt) && " +
+        "$(location avbtool) add_hash_footer " +
+        "--algorithm SHA256_RSA4096 " +
+        "--partition_name uboot_env " +
+        "--key $(location :microdroid_sign_key) " +
+        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
+        "--image $(out)",
 }
 
 // Note that keys can be different for filesystem images even though we're using the same key
