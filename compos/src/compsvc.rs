@@ -27,7 +27,8 @@ use std::path::PathBuf;
 use std::sync::RwLock;
 
 use crate::compilation::{odrefresh, OdrefreshContext};
-use crate::signing_key::{Signer, SigningKey};
+use crate::dice::Dice;
+use crate::signing_key::{DiceSigner, DiceSigningKey};
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
@@ -44,7 +45,7 @@ const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
     let service = CompOsService {
         odrefresh_path: PathBuf::from(ODREFRESH_PATH),
-        signing_key: SigningKey::new()?,
+        signing_key: DiceSigningKey::new(Dice::new()?),
         key_blob: RwLock::new(Vec::new()),
     };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
@@ -52,12 +53,12 @@ pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
 
 struct CompOsService {
     odrefresh_path: PathBuf,
-    signing_key: SigningKey,
+    signing_key: DiceSigningKey,
     key_blob: RwLock<Vec<u8>>,
 }
 
 impl CompOsService {
-    fn new_signer(&self) -> BinderResult<Signer> {
+    fn new_signer(&self) -> BinderResult<DiceSigner> {
         let key = &*self.key_blob.read().unwrap();
         if key.is_empty() {
             Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))

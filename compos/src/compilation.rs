@@ -27,7 +27,7 @@ use std::path::{self, Path, PathBuf};
 use std::process::Command;
 
 use crate::artifact_signer::ArtifactSigner;
-use crate::signing_key::Signer;
+use crate::signing_key::DiceSigner;
 use authfs_aidl_interface::aidl::com::android::virt::fs::{
     AuthFsConfig::{
         AuthFsConfig, InputDirFdAnnotation::InputDirFdAnnotation,
@@ -101,7 +101,7 @@ pub fn odrefresh(
     odrefresh_path: &Path,
     context: OdrefreshContext,
     authfs_service: Strong<dyn IAuthFsService>,
-    signer: Signer,
+    signer: DiceSigner,
 ) -> Result<ExitCode> {
     // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
     // is out of scope.
