@@ -9,7 +9,7 @@ aidl_interface {
     backend: {
         java: {
             platform_apis: true,
-            gen_rpc: true,
+            require_rpc: true,
         },
         cpp: {
             enabled: true,
