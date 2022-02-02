@@ -33,7 +33,7 @@ apex {
     key: "com.android.compos.key",
     certificate: ":com.android.compos.certificate",
 
-    // TODO(victorhsieh): make it updatable
+    // TODO(b/206618706): make it updatable
     updatable: false,
     future_updatable: true,
     platform_apis: true,
@@ -42,7 +42,6 @@ apex {
 
     binaries: [
         // Used in Android
-        "compos_key_cmd",
         "compos_verify_key",
         "composd",
         "composd_cmd",
