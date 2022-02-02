@@ -20,6 +20,7 @@ use android_security_dice::aidl::android::security::dice::IDiceNode::IDiceNode;
 use android_security_dice::binder::{wait_for_interface, Strong};
 use anyhow::{Context, Result};
 
+#[derive(Clone)]
 pub struct Dice {
     node: Strong<dyn IDiceNode>,
 }
