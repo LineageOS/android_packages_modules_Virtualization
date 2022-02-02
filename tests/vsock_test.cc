@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android/sysprop/HypervisorProperties.sysprop.h>
 #include <linux/kvm.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -30,7 +31,6 @@
 #include "android-base/file.h"
 #include "android-base/logging.h"
 #include "android-base/parseint.h"
-#include "android-base/properties.h"
 #include "android-base/unique_fd.h"
 #include "android/system/virtualizationservice/VirtualMachineConfig.h"
 #include "android/system/virtualizationservice/VirtualMachineRawConfig.h"
@@ -51,12 +51,13 @@ static constexpr const char kTestMessage[] = "HelloWorld";
 
 /** Returns true if the kernel supports protected VMs. */
 bool isProtectedVmSupported() {
-    return GetBoolProperty("ro.boot.hypervisor.protected_vm.supported", false);
+    return android::sysprop::HypervisorProperties::hypervisor_protected_vm_supported().value_or(
+            false);
 }
 
 /** Returns true if the kernel supports unprotected VMs. */
 bool isUnprotectedVmSupported() {
-    return GetBoolProperty("ro.boot.hypervisor.vm.supported", false);
+    return android::sysprop::HypervisorProperties::hypervisor_vm_supported().value_or(false);
 }
 
 void runTest(sp<IVirtualizationService> virtualization_service, bool protected_vm) {
