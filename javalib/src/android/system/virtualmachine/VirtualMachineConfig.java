@@ -206,6 +206,9 @@ public final class VirtualMachineConfig {
             // TODO(jiyong): should we treat APP_ONLY and FULL the same?
             return false;
         }
+        if (this.mProtectedVm != other.mProtectedVm) {
+            return false;
+        }
         return true;
     }
 
