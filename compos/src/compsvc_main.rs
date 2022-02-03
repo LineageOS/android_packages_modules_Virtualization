@@ -51,20 +51,13 @@ fn main() {
 }
 
 fn try_main() -> Result<()> {
-    let args = clap::App::new("compsvc")
-        .arg(clap::Arg::with_name("log_to_stderr").long("log_to_stderr"))
-        .get_matches();
-    if args.is_present("log_to_stderr") {
-        env_logger::builder().filter_level(log::LevelFilter::Debug).init();
-    } else {
-        android_logger::init_once(
-            android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
-        );
-        // Redirect panic messages to logcat.
-        panic::set_hook(Box::new(|panic_info| {
-            log::error!("{}", panic_info);
-        }));
-    }
+    android_logger::init_once(
+        android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
+    );
+    // Redirect panic messages to logcat.
+    panic::set_hook(Box::new(|panic_info| {
+        error!("{}", panic_info);
+    }));
 
     let service = compsvc::new_binder()?.as_binder();
     let vm_service = get_vm_service()?;
