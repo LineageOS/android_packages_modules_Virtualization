@@ -27,6 +27,7 @@ use compos_common::{
 };
 use std::fs::{self, File};
 use std::io::Read;
+use std::panic;
 use std::path::{Path, PathBuf};
 
 const MAX_FILE_SIZE_BYTES: u64 = 8 * 1024;
@@ -37,6 +38,11 @@ fn main() {
             .with_tag("compos_verify_key")
             .with_min_level(log::Level::Info),
     );
+
+    // Redirect panic messages to logcat.
+    panic::set_hook(Box::new(|panic_info| {
+        log::error!("{}", panic_info);
+    }));
 
     if let Err(e) = try_main() {
         log::error!("{:?}", e);
