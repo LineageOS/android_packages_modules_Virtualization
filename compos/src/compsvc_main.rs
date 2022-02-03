@@ -38,6 +38,7 @@ use binder::{
 use binder_common::rpc_server::run_rpc_server;
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
+use std::panic;
 
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
@@ -59,6 +60,10 @@ fn try_main() -> Result<()> {
         android_logger::init_once(
             android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
         );
+        // Redirect panic messages to logcat.
+        panic::set_hook(Box::new(|panic_info| {
+            log::error!("{}", panic_info);
+        }));
     }
 
     let service = compsvc::new_binder()?.as_binder();
