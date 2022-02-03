@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android/sysprop/HypervisorProperties.sysprop.h>
 #include <linux/kvm.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -48,15 +49,26 @@ static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initram
 static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
 
-/** Returns true if the kernel supports Protected KVM. */
-bool isPkvmSupported() {
-    unique_fd kvm_fd(open("/dev/kvm", O_NONBLOCK | O_CLOEXEC));
-    return kvm_fd != 0 && ioctl(kvm_fd, KVM_CHECK_EXTENSION, KVM_CAP_ARM_PROTECTED_VM) == 1;
+/** Returns true if the kernel supports protected VMs. */
+bool isProtectedVmSupported() {
+    return android::sysprop::HypervisorProperties::hypervisor_protected_vm_supported().value_or(
+            false);
+}
+
+/** Returns true if the kernel supports unprotected VMs. */
+bool isUnprotectedVmSupported() {
+    return android::sysprop::HypervisorProperties::hypervisor_vm_supported().value_or(false);
 }
 
 void runTest(sp<IVirtualizationService> virtualization_service, bool protected_vm) {
-    if (protected_vm && !isPkvmSupported()) {
-        GTEST_SKIP() << "Skipping as pKVM is not supported on this device.";
+    if (protected_vm) {
+        if (!isProtectedVmSupported()) {
+            GTEST_SKIP() << "Skipping as protected VMs are not supported on this device.";
+        }
+    } else {
+        if (!isUnprotectedVmSupported()) {
+            GTEST_SKIP() << "Skipping as unprotected VMs are not supported on this device.";
+        }
     }
 
     binder::Status status;
