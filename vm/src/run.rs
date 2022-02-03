@@ -293,11 +293,13 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
         self.dead.raise();
 
         match reason {
-            DeathReason::SHUTDOWN => println!("VM shutdown cleanly."),
-            DeathReason::REBOOT => println!("VM tried to reboot, possibly due to a kernel panic."),
+            DeathReason::INFRASTRUCTURE_ERROR => println!("Error waiting for VM to finish."),
             DeathReason::KILLED => println!("VM was killed."),
             DeathReason::UNKNOWN => println!("VM died for an unknown reason."),
-            DeathReason::INFRASTRUCTURE_ERROR => println!("Error waiting for VM to finish."),
+            DeathReason::SHUTDOWN => println!("VM shutdown cleanly."),
+            DeathReason::ERROR => println!("Error starting VM."),
+            DeathReason::REBOOT => println!("VM tried to reboot, possibly due to a kernel panic."),
+            DeathReason::CRASH => println!("VM crashed."),
             _ => println!("VM died for an unrecognised reason."),
         }
         Ok(())
