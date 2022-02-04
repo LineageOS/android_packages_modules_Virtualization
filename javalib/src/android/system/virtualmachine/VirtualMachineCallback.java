@@ -60,11 +60,13 @@ public interface VirtualMachineCallback {
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({
         DEATH_REASON_VIRTUALIZATIONSERVICE_DIED,
-        DEATH_REASON_SHUTDOWN,
-        DEATH_REASON_REBOOT,
+        DEATH_REASON_INFRASTRUCTURE_ERROR,
         DEATH_REASON_KILLED,
         DEATH_REASON_UNKNOWN,
-        DEATH_REASON_INFRASTRUCTURE_ERROR
+        DEATH_REASON_SHUTDOWN,
+        DEATH_REASON_ERROR,
+        DEATH_REASON_REBOOT,
+        DEATH_REASON_CRASH
     })
     @interface DeathReason {}
 
@@ -74,20 +76,26 @@ public interface VirtualMachineCallback {
      */
     int DEATH_REASON_VIRTUALIZATIONSERVICE_DIED = -1;
 
-    /** The VM requested to shut down. */
-    int DEATH_REASON_SHUTDOWN = 0;
-
-    /** The VM requested to reboot, possibly as the result of a kernel panic. */
-    int DEATH_REASON_REBOOT = 1;
+    /** There was an error waiting for the VM. */
+    int DEATH_REASON_INFRASTRUCTURE_ERROR = 0;
 
     /** The VM was killed. */
-    int DEATH_REASON_KILLED = 2;
+    int DEATH_REASON_KILLED = 1;
 
     /** The VM died for an unknown reason. */
-    int DEATH_REASON_UNKNOWN = 3;
+    int DEATH_REASON_UNKNOWN = 2;
 
-    /** There was an error waiting for the VM. */
-    int DEATH_REASON_INFRASTRUCTURE_ERROR = 4;
+    /** The VM requested to shut down. */
+    int DEATH_REASON_SHUTDOWN = 3;
+
+    /** crosvm had an error starting the VM. */
+    int DEATH_REASON_ERROR = 4;
+
+    /** The VM requested to reboot, possibly as the result of a kernel panic. */
+    int DEATH_REASON_REBOOT = 5;
+
+    /** The VM or crosvm crashed. */
+    int DEATH_REASON_CRASH = 6;
 
     /** Called when the payload starts in the VM. */
     void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
