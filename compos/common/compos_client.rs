@@ -37,6 +37,7 @@ use binder::{
 };
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use log::{info, warn};
+use rustutils::system_properties;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
@@ -86,6 +87,8 @@ impl VmInstance {
         idsig_manifest_apk: &Path,
         parameters: &VmParameters,
     ) -> Result<VmInstance> {
+        let protected_vm = want_protected_vm()?;
+
         let instance_fd = ParcelFileDescriptor::new(instance_image);
 
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
@@ -109,7 +112,9 @@ impl VmInstance {
                 .context("Failed to create system log file")?;
             let console_fd = ParcelFileDescriptor::new(console_fd);
             let log_fd = ParcelFileDescriptor::new(log_fd);
-            (Some(console_fd), Some(log_fd), DebugLevel::FULL)
+            // Full debug is not available in a protected VM
+            let debug_level = if protected_vm { DebugLevel::APP_ONLY } else { DebugLevel::FULL };
+            (Some(console_fd), Some(log_fd), debug_level)
         } else {
             (None, None, DebugLevel::NONE)
         };
@@ -122,7 +127,7 @@ impl VmInstance {
             configPath: config_path.to_owned(),
             debugLevel: debug_level,
             extraIdsigs: vec![idsig_manifest_apk_fd],
-            protectedVm: false,
+            protectedVm: protected_vm,
             memoryMib: VM_MEMORY_MIB,
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
             cpuAffinity: parameters.cpu_set.clone(),
@@ -191,6 +196,31 @@ fn prepare_idsig(
     let idsig_file = File::open(idsig_path).context("Failed to open idsig file")?;
     let idsig_fd = ParcelFileDescriptor::new(idsig_file);
     Ok(idsig_fd)
+}
+
+fn want_protected_vm() -> Result<bool> {
+    let have_protected_vm =
+        system_properties::read_bool("ro.boot.hypervisor.protected_vm.supported", false)
+            .unwrap_or(false);
+    if have_protected_vm {
+        info!("Starting protected VM");
+        return Ok(true);
+    }
+
+    let build_type = system_properties::read("ro.build.type")?;
+    let is_debug_build = matches!(build_type.as_str(), "userdebug" | "eng");
+    if !is_debug_build {
+        bail!("Protected VM not supported, unable to start VM");
+    }
+
+    let have_unprotected_vm =
+        system_properties::read_bool("ro.boot.hypervisor.vm.supported", false).unwrap_or(false);
+    if have_unprotected_vm {
+        warn!("Protected VM not supported, falling back to unprotected on {} build", build_type);
+        return Ok(false);
+    }
+
+    bail!("No VM support available")
 }
 
 struct VsockFactory<'a> {
