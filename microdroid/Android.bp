@@ -518,11 +518,6 @@ genrule {
 prebuilt_etc {
     name: "microdroid_uboot_env",
     src: ":microdroid_uboot_env_gen",
-    arch: {
-        x86_64: {
-            src: ":microdroid_uboot_env_gen_x86_64",
-        },
-    },
     filename: "uboot_env.img",
 }
 
@@ -538,26 +533,6 @@ genrule {
     ],
     out: ["output.img"],
     cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(location uboot-env.txt) && " +
-        "$(location avbtool) add_hash_footer " +
-        "--algorithm SHA256_RSA4096 " +
-        "--partition_name uboot_env " +
-        "--key $(location :microdroid_sign_key) " +
-        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
-        "--image $(out)",
-}
-
-genrule {
-    name: "microdroid_uboot_env_gen_x86_64",
-    tools: [
-        "mkenvimage_host",
-        "avbtool",
-    ],
-    srcs: [
-        "uboot-env-x86_64.txt",
-        ":microdroid_sign_key",
-    ],
-    out: ["output.img"],
-    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(location uboot-env-x86_64.txt) && " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
         "--partition_name uboot_env " +
