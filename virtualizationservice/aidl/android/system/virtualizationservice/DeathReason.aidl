@@ -20,14 +20,18 @@ package android.system.virtualizationservice;
  */
 @Backing(type="int")
 enum DeathReason {
-    /** The VM requested to shut down. */
-    SHUTDOWN = 0,
-    /** The VM requested to reboot, possibly as the result of a kernel panic. */
-    REBOOT = 1,
-    /** The VM was killed. */
-    KILLED = 2,
-    /** The VM died for an unknown reason. */
-    UNKNOWN = 3,
     /** There was an error waiting for the VM. */
-    INFRASTRUCTURE_ERROR = 4,
+    INFRASTRUCTURE_ERROR = 0,
+    /** The VM was killed. */
+    KILLED = 1,
+    /** The VM died for an unknown reason. */
+    UNKNOWN = 2,
+    /** The VM requested to shut down. */
+    SHUTDOWN = 3,
+    /** crosvm had an error starting the VM. */
+    ERROR = 4,
+    /** The VM requested to reboot, possibly as the result of a kernel panic. */
+    REBOOT = 5,
+    /** The VM or crosvm crashed. */
+    CRASH = 6,
 }
