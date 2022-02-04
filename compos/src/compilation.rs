@@ -62,7 +62,9 @@ impl<'a> OdrefreshContext<'a> {
         system_server_compiler_filter: &'a str,
     ) -> Result<Self> {
         if compilation_mode != CompilationMode::NORMAL_COMPILE {
-            let debuggable = system_properties::read_bool("ro.boot.microdroid.debuggable", false)?;
+            let debuggable = is_property_set("ro.boot.microdroid.debuggable")
+                || is_property_set("ro.boot.logd.enabled")
+                || is_property_set("ro.boot.adb.enabled");
             if !debuggable {
                 bail!("Requested compilation mode only available in debuggable VMs");
             }
@@ -95,6 +97,12 @@ impl<'a> OdrefreshContext<'a> {
             system_server_compiler_filter,
         })
     }
+}
+
+// Return whether the named property is definitely enabled. Deliberately conservative; returns
+// false if the property does not exist or cannot be read or is malformed.
+fn is_property_set(name: &str) -> bool {
+    system_properties::read_bool(name, false).unwrap_or(false)
 }
 
 pub fn odrefresh(
