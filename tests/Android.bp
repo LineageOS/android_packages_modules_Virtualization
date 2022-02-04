@@ -23,7 +23,7 @@ kernel_modules_stem = "virt_device_prebuilts_kernel_modules-" + kernel_version
 
 cc_test {
     name: "VirtualizationTestCases",
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     srcs: [
         "common.cc",
         "vsock_test.cc",

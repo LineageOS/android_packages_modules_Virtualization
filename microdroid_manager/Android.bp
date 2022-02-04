@@ -62,7 +62,7 @@ rust_binary {
 rust_test {
     name: "microdroid_manager_test",
     defaults: ["microdroid_manager_defaults"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     rustlibs: [
         "libtempfile",
     ],
