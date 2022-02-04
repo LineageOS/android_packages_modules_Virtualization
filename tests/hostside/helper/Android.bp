@@ -7,7 +7,7 @@ java_test_helper_library {
     host_supported: true,
     device_supported: false,
     srcs: ["java/**/*.java"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     libs: [
         "tradefed",
         "compatibility-tradefed",

@@ -49,5 +49,5 @@ rust_binary {
 rust_test {
     name: "compsvc_device_tests",
     defaults: ["compsvc_defaults"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
 }
