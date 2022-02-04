@@ -63,7 +63,7 @@ rust_binary {
 rust_test {
     name: "authfs_device_test_src_lib",
     defaults: ["authfs_defaults"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     data: [":authfs_test_files"],
 }
 

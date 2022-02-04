@@ -5,7 +5,7 @@ package {
 java_test_host {
     name: "MicrodroidHostTestCases",
     srcs: ["java/**/*.java"],
-    test_suites: ["device-tests"],
+    test_suites: ["general-tests"],
     libs: [
         "tradefed",
     ],
