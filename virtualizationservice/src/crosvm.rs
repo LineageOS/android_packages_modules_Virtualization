@@ -271,7 +271,8 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
         .arg(config.cid.to_string());
 
     if config.protected {
-        command.arg("--protected-vm");
+        // TODO: Go back to "--protected-vm" once pVM firmware is fixed.
+        command.arg("--protected-vm-without-firmware");
     }
 
     if let Some(memory_mib) = config.memory_mib {
