@@ -33,6 +33,8 @@
 //! The payload of a partition is encrypted/signed by a key that is unique to the loader and to the
 //! VM as well. Failing to decrypt/authenticate a partition by a loader stops the boot process.
 
+use crate::ioutil;
+
 use android_security_dice::aidl::android::security::dice::IDiceNode::IDiceNode;
 use anyhow::{anyhow, bail, Context, Result};
 use binder::wait_for_interface;
@@ -180,7 +182,7 @@ impl InstanceDisk {
 
         // Persist the encrypted payload data
         self.file.write_all(&data)?;
-        self.file.flush()?;
+        ioutil::blkflsbuf(&mut self.file)?;
 
         Ok(())
     }
