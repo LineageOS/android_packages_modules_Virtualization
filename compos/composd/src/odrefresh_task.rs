@@ -27,7 +27,7 @@ use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
     CompilationMode::CompilationMode, ICompOsService,
 };
 use compos_common::odrefresh::ExitCode;
-use log::{error, warn};
+use log::{error, info, warn};
 use rustutils::system_properties;
 use std::fs::{remove_dir_all, File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
@@ -96,7 +96,10 @@ impl OdrefreshTask {
             // We don't do the callback if cancel has already happened.
             if let Some(task) = task {
                 let result = match exit_code {
-                    Ok(ExitCode::CompilationSuccess) => task.callback.onSuccess(),
+                    Ok(ExitCode::CompilationSuccess) => {
+                        info!("CompilationSuccess");
+                        task.callback.onSuccess()
+                    }
                     Ok(exit_code) => {
                         error!("Unexpected odrefresh result: {:?}", exit_code);
                         task.callback.onFailure()
