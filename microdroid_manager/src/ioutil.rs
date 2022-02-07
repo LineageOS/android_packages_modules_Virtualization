@@ -14,11 +14,13 @@
 
 //! IO utilities
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use log::debug;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io;
+use std::os::unix::fs::FileTypeExt;
+use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -43,6 +45,20 @@ pub fn wait_for_file<P: AsRef<Path> + Debug>(path: P, timeout: Duration) -> Resu
             }
         }
     }
+}
+
+// From include/uapi/linux/fs.h
+const BLK: u8 = 0x12;
+const BLKFLSBUF: u8 = 97;
+nix::ioctl_none!(_blkflsbuf, BLK, BLKFLSBUF);
+
+pub fn blkflsbuf(f: &mut File) -> Result<()> {
+    if !f.metadata()?.file_type().is_block_device() {
+        bail!("{:?} is not a block device", f.as_raw_fd());
+    }
+    // SAFETY: The file is kept open until the end of this function.
+    unsafe { _blkflsbuf(f.as_raw_fd()) }?;
+    Ok(())
 }
 
 #[cfg(test)]
