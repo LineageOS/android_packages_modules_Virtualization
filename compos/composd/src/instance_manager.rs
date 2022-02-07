@@ -83,15 +83,15 @@ impl InstanceManager {
 }
 
 fn new_vm_parameters() -> Result<VmParameters> {
-    let cpus = match system_properties::read(DEX2OAT_THREADS_PROP_NAME) {
-        Ok(s) => Some(NonZeroU32::from_str(&s)?),
-        Err(_) => {
+    let cpus = match system_properties::read(DEX2OAT_THREADS_PROP_NAME)? {
+        Some(s) => Some(NonZeroU32::from_str(&s)?),
+        None => {
             // dex2oat uses all CPUs by default. To match the behavior, give the VM all CPUs by
             // default.
             NonZeroU32::new(num_cpus::get() as u32)
         }
     };
-    let cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME).ok();
+    let cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME)?;
     Ok(VmParameters { cpus, cpu_set, ..Default::default() })
 }
 
