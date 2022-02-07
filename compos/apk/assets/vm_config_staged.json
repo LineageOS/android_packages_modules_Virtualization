@@ -5,10 +5,7 @@
   },
   "task": {
     "type": "executable",
-    "command": "/apex/com.android.compos/bin/compsvc",
-    "args": [
-      "--log_to_stderr"
-    ]
+    "command": "/apex/com.android.compos/bin/compsvc"
   },
   "prefer_staged": true,
   "extra_apks": [
