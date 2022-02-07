@@ -16,5 +16,5 @@ java_test_host {
         "VirtualizationTestHelper",
     ],
     per_testcase_directory: true,
-    data: [":MicrodroidTestApp.signed"],
+    data: [":MicrodroidTestApp"],
 }
