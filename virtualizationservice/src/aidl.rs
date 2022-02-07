@@ -868,7 +868,7 @@ impl State {
 /// a system property so that restart of virtualizationservice doesn't reuse CID while the host
 /// Android is up.
 fn next_cid() -> Result<Cid> {
-    let next = if let Ok(val) = system_properties::read(SYSPROP_LAST_CID) {
+    let next = if let Some(val) = system_properties::read(SYSPROP_LAST_CID)? {
         if let Ok(num) = val.parse::<u32>() {
             num.checked_add(1).ok_or_else(|| anyhow!("run out of CID"))?
         } else {
