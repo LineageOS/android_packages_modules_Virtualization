@@ -145,9 +145,9 @@ fn run_in_vm(
     };
     let fd_server_raii = fd_server_config.into_fd_server()?;
 
-    let zygote_arch = system_properties::read("ro.zygote")?;
+    let zygote_arch = system_properties::read("ro.zygote")?.context("ro.zygote not set")?;
     let system_server_compiler_filter =
-        system_properties::read("dalvik.vm.systemservercompilerfilter").unwrap_or_default();
+        system_properties::read("dalvik.vm.systemservercompilerfilter")?.unwrap_or_default();
     let exit_code = service.odrefresh(
         compilation_mode,
         system_dir.as_raw_fd(),

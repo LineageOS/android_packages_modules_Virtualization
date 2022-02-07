@@ -200,21 +200,20 @@ fn prepare_idsig(
 
 fn want_protected_vm() -> Result<bool> {
     let have_protected_vm =
-        system_properties::read_bool("ro.boot.hypervisor.protected_vm.supported", false)
-            .unwrap_or(false);
+        system_properties::read_bool("ro.boot.hypervisor.protected_vm.supported", false)?;
     if have_protected_vm {
         info!("Starting protected VM");
         return Ok(true);
     }
 
-    let build_type = system_properties::read("ro.build.type")?;
+    let build_type = system_properties::read("ro.build.type")?.context("ro.build.type not set")?;
     let is_debug_build = matches!(build_type.as_str(), "userdebug" | "eng");
     if !is_debug_build {
         bail!("Protected VM not supported, unable to start VM");
     }
 
     let have_unprotected_vm =
-        system_properties::read_bool("ro.boot.hypervisor.vm.supported", false).unwrap_or(false);
+        system_properties::read_bool("ro.boot.hypervisor.vm.supported", false)?;
     if have_unprotected_vm {
         warn!("Protected VM not supported, falling back to unprotected on {} build", build_type);
         return Ok(false);
