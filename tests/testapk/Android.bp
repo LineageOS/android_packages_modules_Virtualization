@@ -47,20 +47,3 @@ cc_library_shared {
     name: "MicrodroidTestNativeLibSub",
     srcs: ["src/native/testlib.cpp"],
 }
-
-genrule {
-    name: "MicrodroidTestApp.signed",
-    out: [
-        "MicrodroidTestApp.apk",
-        "MicrodroidTestApp.apk.idsig",
-    ],
-    srcs: [":MicrodroidTestApp"],
-    tools: ["apksigner"],
-    tool_files: ["test.keystore"],
-    cmd: "$(location apksigner) sign " +
-        "--ks $(location test.keystore) " +
-        "--ks-pass=pass:testkey --key-pass=pass:testkey " +
-        "--in $(in) " +
-        "--out $(genDir)/MicrodroidTestApp.apk",
-    // $(genDir)/MicrodroidTestApp.apk.idsig is generated implicitly
-}
