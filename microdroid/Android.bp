@@ -292,18 +292,24 @@ bootimg {
     avb_private_key: ":microdroid_sign_key",
 }
 
-android_filesystem {
-    name: "microdroid_vendor_ramdisk-5.10",
+prebuilt_kernel_modules {
+    name: "microdroid_kernel_modules",
     arch: {
         arm64: {
-            deps: ["virt_device_prebuilts_kernel_modules-5.10-arm64"],
+            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.10-arm64"],
         },
         x86_64: {
-            deps: ["virt_device_prebuilts_kernel_modules-5.10-x86_64"],
+            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.10-x86_64"],
         },
     },
+    kernel_version: "5.10",
+}
+
+android_filesystem {
+    name: "microdroid_vendor_ramdisk-5.10",
     deps: [
         "microdroid_fstab",
+        "microdroid_kernel_modules",
     ],
     base_dir: "first_stage_ramdisk",
     type: "compressed_cpio",
