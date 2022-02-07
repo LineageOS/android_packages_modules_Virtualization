@@ -226,11 +226,6 @@ public class MicrodroidTests {
                 new VmEventListener() {
                     @Override
                     public void onPayloadReady(VirtualMachine vm) {
-                        // TODO(b/208639280): remove this sleep. For now, we need to wait for a few
-                        // seconds so that crosvm can actually persist instance.img.
-                        try {
-                            Thread.sleep(30 * 1000);
-                        } catch (InterruptedException e) { }
                         forceStop(vm);
                     }
                 };
@@ -291,11 +286,6 @@ public class MicrodroidTests {
                         } catch (Exception e) {
                             fail("Exception while connecting to service: " + e.toString());
                         }
-                        // TODO(b/208639280): remove this sleep. For now, we need to wait for a few
-                        // seconds so that crosvm can actually persist instance.img.
-                        try {
-                            Thread.sleep(30 * 1000);
-                        } catch (InterruptedException e) { }
                         forceStop(vm);
                     }
                 };
