@@ -251,7 +251,7 @@ fn command_info() -> Result<(), Error> {
         (true, true) => println!("Both protected and unprotected VMs are supported."),
     }
 
-    if let Ok(version) = system_properties::read("ro.boot.hypervisor.version") {
+    if let Some(version) = system_properties::read("ro.boot.hypervisor.version")? {
         println!("Hypervisor version: {}", version);
     } else {
         println!("Hypervisor version not set.");
