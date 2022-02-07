@@ -24,6 +24,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature; // This actually is certificate!
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
+import android.sysprop.HypervisorProperties;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
 
 import java.io.File;
@@ -328,6 +329,16 @@ public final class VirtualMachineConfig {
                     && !Pattern.matches("[\\d]+=[\\d]+(:[\\d]+=[\\d]+)*", mCpuAffinity)) {
                 throw new IllegalArgumentException("CPU affinity [" + mCpuAffinity + "]"
                         + " is invalid");
+            }
+
+            if (mProtectedVm
+                    && !HypervisorProperties.hypervisor_protected_vm_supported().orElse(false)) {
+                throw new UnsupportedOperationException(
+                        "Protected VMs are not supported on this device.");
+            }
+            if (!mProtectedVm && !HypervisorProperties.hypervisor_vm_supported().orElse(false)) {
+                throw new UnsupportedOperationException(
+                        "Unprotected VMs are not supported on this device.");
             }
 
             return new VirtualMachineConfig(
