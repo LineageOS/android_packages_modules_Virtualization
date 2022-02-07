@@ -5,12 +5,16 @@ package {
 java_test_host {
     name: "MicrodroidHostTestCases",
     srcs: ["java/**/*.java"],
-    test_suites: ["general-tests"],
+    test_suites: [
+        "cts",
+        "general-tests",
+    ],
     libs: [
         "tradefed",
     ],
     static_libs: [
         "VirtualizationTestHelper",
     ],
+    per_testcase_directory: true,
     data: [":MicrodroidTestApp.signed"],
 }
