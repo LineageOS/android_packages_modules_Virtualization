@@ -16,6 +16,8 @@
 
 package com.android.server.compos;
 
+import static android.os.Build.isDebuggable;
+
 import android.annotation.NonNull;
 import android.app.job.JobScheduler;
 import android.content.Context;
@@ -25,11 +27,10 @@ import android.content.pm.IStagedApexObserver;
 import android.content.pm.StagedApexInfo;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.sysprop.HypervisorProperties;
 import android.util.Log;
 
 import com.android.server.SystemService;
-
-import java.io.File;
 
 /**
  * A system service responsible for performing Isolated Compilation (compiling boot & system server
@@ -71,12 +72,20 @@ public class IsolatedCompilationService extends SystemService {
     }
 
     private static boolean isIsolatedCompilationSupported() {
-        // Check that KVM is enabled on the device
-        if (!new File("/dev/kvm").exists()) {
-            return false;
+        // The CompOS APEX is present or we wouldn't be here. So just check that the device
+        // has a suitably capable hypervisor.
+
+        // We really want a protected VM
+        if (HypervisorProperties.hypervisor_protected_vm_supported().orElse(false)) {
+            return true;
         }
 
-        return true;
+        // But can use a non-protected VM on a debug build
+        if (isDebuggable()) {
+            return HypervisorProperties.hypervisor_vm_supported().orElse(false);
+        }
+
+        return false;
     }
 
     private static class StagedApexObserver extends IStagedApexObserver.Stub {
