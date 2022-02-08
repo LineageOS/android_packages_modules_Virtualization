@@ -272,6 +272,13 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
 
     if config.protected {
         command.arg("--protected-vm");
+
+        // 3 virtio-console devices + vsock = 4.
+        let virtio_pci_device_count = 4 + config.disks.len();
+        // crosvm virtio queue has 256 entries, so 2 MiB per device (2 pages per entry) should be
+        // enough.
+        let swiotlb_size_mib = 2 * virtio_pci_device_count;
+        command.arg("--swiotlb").arg(swiotlb_size_mib.to_string());
     }
 
     if let Some(memory_mib) = config.memory_mib {
