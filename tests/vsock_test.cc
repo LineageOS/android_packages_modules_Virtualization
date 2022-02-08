@@ -48,6 +48,7 @@ static constexpr const char kVmKernelPath[] = "/data/local/tmp/virt-test/kernel"
 static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initramfs";
 static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
+static constexpr const char kPlatformVersion[] = "~1.0";
 
 /** Returns true if the kernel supports unprotected VMs. */
 bool isUnprotectedVmSupported() {
@@ -82,6 +83,7 @@ TEST_F(VirtualizationTest, TestVsock) {
     raw_config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
     raw_config.params = kVmParams;
     raw_config.protectedVm = false;
+    raw_config.platformVersion = kPlatformVersion;
 
     VirtualMachineConfig config(std::move(raw_config));
     sp<IVirtualMachine> vm;
@@ -110,6 +112,19 @@ TEST_F(VirtualizationTest, TestVsock) {
 
     LOG(INFO) << "Received message: " << msg;
     ASSERT_EQ(msg, kTestMessage);
+}
+
+TEST_F(VirtualizationTest, RejectIncompatiblePlatformVersion) {
+    VirtualMachineRawConfig raw_config;
+    raw_config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
+    raw_config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
+    raw_config.params = kVmParams;
+    raw_config.platformVersion = "~2.0"; // The current platform version is 1.0.0.
+
+    VirtualMachineConfig config(std::move(raw_config));
+    sp<IVirtualMachine> vm;
+    auto status = mVirtualizationService->createVm(config, std::nullopt, std::nullopt, &vm);
+    ASSERT_FALSE(status.isOk());
 }
 
 } // namespace virt
