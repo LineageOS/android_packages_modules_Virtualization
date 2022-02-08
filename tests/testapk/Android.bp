@@ -4,7 +4,10 @@ package {
 
 android_test {
     name: "MicrodroidTestApp",
-    test_suites: ["general-tests"],
+    test_suites: [
+        "cts",
+        "general-tests",
+    ],
     srcs: ["src/java/**/*.java"],
     static_libs: [
         "androidx.test.runner",
@@ -16,6 +19,8 @@ android_test {
     jni_libs: ["MicrodroidTestNativeLib"],
     platform_apis: true,
     use_embedded_native_libs: true,
+    // We only support 64-bit ABI, but CTS demands all APKs to be multi-ABI.
+    compile_multilib: "both",
 }
 
 // TODO(jiyong): make this a binary, not a shared library
