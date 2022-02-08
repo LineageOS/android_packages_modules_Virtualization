@@ -15,11 +15,16 @@
 -->
 
 <configuration description="Config for Virtualization tests">
+    <option name="test-suite-tag" value="cts" />
+    <option name="config-descriptor:metadata" key="component" value="security" />
+    <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
+    <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
+    <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
     <!-- Push test binaries to the device. -->
     <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
         <option name="cleanup" value="true" />
         <option name="abort-on-push-failure" value="true" />
-        <option name="push-file" key="VirtualizationTestCases" value="/data/local/tmp/virt-test/VirtualizationTestCases" />
+        <option name="push-file" key="VirtualizationTestCases.64" value="/data/local/tmp/virt-test/VirtualizationTestCases.64" />
         <option name="push-file" key="virt_test_kernel"        value="/data/local/tmp/virt-test/kernel" />
         <option name="push-file" key="virt_test_initramfs.img" value="/data/local/tmp/virt-test/initramfs" />
     </target_preparer>
@@ -30,7 +35,7 @@
 
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp/virt-test" />
-        <option name="module-name" value="VirtualizationTestCases" />
+        <option name="module-name" value="VirtualizationTestCases.64" />
         <!-- test-timeout unit is ms, value = 2 minutes -->
         <option name="native-test-timeout" value="120000" />
     </test>
