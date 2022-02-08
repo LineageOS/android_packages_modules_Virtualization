@@ -36,7 +36,7 @@ There are various tests that spawn guest VMs and check different aspects of the 
 all can run via `atest`.
 
 ```shell
-atest VirtualizationTestCases
+atest VirtualizationTestCases.64
 atest MicrodroidHostTestCases
 atest MicrodroidTestApp
 ```
