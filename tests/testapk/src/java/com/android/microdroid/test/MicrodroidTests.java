@@ -30,6 +30,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
@@ -61,6 +62,8 @@ import java.util.concurrent.TimeUnit;
 @RunWith(JUnit4.class)
 public class MicrodroidTests {
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
+
+    private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
 
     private static class Inner {
         public Context mContext;
@@ -140,6 +143,11 @@ public class MicrodroidTests {
 
     @Test
     public void connectToVmService() throws VirtualMachineException, InterruptedException {
+        assume()
+            .withMessage("SKip on 5.4 kernel. b/218303240")
+            .that(KERNEL_VERSION)
+            .isNotEqualTo("5.4");
+
         VirtualMachineConfig.Builder builder =
                 new VirtualMachineConfig.Builder(mInner.mContext,
                         "assets/vm_config_extra_apk.json");
@@ -217,6 +225,11 @@ public class MicrodroidTests {
             .withMessage("Skip on Cuttlefish. b/195765441")
             .that(android.os.Build.DEVICE)
             .isNotEqualTo("vsoc_x86_64");
+
+        assume()
+            .withMessage("SKip on 5.4 kernel. b/218303240")
+            .that(KERNEL_VERSION)
+            .isNotEqualTo("5.4");
 
         VirtualMachineConfig.Builder builder =
                 new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json");
@@ -301,6 +314,11 @@ public class MicrodroidTests {
             .that(android.os.Build.DEVICE)
             .isNotEqualTo("vsoc_x86_64");
 
+        assume()
+            .withMessage("SKip on 5.4 kernel. b/218303240")
+            .that(KERNEL_VERSION)
+            .isNotEqualTo("5.4");
+
         byte[] vm_a_secret = launchVmAndGetSecret("test_vm_a");
         byte[] vm_b_secret = launchVmAndGetSecret("test_vm_b");
         assertThat(vm_a_secret).isNotNull();
@@ -315,6 +333,11 @@ public class MicrodroidTests {
             .withMessage("Skip on Cuttlefish. b/195765441")
             .that(android.os.Build.DEVICE)
             .isNotEqualTo("vsoc_x86_64");
+
+        assume()
+            .withMessage("SKip on 5.4 kernel. b/218303240")
+            .that(KERNEL_VERSION)
+            .isNotEqualTo("5.4");
 
         byte[] vm_secret_first_boot = launchVmAndGetSecret("test_vm");
         byte[] vm_secret_second_boot = launchVmAndGetSecret("test_vm");
