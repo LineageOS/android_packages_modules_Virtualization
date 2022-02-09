@@ -52,6 +52,7 @@ import org.junit.runners.JUnit4;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -344,5 +345,83 @@ public class MicrodroidTests {
         assertThat(vm_secret_first_boot).isNotNull();
         assertThat(vm_secret_second_boot).isNotNull();
         assertThat(vm_secret_first_boot).isEqualTo(vm_secret_second_boot);
+    }
+
+    @Test
+    public void bootFailsWhenInstanceDiskIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on Cuttlefish. b/195765441")
+                .that(android.os.Build.DEVICE)
+                .isNotEqualTo("vsoc_x86_64");
+
+        VirtualMachineConfig config =
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json")
+                        .debugLevel(DebugLevel.NONE)
+                        .build();
+
+        // Remove any existing VM so we can start from scratch
+        VirtualMachine oldVm = mInner.mVmm.getOrCreate("test_vm_integrity", config);
+        oldVm.delete();
+
+        mInner.mVm = mInner.mVmm.getOrCreate("test_vm_integrity", config);
+
+        VmEventListener listener =
+                new VmEventListener() {
+                    private boolean mPayloadReadyCalled = false;
+
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        mPayloadReadyCalled = true;
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onDied(VirtualMachine vm, @DeathReason int reason) {
+                        assertTrue(mPayloadReadyCalled);
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
+
+        // Launch the same VM after flipping a bit of the instance image.
+        // Flip actual data, as flipping trivial bits like the magic string isn't interesting.
+        File vmRoot = new File(mInner.mContext.getFilesDir(), "vm");
+        File vmDir = new File(vmRoot, "test_vm_integrity");
+        File instanceImgPath = new File(vmDir, "instance.img");
+        RandomAccessFile instanceFile = new RandomAccessFile(instanceImgPath, "rw");
+
+        // microdroid data partition starts at 0x60200, actual data at 0x60400, based on experiment
+        // TODO: parse image file (QEMU qcow2) correctly?
+        long headerOffset = 0x60400;
+        instanceFile.seek(headerOffset);
+        int b = instanceFile.readByte();
+        instanceFile.seek(headerOffset);
+        instanceFile.writeByte(b ^ 1);
+        instanceFile.close();
+
+        mInner.mVm = mInner.mVmm.get("test_vm_integrity"); // re-load the vm with new instance disk
+        listener =
+                new VmEventListener() {
+                    private boolean mPayloadStarted = false;
+                    private boolean mErrorOccurred = false;
+
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        mPayloadStarted = true;
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onError(VirtualMachine vm, int errorCode, String message) {
+                        mErrorOccurred = true;
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onDied(VirtualMachine vm, @DeathReason int reason) {
+                        assertFalse(mPayloadStarted);
+                        assertTrue(mErrorOccurred);
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
     }
 }
