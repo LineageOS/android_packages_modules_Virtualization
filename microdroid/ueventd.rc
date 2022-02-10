@@ -27,3 +27,5 @@ subsystem dma_heap
 
 # Virtual console for logcat
 /dev/hvc2                 0660   logd       logd
+
+/dev/open-dice0           0660   diced      diced
