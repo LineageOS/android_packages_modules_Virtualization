@@ -18,17 +18,19 @@
 //! file descriptors backed by authfs (via authfs_service) and pass the file descriptors to the
 //! actual compiler.
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use binder_common::new_binder_exception;
 use compos_common::binder::to_binder_result;
 use log::warn;
 use std::default::Default;
-use std::path::PathBuf;
+use std::fs::read_dir;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
+use crate::artifact_signer::ArtifactSigner;
 use crate::compilation::{odrefresh, OdrefreshContext};
 use crate::dice::Dice;
-use crate::signing_key::{DiceSigner, DiceSigningKey};
+use crate::signing_key::DiceSigningKey;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
 use compos_aidl_interface::aidl::com::android::compos::{
     CompOsKeyData::CompOsKeyData,
@@ -57,17 +59,6 @@ struct CompOsService {
     key_blob: RwLock<Vec<u8>>,
 }
 
-impl CompOsService {
-    fn new_signer(&self) -> BinderResult<DiceSigner> {
-        let key = &*self.key_blob.read().unwrap();
-        if key.is_empty() {
-            Err(new_binder_exception(ExceptionCode::ILLEGAL_STATE, "Key is not initialized"))
-        } else {
-            to_binder_result(self.signing_key.new_signer(key))
-        }
-    }
-}
-
 impl Interface for CompOsService {}
 
 impl ICompOsService for CompOsService {
@@ -91,6 +82,14 @@ impl ICompOsService for CompOsService {
         zygote_arch: &str,
         system_server_compiler_filter: &str,
     ) -> BinderResult<i8> {
+        let key = &*self.key_blob.read().unwrap();
+        if key.is_empty() {
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_STATE,
+                "Key is not initialized",
+            ));
+        }
+
         let context = to_binder_result(OdrefreshContext::new(
             compilation_mode,
             system_dir_fd,
@@ -103,8 +102,16 @@ impl ICompOsService for CompOsService {
 
         let authfs_service = get_authfs_service()?;
         let exit_code = to_binder_result(
-            odrefresh(&self.odrefresh_path, context, authfs_service, self.new_signer()?)
-                .context("odrefresh failed"),
+            odrefresh(&self.odrefresh_path, context, authfs_service, |output_dir| {
+                // authfs only shows us the files we created, so it's ok to just sign everything
+                // under the output directory.
+                let mut artifact_signer = ArtifactSigner::new(&output_dir);
+                add_artifacts(&output_dir, &mut artifact_signer)?;
+
+                let signer = to_binder_result(self.signing_key.new_signer(key))?;
+                artifact_signer.write_info_and_signature(signer, &output_dir.join("compos.info"))
+            })
+            .context("odrefresh failed"),
         )?;
         Ok(exit_code as i8)
     }
@@ -125,4 +132,22 @@ impl ICompOsService for CompOsService {
 
 fn get_authfs_service() -> BinderResult<Strong<dyn IAuthFsService>> {
     Ok(authfs_aidl_interface::binder::get_interface(AUTHFS_SERVICE_NAME)?)
+}
+
+fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {
+    for entry in
+        read_dir(&target_dir).with_context(|| format!("Traversing {}", target_dir.display()))?
+    {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            add_artifacts(&entry.path(), artifact_signer)?;
+        } else if file_type.is_file() {
+            artifact_signer.add_artifact(&entry.path())?;
+        } else {
+            // authfs shouldn't create anything else, but just in case
+            bail!("Unexpected file type in artifacts: {:?}", entry);
+        }
+    }
+    Ok(())
 }
