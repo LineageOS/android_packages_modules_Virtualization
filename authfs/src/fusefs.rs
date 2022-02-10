@@ -49,7 +49,10 @@ use self::mount::MAX_WRITE_BYTES;
 pub type Inode = u64;
 type Handle = u64;
 
-const DEFAULT_METADATA_TIMEOUT: Duration = Duration::from_secs(5);
+/// Maximum time for a file's metadata to be cached by the kernel. Since any file and directory
+/// changes (if not read-only) has to go through AuthFS to be trusted, the timeout can be maximum.
+const DEFAULT_METADATA_TIMEOUT: Duration = Duration::MAX;
+
 const ROOT_INODE: Inode = 1;
 
 /// `AuthFsEntry` defines the filesystem entry type supported by AuthFS.
