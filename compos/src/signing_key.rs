@@ -17,8 +17,6 @@
 //! RSA key pair generation, persistence (with the private key encrypted), verification and
 //! signing.
 
-#![allow(dead_code, unused_variables)]
-
 use crate::blob_encryption;
 use crate::dice::Dice;
 use anyhow::{bail, Context, Result};
@@ -29,7 +27,6 @@ use ring::{
 };
 
 pub type DiceSigningKey = SigningKey<Dice>;
-pub type DiceSigner = Signer<Dice>;
 
 pub struct SigningKey<T: SecretStore> {
     secret_store: T,

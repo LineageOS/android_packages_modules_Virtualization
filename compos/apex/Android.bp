@@ -42,7 +42,7 @@ apex {
 
     binaries: [
         // Used in Android
-        "compos_verify_key",
+        "compos_verify",
         "composd",
         "composd_cmd",
 

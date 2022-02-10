@@ -79,4 +79,10 @@ interface ICompOsService {
      * @return whether the inputs are valid and correspond to each other.
      */
     boolean verifySigningKey(in byte[] keyBlob, in byte[] publicKey);
+
+    /**
+     * Returns the current VM's signing key, as an Ed25519 public key
+     * (https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.5).
+     */
+    byte[] getPublicKey();
 }
