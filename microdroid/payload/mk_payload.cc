@@ -171,6 +171,7 @@ Result<void> MakeMetadata(const Config& config, const std::string& filename) {
         auto* apex = metadata.add_apexes();
         apex->set_name(apex_config.name);
         apex->set_partition_name("microdroid-apex-" + std::to_string(apex_index++));
+        apex->set_is_factory(true);
     }
 
     if (config.apk.has_value()) {
