@@ -22,12 +22,9 @@ use rustutils::system_properties;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
-use std::fs::read_dir;
 use std::path::{self, Path, PathBuf};
 use std::process::Command;
 
-use crate::artifact_signer::ArtifactSigner;
-use crate::signing_key::DiceSigner;
 use authfs_aidl_interface::aidl::com::android::virt::fs::{
     AuthFsConfig::{
         AuthFsConfig, InputDirFdAnnotation::InputDirFdAnnotation,
@@ -105,12 +102,15 @@ fn is_property_set(name: &str) -> bool {
     system_properties::read_bool(name, false).unwrap_or(false)
 }
 
-pub fn odrefresh(
+pub fn odrefresh<F>(
     odrefresh_path: &Path,
     context: OdrefreshContext,
     authfs_service: Strong<dyn IAuthFsService>,
-    signer: DiceSigner,
-) -> Result<ExitCode> {
+    success_fn: F,
+) -> Result<ExitCode>
+where
+    F: FnOnce(PathBuf) -> Result<()>,
+{
     // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
     // is out of scope.
     let authfs_config = AuthFsConfig {
@@ -183,13 +183,8 @@ pub fn odrefresh(
     info!("odrefresh exited with {:?}", exit_code);
 
     if exit_code == ExitCode::CompilationSuccess {
-        // authfs only shows us the files we created, so it's ok to just sign everything under
-        // the target directory.
         let target_dir = art_apex_data.join(context.target_dir_name);
-        let mut artifact_signer = ArtifactSigner::new(&target_dir);
-        add_artifacts(&target_dir, &mut artifact_signer)?;
-
-        artifact_signer.write_info_and_signature(signer, &target_dir.join("compos.info"))?;
+        success_fn(target_dir)?;
     }
 
     Ok(exit_code)
@@ -242,24 +237,6 @@ fn load_classpath_vars(odrefresh_vars: &mut EnvMap, export_lines: &str) -> Resul
         }
     }
 
-    Ok(())
-}
-
-fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {
-    for entry in
-        read_dir(&target_dir).with_context(|| format!("Traversing {}", target_dir.display()))?
-    {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() {
-            add_artifacts(&entry.path(), artifact_signer)?;
-        } else if file_type.is_file() {
-            artifact_signer.add_artifact(&entry.path())?;
-        } else {
-            // authfs shouldn't create anything else, but just in case
-            bail!("Unexpected file type in artifacts: {:?}", entry);
-        }
-    }
     Ok(())
 }
 
