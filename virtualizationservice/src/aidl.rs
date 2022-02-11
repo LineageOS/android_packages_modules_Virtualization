@@ -177,13 +177,6 @@ impl IVirtualizationService for VirtualizationService {
         }
 
         let is_app_config = matches!(config, VirtualMachineConfig::AppConfig(_));
-        let is_debug_level_full = matches!(
-            config,
-            VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
-                debugLevel: DebugLevel::FULL,
-                ..
-            })
-        );
 
         let config = match config {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
@@ -200,14 +193,6 @@ impl IVirtualizationService for VirtualizationService {
         };
         let config = config.as_ref();
         let protected = config.protectedVm;
-
-        // Debug level FULL is only supported for non-protected VMs.
-        if is_debug_level_full && protected {
-            return Err(new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                "FULL debug level not supported for protected VMs.",
-            ));
-        };
 
         // Check if partition images are labeled incorrectly. This is to prevent random images
         // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
