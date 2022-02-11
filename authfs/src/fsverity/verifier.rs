@@ -112,8 +112,8 @@ fn fsverity_walk<T: ReadByChunk>(
 }
 
 pub struct VerifiedFileReader<F: ReadByChunk, M: ReadByChunk> {
+    pub file_size: u64,
     chunked_file: F,
-    file_size: u64,
     merkle_tree: M,
     root_hash: HashBuffer,
 }
