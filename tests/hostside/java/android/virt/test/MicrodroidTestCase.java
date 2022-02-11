@@ -17,18 +17,24 @@
 package android.virt.test;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.util.CommandResult;
+import com.android.tradefed.util.CommandStatus;
+import com.android.tradefed.util.FileUtil;
+import com.android.tradefed.util.RunUtil;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.File;
 import java.util.Optional;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
@@ -42,6 +48,16 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     // Number of vCPUs and their affinity to host CPUs for testing purpose
     private static final int NUM_VCPUS = 3;
     private static final String CPU_AFFINITY = "0,1,2";
+
+    // TODO(b/176805428): remove this
+    private boolean isCuttlefish() throws Exception {
+        String productName = getDevice().getProperty("ro.product.name");
+        return (null != productName)
+                && (productName.startsWith("aosp_cf_x86")
+                        || productName.startsWith("aosp_cf_arm")
+                        || productName.startsWith("cf_x86")
+                        || productName.startsWith("cf_arm"));
+    }
 
     private int minMemorySize() throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(getDevice());
@@ -102,6 +118,31 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         assertThat(runOnMicrodroid("cat /proc/cpuinfo | grep processor | wc -l"),
                 is(Integer.toString(NUM_VCPUS)));
+
+        // TODO(b/176805428): adb is broken for nested VM
+        if (!isCuttlefish()) {
+            // Check neverallow rules on microdroid
+            File policyFile = FileUtil.createTempFile("microdroid_sepolicy", "");
+            pullMicrodroidFile("/sys/fs/selinux/policy", policyFile);
+
+            File generalPolicyConfFile = findTestFile("microdroid_general_sepolicy.conf");
+            File sepolicyAnalyzeBin = findTestFile("sepolicy-analyze");
+
+            CommandResult result =
+                    RunUtil.getDefault()
+                            .runTimedCmd(
+                                    10000,
+                                    sepolicyAnalyzeBin.getPath(),
+                                    policyFile.getPath(),
+                                    "neverallow",
+                                    "-w",
+                                    "-f",
+                                    generalPolicyConfFile.getPath());
+            assertEquals(
+                    "neverallow check failed: " + result.getStderr().trim(),
+                    result.getStatus(),
+                    CommandStatus.SUCCESS);
+        }
 
         shutdownMicrodroid(getDevice(), cid);
     }

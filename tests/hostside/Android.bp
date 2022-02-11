@@ -16,5 +16,9 @@ java_test_host {
         "VirtualizationTestHelper",
     ],
     per_testcase_directory: true,
-    data: [":MicrodroidTestApp"],
+    data: [
+        ":MicrodroidTestApp",
+        ":microdroid_general_sepolicy.conf",
+    ],
+    data_native_bins: ["sepolicy-analyze"],
 }
