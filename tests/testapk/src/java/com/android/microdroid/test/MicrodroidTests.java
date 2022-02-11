@@ -38,6 +38,7 @@ import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
 
+import androidx.annotation.CallSuper;
 import androidx.test.core.app.ApplicationProvider;
 
 import com.android.microdroid.testservice.ITestService;
@@ -114,13 +115,7 @@ public class MicrodroidTests {
         }
 
         void forceStop(VirtualMachine vm) {
-            try {
-                vm.stop();
-                this.onDied(vm, VirtualMachineCallback.DEATH_REASON_KILLED);
-                mExecutorService.shutdown();
-            } catch (VirtualMachineException e) {
-                throw new RuntimeException(e);
-            }
+            this.onDied(vm, VirtualMachineCallback.DEATH_REASON_KILLED);
         }
 
         @Override
@@ -136,7 +131,15 @@ public class MicrodroidTests {
         public void onError(VirtualMachine vm, int errorCode, String message) {}
 
         @Override
-        public void onDied(VirtualMachine vm, @DeathReason int reason) {}
+        @CallSuper
+        public void onDied(VirtualMachine vm, @DeathReason int reason) {
+            try {
+                vm.stop();
+                mExecutorService.shutdown();
+            } catch (VirtualMachineException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     private static final int MIN_MEM_ARM64 = 135;
@@ -214,6 +217,7 @@ public class MicrodroidTests {
                     public void onDied(VirtualMachine vm, @DeathReason int reason) {
                         assertTrue(mPayloadReadyCalled);
                         assertTrue(mPayloadStartedCalled);
+                        super.onDied(vm, reason);
                     }
                 };
         listener.runToFinish(mInner.mVm);
@@ -277,6 +281,7 @@ public class MicrodroidTests {
                     public void onDied(VirtualMachine vm, @DeathReason int reason) {
                         assertFalse(mPayloadStarted);
                         assertTrue(mErrorOccurred);
+                        super.onDied(vm, reason);
                     }
                 };
         listener.runToFinish(mInner.mVm);
@@ -378,6 +383,7 @@ public class MicrodroidTests {
                     @Override
                     public void onDied(VirtualMachine vm, @DeathReason int reason) {
                         assertTrue(mPayloadReadyCalled);
+                        super.onDied(vm, reason);
                     }
                 };
         listener.runToFinish(mInner.mVm);
@@ -420,6 +426,7 @@ public class MicrodroidTests {
                     public void onDied(VirtualMachine vm, @DeathReason int reason) {
                         assertFalse(mPayloadStarted);
                         assertTrue(mErrorOccurred);
+                        super.onDied(vm, reason);
                     }
                 };
         listener.runToFinish(mInner.mVm);
