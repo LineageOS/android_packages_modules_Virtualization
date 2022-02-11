@@ -149,9 +149,26 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     }
 
     public static CommandResult runOnMicrodroidForResult(String... cmd) {
-        final long timeout = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
+        final long timeoutMs = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
         return RunUtil.getDefault()
-                .runTimedCmd(timeout, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
+                .runTimedCmd(timeoutMs, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
+    }
+
+    public static void pullMicrodroidFile(String path, File target) {
+        final long timeoutMs = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
+        CommandResult result =
+                RunUtil.getDefault()
+                        .runTimedCmd(
+                                timeoutMs,
+                                "adb",
+                                "-s",
+                                MICRODROID_SERIAL,
+                                "pull",
+                                path,
+                                target.getPath());
+        if (result.getStatus() != CommandStatus.SUCCESS) {
+            fail("pulling " + path + " has failed: " + result);
+        }
     }
 
     // Asserts the command will fail on Microdroid.
