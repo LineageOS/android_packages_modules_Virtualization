@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+mod file;
 mod mount;
 
 use anyhow::{anyhow, bail, Result};
@@ -37,12 +38,13 @@ use std::time::Duration;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
 use crate::file::{
-    validate_basename, Attr, EagerChunkReader, InMemoryDir, RandomWrite, ReadByChunk,
-    RemoteDirEditor, RemoteFileEditor, RemoteFileReader,
+    validate_basename, Attr, InMemoryDir, RandomWrite, ReadByChunk, RemoteDirEditor,
+    RemoteFileEditor, RemoteFileReader,
 };
 use crate::fsstat::RemoteFsStatsReader;
-use crate::fsverity::{VerifiedFileEditor, VerifiedFileReader};
+use crate::fsverity::VerifiedFileEditor;
 
+pub use self::file::LazyVerifiedReadonlyFile;
 pub use self::mount::mount_and_enter_message_loop;
 use self::mount::MAX_WRITE_BYTES;
 
@@ -61,10 +63,7 @@ pub enum AuthFsEntry {
     ReadonlyDirectory { dir: InMemoryDir },
     /// A file type that is verified against fs-verity signature (thus read-only). The file is
     /// served from a remote server.
-    VerifiedReadonly {
-        reader: VerifiedFileReader<RemoteFileReader, EagerChunkReader>,
-        file_size: u64,
-    },
+    VerifiedReadonly { reader: LazyVerifiedReadonlyFile },
     /// A file type that is a read-only passthrough from a file on a remote server.
     UnverifiedReadonly { reader: RemoteFileReader, file_size: u64 },
     /// A file type that is initially empty, and the content is stored on a remote server. File
@@ -537,9 +536,11 @@ impl FileSystem for AuthFs {
                     AuthFsEntry::ReadonlyDirectory { dir } => {
                         create_dir_stat(inode, dir.number_of_entries(), AccessMode::ReadOnly)
                     }
-                    AuthFsEntry::UnverifiedReadonly { file_size, .. }
-                    | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
+                    AuthFsEntry::UnverifiedReadonly { file_size, .. } => {
                         create_stat(inode, *file_size, AccessMode::ReadOnly)
+                    }
+                    AuthFsEntry::VerifiedReadonly { reader } => {
+                        create_stat(inode, reader.file_size()?, AccessMode::ReadOnly)
                     }
                     AuthFsEntry::VerifiedNew { editor, attr, .. } => {
                         create_stat(inode, editor.size(), AccessMode::Variable(attr.mode()))
@@ -608,9 +609,11 @@ impl FileSystem for AuthFs {
                     AuthFsEntry::ReadonlyDirectory { dir } => {
                         create_dir_stat(inode, dir.number_of_entries(), AccessMode::ReadOnly)
                     }
-                    AuthFsEntry::UnverifiedReadonly { file_size, .. }
-                    | AuthFsEntry::VerifiedReadonly { file_size, .. } => {
+                    AuthFsEntry::UnverifiedReadonly { file_size, .. } => {
                         create_stat(inode, *file_size, AccessMode::ReadOnly)
+                    }
+                    AuthFsEntry::VerifiedReadonly { reader } => {
+                        create_stat(inode, reader.file_size()?, AccessMode::ReadOnly)
                     }
                     AuthFsEntry::VerifiedNew { editor, attr, .. } => {
                         create_stat(inode, editor.size(), AccessMode::Variable(attr.mode()))
@@ -708,8 +711,8 @@ impl FileSystem for AuthFs {
     ) -> io::Result<usize> {
         self.handle_inode(&inode, |config| {
             match config {
-                AuthFsEntry::VerifiedReadonly { reader, file_size } => {
-                    read_chunks(w, reader, *file_size, offset, size)
+                AuthFsEntry::VerifiedReadonly { reader } => {
+                    read_chunks(w, reader, reader.file_size()?, offset, size)
                 }
                 AuthFsEntry::UnverifiedReadonly { reader, file_size } => {
                     read_chunks(w, reader, *file_size, offset, size)
