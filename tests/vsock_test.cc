@@ -49,26 +49,14 @@ static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initram
 static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
 
-/** Returns true if the kernel supports protected VMs. */
-bool isProtectedVmSupported() {
-    return android::sysprop::HypervisorProperties::hypervisor_protected_vm_supported().value_or(
-            false);
-}
-
 /** Returns true if the kernel supports unprotected VMs. */
 bool isUnprotectedVmSupported() {
     return android::sysprop::HypervisorProperties::hypervisor_vm_supported().value_or(false);
 }
 
-void runTest(sp<IVirtualizationService> virtualization_service, bool protected_vm) {
-    if (protected_vm) {
-        if (!isProtectedVmSupported()) {
-            GTEST_SKIP() << "Skipping as protected VMs are not supported on this device.";
-        }
-    } else {
-        if (!isUnprotectedVmSupported()) {
-            GTEST_SKIP() << "Skipping as unprotected VMs are not supported on this device.";
-        }
+TEST_F(VirtualizationTest, TestVsock) {
+    if (!isUnprotectedVmSupported()) {
+        GTEST_SKIP() << "Skipping as unprotected VMs are not supported on this device.";
     }
 
     binder::Status status;
@@ -93,11 +81,11 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
     raw_config.kernel = ParcelFileDescriptor(unique_fd(open(kVmKernelPath, O_RDONLY | O_CLOEXEC)));
     raw_config.initrd = ParcelFileDescriptor(unique_fd(open(kVmInitrdPath, O_RDONLY | O_CLOEXEC)));
     raw_config.params = kVmParams;
-    raw_config.protectedVm = protected_vm;
+    raw_config.protectedVm = false;
 
     VirtualMachineConfig config(std::move(raw_config));
     sp<IVirtualMachine> vm;
-    status = virtualization_service->createVm(config, std::nullopt, std::nullopt, &vm);
+    status = mVirtualizationService->createVm(config, std::nullopt, std::nullopt, &vm);
     ASSERT_TRUE(status.isOk()) << "Error creating VM: " << status;
 
     int32_t cid;
@@ -122,14 +110,6 @@ void runTest(sp<IVirtualizationService> virtualization_service, bool protected_v
 
     LOG(INFO) << "Received message: " << msg;
     ASSERT_EQ(msg, kTestMessage);
-}
-
-TEST_F(VirtualizationTest, TestVsock) {
-    runTest(mVirtualizationService, false);
-}
-
-TEST_F(VirtualizationTest, TestVsockProtected) {
-    runTest(mVirtualizationService, true);
 }
 
 } // namespace virt
