@@ -196,6 +196,3 @@ on fs
 "
     chown logd logd /dev/event-log-tags
     chmod 0644 /dev/event-log-tags
-
-on property:sys.boot_completed=1
-    start logd-auditctl
