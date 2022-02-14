@@ -119,6 +119,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         assertThat(runOnMicrodroid("cat /proc/cpuinfo | grep processor | wc -l"),
                 is(Integer.toString(NUM_VCPUS)));
 
+        // Check that selinux is enabled
+        assertThat(runOnMicrodroid("getenforce"), is("Enforcing"));
+
         // TODO(b/176805428): adb is broken for nested VM
         if (!isCuttlefish()) {
             // Check neverallow rules on microdroid
