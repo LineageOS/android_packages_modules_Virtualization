@@ -47,14 +47,11 @@ mod fsstat;
 mod fsverity;
 mod fusefs;
 
-use file::{
-    Attr, EagerChunkReader, InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader,
-    RemoteMerkleTreeReader,
-};
+use file::{Attr, InMemoryDir, RemoteDirEditor, RemoteFileEditor, RemoteFileReader};
 use fsstat::RemoteFsStatsReader;
-use fsverity::{merkle_tree_size, VerifiedFileEditor, VerifiedFileReader};
+use fsverity::VerifiedFileEditor;
 use fsverity_digests_proto::fsverity_digests::FSVerityDigests;
-use fusefs::{AuthFs, AuthFsEntry};
+use fusefs::{AuthFs, AuthFsEntry, LazyVerifiedReadonlyFile};
 
 #[derive(StructOpt)]
 struct Args {
@@ -186,19 +183,13 @@ fn new_remote_verified_file_entry(
     service: file::VirtFdService,
     remote_fd: i32,
     expected_digest: &str,
-    file_size: u64,
 ) -> Result<AuthFsEntry> {
     Ok(AuthFsEntry::VerifiedReadonly {
-        reader: VerifiedFileReader::new(
-            RemoteFileReader::new(service.clone(), remote_fd),
-            file_size,
-            &from_hex_string(expected_digest)?,
-            EagerChunkReader::new(
-                RemoteMerkleTreeReader::new(service.clone(), remote_fd),
-                merkle_tree_size(file_size),
-            )?,
-        )?,
-        file_size,
+        reader: LazyVerifiedReadonlyFile::prepare_by_fd(
+            service,
+            remote_fd,
+            from_hex_string(expected_digest)?,
+        ),
     })
 }
 
@@ -239,12 +230,7 @@ fn prepare_root_dir_entries(
     for config in &args.remote_ro_file {
         authfs.add_entry_at_root_dir(
             remote_fd_to_path_buf(config.remote_fd),
-            new_remote_verified_file_entry(
-                service.clone(),
-                config.remote_fd,
-                &config.digest,
-                service.getFileSize(config.remote_fd)?.try_into()?,
-            )?,
+            new_remote_verified_file_entry(service.clone(), config.remote_fd, &config.digest)?,
         )?;
     }
 
@@ -294,25 +280,13 @@ fn prepare_root_dir_entries(
                 let remote_path_str = path_str.strip_prefix(&config.prefix).ok_or_else(|| {
                     anyhow!("Expect path {} to match prefix {}", path_str, config.prefix)
                 })?;
-                // TODO(205883847): Not all files will be used. Open the remote file lazily.
-                let remote_file = RemoteFileReader::new_by_path(
-                    service.clone(),
-                    config.remote_dir_fd,
-                    Path::new(remote_path_str),
-                )?;
-                let remote_fd = remote_file.get_remote_fd();
-                let file_size = service.getFileSize(remote_fd)?.try_into()?;
                 AuthFsEntry::VerifiedReadonly {
-                    reader: VerifiedFileReader::new(
-                        remote_file,
-                        file_size,
-                        &digest.digest,
-                        EagerChunkReader::new(
-                            RemoteMerkleTreeReader::new(service.clone(), remote_fd),
-                            merkle_tree_size(file_size),
-                        )?,
-                    )?,
-                    file_size,
+                    reader: LazyVerifiedReadonlyFile::prepare_by_path(
+                        service.clone(),
+                        config.remote_dir_fd,
+                        PathBuf::from(remote_path_str),
+                        digest.digest.clone(),
+                    ),
                 }
             };
             authfs.add_entry_at_ro_dir_by_path(dir_root_inode, Path::new(path_str), file_entry)?;
