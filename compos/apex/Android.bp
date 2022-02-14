@@ -47,6 +47,7 @@ apex {
         "composd_cmd",
 
         // Used in VM
+        "compos_key_helper",
         "compsvc",
     ],
 
