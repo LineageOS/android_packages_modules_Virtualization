@@ -40,7 +40,7 @@ type Cid = u32;
 
 fn main() {
     android_logger::init_once(
-        android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Trace),
+        android_logger::Config::default().with_tag(LOG_TAG).with_min_level(Level::Info),
     );
 
     clear_temporary_files().expect("Failed to delete old temporary files");
