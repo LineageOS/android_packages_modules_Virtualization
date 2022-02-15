@@ -290,8 +290,10 @@ impl IVirtFdService for FdService {
                 let new_fd = openat(
                     dir.as_raw_fd(),
                     basename,
-                    // TODO(205172873): handle the case when the file already exist, e.g. truncate
-                    // or fail, and possibly allow the client to specify. For now, always truncate.
+                    // This function is supposed to be only called when FUSE/authfs thinks the file
+                    // does not exist. However, if the file does exist from the view of fd_server
+                    // (where the execution context is considered untrusted), we prefer to honor
+                    // authfs and still allow the create to success. Therefore, always use O_TRUNC.
                     OFlag::O_CREAT | OFlag::O_RDWR | OFlag::O_TRUNC,
                     mode,
                 )
