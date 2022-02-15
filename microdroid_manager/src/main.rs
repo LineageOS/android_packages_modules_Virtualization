@@ -121,7 +121,7 @@ fn main() {
 }
 
 fn try_main() -> Result<()> {
-    kernlog::init()?;
+    let _ = kernlog::init();
     info!("started.");
 
     let service = get_vms_rpc_binder().context("cannot connect to VirtualMachineService")?;
