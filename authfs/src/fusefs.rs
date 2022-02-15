@@ -664,7 +664,6 @@ impl FileSystem for AuthFs {
         _flags: u32,
         umask: u32,
     ) -> io::Result<(Entry, Option<Self::Handle>, FuseOpenOptions)> {
-        // TODO(205172873): handle O_TRUNC and O_EXCL properly.
         let new_inode = self.create_new_entry_with_ref_count(
             parent,
             name,
