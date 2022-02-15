@@ -18,12 +18,16 @@ package android.virt.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.result.TestDescription;
+import com.android.tradefed.result.TestResult;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.FileUtil;
@@ -35,6 +39,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
+import java.util.Map;
 import java.util.Optional;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
@@ -70,6 +75,27 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         }
         fail("Unsupported ABI: " + abi);
         return 0;
+    }
+
+    @Test
+    public void testCreateVmRequiresPermission() throws Exception {
+        // Revoke the MANAGE_VIRTUAL_MACHINE permission for the test app
+        CommandRunner android = new CommandRunner(getDevice());
+        android.run("pm", "revoke", PACKAGE_NAME, "android.permission.MANAGE_VIRTUAL_MACHINE");
+
+        // Run MicrodroidTests#connectToVmService test, which should fail
+        final DeviceTestRunOptions options = new DeviceTestRunOptions(PACKAGE_NAME)
+                .setTestClassName(PACKAGE_NAME + ".MicrodroidTests")
+                .setTestMethodName("connectToVmService")
+                .setCheckResults(false);
+        assertFalse(runDeviceTests(options));
+
+        Map<TestDescription, TestResult> results = getLastDeviceRunResults().getTestResults();
+        assertThat(results.size(), is(1));
+        TestResult result = results.values().toArray(new TestResult[0])[0];
+        assertTrue("The test should fail with a permission error",
+                result.getStackTrace()
+                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission"));
     }
 
     @Test
