@@ -2,7 +2,9 @@
 androidboot.microdroid.debuggable=0
 
 # Console output is not redirect to the host-side.
-kernel.console = null
+# TODO(b/219743539) This doesn't successfully disable the console
+kernel.printk.devkmsg=off
+kernel.console=null
 
 # ADB is not enabled.
 androidboot.adb.enabled=0
