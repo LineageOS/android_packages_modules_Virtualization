@@ -67,8 +67,7 @@ const VMADDR_CID_HOST: u32 = 2;
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
 const LOGD_ENABLED_PROP: &str = "ro.boot.logd.enabled";
-const ADBD_ENABLED_PROP: &str = "ro.boot.adb.enabled";
-const DEBUGGABLE_PROP: &str = "ro.boot.microdroid.debuggable";
+const APP_DEBUGGABLE_PROP: &str = "ro.boot.microdroid.app_debuggable";
 
 #[derive(thiserror::Error, Debug)]
 enum MicrodroidError {
@@ -145,15 +144,6 @@ fn try_main() -> Result<()> {
     }
 }
 
-fn is_debuggable() -> Result<bool> {
-    // Read all the properties so the behaviour is most similar between debug and non-debug boots.
-    // Defensively default to debug enabled for unrecognised values.
-    let adb = system_properties::read_bool(ADBD_ENABLED_PROP, true)?;
-    let logd = system_properties::read_bool(LOGD_ENABLED_PROP, true)?;
-    let debuggable = system_properties::read_bool(DEBUGGABLE_PROP, true)?;
-    Ok(adb || logd || debuggable)
-}
-
 fn dice_derivation(verified_data: MicrodroidData, payload_config_path: &str) -> Result<()> {
     // Calculate compound digests of code and authorities
     let mut code_hash_ctx = digest::Context::new(&digest::SHA512);
@@ -183,6 +173,9 @@ fn dice_derivation(verified_data: MicrodroidData, payload_config_path: &str) -> 
     encode_header(3, config_path_bytes.len().try_into().unwrap(), &mut config_desc)?;
     config_desc.extend_from_slice(config_path_bytes);
 
+    // Check app debuggability, conervatively assuming it is debuggable
+    let app_debuggable = system_properties::read_bool(APP_DEBUGGABLE_PROP, true)?;
+
     // Send the details to diced
     let diced =
         wait_for_interface::<dyn IDiceMaintenance>("android.security.dice.IDiceMaintenance")
@@ -193,7 +186,7 @@ fn dice_derivation(verified_data: MicrodroidData, payload_config_path: &str) -> 
             config: Config { desc: config_desc },
             authorityHash: authority_hash,
             authorityDescriptor: None,
-            mode: if is_debuggable()? { Mode::DEBUG } else { Mode::NORMAL },
+            mode: if app_debuggable { Mode::DEBUG } else { Mode::NORMAL },
             hidden: verified_data.salt.try_into().unwrap(),
         }])
         .context("IDiceMaintenance::demoteSelf failed")?;
