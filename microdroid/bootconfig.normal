@@ -1,3 +1,6 @@
+# The app is not debuggable.
+androidboot.microdroid.app_debuggable=0
+
 # ro.debuggable is off
 androidboot.microdroid.debuggable=0
 
