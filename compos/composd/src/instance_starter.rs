@@ -20,16 +20,13 @@
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use binder_common::lazy_service::LazyServiceGuard;
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::{ParcelFileDescriptor, Strong};
 use compos_common::compos_client::{VmInstance, VmParameters};
-use compos_common::{
-    COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTANCE_IMAGE_FILE,
-    PRIVATE_KEY_BLOB_FILE, PUBLIC_KEY_FILE,
-};
-use log::{info, warn};
+use compos_common::{COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTANCE_IMAGE_FILE};
+use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -53,8 +50,6 @@ pub struct InstanceStarter {
     instance_image: PathBuf,
     idsig: PathBuf,
     idsig_manifest_apk: PathBuf,
-    key_blob: PathBuf,
-    public_key: PathBuf,
     vm_parameters: VmParameters,
 }
 
@@ -65,61 +60,17 @@ impl InstanceStarter {
         let instance_image = instance_root_path.join(INSTANCE_IMAGE_FILE);
         let idsig = instance_root_path.join(IDSIG_FILE);
         let idsig_manifest_apk = instance_root_path.join(IDSIG_MANIFEST_APK_FILE);
-        let key_blob = instance_root_path.join(PRIVATE_KEY_BLOB_FILE);
-        let public_key = instance_root_path.join(PUBLIC_KEY_FILE);
         Self {
             instance_name: instance_name.to_owned(),
             instance_root,
             instance_image,
             idsig,
             idsig_manifest_apk,
-            key_blob,
-            public_key,
             vm_parameters,
         }
     }
 
-    pub fn create_or_start_instance(
-        &self,
-        virtualization_service: &dyn IVirtualizationService,
-    ) -> Result<CompOsInstance> {
-        let compos_instance = self.start_existing_instance(virtualization_service);
-        match compos_instance {
-            Ok(_) => return compos_instance,
-            Err(e) => warn!("Failed to start: {}", e),
-        }
-
-        self.start_new_instance(virtualization_service)
-    }
-
-    fn start_existing_instance(
-        &self,
-        virtualization_service: &dyn IVirtualizationService,
-    ) -> Result<CompOsInstance> {
-        // No point even trying if the files we need aren't there.
-        self.check_files_exist()?;
-
-        info!("Starting {} CompOs instance", self.instance_name);
-
-        let key_blob = fs::read(&self.key_blob).context("Reading private key blob")?;
-        let public_key = fs::read(&self.public_key).context("Reading public key")?;
-
-        let compos_instance = self.start_vm(virtualization_service)?;
-        let service = &compos_instance.service;
-
-        if !service.verifySigningKey(&key_blob, &public_key).context("Verifying key pair")? {
-            bail!("Key pair invalid");
-        }
-
-        // If we get this far then the instance image is valid in the current context (e.g. the
-        // current set of APEXes) and the key blob can be successfully decrypted by the VM. So the
-        // files have not been tampered with and we're good to go.
-        service.initializeSigningKey(&key_blob).context("Loading signing key")?;
-
-        Ok(compos_instance)
-    }
-
-    fn start_new_instance(
+    pub fn start_new_instance(
         &self,
         virtualization_service: &dyn IVirtualizationService,
     ) -> Result<CompOsInstance> {
@@ -128,23 +79,15 @@ impl InstanceStarter {
         // Ignore failure here - the directory may already exist.
         let _ = fs::create_dir(&self.instance_root);
 
+        // Overwrite any existing instance - it's unlikely to be valid with the current set
+        // of APEXes, and finding out it isn't is much more expensive than creating a new one.
         self.create_instance_image(virtualization_service)?;
+
         // Delete existing idsig files. Ignore error in case idsig doesn't exist.
         let _ = fs::remove_file(&self.idsig);
         let _ = fs::remove_file(&self.idsig_manifest_apk);
 
-        let compos_instance = self.start_vm(virtualization_service)?;
-        let service = &compos_instance.service;
-
-        let key_data = service.generateSigningKey().context("Generating signing key")?;
-        fs::write(&self.key_blob, &key_data.keyBlob).context("Writing key blob")?;
-        fs::write(&self.public_key, &key_data.publicKey).context("Writing public key")?;
-
-        // Unlike when starting an existing instance, we don't need to verify the key, since we
-        // just generated it and have it in memory.
-        service.initializeSigningKey(&key_data.keyBlob).context("Loading signing key")?;
-
-        Ok(compos_instance)
+        self.start_vm(virtualization_service)
     }
 
     fn start_vm(
@@ -185,23 +128,6 @@ impl InstanceStarter {
         virtualization_service
             .initializeWritablePartition(&instance_image, size, PartitionType::ANDROID_VM_INSTANCE)
             .context("Writing instance image file")?;
-        Ok(())
-    }
-
-    fn check_files_exist(&self) -> Result<()> {
-        if !self.instance_root.is_dir() {
-            bail!("Directory {:?} not found", self.instance_root)
-        };
-        Self::check_file_exists(&self.instance_image)?;
-        Self::check_file_exists(&self.key_blob)?;
-        Self::check_file_exists(&self.public_key)?;
-        Ok(())
-    }
-
-    fn check_file_exists(file: &Path) -> Result<()> {
-        if !file.is_file() {
-            bail!("File {:?} not found", file)
-        };
         Ok(())
     }
 }
