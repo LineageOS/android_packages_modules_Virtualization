@@ -86,7 +86,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         // Run MicrodroidTests#connectToVmService test, which should fail
         final DeviceTestRunOptions options = new DeviceTestRunOptions(PACKAGE_NAME)
                 .setTestClassName(PACKAGE_NAME + ".MicrodroidTests")
-                .setTestMethodName("connectToVmService")
+                .setTestMethodName("connectToVmService[protectedVm=false]")
                 .setCheckResults(false);
         assertFalse(runDeviceTests(options));
 
