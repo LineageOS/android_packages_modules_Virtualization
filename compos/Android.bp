@@ -6,8 +6,6 @@ rust_defaults {
     name: "compsvc_defaults",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
-        "android.hardware.security.dice-V1-rust",
-        "android.security.dice-rust",
         "android.system.virtualmachineservice-rust",
         "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
@@ -18,7 +16,6 @@ rust_defaults {
         "libbinder_rs",
         "libclap",
         "libcompos_common",
-        "libcompos_native_rust",
         "liblibc",
         "liblog_rust",
         "libminijail_rust",
@@ -26,7 +23,6 @@ rust_defaults {
         "libodsign_proto_rust",
         "libprotobuf",
         "libregex",
-        "libring",
         "librustutils",
         "libscopeguard",
     ],
@@ -43,10 +39,4 @@ rust_binary {
     apex_available: [
         "com.android.compos",
     ],
-}
-
-rust_test {
-    name: "compsvc_device_tests",
-    defaults: ["compsvc_defaults"],
-    test_suites: ["general-tests"],
 }

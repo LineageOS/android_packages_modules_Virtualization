@@ -16,8 +16,6 @@
 
 package com.android.compos;
 
-import com.android.compos.CompOsKeyData;
-
 /** {@hide} */
 interface ICompOsService {
     /**
@@ -30,16 +28,6 @@ interface ICompOsService {
         /** Compile a full set of artifacts for test purposes. */
         TEST_COMPILE = 1,
     }
-
-    /**
-     * Initializes the service with the supplied encrypted private key blob. The key cannot be
-     * changed once initialized, so once initiailzed, a repeated call will fail with
-     * EX_ILLEGAL_STATE.
-     *
-     * @param keyBlob The encrypted blob containing the private key, as returned by
-     *                generateSigningKey().
-     */
-    void initializeSigningKey(in byte[] keyBlob);
 
     /**
      * Run odrefresh in the VM context.
@@ -61,24 +49,6 @@ interface ICompOsService {
     byte odrefresh(CompilationMode compilation_mode, int systemDirFd, int outputDirFd,
             int stagingDirFd, String targetDirName, String zygoteArch,
             String systemServerCompilerFilter);
-
-    /**
-     * Generate a new public/private key pair suitable for signing CompOs output files.
-     *
-     * @return a certificate for the public key and the encrypted private key
-     */
-    CompOsKeyData generateSigningKey();
-
-    /**
-     * Check that the supplied encrypted private key is valid for signing CompOs output files, and
-     * corresponds to the public key.
-     *
-     * @param keyBlob The encrypted blob containing the private key, as returned by
-     *                generateSigningKey().
-     * @param publicKey The public key, as a DER encoded RSAPublicKey (RFC 3447 Appendix-A.1.1).
-     * @return whether the inputs are valid and correspond to each other.
-     */
-    boolean verifySigningKey(in byte[] keyBlob, in byte[] publicKey);
 
     /**
      * Returns the current VM's signing key, as an Ed25519 public key

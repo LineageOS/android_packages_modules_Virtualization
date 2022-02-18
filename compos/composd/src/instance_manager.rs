@@ -23,7 +23,7 @@ use anyhow::{bail, Result};
 use compos_aidl_interface::binder::Strong;
 use compos_common::compos_client::VmParameters;
 use compos_common::{
-    DEX2OAT_CPU_SET_PROP_NAME, DEX2OAT_THREADS_PROP_NAME, PENDING_INSTANCE_DIR,
+    CURRENT_INSTANCE_DIR, DEX2OAT_CPU_SET_PROP_NAME, DEX2OAT_THREADS_PROP_NAME,
     PREFER_STAGED_VM_CONFIG_PATH, TEST_INSTANCE_DIR,
 };
 use rustutils::system_properties;
@@ -42,10 +42,10 @@ impl InstanceManager {
         Self { service, state: Default::default() }
     }
 
-    pub fn start_pending_instance(&self) -> Result<Arc<CompOsInstance>> {
+    pub fn start_current_instance(&self) -> Result<Arc<CompOsInstance>> {
         let mut vm_parameters = new_vm_parameters()?;
         vm_parameters.config_path = Some(PREFER_STAGED_VM_CONFIG_PATH.to_owned());
-        self.start_instance(PENDING_INSTANCE_DIR, vm_parameters)
+        self.start_instance(CURRENT_INSTANCE_DIR, vm_parameters)
     }
 
     pub fn start_test_instance(&self) -> Result<Arc<CompOsInstance>> {
@@ -77,7 +77,7 @@ impl InstanceManager {
     }
 
     fn try_start_instance(&self, instance_starter: InstanceStarter) -> Result<Arc<CompOsInstance>> {
-        let compos_instance = instance_starter.create_or_start_instance(&*self.service)?;
+        let compos_instance = instance_starter.start_new_instance(&*self.service)?;
         Ok(Arc::new(compos_instance))
     }
 }
