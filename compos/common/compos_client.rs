@@ -112,10 +112,8 @@ impl VmInstance {
                 .context("Failed to create system log file")?;
             let console_fd = ParcelFileDescriptor::new(console_fd);
             let log_fd = ParcelFileDescriptor::new(log_fd);
-            // Full debug is not available in a protected VM
-            let debug_level = if protected_vm { DebugLevel::APP_ONLY } else { DebugLevel::FULL };
-            info!("Debug mode is {:?}", debug_level);
-            (Some(console_fd), Some(log_fd), debug_level)
+            info!("Running in debug mode");
+            (Some(console_fd), Some(log_fd), DebugLevel::FULL)
         } else {
             (None, None, DebugLevel::NONE)
         };
