@@ -20,6 +20,8 @@
 
 #include "gtest/gtest.h"
 
+using namespace compos_key;
+
 const std::vector<uint8_t> secret = {1, 2, 3};
 const std::vector<uint8_t> other_secret = {3, 2, 3};
 const std::vector<uint8_t> data = {42, 180, 65, 0};
