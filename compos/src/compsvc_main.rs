@@ -19,6 +19,7 @@
 mod artifact_signer;
 mod blob_encryption;
 mod compilation;
+mod compos_key;
 mod compsvc;
 mod dice;
 mod fsverity;

@@ -30,6 +30,7 @@ use android_system_composd::binder::{
 use anyhow::{Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::CompilationMode::CompilationMode;
 use compos_common::binder::to_binder_result;
+use compos_common::odrefresh::{PENDING_ARTIFACTS_SUBDIR, TEST_ARTIFACTS_SUBDIR};
 use rustutils::{users::AID_ROOT, users::AID_SYSTEM};
 use std::sync::Arc;
 
@@ -72,7 +73,7 @@ impl IsolatedCompilationService {
         // TODO: Try to start the current instance with staged APEXes to see if it works?
         let comp_os = self.instance_manager.start_pending_instance().context("Starting CompOS")?;
 
-        let target_dir_name = "compos-pending".to_owned();
+        let target_dir_name = PENDING_ARTIFACTS_SUBDIR.to_owned();
         let task = OdrefreshTask::start(
             comp_os,
             CompilationMode::NORMAL_COMPILE,
@@ -89,7 +90,7 @@ impl IsolatedCompilationService {
     ) -> Result<Strong<dyn ICompilationTask>> {
         let comp_os = self.instance_manager.start_test_instance().context("Starting CompOS")?;
 
-        let target_dir_name = "test-artifacts".to_owned();
+        let target_dir_name = TEST_ARTIFACTS_SUBDIR.to_owned();
         let task = OdrefreshTask::start(
             comp_os,
             CompilationMode::TEST_COMPILE,
