@@ -223,7 +223,7 @@ public class VirtualMachine {
     }
 
     /** Loads a virtual machine that is already created before. */
-    /* package */ static @NonNull VirtualMachine load(
+    /* package */ static @Nullable VirtualMachine load(
             @NonNull Context context, @NonNull String name) throws VirtualMachineException {
         File configFilePath = getConfigFilePath(context, name);
         VirtualMachineConfig config;
