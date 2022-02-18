@@ -26,6 +26,7 @@ import android.content.Context;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemProperties;
+import android.sysprop.HypervisorProperties;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
@@ -44,7 +45,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
+import org.junit.runners.Parameterized;
 
 import java.io.File;
 import java.io.IOException;
@@ -55,7 +56,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-@RunWith(JUnit4.class)
+@RunWith(Parameterized.class)
 public class MicrodroidTests {
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
@@ -66,6 +67,14 @@ public class MicrodroidTests {
         public VirtualMachineManager mVmm;
         public VirtualMachine mVm;
     }
+
+    @Parameterized.Parameters(name = "protectedVm={0}")
+    public static Object[] protectedVmConfigs() {
+        return new Object[] { false, true };
+    }
+
+    @Parameterized.Parameter
+    public boolean mProtectedVm;
 
     private boolean mPkvmSupported = false;
     private Inner mInner;
@@ -82,6 +91,17 @@ public class MicrodroidTests {
             assumeNoException(e);
             return;
         }
+        if (mProtectedVm) {
+            assume()
+                .withMessage("Skip where protected VMs aren't support")
+                .that(HypervisorProperties.hypervisor_protected_vm_supported().orElse(false))
+                .isTrue();
+        } else {
+            assume()
+                .withMessage("Skip where VMs aren't support")
+                .that(HypervisorProperties.hypervisor_vm_supported().orElse(false))
+                .isTrue();
+        }
         mInner = new Inner();
         mInner.mContext = ApplicationProvider.getApplicationContext();
         mInner.mVmm = VirtualMachineManager.getInstance(mInner.mContext);
@@ -90,6 +110,9 @@ public class MicrodroidTests {
     @After
     public void cleanup() throws VirtualMachineException {
         if (!mPkvmSupported) {
+            return;
+        }
+        if (mInner == null) {
             return;
         }
         if (mInner.mVm == null) {
@@ -136,7 +159,7 @@ public class MicrodroidTests {
         }
     }
 
-    private static final int MIN_MEM_ARM64 = 135;
+    private static final int MIN_MEM_ARM64 = 145;
     private static final int MIN_MEM_X86_64 = 196;
 
     @Test
@@ -147,8 +170,8 @@ public class MicrodroidTests {
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig.Builder builder =
-                new VirtualMachineConfig.Builder(mInner.mContext,
-                        "assets/vm_config_extra_apk.json");
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config_extra_apk.json")
+                        .protectedVm(mProtectedVm);
         if (Build.SUPPORTED_ABIS.length > 0) {
             String primaryAbi = Build.SUPPORTED_ABIS[0];
             switch(primaryAbi) {
@@ -228,7 +251,8 @@ public class MicrodroidTests {
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig.Builder builder =
-                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json");
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json")
+                        .protectedVm(mProtectedVm);
         VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
         mInner.mVm = mInner.mVmm.getOrCreate("test_vm", normalConfig);
         VmEventListener listener =
@@ -252,7 +276,6 @@ public class MicrodroidTests {
         newVm.delete();
         mInner.mVm = mInner.mVmm.get("test_vm"); // re-load with the copied-in config file.
         final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        final CompletableFuture<Boolean> errorOccurred = new CompletableFuture<>();
         listener =
                 new VmEventListener() {
                     @Override
@@ -260,22 +283,16 @@ public class MicrodroidTests {
                         payloadStarted.complete(true);
                         forceStop(vm);
                     }
-
-                    @Override
-                    public void onError(VirtualMachine vm, int errorCode, String message) {
-                        errorOccurred.complete(true);
-                        forceStop(vm);
-                    }
                 };
         listener.runToFinish(mInner.mVm);
         assertThat(payloadStarted.getNow(false)).isFalse();
-        assertThat(errorOccurred.getNow(false)).isTrue();
     }
 
     private byte[] launchVmAndGetSecret(String instanceName)
             throws VirtualMachineException, InterruptedException {
         VirtualMachineConfig.Builder builder =
-                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json");
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json")
+                        .protectedVm(mProtectedVm);
         VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
         mInner.mVm = mInner.mVmm.getOrCreate(instanceName, normalConfig);
         final CompletableFuture<byte[]> secret = new CompletableFuture<>();
@@ -348,6 +365,7 @@ public class MicrodroidTests {
 
         VirtualMachineConfig config =
                 new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json")
+                        .protectedVm(mProtectedVm)
                         .debugLevel(DebugLevel.NONE)
                         .build();
 
@@ -387,7 +405,6 @@ public class MicrodroidTests {
 
         mInner.mVm = mInner.mVmm.get("test_vm_integrity"); // re-load the vm with new instance disk
         final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        final CompletableFuture<Boolean> errorOccurred = new CompletableFuture<>();
         listener =
                 new VmEventListener() {
                     @Override
@@ -395,15 +412,8 @@ public class MicrodroidTests {
                         payloadStarted.complete(true);
                         forceStop(vm);
                     }
-
-                    @Override
-                    public void onError(VirtualMachine vm, int errorCode, String message) {
-                        errorOccurred.complete(true);
-                        forceStop(vm);
-                    }
                 };
         listener.runToFinish(mInner.mVm);
         assertThat(payloadStarted.getNow(false)).isFalse();
-        assertThat(errorOccurred.getNow(false)).isTrue();
     }
 }
