@@ -16,9 +16,6 @@
       "name": "art_standalone_dexpreopt_tests"
     },
     {
-      "name": "compsvc_device_tests"
-    },
-    {
       "name": "compos_key_tests"
     }
   ],
