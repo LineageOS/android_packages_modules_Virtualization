@@ -17,13 +17,10 @@
 //! A tool to start a standalone compsvc server that serves over RPC binder.
 
 mod artifact_signer;
-mod blob_encryption;
 mod compilation;
 mod compos_key;
 mod compsvc;
-mod dice;
 mod fsverity;
-mod signing_key;
 
 use android_system_virtualmachineservice::{
     aidl::android::system::virtualmachineservice::IVirtualMachineService::{
