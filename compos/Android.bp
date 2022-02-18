@@ -19,7 +19,6 @@ rust_defaults {
         "libclap",
         "libcompos_common",
         "libcompos_native_rust",
-        "libenv_logger",
         "liblibc",
         "liblog_rust",
         "libminijail_rust",
