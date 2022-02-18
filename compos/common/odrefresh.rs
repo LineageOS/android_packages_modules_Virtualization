@@ -23,6 +23,18 @@ use num_traits::FromPrimitive;
 /// The path to the odrefresh binary
 pub const ODREFRESH_PATH: &str = "/apex/com.android.art/bin/odrefresh";
 
+/// The path under which odrefresh writes compiled artifacts
+pub const ODREFRESH_OUTPUT_ROOT_DIR: &str = "/data/misc/apexdata/com.android.art";
+
+/// The directory under ODREFRESH_OUTPUT_ROOT_DIR where pending artifacts are written
+pub const PENDING_ARTIFACTS_SUBDIR: &str = "compos-pending";
+
+/// The directory under ODREFRESH_OUTPUT_ROOT_DIR where test artifacts are written
+pub const TEST_ARTIFACTS_SUBDIR: &str = "test-artifacts";
+
+/// The directory under ODREFRESH_OUTPUT_ROOT_DIR where the current (active) artifacts are stored
+pub const CURRENT_ARTIFACTS_SUBDIR: &str = "dalvik-cache";
+
 // The highest "standard" exit code defined in sysexits.h (as EX__MAX); odrefresh error codes
 // start above here to avoid clashing.
 // TODO: What if this changes?

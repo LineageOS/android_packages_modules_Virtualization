@@ -3,8 +3,8 @@ package {
 }
 
 rust_binary {
-    name: "compos_verify_key",
-    srcs: ["verify_key.rs"],
+    name: "compos_verify",
+    srcs: ["verify.rs"],
     edition: "2018",
     rustlibs: [
         "compos_aidl_interface-rust",
@@ -13,6 +13,7 @@ rust_binary {
         "libbinder_rs",
         "libclap",
         "libcompos_common",
+        "libcompos_verify_native_rust",
         "liblog_rust",
     ],
     prefer_rlib: true,
