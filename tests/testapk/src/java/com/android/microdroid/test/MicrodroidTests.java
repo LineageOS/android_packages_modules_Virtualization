@@ -51,6 +51,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.util.OptionalLong;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -356,6 +358,35 @@ public class MicrodroidTests {
         assertThat(vm_secret_first_boot).isEqualTo(vm_secret_second_boot);
     }
 
+    private static final UUID MICRODROID_PARTITION_UUID =
+            UUID.fromString("cf9afe9a-0662-11ec-a329-c32663a09d75");
+    private static final long BLOCK_SIZE = 512;
+
+    // Find the starting offset which holds the data of a partition having UUID.
+    // This is a kind of hack; rather than parsing QCOW2 we exploit the fact that the cluster size
+    // is normally greater than 512. It implies that the partition data should exist at a block
+    // which follows the header block
+    private OptionalLong findPartitionDataOffset(RandomAccessFile file, UUID uuid)
+            throws IOException {
+        // For each 512-byte block in file, check header
+        long fileSize = file.length();
+
+        for (long idx = 0; idx + BLOCK_SIZE < fileSize; idx += BLOCK_SIZE) {
+            file.seek(idx);
+            long high = file.readLong();
+            long low = file.readLong();
+            if (uuid.equals(new UUID(high, low))) return OptionalLong.of(idx + BLOCK_SIZE);
+        }
+        return OptionalLong.empty();
+    }
+
+    private void flipBit(RandomAccessFile file, long offset) throws IOException {
+        file.seek(offset);
+        int b = file.readByte();
+        file.seek(offset);
+        file.writeByte(b ^ 1);
+    }
+
     @Test
     public void bootFailsWhenInstanceDiskIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
@@ -394,15 +425,12 @@ public class MicrodroidTests {
         File instanceImgPath = new File(vmDir, "instance.img");
         RandomAccessFile instanceFile = new RandomAccessFile(instanceImgPath, "rw");
 
-        // microdroid data partition starts at 0x60200, actual data at 0x60400, based on experiment
-        // TODO: parse image file (QEMU qcow2) correctly?
-        long headerOffset = 0x60400;
-        instanceFile.seek(headerOffset);
-        int b = instanceFile.readByte();
-        instanceFile.seek(headerOffset);
-        instanceFile.writeByte(b ^ 1);
-        instanceFile.close();
+        // microdroid data partition must exist.
+        OptionalLong microdroidPartitionOffset =
+                findPartitionDataOffset(instanceFile, MICRODROID_PARTITION_UUID);
+        assertThat(microdroidPartitionOffset.isPresent()).isTrue();
 
+        flipBit(instanceFile, microdroidPartitionOffset.getAsLong());
         mInner.mVm = mInner.mVmm.get("test_vm_integrity"); // re-load the vm with new instance disk
         final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
         listener =
@@ -415,5 +443,6 @@ public class MicrodroidTests {
                 };
         listener.runToFinish(mInner.mVm);
         assertThat(payloadStarted.getNow(false)).isFalse();
+        flipBit(instanceFile, microdroidPartitionOffset.getAsLong());
     }
 }
