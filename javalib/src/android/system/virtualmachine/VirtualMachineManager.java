@@ -17,6 +17,7 @@
 package android.system.virtualmachine;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.content.Context;
 
 import java.lang.ref.WeakReference;
@@ -72,7 +73,7 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
      * such virtual machine.
      */
-    public @NonNull VirtualMachine get(@NonNull String name) throws VirtualMachineException {
+    public @Nullable VirtualMachine get(@NonNull String name) throws VirtualMachineException {
         return VirtualMachine.load(mContext, name);
     }
 
