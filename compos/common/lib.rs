@@ -34,23 +34,13 @@ pub const COMPOS_APEX_ROOT: &str = "/apex/com.android.compos";
 /// The root of the  data directory available for private use by the CompOS APEX.
 pub const COMPOS_DATA_ROOT: &str = "/data/misc/apexdata/com.android.compos";
 
-/// The sub-directory where we store information relating to the pending instance
-/// of CompOS (based on staged APEXes).
-pub const PENDING_INSTANCE_DIR: &str = "pending";
-
-/// The sub-directory where we store information relating to the current instance
-/// of CompOS (based on active APEXes).
+/// The sub-directory where we store information relating to the instance of CompOS used for
+/// real compilation.
 pub const CURRENT_INSTANCE_DIR: &str = "current";
 
 /// The sub-directory where we store information relating to the instance of CompOS used for
 /// tests.
 pub const TEST_INSTANCE_DIR: &str = "test";
-
-/// The file that holds the encrypted private key for a CompOS instance.
-pub const PRIVATE_KEY_BLOB_FILE: &str = "key.blob";
-
-/// The file that holds the public key for a CompOS instance.
-pub const PUBLIC_KEY_FILE: &str = "key.pubkey";
 
 /// The file that holds the instance image for a CompOS instance.
 pub const INSTANCE_IMAGE_FILE: &str = "instance.img";

@@ -70,8 +70,7 @@ impl IsolatedCompilationService {
         &self,
         callback: &Strong<dyn ICompilationTaskCallback>,
     ) -> Result<Strong<dyn ICompilationTask>> {
-        // TODO: Try to start the current instance with staged APEXes to see if it works?
-        let comp_os = self.instance_manager.start_pending_instance().context("Starting CompOS")?;
+        let comp_os = self.instance_manager.start_current_instance().context("Starting CompOS")?;
 
         let target_dir_name = PENDING_ARTIFACTS_SUBDIR.to_owned();
         let task = OdrefreshTask::start(
