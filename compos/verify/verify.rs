@@ -21,12 +21,11 @@ use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
 use compos_common::compos_client::{VmInstance, VmParameters};
 use compos_common::odrefresh::{
-    CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR, PENDING_ARTIFACTS_SUBDIR,
-    TEST_ARTIFACTS_SUBDIR,
+    CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR, TEST_ARTIFACTS_SUBDIR,
 };
 use compos_common::{
-    COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTANCE_IMAGE_FILE,
-    PENDING_INSTANCE_DIR, TEST_INSTANCE_DIR,
+    COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE,
+    INSTANCE_IMAGE_FILE, TEST_INSTANCE_DIR,
 };
 use log::error;
 use std::fs::File;
@@ -61,15 +60,14 @@ fn try_main() -> Result<()> {
                 .long("instance")
                 .takes_value(true)
                 .required(true)
-                .possible_values(&["pending", "current", "test"]),
+                .possible_values(&["current", "test"]),
         )
         .arg(clap::Arg::with_name("debug").long("debug"))
         .get_matches();
 
     let debug_mode = matches.is_present("debug");
     let (instance_dir, artifacts_dir) = match matches.value_of("instance").unwrap() {
-        "pending" => (PENDING_INSTANCE_DIR, PENDING_ARTIFACTS_SUBDIR),
-        "current" => (PENDING_INSTANCE_DIR, CURRENT_ARTIFACTS_SUBDIR),
+        "current" => (CURRENT_INSTANCE_DIR, CURRENT_ARTIFACTS_SUBDIR),
         "test" => (TEST_INSTANCE_DIR, TEST_ARTIFACTS_SUBDIR),
         _ => unreachable!("Unexpected instance name"),
     };
