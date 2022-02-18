@@ -114,6 +114,7 @@ impl VmInstance {
             let log_fd = ParcelFileDescriptor::new(log_fd);
             // Full debug is not available in a protected VM
             let debug_level = if protected_vm { DebugLevel::APP_ONLY } else { DebugLevel::FULL };
+            info!("Debug mode is {:?}", debug_level);
             (Some(console_fd), Some(log_fd), debug_level)
         } else {
             (None, None, DebugLevel::NONE)

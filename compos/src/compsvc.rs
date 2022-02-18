@@ -29,6 +29,7 @@ use std::sync::RwLock;
 
 use crate::artifact_signer::ArtifactSigner;
 use crate::compilation::{odrefresh, OdrefreshContext};
+use crate::compos_key;
 use crate::dice::Dice;
 use crate::signing_key::DiceSigningKey;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::IAuthFsService;
@@ -108,8 +109,7 @@ impl ICompOsService for CompOsService {
                 let mut artifact_signer = ArtifactSigner::new(&output_dir);
                 add_artifacts(&output_dir, &mut artifact_signer)?;
 
-                let signer = to_binder_result(self.signing_key.new_signer(key))?;
-                artifact_signer.write_info_and_signature(signer, &output_dir.join("compos.info"))
+                artifact_signer.write_info_and_signature(&output_dir.join("compos.info"))
             })
             .context("odrefresh failed"),
         )?;
@@ -127,6 +127,10 @@ impl ICompOsService for CompOsService {
         } else {
             true
         })
+    }
+
+    fn getPublicKey(&self) -> BinderResult<Vec<u8>> {
+        to_binder_result(compos_key::get_public_key())
     }
 }
 
