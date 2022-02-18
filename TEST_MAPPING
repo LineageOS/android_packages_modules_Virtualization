@@ -29,7 +29,7 @@
       "path": "packages/modules/Virtualization/apkdmverity"
     },
     {
-      "path": "packages/modules/Virtualization/apkverify"
+      "path": "packages/modules/Virtualization/libs/apkverify"
     },
     {
       "path": "packages/modules/Virtualization/authfs"
