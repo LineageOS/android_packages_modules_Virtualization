@@ -26,7 +26,7 @@ use anyhow::{Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
     CompilationMode::CompilationMode, ICompOsService,
 };
-use compos_common::odrefresh::ExitCode;
+use compos_common::odrefresh::{ExitCode, ODREFRESH_OUTPUT_ROOT_DIR};
 use log::{error, info, warn};
 use rustutils::system_properties;
 use std::fs::{remove_dir_all, File, OpenOptions};
@@ -35,8 +35,6 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
-
-const ART_APEX_DATA: &str = "/data/misc/apexdata/com.android.art";
 
 #[derive(Clone)]
 pub struct OdrefreshTask {
@@ -122,7 +120,7 @@ fn run_in_vm(
     compilation_mode: CompilationMode,
     target_dir_name: &str,
 ) -> Result<ExitCode> {
-    let output_root = Path::new(ART_APEX_DATA);
+    let output_root = Path::new(ODREFRESH_OUTPUT_ROOT_DIR);
 
     // We need to remove the target directory because odrefresh running in compos will create it
     // (and can't see the existing one, since authfs doesn't show it existing files in an output
