@@ -25,6 +25,9 @@ interface ITestService {
     /* read a system property. */
     String readProperty(String prop);
 
-    /* get the VM's stable secret. */
-    byte[] insecurelyExposeSecret();
+    /* get the VM's stable secret, this is _only_ done for testing. */
+    byte[] insecurelyExposeSealingCdi();
+
+    /* get the VM's attestation secret, this is _only_ done for testing. */
+    byte[] insecurelyExposeAttestationCdi();
 }
