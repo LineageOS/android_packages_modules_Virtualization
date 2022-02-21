@@ -142,7 +142,12 @@ public class MicrodroidTests {
         }
 
         void forceStop(VirtualMachine vm) {
-            this.onDied(vm, VirtualMachineCallback.DEATH_REASON_KILLED);
+            try {
+                vm.stop();
+                mExecutorService.shutdown();
+            } catch (VirtualMachineException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -160,12 +165,7 @@ public class MicrodroidTests {
         @Override
         @CallSuper
         public void onDied(VirtualMachine vm, @DeathReason int reason) {
-            try {
-                vm.stop();
-                mExecutorService.shutdown();
-            } catch (VirtualMachineException e) {
-                throw new RuntimeException(e);
-            }
+            mExecutorService.shutdown();
         }
     }
 
