@@ -79,7 +79,7 @@ Result<void> start_test_service() {
             return ndk::ScopedAStatus::ok();
         }
 
-        ndk::ScopedAStatus insecurelyExposeSecret(std::vector<uint8_t>* out) override {
+        ndk::ScopedAStatus insecurelyExposeSealingCdi(std::vector<uint8_t>* out) override {
             ndk::SpAIBinder binder(AServiceManager_getService("android.security.dice.IDiceNode"));
             auto service = IDiceNode::fromBinder(binder);
             if (service == nullptr) {
@@ -93,6 +93,23 @@ Result<void> start_test_service() {
                                                                                "Failed call diced");
             }
             *out = {handover.cdiSeal.begin(), handover.cdiSeal.end()};
+            return ndk::ScopedAStatus::ok();
+        }
+
+        ndk::ScopedAStatus insecurelyExposeAttestationCdi(std::vector<uint8_t>* out) override {
+            ndk::SpAIBinder binder(AServiceManager_getService("android.security.dice.IDiceNode"));
+            auto service = IDiceNode::fromBinder(binder);
+            if (service == nullptr) {
+                return ndk::ScopedAStatus::
+                        fromServiceSpecificErrorWithMessage(0, "Failed to find diced");
+            }
+            BccHandover handover;
+            auto deriveStatus = service->derive({}, &handover);
+            if (!deriveStatus.isOk()) {
+                return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(0,
+                                                                               "Failed call diced");
+            }
+            *out = {handover.cdiAttest.begin(), handover.cdiAttest.end()};
             return ndk::ScopedAStatus::ok();
         }
     };

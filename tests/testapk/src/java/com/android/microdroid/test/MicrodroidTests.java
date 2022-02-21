@@ -290,14 +290,19 @@ public class MicrodroidTests {
         assertThat(payloadStarted.getNow(false)).isFalse();
     }
 
-    private byte[] launchVmAndGetSecret(String instanceName)
+    private class VmCdis {
+        public byte[] cdiAttest;
+        public byte[] cdiSeal;
+    }
+
+    private VmCdis launchVmAndGetCdis(String instanceName)
             throws VirtualMachineException, InterruptedException {
         VirtualMachineConfig.Builder builder =
                 new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json")
                         .protectedVm(mProtectedVm);
         VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
         mInner.mVm = mInner.mVmm.getOrCreate(instanceName, normalConfig);
-        final CompletableFuture<byte[]> secret = new CompletableFuture<>();
+        final VmCdis vmCdis = new VmCdis();
         final CompletableFuture<Exception> exception = new CompletableFuture<>();
         VmEventListener listener =
                 new VmEventListener() {
@@ -306,7 +311,8 @@ public class MicrodroidTests {
                         try {
                             ITestService testService = ITestService.Stub.asInterface(
                                     vm.connectToVsockServer(ITestService.SERVICE_PORT).get());
-                            secret.complete(testService.insecurelyExposeSecret());
+                            vmCdis.cdiAttest = testService.insecurelyExposeAttestationCdi();
+                            vmCdis.cdiSeal = testService.insecurelyExposeSealingCdi();
                             forceStop(vm);
                         } catch (Exception e) {
                             exception.complete(e);
@@ -315,11 +321,11 @@ public class MicrodroidTests {
                 };
         listener.runToFinish(mInner.mVm);
         assertThat(exception.getNow(null)).isNull();
-        return secret.getNow(null);
+        return vmCdis;
     }
 
     @Test
-    public void instancesOfSameVmHaveDifferentSecrets()
+    public void instancesOfSameVmHaveDifferentCdis()
             throws VirtualMachineException, InterruptedException {
         assume()
             .withMessage("Skip on Cuttlefish. b/195765441")
@@ -331,15 +337,19 @@ public class MicrodroidTests {
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
 
-        byte[] vm_a_secret = launchVmAndGetSecret("test_vm_a");
-        byte[] vm_b_secret = launchVmAndGetSecret("test_vm_b");
-        assertThat(vm_a_secret).isNotNull();
-        assertThat(vm_b_secret).isNotNull();
-        assertThat(vm_a_secret).isNotEqualTo(vm_b_secret);
+        VmCdis vm_a_cdis = launchVmAndGetCdis("test_vm_a");
+        VmCdis vm_b_cdis = launchVmAndGetCdis("test_vm_b");
+        assertThat(vm_a_cdis.cdiAttest).isNotNull();
+        assertThat(vm_b_cdis.cdiAttest).isNotNull();
+        assertThat(vm_a_cdis.cdiAttest).isNotEqualTo(vm_b_cdis.cdiAttest);
+        assertThat(vm_a_cdis.cdiSeal).isNotNull();
+        assertThat(vm_b_cdis.cdiSeal).isNotNull();
+        assertThat(vm_a_cdis.cdiSeal).isNotEqualTo(vm_b_cdis.cdiSeal);
+        assertThat(vm_a_cdis.cdiAttest).isNotEqualTo(vm_b_cdis.cdiSeal);
     }
 
     @Test
-    public void sameInstanceKeepsSameSecrets()
+    public void sameInstanceKeepsSameCdis()
             throws VirtualMachineException, InterruptedException {
         assume()
             .withMessage("Skip on Cuttlefish. b/195765441")
@@ -351,11 +361,12 @@ public class MicrodroidTests {
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
 
-        byte[] vm_secret_first_boot = launchVmAndGetSecret("test_vm");
-        byte[] vm_secret_second_boot = launchVmAndGetSecret("test_vm");
-        assertThat(vm_secret_first_boot).isNotNull();
-        assertThat(vm_secret_second_boot).isNotNull();
-        assertThat(vm_secret_first_boot).isEqualTo(vm_secret_second_boot);
+        VmCdis first_boot_cdis = launchVmAndGetCdis("test_vm");
+        VmCdis second_boot_cdis = launchVmAndGetCdis("test_vm");
+        // The attestation CDI isn't specified to be stable, though it might be
+        assertThat(first_boot_cdis.cdiSeal).isNotNull();
+        assertThat(second_boot_cdis.cdiSeal).isNotNull();
+        assertThat(first_boot_cdis.cdiSeal).isEqualTo(second_boot_cdis.cdiSeal);
     }
 
     private static final UUID MICRODROID_PARTITION_UUID =
