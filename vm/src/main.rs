@@ -14,6 +14,7 @@
 
 //! Android VM control tool.
 
+mod create_idsig;
 mod create_partition;
 mod run;
 mod sync;
@@ -24,6 +25,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong};
 use anyhow::{Context, Error};
+use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
 use run::{command_run, command_run_app};
 use rustutils::system_properties;
@@ -142,6 +144,15 @@ enum Opt {
         #[structopt(short="t", long="type", default_value="raw", parse(try_from_str=parse_partition_type))]
         partition_type: PartitionType,
     },
+    /// Creates or update the idsig file by digesting the input APK file.
+    CreateIdsig {
+        /// Path to VM Payload APK
+        #[structopt(parse(from_os_str))]
+        apk: PathBuf,
+        /// Path to idsig of the APK
+        #[structopt(parse(from_os_str))]
+        path: PathBuf,
+    },
 }
 
 fn parse_debug_level(s: &str) -> Result<DebugLevel, String> {
@@ -219,6 +230,7 @@ fn main() -> Result<(), Error> {
         Opt::CreatePartition { path, size, partition_type } => {
             command_create_partition(service, &path, size, partition_type)
         }
+        Opt::CreateIdsig { apk, path } => command_create_idsig(service, &apk, &path),
     }
 }
 
