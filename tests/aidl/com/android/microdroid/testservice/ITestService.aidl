@@ -30,4 +30,7 @@ interface ITestService {
 
     /* get the VM's attestation secret, this is _only_ done for testing. */
     byte[] insecurelyExposeAttestationCdi();
+
+    /* get the VM's boot certificate chain (BCC). */
+    byte[] getBcc();
 }
