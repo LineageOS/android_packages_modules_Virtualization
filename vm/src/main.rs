@@ -121,6 +121,10 @@ enum Opt {
         /// Path to file for VM console output.
         #[structopt(long)]
         console: Option<PathBuf>,
+
+        /// Path to file for VM log output.
+        #[structopt(long)]
+        log: Option<PathBuf>,
     },
     /// Stop a virtual machine running in the background
     Stop {
@@ -213,12 +217,13 @@ fn main() -> Result<(), Error> {
             cpu_affinity,
             &extra_idsigs,
         ),
-        Opt::Run { config, daemonize, cpus, cpu_affinity, console } => {
+        Opt::Run { config, daemonize, cpus, cpu_affinity, console, log } => {
             command_run(
                 service,
                 &config,
                 daemonize,
                 console.as_deref(),
+                log.as_deref(),
                 /* mem */ None,
                 cpus,
                 cpu_affinity,
