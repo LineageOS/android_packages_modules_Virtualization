@@ -112,6 +112,23 @@ Result<void> start_test_service() {
             *out = {handover.cdiAttest.begin(), handover.cdiAttest.end()};
             return ndk::ScopedAStatus::ok();
         }
+
+        ndk::ScopedAStatus getBcc(std::vector<uint8_t>* out) override {
+            ndk::SpAIBinder binder(AServiceManager_getService("android.security.dice.IDiceNode"));
+            auto service = IDiceNode::fromBinder(binder);
+            if (service == nullptr) {
+                return ndk::ScopedAStatus::
+                        fromServiceSpecificErrorWithMessage(0, "Failed to find diced");
+            }
+            BccHandover handover;
+            auto deriveStatus = service->derive({}, &handover);
+            if (!deriveStatus.isOk()) {
+                return ndk::ScopedAStatus::fromServiceSpecificErrorWithMessage(0,
+                                                                               "Failed call diced");
+            }
+            *out = {handover.bcc.data.begin(), handover.bcc.data.end()};
+            return ndk::ScopedAStatus::ok();
+        }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
 

@@ -47,16 +47,24 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.CborException;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.MajorType;
 
 @RunWith(Parameterized.class)
 public class MicrodroidTests {
@@ -367,6 +375,59 @@ public class MicrodroidTests {
         assertThat(first_boot_cdis.cdiSeal).isNotNull();
         assertThat(second_boot_cdis.cdiSeal).isNotNull();
         assertThat(first_boot_cdis.cdiSeal).isEqualTo(second_boot_cdis.cdiSeal);
+    }
+
+    @Test
+    public void bccIsSuperficiallyWellFormed()
+            throws VirtualMachineException, InterruptedException, CborException {
+        assume()
+            .withMessage("Skip on Cuttlefish. b/195765441")
+            .that(android.os.Build.DEVICE)
+            .isNotEqualTo("vsoc_x86_64");
+
+        assume()
+            .withMessage("SKip on 5.4 kernel. b/218303240")
+            .that(KERNEL_VERSION)
+            .isNotEqualTo("5.4");
+
+        VirtualMachineConfig.Builder builder =
+                new VirtualMachineConfig.Builder(mInner.mContext, "assets/vm_config.json")
+                        .protectedVm(mProtectedVm);
+        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        mInner.mVm = mInner.mVmm.getOrCreate("bcc_vm", normalConfig);
+        final VmCdis vmCdis = new VmCdis();
+        final CompletableFuture<byte[]> bcc = new CompletableFuture<>();
+        final CompletableFuture<Exception> exception = new CompletableFuture<>();
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        try {
+                            ITestService testService = ITestService.Stub.asInterface(
+                                    vm.connectToVsockServer(ITestService.SERVICE_PORT).get());
+                            bcc.complete(testService.getBcc());
+                            forceStop(vm);
+                        } catch (Exception e) {
+                            exception.complete(e);
+                        }
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
+        byte[] bccBytes = bcc.getNow(null);
+        assertThat(exception.getNow(null)).isNull();
+        assertThat(bccBytes).isNotNull();
+
+        ByteArrayInputStream bais = new ByteArrayInputStream(bccBytes);
+        List<DataItem> dataItems = new CborDecoder(bais).decode();
+        assertThat(dataItems.size()).isEqualTo(1);
+        assertThat(dataItems.get(0).getMajorType()).isEqualTo(MajorType.ARRAY);
+        List<DataItem> rootArrayItems = ((Array) dataItems.get(0)).getDataItems();
+        assertThat(rootArrayItems.size()).isAtLeast(2); // Public key and one certificate
+        if (mProtectedVm) {
+            // When a true BCC is created, microdroid expects entries for at least: the root public
+            // key, pvmfw, u-boot, u-boot-env, microdroid, app payload and the service process.
+            assertThat(rootArrayItems.size()).isAtLeast(7);
+        }
     }
 
     private static final UUID MICRODROID_PARTITION_UUID =
