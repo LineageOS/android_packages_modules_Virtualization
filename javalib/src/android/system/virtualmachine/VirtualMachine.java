@@ -138,7 +138,7 @@ public class VirtualMachine {
     private @Nullable VirtualMachineCallback mCallback;
 
     /** The executor on which the callback will be executed */
-    private @NonNull Executor mCallbackExecutor;
+    private @Nullable Executor mCallbackExecutor;
 
     private @Nullable ParcelFileDescriptor mConsoleReader;
     private @Nullable ParcelFileDescriptor mConsoleWriter;
@@ -298,9 +298,16 @@ public class VirtualMachine {
      */
     public void setCallback(
             @NonNull @CallbackExecutor Executor executor,
-            @Nullable VirtualMachineCallback callback) {
+            @NonNull VirtualMachineCallback callback) {
         mCallbackExecutor = executor;
         mCallback = callback;
+    }
+
+    /** Clears the currently registered callback. */
+    public void clearCallback() {
+        // TODO(b/220730550): synchronize with the callers of the callback
+        mCallback = null;
+        mCallbackExecutor = null;
     }
 
     /** Returns the currently registered callback. */
