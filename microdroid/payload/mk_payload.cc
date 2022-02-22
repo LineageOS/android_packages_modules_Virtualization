@@ -269,23 +269,33 @@ Result<void> MakePayload(const Config& config, const std::string& metadata_file,
 }
 
 int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <config> <output>\n";
+    if (argc < 3 || argc > 4) {
+        std::cerr << "Usage: " << argv[0] << " [--metadata-only] <config> <output>\n";
         return 1;
     }
+    int arg_index = 1;
+    bool metadata_only = false;
+    if (strcmp(argv[arg_index], "--metadata-only") == 0) {
+        metadata_only = true;
+        arg_index++;
+    }
 
-    auto config = LoadConfig(argv[1]);
+    auto config = LoadConfig(argv[arg_index++]);
     if (!config.ok()) {
         std::cerr << "bad config: " << config.error() << '\n';
         return 1;
     }
 
-    const std::string output_file(argv[2]);
-    const std::string metadata_file = AppendFileName(output_file, "-metadata");
+    const std::string output_file(argv[arg_index++]);
+    const std::string metadata_file =
+            metadata_only ? output_file : AppendFileName(output_file, "-metadata");
 
     if (const auto res = MakeMetadata(*config, metadata_file); !res.ok()) {
         std::cerr << res.error() << '\n';
         return 1;
+    }
+    if (metadata_only) {
+        return 0;
     }
     if (const auto res = MakePayload(*config, metadata_file, output_file); !res.ok()) {
         std::cerr << res.error() << '\n';
