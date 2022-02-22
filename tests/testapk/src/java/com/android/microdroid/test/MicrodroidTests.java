@@ -143,6 +143,7 @@ public class MicrodroidTests {
 
         void forceStop(VirtualMachine vm) {
             try {
+                vm.clearCallback();
                 vm.stop();
                 mExecutorService.shutdown();
             } catch (VirtualMachineException e) {
