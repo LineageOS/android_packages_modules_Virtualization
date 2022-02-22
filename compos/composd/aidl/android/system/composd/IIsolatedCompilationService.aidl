@@ -19,6 +19,13 @@ import android.system.composd.ICompilationTask;
 import android.system.composd.ICompilationTaskCallback;
 
 interface IIsolatedCompilationService {
+    enum ApexSource {
+        /** Only use the activated APEXes */
+        NoStaged,
+        /** Prefer any staged APEXes, otherwise use the activated ones */
+        PreferStaged,
+    }
+
     /**
      * Compile BCP extensions and system server, using any staged APEXes that are present in
      * preference to active APEXes, writing the results to the pending artifacts directory to be
@@ -41,5 +48,5 @@ interface IIsolatedCompilationService {
      * callback, unless the returned ICompilationTask is cancelled. The caller should maintain
      * a reference to the ICompilationTask until compilation completes or is cancelled.
      */
-    ICompilationTask startTestCompile(ICompilationTaskCallback callback);
+    ICompilationTask startTestCompile(ApexSource apexSource, ICompilationTaskCallback callback);
 }
