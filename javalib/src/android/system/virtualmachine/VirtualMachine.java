@@ -376,6 +376,18 @@ public class VirtualMachine {
             android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
                     android.system.virtualizationservice.VirtualMachineConfig.appConfig(appConfig);
 
+            IBinder.DeathRecipient deathRecipient = new IBinder.DeathRecipient() {
+                @Override
+                public void binderDied() {
+                    final VirtualMachineCallback cb = mCallback;
+                    if (cb != null) {
+                        // TODO(b/220730550): don't call if the VM already died
+                        cb.onDied(VirtualMachine.this, VirtualMachineCallback
+                                .DEATH_REASON_VIRTUALIZATIONSERVICE_DIED);
+                    }
+                }
+            };
+
             mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, mLogWriter);
             mVirtualMachine.registerCallback(
                     new IVirtualMachineCallback.Stub() {
@@ -441,6 +453,7 @@ public class VirtualMachine {
 
                         @Override
                         public void onDied(int cid, int reason) {
+                            service.asBinder().unlinkToDeath(deathRecipient, 0);
                             final VirtualMachineCallback cb = mCallback;
                             if (cb == null) {
                                 return;
@@ -454,19 +467,7 @@ public class VirtualMachine {
                             }
                         }
                     });
-            service.asBinder()
-                    .linkToDeath(
-                            new IBinder.DeathRecipient() {
-                                @Override
-                                public void binderDied() {
-                                    final VirtualMachineCallback cb = mCallback;
-                                    if (cb != null) {
-                                        cb.onDied(VirtualMachine.this, VirtualMachineCallback
-                                                .DEATH_REASON_VIRTUALIZATIONSERVICE_DIED);
-                                    }
-                                }
-                            },
-                            0);
+            service.asBinder().linkToDeath(deathRecipient, 0);
             mVirtualMachine.start();
         } catch (IOException e) {
             throw new VirtualMachineException(e);
