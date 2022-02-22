@@ -433,6 +433,10 @@ public class MicrodroidTests {
 
     private static final UUID MICRODROID_PARTITION_UUID =
             UUID.fromString("cf9afe9a-0662-11ec-a329-c32663a09d75");
+    private static final UUID U_BOOT_AVB_PARTITION_UUID =
+            UUID.fromString("7e8221e7-03e6-4969-948b-73a4c809a4f2");
+    private static final UUID U_BOOT_ENV_PARTITION_UUID =
+            UUID.fromString("0ab72d30-86ae-4d05-81b2-c1760be2b1f9");
     private static final long BLOCK_SIZE = 512;
 
     // Find the starting offset which holds the data of a partition having UUID.
@@ -460,6 +464,22 @@ public class MicrodroidTests {
         file.writeByte(b ^ 1);
     }
 
+    private boolean tryBootVm(String vmName)
+            throws VirtualMachineException, InterruptedException {
+        mInner.mVm = mInner.mVmm.get(vmName); // re-load the vm before running tests
+        final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        payloadStarted.complete(true);
+                        forceStop(vm);
+                    }
+                };
+        listener.runToFinish(mInner.mVm);
+        return payloadStarted.getNow(false);
+    }
+
     @Test
     public void bootFailsWhenInstanceDiskIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
@@ -476,20 +496,9 @@ public class MicrodroidTests {
         // Remove any existing VM so we can start from scratch
         VirtualMachine oldVm = mInner.mVmm.getOrCreate("test_vm_integrity", config);
         oldVm.delete();
+        mInner.mVmm.getOrCreate("test_vm_integrity", config);
 
-        mInner.mVm = mInner.mVmm.getOrCreate("test_vm_integrity", config);
-
-        final CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
-        VmEventListener listener =
-                new VmEventListener() {
-                    @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        payloadReady.complete(true);
-                        forceStop(vm);
-                    }
-                };
-        listener.runToFinish(mInner.mVm);
-        assertThat(payloadReady.getNow(false)).isTrue();
+        assertThat(tryBootVm("test_vm_integrity")).isTrue();
 
         // Launch the same VM after flipping a bit of the instance image.
         // Flip actual data, as flipping trivial bits like the magic string isn't interesting.
@@ -498,24 +507,17 @@ public class MicrodroidTests {
         File instanceImgPath = new File(vmDir, "instance.img");
         RandomAccessFile instanceFile = new RandomAccessFile(instanceImgPath, "rw");
 
-        // microdroid data partition must exist.
-        OptionalLong microdroidPartitionOffset =
-                findPartitionDataOffset(instanceFile, MICRODROID_PARTITION_UUID);
-        assertThat(microdroidPartitionOffset.isPresent()).isTrue();
+        // partitions may or may not exist
+        for (UUID uuid :
+                new UUID[] {
+                    MICRODROID_PARTITION_UUID, U_BOOT_AVB_PARTITION_UUID, U_BOOT_ENV_PARTITION_UUID
+                }) {
+            OptionalLong offset = findPartitionDataOffset(instanceFile, uuid);
+            if (!offset.isPresent()) continue;
 
-        flipBit(instanceFile, microdroidPartitionOffset.getAsLong());
-        mInner.mVm = mInner.mVmm.get("test_vm_integrity"); // re-load the vm with new instance disk
-        final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        listener =
-                new VmEventListener() {
-                    @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        payloadStarted.complete(true);
-                        forceStop(vm);
-                    }
-                };
-        listener.runToFinish(mInner.mVm);
-        assertThat(payloadStarted.getNow(false)).isFalse();
-        flipBit(instanceFile, microdroidPartitionOffset.getAsLong());
+            flipBit(instanceFile, offset.getAsLong());
+            assertThat(tryBootVm("test_vm_integrity")).isFalse();
+            flipBit(instanceFile, offset.getAsLong());
+        }
     }
 }
