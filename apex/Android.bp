@@ -142,9 +142,14 @@ sh_test_host {
     ],
     data: [
         ":com.android.virt",
-        "test.com.android.virt.pem",
+        ":test.com.android.virt.pem",
     ],
     test_suites: ["general-tests"],
+}
+
+filegroup {
+    name: "test.com.android.virt.pem",
+    srcs: ["test.com.android.virt.pem"],
 }
 
 // custom tool to replace bytes in a file

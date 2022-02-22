@@ -10,6 +10,7 @@ java_test_host {
         "general-tests",
     ],
     libs: [
+        "gson-prebuilt-jar",
         "tradefed",
     ],
     static_libs: [
@@ -19,6 +20,31 @@ java_test_host {
     data: [
         ":MicrodroidTestApp",
         ":microdroid_general_sepolicy.conf",
+        ":test.com.android.virt.pem",
+        ":test-payload-metadata",
     ],
-    data_native_bins: ["sepolicy-analyze"],
+    data_native_bins: [
+        "sepolicy-analyze",
+        // For re-sign test
+        "avbtool",
+        "img2simg",
+        "lpmake",
+        "lpunpack",
+        "sign_virt_apex",
+        "simg2img",
+    ],
+    // java_test_host doesn't have data_native_libs but jni_libs can be used to put
+    // native modules under ./lib directory.
+    // This works because host tools have rpath (../lib and ./lib).
+    jni_libs: [
+        "libbase",
+        "libc++",
+        "libcrypto_utils",
+        "libcrypto",
+        "libext4_utils",
+        "liblog",
+        "liblp",
+        "libsparse",
+        "libz",
+    ],
 }

@@ -117,11 +117,13 @@ pub fn command_run_app(
 }
 
 /// Run a VM from the given configuration file.
+#[allow(clippy::too_many_arguments)]
 pub fn command_run(
     service: Strong<dyn IVirtualizationService>,
     config_path: &Path,
     daemonize: bool,
     console_path: Option<&Path>,
+    log_path: Option<&Path>,
     mem: Option<u32>,
     cpus: Option<u32>,
     cpu_affinity: Option<String>,
@@ -142,7 +144,7 @@ pub fn command_run(
         &format!("{:?}", config_path),
         daemonize,
         console_path,
-        None,
+        log_path,
     )
 }
 
