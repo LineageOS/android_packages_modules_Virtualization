@@ -143,14 +143,6 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         boolean writable;
     }
 
-    private String getPathForPackage(String packageName)
-            throws DeviceNotAvailableException {
-        CommandRunner android = new CommandRunner(getDevice());
-        String pathLine = android.run("pm", "path", packageName);
-        assertTrue("package not found", pathLine.startsWith("package:"));
-        return pathLine.substring("package:".length());
-    }
-
     private void resignVirtApex(File virtApexDir, File signingKey) {
         File signVirtApex = findTestFile("sign_virt_apex");
 
