@@ -20,6 +20,7 @@ use android_system_composd::{
     aidl::android::system::composd::{
         ICompilationTask::ICompilationTask,
         ICompilationTaskCallback::{BnCompilationTaskCallback, ICompilationTaskCallback},
+        IIsolatedCompilationService::ApexSource::ApexSource,
         IIsolatedCompilationService::IIsolatedCompilationService,
     },
     binder::{
@@ -33,22 +34,25 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 fn main() -> Result<()> {
-    let app = clap::App::new("composd_cmd").arg(
-        clap::Arg::with_name("command")
-            .index(1)
-            .takes_value(true)
-            .required(true)
-            .possible_values(&["staged-apex-compile", "test-compile"]),
-    );
+    #[rustfmt::skip]
+    let app = clap::App::new("composd_cmd")
+        .subcommand(
+            clap::SubCommand::with_name("staged-apex-compile"))
+        .subcommand(
+            clap::SubCommand::with_name("test-compile")
+                .arg(clap::Arg::with_name("prefer-staged").long("prefer-staged")),
+        );
     let args = app.get_matches();
-    let command = args.value_of("command").unwrap();
 
     ProcessState::start_thread_pool();
 
-    match command {
-        "staged-apex-compile" => run_staged_apex_compile()?,
-        "test-compile" => run_test_compile()?,
-        _ => panic!("Unexpected command {}", command),
+    match args.subcommand() {
+        ("staged-apex-compile", _) => run_staged_apex_compile()?,
+        ("test-compile", Some(sub_matches)) => {
+            let prefer_staged = sub_matches.is_present("prefer-staged");
+            run_test_compile(prefer_staged)?;
+        }
+        _ => panic!("Unrecognized subcommand"),
     }
 
     println!("All Ok!");
@@ -108,8 +112,9 @@ fn run_staged_apex_compile() -> Result<()> {
     run_async_compilation(|service, callback| service.startStagedApexCompile(callback))
 }
 
-fn run_test_compile() -> Result<()> {
-    run_async_compilation(|service, callback| service.startTestCompile(callback))
+fn run_test_compile(prefer_staged: bool) -> Result<()> {
+    let apex_source = if prefer_staged { ApexSource::PreferStaged } else { ApexSource::NoStaged };
+    run_async_compilation(|service, callback| service.startTestCompile(apex_source, callback))
 }
 
 fn run_async_compilation<F>(start_compile_fn: F) -> Result<()>
