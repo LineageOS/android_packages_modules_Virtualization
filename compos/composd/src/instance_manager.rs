@@ -48,9 +48,12 @@ impl InstanceManager {
         self.start_instance(CURRENT_INSTANCE_DIR, vm_parameters)
     }
 
-    pub fn start_test_instance(&self) -> Result<Arc<CompOsInstance>> {
+    pub fn start_test_instance(&self, prefer_staged: bool) -> Result<Arc<CompOsInstance>> {
         let mut vm_parameters = new_vm_parameters()?;
         vm_parameters.debug_mode = true;
+        if prefer_staged {
+            vm_parameters.config_path = Some(PREFER_STAGED_VM_CONFIG_PATH.to_owned());
+        }
         self.start_instance(TEST_INSTANCE_DIR, vm_parameters)
     }
 
