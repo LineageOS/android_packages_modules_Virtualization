@@ -53,8 +53,13 @@ pub fn mount_and_enter_message_loop(
         mount_options.push(MountOption::Extra(value));
     }
 
-    fuse::mount(mountpoint, "authfs", libc::MS_NOSUID | libc::MS_NODEV, &mount_options)
-        .expect("Failed to mount fuse");
+    fuse::mount(
+        mountpoint,
+        "authfs",
+        libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC,
+        &mount_options,
+    )
+    .expect("Failed to mount fuse");
 
     fuse::worker::start_message_loop(dev_fuse, MAX_WRITE_BYTES, MAX_READ_BYTES, authfs)
 }
