@@ -17,6 +17,7 @@
 //! A tool to verify a CompOS signature. It starts a CompOS VM as part of this to retrieve the
 //!  public key. The tool is intended to be run by odsign during boot.
 
+use android_logger::LogId;
 use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
 use compos_common::compos_client::{VmInstance, VmParameters};
@@ -39,7 +40,8 @@ fn main() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("compos_verify")
-            .with_min_level(log::Level::Info),
+            .with_min_level(log::Level::Info)
+            .with_log_id(LogId::System), // Needed to log successfully early in boot
     );
 
     // Redirect panic messages to logcat.
