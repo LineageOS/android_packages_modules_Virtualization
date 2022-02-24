@@ -152,6 +152,11 @@ filegroup {
     srcs: ["test.com.android.virt.pem"],
 }
 
+filegroup {
+    name: "test2.com.android.virt.pem",
+    srcs: ["test2.com.android.virt.pem"],
+}
+
 // custom tool to replace bytes in a file
 python_binary_host {
     name: "replace_bytes",
