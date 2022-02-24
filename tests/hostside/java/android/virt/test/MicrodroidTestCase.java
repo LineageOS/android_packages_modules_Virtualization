@@ -224,6 +224,12 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String payloadMetadataPath = TEST_ROOT + "payload-metadata.img";
         getDevice().pushFile(findTestFile("test-payload-metadata.img"), payloadMetadataPath);
 
+        // push APEXes required for the VM.
+        final String statsdApexPath = TEST_ROOT + "com.android.os.statsd.apex";
+        final String adbdApexPath = TEST_ROOT + "com.android.adbd.apex";
+        getDevice().pushFile(findTestFile("com.android.os.statsd.apex"), statsdApexPath);
+        getDevice().pushFile(findTestFile("com.android.adbd.apex"), adbdApexPath);
+
         // Since Java APP can't start a VM with a custom image, here, we start a VM using `vm run`
         // command with a VM Raw config which is equiv. to what virtualizationservice creates with
         // a VM App config.
@@ -264,17 +270,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         // - apk and idsig
         Disk payloadDisk = new Disk();
         payloadDisk.addPartition("payload-metadata", payloadMetadataPath);
-        String[] apexes = {"com.android.os.statsd", "com.android.adbd"};
-        for (int i = 0; i < apexes.length; i++) {
-            String apexPath = getPathForPackage(apexes[i]);
-            String filename = apexes[i] + ".apex";
-            File localApexFile = new File(virtApexDir, filename);
-            String remoteApexFile = TEST_ROOT + filename;
-            // Since `adb shell vm` can't access apex_data_file, we `adb pull/push` apex files.
-            getDevice().pullFile(apexPath, localApexFile);
-            getDevice().pushFile(localApexFile, remoteApexFile);
-            payloadDisk.addPartition("microdroid-apex-" + i, remoteApexFile);
-        }
+        payloadDisk.addPartition("microdroid-apex-0", statsdApexPath);
+        payloadDisk.addPartition("microdroid-apex-1", adbdApexPath);
         payloadDisk.addPartition("microdroid-apk", apkPath);
         payloadDisk.addPartition("microdroid-apk-idsig", idSigPath);
         config.disks.add(payloadDisk);
