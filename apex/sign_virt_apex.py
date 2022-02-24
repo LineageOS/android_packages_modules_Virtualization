@@ -51,12 +51,24 @@ def ParseArgs(argv):
         help='the extra signing arguments passed to avbtool.'
     )
     parser.add_argument(
+        '--key_override',
+        metavar="filename=key",
+        action='append',
+        help='Overrides a signing key for a file e.g. microdroid_bootloader=mykey (for testing)')
+    parser.add_argument(
         'key',
         help='path to the private key file.')
     parser.add_argument(
         'input_dir',
         help='the directory having files to be packaged')
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    # preprocess --key_override into a map
+    args.key_overrides = dict()
+    if args.key_override:
+        for pair in args.key_override:
+            name, key = pair.split('=')
+            args.key_overrides[name] = key
+    return args
 
 
 def RunCommand(args, cmd, env=None, expected_return_values={0}):
@@ -155,6 +167,8 @@ def LookUp(pairs, key):
 
 
 def AddHashFooter(args, key, image_path):
+    if os.path.basename(image_path) in args.key_overrides:
+        key = args.key_overrides[os.path.basename(image_path)]
     info, descriptors = AvbInfo(args, image_path)
     if info:
         descriptor = LookUp(descriptors, 'Hash descriptor')
@@ -175,6 +189,8 @@ def AddHashFooter(args, key, image_path):
 
 
 def AddHashTreeFooter(args, key, image_path):
+    if os.path.basename(image_path) in args.key_overrides:
+        key = args.key_overrides[os.path.basename(image_path)]
     info, descriptors = AvbInfo(args, image_path)
     if info:
         descriptor = LookUp(descriptors, 'Hashtree descriptor')
@@ -196,6 +212,8 @@ def AddHashTreeFooter(args, key, image_path):
 
 
 def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None):
+    if os.path.basename(vbmeta_img) in args.key_overrides:
+        key = args.key_overrides[os.path.basename(vbmeta_img)]
     info, descriptors = AvbInfo(args, vbmeta_img)
     if info is None:
         return
@@ -263,6 +281,8 @@ def MakeSuperImage(args, partitions, output):
 
 
 def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
+    if os.path.basename(bootloader) in args.key_overrides:
+        key = args.key_overrides[os.path.basename(bootloader)]
     # read old pubkey before replacement
     with open(bootloader_pubkey, 'rb') as f:
         old_pubkey = f.read()
