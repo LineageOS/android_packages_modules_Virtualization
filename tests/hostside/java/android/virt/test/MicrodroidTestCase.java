@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -143,7 +144,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         boolean writable;
     }
 
-    private void resignVirtApex(File virtApexDir, File signingKey) {
+    private void resignVirtApex(File virtApexDir, File signingKey, Map<String, File> keyOverrides) {
         File signVirtApex = findTestFile("sign_virt_apex");
 
         RunUtil runUtil = new RunUtil();
@@ -152,14 +153,21 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         String path = signVirtApex.getParentFile().getPath() + separator + System.getenv("PATH");
         runUtil.setEnvVariable("PATH", path);
 
-        String resignCommand = String.format("sign_virt_apex %s %s",
-                                        signingKey.getPath(),
-                                        virtApexDir.getPath());
+        List<String> command = new ArrayList<String>();
+        command.add("sign_virt_apex");
+        for (Map.Entry<String, File> entry : keyOverrides.entrySet()) {
+            String filename = entry.getKey();
+            File overridingKey = entry.getValue();
+            command.add("--key_override " + filename + "=" + overridingKey.getPath());
+        }
+        command.add(signingKey.getPath());
+        command.add(virtApexDir.getPath());
+
         CommandResult result = runUtil.runTimedCmd(
                                     20 * 1000,
                                     "/bin/bash",
                                     "-c",
-                                    resignCommand);
+                                    String.join(" ", command));
         String out = result.getStdout();
         String err = result.getStderr();
         assertEquals(
@@ -167,8 +175,26 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                 CommandStatus.SUCCESS, result.getStatus());
     }
 
-    private String runMicrodroidWithResignedImages(boolean isProtected, boolean daemonize,
-            String consolePath) throws DeviceNotAvailableException, IOException {
+    private static <T> void assertThatEventually(long timeoutMillis, Callable<T> callable,
+            org.hamcrest.Matcher<T> matcher) throws Exception {
+        long start = System.currentTimeMillis();
+        while (true) {
+            try {
+                assertThat(callable.call(), matcher);
+                return;
+            } catch (Throwable e) {
+                if (System.currentTimeMillis() - start < timeoutMillis) {
+                    Thread.sleep(500);
+                } else {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private String runMicrodroidWithResignedImages(File key, Map<String, File> keyOverrides,
+            boolean isProtected, boolean daemonize, String consolePath)
+            throws DeviceNotAvailableException, IOException {
         CommandRunner android = new CommandRunner(getDevice());
 
         File virtApexDir = FileUtil.createTempDir("virt_apex");
@@ -179,8 +205,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         assertTrue(virtApexEtcDir.mkdirs());
         assertTrue(getDevice().pullDir(VIRT_APEX + "etc", virtApexEtcDir));
 
-        File testKey = findTestFile("test.com.android.virt.pem");
-        resignVirtApex(virtApexDir, testKey);
+        resignVirtApex(virtApexDir, key, keyOverrides);
 
         // Push back re-signed virt APEX contents and updated microdroid.json
         getDevice().pushDir(virtApexDir, TEST_ROOT);
@@ -278,9 +303,13 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     public void testBootFailsWhenProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
         assumeTrue(isProtectedVmSupported());
+
+        File key = findTestFile("test.com.android.virt.pem");
+        Map<String, File> keyOverrides = Map.of();
+        boolean isProtected = true;
+        boolean daemonize = false;  // VM should shut down due to boot failure.
         String consolePath = TEST_ROOT + "console";
-        // Run VM without --daemonize. It will shut down due to boot failure.
-        runMicrodroidWithResignedImages(/*protected=*/true, /*daemonize=*/false, consolePath);
+        runMicrodroidWithResignedImages(key, keyOverrides, isProtected, daemonize, consolePath);
         assertThat(getDevice().pullFileContents(consolePath),
                 containsString("pvmfw boot failed"));
     }
@@ -288,8 +317,54 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     @Test
     public void testBootSucceedsWhenNonProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
-        String cid = runMicrodroidWithResignedImages(/*protected=*/false,
-                /*daemonize=*/true, /*consolePath=*/null);
+        File key = findTestFile("test.com.android.virt.pem");
+        Map<String, File> keyOverrides = Map.of();
+        boolean isProtected = false;
+        boolean daemonize = true;
+        String consolePath = TEST_ROOT + "console";
+        String cid = runMicrodroidWithResignedImages(key, keyOverrides, isProtected, daemonize,
+                consolePath);
+        // Adb connection to the microdroid means that boot succeeded.
+        adbConnectToMicrodroid(getDevice(), cid);
+        shutdownMicrodroid(getDevice(), cid);
+    }
+
+    @Test
+    public void testBootFailsWhenBootloaderAndVbMetaAreSignedWithDifferentKeys()
+            throws Exception {
+        // Sign everything with key1 except vbmeta
+        File key = findTestFile("test.com.android.virt.pem");
+        File key2 = findTestFile("test2.com.android.virt.pem");
+        Map<String, File> keyOverrides = Map.of(
+                "microdroid_vbmeta.img", key2);
+        boolean isProtected = false;  // Not interested in pvwfw
+        boolean daemonize = true;  // Bootloader fails and enters prompts.
+                                   // To be able to stop it, it should be a daemon.
+        String consolePath = TEST_ROOT + "console";
+        String cid = runMicrodroidWithResignedImages(key, keyOverrides, isProtected, daemonize,
+                consolePath);
+        // Wail for a while so that bootloader prints errors to console
+        assertThatEventually(10000, () -> getDevice().pullFileContents(consolePath),
+                containsString("Public key was rejected"));
+        shutdownMicrodroid(getDevice(), cid);
+    }
+
+    @Test
+    public void testBootSucceedsWhenBootloaderAndVbmetaHaveSameSigningKeys()
+            throws Exception {
+        // Sign everything with key1 except bootloader and vbmeta
+        File key = findTestFile("test.com.android.virt.pem");
+        File key2 = findTestFile("test2.com.android.virt.pem");
+        Map<String, File> keyOverrides = Map.of(
+                "microdroid_bootloader", key2,
+                "microdroid_vbmeta.img", key2,
+                "microdroid_vbmeta_bootconfig.img", key2);
+        boolean isProtected = false;  // Not interested in pvwfw
+        boolean daemonize = true;  // Bootloader should succeed.
+                                   // To be able to stop it, it should be a daemon.
+        String consolePath = TEST_ROOT + "console";
+        String cid = runMicrodroidWithResignedImages(key, keyOverrides, isProtected, daemonize,
+                consolePath);
         // Adb connection to the microdroid means that boot succeeded.
         adbConnectToMicrodroid(getDevice(), cid);
         shutdownMicrodroid(getDevice(), cid);
