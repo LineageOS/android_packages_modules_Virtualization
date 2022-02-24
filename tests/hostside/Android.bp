@@ -21,6 +21,7 @@ java_test_host {
         ":MicrodroidTestApp",
         ":microdroid_general_sepolicy.conf",
         ":test.com.android.virt.pem",
+        ":test2.com.android.virt.pem",
         ":test-payload-metadata",
     ],
     data_native_bins: [
