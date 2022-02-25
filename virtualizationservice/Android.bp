@@ -37,6 +37,7 @@ rust_defaults {
         "libonce_cell",
         "libregex",
         "librustutils",
+        "libsemver",
         "libselinux_bindgen",
         "libserde",
         "libserde_json",
