@@ -122,6 +122,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         int memory_mib;
         @SerializedName("protected")
         boolean isProtected;
+        String platform_version;
     }
 
     static class Disk {

@@ -10,8 +10,9 @@ rust_library {
     rustlibs: [
         "android.system.virtualizationservice-rust",
         "libanyhow",
-        "libserde_json",
+        "libsemver",
         "libserde",
+        "libserde_json",
     ],
     apex_available: [
         "com.android.virt",
