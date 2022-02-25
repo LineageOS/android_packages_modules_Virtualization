@@ -25,7 +25,6 @@ cc_test {
     // executables in CTS should have both 32 and 64 ABIs.
     name: "VirtualizationTestCases.64",
     test_suites: [
-        "cts",
         "general-tests",
     ],
     srcs: [
