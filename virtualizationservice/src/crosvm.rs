@@ -19,6 +19,7 @@ use crate::Cid;
 use anyhow::{bail, Error};
 use command_fds::CommandFdExt;
 use log::{debug, error, info};
+use semver::{Version, VersionReq};
 use shared_child::SharedChild;
 use std::fs::{remove_dir_all, File};
 use std::io;
@@ -35,6 +36,12 @@ use android_system_virtualmachineservice::binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
+
+/// Version of the platform that crosvm currently implements. The format follows SemVer. This
+/// should be updated when there is a platform change in the crosvm side. Having this value here is
+/// fine because virtualizationservice and crosvm are supposed to be updated together in the virt
+/// APEX.
+const CROSVM_PLATFORM_VERSION: &str = "1.0.0";
 
 /// The exit status which crosvm returns when it has an error starting a VM.
 const CROSVM_ERROR_STATUS: i32 = 1;
@@ -59,6 +66,7 @@ pub struct CrosvmConfig {
     pub console_fd: Option<File>,
     pub log_fd: Option<File>,
     pub indirect_files: Vec<File>,
+    pub platform_version: VersionReq,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -365,6 +373,16 @@ fn validate_config(config: &CrosvmConfig) -> Result<(), Error> {
     if config.bootloader.is_some() && (config.kernel.is_some() || config.initrd.is_some()) {
         bail!("Can't have both bootloader and kernel/initrd image.");
     }
+    let version = Version::parse(CROSVM_PLATFORM_VERSION).unwrap();
+    if !config.platform_version.matches(&version) {
+        bail!(
+            "Incompatible platform version. The config is compatible with platform version(s) \
+              {}, but the actual platform version is {}",
+            config.platform_version,
+            version
+        );
+    }
+
     Ok(())
 }
 
