@@ -57,4 +57,10 @@ parcelable VirtualMachineRawConfig {
      * Default is no mask which means a vCPU can run on any host CPU.
      */
     @nullable String cpuAffinity;
+
+    /**
+     * A version or range of versions of the virtual platform that this config is compatible with.
+     * The format follows SemVer.
+     */
+    @utf8InCpp String platformVersion;
 }

@@ -52,6 +52,7 @@ use idsig::{HashAlgorithm, V4Signature};
 use log::{debug, error, info, warn, trace};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
+use semver::VersionReq;
 use statslog_virtualization_rust::vm_creation_requested::{stats_write, Hypervisor};
 use std::convert::TryInto;
 use std::ffi::CStr;
@@ -239,6 +240,7 @@ impl IVirtualizationService for VirtualizationService {
             console_fd,
             log_fd,
             indirect_files,
+            platform_version: parse_platform_version_req(&config.platformVersion)?,
         };
         let instance = Arc::new(
             VmInstance::new(
@@ -891,6 +893,16 @@ fn vsock_stream_to_pfd(stream: VsockStream) -> ParcelFileDescriptor {
     // SAFETY: ownership is transferred from stream to f
     let f = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
     ParcelFileDescriptor::new(f)
+}
+
+/// Parses the platform version requirement string.
+fn parse_platform_version_req(s: &str) -> Result<VersionReq, Status> {
+    VersionReq::parse(s).map_err(|e| {
+        new_binder_exception(
+            ExceptionCode::BAD_PARCELABLE,
+            format!("Invalid platform version requirement {}: {}", s, e),
+        )
+    })
 }
 
 /// Simple utility for referencing Borrowed or Owned. Similar to std::borrow::Cow, but

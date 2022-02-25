@@ -22,6 +22,7 @@ use android_system_virtualizationservice::{
 };
 
 use anyhow::{bail, Context, Error, Result};
+use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use std::fs::{File, OpenOptions};
@@ -51,6 +52,9 @@ pub struct VmConfig {
     /// The amount of RAM to give the VM, in MiB.
     #[serde(default)]
     pub memory_mib: Option<NonZeroU32>,
+    /// Version or range of versions of the virtual platform that this config is compatible with.
+    /// The format follows SemVer (https://semver.org).
+    pub platform_version: VersionReq,
 }
 
 impl VmConfig {
@@ -95,6 +99,7 @@ impl VmConfig {
             disks: self.disks.iter().map(DiskImage::to_parcelable).collect::<Result<_, Error>>()?,
             protectedVm: self.protected,
             memoryMib: memory_mib,
+            platformVersion: self.platform_version.to_string(),
             ..Default::default()
         })
     }
