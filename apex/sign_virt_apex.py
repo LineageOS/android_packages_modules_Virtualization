@@ -250,7 +250,8 @@ def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None)
         RunCommand(args, cmd)
         # libavb expects to be able to read the maximum vbmeta size, so we must provide a partition
         # which matches this or the read will fail.
-        RunCommand(args, ['truncate', '-s', '65536', vbmeta_img])
+        with open(vbmeta_img, 'a') as f:
+            f.truncate(65536)
 
 
 class TempDirectory(object):
