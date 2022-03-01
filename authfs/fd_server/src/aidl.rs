@@ -174,7 +174,7 @@ impl IVirtFdService for FdService {
                     } else {
                         Err(new_binder_exception(
                             ExceptionCode::SERVICE_SPECIFIC,
-                            "metadata doesn't contain a signature".to_string(),
+                            "metadata doesn't contain a signature",
                         ))
                     }
                 } else {
