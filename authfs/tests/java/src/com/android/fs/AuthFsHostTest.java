@@ -265,8 +265,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertTrue(copyFileOnMicrodroid(srcPath, destPath));
 
         // Action
-        // Tampering with the first 2 4K block of the backing file.
-        sAndroid.run("dd if=/dev/zero of=" + backendPath + " bs=1 count=8192");
+        // Tampering with the first 2 4K-blocks of the backing file.
+        zeroizeFileHeadOnAndroid(backendPath, /* size */ 8192);
 
         // Verify
         // Write to a block partially requires a read back to calculate the new hash. It should fail
@@ -286,6 +286,31 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertTrue(
                 writeZerosAtFileOffsetOnMicrodroid(
                         destPath, /* offset */ 8192, /* number */ 1024, /* writeThrough */ false));
+    }
+
+    @Test
+    public void testReadFailedIfDetectsTampering() throws Exception {
+        // Setup
+        runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+
+        String srcPath = "/system/bin/linker64";
+        String destPath = MOUNT_DIR + "/3";
+        String backendPath = TEST_OUTPUT_DIR + "/out.file";
+        assertTrue(copyFileOnMicrodroid(srcPath, destPath));
+
+        // Action
+        // Tampering with the first 4K-block of the backing file.
+        zeroizeFileHeadOnAndroid(backendPath, /* size */ 4096);
+
+        // Verify
+        // Force dropping the page cache, so that the next read can be validated.
+        runOnMicrodroid("echo 1 > /proc/sys/vm/drop_caches");
+        // A read will fail if the backing data has been tampered.
+        assertFalse(checkReadAtFileOffsetOnMicrodroid(
+                destPath, /* offset */ 0, /* number */ 4096));
+        assertTrue(checkReadAtFileOffsetOnMicrodroid(
+                destPath, /* offset */ 4096, /* number */ 4096));
     }
 
     @Test
@@ -711,9 +736,19 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "yes $'\\x01' | tr -d '\\n' | dd bs=1 count=" + numberOfOnes + " of=" + filePath);
     }
 
+    private boolean checkReadAtFileOffsetOnMicrodroid(String filePath, long offset, long size) {
+        String cmd = "dd if=" + filePath + " of=/dev/null bs=1 count=" + size;
+        if (offset > 0) {
+            cmd += " skip=" + offset;
+        }
+        CommandResult result = runOnMicrodroidForResult(cmd);
+        return result.getStatus() == CommandStatus.SUCCESS;
+    }
+
     private boolean writeZerosAtFileOffsetOnMicrodroid(
             String filePath, long offset, long numberOfZeros, boolean writeThrough) {
-        String cmd = "dd if=/dev/zero of=" + filePath + " bs=1 count=" + numberOfZeros;
+        String cmd = "dd if=/dev/zero of=" + filePath + " bs=1 count=" + numberOfZeros
+                + " conv=notrunc";
         if (offset > 0) {
             cmd += " skip=" + offset;
         }
@@ -722,6 +757,11 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         }
         CommandResult result = runOnMicrodroidForResult(cmd);
         return result.getStatus() == CommandStatus.SUCCESS;
+    }
+
+    private void zeroizeFileHeadOnAndroid(String filePath, long size)
+            throws DeviceNotAvailableException {
+        sAndroid.run("dd if=/dev/zero of=" + filePath + " bs=1 count=" + size + " conv=notrunc");
     }
 
     private void runAuthFsOnMicrodroid(String flags) {
