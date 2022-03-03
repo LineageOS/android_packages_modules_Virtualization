@@ -486,27 +486,37 @@ public class MicrodroidTests {
         return payloadStarted.getNow(false);
     }
 
-    // Flips a bit of given partition, and then see if boot fails. The partition must exist.
-    private void tryCompromisingInstanceDiskPartition(UUID partitionUuid)
+    private RandomAccessFile prepareInstanceImage(String vmName)
             throws VirtualMachineException, InterruptedException, IOException {
         VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config.json")
                 .debugLevel(DebugLevel.NONE)
                 .build();
 
         // Remove any existing VM so we can start from scratch
-        VirtualMachine oldVm = mInner.mVmm.getOrCreate("test_vm_integrity", config);
+        VirtualMachine oldVm = mInner.mVmm.getOrCreate(vmName, config);
         oldVm.delete();
-        mInner.mVmm.getOrCreate("test_vm_integrity", config);
+        mInner.mVmm.getOrCreate(vmName, config);
 
-        assertThat(tryBootVm("test_vm_integrity")).isTrue();
+        assertThat(tryBootVm(vmName)).isTrue();
 
-        // Launch the same VM after flipping a bit of the instance image.
-        // Flip actual data, as flipping trivial bits like the magic string isn't interesting.
         File vmRoot = new File(mInner.mContext.getFilesDir(), "vm");
-        File vmDir = new File(vmRoot, "test_vm_integrity");
+        File vmDir = new File(vmRoot, vmName);
         File instanceImgPath = new File(vmDir, "instance.img");
-        RandomAccessFile instanceFile = new RandomAccessFile(instanceImgPath, "rw");
+        return new RandomAccessFile(instanceImgPath, "rw");
 
+    }
+
+    private void assertThatPartitionIsMissing(UUID partitionUuid)
+            throws VirtualMachineException, InterruptedException, IOException {
+        RandomAccessFile instanceFile = prepareInstanceImage("test_vm_integrity");
+        assertThat(findPartitionDataOffset(instanceFile, partitionUuid).isPresent())
+                .isFalse();
+    }
+
+    // Flips a bit of given partition, and then see if boot fails.
+    private void assertThatBootFailsAfterCompromisingPartition(UUID partitionUuid)
+            throws VirtualMachineException, InterruptedException, IOException {
+        RandomAccessFile instanceFile = prepareInstanceImage("test_vm_integrity");
         OptionalLong offset = findPartitionDataOffset(instanceFile, partitionUuid);
         assertThat(offset.isPresent()).isTrue();
 
@@ -521,11 +531,9 @@ public class MicrodroidTests {
                 .that(android.os.Build.DEVICE)
                 .isNotEqualTo("vsoc_x86_64");
 
-        tryCompromisingInstanceDiskPartition(MICRODROID_PARTITION_UUID);
+        assertThatBootFailsAfterCompromisingPartition(MICRODROID_PARTITION_UUID);
     }
 
-    /*
-    // TODO(b/218461230): uncomment these after u-boot update
     @Test
     public void bootFailsWhenUBootAvbDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
@@ -533,11 +541,13 @@ public class MicrodroidTests {
                 .that(android.os.Build.DEVICE)
                 .isNotEqualTo("vsoc_x86_64");
 
-        assume().withMessage("Skip where protected VMs aren't support")
-                .that(mProtectedVm)
-                .isTrue();
-
-        tryCompromisingInstanceDiskPartition(U_BOOT_AVB_PARTITION_UUID);
+        if (mProtectedVm) {
+            // TODO(b/218461230): uncomment this after u-boot update
+            // assertThatBootFailsAfterCompromisingPartition(U_BOOT_AVB_PARTITION_UUID);
+        } else {
+            // non-protected VM shouldn't have u-boot avb data
+            assertThatPartitionIsMissing(U_BOOT_AVB_PARTITION_UUID);
+        }
     }
 
     @Test
@@ -547,11 +557,12 @@ public class MicrodroidTests {
                 .that(android.os.Build.DEVICE)
                 .isNotEqualTo("vsoc_x86_64");
 
-        assume().withMessage("Skip where protected VMs aren't support")
-                .that(mProtectedVm)
-                .isTrue();
-
-        tryCompromisingInstanceDiskPartition(U_BOOT_ENV_PARTITION_UUID);
+        if (mProtectedVm) {
+            // TODO(b/218461230): uncomment this after u-boot update
+            // assertThatBootFailsAfterCompromisingPartition(U_BOOT_ENV_PARTITION_UUID);
+        } else {
+            // non-protected VM shouldn't have u-boot env data
+            assertThatPartitionIsMissing(U_BOOT_ENV_PARTITION_UUID);
+        }
     }
-    */
 }
