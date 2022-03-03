@@ -443,6 +443,8 @@ public class MicrodroidTests {
             UUID.fromString("7e8221e7-03e6-4969-948b-73a4c809a4f2");
     private static final UUID U_BOOT_ENV_PARTITION_UUID =
             UUID.fromString("0ab72d30-86ae-4d05-81b2-c1760be2b1f9");
+    private static final UUID PVM_FW_PARTITION_UUID =
+            UUID.fromString("90d2174a-038a-4bc6-adf3-824848fc5825");
     private static final long BLOCK_SIZE = 512;
 
     // Find the starting offset which holds the data of a partition having UUID.
@@ -563,6 +565,21 @@ public class MicrodroidTests {
         } else {
             // non-protected VM shouldn't have u-boot env data
             assertThatPartitionIsMissing(U_BOOT_ENV_PARTITION_UUID);
+        }
+    }
+
+    @Test
+    public void bootFailsWhenPvmFwDataIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on Cuttlefish. b/195765441")
+                .that(android.os.Build.DEVICE)
+                .isNotEqualTo("vsoc_x86_64");
+
+        if (mProtectedVm) {
+            assertThatBootFailsAfterCompromisingPartition(PVM_FW_PARTITION_UUID);
+        } else {
+            // non-protected VM shouldn't have pvmfw data
+            assertThatPartitionIsMissing(PVM_FW_PARTITION_UUID);
         }
     }
 }
