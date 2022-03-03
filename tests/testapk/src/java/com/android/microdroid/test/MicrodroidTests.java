@@ -486,13 +486,9 @@ public class MicrodroidTests {
         return payloadStarted.getNow(false);
     }
 
-    @Test
-    public void bootFailsWhenInstanceDiskIsCompromised()
+    // Flips a bit of given partition, and then see if boot fails. The partition must exist.
+    private void tryCompromisingInstanceDiskPartition(UUID partitionUuid)
             throws VirtualMachineException, InterruptedException, IOException {
-        assume().withMessage("Skip on Cuttlefish. b/195765441")
-                .that(android.os.Build.DEVICE)
-                .isNotEqualTo("vsoc_x86_64");
-
         VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config.json")
                 .debugLevel(DebugLevel.NONE)
                 .build();
@@ -511,17 +507,51 @@ public class MicrodroidTests {
         File instanceImgPath = new File(vmDir, "instance.img");
         RandomAccessFile instanceFile = new RandomAccessFile(instanceImgPath, "rw");
 
-        // partitions may or may not exist
-        for (UUID uuid :
-                new UUID[] {
-                    MICRODROID_PARTITION_UUID, U_BOOT_AVB_PARTITION_UUID, U_BOOT_ENV_PARTITION_UUID
-                }) {
-            OptionalLong offset = findPartitionDataOffset(instanceFile, uuid);
-            if (!offset.isPresent()) continue;
+        OptionalLong offset = findPartitionDataOffset(instanceFile, partitionUuid);
+        assertThat(offset.isPresent()).isTrue();
 
-            flipBit(instanceFile, offset.getAsLong());
-            assertThat(tryBootVm("test_vm_integrity")).isFalse();
-            flipBit(instanceFile, offset.getAsLong());
-        }
+        flipBit(instanceFile, offset.getAsLong());
+        assertThat(tryBootVm("test_vm_integrity")).isFalse();
     }
+
+    @Test
+    public void bootFailsWhenMicrodroidDataIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on Cuttlefish. b/195765441")
+                .that(android.os.Build.DEVICE)
+                .isNotEqualTo("vsoc_x86_64");
+
+        tryCompromisingInstanceDiskPartition(MICRODROID_PARTITION_UUID);
+    }
+
+    /*
+    // TODO(b/218461230): uncomment these after u-boot update
+    @Test
+    public void bootFailsWhenUBootAvbDataIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on Cuttlefish. b/195765441")
+                .that(android.os.Build.DEVICE)
+                .isNotEqualTo("vsoc_x86_64");
+
+        assume().withMessage("Skip where protected VMs aren't support")
+                .that(mProtectedVm)
+                .isTrue();
+
+        tryCompromisingInstanceDiskPartition(U_BOOT_AVB_PARTITION_UUID);
+    }
+
+    @Test
+    public void bootFailsWhenUBootEnvDataIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on Cuttlefish. b/195765441")
+                .that(android.os.Build.DEVICE)
+                .isNotEqualTo("vsoc_x86_64");
+
+        assume().withMessage("Skip where protected VMs aren't support")
+                .that(mProtectedVm)
+                .isTrue();
+
+        tryCompromisingInstanceDiskPartition(U_BOOT_ENV_PARTITION_UUID);
+    }
+    */
 }
