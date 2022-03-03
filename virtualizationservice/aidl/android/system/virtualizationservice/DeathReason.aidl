@@ -34,4 +34,12 @@ enum DeathReason {
     REBOOT = 5,
     /** The VM or crosvm crashed. */
     CRASH = 6,
+    /** The pVM firmware failed to verify the VM because the public key doesn't match. */
+    PVM_FIRMWARE_PUBLIC_KEY_MISMATCH = 7,
+    /** The pVM firmware failed to verify the VM because the instance image changed. */
+    PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED = 8,
+    /** The bootloader failed to verify the VM because the public key doesn't match. */
+    BOOTLOADER_PUBLIC_KEY_MISMATCH = 9,
+    /** The bootloader failed to verify the VM because the instance image changed. */
+    BOOTLOADER_INSTANCE_IMAGE_CHANGED = 10,
 }
