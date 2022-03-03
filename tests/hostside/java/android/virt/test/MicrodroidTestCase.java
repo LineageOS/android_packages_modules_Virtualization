@@ -35,16 +35,15 @@ import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 
-import com.google.gson.Gson;
-import com.google.gson.annotations.SerializedName;
-
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,34 +114,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                 .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission"));
     }
 
-    // Helper classes for (de)serialization of VM raw configs
-    static class VmRawConfig {
-        String bootloader;
-        List<Disk> disks;
-        int memory_mib;
-        @SerializedName("protected")
-        boolean isProtected;
-        String platform_version;
-    }
-
-    static class Disk {
-        List<Partition> partitions;
-        boolean writable;
-        public void addPartition(String label, String path) {
-            if (partitions == null) {
-                partitions = new ArrayList<Partition>();
-            }
-            Partition partition = new Partition();
-            partition.label = label;
-            partition.path = path;
-            partitions.add(partition);
-        }
-    }
-
-    static class Partition {
-        String label;
-        String path;
-        boolean writable;
+    private static JSONObject newPartition(String label, String path) {
+        return new JSONObject(Map.of("label", label, "path", path));
     }
 
     private void resignVirtApex(File virtApexDir, File signingKey, Map<String, File> keyOverrides) {
@@ -195,7 +168,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
     private String runMicrodroidWithResignedImages(File key, Map<String, File> keyOverrides,
             boolean isProtected, boolean daemonize, String consolePath)
-            throws DeviceNotAvailableException, IOException {
+            throws DeviceNotAvailableException, IOException, JSONException {
         CommandRunner android = new CommandRunner(getDevice());
 
         File virtApexDir = FileUtil.createTempDir("virt_apex");
@@ -244,44 +217,45 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         //   - its idsig
 
         // Load etc/microdroid.json
-        Gson gson = new Gson();
         File microdroidConfigFile = new File(virtApexEtcDir, "microdroid.json");
-        VmRawConfig config = gson.fromJson(new FileReader(microdroidConfigFile),
-                VmRawConfig.class);
+        JSONObject config = new JSONObject(FileUtil.readStringFromFile(microdroidConfigFile));
 
         // Replace paths so that the config uses re-signed images from TEST_ROOT
-        config.bootloader = config.bootloader.replace(VIRT_APEX, TEST_ROOT);
-        for (Disk disk : config.disks) {
-            for (Partition part : disk.partitions) {
-                part.path = part.path.replace(VIRT_APEX, TEST_ROOT);
+        config.put("bootloader", config.getString("bootloader").replace(VIRT_APEX, TEST_ROOT));
+        JSONArray disks = config.getJSONArray("disks");
+        for (int diskIndex = 0; diskIndex < disks.length(); diskIndex++) {
+            JSONObject disk = disks.getJSONObject(diskIndex);
+            JSONArray partitions = disk.getJSONArray("partitions");
+            for (int partIndex = 0; partIndex < partitions.length(); partIndex++) {
+                JSONObject part = partitions.getJSONObject(partIndex);
+                part.put("path", part.getString("path").replace(VIRT_APEX, TEST_ROOT));
             }
         }
 
         // Add partitions to the second disk
-        Disk secondDisk = config.disks.get(1);
-        secondDisk.addPartition("vbmeta",
-                TEST_ROOT + "etc/fs/microdroid_vbmeta_bootconfig.img");
-        secondDisk.addPartition("bootconfig",
-                TEST_ROOT + "etc/microdroid_bootconfig.full_debuggable");
-        secondDisk.addPartition("vm-instance", instanceImgPath);
+        final String vbmetaPath = TEST_ROOT + "etc/fs/microdroid_vbmeta_bootconfig.img";
+        final String bootconfigPath = TEST_ROOT + "etc/microdroid_bootconfig.full_debuggable";
+        disks.getJSONObject(1).getJSONArray("partitions")
+                .put(newPartition("vbmeta", vbmetaPath))
+                .put(newPartition("bootconfig", bootconfigPath))
+                .put(newPartition("vm-instance", instanceImgPath));
 
         // Add payload image disk with partitions:
         // - payload-metadata
         // - apexes: com.android.os.statsd, com.android.adbd
         // - apk and idsig
-        Disk payloadDisk = new Disk();
-        payloadDisk.addPartition("payload-metadata", payloadMetadataPath);
-        payloadDisk.addPartition("microdroid-apex-0", statsdApexPath);
-        payloadDisk.addPartition("microdroid-apex-1", adbdApexPath);
-        payloadDisk.addPartition("microdroid-apk", apkPath);
-        payloadDisk.addPartition("microdroid-apk-idsig", idSigPath);
-        config.disks.add(payloadDisk);
+        disks.put(new JSONObject().put("writable", false).put("partitions", new JSONArray()
+                .put(newPartition("payload-metadata", payloadMetadataPath))
+                .put(newPartition("microdroid-apex-0", statsdApexPath))
+                .put(newPartition("microdroid-apex-1", adbdApexPath))
+                .put(newPartition("microdroid-apk", apkPath))
+                .put(newPartition("microdroid-apk-idsig", idSigPath))));
 
-        config.isProtected = isProtected;
+        config.put("protected", isProtected);
 
         // Write updated raw config
         final String configPath = TEST_ROOT + "raw_config.json";
-        getDevice().pushString(gson.toJson(config), configPath);
+        getDevice().pushString(config.toString(), configPath);
 
         final String logPath = TEST_ROOT + "log";
         final String ret = android.runWithTimeout(
