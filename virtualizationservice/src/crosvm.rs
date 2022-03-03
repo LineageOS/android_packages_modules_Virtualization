@@ -20,12 +20,13 @@ use anyhow::{bail, Error};
 use command_fds::CommandFdExt;
 use log::{debug, error, info};
 use semver::{Version, VersionReq};
+use nix::{fcntl::OFlag, unistd::pipe2};
 use shared_child::SharedChild;
 use std::fs::{remove_dir_all, File};
-use std::io;
+use std::io::{self, Read};
 use std::mem;
 use std::num::NonZeroU32;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Mutex};
@@ -114,12 +115,14 @@ impl VmState {
     fn start(&mut self, instance: Arc<VmInstance>) -> Result<(), Error> {
         let state = mem::replace(self, VmState::Failed);
         if let VmState::NotStarted { config } = state {
+            let (failure_pipe_read, failure_pipe_write) = create_pipe()?;
+
             // If this fails and returns an error, `self` will be left in the `Failed` state.
-            let child = Arc::new(run_vm(config)?);
+            let child = Arc::new(run_vm(config, failure_pipe_write)?);
 
             let child_clone = child.clone();
             thread::spawn(move || {
-                instance.monitor(child_clone);
+                instance.monitor(child_clone, failure_pipe_read);
             });
 
             // If it started correctly, update the state.
@@ -198,7 +201,7 @@ impl VmInstance {
     ///
     /// This takes a separate reference to the `SharedChild` rather than using the one in
     /// `self.vm_state` to avoid holding the lock on `vm_state` while it is running.
-    fn monitor(&self, child: Arc<SharedChild>) {
+    fn monitor(&self, child: Arc<SharedChild>, mut failure_pipe_read: File) {
         let result = child.wait();
         match &result {
             Err(e) => error!("Error waiting for crosvm({}) instance to die: {}", child.id(), e),
@@ -210,7 +213,16 @@ impl VmInstance {
         // Ensure that the mutex is released before calling the callbacks.
         drop(vm_state);
 
-        self.callbacks.callback_on_died(self.cid, death_reason(&result));
+        let mut failure_string = String::new();
+        let failure_read_result = failure_pipe_read.read_to_string(&mut failure_string);
+        if let Err(e) = &failure_read_result {
+            error!("Error reading VM failure reason from pipe: {}", e);
+        }
+        if !failure_string.is_empty() {
+            info!("VM returned failure reason '{}'", failure_string);
+        }
+
+        self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_string));
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
@@ -250,8 +262,21 @@ impl VmInstance {
     }
 }
 
-fn death_reason(result: &Result<ExitStatus, io::Error>) -> DeathReason {
+fn death_reason(result: &Result<ExitStatus, io::Error>, failure_reason: &str) -> DeathReason {
     if let Ok(status) = result {
+        match failure_reason {
+            "PVM_FIRMWARE_PUBLIC_KEY_MISMATCH" => {
+                return DeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH
+            }
+            "PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED" => {
+                return DeathReason::PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED
+            }
+            "BOOTLOADER_PUBLIC_KEY_MISMATCH" => return DeathReason::BOOTLOADER_PUBLIC_KEY_MISMATCH,
+            "BOOTLOADER_INSTANCE_IMAGE_CHANGED" => {
+                return DeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED
+            }
+            _ => {}
+        }
         match status.code() {
             None => DeathReason::KILLED,
             Some(0) => DeathReason::SHUTDOWN,
@@ -266,7 +291,7 @@ fn death_reason(result: &Result<ExitStatus, io::Error>) -> DeathReason {
 }
 
 /// Starts an instance of `crosvm` to manage a new VM.
-fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
+fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild, Error> {
     validate_config(&config)?;
 
     let mut command = Command::new(CROSVM_PATH);
@@ -306,27 +331,25 @@ fn run_vm(config: CrosvmConfig) -> Result<SharedChild, Error> {
 
     // Setup the serial devices.
     // 1. uart device: used as the output device by bootloaders and as early console by linux
-    // 2. virtio-console device: used as the console device where kmsg is redirected to
-    // 3. virtio-console device: used as the androidboot.console device (not used currently)
-    // 4. virtio-console device: used as the logcat output
+    // 2. uart device: used to report the reason for the VM failing.
+    // 3. virtio-console device: used as the console device where kmsg is redirected to
+    // 4. virtio-console device: used as the androidboot.console device (not used currently)
+    // 5. virtio-console device: used as the logcat output
     //
     // When [console|log]_fd is not specified, the devices are attached to sink, which means what's
     // written there is discarded.
-    let mut format_serial_arg = |fd: &Option<File>| {
-        let path = fd.as_ref().map(|fd| add_preserved_fd(&mut preserved_fds, fd));
-        let type_arg = path.as_ref().map_or("type=sink", |_| "type=file");
-        let path_arg = path.as_ref().map_or(String::new(), |path| format!(",path={}", path));
-        format!("{}{}", type_arg, path_arg)
-    };
-    let console_arg = format_serial_arg(&config.console_fd);
-    let log_arg = format_serial_arg(&config.log_fd);
+    let console_arg = format_serial_arg(&mut preserved_fds, &config.console_fd);
+    let log_arg = format_serial_arg(&mut preserved_fds, &config.log_fd);
+    let failure_serial_path = add_preserved_fd(&mut preserved_fds, &failure_pipe_write);
 
     // Warning: Adding more serial devices requires you to shift the PCI device ID of the boot
     // disks in bootconfig.x86_64. This is because x86 crosvm puts serial devices and the block
     // devices in the same PCI bus and serial devices comes before the block devices. Arm crosvm
     // doesn't have the issue.
     // /dev/ttyS0
-    command.arg(format!("--serial={},hardware=serial", &console_arg));
+    command.arg(format!("--serial={},hardware=serial,num=1", &console_arg));
+    // /dev/ttyS1
+    command.arg(format!("--serial=type=file,path={},hardware=serial,num=2", &failure_serial_path));
     // /dev/hvc0
     command.arg(format!("--serial={},hardware=virtio-console,num=1", &console_arg));
     // /dev/hvc1 (not used currently)
@@ -392,4 +415,23 @@ fn add_preserved_fd(preserved_fds: &mut Vec<RawFd>, file: &File) -> String {
     let fd = file.as_raw_fd();
     preserved_fds.push(fd);
     format!("/proc/self/fd/{}", fd)
+}
+
+/// Adds the file descriptor for `file` (if any) to `preserved_fds`, and returns the appropriate
+/// string for a crosvm `--serial` flag. If `file` is none, creates a dummy sink device.
+fn format_serial_arg(preserved_fds: &mut Vec<RawFd>, file: &Option<File>) -> String {
+    if let Some(file) = file {
+        format!("type=file,path={}", add_preserved_fd(preserved_fds, file))
+    } else {
+        "type=sink".to_string()
+    }
+}
+
+/// Creates a new pipe with the `O_CLOEXEC` flag set, and returns the read side and write side.
+fn create_pipe() -> Result<(File, File), Error> {
+    let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC)?;
+    // SAFETY: We are the sole owners of these fds as they were just created.
+    let read_fd = unsafe { File::from_raw_fd(raw_read) };
+    let write_fd = unsafe { File::from_raw_fd(raw_write) };
+    Ok((read_fd, write_fd))
 }
