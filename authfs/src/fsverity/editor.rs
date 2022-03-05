@@ -112,15 +112,15 @@ impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
         &self,
         chunk_index: u64,
         buf: &mut ChunkBuffer,
+        merkle_tree_locked: &MerkleLeaves,
     ) -> io::Result<usize> {
         let size = self.read_backing_chunk_unverified(chunk_index, buf)?;
 
         // Ensure the returned buffer matches the known hash.
-        let merkle_tree = self.merkle_tree.read().unwrap();
         debug_assert_usize_is_u64();
-        if merkle_tree.is_index_valid(chunk_index as usize) {
+        if merkle_tree_locked.is_index_valid(chunk_index as usize) {
             let hash = Sha256Hasher::new()?.update(buf)?.finalize()?;
-            if !merkle_tree.is_consistent(chunk_index as usize, &hash) {
+            if !merkle_tree_locked.is_consistent(chunk_index as usize, &hash) {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Inconsistent hash"));
             }
             Ok(size)
@@ -278,7 +278,7 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
             let chunk_index = size / CHUNK_SIZE;
             if new_tail_size > 0 {
                 let mut buf: ChunkBuffer = [0; CHUNK_SIZE as usize];
-                let s = self.read_backing_chunk_unverified(chunk_index, &mut buf)?;
+                let s = self.read_backing_chunk_verified(chunk_index, &mut buf, &merkle_tree)?;
                 debug_assert!(new_tail_size <= s);
 
                 let zeros = vec![0; CHUNK_SIZE as usize - new_tail_size];
@@ -299,7 +299,8 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
 
 impl<F: ReadByChunk + RandomWrite> ReadByChunk for VerifiedFileEditor<F> {
     fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
-        self.read_backing_chunk_verified(chunk_index, buf)
+        let merkle_tree = self.merkle_tree.read().unwrap();
+        self.read_backing_chunk_verified(chunk_index, buf, &merkle_tree)
     }
 }
 

@@ -266,7 +266,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Action
         // Tampering with the first 2 4K-blocks of the backing file.
-        zeroizeFileHeadOnAndroid(backendPath, /* size */ 8192);
+        zeroizeFileOnAndroid(backendPath, /* size */ 8192, /* offset */ 0);
 
         // Verify
         // Write to a block partially requires a read back to calculate the new hash. It should fail
@@ -301,7 +301,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Action
         // Tampering with the first 4K-block of the backing file.
-        zeroizeFileHeadOnAndroid(backendPath, /* size */ 4096);
+        zeroizeFileOnAndroid(backendPath, /* size */ 4096, /* offset */ 0);
 
         // Verify
         // Force dropping the page cache, so that the next read can be validated.
@@ -311,6 +311,27 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 destPath, /* offset */ 0, /* number */ 4096));
         assertTrue(checkReadAtFileOffsetOnMicrodroid(
                 destPath, /* offset */ 4096, /* number */ 4096));
+    }
+
+    @Test
+    public void testResizeFailedIfDetectsTampering() throws Exception {
+        // Setup
+        runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+
+        String outputPath = MOUNT_DIR + "/3";
+        String backendPath = TEST_OUTPUT_DIR + "/out.file";
+        createFileWithOnesOnMicrodroid(outputPath, 8192);
+
+        // Action
+        // Tampering with the last 4K-block of the backing file.
+        zeroizeFileOnAndroid(backendPath, /* size */ 1, /* offset */ 4096);
+
+        // Verify
+        // A resize (to a non-multiple of 4K) will fail if the last backing chunk has been
+        // tampered. The original data is necessary (and has to be verified) to calculate the new
+        // hash with shorter data.
+        assertFalse(resizeFileOnMicrodroid(outputPath, 8000));
     }
 
     @Test
@@ -329,14 +350,14 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 backendPath,
                 "684ad25fdc2bbb80cbc910dd1bde6d5499ccf860ca6ee44704b77ec445271353");
 
-        resizeFileOnMicrodroid(outputPath, 15000);
+        assertTrue(resizeFileOnMicrodroid(outputPath, 15000));
         assertEquals(getFileSizeInBytesOnMicrodroid(outputPath), 15000);
         expectBackingFileConsistency(
                 outputPath,
                 backendPath,
                 "567c89f62586e0d33369157afdfe99a2fa36cdffb01e91dcdc0b7355262d610d");
 
-        resizeFileOnMicrodroid(outputPath, 5000);
+        assertTrue(resizeFileOnMicrodroid(outputPath, 5000));
         assertEquals(getFileSizeInBytesOnMicrodroid(outputPath), 5000);
         expectBackingFileConsistency(
                 outputPath,
@@ -365,7 +386,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "684ad25fdc2bbb80cbc910dd1bde6d5499ccf860ca6ee44704b77ec445271353");
 
         // Regular file operations work, e.g. resize.
-        resizeFileOnMicrodroid(authfsPath, 15000);
+        assertTrue(resizeFileOnMicrodroid(authfsPath, 15000));
         assertEquals(getFileSizeInBytesOnMicrodroid(authfsPath), 15000);
         expectBackingFileConsistency(
                 authfsPath,
@@ -723,8 +744,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertEquals("Inconsistent mode for " + androidPath + " (android)", expected, actual);
     }
 
-    private void resizeFileOnMicrodroid(String path, long size) {
-        runOnMicrodroid("truncate -c -s " + size + " " + path);
+    private boolean resizeFileOnMicrodroid(String path, long size) {
+        CommandResult result = runOnMicrodroidForResult("truncate -c -s " + size + " " + path);
+        return result.getStatus() == CommandStatus.SUCCESS;
     }
 
     private long getFileSizeInBytesOnMicrodroid(String path) {
@@ -759,9 +781,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         return result.getStatus() == CommandStatus.SUCCESS;
     }
 
-    private void zeroizeFileHeadOnAndroid(String filePath, long size)
+    private void zeroizeFileOnAndroid(String filePath, long size, long offset)
             throws DeviceNotAvailableException {
-        sAndroid.run("dd if=/dev/zero of=" + filePath + " bs=1 count=" + size + " conv=notrunc");
+        sAndroid.run("dd if=/dev/zero of=" + filePath + " bs=1 count=" + size + " conv=notrunc"
+                + " seek=" + offset);
     }
 
     private void runAuthFsOnMicrodroid(String flags) {
