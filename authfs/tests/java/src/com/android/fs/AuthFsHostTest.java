@@ -772,7 +772,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         String cmd = "dd if=/dev/zero of=" + filePath + " bs=1 count=" + numberOfZeros
                 + " conv=notrunc";
         if (offset > 0) {
-            cmd += " skip=" + offset;
+            cmd += " seek=" + offset;
         }
         if (writeThrough) {
             cmd += " direct";
