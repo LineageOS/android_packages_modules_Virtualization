@@ -14,14 +14,22 @@
  * limitations under the License.
  */
 
+#include <android/sysprop/HypervisorProperties.sysprop.h>
+
 #include "virt/VirtualizationTest.h"
+
+using android::sysprop::HypervisorProperties::hypervisor_protected_vm_supported;
+using android::sysprop::HypervisorProperties::hypervisor_vm_supported;
 
 namespace {
 
 bool isVmSupported() {
-    const std::array<const char *, 4> needed_files = {
-            "/dev/kvm",
-            "/dev/vhost-vsock",
+    bool has_capability = hypervisor_vm_supported().value_or(false) ||
+            hypervisor_protected_vm_supported().value_or(false);
+    if (!has_capability) {
+        return false;
+    }
+    const std::array<const char *, 2> needed_files = {
             "/apex/com.android.virt/bin/crosvm",
             "/apex/com.android.virt/bin/virtualizationservice",
     };
