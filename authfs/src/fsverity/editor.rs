@@ -52,6 +52,7 @@
 //! Rollback attack is another possible attack, but can be addressed with a rollback counter when
 //! possible.
 
+use log::warn;
 use std::io;
 use std::sync::{Arc, RwLock};
 
@@ -99,6 +100,44 @@ impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
         merkle_tree.calculate_fsverity_digest().map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     }
 
+    fn read_backing_chunk_unverified(
+        &self,
+        chunk_index: u64,
+        buf: &mut ChunkBuffer,
+    ) -> io::Result<usize> {
+        self.file.read_chunk(chunk_index, buf)
+    }
+
+    fn read_backing_chunk_verified(
+        &self,
+        chunk_index: u64,
+        buf: &mut ChunkBuffer,
+        merkle_tree_locked: &MerkleLeaves,
+    ) -> io::Result<usize> {
+        let size = self.read_backing_chunk_unverified(chunk_index, buf)?;
+
+        // Ensure the returned buffer matches the known hash.
+        debug_assert_usize_is_u64();
+        if merkle_tree_locked.is_index_valid(chunk_index as usize) {
+            let hash = Sha256Hasher::new()?.update(buf)?.finalize()?;
+            if !merkle_tree_locked.is_consistent(chunk_index as usize, &hash) {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "Inconsistent hash"));
+            }
+            Ok(size)
+        } else {
+            if size != 0 {
+                // This is unexpected. For any reason that the file is changed and doesn't match
+                // the known state, ignore it at the moment. We can still generate correct
+                // fs-verity digest for an output file.
+                warn!(
+                    "Ignoring the received {} bytes for index {} beyond the known file size",
+                    size, chunk_index,
+                );
+            }
+            Ok(0)
+        }
+    }
+
     fn new_hash_for_incomplete_write(
         &self,
         source: &[u8],
@@ -114,7 +153,7 @@ impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
         // If previous data exists, read back and verify against the known hash (since the
         // storage / remote server is not trusted).
         if merkle_tree.is_index_valid(output_chunk_index) {
-            self.read_chunk(output_chunk_index as u64, &mut orig_data)?;
+            self.read_backing_chunk_unverified(output_chunk_index as u64, &mut orig_data)?;
 
             // Verify original content
             let hash = Sha256Hasher::new()?.update(&orig_data)?.finalize()?;
@@ -239,7 +278,7 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
             let chunk_index = size / CHUNK_SIZE;
             if new_tail_size > 0 {
                 let mut buf: ChunkBuffer = [0; CHUNK_SIZE as usize];
-                let s = self.read_chunk(chunk_index, &mut buf)?;
+                let s = self.read_backing_chunk_verified(chunk_index, &mut buf, &merkle_tree)?;
                 debug_assert!(new_tail_size <= s);
 
                 let zeros = vec![0; CHUNK_SIZE as usize - new_tail_size];
@@ -260,7 +299,8 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
 
 impl<F: ReadByChunk + RandomWrite> ReadByChunk for VerifiedFileEditor<F> {
     fn read_chunk(&self, chunk_index: u64, buf: &mut ChunkBuffer) -> io::Result<usize> {
-        self.file.read_chunk(chunk_index, buf)
+        let merkle_tree = self.merkle_tree.read().unwrap();
+        self.read_backing_chunk_verified(chunk_index, buf, &merkle_tree)
     }
 }
 
