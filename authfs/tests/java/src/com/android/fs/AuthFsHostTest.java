@@ -101,8 +101,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     private ExecutorService mThreadPool = Executors.newCachedThreadPool();
 
     @BeforeClassWithInfo
-    public static void beforeClassWithDevice(TestInformation testInfo)
-            throws DeviceNotAvailableException {
+    public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
         assertNotNull(testInfo.getDevice());
         ITestDevice androidDevice = testInfo.getDevice();
         sAndroid = new CommandRunner(androidDevice);

@@ -20,11 +20,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
@@ -97,15 +99,10 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         }
     }
 
-    public static void testIfDeviceIsCapable(ITestDevice androidDevice)
-            throws DeviceNotAvailableException {
-        CommandRunner android = new CommandRunner(androidDevice);
-
-        // Checks the preconditions to run microdroid. If the condition is not satisfied
-        // don't run the test (instead of failing)
-        android.assumeSuccess("ls /dev/kvm");
-        android.assumeSuccess("ls /dev/vhost-vsock");
-        android.assumeSuccess("ls /apex/com.android.virt");
+    public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
+        assumeTrue("Need an actual TestDevice", androidDevice instanceof TestDevice);
+        TestDevice testDevice = (TestDevice) androidDevice;
+        assumeTrue("Requires VM support", testDevice.deviceSupportsMicrodroid());
     }
 
     // Run an arbitrary command in the host side and returns the result
