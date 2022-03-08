@@ -23,12 +23,13 @@
 //! client can then request the content of file 9 by offset and size.
 
 mod aidl;
+mod common;
 mod fsverity;
 
 use anyhow::{bail, Result};
 use binder_common::rpc_server::run_rpc_server;
 use log::debug;
-use nix::{dir::Dir, sys::stat::umask, sys::stat::Mode};
+use nix::sys::stat::{umask, Mode};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::os::unix::io::FromRawFd;
@@ -44,12 +45,12 @@ fn is_fd_valid(fd: i32) -> bool {
     retval >= 0
 }
 
-fn fd_to_file(fd: i32) -> Result<File> {
+fn fd_to_owned<T: FromRawFd>(fd: i32) -> Result<T> {
     if !is_fd_valid(fd) {
         bail!("Bad FD: {}", fd);
     }
     // SAFETY: The caller is supposed to provide valid FDs to this process.
-    Ok(unsafe { File::from_raw_fd(fd) })
+    Ok(unsafe { T::from_raw_fd(fd) })
 }
 
 fn parse_arg_ro_fds(arg: &str) -> Result<(i32, FdConfig)> {
@@ -61,11 +62,11 @@ fn parse_arg_ro_fds(arg: &str) -> Result<(i32, FdConfig)> {
     Ok((
         fds[0],
         FdConfig::Readonly {
-            file: fd_to_file(fds[0])?,
+            file: fd_to_owned(fds[0])?,
             // Alternative metadata source, if provided
             alt_metadata: fds
                 .get(1)
-                .map(|fd| fd_to_file(*fd))
+                .map(|fd| fd_to_owned(*fd))
                 .transpose()?
                 .and_then(|f| parse_fsverity_metadata(f).ok()),
         },
@@ -74,7 +75,7 @@ fn parse_arg_ro_fds(arg: &str) -> Result<(i32, FdConfig)> {
 
 fn parse_arg_rw_fds(arg: &str) -> Result<(i32, FdConfig)> {
     let fd = arg.parse::<i32>()?;
-    let file = fd_to_file(fd)?;
+    let file = fd_to_owned::<File>(fd)?;
     if file.metadata()?.len() > 0 {
         bail!("File is expected to be empty");
     }
@@ -83,12 +84,12 @@ fn parse_arg_rw_fds(arg: &str) -> Result<(i32, FdConfig)> {
 
 fn parse_arg_ro_dirs(arg: &str) -> Result<(i32, FdConfig)> {
     let fd = arg.parse::<i32>()?;
-    Ok((fd, FdConfig::InputDir(Dir::from_fd(fd)?)))
+    Ok((fd, FdConfig::InputDir(fd_to_owned(fd)?)))
 }
 
 fn parse_arg_rw_dirs(arg: &str) -> Result<(i32, FdConfig)> {
     let fd = arg.parse::<i32>()?;
-    Ok((fd, FdConfig::OutputDir(Dir::from_fd(fd)?)))
+    Ok((fd, FdConfig::OutputDir(fd_to_owned(fd)?)))
 }
 
 struct Args {
@@ -147,7 +148,7 @@ fn parse_args() -> Result<Args> {
     }
     let ready_fd = if let Some(arg) = matches.value_of("ready-fd") {
         let fd = arg.parse::<i32>()?;
-        Some(fd_to_file(fd)?)
+        Some(fd_to_owned(fd)?)
     } else {
         None
     };
