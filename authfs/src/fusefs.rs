@@ -33,7 +33,7 @@ use std::option::Option;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use crate::common::{divide_roundup, ChunkedSizeIter, CHUNK_SIZE};
@@ -188,7 +188,7 @@ type DirHandleTable = BTreeMap<Handle, Arc<DirEntriesSnapshot>>;
 pub struct AuthFs {
     /// Table for `Inode` to `InodeState` lookup. This needs to be `Sync` to be used in
     /// `fuse::worker::start_message_loop`.
-    inode_table: Mutex<BTreeMap<Inode, InodeState>>,
+    inode_table: RwLock<BTreeMap<Inode, InodeState>>,
 
     /// The next available inode number.
     next_inode: AtomicU64,
@@ -200,7 +200,7 @@ pub struct AuthFs {
     ///
     /// Currently, no code locks `dir_handle_table` and `inode_table` at the same time to avoid
     /// deadlock.
-    dir_handle_table: Mutex<DirHandleTable>,
+    dir_handle_table: RwLock<DirHandleTable>,
 
     /// The next available handle number.
     next_handle: AtomicU64,
@@ -222,9 +222,9 @@ impl AuthFs {
         );
 
         AuthFs {
-            inode_table: Mutex::new(inode_table),
+            inode_table: RwLock::new(inode_table),
             next_inode: AtomicU64::new(ROOT_INODE + 1),
-            dir_handle_table: Mutex::new(BTreeMap::new()),
+            dir_handle_table: RwLock::new(BTreeMap::new()),
             next_handle: AtomicU64::new(1),
             remote_fs_stats_reader,
         }
@@ -321,7 +321,7 @@ impl AuthFs {
     where
         F: FnOnce(&AuthFsEntry) -> io::Result<R>,
     {
-        let inode_table = self.inode_table.lock().unwrap();
+        let inode_table = self.inode_table.read().unwrap();
         handle_inode_locked(&inode_table, inode, |inode_state| handle_fn(&inode_state.entry))
     }
 
@@ -343,7 +343,7 @@ impl AuthFs {
     where
         F: FnOnce(&mut AuthFsEntry, &Path, Inode) -> io::Result<AuthFsEntry>,
     {
-        let mut inode_table = self.inode_table.lock().unwrap();
+        let mut inode_table = self.inode_table.write().unwrap();
         let (new_inode, new_file_entry) = handle_inode_mut_locked(
             &mut inode_table,
             &parent_inode,
@@ -368,7 +368,7 @@ impl AuthFs {
         dir_entries: Vec<AuthFsDirEntry>,
     ) -> io::Result<(Option<Handle>, FuseOpenOptions)> {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed);
-        let mut dir_handle_table = self.dir_handle_table.lock().unwrap();
+        let mut dir_handle_table = self.dir_handle_table.write().unwrap();
         if let btree_map::Entry::Vacant(value) = dir_handle_table.entry(handle) {
             value.insert(Arc::new(dir_entries));
             Ok((Some(handle), FuseOpenOptions::empty()))
@@ -511,7 +511,7 @@ impl FileSystem for AuthFs {
     }
 
     fn lookup(&self, _ctx: Context, parent: Inode, name: &CStr) -> io::Result<Entry> {
-        let mut inode_table = self.inode_table.lock().unwrap();
+        let mut inode_table = self.inode_table.write().unwrap();
 
         // Look up the entry's inode number in parent directory.
         let inode =
@@ -566,7 +566,7 @@ impl FileSystem for AuthFs {
     }
 
     fn forget(&self, _ctx: Context, inode: Self::Inode, count: u64) {
-        let mut inode_table = self.inode_table.lock().unwrap();
+        let mut inode_table = self.inode_table.write().unwrap();
         let delete_now = handle_inode_mut_locked(
             &mut inode_table,
             &inode,
@@ -764,7 +764,7 @@ impl FileSystem for AuthFs {
         _handle: Option<Handle>,
         valid: SetattrValid,
     ) -> io::Result<(libc::stat64, Duration)> {
-        let mut inode_table = self.inode_table.lock().unwrap();
+        let mut inode_table = self.inode_table.write().unwrap();
         handle_inode_mut_locked(&mut inode_table, &inode, |InodeState { entry, .. }| match entry {
             AuthFsEntry::VerifiedNew { editor, attr } => {
                 check_unsupported_setattr_request(valid)?;
@@ -879,7 +879,7 @@ impl FileSystem for AuthFs {
     }
 
     fn unlink(&self, _ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<()> {
-        let mut inode_table = self.inode_table.lock().unwrap();
+        let mut inode_table = self.inode_table.write().unwrap();
         handle_inode_mut_locked(
             &mut inode_table,
             &parent,
@@ -906,7 +906,7 @@ impl FileSystem for AuthFs {
     }
 
     fn rmdir(&self, _ctx: Context, parent: Self::Inode, name: &CStr) -> io::Result<()> {
-        let mut inode_table = self.inode_table.lock().unwrap();
+        let mut inode_table = self.inode_table.write().unwrap();
 
         // Check before actual removal, with readonly borrow.
         handle_inode_locked(&inode_table, &parent, |inode_state| match &inode_state.entry {
@@ -962,7 +962,7 @@ impl FileSystem for AuthFs {
         _size: u32,
         offset: u64,
     ) -> io::Result<Self::DirIter> {
-        let dir_handle_table = self.dir_handle_table.lock().unwrap();
+        let dir_handle_table = self.dir_handle_table.read().unwrap();
         if let Some(entry) = dir_handle_table.get(&handle) {
             Ok(DirEntriesSnapshotIterator {
                 snapshot: entry.clone(),
@@ -980,7 +980,7 @@ impl FileSystem for AuthFs {
         _flags: u32,
         handle: Self::Handle,
     ) -> io::Result<()> {
-        let mut dir_handle_table = self.dir_handle_table.lock().unwrap();
+        let mut dir_handle_table = self.dir_handle_table.write().unwrap();
         if dir_handle_table.remove(&handle).is_none() {
             unreachable!("Unknown directory handle {}, inode {}", handle, inode);
         }
@@ -1008,7 +1008,7 @@ impl FileSystem for AuthFs {
         st.f_bfree = st.f_bavail;
         st.f_ffree = st.f_favail;
         // Number of inodes on the filesystem
-        st.f_files = self.inode_table.lock().unwrap().len() as u64;
+        st.f_files = self.inode_table.read().unwrap().len() as u64;
 
         Ok(st)
     }

@@ -52,7 +52,6 @@
 //! Rollback attack is another possible attack, but can be addressed with a rollback counter when
 //! possible.
 
-use log::warn;
 use std::io;
 use std::sync::{Arc, RwLock};
 
@@ -114,26 +113,18 @@ impl<F: ReadByChunk + RandomWrite> VerifiedFileEditor<F> {
         buf: &mut ChunkBuffer,
         merkle_tree_locked: &MerkleLeaves,
     ) -> io::Result<usize> {
-        let size = self.read_backing_chunk_unverified(chunk_index, buf)?;
-
-        // Ensure the returned buffer matches the known hash.
         debug_assert_usize_is_u64();
+
         if merkle_tree_locked.is_index_valid(chunk_index as usize) {
+            let size = self.read_backing_chunk_unverified(chunk_index, buf)?;
+
+            // Ensure the returned buffer matches the known hash.
             let hash = Sha256Hasher::new()?.update(buf)?.finalize()?;
             if !merkle_tree_locked.is_consistent(chunk_index as usize, &hash) {
                 return Err(io::Error::new(io::ErrorKind::InvalidData, "Inconsistent hash"));
             }
             Ok(size)
         } else {
-            if size != 0 {
-                // This is unexpected. For any reason that the file is changed and doesn't match
-                // the known state, ignore it at the moment. We can still generate correct
-                // fs-verity digest for an output file.
-                warn!(
-                    "Ignoring the received {} bytes for index {} beyond the known file size",
-                    size, chunk_index,
-                );
-            }
             Ok(0)
         }
     }
