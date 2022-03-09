@@ -37,6 +37,7 @@ use log::error;
 use protobuf::Message;
 use std::convert::TryInto;
 use std::fs::File;
+use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -66,6 +67,10 @@ struct Args {
     /// Extra options to FUSE
     #[structopt(short = "o")]
     extra_options: Option<String>,
+
+    /// Number of threads to serve FUSE requests.
+    #[structopt(short = "j")]
+    thread_number: Option<NonZeroU8>,
 
     /// A read-only remote file with integrity check. Can be multiple.
     ///
@@ -312,7 +317,12 @@ fn try_main() -> Result<()> {
     let mut authfs = AuthFs::new(RemoteFsStatsReader::new(service.clone()));
     prepare_root_dir_entries(service, &mut authfs, &args)?;
 
-    fusefs::mount_and_enter_message_loop(authfs, &args.mount_point, &args.extra_options)?;
+    fusefs::mount_and_enter_message_loop(
+        authfs,
+        &args.mount_point,
+        &args.extra_options,
+        args.thread_number,
+    )?;
     bail!("Unexpected exit after the handler loop")
 }
 
