@@ -32,6 +32,9 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, Weak};
 use virtualizationservice::IVirtualizationService::IVirtualizationService;
 
+// Enough memory to complete odrefresh in the VM.
+const VM_MEMORY_MIB: i32 = 1024;
+
 pub struct InstanceManager {
     service: Strong<dyn IVirtualizationService>,
     state: Mutex<State>,
@@ -95,7 +98,7 @@ fn new_vm_parameters() -> Result<VmParameters> {
         }
     };
     let cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME)?;
-    Ok(VmParameters { cpus, cpu_set, ..Default::default() })
+    Ok(VmParameters { cpus, cpu_set, memory_mib: Some(VM_MEMORY_MIB), ..Default::default() })
 }
 
 // Ensures we only run one instance at a time.
