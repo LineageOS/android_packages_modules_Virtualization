@@ -102,7 +102,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
         assumeTrue("Need an actual TestDevice", androidDevice instanceof TestDevice);
         TestDevice testDevice = (TestDevice) androidDevice;
-        assumeTrue("Requires VM support", testDevice.deviceSupportsMicrodroid());
+        assumeTrue("Requires VM support", testDevice.supportsMicrodroid());
     }
 
     // Run an arbitrary command in the host side and returns the result
