@@ -212,6 +212,7 @@ logical_partition {
 microdroid_boot_cmdline = [
     "panic=-1",
     "bootconfig",
+    "ioremap_guard",
 ]
 
 bootimg {
