@@ -31,7 +31,7 @@ the device:
 
 ```sh
 banchan com.android.virt aosp_arm64
-m apps_only dist
+UNBUNDLED_BUILD_SDKS_FROM_SOURCES=true m apps_only dist
 adb install out/dist/com.android.virt.apex
 adb reboot
 ```
@@ -103,27 +103,15 @@ android_app {
 // directory.
 ```
 
-Finally, you build and sign the APK.
+Finally, you build the APK.
 
 ```sh
 TARGET_BUILD_APPS=MyApp m apps_only dist
-m apksigner
-apksigner sign --ks path_to_keystore out/dist/MyApp.apk
 ```
-
-`path_to_keystore` should be replaced with the actual path to the keystore,
-which can be created as follows:
-
-```sh
-keytool -keystore my_keystore -genkey -alias my_key
-```
-
-Make sure that `.apk.idsig` file is also generated in the same directory as the
-signed APK.
 
 ## Running the app on microdroid
 
-First of all, install the signed APK to the target device.
+First of all, install the APK to the target device.
 
 ```sh
 adb install out/dist/MyApp.apk
@@ -141,14 +129,6 @@ values:
   adb shell pm path PACKAGE_NAME_OF_YOUR_APP
   ```
   It shall report a cryptic path similar to `/data/app/~~OgZq==/com.acme.app-HudMahQ==/base.apk`.
-
-Push idsig of the APK to the device.
-
-```sh
-TEST_ROOT=/data/local/tmp/virt
-adb shell mkdir $TEST_ROOT
-adb push out/dist/MyApp.apk.idsig $TEST_ROOT/
-```
 
 Execute the following commands to launch a VM. The VM will boot to microdroid
 and then automatically execute your app (the shared library
