@@ -90,8 +90,8 @@ fn try_main() -> Result<()> {
     let info = artifacts_dir.join("compos.info");
     let signature = artifacts_dir.join("compos.info.signature");
 
-    let info = read_small_file(&info)?;
-    let signature = read_small_file(&signature)?;
+    let info = read_small_file(&info).context("Failed to read compos.info")?;
+    let signature = read_small_file(&signature).context("Failed to read compos.info signature")?;
 
     // We need to start the thread pool to be able to receive Binder callbacks
     ProcessState::start_thread_pool();
