@@ -16,6 +16,8 @@
 
 package com.android.virt.fs;
 
+import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -40,7 +42,9 @@ import com.android.tradefed.util.CommandStatus;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
 import java.util.Optional;
@@ -99,6 +103,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     private static boolean sAssumptionFailed;
 
     private ExecutorService mThreadPool = Executors.newCachedThreadPool();
+
+    @Rule public TestLogData mTestLogs = new TestLogData();
+    @Rule public TestName mTestName = new TestName();
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
@@ -170,10 +177,18 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     @After
     public void tearDown() throws Exception {
         sAndroid.tryRun("killall fd_server");
-        sAndroid.run("rm -rf " + TEST_OUTPUT_DIR);
-
         tryRunOnMicrodroid("killall authfs");
         tryRunOnMicrodroid("umount " + MOUNT_DIR);
+
+        // Even though we only run one VM for the whole class, and could have collect the VM log
+        // after all tests are done, TestLogData doesn't seem to work at class level. Hence,
+        // collect recent logs manually for each test method.
+        String vmRecentLog = TEST_OUTPUT_DIR + "/vm_recent.log";
+        sAndroid.tryRun("tail -n 50 " + LOG_PATH + " > " + vmRecentLog);
+        archiveLogThenDelete(mTestLogs, getDevice(), vmRecentLog,
+                "vm_recent.log-" + mTestName.getMethodName());
+
+        sAndroid.run("rm -rf " + TEST_OUTPUT_DIR);
     }
 
     @Test
