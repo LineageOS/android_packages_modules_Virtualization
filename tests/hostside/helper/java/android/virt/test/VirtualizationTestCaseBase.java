@@ -16,6 +16,8 @@
 
 package android.virt.test;
 
+import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -28,6 +30,8 @@ import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
+import com.android.tradefed.result.FileInputStreamSource;
+import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
@@ -46,6 +50,7 @@ import java.util.regex.Pattern;
 public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
     protected static final String VIRT_APEX = "/apex/com.android.virt/";
+    protected static final String LOG_PATH = TEST_ROOT + "log.txt";
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
     private static final String INSTANCE_IMG = "instance.img";
@@ -103,6 +108,16 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         assumeTrue("Need an actual TestDevice", androidDevice instanceof TestDevice);
         TestDevice testDevice = (TestDevice) androidDevice;
         assumeTrue("Requires VM support", testDevice.supportsMicrodroid());
+    }
+
+    public static void archiveLogThenDelete(TestLogData logs, ITestDevice device, String remotePath,
+            String localName) throws DeviceNotAvailableException {
+        File logFile = device.pullFile(remotePath);
+        if (logFile != null) {
+            logs.addTestLog(localName, LogDataType.TEXT, new FileInputStreamSource(logFile));
+            // Delete to avoid confusing logs from a previous run, just in case.
+            device.deleteFile(remotePath);
+        }
     }
 
     // Run an arbitrary command in the host side and returns the result
@@ -270,7 +285,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         final String outApkIdsigPath = TEST_ROOT + apkName + ".idsig";
 
         final String instanceImg = TEST_ROOT + INSTANCE_IMG;
-        final String logPath = TEST_ROOT + "log.txt";
+        final String logPath = LOG_PATH;
         final String debugFlag = debug ? "--debug full" : "";
 
         // Run the VM
