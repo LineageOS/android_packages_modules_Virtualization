@@ -61,6 +61,8 @@ const EXTRA_IDSIG_PATH_PATTERN: &str = "/dev/block/by-name/extra-idsig-*";
 const DM_MOUNTED_APK_PATH: &str = "/dev/block/mapper/microdroid-apk";
 const APKDMVERITY_BIN: &str = "/system/bin/apkdmverity";
 const ZIPFUSE_BIN: &str = "/system/bin/zipfuse";
+const AVF_STRICT_BOOT: &str = "/sys/firmware/devicetree/base/chosen/avf,strict-boot";
+const AVF_NEW_INSTANCE: &str = "/sys/firmware/devicetree/base/chosen/avf,new-instance";
 
 /// The CID representing the host VM
 const VMADDR_CID_HOST: u32 = 2;
@@ -193,11 +195,34 @@ fn dice_derivation(verified_data: MicrodroidData, payload_config_path: &str) -> 
     Ok(())
 }
 
+fn is_strict_boot() -> bool {
+    Path::new(AVF_STRICT_BOOT).exists()
+}
+
+fn is_new_instance() -> bool {
+    Path::new(AVF_NEW_INSTANCE).exists()
+}
+
 fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     let metadata = load_metadata().context("Failed to load payload metadata")?;
 
     let mut instance = InstanceDisk::new().context("Failed to load instance.img")?;
     let saved_data = instance.read_microdroid_data().context("Failed to read identity data")?;
+
+    if is_strict_boot() {
+        // Provisioning must happen on the first boot and never again.
+        if is_new_instance() {
+            ensure!(
+                saved_data.is_none(),
+                MicrodroidError::InvalidConfig("Found instance data on first boot.".to_string())
+            );
+        } else {
+            ensure!(
+                saved_data.is_some(),
+                MicrodroidError::InvalidConfig("Instance data not found.".to_string())
+            );
+        };
+    }
 
     // Verify the payload before using it.
     let verified_data =
