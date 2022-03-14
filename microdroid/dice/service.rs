@@ -30,6 +30,7 @@ use std::ptr::null_mut;
 use std::slice;
 use std::sync::Arc;
 
+const AVF_STRICT_BOOT: &str = "/sys/firmware/devicetree/base/chosen/avf,strict-boot";
 const DICE_HAL_SERVICE_NAME: &str = "android.hardware.security.dice.IDiceDevice/default";
 
 /// Artifacts that are mapped into the process address space from the driver.
@@ -135,16 +136,19 @@ impl DiceArtifacts for RawArtifacts {
 
 #[derive(Clone, Serialize, Deserialize)]
 enum DriverArtifactManager {
+    Invalid,
     Driver(PathBuf),
     Updated(RawArtifacts),
 }
 
 impl DriverArtifactManager {
     fn new(driver_path: &Path) -> Self {
-        // TODO(218793274): fail if driver is missing in protected mode
         if driver_path.exists() {
             log::info!("Using DICE values from driver");
             Self::Driver(driver_path.to_path_buf())
+        } else if Path::new(AVF_STRICT_BOOT).exists() {
+            log::error!("Strict boot requires DICE value from driver but none were found");
+            Self::Invalid
         } else {
             log::warn!("Using sample DICE values");
             let (cdi_attest, cdi_seal, bcc) = diced_sample_inputs::make_sample_bcc_and_cdis()
@@ -164,11 +168,15 @@ impl UpdatableDiceArtifacts for DriverArtifactManager {
         F: FnOnce(&dyn DiceArtifacts) -> Result<T>,
     {
         match self {
+            Self::Invalid => bail!("No DICE artifacts available."),
             Self::Driver(driver_path) => f(&MappedDriverArtifacts::new(driver_path.as_path())?),
             Self::Updated(raw_artifacts) => f(raw_artifacts),
         }
     }
     fn update(self, new_artifacts: &impl DiceArtifacts) -> Result<Self> {
+        if let Self::Invalid = self {
+            bail!("Cannot update invalid DICE artifacts.");
+        }
         if let Self::Driver(driver_path) = self {
             // Writing to the device wipes the artifcates. The string is ignored
             // by the driver but included for documentation.
