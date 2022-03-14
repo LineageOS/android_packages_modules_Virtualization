@@ -90,7 +90,7 @@ of rebuilding the entire image.
 
 ```shell
 banchan com.android.virt aosp_arm64   // or aosp_x86_64 if the device is cuttlefish
-m apps_only dist
+UNBUNDLED_BUILD_SDKS_FROM_SOURCE=true m apps_only dist
 adb install out/dist/com.android.virt.apex
 adb reboot
 ```
