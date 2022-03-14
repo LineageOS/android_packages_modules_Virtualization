@@ -31,7 +31,7 @@ the device:
 
 ```sh
 banchan com.android.virt aosp_arm64
-UNBUNDLED_BUILD_SDKS_FROM_SOURCES=true m apps_only dist
+UNBUNDLED_BUILD_SDKS_FROM_SOURCE=true m apps_only dist
 adb install out/dist/com.android.virt.apex
 adb reboot
 ```
