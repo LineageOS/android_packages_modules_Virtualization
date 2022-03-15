@@ -544,8 +544,7 @@ public class MicrodroidTests {
                 .isNotEqualTo("vsoc_x86_64");
 
         if (mProtectedVm) {
-            // TODO(b/218461230): uncomment this after u-boot update
-            // assertThatBootFailsAfterCompromisingPartition(U_BOOT_AVB_PARTITION_UUID);
+            assertThatBootFailsAfterCompromisingPartition(U_BOOT_AVB_PARTITION_UUID);
         } else {
             // non-protected VM shouldn't have u-boot avb data
             assertThatPartitionIsMissing(U_BOOT_AVB_PARTITION_UUID);
@@ -560,8 +559,7 @@ public class MicrodroidTests {
                 .isNotEqualTo("vsoc_x86_64");
 
         if (mProtectedVm) {
-            // TODO(b/218461230): uncomment this after u-boot update
-            // assertThatBootFailsAfterCompromisingPartition(U_BOOT_ENV_PARTITION_UUID);
+            assertThatBootFailsAfterCompromisingPartition(U_BOOT_ENV_PARTITION_UUID);
         } else {
             // non-protected VM shouldn't have u-boot env data
             assertThatPartitionIsMissing(U_BOOT_ENV_PARTITION_UUID);
