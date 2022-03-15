@@ -8,6 +8,9 @@ rust_ffi_static {
         "libcompiler_builtins.rust_sysroot",
         "libcore.rust_sysroot",
     ],
+    rustlibs: [
+        "libspin_nostd",
+    ],
     enabled: false,
     target: {
         android_arm64: {
