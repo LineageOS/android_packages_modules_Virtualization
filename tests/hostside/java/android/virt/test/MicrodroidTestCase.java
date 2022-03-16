@@ -445,5 +445,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         archiveLogThenDelete(mTestLogs, getDevice(), LOG_PATH,
                 "vm.log-" + mTestName.getMethodName());
+
+        getDevice().uninstallPackage(PACKAGE_NAME);
     }
 }
