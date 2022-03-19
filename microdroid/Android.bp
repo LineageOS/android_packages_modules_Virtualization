@@ -70,6 +70,7 @@ android_system_image {
         "libartpalette-system",
 
         "apexd",
+        "atrace",
         "debuggerd",
         "diced.microdroid",
         "linker",
