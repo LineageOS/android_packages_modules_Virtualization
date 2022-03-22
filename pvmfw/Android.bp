@@ -16,3 +16,27 @@ rust_ffi_static {
     },
     apex_available: ["com.android.virt"],
 }
+
+cc_binary {
+    name: "pvmfw",
+    srcs: [
+        "entry.S",
+    ],
+    static_libs: [
+        "libpvmfw",
+    ],
+    static_executable: true,
+    no_libcrt: true,
+    nocrt: true,
+    system_shared_libs: [],
+    ldflags: [
+        "-Tpackages/modules/Virtualization/pvmfw/image.ld",
+    ],
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    apex_available: ["com.android.virt"],
+}
