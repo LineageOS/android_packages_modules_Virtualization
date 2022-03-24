@@ -80,12 +80,13 @@ android_system_image {
         "cgroups.json",
         "public.libraries.android.txt",
 
-        "microdroid_plat_sepolicy_and_mapping.sha256",
+        "microdroid_compatibility_matrix",
+        "microdroid_event-log-tags",
         "microdroid_file_contexts",
+        "microdroid_manifest",
+        "microdroid_plat_sepolicy_and_mapping.sha256",
         "microdroid_property_contexts",
         "microdroid_service_contexts",
-        "microdroid_compatibility_matrix",
-        "microdroid_manifest",
 
         // TODO(b/195425111) these four should be added automatically
         "android.hardware.security.secureclock-V1-ndk",
@@ -603,5 +604,12 @@ prebuilt_etc {
     src: "microdroid_manifest.xml",
     filename: "manifest.xml",
     relative_install_path: "vintf",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_event-log-tags",
+    src: "microdroid_event-log-tags",
+    filename: "event-log-tags",
     installable: false,
 }
