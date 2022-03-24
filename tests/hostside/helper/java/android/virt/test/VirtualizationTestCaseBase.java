@@ -105,7 +105,7 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     }
 
     // Run an arbitrary command in the host side and returns the result
-    private static String runOnHost(String... cmd) {
+    public static String runOnHost(String... cmd) {
         return runOnHostWithTimeout(10000, cmd);
     }
 
