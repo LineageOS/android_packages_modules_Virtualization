@@ -94,8 +94,8 @@ fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, V
                 .as_ref()
                 .try_clone()
                 .context("Failed to clone partition image file descriptor")?;
-            let size = get_partition_size(&file)?;
             let path = fd_path_for_file(&file);
+            let size = get_partition_size(&file, &path)?;
             files.push(file);
 
             Ok(PartitionInfo {
@@ -119,9 +119,9 @@ fn fd_path_for_file(file: &File) -> PathBuf {
 /// Find the size of the partition image in the given file by parsing the header.
 ///
 /// This will work for raw, QCOW2, composite and Android sparse images.
-fn get_partition_size(partition: &File) -> Result<u64, Error> {
+fn get_partition_size(partition: &File, path: &Path) -> Result<u64, Error> {
     // TODO: Use `context` once disk::Error implements std::error::Error.
-    Ok(create_disk_file(partition.try_clone()?, MAX_NESTING_DEPTH)
+    Ok(create_disk_file(partition.try_clone()?, MAX_NESTING_DEPTH, path)
         .map_err(|e| anyhow!("Failed to open partition image: {}", e))?
         .get_len()?)
 }
