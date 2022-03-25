@@ -68,6 +68,8 @@ pub struct VmParameters {
     pub config_path: Option<String>,
     /// If present, overrides the amount of RAM to give the VM
     pub memory_mib: Option<i32>,
+    /// Never save VM logs to files.
+    pub never_log: bool,
 }
 
 impl VmInstance {
@@ -109,7 +111,9 @@ impl VmInstance {
             (true, false) => DebugLevel::NONE,
         };
 
-        let (console_fd, log_fd) = if debug_level != DebugLevel::NONE {
+        let (console_fd, log_fd) = if parameters.never_log || debug_level == DebugLevel::NONE {
+            (None, None)
+        } else {
             // Console output and the system log output from the VM are redirected to file.
             let console_fd = File::create(data_dir.join("vm_console.log"))
                 .context("Failed to create console log file")?;
@@ -117,10 +121,8 @@ impl VmInstance {
                 .context("Failed to create system log file")?;
             let console_fd = ParcelFileDescriptor::new(console_fd);
             let log_fd = ParcelFileDescriptor::new(log_fd);
-            info!("Running in debug mode");
+            info!("Running in debug level {:?}", debug_level);
             (Some(console_fd), Some(log_fd))
-        } else {
-            (None, None)
         };
 
         let config_path = parameters.config_path.as_deref().unwrap_or(DEFAULT_VM_CONFIG_PATH);
