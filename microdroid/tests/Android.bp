@@ -1,0 +1,35 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+genrule {
+    name: "microdroid_contents_built",
+    tools: [
+        "list_image",
+        "debugfs_static",
+    ],
+    srcs: [":microdroid"],
+    out: ["microdroid_contents_built.txt"],
+    cmd: "$(location list_image) --debugfs_path $(location debugfs_static) $(location :microdroid) > $(out)",
+}
+
+genrule {
+    name: "diff_microdroid_contents",
+    srcs: [
+        "microdroid_contents_golden.txt",
+        ":microdroid_contents_built",
+    ],
+    out: ["true.sh"],
+    cmd: "if diff $(location microdroid_contents_golden.txt) $(location :microdroid_contents_built); then" +
+        "  echo true > $(out);" +
+        "else" +
+        "  echo To fix and update $(location microdroid_contents_golden.txt), please run:;" +
+        "  echo \" croot && m $(location :microdroid_contents_built) && cp $(location :microdroid_contents_built) $(location microdroid_contents_golden.txt)\";" +
+        "  exit 1;" +
+        "fi;",
+}
+
+sh_test_host {
+    name: "test_diff_microdroid_contents",
+    src: ":diff_microdroid_contents",
+}
