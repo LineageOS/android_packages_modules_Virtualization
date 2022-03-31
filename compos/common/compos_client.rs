@@ -38,12 +38,12 @@ use binder::{
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use log::{info, warn};
 use rustutils::system_properties;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
 use std::os::raw;
 use std::os::unix::io::IntoRawFd;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
@@ -95,8 +95,8 @@ impl VmInstance {
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
         let data_dir = Path::new(COMPOS_DATA_ROOT);
 
-        let apk_fd = File::open(apex_dir.join("app/CompOSPayloadApp/CompOSPayloadApp.apk"))
-            .context("Failed to open config APK file")?;
+        let config_apk = Self::locate_config_apk(apex_dir)?;
+        let apk_fd = File::open(config_apk).context("Failed to open config APK file")?;
         let apk_fd = ParcelFileDescriptor::new(apk_fd);
         let idsig_fd = prepare_idsig(service, &apk_fd, idsig)?;
 
@@ -164,6 +164,21 @@ impl VmInstance {
         let cid = vm_state.wait_until_ready()?;
 
         Ok(VmInstance { vm, cid })
+    }
+
+    fn locate_config_apk(apex_dir: &Path) -> Result<PathBuf> {
+        // Our config APK will be in a directory under app, but the name of the directory is at the
+        // discretion of the build system. So just look in each sub-directory until we find it.
+        // (In practice there will be exactly one directory, so this shouldn't take long.)
+        let app_dir = apex_dir.join("app");
+        for dir in fs::read_dir(app_dir).context("Reading app dir")? {
+            let apk_file = dir?.path().join("CompOSPayloadApp.apk");
+            if apk_file.is_file() {
+                return Ok(apk_file);
+            }
+        }
+
+        bail!("Failed to locate CompOSPayloadApp.apk")
     }
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
