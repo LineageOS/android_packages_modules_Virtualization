@@ -82,26 +82,10 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         // disconnect from microdroid
         tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
 
-        reconnectHostAdb(androidDevice);
-
         // kill stale VMs and directories
         android.tryRun("killall", "crosvm");
         android.tryRun("stop", "virtualizationservice");
         android.tryRun("rm", "-rf", "/data/misc/virtualizationservice/*");
-    }
-
-    public static void reconnectHostAdb(ITestDevice androidDevice)
-            throws DeviceNotAvailableException {
-        CommandRunner android = new CommandRunner(androidDevice);
-
-        // Make sure we're connected to the host adb; this connection seems to get dropped when a VM
-        // exits.
-        for (int retry = 0; retry < 10; ++retry) {
-            if (android.tryRun("true") != null) {
-                break;
-            }
-            androidDevice.waitForDeviceOnline(1000);
-        }
     }
 
     public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
