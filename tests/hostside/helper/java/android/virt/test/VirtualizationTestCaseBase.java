@@ -344,34 +344,17 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
 
         // Shutdown the VM
         android.run(VIRT_APEX + "bin/vm", "stop", cid);
-
-        // TODO(192660485): Figure out why shutting down the VM disconnects adb on cuttlefish
-        // temporarily. Without this wait, the rest of `runOnAndroid/skipIfFail` fails due to the
-        // connection loss, and results in assumption error exception for the rest of the tests.
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     public static void rootMicrodroid() {
         runOnHost("adb", "-s", MICRODROID_SERIAL, "root");
 
-        // TODO(192660959): Figure out the root cause and remove the sleep. For unknown reason,
-        // even though `adb root` actually wait-for-disconnect then wait-for-device, the next
-        // `adb -s $MICRODROID_SERIAL shell ...` often fails with "adb: device offline".
-        try {
-            Thread.sleep(1000);
-            runOnHostWithTimeout(
-                    MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES * 60 * 1000,
-                    "adb",
-                    "-s",
-                    MICRODROID_SERIAL,
-                    "wait-for-device");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        runOnHostWithTimeout(
+                MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES * 60 * 1000,
+                "adb",
+                "-s",
+                MICRODROID_SERIAL,
+                "wait-for-device");
     }
 
     // Establish an adb connection to microdroid by letting Android forward the connection to
