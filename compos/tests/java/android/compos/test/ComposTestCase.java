@@ -182,15 +182,8 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
     private void killVmAndReconnectAdb() throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
 
-        // When a VM exits, we tend to see adb disconnecting. So we attempt to reconnect
-        // when we kill it to avoid problems. Of course VirtualizationService may exit anyway
-        // (it's an on-demand service and all its clients have gone), taking the VM with it,
-        // which makes this a bit unpredictable.
-        reconnectHostAdb(getDevice());
         android.tryRun("killall", "crosvm");
-        reconnectHostAdb(getDevice());
         android.tryRun("stop", "virtualizationservice");
-        reconnectHostAdb(getDevice());
 
         // Delete stale data
         android.tryRun("rm", "-rf", "/data/misc/virtualizationservice/*");
