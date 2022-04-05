@@ -88,11 +88,9 @@ android_system_image {
         "microdroid_property_contexts",
         "microdroid_service_contexts",
 
-        // TODO(b/195425111) these four should be added automatically
-        "android.hardware.security.secureclock-V1-ndk",
-        "android.hardware.security.sharedsecret-V1-ndk",
-        "libcrypto",
-        "liblzma",
+        // TODO(b/195425111) these should be added automatically
+        "libcrypto", // used by many (init_second_stage, microdroid_manager, toybox, etc)
+        "liblzma", // used by init_second_stage
     ] + microdroid_shell_and_utilities,
     multilib: {
         common: {
@@ -111,9 +109,6 @@ android_system_image {
                 "authfs_service",
                 "microdroid_manager",
                 "zipfuse",
-
-                // TODO(b/184872979): Needed by authfs. Remove once the Rust API is created.
-                "libbinder_rpc_unstable",
             ],
         },
     },
