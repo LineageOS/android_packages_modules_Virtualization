@@ -527,7 +527,7 @@ prebuilt_etc {
 genrule {
     name: "microdroid_uboot_env_gen",
     tools: [
-        "mkenvimage_host",
+        "mkenvimage_slim",
         "avbtool",
     ],
     srcs: [
@@ -535,7 +535,7 @@ genrule {
         ":microdroid_sign_key",
     ],
     out: ["output.img"],
-    cmd: "$(location mkenvimage_host) -s 4096 -o $(out) $(location uboot-env.txt) && " +
+    cmd: "$(location mkenvimage_slim) -output_path $(out) -input_path $(location uboot-env.txt) && " +
         "$(location avbtool) add_hash_footer " +
         "--algorithm SHA256_RSA4096 " +
         "--partition_name uboot_env " +
