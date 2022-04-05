@@ -1,0 +1,18 @@
+rust_ffi_static {
+    name: "libpvmfw",
+    crate_name: "pvmfw",
+    srcs: ["src/main.rs"],
+    edition: "2021",
+    no_stdlibs: true,
+    stdlibs: [
+        "libcompiler_builtins.rust_sysroot",
+        "libcore.rust_sysroot",
+    ],
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    apex_available: ["com.android.virt"],
+}
