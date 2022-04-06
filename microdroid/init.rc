@@ -24,10 +24,8 @@ on init
     chmod 0755 /dev/binderfs
 
     symlink /dev/binderfs/binder /dev/binder
-    symlink /dev/binderfs/hwbinder /dev/hwbinder
     symlink /dev/binderfs/vndbinder /dev/vndbinder
 
-    chmod 0666 /dev/binderfs/hwbinder
     chmod 0666 /dev/binderfs/binder
     chmod 0666 /dev/binderfs/vndbinder
 
@@ -82,6 +80,10 @@ on init
     setprop apex_config.done true
 
     setprop ro.debuggable ${ro.boot.microdroid.debuggable:-0}
+
+on init && property:ro.boot.microdroid.debuggable=1
+    # Mount tracefs (with GID=AID_READTRACEFS)
+    mount tracefs tracefs /sys/kernel/tracing gid=3012
 
 on init && property:ro.boot.logd.enabled=1
     # Start logd before any other services run to ensure we capture all of their logs.
@@ -143,6 +145,12 @@ on post-fs
 
     mkdir /data/misc/authfs 0700 root root
     start authfs_service
+
+on late-fs && property:ro.debuggable=1
+    # Ensure that tracefs has the correct permissions.
+    # This does not work correctly if it is called in post-fs.
+    chmod 0755 /sys/kernel/tracing
+    chmod 0755 /sys/kernel/debug/tracing
 
 on post-fs-data
     mark_post_data

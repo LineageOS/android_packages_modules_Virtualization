@@ -16,6 +16,8 @@
 
 package android.virt.test;
 
+import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
+
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
@@ -40,7 +42,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
 import java.io.File;
@@ -64,6 +68,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     // Number of vCPUs and their affinity to host CPUs for testing purpose
     private static final int NUM_VCPUS = 3;
     private static final String CPU_AFFINITY = "0,1,2";
+
+    @Rule public TestLogData mTestLogs = new TestLogData();
+    @Rule public TestName mTestName = new TestName();
 
     // TODO(b/176805428): remove this
     private boolean isCuttlefish() throws Exception {
@@ -257,7 +264,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String configPath = TEST_ROOT + "raw_config.json";
         getDevice().pushString(config.toString(), configPath);
 
-        final String logPath = TEST_ROOT + "log";
+        final String logPath = LOG_PATH;
         final String ret = android.runWithTimeout(
                 60 * 1000,
                 VIRT_APEX + "bin/vm run",
@@ -435,6 +442,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     @After
     public void shutdown() throws Exception {
         cleanUpVirtualizationTestSetup(getDevice());
+
+        archiveLogThenDelete(mTestLogs, getDevice(), LOG_PATH,
+                "vm.log-" + mTestName.getMethodName());
 
         getDevice().uninstallPackage(PACKAGE_NAME);
     }

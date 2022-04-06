@@ -26,8 +26,6 @@ use std::time::Duration;
 pub struct Timeouts {
     /// Total time that odrefresh may take to perform compilation
     pub odrefresh_max_execution_time: Duration,
-    /// Time allowed for a single compilation step run by odrefresh
-    pub odrefresh_max_child_process_time: Duration,
     /// Time allowed for the CompOS VM to start up and become ready.
     pub vm_max_time_to_ready: Duration,
 }
@@ -55,13 +53,11 @@ pub fn timeouts() -> Result<&'static Timeouts> {
 pub const NORMAL_TIMEOUTS: Timeouts = Timeouts {
     // Note: the source of truth for these odrefresh timeouts is art/odrefresh/odr_config.h.
     odrefresh_max_execution_time: Duration::from_secs(300),
-    odrefresh_max_child_process_time: Duration::from_secs(90),
-    vm_max_time_to_ready: Duration::from_secs(20),
+    vm_max_time_to_ready: Duration::from_secs(15),
 };
 
 /// The timeouts that we use when need_extra_time() returns true.
 pub const EXTENDED_TIMEOUTS: Timeouts = Timeouts {
     odrefresh_max_execution_time: Duration::from_secs(480),
-    odrefresh_max_child_process_time: Duration::from_secs(150),
     vm_max_time_to_ready: Duration::from_secs(120),
 };

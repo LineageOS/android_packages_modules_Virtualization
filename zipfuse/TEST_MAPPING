@@ -3,5 +3,10 @@
     {
       "name" : "ZipFuseTest"
     }
+  ],
+  "hwasan-postsubmit" : [
+    {
+      "name" : "ZipFuseTest"
+    }
   ]
 }

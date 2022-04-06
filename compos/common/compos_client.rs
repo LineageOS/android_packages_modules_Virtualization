@@ -38,17 +38,14 @@ use binder::{
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use log::{info, warn};
 use rustutils::system_properties;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
 use std::os::raw;
 use std::os::unix::io::IntoRawFd;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-
-// Enough memory to complete odrefresh in the VM.
-const VM_MEMORY_MIB: i32 = 1024;
 
 /// This owns an instance of the CompOS VM.
 pub struct VmInstance {
@@ -69,6 +66,10 @@ pub struct VmParameters {
     pub cpu_set: Option<String>,
     /// If present, overrides the path to the VM config JSON file
     pub config_path: Option<String>,
+    /// If present, overrides the amount of RAM to give the VM
+    pub memory_mib: Option<i32>,
+    /// Never save VM logs to files.
+    pub never_log: bool,
 }
 
 impl VmInstance {
@@ -94,8 +95,8 @@ impl VmInstance {
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
         let data_dir = Path::new(COMPOS_DATA_ROOT);
 
-        let apk_fd = File::open(apex_dir.join("app/CompOSPayloadApp/CompOSPayloadApp.apk"))
-            .context("Failed to open config APK file")?;
+        let config_apk = Self::locate_config_apk(apex_dir)?;
+        let apk_fd = File::open(config_apk).context("Failed to open config APK file")?;
         let apk_fd = ParcelFileDescriptor::new(apk_fd);
         let idsig_fd = prepare_idsig(service, &apk_fd, idsig)?;
 
@@ -104,7 +105,15 @@ impl VmInstance {
         let manifest_apk_fd = ParcelFileDescriptor::new(manifest_apk_fd);
         let idsig_manifest_apk_fd = prepare_idsig(service, &manifest_apk_fd, idsig_manifest_apk)?;
 
-        let (console_fd, log_fd, debug_level) = if parameters.debug_mode {
+        let debug_level = match (protected_vm, parameters.debug_mode) {
+            (_, true) => DebugLevel::FULL,
+            (false, false) => DebugLevel::APP_ONLY,
+            (true, false) => DebugLevel::NONE,
+        };
+
+        let (console_fd, log_fd) = if parameters.never_log || debug_level == DebugLevel::NONE {
+            (None, None)
+        } else {
             // Console output and the system log output from the VM are redirected to file.
             let console_fd = File::create(data_dir.join("vm_console.log"))
                 .context("Failed to create console log file")?;
@@ -112,10 +121,8 @@ impl VmInstance {
                 .context("Failed to create system log file")?;
             let console_fd = ParcelFileDescriptor::new(console_fd);
             let log_fd = ParcelFileDescriptor::new(log_fd);
-            info!("Running in debug mode");
-            (Some(console_fd), Some(log_fd), DebugLevel::FULL)
-        } else {
-            (None, None, DebugLevel::NONE)
+            info!("Running in debug level {:?}", debug_level);
+            (Some(console_fd), Some(log_fd))
         };
 
         let config_path = parameters.config_path.as_deref().unwrap_or(DEFAULT_VM_CONFIG_PATH);
@@ -127,7 +134,7 @@ impl VmInstance {
             debugLevel: debug_level,
             extraIdsigs: vec![idsig_manifest_apk_fd],
             protectedVm: protected_vm,
-            memoryMib: VM_MEMORY_MIB,
+            memoryMib: parameters.memory_mib.unwrap_or(0), // 0 means use the default
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
             cpuAffinity: parameters.cpu_set.clone(),
         });
@@ -157,6 +164,21 @@ impl VmInstance {
         let cid = vm_state.wait_until_ready()?;
 
         Ok(VmInstance { vm, cid })
+    }
+
+    fn locate_config_apk(apex_dir: &Path) -> Result<PathBuf> {
+        // Our config APK will be in a directory under app, but the name of the directory is at the
+        // discretion of the build system. So just look in each sub-directory until we find it.
+        // (In practice there will be exactly one directory, so this shouldn't take long.)
+        let app_dir = apex_dir.join("app");
+        for dir in fs::read_dir(app_dir).context("Reading app dir")? {
+            let apk_file = dir?.path().join("CompOSPayloadApp.apk");
+            if apk_file.is_file() {
+                return Ok(apk_file);
+            }
+        }
+
+        bail!("Failed to locate CompOSPayloadApp.apk")
     }
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.

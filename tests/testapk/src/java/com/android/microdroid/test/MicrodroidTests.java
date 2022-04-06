@@ -262,11 +262,6 @@ public class MicrodroidTests {
     public void changingDebugLevelInvalidatesVmIdentity()
             throws VirtualMachineException, InterruptedException, IOException {
         assume()
-            .withMessage("Skip on Cuttlefish. b/195765441")
-            .that(android.os.Build.DEVICE)
-            .isNotEqualTo("vsoc_x86_64");
-
-        assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
@@ -344,11 +339,6 @@ public class MicrodroidTests {
     public void instancesOfSameVmHaveDifferentCdis()
             throws VirtualMachineException, InterruptedException {
         assume()
-            .withMessage("Skip on Cuttlefish. b/195765441")
-            .that(android.os.Build.DEVICE)
-            .isNotEqualTo("vsoc_x86_64");
-
-        assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
@@ -368,11 +358,6 @@ public class MicrodroidTests {
     public void sameInstanceKeepsSameCdis()
             throws VirtualMachineException, InterruptedException {
         assume()
-            .withMessage("Skip on Cuttlefish. b/195765441")
-            .that(android.os.Build.DEVICE)
-            .isNotEqualTo("vsoc_x86_64");
-
-        assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
@@ -388,11 +373,6 @@ public class MicrodroidTests {
     @Test
     public void bccIsSuperficiallyWellFormed()
             throws VirtualMachineException, InterruptedException, CborException {
-        assume()
-            .withMessage("Skip on Cuttlefish. b/195765441")
-            .that(android.os.Build.DEVICE)
-            .isNotEqualTo("vsoc_x86_64");
-
         assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
@@ -529,23 +509,14 @@ public class MicrodroidTests {
     @Test
     public void bootFailsWhenMicrodroidDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
-        assume().withMessage("Skip on Cuttlefish. b/195765441")
-                .that(android.os.Build.DEVICE)
-                .isNotEqualTo("vsoc_x86_64");
-
         assertThatBootFailsAfterCompromisingPartition(MICRODROID_PARTITION_UUID);
     }
 
     @Test
     public void bootFailsWhenUBootAvbDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
-        assume().withMessage("Skip on Cuttlefish. b/195765441")
-                .that(android.os.Build.DEVICE)
-                .isNotEqualTo("vsoc_x86_64");
-
         if (mProtectedVm) {
-            // TODO(b/218461230): uncomment this after u-boot update
-            // assertThatBootFailsAfterCompromisingPartition(U_BOOT_AVB_PARTITION_UUID);
+            assertThatBootFailsAfterCompromisingPartition(U_BOOT_AVB_PARTITION_UUID);
         } else {
             // non-protected VM shouldn't have u-boot avb data
             assertThatPartitionIsMissing(U_BOOT_AVB_PARTITION_UUID);
@@ -555,13 +526,8 @@ public class MicrodroidTests {
     @Test
     public void bootFailsWhenUBootEnvDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
-        assume().withMessage("Skip on Cuttlefish. b/195765441")
-                .that(android.os.Build.DEVICE)
-                .isNotEqualTo("vsoc_x86_64");
-
         if (mProtectedVm) {
-            // TODO(b/218461230): uncomment this after u-boot update
-            // assertThatBootFailsAfterCompromisingPartition(U_BOOT_ENV_PARTITION_UUID);
+            assertThatBootFailsAfterCompromisingPartition(U_BOOT_ENV_PARTITION_UUID);
         } else {
             // non-protected VM shouldn't have u-boot env data
             assertThatPartitionIsMissing(U_BOOT_ENV_PARTITION_UUID);
@@ -571,10 +537,6 @@ public class MicrodroidTests {
     @Test
     public void bootFailsWhenPvmFwDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
-        assume().withMessage("Skip on Cuttlefish. b/195765441")
-                .that(android.os.Build.DEVICE)
-                .isNotEqualTo("vsoc_x86_64");
-
         if (mProtectedVm) {
             assertThatBootFailsAfterCompromisingPartition(PVM_FW_PARTITION_UUID);
         } else {
