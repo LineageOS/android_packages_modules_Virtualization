@@ -40,7 +40,6 @@ fn remote_read_chunk(
 }
 
 pub struct RemoteFileReader {
-    // This needs to have Sync trait to be used in fuse::worker::start_message_loop.
     service: VirtFdService,
     file_fd: i32,
 }
@@ -81,7 +80,6 @@ impl ReadByChunk for RemoteFileReader {
 }
 
 pub struct RemoteMerkleTreeReader {
-    // This needs to be a Sync to be used in fuse::worker::start_message_loop.
     service: VirtFdService,
     file_fd: i32,
 }
@@ -108,7 +106,6 @@ impl ReadByChunk for RemoteMerkleTreeReader {
 }
 
 pub struct RemoteFileEditor {
-    // This needs to have Sync trait to be used in fuse::worker::start_message_loop.
     service: VirtFdService,
     file_fd: i32,
 }
