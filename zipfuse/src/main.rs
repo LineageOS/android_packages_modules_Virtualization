@@ -82,7 +82,9 @@ pub fn run_fuse(zip_file: &Path, mount_point: &Path, extra_options: Option<&str>
         libc::MS_NOSUID | libc::MS_NODEV | libc::MS_RDONLY,
         &mount_options,
     )?;
-    Ok(fuse::worker::start_message_loop(dev_fuse, MAX_READ, MAX_WRITE, ZipFuse::new(zip_file)?)?)
+    let mut config = fuse::FuseConfig::new();
+    config.dev_fuse(dev_fuse).max_write(MAX_WRITE).max_read(MAX_READ);
+    Ok(config.enter_message_loop(ZipFuse::new(zip_file)?)?)
 }
 
 struct ZipFuse {
