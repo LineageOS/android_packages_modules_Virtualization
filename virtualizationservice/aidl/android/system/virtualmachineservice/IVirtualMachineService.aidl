@@ -30,6 +30,12 @@ interface IVirtualMachineService {
     const int VM_BINDER_SERVICE_PORT = 5000;
 
     /**
+     * Port number that VirtualMachineService listens on connections from the guest VMs for the
+     * tombtones
+     */
+    const int VM_TOMBSTONES_SERVICE_PORT = 2000;
+
+    /**
      * Notifies that the payload has started.
      */
     void notifyPayloadStarted();
