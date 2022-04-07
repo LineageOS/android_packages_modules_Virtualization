@@ -42,7 +42,7 @@ use android_system_virtualizationservice::binder::{
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
     IVirtualMachineService::{
         BnVirtualMachineService, IVirtualMachineService, VM_BINDER_SERVICE_PORT,
-        VM_STREAM_SERVICE_PORT,
+        VM_STREAM_SERVICE_PORT, VM_TOMBSTONES_SERVICE_PORT,
     },
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -57,13 +57,14 @@ use statslog_virtualization_rust::vm_creation_requested::{stats_write, Hyperviso
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fs::{create_dir, File, OpenOptions};
-use std::io::{Error, ErrorKind, Write};
+use std::io::{Error, ErrorKind, Write, Read};
 use std::num::NonZeroU32;
 use std::os::raw;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex, Weak};
+use tombstoned_client::{TombstonedConnection, DebuggerdDumpType};
 use vmconfig::VmConfig;
 use vsock::{SockAddr, VsockListener, VsockStream};
 use zip::ZipArchive;
@@ -85,6 +86,8 @@ const ANDROID_VM_INSTANCE_MAGIC: &str = "Android-VM-instance";
 
 /// Version of the instance image format
 const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
+
+const CHUNK_RECV_MAX_LEN: usize = 1024;
 
 /// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
 #[derive(Debug, Default)]
@@ -371,6 +374,55 @@ impl IVirtualizationService for VirtualizationService {
     }
 }
 
+fn handle_stream_connection_tombstoned() -> Result<()> {
+    let listener =
+        VsockListener::bind_with_cid_port(VMADDR_CID_HOST, VM_TOMBSTONES_SERVICE_PORT as u32)?;
+    info!("Listening to tombstones from guests ...");
+    for incoming_stream in listener.incoming() {
+        let mut incoming_stream = match incoming_stream {
+            Err(e) => {
+                warn!("invalid incoming connection: {}", e);
+                continue;
+            }
+            Ok(s) => s,
+        };
+        std::thread::spawn(move || {
+            if let Err(e) = handle_tombstone(&mut incoming_stream) {
+                error!("Failed to write tombstone- {:?}", e);
+            }
+        });
+    }
+    Ok(())
+}
+
+fn handle_tombstone(stream: &mut VsockStream) -> Result<()> {
+    if let Ok(SockAddr::Vsock(addr)) = stream.peer_addr() {
+        info!("Vsock Stream connected to cid={} for tombstones", addr.cid());
+    }
+    let tb_connection =
+        TombstonedConnection::connect(std::process::id() as i32, DebuggerdDumpType::Tombstone)
+            .context("Failed to connect to tombstoned")?;
+    let mut text_output = tb_connection
+        .text_output
+        .as_ref()
+        .ok_or_else(|| anyhow!("Could not get file to write the tombstones on"))?;
+    let mut num_bytes_read = 0;
+    loop {
+        let mut chunk_recv = [0; CHUNK_RECV_MAX_LEN];
+        let n = stream
+            .read(&mut chunk_recv)
+            .context("Failed to read tombstone data from Vsock stream")?;
+        if n == 0 {
+            break;
+        }
+        num_bytes_read += n;
+        text_output.write_all(&chunk_recv[0..n]).context("Failed to write guests tombstones")?;
+    }
+    info!("Received {} bytes from guest & wrote to tombstone file", num_bytes_read);
+    tb_connection.notify_completion()?;
+    Ok(())
+}
+
 impl VirtualizationService {
     pub fn init() -> VirtualizationService {
         let service = VirtualizationService::default();
@@ -381,8 +433,15 @@ impl VirtualizationService {
             handle_stream_connection_from_vm(state).unwrap();
         });
 
+        std::thread::spawn(|| {
+            if let Err(e) = handle_stream_connection_tombstoned() {
+                warn!("Error receiving tombstone from guest or writing them. Error: {}", e);
+            }
+        });
+
         // binder server for vm
-        let mut state = service.state.clone(); // reference to state (not the state itself) is copied
+        // reference to state (not the state itself) is copied
+        let mut state = service.state.clone();
         std::thread::spawn(move || {
             let state_ptr = &mut state as *mut _ as *mut raw::c_void;
 
