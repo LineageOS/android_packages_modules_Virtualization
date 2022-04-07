@@ -45,6 +45,7 @@ rust_defaults {
         "libserde_xml_rs",
         "libshared_child",
         "libstatslog_virtualization_rust",
+        "libtombstoned_client_rust",
         "libvmconfig",
         "libzip",
         "libvsock",
