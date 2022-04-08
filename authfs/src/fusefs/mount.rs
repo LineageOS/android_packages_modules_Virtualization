@@ -16,6 +16,7 @@
 
 use fuse::mount::MountOption;
 use std::fs::OpenOptions;
+use std::num::NonZeroU8;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
@@ -35,6 +36,7 @@ pub fn mount_and_enter_message_loop(
     authfs: AuthFs,
     mountpoint: &Path,
     extra_options: &Option<String>,
+    threads: Option<NonZeroU8>,
 ) -> Result<(), fuse::Error> {
     let dev_fuse = OpenOptions::new()
         .read(true)
@@ -64,5 +66,8 @@ pub fn mount_and_enter_message_loop(
 
     let mut config = fuse::FuseConfig::new();
     config.dev_fuse(dev_fuse).max_write(MAX_WRITE_BYTES).max_read(MAX_READ_BYTES);
+    if let Some(num) = threads {
+        config.num_threads(u8::from(num).into());
+    }
     config.enter_message_loop(authfs)
 }
