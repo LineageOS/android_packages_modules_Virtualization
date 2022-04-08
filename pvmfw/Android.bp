@@ -1,3 +1,7 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 rust_ffi_static {
     name: "libpvmfw",
     crate_name: "pvmfw",
