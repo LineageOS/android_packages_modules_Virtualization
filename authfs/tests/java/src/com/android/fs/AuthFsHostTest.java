@@ -16,6 +16,8 @@
 
 package com.android.virt.fs;
 
+import static android.virt.test.LogArchiver.archiveLogThenDelete;
+
 import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
