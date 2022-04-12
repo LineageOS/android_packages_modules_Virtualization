@@ -16,28 +16,21 @@
 
 package com.android.virt.fs;
 
-import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
-
-import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeFalse;
 
 import android.platform.test.annotations.RootPermissionTest;
 import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
-import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -54,8 +47,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -70,12 +62,6 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     /** Output directory where the test can generate output on Android */
     private static final String TEST_OUTPUT_DIR = "/data/local/tmp/authfs/output_dir";
 
-    /** File name of the test APK */
-    private static final String TEST_APK_NAME = "MicrodroidTestApp.apk";
-
-    /** VM config entry path in the test APK */
-    private static final String VM_CONFIG_PATH_IN_APK = "assets/vm_config_extra_apk.json";
-
     /** Path to open_then_run on Android */
     private static final String OPEN_THEN_RUN_BIN = "/data/local/tmp/open_then_run";
 
@@ -89,7 +75,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     private static final String AUTHFS_BIN = "/system/bin/authfs";
 
     /** Idsig paths to be created for each APK in the "extra_apks" of vm_config_extra_apk.json. */
-    private static final String EXTRA_IDSIG_PATH = TEST_DIR + "BuildManifest.apk.idsig";
+    private static final String[] EXTRA_IDSIG_PATHS = new String[] {
+        TEST_DIR + "BuildManifest.apk.idsig",
+    };
 
     /** Build manifest path in the VM. 0 is the index of extra_apks in vm_config_extra_apk.json. */
     private static final String BUILD_MANIFEST_PATH = "/mnt/extra-apk/0/assets/build_manifest.pb";
@@ -111,7 +99,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     private static final int VMADDR_CID_HOST = 2;
 
     private static CommandRunner sAndroid;
-    private static CommandRunner sMicrodroid;
+    private static String sCid;
     private static boolean sAssumptionFailed;
 
     private ExecutorService mThreadPool = Executors.newCachedThreadPool();
@@ -139,20 +127,30 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
             return;
         }
 
+        prepareVirtualizationTestSetup(androidDevice);
+
         // For each test case, boot and adb connect to a new Microdroid
         CLog.i("Starting the shared VM");
-        ITestDevice microdroidDevice =
-                MicrodroidBuilder
-                        .fromFile(findTestApk(testInfo.getBuildInfo()), VM_CONFIG_PATH_IN_APK)
-                        .debugLevel("full")
-                        .addExtraIdsigPath(EXTRA_IDSIG_PATH)
-                        .build((TestDevice) androidDevice);
+        final String apkName = "MicrodroidTestApp.apk";
+        final String packageName = "com.android.microdroid.test";
+        final String configPath = "assets/vm_config_extra_apk.json"; // path inside the APK
+        sCid =
+                startMicrodroid(
+                        androidDevice,
+                        testInfo.getBuildInfo(),
+                        apkName,
+                        packageName,
+                        EXTRA_IDSIG_PATHS,
+                        configPath,
+                        /* debug */ true,
+                        /* use default memoryMib */ 0,
+                        Optional.empty(),
+                        Optional.empty());
+        adbConnectToMicrodroid(androidDevice, sCid);
 
         // Root because authfs (started from shell in this test) currently require root to open
         // /dev/fuse and mount the FUSE.
-        assertThat(microdroidDevice.enableAdbRoot()).isTrue();
-
-        sMicrodroid = new CommandRunner(microdroidDevice);
+        rootMicrodroid();
     }
 
     @AfterClassWithInfo
@@ -160,12 +158,13 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
             throws DeviceNotAvailableException {
         assertNotNull(sAndroid);
 
-        if (sMicrodroid != null) {
+        if (sCid != null) {
             CLog.i("Shutting down shared VM");
-            ((TestDevice) testInfo.getDevice()).shutdownMicrodroid(sMicrodroid.getDevice());
-            sMicrodroid = null;
+            shutdownMicrodroid(sAndroid.getDevice(), sCid);
+            sCid = null;
         }
 
+        cleanUpVirtualizationTestSetup(sAndroid.getDevice());
         sAndroid = null;
     }
 
@@ -178,8 +177,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     @After
     public void tearDown() throws Exception {
         sAndroid.tryRun("killall fd_server");
-        sMicrodroid.tryRun("killall authfs");
-        sMicrodroid.tryRun("umount " + MOUNT_DIR);
+        tryRunOnMicrodroid("killall authfs");
+        tryRunOnMicrodroid("umount " + MOUNT_DIR);
 
         // Even though we only run one VM for the whole class, and could have collect the VM log
         // after all tests are done, TestLogData doesn't seem to work at class level. Hence,
@@ -320,7 +319,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Verify
         // Force dropping the page cache, so that the next read can be validated.
-        sMicrodroid.run("echo 1 > /proc/sys/vm/drop_caches");
+        runOnMicrodroid("echo 1 > /proc/sys/vm/drop_caches");
         // A read will fail if the backing data has been tampered.
         assertFalse(checkReadAtFileOffsetOnMicrodroid(
                 destPath, /* offset */ 0, /* number */ 4096));
@@ -420,8 +419,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Action
         // Can create nested directories and can create a file in one.
-        sMicrodroid.run("mkdir " + authfsOutputDir + "/new_dir");
-        sMicrodroid.run("mkdir -p " + authfsOutputDir + "/we/need/to/go/deeper");
+        runOnMicrodroid("mkdir " + authfsOutputDir + "/new_dir");
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/we/need/to/go/deeper");
         createFileWithOnesOnMicrodroid(authfsOutputDir + "/new_dir/file1", 10000);
         createFileWithOnesOnMicrodroid(authfsOutputDir + "/we/need/file2", 10000);
 
@@ -453,7 +452,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
         // Action & Verify
-        sMicrodroid.run("echo -n foo > " + authfsOutputDir + "/file");
+        runOnMicrodroid("echo -n foo > " + authfsOutputDir + "/file");
         assertEquals(getFileSizeInBytesOnMicrodroid(authfsOutputDir + "/file"), 3);
         // Can override a file and write normally.
         createFileWithOnesOnMicrodroid(authfsOutputDir + "/file", 10000);
@@ -473,13 +472,13 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
         runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
-        sMicrodroid.run("echo -n foo > " + authfsOutputDir + "/file");
-        sMicrodroid.run("test -f " + authfsOutputDir + "/file");
+        runOnMicrodroid("echo -n foo > " + authfsOutputDir + "/file");
+        runOnMicrodroid("test -f " + authfsOutputDir + "/file");
         sAndroid.run("test -f " + androidOutputDir + "/file");
 
         // Action & Verify
-        sMicrodroid.run("rm " + authfsOutputDir + "/file");
-        sMicrodroid.run("test ! -f " + authfsOutputDir + "/file");
+        runOnMicrodroid("rm " + authfsOutputDir + "/file");
+        runOnMicrodroid("test ! -f " + authfsOutputDir + "/file");
         sAndroid.run("test ! -f " + androidOutputDir + "/file");
     }
 
@@ -492,20 +491,20 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
         runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
-        sMicrodroid.run("mkdir -p " + authfsOutputDir + "/dir/dir2");
-        sMicrodroid.run("echo -n foo > " + authfsOutputDir + "/dir/file");
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("echo -n foo > " + authfsOutputDir + "/dir/file");
         sAndroid.run("test -d " + androidOutputDir + "/dir/dir2");
 
         // Action & Verify
-        sMicrodroid.run("rmdir " + authfsOutputDir + "/dir/dir2");
-        sMicrodroid.run("test ! -d " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("rmdir " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("test ! -d " + authfsOutputDir + "/dir/dir2");
         sAndroid.run("test ! -d " + androidOutputDir + "/dir/dir2");
         // Can only delete a directory if empty
         assertFailedOnMicrodroid("rmdir " + authfsOutputDir + "/dir");
-        sMicrodroid.run("test -d " + authfsOutputDir + "/dir");  // still there
-        sMicrodroid.run("rm " + authfsOutputDir + "/dir/file");
-        sMicrodroid.run("rmdir " + authfsOutputDir + "/dir");
-        sMicrodroid.run("test ! -d " + authfsOutputDir + "/dir");
+        runOnMicrodroid("test -d " + authfsOutputDir + "/dir");  // still there
+        runOnMicrodroid("rm " + authfsOutputDir + "/dir/file");
+        runOnMicrodroid("rmdir " + authfsOutputDir + "/dir");
+        runOnMicrodroid("test ! -d " + authfsOutputDir + "/dir");
         sAndroid.run("test ! -d " + androidOutputDir + "/dir");
     }
 
@@ -518,10 +517,10 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
         runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
 
-        sMicrodroid.run("touch " + authfsOutputDir + "/some_file");
-        sMicrodroid.run("mkdir " + authfsOutputDir + "/some_dir");
-        sMicrodroid.run("touch " + authfsOutputDir + "/some_dir/file");
-        sMicrodroid.run("mkdir " + authfsOutputDir + "/some_dir/dir");
+        runOnMicrodroid("touch " + authfsOutputDir + "/some_file");
+        runOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir");
+        runOnMicrodroid("touch " + authfsOutputDir + "/some_dir/file");
+        runOnMicrodroid("mkdir " + authfsOutputDir + "/some_dir/dir");
 
         // Action & Verify
         // Cannot create directory if an entry with the same name already exists.
@@ -543,12 +542,12 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Create a file with some data. Test the existence.
         String outputPath = authfsOutputDir + "/out";
         String androidOutputPath = androidOutputDir + "/out";
-        sMicrodroid.run("echo -n 123 > " + outputPath);
-        sMicrodroid.run("test -f " + outputPath);
+        runOnMicrodroid("echo -n 123 > " + outputPath);
+        runOnMicrodroid("test -f " + outputPath);
         sAndroid.run("test -f " + androidOutputPath);
 
         // Action
-        String output = sMicrodroid.run(
+        String output = runOnMicrodroid(
                 // Open the file for append and read
                 "exec 4>>" + outputPath + " 5<" + outputPath + "; "
                 // Delete the file from the directory
@@ -561,7 +560,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Verify
         // Output contains all written data, while the files are deleted.
         assertEquals("123456", output);
-        sMicrodroid.run("test ! -f " + outputPath);
+        runOnMicrodroid("test ! -f " + outputPath);
         sAndroid.run("test ! -f " + androidOutputDir + "/out");
     }
 
@@ -591,7 +590,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 + VMADDR_CID_HOST);
 
         // Verify
-        sMicrodroid.run("test -f " + authfsInputDir + "/system/framework/services.jar");
+        runOnMicrodroid("test -f " + authfsInputDir + "/system/framework/services.jar");
         assertFailedOnMicrodroid("test -f " + authfsInputDir + "/system/bin/sh");
     }
 
@@ -603,14 +602,14 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Action
         String authfsOutputDir = MOUNT_DIR + "/3";
-        sMicrodroid.run("mkdir -p " + authfsOutputDir + "/dir/dir2/dir3");
-        sMicrodroid.run("touch " + authfsOutputDir + "/dir/dir2/dir3/file1");
-        sMicrodroid.run("touch " + authfsOutputDir + "/dir/dir2/dir3/file2");
-        sMicrodroid.run("touch " + authfsOutputDir + "/dir/dir2/dir3/file3");
-        sMicrodroid.run("touch " + authfsOutputDir + "/file");
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/dir/dir2/dir3");
+        runOnMicrodroid("touch " + authfsOutputDir + "/dir/dir2/dir3/file1");
+        runOnMicrodroid("touch " + authfsOutputDir + "/dir/dir2/dir3/file2");
+        runOnMicrodroid("touch " + authfsOutputDir + "/dir/dir2/dir3/file3");
+        runOnMicrodroid("touch " + authfsOutputDir + "/file");
 
         // Verify
-        String[] actual = sMicrodroid.run("cd " + authfsOutputDir + "; find |sort").split("\n");
+        String[] actual = runOnMicrodroid("cd " + authfsOutputDir + "; find |sort").split("\n");
         String[] expected = new String[] {
                 ".",
                 "./dir",
@@ -623,14 +622,14 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         assertEquals(expected, actual);
 
         // Add more entries.
-        sMicrodroid.run("mkdir -p " + authfsOutputDir + "/dir2");
-        sMicrodroid.run("touch " + authfsOutputDir + "/file2");
+        runOnMicrodroid("mkdir -p " + authfsOutputDir + "/dir2");
+        runOnMicrodroid("touch " + authfsOutputDir + "/file2");
         // Check new entries. Also check that the types are correct.
-        actual = sMicrodroid.run(
+        actual = runOnMicrodroid(
                 "cd " + authfsOutputDir + "; find -maxdepth 1 -type f |sort").split("\n");
         expected = new String[] {"./file", "./file2"};
         assertEquals(expected, actual);
-        actual = sMicrodroid.run(
+        actual = runOnMicrodroid(
                 "cd " + authfsOutputDir + "; find -maxdepth 1 -type d |sort").split("\n");
         expected = new String[] {".", "./dir", "./dir2"};
         assertEquals(expected, actual);
@@ -644,7 +643,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
         // Action & Verify
         // Change mode
-        sMicrodroid.run("chmod 321 " + MOUNT_DIR + "/3");
+        runOnMicrodroid("chmod 321 " + MOUNT_DIR + "/3");
         expectFileMode("--wx-w---x", MOUNT_DIR + "/3", TEST_OUTPUT_DIR + "/file");
         // Can't set the disallowed bits
         assertFailedOnMicrodroid("chmod +s " + MOUNT_DIR + "/3");
@@ -660,14 +659,14 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Action & Verify
         String authfsOutputDir = MOUNT_DIR + "/3";
         // Create with umask
-        sMicrodroid.run("umask 000; mkdir " + authfsOutputDir + "/dir");
-        sMicrodroid.run("umask 022; mkdir " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("umask 000; mkdir " + authfsOutputDir + "/dir");
+        runOnMicrodroid("umask 022; mkdir " + authfsOutputDir + "/dir/dir2");
         expectFileMode("drwxrwxrwx", authfsOutputDir + "/dir", TEST_OUTPUT_DIR + "/dir");
         expectFileMode("drwxr-xr-x", authfsOutputDir + "/dir/dir2", TEST_OUTPUT_DIR + "/dir/dir2");
         // Change mode
-        sMicrodroid.run("chmod -w " + authfsOutputDir + "/dir/dir2");
+        runOnMicrodroid("chmod -w " + authfsOutputDir + "/dir/dir2");
         expectFileMode("dr-xr-xr-x", authfsOutputDir + "/dir/dir2", TEST_OUTPUT_DIR + "/dir/dir2");
-        sMicrodroid.run("chmod 321 " + authfsOutputDir + "/dir");
+        runOnMicrodroid("chmod 321 " + authfsOutputDir + "/dir");
         expectFileMode("d-wx-w---x", authfsOutputDir + "/dir", TEST_OUTPUT_DIR + "/dir");
         // Can't set the disallowed bits
         assertFailedOnMicrodroid("chmod +s " + authfsOutputDir + "/dir/dir2");
@@ -683,14 +682,14 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Action & Verify
         String authfsOutputDir = MOUNT_DIR + "/3";
         // Create with umask
-        sMicrodroid.run("umask 000; echo -n foo > " + authfsOutputDir + "/file");
-        sMicrodroid.run("umask 022; echo -n foo > " + authfsOutputDir + "/file2");
+        runOnMicrodroid("umask 000; echo -n foo > " + authfsOutputDir + "/file");
+        runOnMicrodroid("umask 022; echo -n foo > " + authfsOutputDir + "/file2");
         expectFileMode("-rw-rw-rw-", authfsOutputDir + "/file", TEST_OUTPUT_DIR + "/file");
         expectFileMode("-rw-r--r--", authfsOutputDir + "/file2", TEST_OUTPUT_DIR + "/file2");
         // Change mode
-        sMicrodroid.run("chmod -w " + authfsOutputDir + "/file");
+        runOnMicrodroid("chmod -w " + authfsOutputDir + "/file");
         expectFileMode("-r--r--r--", authfsOutputDir + "/file", TEST_OUTPUT_DIR + "/file");
-        sMicrodroid.run("chmod 321 " + authfsOutputDir + "/file2");
+        runOnMicrodroid("chmod 321 " + authfsOutputDir + "/file2");
         expectFileMode("--wx-w---x", authfsOutputDir + "/file2", TEST_OUTPUT_DIR + "/file2");
         // Can't set the disallowed bits
         assertFailedOnMicrodroid("chmod +s " + authfsOutputDir + "/file");
@@ -706,16 +705,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // Verify
         // Magic matches. Has only 2 inodes (root and "/3").
         assertEquals(
-                FUSE_SUPER_MAGIC_HEX + " 2", sMicrodroid.run("stat -f -c '%t %c' " + MOUNT_DIR));
-    }
-
-    private static File findTestApk(IBuildInfo buildInfo) {
-        try {
-            return (new CompatibilityBuildHelper(buildInfo)).getTestFile(TEST_APK_NAME);
-        } catch (FileNotFoundException e) {
-            fail("Missing test file: " + TEST_APK_NAME);
-            return null;
-        }
+                FUSE_SUPER_MAGIC_HEX + " 2", runOnMicrodroid("stat -f -c '%t %c' " + MOUNT_DIR));
     }
 
     private void expectBackingFileConsistency(
@@ -729,8 +719,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 "Inconsistent file hash on the backend storage", hashOnAuthFs, hashOfBackingFile);
     }
 
-    private String computeFileHashOnMicrodroid(String path) throws DeviceNotAvailableException {
-        String result = sMicrodroid.run("sha256sum " + path);
+    private String computeFileHashOnMicrodroid(String path) {
+        String result = runOnMicrodroid("sha256sum " + path);
         String[] tokens = result.split("\\s");
         if (tokens.length > 0) {
             return tokens[0];
@@ -745,7 +735,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         // TODO(b/182576497): cp returns error because close(2) returns ENOSYS in the current authfs
         // implementation. We should probably fix that since programs can expect close(2) return 0.
         String cmd = "cat " + src + " > " + dest;
-        return sMicrodroid.tryRun(cmd) != null;
+        return tryRunOnMicrodroid(cmd) != null;
     }
 
     private String computeFileHashOnAndroid(String path) throws DeviceNotAvailableException {
@@ -761,42 +751,38 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
     private void expectFileMode(String expected, String microdroidPath, String androidPath)
             throws DeviceNotAvailableException {
-        String actual = sMicrodroid.run("stat -c '%A' " + microdroidPath);
+        String actual = runOnMicrodroid("stat -c '%A' " + microdroidPath);
         assertEquals("Inconsistent mode for " + microdroidPath, expected, actual);
 
         actual = sAndroid.run("stat -c '%A' " + androidPath);
         assertEquals("Inconsistent mode for " + androidPath + " (android)", expected, actual);
     }
 
-    private boolean resizeFileOnMicrodroid(String path, long size)
-            throws DeviceNotAvailableException {
-        CommandResult result = sMicrodroid.runForResult("truncate -c -s " + size + " " + path);
+    private boolean resizeFileOnMicrodroid(String path, long size) {
+        CommandResult result = runOnMicrodroidForResult("truncate -c -s " + size + " " + path);
         return result.getStatus() == CommandStatus.SUCCESS;
     }
 
-    private long getFileSizeInBytesOnMicrodroid(String path) throws DeviceNotAvailableException {
-        return Long.parseLong(sMicrodroid.run("stat -c '%s' " + path));
+    private long getFileSizeInBytesOnMicrodroid(String path) {
+        return Long.parseLong(runOnMicrodroid("stat -c '%s' " + path));
     }
 
-    private void createFileWithOnesOnMicrodroid(String filePath, long numberOfOnes)
-            throws DeviceNotAvailableException {
-        sMicrodroid.run(
+    private void createFileWithOnesOnMicrodroid(String filePath, long numberOfOnes) {
+        runOnMicrodroid(
                 "yes $'\\x01' | tr -d '\\n' | dd bs=1 count=" + numberOfOnes + " of=" + filePath);
     }
 
-    private boolean checkReadAtFileOffsetOnMicrodroid(String filePath, long offset, long size)
-            throws DeviceNotAvailableException {
+    private boolean checkReadAtFileOffsetOnMicrodroid(String filePath, long offset, long size) {
         String cmd = "dd if=" + filePath + " of=/dev/null bs=1 count=" + size;
         if (offset > 0) {
             cmd += " skip=" + offset;
         }
-        CommandResult result = sMicrodroid.runForResult(cmd);
+        CommandResult result = runOnMicrodroidForResult(cmd);
         return result.getStatus() == CommandStatus.SUCCESS;
     }
 
     private boolean writeZerosAtFileOffsetOnMicrodroid(
-            String filePath, long offset, long numberOfZeros, boolean writeThrough)
-            throws DeviceNotAvailableException {
+            String filePath, long offset, long numberOfZeros, boolean writeThrough) {
         String cmd = "dd if=/dev/zero of=" + filePath + " bs=1 count=" + numberOfZeros
                 + " conv=notrunc";
         if (offset > 0) {
@@ -805,7 +791,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         if (writeThrough) {
             cmd += " direct";
         }
-        CommandResult result = sMicrodroid.runForResult(cmd);
+        CommandResult result = runOnMicrodroidForResult(cmd);
         return result.getStatus() == CommandStatus.SUCCESS;
     }
 
@@ -824,14 +810,9 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                     // authfs may fail to start if fd_server is not yet listening on the vsock
                     // ("Error: Invalid raw AIBinder"). Just restart if that happens.
                     while (starting.get()) {
-                        try {
-                            CLog.i("Starting authfs");
-                            CommandResult result = sMicrodroid.runForResult(cmd);
-                            CLog.w("authfs has stopped: " + result);
-                        } catch (DeviceNotAvailableException e) {
-                            CLog.e("Error running authfs", e);
-                            throw new RuntimeException(e);
-                        }
+                        CLog.i("Starting authfs");
+                        CommandResult result = runOnMicrodroidForResult(cmd);
+                        CLog.w("authfs has stopped: " + result);
                     }
                 });
         try {
@@ -874,8 +855,8 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                 });
     }
 
-    private boolean isMicrodroidDirectoryOnFuse(String path) throws DeviceNotAvailableException {
-        String fs_type = sMicrodroid.tryRun("stat -f -c '%t' " + path);
+    private boolean isMicrodroidDirectoryOnFuse(String path) {
+        String fs_type = tryRunOnMicrodroid("stat -f -c '%t' " + path);
         return FUSE_SUPER_MAGIC_HEX.equals(fs_type);
     }
 }
