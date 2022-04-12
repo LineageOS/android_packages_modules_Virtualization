@@ -21,12 +21,17 @@ mod exceptions;
 
 use vmbase::{main, println};
 
+static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
+static mut ZEROED_DATA: [u32; 10] = [0; 10];
+static mut MUTABLE_DATA: [u32; 4] = [1, 2, 3, 4];
+
 main!(main);
 
 /// Entry point for VM bootloader.
 pub fn main() {
     println!("Hello world");
     print_addresses();
+    check_data();
 }
 
 fn print_addresses() {
@@ -69,6 +74,37 @@ fn print_addresses() {
             &boot_stack_end as *const u8 as usize - &boot_stack_begin as *const u8 as usize,
         );
     }
+}
+
+fn check_data() {
+    println!("INITIALISED_DATA: {:#010x}", &INITIALISED_DATA as *const u32 as usize);
+    unsafe {
+        println!("ZEROED_DATA: {:#010x}", &ZEROED_DATA as *const u32 as usize);
+        println!("MUTABLE_DATA: {:#010x}", &MUTABLE_DATA as *const u32 as usize);
+    }
+
+    assert_eq!(INITIALISED_DATA[0], 1);
+    assert_eq!(INITIALISED_DATA[1], 2);
+    assert_eq!(INITIALISED_DATA[2], 3);
+    assert_eq!(INITIALISED_DATA[3], 4);
+
+    unsafe {
+        for element in ZEROED_DATA.iter() {
+            assert_eq!(*element, 0);
+        }
+        ZEROED_DATA[0] = 13;
+        assert_eq!(ZEROED_DATA[0], 13);
+        ZEROED_DATA[0] = 0;
+        assert_eq!(ZEROED_DATA[0], 0);
+
+        assert_eq!(MUTABLE_DATA[0], 1);
+        assert_eq!(MUTABLE_DATA[1], 2);
+        assert_eq!(MUTABLE_DATA[2], 3);
+        assert_eq!(MUTABLE_DATA[3], 4);
+        MUTABLE_DATA[0] += 41;
+        assert_eq!(MUTABLE_DATA[0], 42);
+    }
+    println!("Data looks good");
 }
 
 extern "C" {
