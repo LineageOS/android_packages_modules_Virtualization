@@ -14,5 +14,6 @@
     {
       "path": "/system/etc/security/fsverity/BuildManifest.apk"
     }
-  ]
+  ],
+  "export_tombstones": true
 }

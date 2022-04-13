@@ -254,6 +254,13 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     );
 
     let config = load_config(Path::new(&metadata.payload_config_path))?;
+
+    // Start tombstone_transmit if enabled
+    if config.export_tombstones {
+        system_properties::write("ctl.start", "tombstone_transmit")
+            .context("Failed to start tombstone_transmit")?;
+    }
+
     if config.extra_apks.len() != verified_data.extra_apks_data.len() {
         return Err(anyhow!(
             "config expects {} extra apks, but found only {}",

@@ -173,9 +173,6 @@ on post-fs-data
     mkdir /data/local 0751 root root
     mkdir /data/local/tmp 0771 shell shell
 
-on init && property:ro.boot.tombstone_transmit.enabled=1
-     start tombstone_transmit
-
 service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000
     user root
     group system
