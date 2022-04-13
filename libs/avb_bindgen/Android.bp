@@ -4,6 +4,7 @@ package {
 
 rust_bindgen {
     name: "libavb_bindgen",
+    host_supported: true,
     wrapper_src: "bindgen/avb.h",
     crate_name: "avb_bindgen",
     source_stem: "bindings",
