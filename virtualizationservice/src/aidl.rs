@@ -132,139 +132,26 @@ impl IVirtualizationService for VirtualizationService {
         console_fd: Option<&ParcelFileDescriptor>,
         log_fd: Option<&ParcelFileDescriptor>,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
-        check_manage_access()?;
-        let state = &mut *self.state.lock().unwrap();
-        let console_fd = console_fd.map(clone_file).transpose()?;
-        let log_fd = log_fd.map(clone_file).transpose()?;
-        let requester_uid = ThreadState::get_calling_uid();
-        let requester_sid = get_calling_sid()?;
-        let requester_debug_pid = ThreadState::get_calling_pid();
-        let cid = next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
-
-        // Counter to generate unique IDs for temporary image files.
-        let mut next_temporary_image_id = 0;
-        // Files which are referred to from composite images. These must be mapped to the crosvm
-        // child process, and not closed before it is started.
-        let mut indirect_files = vec![];
-
-        // Make directory for temporary files.
-        let temporary_directory: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
-        create_dir(&temporary_directory).map_err(|e| {
-            // At this point, we do not know the protected status of Vm
-            // setting it to false, though this may not be correct.
-            write_vm_creation_stats(false, false);
-            error!(
-                "Failed to create temporary directory {:?} for VM files: {}",
-                temporary_directory, e
-            );
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!(
-                    "Failed to create temporary directory {:?} for VM files: {}",
-                    temporary_directory, e
-                ),
-            )
-        })?;
-
-        let is_app_config = matches!(config, VirtualMachineConfig::AppConfig(_));
-
-        let config = match config {
-            VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
-                load_app_config(config, &temporary_directory).map_err(|e| {
-                    error!("Failed to load app config from {}: {}", &config.configPath, e);
-                    write_vm_creation_stats(config.protectedVm, false);
-                    new_binder_exception(
-                        ExceptionCode::SERVICE_SPECIFIC,
-                        format!("Failed to load app config from {}: {}", &config.configPath, e),
-                    )
-                })?,
-            ),
-            VirtualMachineConfig::RawConfig(config) => BorrowedOrOwned::Borrowed(config),
-        };
-        let config = config.as_ref();
-        let protected = config.protectedVm;
-
-        // Check if partition images are labeled incorrectly. This is to prevent random images
-        // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
-        // being loaded in a pVM.  Specifically, for images in the raw config, nothing is allowed
-        // to be labeled as app_data_file. For images in the app config, nothing but the instance
-        // partition is allowed to be labeled as such.
-        config
-            .disks
-            .iter()
-            .flat_map(|disk| disk.partitions.iter())
-            .filter(|partition| {
-                if is_app_config {
-                    partition.label != "vm-instance"
-                } else {
-                    true // all partitions are checked
-                }
-            })
-            .try_for_each(check_label_for_partition)
-            .map_err(|e| new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string()))?;
-
-        let zero_filler_path = temporary_directory.join("zero.img");
-        write_zero_filler(&zero_filler_path).map_err(|e| {
-            error!("Failed to make composite image: {}", e);
-            write_vm_creation_stats(protected, false);
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("Failed to make composite image: {}", e),
-            )
-        })?;
-
-        // Assemble disk images if needed.
-        let disks = config
-            .disks
-            .iter()
-            .map(|disk| {
-                assemble_disk_image(
-                    disk,
-                    &zero_filler_path,
-                    &temporary_directory,
-                    &mut next_temporary_image_id,
-                    &mut indirect_files,
-                )
-            })
-            .collect::<Result<Vec<DiskFile>, _>>()?;
-
-        // Actually start the VM.
-        let crosvm_config = CrosvmConfig {
-            cid,
-            bootloader: maybe_clone_file(&config.bootloader)?,
-            kernel: maybe_clone_file(&config.kernel)?,
-            initrd: maybe_clone_file(&config.initrd)?,
-            disks,
-            params: config.params.to_owned(),
-            protected,
-            memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
-            cpus: config.numCpus.try_into().ok().and_then(NonZeroU32::new),
-            cpu_affinity: config.cpuAffinity.clone(),
-            console_fd,
-            log_fd,
-            indirect_files,
-            platform_version: parse_platform_version_req(&config.platformVersion)?,
-        };
-        let instance = Arc::new(
-            VmInstance::new(
-                crosvm_config,
-                temporary_directory,
-                requester_uid,
-                requester_sid,
-                requester_debug_pid,
-            )
-            .map_err(|e| {
-                error!("Failed to create VM with config {:?}: {}", config, e);
-                write_vm_creation_stats(protected, false);
-                new_binder_exception(
-                    ExceptionCode::SERVICE_SPECIFIC,
-                    format!("Failed to create VM: {}", e),
-                )
-            })?,
-        );
-        state.add_vm(Arc::downgrade(&instance));
-        write_vm_creation_stats(protected, true);
-        Ok(VirtualMachine::create(instance))
+        let mut is_protected = false;
+        let ret = self.create_vm_internal(config, console_fd, log_fd, &mut is_protected);
+        match ret {
+            Ok(_) => {
+                let ok_status = Status::ok();
+                write_vm_creation_stats(
+                    is_protected,
+                    /*creation_succeeded*/ true,
+                    ok_status.exception_code() as i32,
+                );
+            }
+            Err(ref e) => {
+                write_vm_creation_stats(
+                    is_protected,
+                    /*creation_succeeded*/ false,
+                    e.exception_code() as i32,
+                );
+            }
+        }
+        ret
     }
 
     /// Initialise an empty partition image of the given size to be used as a writable partition.
@@ -466,11 +353,149 @@ impl VirtualizationService {
         });
         service
     }
+
+    fn create_vm_internal(
+        &self,
+        config: &VirtualMachineConfig,
+        console_fd: Option<&ParcelFileDescriptor>,
+        log_fd: Option<&ParcelFileDescriptor>,
+        is_protected: &mut bool,
+    ) -> binder::Result<Strong<dyn IVirtualMachine>> {
+        check_manage_access()?;
+        let state = &mut *self.state.lock().unwrap();
+        let console_fd = console_fd.map(clone_file).transpose()?;
+        let log_fd = log_fd.map(clone_file).transpose()?;
+        let requester_uid = ThreadState::get_calling_uid();
+        let requester_sid = get_calling_sid()?;
+        let requester_debug_pid = ThreadState::get_calling_pid();
+        let cid = next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
+
+        // Counter to generate unique IDs for temporary image files.
+        let mut next_temporary_image_id = 0;
+        // Files which are referred to from composite images. These must be mapped to the crosvm
+        // child process, and not closed before it is started.
+        let mut indirect_files = vec![];
+
+        // Make directory for temporary files.
+        let temporary_directory: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
+        create_dir(&temporary_directory).map_err(|e| {
+            // At this point, we do not know the protected status of Vm
+            // setting it to false, though this may not be correct.
+            error!(
+                "Failed to create temporary directory {:?} for VM files: {}",
+                temporary_directory, e
+            );
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!(
+                    "Failed to create temporary directory {:?} for VM files: {}",
+                    temporary_directory, e
+                ),
+            )
+        })?;
+
+        let is_app_config = matches!(config, VirtualMachineConfig::AppConfig(_));
+
+        let config = match config {
+            VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
+                load_app_config(config, &temporary_directory).map_err(|e| {
+                    error!("Failed to load app config from {}: {}", &config.configPath, e);
+                    *is_protected = config.protectedVm;
+                    new_binder_exception(
+                        ExceptionCode::SERVICE_SPECIFIC,
+                        format!("Failed to load app config from {}: {}", &config.configPath, e),
+                    )
+                })?,
+            ),
+            VirtualMachineConfig::RawConfig(config) => BorrowedOrOwned::Borrowed(config),
+        };
+        let config = config.as_ref();
+        *is_protected = config.protectedVm;
+
+        // Check if partition images are labeled incorrectly. This is to prevent random images
+        // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
+        // being loaded in a pVM.  Specifically, for images in the raw config, nothing is allowed
+        // to be labeled as app_data_file. For images in the app config, nothing but the instance
+        // partition is allowed to be labeled as such.
+        config
+            .disks
+            .iter()
+            .flat_map(|disk| disk.partitions.iter())
+            .filter(|partition| {
+                if is_app_config {
+                    partition.label != "vm-instance"
+                } else {
+                    true // all partitions are checked
+                }
+            })
+            .try_for_each(check_label_for_partition)
+            .map_err(|e| new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string()))?;
+
+        let zero_filler_path = temporary_directory.join("zero.img");
+        write_zero_filler(&zero_filler_path).map_err(|e| {
+            error!("Failed to make composite image: {}", e);
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to make composite image: {}", e),
+            )
+        })?;
+
+        // Assemble disk images if needed.
+        let disks = config
+            .disks
+            .iter()
+            .map(|disk| {
+                assemble_disk_image(
+                    disk,
+                    &zero_filler_path,
+                    &temporary_directory,
+                    &mut next_temporary_image_id,
+                    &mut indirect_files,
+                )
+            })
+            .collect::<Result<Vec<DiskFile>, _>>()?;
+
+        // Actually start the VM.
+        let crosvm_config = CrosvmConfig {
+            cid,
+            bootloader: maybe_clone_file(&config.bootloader)?,
+            kernel: maybe_clone_file(&config.kernel)?,
+            initrd: maybe_clone_file(&config.initrd)?,
+            disks,
+            params: config.params.to_owned(),
+            protected: *is_protected,
+            memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
+            cpus: config.numCpus.try_into().ok().and_then(NonZeroU32::new),
+            cpu_affinity: config.cpuAffinity.clone(),
+            console_fd,
+            log_fd,
+            indirect_files,
+            platform_version: parse_platform_version_req(&config.platformVersion)?,
+        };
+        let instance = Arc::new(
+            VmInstance::new(
+                crosvm_config,
+                temporary_directory,
+                requester_uid,
+                requester_sid,
+                requester_debug_pid,
+            )
+            .map_err(|e| {
+                error!("Failed to create VM with config {:?}: {}", config, e);
+                new_binder_exception(
+                    ExceptionCode::SERVICE_SPECIFIC,
+                    format!("Failed to create VM: {}", e),
+                )
+            })?,
+        );
+        state.add_vm(Arc::downgrade(&instance));
+        Ok(VirtualMachine::create(instance))
+    }
 }
 
 /// Write the stats of VMCreation to statsd
-fn write_vm_creation_stats(protected: bool, success: bool) {
-    match stats_write(Hypervisor::Pkvm, protected, success) {
+fn write_vm_creation_stats(is_protected: bool, creation_succeeded: bool, exception_code: i32) {
+    match stats_write(Hypervisor::Pkvm, is_protected, creation_succeeded, exception_code) {
         Err(e) => {
             warn!("statslog_rust failed with error: {}", e);
         }
