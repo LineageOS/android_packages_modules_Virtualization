@@ -79,6 +79,7 @@ android_system_image {
         "tombstoned",
         "tombstone_transmit.microdroid",
         "cgroups.json",
+        "task_profiles.json",
         "public.libraries.android.txt",
 
         "microdroid_compatibility_matrix",
