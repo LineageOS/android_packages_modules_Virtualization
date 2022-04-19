@@ -63,13 +63,16 @@
 .set .L_SCTLR_ELx_M, 0x1 << 0
 /* Privileged Access Never is unchanged on taking an exception to EL1. */
 .set .L_SCTLR_EL1_SPAN, 0x1 << 23
+/* All writable memory regions are treated as XN. */
+.set .L_SCTLR_EL1_WXN, 0x1 << 19
 /* SETEND instruction disabled at EL0 in aarch32 mode. */
 .set .L_SCTLR_EL1_SED, 0x1 << 8
 /* Various IT instructions are disabled at EL0 in aarch32 mode. */
 .set .L_SCTLR_EL1_ITD, 0x1 << 7
 .set .L_SCTLR_EL1_RES1, (0x1 << 11) | (0x1 << 20) | (0x1 << 22) | (0x1 << 28) | (0x1 << 29)
 .set .Lsctlrval, .L_SCTLR_ELx_M | .L_SCTLR_ELx_C | .L_SCTLR_ELx_SA | .L_SCTLR_EL1_ITD | .L_SCTLR_EL1_SED
-.set .Lsctlrval, .Lsctlrval | .L_SCTLR_ELx_I | .L_SCTLR_EL1_SPAN | .L_SCTLR_EL1_RES1
+.set .Lsctlrval, .Lsctlrval | .L_SCTLR_ELx_I | .L_SCTLR_EL1_SPAN | .L_SCTLR_EL1_RES1 | .L_SCTLR_EL1_WXN
+
 /**
  * This is a generic entry point for an image. It carries out the operations
  * required to prepare the loaded image to be run. Specifically, it zeroes the
@@ -128,13 +131,23 @@ entry:
 	stp xzr, xzr, [x29], #16
 	b 0b
 
-1:	/* Prepare the stack. */
-	adr x30, boot_stack_end
+1:	/* Copy the data section. */
+	adr_l x28, data_begin
+	adr_l x29, data_end
+	adr_l x30, data_lma
+2:	cmp x28, x29
+	b.ge 3f
+	ldp q0, q1, [x30], #32
+	stp q0, q1, [x28], #32
+	b 2b
+
+3:	/* Prepare the stack. */
+	adr_l x30, boot_stack_end
 	mov sp, x30
 
 	/* Call into Rust code. */
 	bl main
 
 	/* Loop forever waiting for interrupts. */
-2:	wfi
-	b 2b
+4:	wfi
+	b 4b
