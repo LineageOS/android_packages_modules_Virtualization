@@ -153,7 +153,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         command.add(virtApexDir.getPath());
 
         CommandResult result = runUtil.runTimedCmd(
-                                    20 * 1000,
+                                    // sign_virt_apex is so slow on CI server that this often times
+                                    // out. Until we can make it fast, use 50s for timeout
+                                    50 * 1000,
                                     "/bin/bash",
                                     "-c",
                                     String.join(" ", command));
