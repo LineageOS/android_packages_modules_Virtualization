@@ -64,6 +64,8 @@ pub struct VmParameters {
     /// Comma separated list of host CPUs where vCPUs are assigned to. If None, any host CPU can be
     /// used to run any vCPU.
     pub cpu_set: Option<String>,
+    /// List of task profiles to apply to the VM
+    pub task_profiles: Vec<String>,
     /// If present, overrides the path to the VM config JSON file
     pub config_path: Option<String>,
     /// If present, overrides the amount of RAM to give the VM
@@ -137,6 +139,7 @@ impl VmInstance {
             memoryMib: parameters.memory_mib.unwrap_or(0), // 0 means use the default
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
             cpuAffinity: parameters.cpu_set.clone(),
+            taskProfiles: parameters.task_profiles.clone(),
         });
 
         let vm = service
