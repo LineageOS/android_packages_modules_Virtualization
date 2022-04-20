@@ -18,6 +18,7 @@
 #![no_std]
 
 mod console;
+mod exceptions;
 mod psci;
 mod uart;
 
