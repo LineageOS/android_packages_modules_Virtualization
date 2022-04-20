@@ -1,6 +1,2 @@
 androidboot.first_stage_console = 1
 androidboot.hardware = microdroid
-
-# tombstone_transmit is enabled. Tombstones will be transmitted to the host
-# TODO(b/227443903) : Make this configurable by VM owners
-androidboot.tombstone_transmit.enabled=1
