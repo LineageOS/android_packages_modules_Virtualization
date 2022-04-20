@@ -25,8 +25,10 @@ mod sys;
 
 use anyhow::{Context, Result};
 use data_model::DataInit;
+use libc::O_DIRECT;
 use std::fs::{File, OpenOptions};
 use std::mem::size_of;
+use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::thread;
@@ -37,8 +39,7 @@ use crate::util::*;
 
 // These are old-style ioctls, thus *_bad.
 nix::ioctl_none_bad!(_loop_ctl_get_free, LOOP_CTL_GET_FREE);
-nix::ioctl_write_int_bad!(_loop_set_fd, LOOP_SET_FD);
-nix::ioctl_write_ptr_bad!(_loop_set_status64, LOOP_SET_STATUS64, loop_info64);
+nix::ioctl_write_ptr_bad!(_loop_configure, LOOP_CONFIGURE, loop_config);
 #[cfg(test)]
 nix::ioctl_none_bad!(_loop_clr_fd, LOOP_CLR_FD);
 
@@ -49,14 +50,9 @@ fn loop_ctl_get_free(ctrl_file: &File) -> Result<i32> {
     Ok(unsafe { _loop_ctl_get_free(ctrl_file.as_raw_fd()) }?)
 }
 
-fn loop_set_fd(device_file: &File, fd: i32) -> Result<i32> {
+fn loop_configure(device_file: &File, config: &loop_config) -> Result<i32> {
     // SAFETY: this ioctl changes the state in kernel, but not the state in this process.
-    Ok(unsafe { _loop_set_fd(device_file.as_raw_fd(), fd) }?)
-}
-
-fn loop_set_status64(device_file: &File, info: &loop_info64) -> Result<i32> {
-    // SAFETY: this ioctl changes the state in kernel, but not the state in this process.
-    Ok(unsafe { _loop_set_status64(device_file.as_raw_fd(), info) }?)
+    Ok(unsafe { _loop_configure(device_file.as_raw_fd(), config) }?)
 }
 
 #[cfg(test)]
@@ -67,7 +63,12 @@ fn loop_clr_fd(device_file: &File) -> Result<i32> {
 }
 
 /// Creates a loop device and attach the given file at `path` as the backing store.
-pub fn attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<PathBuf> {
+pub fn attach<P: AsRef<Path>>(
+    path: P,
+    offset: u64,
+    size_limit: u64,
+    direct_io: bool,
+) -> Result<PathBuf> {
     // Attaching a file to a loop device can make a race condition; a loop device number obtained
     // from LOOP_CTL_GET_FREE might have been used by another thread or process. In that case the
     // subsequet LOOP_CONFIGURE ioctl returns with EBUSY. Try until it succeeds.
@@ -81,7 +82,7 @@ pub fn attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
 
     let begin = Instant::now();
     loop {
-        match try_attach(&path, offset, size_limit) {
+        match try_attach(&path, offset, size_limit, direct_io) {
             Ok(loop_dev) => return Ok(loop_dev),
             Err(e) => {
                 if begin.elapsed() > TIMEOUT {
@@ -99,7 +100,12 @@ const LOOP_DEV_PREFIX: &str = "/dev/loop";
 #[cfg(target_os = "android")]
 const LOOP_DEV_PREFIX: &str = "/dev/block/loop";
 
-fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<PathBuf> {
+fn try_attach<P: AsRef<Path>>(
+    path: P,
+    offset: u64,
+    size_limit: u64,
+    direct_io: bool,
+) -> Result<PathBuf> {
     // Get a free loop device
     wait_for_path(LOOP_CONTROL)?;
     let ctrl_file = OpenOptions::new()
@@ -112,21 +118,19 @@ fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
     // Construct the loop_info64 struct
     let backing_file = OpenOptions::new()
         .read(true)
+        .custom_flags(if direct_io { O_DIRECT } else { 0 })
         .open(&path)
         .context(format!("failed to open {:?}", path.as_ref()))?;
     // safe because the size of the array is the same as the size of the struct
-    let mut info: loop_info64 =
-        *DataInit::from_mut_slice(&mut [0; size_of::<loop_info64>()]).unwrap();
-    info.lo_offset = offset;
-    info.lo_sizelimit = size_limit;
-    info.lo_flags |= Flag::LO_FLAGS_DIRECT_IO | Flag::LO_FLAGS_READ_ONLY;
-
-    // Special case: don't use direct IO when the backing file is already a loop device, which
-    // happens only during test. DirectIO-on-loop-over-loop makes the outer loop device
-    // unaccessible.
-    #[cfg(test)]
-    if path.as_ref().to_str().unwrap().starts_with(LOOP_DEV_PREFIX) {
-        info.lo_flags.remove(Flag::LO_FLAGS_DIRECT_IO);
+    let mut config: loop_config =
+        *DataInit::from_mut_slice(&mut [0; size_of::<loop_config>()]).unwrap();
+    config.fd = backing_file.as_raw_fd() as u32;
+    config.block_size = 4096;
+    config.info.lo_offset = offset;
+    config.info.lo_sizelimit = size_limit;
+    config.info.lo_flags = Flag::LO_FLAGS_READ_ONLY;
+    if direct_io {
+        config.info.lo_flags.insert(Flag::LO_FLAGS_DIRECT_IO);
     }
 
     // Configure the loop device to attach the backing file
@@ -137,8 +141,8 @@ fn try_attach<P: AsRef<Path>>(path: P, offset: u64, size_limit: u64) -> Result<P
         .write(true)
         .open(&device_path)
         .context(format!("failed to open {:?}", &device_path))?;
-    loop_set_fd(&device_file, backing_file.as_raw_fd() as i32)?;
-    loop_set_status64(&device_file, &info)?;
+    loop_configure(&device_file, &config)
+        .context(format!("Failed to configure {:?}", &device_path))?;
 
     Ok(PathBuf::from(device_path))
 }
@@ -149,4 +153,47 @@ pub fn detach<P: AsRef<Path>>(path: P) -> Result<()> {
     let device_file = OpenOptions::new().read(true).write(true).open(&path)?;
     loop_clr_fd(&device_file)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    fn create_empty_file(path: &Path, size: u64) {
+        let f = File::create(path).unwrap();
+        f.set_len(size).unwrap();
+    }
+
+    fn is_direct_io(dev: &Path) -> bool {
+        let dio = Path::new("/sys/block").join(dev.file_name().unwrap()).join("loop/dio");
+        "1" == fs::read_to_string(&dio).unwrap().trim()
+    }
+
+    #[test]
+    fn attach_loop_device_with_dio() {
+        let a_dir = tempfile::TempDir::new().unwrap();
+        let a_file = a_dir.path().join("test");
+        let a_size = 4096u64;
+        create_empty_file(&a_file, a_size);
+        let dev = attach(a_file, 0, a_size, /*direct_io*/ true).unwrap();
+        scopeguard::defer! {
+            detach(&dev).unwrap();
+        }
+        assert!(is_direct_io(&dev));
+    }
+
+    #[test]
+    fn attach_loop_device_without_dio() {
+        let a_dir = tempfile::TempDir::new().unwrap();
+        let a_file = a_dir.path().join("test");
+        let a_size = 4096u64;
+        create_empty_file(&a_file, a_size);
+        let dev = attach(a_file, 0, a_size, /*direct_io*/ false).unwrap();
+        scopeguard::defer! {
+            detach(&dev).unwrap();
+        }
+        assert!(!is_direct_io(&dev));
+    }
 }

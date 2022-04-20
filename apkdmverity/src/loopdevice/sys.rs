@@ -24,8 +24,7 @@ use data_model::DataInit;
 pub const LOOP_CONTROL: &str = "/dev/loop-control";
 
 pub const LOOP_CTL_GET_FREE: libc::c_ulong = 0x4C82;
-pub const LOOP_SET_FD: libc::c_ulong = 0x4C00;
-pub const LOOP_SET_STATUS64: libc::c_ulong = 0x4C04;
+pub const LOOP_CONFIGURE: libc::c_ulong = 0x4C0A;
 #[cfg(test)]
 pub const LOOP_CLR_FD: libc::c_ulong = 0x4C01;
 
