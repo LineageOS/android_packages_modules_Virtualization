@@ -25,5 +25,6 @@
     {
       "name": "{CLASSPATH}"
     }
-  ]
+  ],
+  "export_tombstones": true
 }
