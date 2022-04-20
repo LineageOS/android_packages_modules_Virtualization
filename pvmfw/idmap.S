@@ -30,7 +30,8 @@
 
 .set .L_BLOCK_RO,  .L_TT_TYPE_BLOCK | .L_TT_MT_MEM | .L_TT_AF | .L_TT_RO | .L_TT_XN
 .set .L_BLOCK_DEV, .L_TT_TYPE_BLOCK | .L_TT_MT_DEV | .L_TT_AF | .L_TT_XN
-.set .L_BLOCK_MEM_XIP, .L_TT_TYPE_BLOCK | .L_TT_MT_MEM | .L_TT_AF | .L_TT_NG
+.set .L_BLOCK_MEM, .L_TT_TYPE_BLOCK | .L_TT_MT_MEM | .L_TT_AF | .L_TT_XN | .L_TT_NG
+.set .L_BLOCK_MEM_XIP, .L_TT_TYPE_BLOCK | .L_TT_MT_MEM | .L_TT_AF | .L_TT_NG | .L_TT_RO
 
 .section ".rodata.idmap", "a", %progbits
 .global idmap
@@ -45,4 +46,5 @@ idmap:
 	/* level 2 */
 0:	.quad		.L_BLOCK_RO  | 0x80000000	// DT provided by VMM
 	.quad		.L_BLOCK_MEM_XIP | 0x80200000	// 2 MB of DRAM containing image
-	.fill		510, 8, 0x0
+	.quad		.L_BLOCK_MEM | 0x80400000	// 2 MB of writable DRAM
+	.fill		509, 8, 0x0
