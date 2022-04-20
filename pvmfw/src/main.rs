@@ -21,7 +21,6 @@ mod console;
 mod psci;
 mod uart;
 
-use console::emergency_write_str;
 use core::panic::PanicInfo;
 use psci::{system_off, system_reset};
 
@@ -29,7 +28,7 @@ use psci::{system_off, system_reset};
 #[no_mangle]
 pub extern "C" fn main() -> ! {
     console::init();
-    console::write_str("Hello world\n");
+    println!("Hello world");
 
     system_off();
     #[allow(clippy::empty_loop)]
@@ -37,8 +36,8 @@ pub extern "C" fn main() -> ! {
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    emergency_write_str("panic\n");
+fn panic(info: &PanicInfo) -> ! {
+    eprintln!("{}", info);
     system_reset();
     loop {}
 }
