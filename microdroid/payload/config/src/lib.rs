@@ -38,6 +38,10 @@ pub struct VmPayloadConfig {
     /// Tells VirtualizationService to use staged APEXes if possible
     #[serde(default)]
     pub prefer_staged: bool,
+
+    /// Whether to export the tomsbtones (VM crashes) out of VM to host
+    /// This does not have a default & the value is expected to be in json for deserialization
+    pub export_tombstones: bool,
 }
 
 /// OS config
