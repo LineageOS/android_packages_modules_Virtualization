@@ -16,22 +16,63 @@
 """sign_virt_apex is a command line tool for sign the Virt APEX file.
 
 Typical usage:
-  sign_virt_apex [-v] [--avbtool path_to_avbtool] [--signing_args args] payload_key payload_dir
+  sign_virt_apex payload_key payload_dir
+    -v, --verbose
+    --verify
+    --avbtool path_to_avbtool
+    --signing_args args
 
 sign_virt_apex uses external tools which are assumed to be available via PATH.
 - avbtool (--avbtool can override the tool)
 - lpmake, lpunpack, simg2img, img2simg
 """
 import argparse
-import glob
 import hashlib
 import os
 import re
 import shlex
-import shutil
 import subprocess
 import sys
 import tempfile
+import traceback
+from concurrent import futures
+
+# pylint: disable=line-too-long,consider-using-with
+
+# Use executor to parallelize the invocation of external tools
+# If a task depends on another, pass the future object of the previous task as wait list.
+# Every future object created by a task should be consumed with AwaitAll()
+# so that exceptions are propagated .
+executor = futures.ThreadPoolExecutor()
+
+# Temporary directory for unpacked super.img.
+# We could put its creation/deletion into the task graph as well, but
+# having it as a global setup is much simpler.
+unpack_dir = tempfile.TemporaryDirectory()
+
+# tasks created with Async() are kept in a list so that they are awaited
+# before exit.
+tasks = []
+
+# create an async task and return a future value of it.
+def Async(fn, *args, wait=None, **kwargs):
+
+    # wrap a function with AwaitAll()
+    def wrapped():
+        AwaitAll(wait)
+        fn(*args, **kwargs)
+
+    task = executor.submit(wrapped)
+    tasks.append(task)
+    return task
+
+
+# waits for task (captured in fs as future values) with future.result()
+# so that any exception raised during task can be raised upward.
+def AwaitAll(fs):
+    if fs:
+        for f in fs:
+            f.result()
 
 
 def ParseArgs(argv):
@@ -71,7 +112,8 @@ def ParseArgs(argv):
     return args
 
 
-def RunCommand(args, cmd, env=None, expected_return_values={0}):
+def RunCommand(args, cmd, env=None, expected_return_values=None):
+    expected_return_values = expected_return_values or {0}
     env = env or {}
     env.update(os.environ.copy())
 
@@ -218,7 +260,7 @@ def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None)
     if info is None:
         return
 
-    with TempDirectory() as work_dir:
+    with tempfile.TemporaryDirectory() as work_dir:
         algorithm = info['Algorithm']
         rollback_index = info['Rollback Index']
         rollback_index_location = info['Rollback Index Location']
@@ -254,18 +296,14 @@ def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None)
             f.truncate(65536)
 
 
-class TempDirectory(object):
-
-    def __enter__(self):
-        self.name = tempfile.mkdtemp()
-        return self.name
-
-    def __exit__(self, *unused):
-        shutil.rmtree(self.name)
+def UnpackSuperImg(args, super_img, work_dir):
+    tmp_super_img = os.path.join(work_dir, 'super.img')
+    RunCommand(args, ['simg2img', super_img, tmp_super_img])
+    RunCommand(args, ['lpunpack', tmp_super_img, work_dir])
 
 
 def MakeSuperImage(args, partitions, output):
-    with TempDirectory() as work_dir:
+    with tempfile.TemporaryDirectory() as work_dir:
         cmd = ['lpmake', '--device-size=auto', '--metadata-slots=2',  # A/B
                '--metadata-size=65536', '--sparse', '--output=' + output]
 
@@ -279,6 +317,22 @@ def MakeSuperImage(args, partitions, output):
             cmd.extend([image_arg, partition_arg])
 
         RunCommand(args, cmd)
+
+
+def SignSuperImg(args, key, super_img, work_dir):
+    # unpack super.img
+    UnpackSuperImg(args, super_img, work_dir)
+
+    system_a_img = os.path.join(work_dir, 'system_a.img')
+    vendor_a_img = os.path.join(work_dir, 'vendor_a.img')
+
+    # re-sign each partition
+    system_a_f = Async(AddHashTreeFooter, args, key, system_a_img)
+    vendor_a_f = Async(AddHashTreeFooter, args, key, vendor_a_img)
+
+    # 3. re-pack super.img
+    partitions = {"system_a": system_a_img, "vendor_a": vendor_a_img}
+    Async(MakeSuperImage, args, partitions, super_img, wait=[system_a_f, vendor_a_f])
 
 
 def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
@@ -305,134 +359,116 @@ def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
         bl_f.write(new_pubkey)
 
 
+# dict of (key, file) for re-sign/verification. keys are un-versioned for readability.
+virt_apex_files = {
+    'bootloader.pubkey': 'etc/microdroid_bootloader.avbpubkey',
+    'bootloader': 'etc/microdroid_bootloader',
+    'boot.img': 'etc/fs/microdroid_boot-5.10.img',
+    'vendor_boot.img': 'etc/fs/microdroid_vendor_boot-5.10.img',
+    'init_boot.img': 'etc/fs/microdroid_init_boot.img',
+    'super.img': 'etc/fs/microdroid_super.img',
+    'vbmeta.img': 'etc/fs/microdroid_vbmeta.img',
+    'vbmeta_bootconfig.img': 'etc/fs/microdroid_vbmeta_bootconfig.img',
+    'bootconfig.normal': 'etc/microdroid_bootconfig.normal',
+    'bootconfig.app_debuggable': 'etc/microdroid_bootconfig.app_debuggable',
+    'bootconfig.full_debuggable': 'etc/microdroid_bootconfig.full_debuggable',
+    'uboot_env.img': 'etc/uboot_env.img'
+}
+
+
+def TargetFiles(input_dir):
+    return {k: os.path.join(input_dir, v) for k, v in virt_apex_files.items()}
+
+
 def SignVirtApex(args):
     key = args.key
     input_dir = args.input_dir
+    files = TargetFiles(input_dir)
 
-    # target files in the Virt APEX
-    bootloader_pubkey = os.path.join(
-        input_dir, 'etc', 'microdroid_bootloader.avbpubkey')
-    bootloader = os.path.join(input_dir, 'etc', 'microdroid_bootloader')
-    boot_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_boot-5.10.img')
-    vendor_boot_img = os.path.join(
-        input_dir, 'etc', 'fs', 'microdroid_vendor_boot-5.10.img')
-    init_boot_img = os.path.join(
-        input_dir, 'etc', 'fs', 'microdroid_init_boot.img')
-    super_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_super.img')
-    vbmeta_img = os.path.join(input_dir, 'etc', 'fs', 'microdroid_vbmeta.img')
-    vbmeta_bootconfig_img = os.path.join(
-        input_dir, 'etc', 'fs', 'microdroid_vbmeta_bootconfig.img')
-    bootconfig_normal = os.path.join(
-        input_dir, 'etc', 'microdroid_bootconfig.normal')
-    bootconfig_app_debuggable = os.path.join(
-        input_dir, 'etc', 'microdroid_bootconfig.app_debuggable')
-    bootconfig_full_debuggable = os.path.join(
-        input_dir, 'etc', 'microdroid_bootconfig.full_debuggable')
-    uboot_env_img = os.path.join(
-        input_dir, 'etc', 'uboot_env.img')
+    # unpacked files (will be unpacked from super.img below)
+    system_a_img = os.path.join(unpack_dir.name, 'system_a.img')
+    vendor_a_img = os.path.join(unpack_dir.name, 'vendor_a.img')
 
-    # Key(pubkey) for bootloader should match with the one used to make VBmeta below
+    # Key(pubkey) embedded in bootloader should match with the one used to make VBmeta below
     # while it's okay to use different keys for other image files.
-    ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey)
+    replace_f = Async(ReplaceBootloaderPubkey, args,
+                      key, files['bootloader'], files['bootloader.pubkey'])
 
     # re-sign bootloader, boot.img, vendor_boot.img, and init_boot.img
-    AddHashFooter(args, key, bootloader)
-    AddHashFooter(args, key, boot_img)
-    AddHashFooter(args, key, vendor_boot_img)
-    AddHashFooter(args, key, init_boot_img)
+    Async(AddHashFooter, args, key, files['bootloader'], wait=[replace_f])
+    boot_img_f = Async(AddHashFooter, args, key, files['boot.img'])
+    vendor_boot_img_f = Async(AddHashFooter, args, key, files['vendor_boot.img'])
+    init_boot_img_f = Async(AddHashFooter, args, key, files['init_boot.img'])
 
     # re-sign super.img
-    with TempDirectory() as work_dir:
-        # unpack super.img
-        tmp_super_img = os.path.join(work_dir, 'super.img')
-        RunCommand(args, ['simg2img', super_img, tmp_super_img])
-        RunCommand(args, ['lpunpack', tmp_super_img, work_dir])
+    super_img_f = Async(SignSuperImg, args, key, files['super.img'], unpack_dir.name)
 
-        system_a_img = os.path.join(work_dir, 'system_a.img')
-        vendor_a_img = os.path.join(work_dir, 'vendor_a.img')
-        partitions = {"system_a": system_a_img, "vendor_a": vendor_a_img}
-
-        # re-sign partitions in super.img
-        for img in partitions.values():
-            AddHashTreeFooter(args, key, img)
-
-        # re-pack super.img
-        MakeSuperImage(args, partitions, super_img)
-
-        # re-generate vbmeta from re-signed {boot, vendor_boot, init_boot, system_a, vendor_a}.img
-        # Ideally, making VBmeta should be done out of TempDirectory block. But doing it here
-        # to avoid unpacking re-signed super.img for system/vendor images which are available
-        # in this block.
-        MakeVbmetaImage(args, key, vbmeta_img, images=[
-                        boot_img, vendor_boot_img, init_boot_img, system_a_img, vendor_a_img])
+    # re-generate vbmeta from re-signed {boot, vendor_boot, init_boot, system_a, vendor_a}.img
+    Async(MakeVbmetaImage, args, key, files['vbmeta.img'],
+          images=[files['boot.img'], files['vendor_boot.img'],
+                  files['init_boot.img'], system_a_img, vendor_a_img],
+          wait=[boot_img_f, vendor_boot_img_f, init_boot_img_f, super_img_f])
 
     # Re-sign bootconfigs and the uboot_env with the same key
     bootconfig_sign_key = key
-    AddHashFooter(args, bootconfig_sign_key, bootconfig_normal)
-    AddHashFooter(args, bootconfig_sign_key, bootconfig_app_debuggable)
-    AddHashFooter(args, bootconfig_sign_key, bootconfig_full_debuggable)
-    AddHashFooter(args, bootconfig_sign_key, uboot_env_img)
+    Async(AddHashFooter, args, bootconfig_sign_key, files['bootconfig.normal'])
+    Async(AddHashFooter, args, bootconfig_sign_key, files['bootconfig.app_debuggable'])
+    Async(AddHashFooter, args, bootconfig_sign_key, files['bootconfig.full_debuggable'])
+    Async(AddHashFooter, args, bootconfig_sign_key, files['uboot_env.img'])
 
     # Re-sign vbmeta_bootconfig with chained_partitions to "bootconfig" and
     # "uboot_env". Note that, for now, `key` and `bootconfig_sign_key` are the
     # same, but technically they can be different. Vbmeta records pubkeys which
     # signed chained partitions.
-    MakeVbmetaImage(args, key, vbmeta_bootconfig_img, chained_partitions={
-                    'bootconfig': bootconfig_sign_key,
-                    'uboot_env': bootconfig_sign_key,
+    Async(MakeVbmetaImage, args, key, files['vbmeta_bootconfig.img'], chained_partitions={
+        'bootconfig': bootconfig_sign_key,
+        'uboot_env': bootconfig_sign_key,
     })
 
 
 def VerifyVirtApex(args):
-    # Generator to emit avbtool-signed items along with its pubkey digest.
-    # This supports lpmake-packed images as well.
-    def Recur(target_dir):
-        for file in glob.glob(os.path.join(target_dir, 'etc', '**', '*'), recursive=True):
-            cur_item = os.path.relpath(file, target_dir)
+    key = args.key
+    input_dir = args.input_dir
+    files = TargetFiles(input_dir)
 
-            if not os.path.isfile(file):
-                continue
+    # unpacked files
+    UnpackSuperImg(args, files['super.img'], unpack_dir.name)
+    system_a_img = os.path.join(unpack_dir.name, 'system_a.img')
+    vendor_a_img = os.path.join(unpack_dir.name, 'vendor_a.img')
 
-            # avbpubkey
-            if cur_item == 'etc/microdroid_bootloader.avbpubkey':
-                with open(file, 'rb') as f:
-                    yield (cur_item, hashlib.sha1(f.read()).hexdigest())
-                continue
+    # Read pubkey digest from the input key
+    with tempfile.NamedTemporaryFile() as pubkey_file:
+        ExtractAvbPubkey(args, key, pubkey_file.name)
+        with open(pubkey_file.name, 'rb') as f:
+            pubkey = f.read()
+            pubkey_digest = hashlib.sha1(pubkey).hexdigest()
 
-            # avbtool signed
-            info, _ = AvbInfo(args, file)
-            if info:
-                yield (cur_item, info['Public key (sha1)'])
-                continue
+    def contents(file):
+        with open(file, 'rb') as f:
+            return f.read()
 
-            # logical partition
-            with TempDirectory() as tmp_dir:
-                unsparsed = os.path.join(tmp_dir, os.path.basename(file))
-                _, rc = RunCommand(
-                    # exit with 255 if it's not sparsed
-                    args, ['simg2img', file, unsparsed], expected_return_values={0, 255})
-                if rc == 0:
-                    with TempDirectory() as unpack_dir:
-                        # exit with 64 if it's not a logical partition.
-                        _, rc = RunCommand(
-                            args, ['lpunpack', unsparsed, unpack_dir], expected_return_values={0, 64})
-                        if rc == 0:
-                            nested_items = list(Recur(unpack_dir))
-                            if len(nested_items) > 0:
-                                for (item, key) in nested_items:
-                                    yield ('%s!/%s' % (cur_item, item), key)
-                                continue
-    # Read pubkey digest
-    with TempDirectory() as tmp_dir:
-        pubkey_file = os.path.join(tmp_dir, 'avbpubkey')
-        ExtractAvbPubkey(args, args.key, pubkey_file)
-        with open(pubkey_file, 'rb') as f:
-            pubkey_digest = hashlib.sha1(f.read()).hexdigest()
+    def check_equals_pubkey(file):
+        assert contents(file) == pubkey, 'pubkey mismatch: %s' % file
 
-    # Check every avbtool-signed item against the input key
-    for (item, pubkey) in Recur(args.input_dir):
-        assert pubkey == pubkey_digest, '%s: key mismatch: %s != %s' % (
-            item, pubkey, pubkey_digest)
+    def check_contains_pubkey(file):
+        assert contents(file).find(pubkey) != -1, 'pubkey missing: %s' % file
+
+    def check_avb_pubkey(file):
+        info, _ = AvbInfo(args, file)
+        assert info is not None, 'no avbinfo: %s' % file
+        assert info['Public key (sha1)'] == pubkey_digest, 'pubkey mismatch: %s' % file
+
+    for f in files.values():
+        if f == files['bootloader.pubkey']:
+            Async(check_equals_pubkey, f)
+        elif f == files['bootloader']:
+            Async(check_contains_pubkey, f)
+        elif f == files['super.img']:
+            Async(check_avb_pubkey, system_a_img)
+            Async(check_avb_pubkey, vendor_a_img)
+        else:
+            # Check pubkey for other files using avbtool
+            Async(check_avb_pubkey, f)
 
 
 def main(argv):
@@ -442,8 +478,10 @@ def main(argv):
             VerifyVirtApex(args)
         else:
             SignVirtApex(args)
-    except Exception as e:
-        print(e)
+        # ensure all tasks are completed without exceptions
+        AwaitAll(tasks)
+    except: # pylint: disable=bare-except
+        traceback.print_exc()
         sys.exit(1)
 
 
