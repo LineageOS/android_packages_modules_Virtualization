@@ -53,7 +53,6 @@ class IsolatedCompilationMetrics {
     public static final int SCHEDULING_FAILURE = 1;
 
     private long mCompilationStartTimeMs = 0;
-    private boolean mEnabled = true; // TODO(b/205296305) Remove this
 
     public static void onCompilationScheduled(@ScheduleJobResult int result) {
         // TODO(b/218525257): write to ArtStatsLog instead of logcat
@@ -61,21 +60,11 @@ class IsolatedCompilationMetrics {
         Log.i(TAG, "ISOLATED_COMPILATION_SCHEDULED: " + result);
     }
 
-    public void disable() {
-        mEnabled = false;
-    }
-
     public void onCompilationStarted() {
-        if (mEnabled) {
-            mCompilationStartTimeMs = SystemClock.elapsedRealtime();
-        }
+        mCompilationStartTimeMs = SystemClock.elapsedRealtime();
     }
 
     public void onCompilationEnded(@CompilationResult int result) {
-        if (!mEnabled) {
-            return;
-        }
-
         long compilationTime = mCompilationStartTimeMs == 0 ? -1
                 : SystemClock.elapsedRealtime() - mCompilationStartTimeMs;
         mCompilationStartTimeMs = 0;
