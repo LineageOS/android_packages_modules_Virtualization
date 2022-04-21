@@ -31,6 +31,9 @@ import android.system.composd.ICompilationTaskCallback;
 import android.system.composd.IIsolatedCompilationService;
 import android.util.Log;
 
+import com.android.server.compos.IsolatedCompilationMetrics.CompilationResult;
+
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -73,9 +76,15 @@ public class IsolatedCompilationJobService extends JobService {
                 .setRequiresCharging(true)
                 .setRequiresStorageNotLow(true)
                 .build());
-        if (result != JobScheduler.RESULT_SUCCESS) {
+        if (result == JobScheduler.RESULT_SUCCESS) {
+            IsolatedCompilationMetrics.onCompilationScheduled(
+                    IsolatedCompilationMetrics.SCHEDULING_SUCCESS);
+        } else {
+            IsolatedCompilationMetrics.onCompilationScheduled(
+                    IsolatedCompilationMetrics.SCHEDULING_FAILURE);
             Log.e(TAG, "Failed to schedule staged APEX job");
         }
+
     }
 
     static boolean isStagedApexJobScheduled(JobScheduler scheduler) {
@@ -99,8 +108,13 @@ public class IsolatedCompilationJobService extends JobService {
             return false;  // Already finished
         }
 
+        IsolatedCompilationMetrics metrics = new IsolatedCompilationMetrics();
+        if (jobId != STAGED_APEX_JOB_ID) {
+            metrics.disable();
+        }
+
         CompilationJob newJob = new CompilationJob(IsolatedCompilationJobService.this::onCompletion,
-                params);
+                params, metrics);
         mCurrentJob.set(newJob);
 
         // This can take some time - we need to start up a VM - so we do it on a separate
@@ -113,6 +127,7 @@ public class IsolatedCompilationJobService extends JobService {
                     newJob.start(jobId);
                 } catch (RuntimeException e) {
                     Log.e(TAG, "Starting CompilationJob failed", e);
+                    metrics.onCompilationEnded(IsolatedCompilationMetrics.RESULT_FAILED_TO_START);
                     mCurrentJob.set(null);
                     newJob.stop(); // Just in case it managed to start before failure
                     jobFinished(params, /*wantReschedule=*/ false);
@@ -153,15 +168,17 @@ public class IsolatedCompilationJobService extends JobService {
 
     static class CompilationJob extends ICompilationTaskCallback.Stub
             implements IBinder.DeathRecipient {
+        private final IsolatedCompilationMetrics mMetrics;
         private final AtomicReference<ICompilationTask> mTask = new AtomicReference<>();
         private final CompilationCallback mCallback;
         private final JobParameters mParams;
         private volatile boolean mStopRequested = false;
-        private volatile boolean mCanceled = false;
 
-        CompilationJob(CompilationCallback callback, JobParameters params) {
+        CompilationJob(CompilationCallback callback, JobParameters params,
+                IsolatedCompilationMetrics metrics) {
             mCallback = requireNonNull(callback);
             mParams = params;
+            mMetrics = requireNonNull(metrics);
         }
 
         void start(int jobId) {
@@ -181,6 +198,7 @@ public class IsolatedCompilationJobService extends JobService {
                 } else {
                     composTask = composd.startStagedApexCompile(this);
                 }
+                mMetrics.onCompilationStarted();
                 mTask.set(composTask);
                 composTask.asBinder().linkToDeath(this, 0);
             } catch (RemoteException e) {
@@ -202,10 +220,10 @@ public class IsolatedCompilationJobService extends JobService {
         private void cancelTask() {
             ICompilationTask task = mTask.getAndSet(null);
             if (task != null) {
-                mCanceled = true;
                 Log.i(TAG, "Cancelling task");
                 try {
                     task.cancel();
+                    mMetrics.onCompilationEnded(IsolatedCompilationMetrics.RESULT_JOB_CANCELED);
                 } catch (RuntimeException | RemoteException e) {
                     // If canceling failed we'll assume it means that the task has already failed;
                     // there's nothing else we can do anyway.
@@ -216,23 +234,44 @@ public class IsolatedCompilationJobService extends JobService {
 
         @Override
         public void binderDied() {
-            onFailure();
+            onCompletion(false, IsolatedCompilationMetrics.RESULT_COMPOSD_DIED);
         }
 
         @Override
         public void onSuccess() {
-            onCompletion(true);
+            onCompletion(true, IsolatedCompilationMetrics.RESULT_SUCCESS);
         }
 
         @Override
-        public void onFailure() {
-            onCompletion(false);
+        public void onFailure(byte reason, String message) {
+            int result;
+            switch (reason) {
+                case ICompilationTaskCallback.FailureReason.CompilationFailed:
+                    result = IsolatedCompilationMetrics.RESULT_COMPILATION_FAILED;
+                    break;
+
+                case ICompilationTaskCallback.FailureReason.UnexpectedCompilationResult:
+                    result = IsolatedCompilationMetrics.RESULT_UNEXPECTED_COMPILATION_RESULT;
+                    break;
+
+                default:
+                    result = IsolatedCompilationMetrics.RESULT_UNKNOWN_FAILURE;
+                    break;
+            }
+            Log.w(TAG, "Compilation failed: " + message);
+            onCompletion(false, result);
         }
 
-        private void onCompletion(boolean succeeded) {
-            mTask.set(null);
-            if (!mCanceled) {
+        private void onCompletion(boolean succeeded, @CompilationResult int result) {
+            ICompilationTask task = mTask.getAndSet(null);
+            if (task != null) {
+                mMetrics.onCompilationEnded(result);
                 mCallback.onCompletion(mParams, succeeded);
+                try {
+                    task.asBinder().unlinkToDeath(this, 0);
+                } catch (NoSuchElementException e) {
+                    // Harmless
+                }
             }
         }
     }
