@@ -19,7 +19,9 @@
 use android_system_composd::{
     aidl::android::system::composd::{
         ICompilationTask::ICompilationTask,
-        ICompilationTaskCallback::{BnCompilationTaskCallback, ICompilationTaskCallback},
+        ICompilationTaskCallback::{
+            BnCompilationTaskCallback, FailureReason::FailureReason, ICompilationTaskCallback,
+        },
         IIsolatedCompilationService::ApexSource::ApexSource,
         IIsolatedCompilationService::IIsolatedCompilationService,
     },
@@ -68,10 +70,10 @@ struct State {
     completed: Condvar,
 }
 
-#[derive(Copy, Clone)]
 enum Outcome {
     Succeeded,
-    Failed,
+    Failed(FailureReason, String),
+    TaskDied,
 }
 
 impl Interface for Callback {}
@@ -82,8 +84,8 @@ impl ICompilationTaskCallback for Callback {
         Ok(())
     }
 
-    fn onFailure(&self) -> BinderResult<()> {
-        self.0.set_outcome(Outcome::Failed);
+    fn onFailure(&self, reason: FailureReason, message: &str) -> BinderResult<()> {
+        self.0.set_outcome(Outcome::Failed(reason, message.to_owned()));
         Ok(())
     }
 }
@@ -97,14 +99,14 @@ impl State {
     }
 
     fn wait(&self, duration: Duration) -> Result<Outcome> {
-        let (outcome, result) = self
+        let (mut outcome, result) = self
             .completed
             .wait_timeout_while(self.mutex.lock().unwrap(), duration, |outcome| outcome.is_none())
             .unwrap();
         if result.timed_out() {
             bail!("Timed out waiting for compilation")
         }
-        Ok(outcome.unwrap())
+        Ok(outcome.take().unwrap())
     }
 }
 
@@ -138,7 +140,7 @@ where
     let state_clone = state.clone();
     let mut death_recipient = DeathRecipient::new(move || {
         eprintln!("CompilationTask died");
-        state_clone.set_outcome(Outcome::Failed);
+        state_clone.set_outcome(Outcome::TaskDied);
     });
     // Note that dropping death_recipient cancels this, so we can't use a temporary here.
     task.as_binder().link_to_death(&mut death_recipient)?;
@@ -147,7 +149,10 @@ where
 
     match state.wait(timeouts()?.odrefresh_max_execution_time) {
         Ok(Outcome::Succeeded) => Ok(()),
-        Ok(Outcome::Failed) => bail!("Compilation failed"),
+        Ok(Outcome::TaskDied) => bail!("Compilation task died"),
+        Ok(Outcome::Failed(reason, message)) => {
+            bail!("Compilation failed: {:?}: {}", reason, message)
+        }
         Err(e) => {
             if let Err(e) = task.cancel() {
                 eprintln!("Failed to cancel compilation: {:?}", e);
