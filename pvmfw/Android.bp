@@ -12,6 +12,9 @@ rust_ffi_static {
         "libcompiler_builtins.rust_sysroot",
         "libcore.rust_sysroot",
     ],
+    rustlibs: [
+        "libspin_nostd",
+    ],
     enabled: false,
     target: {
         android_arm64: {
@@ -25,6 +28,7 @@ cc_binary {
     name: "pvmfw",
     srcs: [
         "entry.S",
+        "exceptions.S",
         "idmap.S",
     ],
     static_libs: [

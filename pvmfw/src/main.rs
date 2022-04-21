@@ -17,7 +17,10 @@
 #![no_main]
 #![no_std]
 
+mod console;
+mod exceptions;
 mod psci;
+mod uart;
 
 use core::panic::PanicInfo;
 use psci::{system_off, system_reset};
@@ -25,13 +28,17 @@ use psci::{system_off, system_reset};
 /// Entry point for pVM firmware.
 #[no_mangle]
 pub extern "C" fn main() -> ! {
+    console::init();
+    println!("Hello world");
+
     system_off();
     #[allow(clippy::empty_loop)]
     loop {}
 }
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    eprintln!("{}", info);
     system_reset();
     loop {}
 }

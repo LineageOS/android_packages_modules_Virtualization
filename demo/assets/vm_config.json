@@ -9,5 +9,6 @@
       "hello",
       "microdroid"
     ]
-  }
+  },
+  "export_tombstones": true
 }
