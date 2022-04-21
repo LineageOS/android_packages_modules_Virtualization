@@ -20,6 +20,13 @@ package android.system.composd;
  * requested compilation task completes.
  */
 oneway interface ICompilationTaskCallback {
+    enum FailureReason {
+        /** We failed to successfully start the VM and run compilation in it. */
+        CompilationFailed,
+        /** We ran compilation in the VM, but it reported a problem. */
+        UnexpectedCompilationResult,
+    }
+
     /**
      * Called if a compilation task has ended successfully, generating all the required artifacts.
      */
@@ -28,5 +35,5 @@ oneway interface ICompilationTaskCallback {
     /**
      * Called if a compilation task has ended unsuccessfully.
      */
-    void onFailure();
+    void onFailure(FailureReason reason, String message);
 }
