@@ -150,7 +150,7 @@ entry:
 	msr vbar_el1, x30
 
 	/* Call into Rust code. */
-	bl main
+	bl rust_entry
 
 	/* Loop forever waiting for interrupts. */
 4:	wfi
