@@ -20,6 +20,8 @@ import android.annotation.IntDef;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.android.internal.art.ArtStatsLog;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -33,30 +35,49 @@ class IsolatedCompilationMetrics {
 
     // TODO(b/218525257): Move the definition of these enums to atoms.proto
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({RESULT_SUCCESS, RESULT_UNKNOWN_FAILURE, RESULT_FAILED_TO_START, RESULT_JOB_CANCELED,
-            RESULT_COMPILATION_FAILED, RESULT_UNEXPECTED_COMPILATION_RESULT, RESULT_COMPOSD_DIED})
+    @IntDef({RESULT_UNKNOWN, RESULT_SUCCESS, RESULT_UNKNOWN_FAILURE, RESULT_FAILED_TO_START,
+            RESULT_JOB_CANCELED, RESULT_COMPILATION_FAILED, RESULT_UNEXPECTED_COMPILATION_RESULT,
+            RESULT_COMPOSD_DIED})
     public @interface CompilationResult {}
 
-    public static final int RESULT_SUCCESS = 0;
-    public static final int RESULT_UNKNOWN_FAILURE = 1;
-    public static final int RESULT_FAILED_TO_START = 2;
-    public static final int RESULT_JOB_CANCELED = 3;
-    public static final int RESULT_COMPILATION_FAILED = 4;
-    public static final int RESULT_UNEXPECTED_COMPILATION_RESULT = 5;
-    public static final int RESULT_COMPOSD_DIED = 6;
+    // Keep this in sync with Result enum in IsolatedCompilationEnded in
+    // frameworks/proto_logging/stats/atoms.proto
+    public static final int RESULT_UNKNOWN =
+            ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_UNKNOWN;
+    public static final int RESULT_SUCCESS =
+            ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_SUCCESS;
+    public static final int RESULT_UNKNOWN_FAILURE =
+            ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_UNKNOWN_FAILURE;
+    public static final int RESULT_FAILED_TO_START =
+            ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_FAILED_TO_START;
+    public static final int RESULT_JOB_CANCELED =
+            ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_JOB_CANCELED;
+    public static final int RESULT_COMPILATION_FAILED = ArtStatsLog
+            .ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_COMPILATION_FAILED;
+    public static final int RESULT_UNEXPECTED_COMPILATION_RESULT = ArtStatsLog
+            .ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_UNEXPECTED_COMPILATION_RESULT;
+    public static final int RESULT_COMPOSD_DIED =
+            ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_COMPOSD_DIED;
 
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({SCHEDULING_SUCCESS, SCHEDULING_FAILURE})
+    @IntDef({SCHEDULING_RESULT_UNKNOWN, SCHEDULING_SUCCESS, SCHEDULING_FAILURE})
     public @interface ScheduleJobResult {}
 
-    public static final int SCHEDULING_SUCCESS = 0;
-    public static final int SCHEDULING_FAILURE = 1;
+    // Keep this in sync with Result enum in IsolatedCompilationScheduled in
+    // frameworks/proto_logging/stats/atoms.proto
+
+    public static final int SCHEDULING_RESULT_UNKNOWN = ArtStatsLog
+            .ISOLATED_COMPILATION_SCHEDULED__SCHEDULING_RESULT__SCHEDULING_RESULT_UNKNOWN;
+    public static final int SCHEDULING_FAILURE =
+            ArtStatsLog.ISOLATED_COMPILATION_SCHEDULED__SCHEDULING_RESULT__SCHEDULING_FAILURE;
+    public static final int SCHEDULING_SUCCESS =
+            ArtStatsLog.ISOLATED_COMPILATION_SCHEDULED__SCHEDULING_RESULT__SCHEDULING_SUCCESS;
 
     private long mCompilationStartTimeMs = 0;
 
     public static void onCompilationScheduled(@ScheduleJobResult int result) {
         // TODO(b/218525257): write to ArtStatsLog instead of logcat
-        // ArtStatsLog.write(ArtStatsLog.ISOLATED_COMPILATION_SCHEDULED, result);
+        ArtStatsLog.write(ArtStatsLog.ISOLATED_COMPILATION_SCHEDULED, result);
         Log.i(TAG, "ISOLATED_COMPILATION_SCHEDULED: " + result);
     }
 
@@ -70,7 +91,7 @@ class IsolatedCompilationMetrics {
         mCompilationStartTimeMs = 0;
 
         // TODO(b/218525257): write to ArtStatsLog instead of logcat
-        // ArtStatsLog.write(ArtStatsLog.ISOLATED_COMPILATION_ENDED, result, compilationTime);
+        ArtStatsLog.write(ArtStatsLog.ISOLATED_COMPILATION_ENDED, compilationTime, result);
         Log.i(TAG, "ISOLATED_COMPILATION_ENDED: " + result + ", " + compilationTime);
     }
 }
