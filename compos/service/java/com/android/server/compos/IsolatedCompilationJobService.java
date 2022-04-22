@@ -31,6 +31,9 @@ import android.system.composd.ICompilationTaskCallback;
 import android.system.composd.IIsolatedCompilationService;
 import android.util.Log;
 
+import com.android.server.compos.IsolatedCompilationMetrics.CompilationResult;
+
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,25 +44,9 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class IsolatedCompilationJobService extends JobService {
     private static final String TAG = IsolatedCompilationJobService.class.getName();
-    private static final int DAILY_JOB_ID = 5132250;
     private static final int STAGED_APEX_JOB_ID = 5132251;
 
     private final AtomicReference<CompilationJob> mCurrentJob = new AtomicReference<>();
-
-    static void scheduleDailyJob(JobScheduler scheduler) {
-        // TODO(b/205296305) Remove this
-        ComponentName serviceName =
-                new ComponentName("android", IsolatedCompilationJobService.class.getName());
-
-        int result = scheduler.schedule(new JobInfo.Builder(DAILY_JOB_ID, serviceName)
-                .setRequiresDeviceIdle(true)
-                .setRequiresCharging(true)
-                .setPeriodic(TimeUnit.DAYS.toMillis(1))
-                .build());
-        if (result != JobScheduler.RESULT_SUCCESS) {
-            Log.e(TAG, "Failed to schedule daily job");
-        }
-    }
 
     static void scheduleStagedApexJob(JobScheduler scheduler) {
         ComponentName serviceName =
@@ -73,7 +60,12 @@ public class IsolatedCompilationJobService extends JobService {
                 .setRequiresCharging(true)
                 .setRequiresStorageNotLow(true)
                 .build());
-        if (result != JobScheduler.RESULT_SUCCESS) {
+        if (result == JobScheduler.RESULT_SUCCESS) {
+            IsolatedCompilationMetrics.onCompilationScheduled(
+                    IsolatedCompilationMetrics.SCHEDULING_SUCCESS);
+        } else {
+            IsolatedCompilationMetrics.onCompilationScheduled(
+                    IsolatedCompilationMetrics.SCHEDULING_FAILURE);
             Log.e(TAG, "Failed to schedule staged APEX job");
         }
     }
@@ -84,9 +76,7 @@ public class IsolatedCompilationJobService extends JobService {
 
     @Override
     public boolean onStartJob(JobParameters params) {
-        int jobId = params.getJobId();
-
-        Log.i(TAG, "Starting job " + jobId);
+        Log.i(TAG, "Starting job");
 
         // This function (and onStopJob) are only ever called on the main thread, so we don't have
         // to worry about two starts at once, or start and stop happening at once. But onCompletion
@@ -99,8 +89,10 @@ public class IsolatedCompilationJobService extends JobService {
             return false;  // Already finished
         }
 
+        IsolatedCompilationMetrics metrics = new IsolatedCompilationMetrics();
+
         CompilationJob newJob = new CompilationJob(IsolatedCompilationJobService.this::onCompletion,
-                params);
+                params, metrics);
         mCurrentJob.set(newJob);
 
         // This can take some time - we need to start up a VM - so we do it on a separate
@@ -110,9 +102,10 @@ public class IsolatedCompilationJobService extends JobService {
             @Override
             public void run() {
                 try {
-                    newJob.start(jobId);
+                    newJob.start();
                 } catch (RuntimeException e) {
                     Log.e(TAG, "Starting CompilationJob failed", e);
+                    metrics.onCompilationEnded(IsolatedCompilationMetrics.RESULT_FAILED_TO_START);
                     mCurrentJob.set(null);
                     newJob.stop(); // Just in case it managed to start before failure
                     jobFinished(params, /*wantReschedule=*/ false);
@@ -153,18 +146,20 @@ public class IsolatedCompilationJobService extends JobService {
 
     static class CompilationJob extends ICompilationTaskCallback.Stub
             implements IBinder.DeathRecipient {
+        private final IsolatedCompilationMetrics mMetrics;
         private final AtomicReference<ICompilationTask> mTask = new AtomicReference<>();
         private final CompilationCallback mCallback;
         private final JobParameters mParams;
         private volatile boolean mStopRequested = false;
-        private volatile boolean mCanceled = false;
 
-        CompilationJob(CompilationCallback callback, JobParameters params) {
+        CompilationJob(CompilationCallback callback, JobParameters params,
+                IsolatedCompilationMetrics metrics) {
             mCallback = requireNonNull(callback);
             mParams = params;
+            mMetrics = requireNonNull(metrics);
         }
 
-        void start(int jobId) {
+        void start() {
             IBinder binder = ServiceManager.waitForService("android.system.composd");
             IIsolatedCompilationService composd =
                     IIsolatedCompilationService.Stub.asInterface(binder);
@@ -174,13 +169,8 @@ public class IsolatedCompilationJobService extends JobService {
             }
 
             try {
-                ICompilationTask composTask;
-                if (jobId == DAILY_JOB_ID) {
-                    composTask = composd.startTestCompile(
-                            IIsolatedCompilationService.ApexSource.NoStaged, this);
-                } else {
-                    composTask = composd.startStagedApexCompile(this);
-                }
+                ICompilationTask composTask = composd.startStagedApexCompile(this);
+                mMetrics.onCompilationStarted();
                 mTask.set(composTask);
                 composTask.asBinder().linkToDeath(this, 0);
             } catch (RemoteException e) {
@@ -201,38 +191,67 @@ public class IsolatedCompilationJobService extends JobService {
 
         private void cancelTask() {
             ICompilationTask task = mTask.getAndSet(null);
-            if (task != null) {
-                mCanceled = true;
-                Log.i(TAG, "Cancelling task");
-                try {
-                    task.cancel();
-                } catch (RuntimeException | RemoteException e) {
-                    // If canceling failed we'll assume it means that the task has already failed;
-                    // there's nothing else we can do anyway.
-                    Log.w(TAG, "Failed to cancel CompilationTask", e);
-                }
+            if (task == null) {
+                return;
+            }
+
+            Log.i(TAG, "Cancelling task");
+            try {
+                task.cancel();
+            } catch (RuntimeException | RemoteException e) {
+                // If canceling failed we'll assume it means that the task has already failed;
+                // there's nothing else we can do anyway.
+                Log.w(TAG, "Failed to cancel CompilationTask", e);
+            }
+
+            mMetrics.onCompilationEnded(IsolatedCompilationMetrics.RESULT_JOB_CANCELED);
+            try {
+                task.asBinder().unlinkToDeath(this, 0);
+            } catch (NoSuchElementException e) {
+                // Harmless
             }
         }
 
         @Override
         public void binderDied() {
-            onFailure();
+            onCompletion(false, IsolatedCompilationMetrics.RESULT_COMPOSD_DIED);
         }
 
         @Override
         public void onSuccess() {
-            onCompletion(true);
+            onCompletion(true, IsolatedCompilationMetrics.RESULT_SUCCESS);
         }
 
         @Override
-        public void onFailure() {
-            onCompletion(false);
+        public void onFailure(byte reason, String message) {
+            int result;
+            switch (reason) {
+                case ICompilationTaskCallback.FailureReason.CompilationFailed:
+                    result = IsolatedCompilationMetrics.RESULT_COMPILATION_FAILED;
+                    break;
+
+                case ICompilationTaskCallback.FailureReason.UnexpectedCompilationResult:
+                    result = IsolatedCompilationMetrics.RESULT_UNEXPECTED_COMPILATION_RESULT;
+                    break;
+
+                default:
+                    result = IsolatedCompilationMetrics.RESULT_UNKNOWN_FAILURE;
+                    break;
+            }
+            Log.w(TAG, "Compilation failed: " + message);
+            onCompletion(false, result);
         }
 
-        private void onCompletion(boolean succeeded) {
-            mTask.set(null);
-            if (!mCanceled) {
+        private void onCompletion(boolean succeeded, @CompilationResult int result) {
+            ICompilationTask task = mTask.getAndSet(null);
+            if (task != null) {
+                mMetrics.onCompilationEnded(result);
                 mCallback.onCompletion(mParams, succeeded);
+                try {
+                    task.asBinder().unlinkToDeath(this, 0);
+                } catch (NoSuchElementException e) {
+                    // Harmless
+                }
             }
         }
     }

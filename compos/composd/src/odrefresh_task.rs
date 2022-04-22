@@ -19,7 +19,8 @@
 use crate::fd_server_helper::FdServerConfig;
 use crate::instance_starter::CompOsInstance;
 use android_system_composd::aidl::android::system::composd::{
-    ICompilationTask::ICompilationTask, ICompilationTaskCallback::ICompilationTaskCallback,
+    ICompilationTask::ICompilationTask,
+    ICompilationTaskCallback::{FailureReason::FailureReason, ICompilationTaskCallback},
 };
 use android_system_composd::binder::{Interface, Result as BinderResult, Strong};
 use anyhow::{Context, Result};
@@ -99,12 +100,15 @@ impl OdrefreshTask {
                         task.callback.onSuccess()
                     }
                     Ok(exit_code) => {
-                        error!("Unexpected odrefresh result: {:?}", exit_code);
-                        task.callback.onFailure()
+                        let message = format!("Unexpected odrefresh result: {:?}", exit_code);
+                        error!("{}", message);
+                        task.callback
+                            .onFailure(FailureReason::UnexpectedCompilationResult, &message)
                     }
                     Err(e) => {
-                        error!("Running odrefresh failed: {:?}", e);
-                        task.callback.onFailure()
+                        let message = format!("Running odrefresh failed: {:?}", e);
+                        error!("{}", message);
+                        task.callback.onFailure(FailureReason::CompilationFailed, &message)
                     }
                 };
                 if let Err(e) = result {
