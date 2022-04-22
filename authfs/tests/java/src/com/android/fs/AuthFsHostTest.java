@@ -49,6 +49,7 @@ import com.android.tradefed.util.CommandStatus;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -62,6 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
+@Ignore("TODO(b/229823049): Make this work")
 public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
     /** Test directory on Android where data are located */
