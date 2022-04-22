@@ -27,12 +27,11 @@ rust_ffi_static {
 cc_binary {
     name: "pvmfw",
     srcs: [
-        "entry.S",
-        "exceptions.S",
         "idmap.S",
     ],
     static_libs: [
         "libpvmfw",
+        "libvmbase_entry",
     ],
     static_executable: true,
     nocrt: true,

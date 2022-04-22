@@ -16,3 +16,22 @@ rust_library_rlib {
     },
     apex_available: ["com.android.virt"],
 }
+
+cc_library_static {
+    name: "libvmbase_entry",
+    srcs: [
+        "entry.S",
+        "exceptions.S",
+    ],
+    nocrt: true,
+    no_libcrt: true,
+    system_shared_libs: [],
+    stl: "none",
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    apex_available: ["com.android.virt"],
+}
