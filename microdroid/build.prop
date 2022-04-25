@@ -5,9 +5,9 @@ service.adb.listen_addrs=vsock:5555
 
 # TODO(b/189164487): support build related properties
 ro.build.version.codename=Tiramisu
-ro.build.version.release=12
-ro.build.version.sdk=32
-ro.build.version.security_patch=2021-12-05
+ro.build.version.release=13
+ro.build.version.sdk=33
+ro.build.version.security_patch=2022-06-05
 
 # Payload metadata partition
 apexd.payload_metadata.path=/dev/block/by-name/payload-metadata
