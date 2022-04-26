@@ -64,6 +64,7 @@ pub struct CrosvmConfig {
     pub memory_mib: Option<NonZeroU32>,
     pub cpus: Option<NonZeroU32>,
     pub cpu_affinity: Option<String>,
+    pub task_profiles: Vec<String>,
     pub console_fd: Option<File>,
     pub log_fd: Option<File>,
     pub indirect_files: Vec<File>,
@@ -324,6 +325,10 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
 
     if let Some(cpu_affinity) = config.cpu_affinity {
         command.arg("--cpu-affinity").arg(cpu_affinity);
+    }
+
+    if !config.task_profiles.is_empty() {
+        command.arg("--task-profiles").arg(config.task_profiles.join(","));
     }
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
