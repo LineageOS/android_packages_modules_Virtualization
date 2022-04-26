@@ -54,6 +54,7 @@ pub fn command_run_app(
     mem: Option<u32>,
     cpus: Option<u32>,
     cpu_affinity: Option<String>,
+    task_profiles: Vec<String>,
     extra_idsigs: &[PathBuf],
 ) -> Result<(), Error> {
     let extra_apks = parse_extra_apk_list(apk, config_path)?;
@@ -105,6 +106,7 @@ pub fn command_run_app(
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
         numCpus: cpus.unwrap_or(1) as i32,
         cpuAffinity: cpu_affinity,
+        taskProfiles: task_profiles,
     });
     run(
         service,
@@ -127,6 +129,7 @@ pub fn command_run(
     mem: Option<u32>,
     cpus: Option<u32>,
     cpu_affinity: Option<String>,
+    task_profiles: Vec<String>,
 ) -> Result<(), Error> {
     let config_file = File::open(config_path).context("Failed to open config file")?;
     let mut config =
@@ -138,6 +141,7 @@ pub fn command_run(
         config.numCpus = cpus as i32;
     }
     config.cpuAffinity = cpu_affinity;
+    config.taskProfiles = task_profiles;
     run(
         service,
         &VirtualMachineConfig::RawConfig(config),
