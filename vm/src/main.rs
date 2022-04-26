@@ -92,6 +92,10 @@ enum Opt {
         #[structopt(long)]
         cpu_affinity: Option<String>,
 
+        /// Comma separated list of task profile names to apply to the VM
+        #[structopt(long)]
+        task_profiles: Vec<String>,
+
         /// Paths to extra idsig files.
         #[structopt(long = "extra-idsig")]
         extra_idsigs: Vec<PathBuf>,
@@ -117,6 +121,10 @@ enum Opt {
         /// CPU 0 and so on.
         #[structopt(long)]
         cpu_affinity: Option<String>,
+
+        /// Comma separated list of task profile names to apply to the VM
+        #[structopt(long)]
+        task_profiles: Vec<String>,
 
         /// Path to file for VM console output.
         #[structopt(long)]
@@ -200,6 +208,7 @@ fn main() -> Result<(), Error> {
             mem,
             cpus,
             cpu_affinity,
+            task_profiles,
             extra_idsigs,
         } => command_run_app(
             service,
@@ -215,9 +224,10 @@ fn main() -> Result<(), Error> {
             mem,
             cpus,
             cpu_affinity,
+            task_profiles,
             &extra_idsigs,
         ),
-        Opt::Run { config, daemonize, cpus, cpu_affinity, console, log } => {
+        Opt::Run { config, daemonize, cpus, cpu_affinity, task_profiles, console, log } => {
             command_run(
                 service,
                 &config,
@@ -227,6 +237,7 @@ fn main() -> Result<(), Error> {
                 /* mem */ None,
                 cpus,
                 cpu_affinity,
+                task_profiles,
             )
         }
         Opt::Stop { cid } => command_stop(service, cid),
