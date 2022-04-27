@@ -67,4 +67,9 @@ parcelable VirtualMachineAppConfig {
      * Default is no mask which means a vCPU can run on any host CPU.
      */
     @nullable String cpuAffinity;
+
+    /**
+     * List of task profile names to apply for the VM
+     */
+    String[] taskProfiles;
 }
