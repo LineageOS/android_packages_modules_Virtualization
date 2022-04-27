@@ -49,7 +49,6 @@ import com.android.tradefed.util.CommandStatus;
 import org.junit.After;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -63,7 +62,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
-@Ignore("TODO(b/229823049): Make this work")
 public final class AuthFsHostTest extends VirtualizationTestCaseBase {
 
     /** Test directory on Android where data are located */
@@ -150,11 +148,12 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                         .addExtraIdsigPath(EXTRA_IDSIG_PATH)
                         .build((TestDevice) androidDevice);
 
+        // From this point on, we need to tear down the Microdroid instance
+        sMicrodroid = new CommandRunner(microdroidDevice);
+
         // Root because authfs (started from shell in this test) currently require root to open
         // /dev/fuse and mount the FUSE.
         assertThat(microdroidDevice.enableAdbRoot()).isTrue();
-
-        sMicrodroid = new CommandRunner(microdroidDevice);
     }
 
     @AfterClassWithInfo
