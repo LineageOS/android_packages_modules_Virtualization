@@ -55,4 +55,11 @@ interface ICompOsService {
      * (https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.5).
      */
     byte[] getPublicKey();
+
+    /**
+     * Returns the attestation certificate chain of the current VM. The result is in the form of a
+     * CBOR encoded Boot Certificate Chain (BCC) as defined in
+     * hardware/interfaces/security/dice/aidl/android/hardware/security/dice/Bcc.aidl.
+     */
+    byte[] getAttestationChain();
 }
