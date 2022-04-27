@@ -25,6 +25,7 @@
 
 #include "compos_key.h"
 
+using aidl::android::hardware::security::dice::Bcc;
 using aidl::android::hardware::security::dice::BccHandover;
 using aidl::android::hardware::security::dice::InputValues;
 using aidl::android::security::dice::IDiceNode;
@@ -68,6 +69,30 @@ int write_public_key() {
     return 0;
 }
 
+int write_bcc() {
+    ndk::SpAIBinder binder{AServiceManager_getService("android.security.dice.IDiceNode")};
+    auto dice_node = IDiceNode::fromBinder(binder);
+    if (!dice_node) {
+        LOG(ERROR) << "Unable to connect to IDiceNode";
+        return 1;
+    }
+
+    const std::vector<InputValues> empty_input_values;
+    Bcc bcc;
+    auto status = dice_node->getAttestationChain(empty_input_values, &bcc);
+    if (!status.isOk()) {
+        LOG(ERROR) << "GetAttestationChain failed: " << status.getDescription();
+        return 1;
+    }
+
+    if (!WriteFully(STDOUT_FILENO, bcc.data.data(), bcc.data.size())) {
+        PLOG(ERROR) << "Write failed";
+        return 1;
+    }
+
+    return 0;
+}
+
 int sign_input() {
     std::string to_sign;
     if (!ReadFdToString(STDIN_FILENO, &to_sign)) {
@@ -103,6 +128,8 @@ int main(int argc, char** argv) {
     if (argc == 2) {
         if (argv[1] == "public_key"sv) {
             return write_public_key();
+        } else if (argv[1] == "bcc"sv) {
+            return write_bcc();
         } else if (argv[1] == "sign"sv) {
             return sign_input();
         }
