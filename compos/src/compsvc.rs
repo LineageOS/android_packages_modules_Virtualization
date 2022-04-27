@@ -86,6 +86,10 @@ impl ICompOsService for CompOsService {
     fn getPublicKey(&self) -> BinderResult<Vec<u8>> {
         to_binder_result(compos_key::get_public_key())
     }
+
+    fn getAttestationChain(&self) -> BinderResult<Vec<u8>> {
+        to_binder_result(compos_key::get_attestation_chain())
+    }
 }
 
 fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {
