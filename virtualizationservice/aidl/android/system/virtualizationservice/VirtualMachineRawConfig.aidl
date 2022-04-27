@@ -63,4 +63,9 @@ parcelable VirtualMachineRawConfig {
      * The format follows SemVer.
      */
     @utf8InCpp String platformVersion;
+
+    /**
+     * List of task profile names to apply for the VM
+     */
+    String[] taskProfiles;
 }
