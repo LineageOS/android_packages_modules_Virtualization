@@ -87,7 +87,13 @@ impl InstanceStarter {
         let _ = fs::remove_file(&self.idsig);
         let _ = fs::remove_file(&self.idsig_manifest_apk);
 
-        self.start_vm(virtualization_service)
+        let instance = self.start_vm(virtualization_service)?;
+
+        // Retrieve the VM's attestation chain as a BCC and save it in the instance directory.
+        let bcc = instance.service.getAttestationChain().context("Getting attestation chain")?;
+        fs::write(self.instance_root.join("bcc"), bcc).context("Writing BCC")?;
+
+        Ok(instance)
     }
 
     fn start_vm(
