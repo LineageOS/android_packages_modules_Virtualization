@@ -1,0 +1,62 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_ffi_static {
+    name: "libvmbase_example",
+    crate_name: "vmbase_example",
+    srcs: ["src/main.rs"],
+    edition: "2021",
+    no_stdlibs: true,
+    stdlibs: [
+        "libcompiler_builtins.rust_sysroot",
+        "libcore.rust_sysroot",
+    ],
+    rustlibs: [
+        "libvmbase",
+    ],
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    apex_available: ["com.android.virt"],
+}
+
+cc_binary {
+    name: "vmbase_example_elf",
+    stem: "vmbase_example",
+    srcs: [
+        "idmap.S",
+    ],
+    static_libs: [
+        "libvmbase_entry",
+        "libvmbase_example",
+    ],
+    static_executable: true,
+    nocrt: true,
+    system_shared_libs: ["libc"],
+    stl: "none",
+    linker_scripts: ["image.ld"],
+    installable: false,
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    apex_available: ["com.android.virt"],
+}
+
+raw_binary {
+    name: "vmbase_example",
+    src: ":vmbase_example_elf",
+    stem: "vmbase_example.bin",
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+}
