@@ -98,7 +98,14 @@ fn new_vm_parameters() -> Result<VmParameters> {
         }
     };
     let cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME)?;
-    Ok(VmParameters { cpus, cpu_set, memory_mib: Some(VM_MEMORY_MIB), ..Default::default() })
+    let task_profiles = vec!["VMCompilationPerformance".to_string()];
+    Ok(VmParameters {
+        cpus,
+        cpu_set,
+        task_profiles,
+        memory_mib: Some(VM_MEMORY_MIB),
+        ..Default::default()
+    })
 }
 
 // Ensures we only run one instance at a time.
