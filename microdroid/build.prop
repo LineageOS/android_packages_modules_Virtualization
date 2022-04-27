@@ -4,7 +4,7 @@ ro.adb.secure=0
 service.adb.listen_addrs=vsock:5555
 
 # TODO(b/189164487): support build related properties
-ro.build.version.codename=Tiramisu
+ro.build.version.codename=UpsideDownCake
 ro.build.version.release=13
 ro.build.version.sdk=33
 ro.build.version.security_patch=2022-06-05
