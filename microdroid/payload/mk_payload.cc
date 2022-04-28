@@ -166,11 +166,10 @@ Result<void> MakeMetadata(const Config& config, const std::string& filename) {
     Metadata metadata;
     metadata.set_version(1);
 
-    int apex_index = 0;
     for (const auto& apex_config : config.apexes) {
         auto* apex = metadata.add_apexes();
         apex->set_name(apex_config.name);
-        apex->set_partition_name("microdroid-apex-" + std::to_string(apex_index++));
+        apex->set_partition_name(apex_config.name);
         apex->set_is_factory(true);
     }
 
