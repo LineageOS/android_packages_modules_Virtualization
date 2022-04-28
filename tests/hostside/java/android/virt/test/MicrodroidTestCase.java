@@ -16,11 +16,16 @@
 
 package android.virt.test;
 
+import static android.virt.test.CommandResultSubject.assertThat;
+import static android.virt.test.CommandResultSubject.command_results;
+
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
+
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
@@ -34,7 +39,6 @@ import com.android.tradefed.result.TestResult;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
-import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 
@@ -105,7 +109,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     // the microdroid boot procedure. Therefore, waiting for the service means that we wait for
     // the boot to complete. TODO: we need a better marker eventually.
     private void waitForLogdInit() {
-        tryRunOnMicrodroid("watch -e \"getprop init.svc.logd-reinit | grep '^$'\"");
+        runOnMicrodroidForResult("watch -e \"getprop init.svc.logd-reinit | grep '^$'\"");
     }
 
     @Test
@@ -122,7 +126,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         assertFalse(runDeviceTests(options));
 
         Map<TestDescription, TestResult> results = getLastDeviceRunResults().getTestResults();
-        assertThat(results.size(), is(1));
+        assertThat(results).hasSize(1);
         TestResult result = results.values().toArray(new TestResult[0])[0];
         assertTrue("The test should fail with a permission error",
                 result.getStackTrace()
@@ -161,9 +165,11 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                                     String.join(" ", command));
         String out = result.getStdout();
         String err = result.getStderr();
-        assertEquals(
-                "resigning the Virt APEX failed:\n\tout: " + out + "\n\terr: " + err + "\n",
-                CommandStatus.SUCCESS, result.getStatus());
+        assertWithMessage(
+                "resigning the Virt APEX failed:\n\tout: " + out + "\n\terr: " + err + "\n")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
     }
 
     private static <T> void assertThatEventually(long timeoutMillis, Callable<T> callable,
@@ -458,10 +464,10 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                                     "-w",
                                     "-f",
                                     generalPolicyConfFile.getPath());
-            assertEquals(
-                    "neverallow check failed: " + result.getStderr().trim(),
-                    result.getStatus(),
-                    CommandStatus.SUCCESS);
+            assertWithMessage("neverallow check failed: " + result.getStderr().trim())
+                    .about(command_results())
+                    .that(result)
+                    .isSuccess();
         }
 
         shutdownMicrodroid(getDevice(), cid);
