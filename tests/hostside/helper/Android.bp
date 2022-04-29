@@ -6,7 +6,8 @@ java_library_host {
     name: "VirtualizationTestHelper",
     srcs: ["java/**/*.java"],
     libs: [
-        "tradefed",
         "compatibility-tradefed",
+        "tradefed",
+        "truth-prebuilt",
     ],
 }
