@@ -148,11 +148,12 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
                         .addExtraIdsigPath(EXTRA_IDSIG_PATH)
                         .build((TestDevice) androidDevice);
 
+        // From this point on, we need to tear down the Microdroid instance
+        sMicrodroid = new CommandRunner(microdroidDevice);
+
         // Root because authfs (started from shell in this test) currently require root to open
         // /dev/fuse and mount the FUSE.
         assertThat(microdroidDevice.enableAdbRoot()).isTrue();
-
-        sMicrodroid = new CommandRunner(microdroidDevice);
     }
 
     @AfterClassWithInfo
