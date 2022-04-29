@@ -13,8 +13,7 @@ rust_ffi_static {
         "libcore.rust_sysroot",
     ],
     rustlibs: [
-        "libpsci",
-        "libspin_nostd",
+        "libvmbase",
     ],
     enabled: false,
     target: {
