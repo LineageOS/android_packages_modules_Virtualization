@@ -19,7 +19,6 @@
 
 mod console;
 mod exceptions;
-mod psci;
 mod uart;
 
 use core::panic::PanicInfo;
@@ -31,7 +30,7 @@ pub extern "C" fn main() -> ! {
     console::init();
     println!("Hello world");
 
-    system_off();
+    system_off().unwrap();
     #[allow(clippy::empty_loop)]
     loop {}
 }
@@ -39,6 +38,6 @@ pub extern "C" fn main() -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     eprintln!("{}", info);
-    system_reset();
+    system_reset().unwrap();
     loop {}
 }
