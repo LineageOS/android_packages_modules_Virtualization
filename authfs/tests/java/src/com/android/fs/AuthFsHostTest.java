@@ -16,6 +16,7 @@
 
 package com.android.virt.fs;
 
+import static android.virt.test.CommandResultSubject.assertThat;
 import static android.virt.test.LogArchiver.archiveLogThenDelete;
 
 import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
@@ -24,9 +25,7 @@ import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
@@ -46,7 +45,6 @@ import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.util.CommandResult;
-import com.android.tradefed.util.CommandStatus;
 
 import org.junit.After;
 import org.junit.Before;
@@ -255,7 +253,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         runAuthFsOnMicrodroid("--remote-ro-file 3:" + DIGEST_4M + " --cid " + VMADDR_CID_HOST);
 
         // Verify
-        assertFalse(copyFile(sMicrodroid, MOUNT_DIR + "/3", "/dev/null"));
+        assertThat(copyFile(sMicrodroid, MOUNT_DIR + "/3", "/dev/null")).isFailed();
     }
 
     @Test
@@ -268,7 +266,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String srcPath = "/system/bin/linker64";
         String destPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
-        assertTrue(copyFile(sMicrodroid, srcPath, destPath));
+        assertThat(copyFile(sMicrodroid, srcPath, destPath)).isSuccess();
 
         // Verify
         String expectedHash = computeFileHash(sMicrodroid, srcPath);
@@ -284,32 +282,36 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String srcPath = "/system/bin/linker64";
         String destPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
-        assertTrue(copyFile(sMicrodroid, srcPath, destPath));
+        assertThat(copyFile(sMicrodroid, srcPath, destPath)).isSuccess();
 
         // Action
         // Tampering with the first 2 4K-blocks of the backing file.
-        assertTrue(
+        assertThat(
                 writeZerosAtFileOffset(sAndroid, backendPath,
-                        /* offset */ 0, /* number */ 8192, /* writeThrough */ false));
+                        /* offset */ 0, /* number */ 8192, /* writeThrough */ false))
+                .isSuccess();
 
         // Verify
         // Write to a block partially requires a read back to calculate the new hash. It should fail
         // when the content is inconsistent to the known hash. Use direct I/O to avoid simply
         // writing to the filesystem cache.
-        assertFalse(
+        assertThat(
                 writeZerosAtFileOffset(sMicrodroid, destPath,
-                        /* offset */ 0, /* number */ 1024, /* writeThrough */ true));
+                        /* offset */ 0, /* number */ 1024, /* writeThrough */ true))
+                .isFailed();
 
         // A full 4K write does not require to read back, so write can succeed even if the backing
         // block has already been tampered.
-        assertTrue(
+        assertThat(
                 writeZerosAtFileOffset(sMicrodroid, destPath,
-                        /* offset */ 4096, /* number */ 4096, /* writeThrough */ false));
+                        /* offset */ 4096, /* number */ 4096, /* writeThrough */ false))
+                .isSuccess();
 
         // Otherwise, a partial write with correct backing file should still succeed.
-        assertTrue(
+        assertThat(
                 writeZerosAtFileOffset(sMicrodroid, destPath,
-                        /* offset */ 8192, /* number */ 1024, /* writeThrough */ false));
+                        /* offset */ 8192, /* number */ 1024, /* writeThrough */ false))
+                .isSuccess();
     }
 
     @Test
@@ -321,20 +323,23 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String srcPath = "/system/bin/linker64";
         String destPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
-        assertTrue(copyFile(sMicrodroid, srcPath, destPath));
+        assertThat(copyFile(sMicrodroid, srcPath, destPath)).isSuccess();
 
         // Action
         // Tampering with the first 4K-block of the backing file.
-        assertTrue(
+        assertThat(
                 writeZerosAtFileOffset(sAndroid, backendPath,
-                        /* offset */ 0, /* number */ 4096, /* writeThrough */ false));
+                        /* offset */ 0, /* number */ 4096, /* writeThrough */ false))
+                .isSuccess();
 
         // Verify
         // Force dropping the page cache, so that the next read can be validated.
         sMicrodroid.run("echo 1 > /proc/sys/vm/drop_caches");
         // A read will fail if the backing data has been tampered.
-        assertFalse(checkReadAt(sMicrodroid, destPath, /* offset */ 0, /* number */ 4096));
-        assertTrue(checkReadAt(sMicrodroid, destPath, /* offset */ 4096, /* number */ 4096));
+        assertThat(checkReadAt(sMicrodroid, destPath, /* offset */ 0, /* number */ 4096))
+                .isFailed();
+        assertThat(checkReadAt(sMicrodroid, destPath, /* offset */ 4096, /* number */ 4096))
+                .isSuccess();
     }
 
     @Test
@@ -349,15 +354,16 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
         // Action
         // Tampering with the last 4K-block of the backing file.
-        assertTrue(
+        assertThat(
                 writeZerosAtFileOffset(sAndroid, backendPath,
-                        /* offset */ 4096, /* number */ 1, /* writeThrough */ false));
+                        /* offset */ 4096, /* number */ 1, /* writeThrough */ false))
+                .isSuccess();
 
         // Verify
         // A resize (to a non-multiple of 4K) will fail if the last backing chunk has been
         // tampered. The original data is necessary (and has to be verified) to calculate the new
         // hash with shorter data.
-        assertFalse(resizeFile(sMicrodroid, outputPath, 8000));
+        assertThat(resizeFile(sMicrodroid, outputPath, 8000)).isFailed();
     }
 
     @Test
@@ -376,14 +382,14 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 backendPath,
                 "684ad25fdc2bbb80cbc910dd1bde6d5499ccf860ca6ee44704b77ec445271353");
 
-        assertTrue(resizeFile(sMicrodroid, outputPath, 15000));
+        assertThat(resizeFile(sMicrodroid, outputPath, 15000)).isSuccess();
         assertEquals(getFileSizeInBytes(sMicrodroid, outputPath), 15000);
         expectBackingFileConsistency(
                 outputPath,
                 backendPath,
                 "567c89f62586e0d33369157afdfe99a2fa36cdffb01e91dcdc0b7355262d610d");
 
-        assertTrue(resizeFile(sMicrodroid, outputPath, 5000));
+        assertThat(resizeFile(sMicrodroid, outputPath, 5000)).isSuccess();
         assertEquals(getFileSizeInBytes(sMicrodroid, outputPath), 5000);
         expectBackingFileConsistency(
                 outputPath,
@@ -412,7 +418,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 "684ad25fdc2bbb80cbc910dd1bde6d5499ccf860ca6ee44704b77ec445271353");
 
         // Regular file operations work, e.g. resize.
-        assertTrue(resizeFile(sMicrodroid, authfsPath, 15000));
+        assertThat(resizeFile(sMicrodroid, authfsPath, 15000)).isSuccess();
         assertEquals(getFileSizeInBytes(sMicrodroid, authfsPath), 15000);
         expectBackingFileConsistency(
                 authfsPath,
@@ -512,7 +518,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         sMicrodroid.run("test ! -d " + authfsOutputDir + "/dir/dir2");
         sAndroid.run("test ! -d " + androidOutputDir + "/dir/dir2");
         // Can only delete a directory if empty
-        assertFailed(sMicrodroid, "rmdir " + authfsOutputDir + "/dir");
+        assertThat(sMicrodroid.runForResult("rmdir " + authfsOutputDir + "/dir")).isFailed();
         sMicrodroid.run("test -d " + authfsOutputDir + "/dir");  // still there
         sMicrodroid.run("rm " + authfsOutputDir + "/dir/file");
         sMicrodroid.run("rmdir " + authfsOutputDir + "/dir");
@@ -536,10 +542,12 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
         // Action & Verify
         // Cannot create directory if an entry with the same name already exists.
-        assertFailed(sMicrodroid, "mkdir " + authfsOutputDir + "/some_file");
-        assertFailed(sMicrodroid, "mkdir " + authfsOutputDir + "/some_dir");
-        assertFailed(sMicrodroid, "mkdir " + authfsOutputDir + "/some_dir/file");
-        assertFailed(sMicrodroid, "mkdir " + authfsOutputDir + "/some_dir/dir");
+        assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_file")).isFailed();
+        assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_dir")).isFailed();
+        assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_dir/file"))
+            .isFailed();
+        assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_dir/dir"))
+            .isFailed();
     }
 
     @Test
@@ -603,7 +611,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
         // Verify
         sMicrodroid.run("test -f " + authfsInputDir + "/system/framework/services.jar");
-        assertFailed(sMicrodroid, "test -f " + authfsInputDir + "/system/bin/sh");
+        assertThat(sMicrodroid.runForResult("test -f " + authfsInputDir + "/system/bin/sh"))
+                .isFailed();
     }
 
     @Test
@@ -658,8 +667,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         sMicrodroid.run("chmod 321 " + MOUNT_DIR + "/3");
         expectFileMode("--wx-w---x", MOUNT_DIR + "/3", TEST_OUTPUT_DIR + "/file");
         // Can't set the disallowed bits
-        assertFailed(sMicrodroid, "chmod +s " + MOUNT_DIR + "/3");
-        assertFailed(sMicrodroid, "chmod +t " + MOUNT_DIR + "/3");
+        assertThat(sMicrodroid.runForResult("chmod +s " + MOUNT_DIR + "/3")).isFailed();
+        assertThat(sMicrodroid.runForResult("chmod +t " + MOUNT_DIR + "/3")).isFailed();
     }
 
     @Test
@@ -681,8 +690,9 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         sMicrodroid.run("chmod 321 " + authfsOutputDir + "/dir");
         expectFileMode("d-wx-w---x", authfsOutputDir + "/dir", TEST_OUTPUT_DIR + "/dir");
         // Can't set the disallowed bits
-        assertFailed(sMicrodroid, "chmod +s " + authfsOutputDir + "/dir/dir2");
-        assertFailed(sMicrodroid, "chmod +t " + authfsOutputDir + "/dir");
+        assertThat(sMicrodroid.runForResult("chmod +s " + authfsOutputDir + "/dir/dir2"))
+                .isFailed();
+        assertThat(sMicrodroid.runForResult("chmod +t " + authfsOutputDir + "/dir")).isFailed();
     }
 
     @Test
@@ -704,8 +714,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         sMicrodroid.run("chmod 321 " + authfsOutputDir + "/file2");
         expectFileMode("--wx-w---x", authfsOutputDir + "/file2", TEST_OUTPUT_DIR + "/file2");
         // Can't set the disallowed bits
-        assertFailed(sMicrodroid, "chmod +s " + authfsOutputDir + "/file");
-        assertFailed(sMicrodroid, "chmod +t " + authfsOutputDir + "/file2");
+        assertThat(sMicrodroid.runForResult("chmod +s " + authfsOutputDir + "/file")).isFailed();
+        assertThat(sMicrodroid.runForResult("chmod +t " + authfsOutputDir + "/file2")).isFailed();
     }
 
     @Test
@@ -752,13 +762,12 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         }
     }
 
-    private static boolean copyFile(CommandRunner runner, String src, String dest)
+    private static CommandResult copyFile(CommandRunner runner, String src, String dest)
             throws DeviceNotAvailableException {
         // toybox's cp(1) implementation ignores most read(2) errors, and it's unclear what the
         // canonical behavior should be (not mentioned in manpage). For this test, use cat(1) in
         // order to fail on I/O error.
-        CommandResult result = runner.runForResult("cat " + src + " > " + dest);
-        return result.getStatus() == CommandStatus.SUCCESS;
+        return runner.runForResult("cat " + src + " > " + dest);
     }
 
     private void expectFileMode(String expected, String microdroidPath, String androidPath)
@@ -770,10 +779,9 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         assertEquals("Inconsistent mode for " + androidPath + " (android)", expected, actual);
     }
 
-    private static boolean resizeFile(CommandRunner runner, String path, long size)
+    private static CommandResult resizeFile(CommandRunner runner, String path, long size)
             throws DeviceNotAvailableException {
-        CommandResult result = runner.runForResult("truncate -c -s " + size + " " + path);
-        return result.getStatus() == CommandStatus.SUCCESS;
+        return runner.runForResult("truncate -c -s " + size + " " + path);
     }
 
     private static long getFileSizeInBytes(CommandRunner runner, String path)
@@ -787,19 +795,17 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 "yes $'\\x01' | tr -d '\\n' | dd bs=1 count=" + numberOfOnes + " of=" + filePath);
     }
 
-    private static boolean checkReadAt(CommandRunner runner, String filePath, long offset,
+    private static CommandResult checkReadAt(CommandRunner runner, String filePath, long offset,
             long size) throws DeviceNotAvailableException {
         String cmd = "dd if=" + filePath + " of=/dev/null bs=1 count=" + size;
         if (offset > 0) {
             cmd += " skip=" + offset;
         }
-        CommandResult result = runner.runForResult(cmd);
-        return result.getStatus() == CommandStatus.SUCCESS;
+        return runner.runForResult(cmd);
     }
 
-    private static boolean writeZerosAtFileOffset(CommandRunner runner, String filePath,
-            long offset, long numberOfZeros, boolean writeThrough)
-            throws DeviceNotAvailableException {
+    private CommandResult writeZerosAtFileOffset(CommandRunner runner, String filePath, long offset,
+            long numberOfZeros, boolean writeThrough) throws DeviceNotAvailableException {
         String cmd = "dd if=/dev/zero of=" + filePath + " bs=1 count=" + numberOfZeros
                 + " conv=notrunc";
         if (offset > 0) {
@@ -808,14 +814,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         if (writeThrough) {
             cmd += " direct";
         }
-        CommandResult result = runner.runForResult(cmd);
-        return result.getStatus() == CommandStatus.SUCCESS;
-    }
-
-    private static void assertFailed(CommandRunner runner, String... cmd)
-            throws DeviceNotAvailableException {
-        CommandResult result = runner.runForResult(cmd);
-        assertThat(result.getStatus()).isEqualTo(CommandStatus.FAILED);
+        return runner.runForResult(cmd);
     }
 
     private void runAuthFsOnMicrodroid(String flags) {
