@@ -16,10 +16,13 @@
 
 package android.virt.test;
 
+import static android.virt.test.CommandResultSubject.assertThat;
+import static android.virt.test.CommandResultSubject.command_results;
+
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
@@ -29,10 +32,8 @@ import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.TestDevice;
-import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
-import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.RunUtil;
 
 import java.io.File;
@@ -113,16 +114,17 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     private static String runOnHostWithTimeout(long timeoutMillis, String... cmd) {
         assertTrue(timeoutMillis >= 0);
         CommandResult result = RunUtil.getDefault().runTimedCmd(timeoutMillis, cmd);
-        assertThat(result.getStatus(), is(CommandStatus.SUCCESS));
+        assertThat(result).isSuccess();
         return result.getStdout().trim();
     }
 
     // Run a shell command on Microdroid
     public static String runOnMicrodroid(String... cmd) {
         CommandResult result = runOnMicrodroidForResult(cmd);
-        if (result.getStatus() != CommandStatus.SUCCESS) {
-            fail(join(cmd) + " has failed: " + result);
-        }
+        assertWithMessage("microdroid shell cmd `" + join(cmd) + "`")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
         return result.getStdout().trim();
     }
 
@@ -133,21 +135,11 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         CommandResult result = RunUtil.getDefault()
                 .runTimedCmdRetry(timeoutMs, 500, attempts,
                         "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
-        if (result.getStatus() != CommandStatus.SUCCESS) {
-            fail(join(cmd) + " has failed: " + result);
-        }
+        assertWithMessage("Command `" + cmd + "` has failed")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
         return result.getStdout().trim();
-    }
-
-    // Same as runOnMicrodroid, but returns null on error.
-    public static String tryRunOnMicrodroid(String... cmd) {
-        CommandResult result = runOnMicrodroidForResult(cmd);
-        if (result.getStatus() == CommandStatus.SUCCESS) {
-            return result.getStdout().trim();
-        } else {
-            CLog.d(join(cmd) + " has failed (but ok): " + result);
-            return null;
-        }
     }
 
     public static CommandResult runOnMicrodroidForResult(String... cmd) {
@@ -168,15 +160,15 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
                                 "pull",
                                 path,
                                 target.getPath());
-        if (result.getStatus() != CommandStatus.SUCCESS) {
-            fail("pulling " + path + " has failed: " + result);
-        }
+        assertWithMessage("pulling " + path + " from microdroid")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
     }
 
     // Asserts the command will fail on Microdroid.
     public static void assertFailedOnMicrodroid(String... cmd) {
-        CommandResult result = runOnMicrodroidForResult(cmd);
-        assertThat(result.getStatus(), is(CommandStatus.FAILED));
+        assertThat(runOnMicrodroidForResult(cmd)).isFailed();
     }
 
     private static String join(String... strs) {
@@ -390,6 +382,8 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         }
 
         // Check if it actually booted by reading a sysprop.
-        assertThat(runOnMicrodroid("getprop", "ro.hardware"), is("microdroid"));
+        assertThat(runOnMicrodroidForResult("getprop", "ro.hardware"))
+                .stdoutTrimmed()
+                .isEqualTo("microdroid");
     }
 }
