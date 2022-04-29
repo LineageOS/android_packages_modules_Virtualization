@@ -263,8 +263,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         // - apk and idsig
         disks.put(new JSONObject().put("writable", false).put("partitions", new JSONArray()
                 .put(newPartition("payload-metadata", payloadMetadataPath))
-                .put(newPartition("microdroid-apex-0", statsdApexPath))
-                .put(newPartition("microdroid-apex-1", adbdApexPath))
+                .put(newPartition("com.android.os.statsd", statsdApexPath))
+                .put(newPartition("com.android.adbd", adbdApexPath))
                 .put(newPartition("microdroid-apk", apkPath))
                 .put(newPartition("microdroid-apk-idsig", idSigPath))));
 
