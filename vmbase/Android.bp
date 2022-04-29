@@ -1,0 +1,18 @@
+rust_library_rlib {
+    name: "libvmbase",
+    host_supported: false,
+    crate_name: "vmbase",
+    srcs: ["src/lib.rs"],
+    edition: "2021",
+    rustlibs: [
+        "libpsci",
+        "libspin_nostd",
+    ],
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    apex_available: ["com.android.virt"],
+}
