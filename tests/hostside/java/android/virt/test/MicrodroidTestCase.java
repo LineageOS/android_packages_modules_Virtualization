@@ -66,6 +66,7 @@ import java.util.regex.Pattern;
 public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
+    private static final String SHELL_PACKAGE_NAME = "com.android.shell";
 
     private static final int MIN_MEM_ARM64 = 145;
     private static final int MIN_MEM_X86_64 = 196;
@@ -470,6 +471,40 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         shutdownMicrodroid(getDevice(), cid);
     }
 
+    @Test
+    public void testCustomVirtualMachinePermission()
+            throws DeviceNotAvailableException, IOException, JSONException {
+        CommandRunner android = new CommandRunner(getDevice());
+
+        // Pull etc/microdroid.json
+        File virtApexDir = FileUtil.createTempDir("virt_apex");
+        File microdroidConfigFile = new File(virtApexDir, "microdroid.json");
+        assertTrue(getDevice().pullFile(VIRT_APEX + "etc/microdroid.json", microdroidConfigFile));
+        JSONObject config = new JSONObject(FileUtil.readStringFromFile(microdroidConfigFile));
+
+        // USE_CUSTOM_VIRTUAL_MACHINE is enforced only on protected mode
+        config.put("protected", true);
+
+        // Write updated config
+        final String configPath = TEST_ROOT + "raw_config.json";
+        getDevice().pushString(config.toString(), configPath);
+
+        // temporarily revoke the permission
+        android.run(
+                "pm",
+                "revoke",
+                SHELL_PACKAGE_NAME,
+                "android.permission.USE_CUSTOM_VIRTUAL_MACHINE");
+        final String ret =
+                android.runForResult(VIRT_APEX + "bin/vm run", configPath).getStderr().trim();
+
+        assertTrue(
+                "The test should fail with a permission error",
+                ret.contains(
+                        "does not have the android.permission.USE_CUSTOM_VIRTUAL_MACHINE"
+                            + " permission"));
+    }
+
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
@@ -490,5 +525,9 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                 "vm.log-" + mTestName.getMethodName());
 
         getDevice().uninstallPackage(PACKAGE_NAME);
+
+        // testCustomVirtualMachinePermission revokes this permission. Grant it again as cleanup
+        new CommandRunner(getDevice()).tryRun(
+                "pm", "grant", SHELL_PACKAGE_NAME, "android.permission.USE_CUSTOM_VIRTUAL_MACHINE");
     }
 }
