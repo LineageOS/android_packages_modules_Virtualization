@@ -282,6 +282,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         config.task.is_some(),
         MicrodroidError::InvalidConfig("No task in VM config".to_string())
     );
+    system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
     exec_task(&config.task.unwrap(), service)
 }
 
