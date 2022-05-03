@@ -367,6 +367,10 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
     @Test
     public void testTombstonesAreBeingForwarded() throws Exception {
+        // This test requires rooting. Skip on user builds where rooting is impossible.
+        final String buildType = getDevice().getProperty("ro.build.type");
+        assumeTrue("userdebug".equals(buildType) || "eng".equals(buildType));
+
         // Note this test relies on logcat values being printed by tombstone_transmit on
         // and the reeceiver on host (virtualization_service)
         final String configPath = "assets/vm_config.json"; // path inside the APK
