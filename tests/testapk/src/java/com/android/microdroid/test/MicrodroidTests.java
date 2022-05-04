@@ -181,7 +181,7 @@ public class MicrodroidTests {
         }
     }
 
-    private static final int MIN_MEM_ARM64 = 145;
+    private static final int MIN_MEM_ARM64 = 150;
     private static final int MIN_MEM_X86_64 = 196;
 
     @Test
