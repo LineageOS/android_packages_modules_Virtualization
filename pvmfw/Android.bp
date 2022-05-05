@@ -38,9 +38,7 @@ cc_binary {
     nocrt: true,
     system_shared_libs: ["libc"],
     stl: "none",
-    ldflags: [
-        "-Tpackages/modules/Virtualization/pvmfw/image.ld",
-    ],
+    linker_scripts: ["image.ld"],
     enabled: false,
     target: {
         android_arm64: {
