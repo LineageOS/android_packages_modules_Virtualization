@@ -52,6 +52,9 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     println!("Hello world");
     println!("x0={:#010x}, x1={:#010x}, x2={:#010x}, x3={:#010x}", arg0, arg1, arg2, arg3);
     print_addresses();
+    unsafe {
+        assert_eq!(arg0, &dtb_begin as *const u8 as u64);
+    }
     check_data();
 
     unsafe {
