@@ -19,13 +19,11 @@
 
 mod exceptions;
 
-use vmbase::{console, power::shutdown, println};
+use vmbase::{main, println};
+
+main!(main);
 
 /// Entry point for pVM firmware.
-#[no_mangle]
-pub extern "C" fn main() -> ! {
-    console::init();
+pub fn main() {
     println!("Hello world");
-
-    shutdown();
 }
