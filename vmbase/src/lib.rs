@@ -17,6 +17,7 @@
 #![no_std]
 
 pub mod console;
+mod entry;
 pub mod power;
 pub mod uart;
 
