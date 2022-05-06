@@ -39,6 +39,7 @@ cc_binary {
     system_shared_libs: ["libc"],
     stl: "none",
     linker_scripts: ["image.ld"],
+    installable: false,
     enabled: false,
     target: {
         android_arm64: {
