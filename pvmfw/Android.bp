@@ -28,12 +28,11 @@ cc_binary {
     name: "pvmfw_elf",
     stem: "pvmfw",
     srcs: [
-        "entry.S",
-        "exceptions.S",
         "idmap.S",
     ],
     static_libs: [
         "libpvmfw",
+        "libvmbase_entry",
     ],
     static_executable: true,
     nocrt: true,
