@@ -19,6 +19,18 @@ package com.android.compos;
 /** {@hide} */
 interface ICompOsService {
     /**
+     * Initializes system properties. ART expects interesting properties that have to be passed from
+     * Android. The API client should call this method once with all desired properties, since once
+     * the call completes, the service is considered initialized and cannot be re-initialized again.
+     *
+     * <p>If the initialization failed, Microdroid may already have some properties set. It is up to
+     * the service to reject further calls by the client.
+     *
+     * <p>The service may reject unrecognized names, but it does not interpret values.
+     */
+    void initializeSystemProperties(in String[] names, in String[] values);
+
+    /**
      * What type of compilation to perform.
      */
     @Backing(type="int")
