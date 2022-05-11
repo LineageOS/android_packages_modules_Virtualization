@@ -478,6 +478,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
     @Test
     public void testCustomVirtualMachinePermission()
             throws DeviceNotAvailableException, IOException, JSONException {
+        assumeTrue(isProtectedVmSupported());
         CommandRunner android = new CommandRunner(getDevice());
 
         // Pull etc/microdroid.json
