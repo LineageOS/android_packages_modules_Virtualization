@@ -7,7 +7,7 @@ intended to host headless & native workloads only.
 
 ## Prerequisites
 
-Any 64-bit target (either x86_64 or arm64) is supported. 32-bit target is not
+Any 64-bit target (either x86\_64 or arm64) is supported. 32-bit target is not
 supported. Note that we currently don't support user builds; only userdebug
 builds are supported.
 
@@ -36,7 +36,7 @@ adb install out/dist/com.android.virt.apex
 adb reboot
 ```
 
-If your target is x86_64 (e.g. `aosp_cf_x86_64_phone`), replace `aosp_arm64`
+If your target is x86\_64 (e.g. `aosp_cf_x86_64_phone`), replace `aosp_arm64`
 with `aosp_x86_64`.
 
 ## Building an app
