@@ -74,31 +74,30 @@
 .set .Lsctlrval, .Lsctlrval | .L_SCTLR_ELx_I | .L_SCTLR_EL1_SPAN | .L_SCTLR_EL1_RES1 | .L_SCTLR_EL1_WXN
 
 /**
- * This is a generic entry point for an image. It carries out the operations
- * required to prepare the loaded image to be run. Specifically, it zeroes the
- * bss section using registers x25 and above, prepares the stack, enables
- * floating point, and sets up the exception vector.
+ * This is a generic entry point for an image. It carries out the operations required to prepare the
+ * loaded image to be run. Specifically, it zeroes the bss section using registers x25 and above,
+ * prepares the stack, enables floating point, and sets up the exception vector. It preserves x0-x3
+ * for the Rust entry point, as these may contain boot parameters.
  */
 .section .init.entry, "ax"
 .global entry
 entry:
-	/* Enable MMU and caches. */
+	/* Load and apply the memory management configuration, ready to enable MMU and caches. */
 
-	/*
-	 * Load and apply the memory management configuration.
-	 */
-	adrp x1, idmap
-	mov_i x2, .Lmairval
-	mov_i x3, .Ltcrval
-	mov_i x4, .Lsctlrval
+	adrp x30, idmap
+	msr ttbr0_el1, x30
 
+	mov_i x30, .Lmairval
+	msr mair_el1, x30
+
+	mov_i x30, .Ltcrval
 	/* Copy the supported PA range into TCR_EL1.IPS. */
-	mrs x6, id_aa64mmfr0_el1
-	bfi x3, x6, #32, #4
+	mrs x29, id_aa64mmfr0_el1
+	bfi x30, x29, #32, #4
 
-	msr ttbr0_el1, x1
-	msr mair_el1, x2
-	msr tcr_el1, x3
+	msr tcr_el1, x30
+
+	mov_i x30, .Lsctlrval
 
 	/*
 	 * Ensure everything before this point has completed, then invalidate any potentially stale
@@ -111,10 +110,9 @@ entry:
 	isb
 
 	/*
-	 * Configure sctlr_el1 to enable MMU and cache and don't proceed until
-	 * this has completed.
+	 * Configure sctlr_el1 to enable MMU and cache and don't proceed until this has completed.
 	 */
-	msr sctlr_el1, x4
+	msr sctlr_el1, x30
 	isb
 
 	/* Disable trapping floating point access in EL1. */

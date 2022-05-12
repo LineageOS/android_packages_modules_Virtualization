@@ -24,6 +24,10 @@ use vmbase::{main, println};
 main!(main);
 
 /// Entry point for pVM firmware.
-pub fn main() {
-    println!("Hello world");
+pub fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) {
+    println!("pVM firmware");
+    println!(
+        "fdt_address={:#010x}, payload_start={:#010x}, payload_size={:#010x}, x3={:#010x}",
+        fdt_address, payload_start, payload_size, arg3,
+    );
 }

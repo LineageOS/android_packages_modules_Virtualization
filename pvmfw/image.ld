@@ -16,8 +16,8 @@
 
 MEMORY
 {
+	image		: ORIGIN = 0x7fe00000, LENGTH = 2M
 	dtb_region	: ORIGIN = 0x80000000, LENGTH = 2M
-	image		: ORIGIN = 0x80200000, LENGTH = 2M
 	writable_data	: ORIGIN = 0x80400000, LENGTH = 2M
 }
 
