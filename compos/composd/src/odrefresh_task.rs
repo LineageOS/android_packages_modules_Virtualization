@@ -27,7 +27,9 @@ use anyhow::{Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
     CompilationMode::CompilationMode, ICompOsService,
 };
-use compos_common::odrefresh::{ExitCode, ODREFRESH_OUTPUT_ROOT_DIR};
+use compos_common::odrefresh::{
+    is_system_property_interesting, ExitCode, ODREFRESH_OUTPUT_ROOT_DIR,
+};
 use log::{error, info, warn};
 use rustutils::system_properties;
 use std::fs::{remove_dir_all, File, OpenOptions};
@@ -124,6 +126,16 @@ fn run_in_vm(
     compilation_mode: CompilationMode,
     target_dir_name: &str,
 ) -> Result<ExitCode> {
+    let mut names = Vec::new();
+    let mut values = Vec::new();
+    system_properties::foreach(|name, value| {
+        if is_system_property_interesting(name) {
+            names.push(name.to_owned());
+            values.push(value.to_owned());
+        }
+    })?;
+    service.initializeSystemProperties(&names, &values).context("initialize system properties")?;
+
     let output_root = Path::new(ODREFRESH_OUTPUT_ROOT_DIR);
 
     // We need to remove the target directory because odrefresh running in compos will create it
