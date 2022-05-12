@@ -35,6 +35,10 @@ pub const TEST_ARTIFACTS_SUBDIR: &str = "test-artifacts";
 /// The directory under ODREFRESH_OUTPUT_ROOT_DIR where the current (active) artifacts are stored
 pub const CURRENT_ARTIFACTS_SUBDIR: &str = "dalvik-cache";
 
+/// Prefixes of system properties that are interested to odrefresh and dex2oat.
+const ALLOWLIST_SYSTEM_PROPERTY_PREFIXES: &[&str] =
+    &["dalvik.vm.", "ro.dalvik.vm.", "persist.device_config.runtime_native_boot."];
+
 // The highest "standard" exit code defined in sysexits.h (as EX__MAX); odrefresh error codes
 // start above here to avoid clashing.
 // TODO: What if this changes?
@@ -62,4 +66,14 @@ impl ExitCode {
         FromPrimitive::from_i32(exit_code)
             .ok_or_else(|| anyhow!("Unexpected odrefresh exit code: {}", exit_code))
     }
+}
+
+/// Returns whether the system property name is interesting to odrefresh and dex2oat.
+pub fn is_system_property_interesting(name: &str) -> bool {
+    for prefix in ALLOWLIST_SYSTEM_PROPERTY_PREFIXES {
+        if name.starts_with(prefix) {
+            return true;
+        }
+    }
+    false
 }
