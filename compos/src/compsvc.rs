@@ -19,9 +19,14 @@
 //! actual compiler.
 
 use anyhow::{bail, Context, Result};
+use binder_common::new_binder_exception;
+use log::error;
+use rustutils::system_properties;
 use std::default::Default;
 use std::fs::read_dir;
+use std::iter::zip;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use crate::artifact_signer::ArtifactSigner;
 use crate::compilation::{odrefresh, OdrefreshContext};
@@ -29,25 +34,73 @@ use crate::compos_key;
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
     BnCompOsService, CompilationMode::CompilationMode, ICompOsService,
 };
-use compos_aidl_interface::binder::{BinderFeatures, Interface, Result as BinderResult, Strong};
+use compos_aidl_interface::binder::{
+    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Strong,
+};
 use compos_common::binder::to_binder_result;
-use compos_common::odrefresh::ODREFRESH_PATH;
+use compos_common::odrefresh::{is_system_property_interesting, ODREFRESH_PATH};
 
 const AUTHFS_SERVICE_NAME: &str = "authfs_service";
 
 /// Constructs a binder object that implements ICompOsService.
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
-    let service = CompOsService { odrefresh_path: PathBuf::from(ODREFRESH_PATH) };
+    let service = CompOsService {
+        odrefresh_path: PathBuf::from(ODREFRESH_PATH),
+        initialized: RwLock::new(None),
+    };
     Ok(BnCompOsService::new_binder(service, BinderFeatures::default()))
 }
 
 struct CompOsService {
     odrefresh_path: PathBuf,
+
+    /// A locked protected tri-state.
+    ///  * None: uninitialized
+    ///  * Some(true): initialized successfully
+    ///  * Some(false): failed to initialize
+    initialized: RwLock<Option<bool>>,
 }
 
 impl Interface for CompOsService {}
 
 impl ICompOsService for CompOsService {
+    fn initializeSystemProperties(&self, names: &[String], values: &[String]) -> BinderResult<()> {
+        let mut initialized = self.initialized.write().unwrap();
+        if initialized.is_some() {
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_STATE,
+                format!("Already initialized: {:?}", initialized),
+            ));
+        }
+        *initialized = Some(false);
+
+        if names.len() != values.len() {
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_ARGUMENT,
+                format!(
+                    "Received inconsistent number of keys ({}) and values ({})",
+                    names.len(),
+                    values.len()
+                ),
+            ));
+        }
+        for (name, value) in zip(names, values) {
+            if !is_system_property_interesting(name) {
+                return Err(new_binder_exception(
+                    ExceptionCode::ILLEGAL_ARGUMENT,
+                    format!("Received invalid system property {}", &name),
+                ));
+            }
+            let result = system_properties::write(name, value);
+            if result.is_err() {
+                error!("Failed to setprop {}", &name);
+                return to_binder_result(result);
+            }
+        }
+        *initialized = Some(true);
+        Ok(())
+    }
+
     fn odrefresh(
         &self,
         compilation_mode: CompilationMode,
@@ -58,6 +111,14 @@ impl ICompOsService for CompOsService {
         zygote_arch: &str,
         system_server_compiler_filter: &str,
     ) -> BinderResult<i8> {
+        let initialized = *self.initialized.read().unwrap();
+        if !initialized.unwrap_or(false) {
+            return Err(new_binder_exception(
+                ExceptionCode::ILLEGAL_STATE,
+                "Service has not been initialized",
+            ));
+        }
+
         let context = to_binder_result(OdrefreshContext::new(
             compilation_mode,
             system_dir_fd,
