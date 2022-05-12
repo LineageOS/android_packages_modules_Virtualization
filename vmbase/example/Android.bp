@@ -13,6 +13,7 @@ rust_ffi_static {
         "libcore.rust_sysroot",
     ],
     rustlibs: [
+        "libbuddy_system_allocator",
         "libvmbase",
     ],
     enabled: false,
