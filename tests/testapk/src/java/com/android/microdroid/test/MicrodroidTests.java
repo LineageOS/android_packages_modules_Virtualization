@@ -33,6 +33,7 @@ import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
+import android.util.Log;
 
 import androidx.annotation.CallSuper;
 import androidx.test.core.app.ApplicationProvider;
@@ -47,9 +48,13 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.List;
@@ -68,9 +73,26 @@ import co.nstant.in.cbor.model.MajorType;
 
 @RunWith(Parameterized.class)
 public class MicrodroidTests {
+    private static final String TAG = "MicrodroidTests";
+
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
     private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
+
+    /** Copy output from the VM to logcat. This is helpful when things go wrong. */
+    private static void logVmOutput(InputStream vmOutputStream, String name) {
+        new Thread(() -> {
+            try {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(vmOutputStream));
+                String line;
+                while ((line = reader.readLine()) != null && !Thread.interrupted()) {
+                    Log.i(TAG, name + ": " + line);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, name, e);
+            }
+        }).start();
+    }
 
     private static class Inner {
         public boolean mProtectedVm;
@@ -149,6 +171,8 @@ public class MicrodroidTests {
         void runToFinish(VirtualMachine vm) throws VirtualMachineException, InterruptedException {
             vm.setCallback(mExecutorService, this);
             vm.run();
+            logVmOutput(vm.getConsoleOutputStream(), "Console");
+            logVmOutput(vm.getLogOutputStream(), "Log");
             mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
         }
 
@@ -238,6 +262,7 @@ public class MicrodroidTests {
 
                     @Override
                     public void onPayloadReady(VirtualMachine vm) {
+                        Log.i(TAG, "onPayloadReady");
                         payloadReady.complete(true);
                         testVMService(vm);
                         forceStop(vm);
@@ -245,7 +270,9 @@ public class MicrodroidTests {
 
                     @Override
                     public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        Log.i(TAG, "onPayloadStarted");
                         payloadStarted.complete(true);
+                        logVmOutput(new FileInputStream(stream.getFileDescriptor()), "Payload");
                     }
                 };
         listener.runToFinish(mInner.mVm);
