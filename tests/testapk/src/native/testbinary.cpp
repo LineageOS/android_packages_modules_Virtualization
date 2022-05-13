@@ -134,16 +134,18 @@ Result<void> start_test_service() {
 
     auto callback = []([[maybe_unused]] void* param) {
         // Tell microdroid_manager that we're ready.
-        // Failing to notify is not a fatal error; the payload can continue.
+        // If we can't, abort in order to fail fast - the host won't proceed without
+        // receiving the onReady signal.
         ndk::SpAIBinder binder(
                 RpcClient(VMADDR_CID_HOST, IVirtualMachineService::VM_BINDER_SERVICE_PORT));
         auto virtualMachineService = IVirtualMachineService::fromBinder(binder);
         if (virtualMachineService == nullptr) {
-            std::cerr << "failed to connect VirtualMachineService";
-            return;
+            std::cerr << "failed to connect VirtualMachineService\n";
+            abort();
         }
         if (!virtualMachineService->notifyPayloadReady().isOk()) {
-            std::cerr << "failed to notify payload ready to virtualizationservice";
+            std::cerr << "failed to notify payload ready to virtualizationservice\n";
+            abort();
         }
     };
 
@@ -197,7 +199,7 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     if (auto res = start_test_service(); res.ok()) {
         return 0;
     } else {
-        std::cerr << "starting service failed: " << res.error();
+        std::cerr << "starting service failed: " << res.error() << "\n";
         return 1;
     }
 }
