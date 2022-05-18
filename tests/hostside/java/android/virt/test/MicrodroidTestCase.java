@@ -16,7 +16,6 @@
 
 package android.virt.test;
 
-import static android.virt.test.CommandResultSubject.assertThat;
 import static android.virt.test.CommandResultSubject.command_results;
 
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
@@ -503,11 +502,8 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         final String ret =
                 android.runForResult(VIRT_APEX + "bin/vm run", configPath).getStderr().trim();
 
-        assertTrue(
-                "The test should fail with a permission error",
-                ret.contains(
-                        "does not have the android.permission.USE_CUSTOM_VIRTUAL_MACHINE"
-                            + " permission"));
+        assertThat(ret).contains("does not have the android.permission.USE_CUSTOM_VIRTUAL_MACHINE"
+                + " permission");
     }
 
     @Before
