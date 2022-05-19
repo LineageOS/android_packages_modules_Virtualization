@@ -26,9 +26,9 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice::binder::{
-    BinderFeatures, DeathRecipient, IBinder, ParcelFileDescriptor, Strong,
+    BinderFeatures, DeathRecipient, IBinder, Interface, ParcelFileDescriptor,
+    Result as BinderResult,
 };
-use android_system_virtualizationservice::binder::{Interface, Result as BinderResult};
 use anyhow::{bail, Context, Error};
 use microdroid_payload_config::VmPayloadConfig;
 use std::fs::File;
@@ -41,7 +41,7 @@ use zip::ZipArchive;
 /// Run a VM from the given APK, idsig, and config.
 #[allow(clippy::too_many_arguments)]
 pub fn command_run_app(
-    service: Strong<dyn IVirtualizationService>,
+    service: &dyn IVirtualizationService,
     apk: &Path,
     idsig: &Path,
     instance: &Path,
@@ -85,7 +85,7 @@ pub fn command_run_app(
     if !instance.exists() {
         const INSTANCE_FILE_SIZE: u64 = 10 * 1024 * 1024;
         command_create_partition(
-            service.clone(),
+            service,
             instance,
             INSTANCE_FILE_SIZE,
             PartitionType::ANDROID_VM_INSTANCE,
@@ -121,7 +121,7 @@ pub fn command_run_app(
 /// Run a VM from the given configuration file.
 #[allow(clippy::too_many_arguments)]
 pub fn command_run(
-    service: Strong<dyn IVirtualizationService>,
+    service: &dyn IVirtualizationService,
     config_path: &Path,
     daemonize: bool,
     console_path: Option<&Path>,
@@ -165,7 +165,7 @@ fn state_to_str(vm_state: VirtualMachineState) -> &'static str {
 }
 
 fn run(
-    service: Strong<dyn IVirtualizationService>,
+    service: &dyn IVirtualizationService,
     config: &VirtualMachineConfig,
     config_path: &str,
     daemonize: bool,
@@ -213,12 +213,12 @@ fn run(
     } else {
         // Wait until the VM or VirtualizationService dies. If we just returned immediately then the
         // IVirtualMachine Binder object would be dropped and the VM would be killed.
-        wait_for_vm(vm)
+        wait_for_vm(vm.as_ref())
     }
 }
 
 /// Wait until the given VM or the VirtualizationService itself dies.
-fn wait_for_vm(vm: Strong<dyn IVirtualMachine>) -> Result<(), Error> {
+fn wait_for_vm(vm: &dyn IVirtualMachine) -> Result<(), Error> {
     let dead = AtomicFlag::default();
     let callback = BnVirtualMachineCallback::new_binder(
         VirtualMachineCallback { dead: dead.clone() },
