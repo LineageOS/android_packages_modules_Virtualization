@@ -143,8 +143,9 @@ Result<void> start_test_service() {
             std::cerr << "failed to connect VirtualMachineService\n";
             abort();
         }
-        if (!virtualMachineService->notifyPayloadReady().isOk()) {
-            std::cerr << "failed to notify payload ready to virtualizationservice\n";
+        if (auto status = virtualMachineService->notifyPayloadReady(); !status.isOk()) {
+            std::cerr << "failed to notify payload ready to virtualizationservice: "
+                      << status.getDescription() << std::endl;
             abort();
         }
     };
