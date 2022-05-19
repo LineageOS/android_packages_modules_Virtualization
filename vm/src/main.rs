@@ -191,8 +191,9 @@ fn main() -> Result<(), Error> {
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
 
-    let service = wait_for_interface(VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER)
-        .context("Failed to find VirtualizationService")?;
+    let service: Strong<dyn IVirtualizationService> =
+        wait_for_interface(VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER)
+            .context("Failed to find VirtualizationService")?;
 
     match opt {
         Opt::RunApp {
@@ -211,7 +212,7 @@ fn main() -> Result<(), Error> {
             task_profiles,
             extra_idsigs,
         } => command_run_app(
-            service,
+            service.as_ref(),
             &apk,
             &idsig,
             &instance,
@@ -229,7 +230,7 @@ fn main() -> Result<(), Error> {
         ),
         Opt::Run { config, daemonize, cpus, cpu_affinity, task_profiles, console, log } => {
             command_run(
-                service,
+                service.as_ref(),
                 &config,
                 daemonize,
                 console.as_deref(),
@@ -240,18 +241,18 @@ fn main() -> Result<(), Error> {
                 task_profiles,
             )
         }
-        Opt::Stop { cid } => command_stop(service, cid),
-        Opt::List => command_list(service),
+        Opt::Stop { cid } => command_stop(service.as_ref(), cid),
+        Opt::List => command_list(service.as_ref()),
         Opt::Info => command_info(),
         Opt::CreatePartition { path, size, partition_type } => {
-            command_create_partition(service, &path, size, partition_type)
+            command_create_partition(service.as_ref(), &path, size, partition_type)
         }
-        Opt::CreateIdsig { apk, path } => command_create_idsig(service, &apk, &path),
+        Opt::CreateIdsig { apk, path } => command_create_idsig(service.as_ref(), &apk, &path),
     }
 }
 
 /// Retrieve reference to a previously daemonized VM and stop it.
-fn command_stop(service: Strong<dyn IVirtualizationService>, cid: u32) -> Result<(), Error> {
+fn command_stop(service: &dyn IVirtualizationService, cid: u32) -> Result<(), Error> {
     service
         .debugDropVmRef(cid as i32)
         .context("Failed to get VM from VirtualizationService")?
@@ -260,7 +261,7 @@ fn command_stop(service: Strong<dyn IVirtualizationService>, cid: u32) -> Result
 }
 
 /// List the VMs currently running.
-fn command_list(service: Strong<dyn IVirtualizationService>) -> Result<(), Error> {
+fn command_list(service: &dyn IVirtualizationService) -> Result<(), Error> {
     let vms = service.debugListVms().context("Failed to get list of VMs")?;
     println!("Running VMs: {:#?}", vms);
     Ok(())
