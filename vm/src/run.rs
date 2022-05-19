@@ -306,6 +306,18 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
             DeathReason::ERROR => println!("Error starting VM."),
             DeathReason::REBOOT => println!("VM tried to reboot, possibly due to a kernel panic."),
             DeathReason::CRASH => println!("VM crashed."),
+            DeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH => println!(
+                "pVM firmware failed to verify the VM because the public key doesn't match."
+            ),
+            DeathReason::PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED => {
+                println!("pVM firmware failed to verify the VM because the instance image changed.")
+            }
+            DeathReason::BOOTLOADER_PUBLIC_KEY_MISMATCH => {
+                println!("Bootloader failed to verify the VM because the public key doesn't match.")
+            }
+            DeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED => {
+                println!("Bootloader failed to verify the VM because the instance image changed.")
+            }
             _ => println!("VM died for an unrecognised reason."),
         }
         Ok(())
