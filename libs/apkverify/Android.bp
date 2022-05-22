@@ -13,7 +13,7 @@ rust_defaults {
         "libbyteorder",
         "libbytes",
         "liblog_rust",
-        "libring",
+        "libopenssl",
         "libx509_parser",
         "libzip",
     ],
