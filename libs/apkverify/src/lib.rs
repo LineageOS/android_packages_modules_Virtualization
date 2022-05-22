@@ -23,17 +23,5 @@ pub mod testing;
 mod v3;
 mod ziputil;
 
-use anyhow::Result;
-use std::path::Path;
-
-/// Verifies APK/APEX signing with v2/v3 scheme. On success, the public key (in DER format) is
-/// returned.
-pub fn verify<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
-    // TODO(jooyung) fallback to v2 when v3 not found
-    v3::verify(path)
-}
-
-/// Gets the public key (in DER format) that was used to sign the given APK/APEX file
-pub fn get_public_key_der<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
-    v3::get_public_key_der(path)
-}
+// TODO(jooyung) fallback to v2 when v3 not found
+pub use v3::{get_public_key_der, verify};
