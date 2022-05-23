@@ -10,6 +10,7 @@ java_test_host {
         "compatibility-tradefed",
         "compatibility-host-util",
     ],
+    data_native_bins: ["bcc_validator"],
     static_libs: [
         "VirtualizationTestHelper",
     ],
