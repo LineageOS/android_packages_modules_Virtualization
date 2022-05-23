@@ -16,11 +16,12 @@
 
 mod death_reason;
 mod errors;
+mod rpc_binder;
 mod sync;
 
 pub use crate::death_reason::DeathReason;
-pub use crate::errors::VmWaitError;
-use crate::sync::Monitor;
+pub use crate::errors::{GetServiceError, VmWaitError};
+use crate::{rpc_binder::VsockFactory, sync::Monitor};
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
         DeathReason::DeathReason as AidlDeathReason,
@@ -31,7 +32,7 @@ use android_system_virtualizationservice::{
         VirtualMachineState::VirtualMachineState,
     },
     binder::{
-        wait_for_interface, BinderFeatures, DeathRecipient, IBinder, Interface,
+        wait_for_interface, BinderFeatures, DeathRecipient, FromIBinder, IBinder, Interface,
         ParcelFileDescriptor, Result as BinderResult, StatusCode, Strong,
     },
 };
@@ -129,6 +130,18 @@ impl VmInstance {
         } else {
             Ok(())
         }
+    }
+
+    /// Tries to connect to an RPC Binder service provided by the VM on the given vsock port.
+    pub fn get_service<T: FromIBinder + ?Sized>(
+        &self,
+        port: u32,
+    ) -> Result<Strong<T>, GetServiceError> {
+        let mut vsock_factory = VsockFactory::new(&*self.vm, port);
+
+        let ibinder = vsock_factory.connect_rpc_client()?;
+
+        FromIBinder::try_from(ibinder).map_err(GetServiceError::WrongServiceType)
     }
 }
 
