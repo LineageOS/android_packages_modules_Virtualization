@@ -19,12 +19,12 @@
 // TODO(jooyung) remove this
 #![allow(dead_code)]
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use bytes::Bytes;
-use ring::signature::{
-    UnparsedPublicKey, VerificationAlgorithm, ECDSA_P256_SHA256_ASN1, RSA_PKCS1_2048_8192_SHA256,
-    RSA_PKCS1_2048_8192_SHA512, RSA_PSS_2048_8192_SHA256, RSA_PSS_2048_8192_SHA512,
-};
+use openssl::hash::MessageDigest;
+use openssl::pkey::{self, PKey};
+use openssl::rsa::Padding;
+use openssl::sign::Verifier;
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::ops::Range;
@@ -200,14 +200,22 @@ fn verify_signed_data(
     signature: &Signature,
     key_info: &SubjectPublicKeyInfo,
 ) -> Result<()> {
-    let verification_alg: &dyn VerificationAlgorithm = match signature.signature_algorithm_id {
-        SIGNATURE_RSA_PSS_WITH_SHA256 => &RSA_PSS_2048_8192_SHA256,
-        SIGNATURE_RSA_PSS_WITH_SHA512 => &RSA_PSS_2048_8192_SHA512,
-        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256 | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256 => {
-            &RSA_PKCS1_2048_8192_SHA256
+    let (pkey_id, padding, digest) = match signature.signature_algorithm_id {
+        SIGNATURE_RSA_PSS_WITH_SHA256 => {
+            (pkey::Id::RSA, Padding::PKCS1_PSS, MessageDigest::sha256())
         }
-        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512 => &RSA_PKCS1_2048_8192_SHA512,
-        SIGNATURE_ECDSA_WITH_SHA256 | SIGNATURE_VERITY_ECDSA_WITH_SHA256 => &ECDSA_P256_SHA256_ASN1,
+        SIGNATURE_RSA_PSS_WITH_SHA512 => {
+            (pkey::Id::RSA, Padding::PKCS1_PSS, MessageDigest::sha512())
+        }
+        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256 | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256 => {
+            (pkey::Id::RSA, Padding::PKCS1, MessageDigest::sha256())
+        }
+        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512 => {
+            (pkey::Id::RSA, Padding::PKCS1, MessageDigest::sha512())
+        }
+        SIGNATURE_ECDSA_WITH_SHA256 | SIGNATURE_VERITY_ECDSA_WITH_SHA256 => {
+            (pkey::Id::EC, Padding::NONE, MessageDigest::sha256())
+        }
         // TODO(b/190343842) not implemented signature algorithm
         SIGNATURE_ECDSA_WITH_SHA512
         | SIGNATURE_DSA_WITH_SHA256
@@ -219,8 +227,15 @@ fn verify_signed_data(
         }
         _ => bail!("Unsupported signature algorithm: {:#x}", signature.signature_algorithm_id),
     };
-    let key = UnparsedPublicKey::new(verification_alg, &key_info.subject_public_key);
-    key.verify(data.as_ref(), signature.signature.as_ref())?;
+    let key = PKey::public_key_from_der(key_info.raw)?;
+    ensure!(key.id() == pkey_id, "Public key has the wrong ID");
+    let mut verifier = Verifier::new(digest, &key)?;
+    if pkey_id == pkey::Id::RSA {
+        verifier.set_rsa_padding(padding)?;
+    }
+    verifier.update(data)?;
+    let verified = verifier.verify(&signature.signature)?;
+    ensure!(verified, "Signature is invalid ");
     Ok(())
 }
 
