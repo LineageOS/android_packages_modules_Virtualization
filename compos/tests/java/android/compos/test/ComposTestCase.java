@@ -16,24 +16,17 @@
 
 package android.compos.test;
 
-import static android.virt.test.CommandResultSubject.assertThat;
-import static android.virt.test.CommandResultSubject.command_results;
-
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
-import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.platform.test.annotations.RootPermissionTest;
 import android.virt.test.CommandRunner;
 import android.virt.test.VirtualizationTestCaseBase;
 
 import com.android.tradefed.log.LogUtil.CLog;
-import com.android.tradefed.result.FileInputStreamSource;
-import com.android.tradefed.result.LogDataType;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
-import com.android.tradefed.util.RunUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -41,8 +34,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
-
-import java.io.File;
 
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
@@ -136,7 +127,7 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
             long start = System.currentTimeMillis();
             CommandResult result = runOdrefresh(android, "--force-compile");
             long elapsed = System.currentTimeMillis() - start;
-            assertThat(result).exitCode().isEqualTo(COMPILATION_SUCCESS);
+            assertThat(result.getExitCode()).isEqualTo(COMPILATION_SUCCESS);
             CLog.i("Local compilation took " + elapsed + "ms");
         }
 
@@ -146,7 +137,12 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
         // --check may delete the output.
         CommandResult result = runOdrefresh(android, "--check");
-        assertThat(result).exitCode().isEqualTo(OKAY);
+        assertThat(result.getExitCode()).isEqualTo(OKAY);
+
+        // Make sure we generate a fresh instance.
+        android.tryRun("rm", "-rf", COMPOS_TEST_ROOT);
+        // TODO: remove once composd starts to clean up the directory.
+        android.tryRun("rm", "-rf", ODREFRESH_OUTPUT_DIR);
 
         // Expect the compilation in Compilation OS to finish successfully.
         {
@@ -155,13 +151,10 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
                     android.runForResultWithTimeout(
                             ODREFRESH_TIMEOUT_MS, COMPOSD_CMD_BIN, "test-compile");
             long elapsed = System.currentTimeMillis() - start;
-            assertThat(result).exitCode().isEqualTo(0);
+            assertThat(result.getExitCode()).isEqualTo(0);
             CLog.i("Comp OS compilation took " + elapsed + "ms");
         }
         killVmAndReconnectAdb();
-
-        // Expect the BCC extracted from the BCC to be well-formed.
-        assertVmBccIsValid();
 
         // Save the actual checksum for the output directory.
         String actualChecksumSnapshot = checksumDirectoryContentPartial(android,
@@ -176,24 +169,6 @@ public final class ComposTestCase extends VirtualizationTestCaseBase {
 
         // Expect the CompOS signature to be valid
         android.run(COMPOS_VERIFY_BIN + " --debug --instance test");
-    }
-
-    private void assertVmBccIsValid() throws Exception {
-        File bcc_file = getDevice().pullFile(COMPOS_APEXDATA_DIR + "/test/bcc");
-        assertThat(bcc_file).isNotNull();
-
-        // Add the BCC to test artifacts, in case it is ill-formed or otherwise interesting.
-        mTestLogs.addTestLog(bcc_file.getPath(), LogDataType.UNKNOWN,
-                new FileInputStreamSource(bcc_file));
-
-        // Find the validator binary - note that it's specified as a dependency in our Android.bp.
-        File validator = getTestInformation().getDependencyFile("bcc_validator", /*targetFirst=*/
-                false);
-
-        CommandResult result = new RunUtil().runTimedCmd(10000,
-                validator.getAbsolutePath(), "verify-chain", bcc_file.getAbsolutePath());
-        assertWithMessage("bcc_validator failed").about(command_results())
-                .that(result).isSuccess();
     }
 
     private CommandResult runOdrefresh(CommandRunner android, String command) throws Exception {
