@@ -23,6 +23,11 @@ fn test_verify_v3() {
 }
 
 #[test]
+fn test_verify_v3_ecdsa_sha256_p256() {
+    assert!(verify("tests/data/v3-only-with-ecdsa-sha256-p256.apk").is_ok());
+}
+
+#[test]
 fn test_verify_v3_digest_mismatch() {
     let res = verify("tests/data/v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk");
     assert!(res.is_err());
