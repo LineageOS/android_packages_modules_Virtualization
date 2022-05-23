@@ -19,7 +19,7 @@
 use anyhow::{anyhow, bail, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use ring::digest;
+use openssl::hash::{DigestBytes, Hasher, MessageDigest};
 use std::cmp::min;
 use std::io::{Cursor, Read, Seek, SeekFrom, Take};
 
@@ -107,12 +107,12 @@ impl<R: Read + Seek> ApkSections<R> {
                 let slice = &mut chunk[..(chunk_size as usize)];
                 data.read_exact(slice)?;
                 digests_of_chunks.put_slice(
-                    digester.digest(slice, CHUNK_HEADER_MID, chunk_size as u32).as_ref(),
+                    digester.digest(slice, CHUNK_HEADER_MID, chunk_size as u32)?.as_ref(),
                 );
                 chunk_count += 1;
             }
         }
-        Ok(digester.digest(&digests_of_chunks, CHUNK_HEADER_TOP, chunk_count).as_ref().into())
+        Ok(digester.digest(&digests_of_chunks, CHUNK_HEADER_TOP, chunk_count)?.as_ref().into())
     }
 
     fn zip_entries(&mut self) -> Result<Take<Box<dyn Read + '_>>> {
@@ -157,7 +157,7 @@ fn scoped_read<'a, R: Read + Seek>(
 }
 
 struct Digester {
-    algorithm: &'static digest::Algorithm,
+    algorithm: MessageDigest,
 }
 
 const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
@@ -167,8 +167,8 @@ impl Digester {
     fn new(signature_algorithm_id: u32) -> Result<Digester> {
         let digest_algorithm_id = to_content_digest_algorithm(signature_algorithm_id)?;
         let algorithm = match digest_algorithm_id {
-            CONTENT_DIGEST_CHUNKED_SHA256 => &digest::SHA256,
-            CONTENT_DIGEST_CHUNKED_SHA512 => &digest::SHA512,
+            CONTENT_DIGEST_CHUNKED_SHA256 => MessageDigest::sha256(),
+            CONTENT_DIGEST_CHUNKED_SHA512 => MessageDigest::sha512(),
             // TODO(jooyung): implement
             CONTENT_DIGEST_VERITY_CHUNKED_SHA256 => {
                 bail!("TODO(b/190343842): CONTENT_DIGEST_VERITY_CHUNKED_SHA256: not implemented")
@@ -179,12 +179,12 @@ impl Digester {
     }
 
     // v2/v3 digests are computed after prepending "header" byte and "size" info.
-    fn digest(&self, data: &[u8], header: &[u8], size: u32) -> digest::Digest {
-        let mut ctx = digest::Context::new(self.algorithm);
-        ctx.update(header);
-        ctx.update(&size.to_le_bytes());
-        ctx.update(data);
-        ctx.finish()
+    fn digest(&self, data: &[u8], header: &[u8], size: u32) -> Result<DigestBytes> {
+        let mut ctx = Hasher::new(self.algorithm)?;
+        ctx.update(header)?;
+        ctx.update(&size.to_le_bytes())?;
+        ctx.update(data)?;
+        Ok(ctx.finish()?)
     }
 }
 
