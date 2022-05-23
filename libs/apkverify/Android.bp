@@ -5,7 +5,6 @@ package {
 rust_defaults {
     name: "libapkverify.defaults",
     crate_name: "apkverify",
-    host_supported: true,
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     edition: "2018",
