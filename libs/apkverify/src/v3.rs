@@ -87,7 +87,7 @@ type X509Certificate = Bytes;
 type AdditionalAttributes = Bytes;
 
 /// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the public key
-/// associated with the signer.
+/// associated with the signer in DER format.
 pub fn verify<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
     let f = File::open(path.as_ref())?;
     let mut sections = ApkSections::new(f)?;
