@@ -98,7 +98,7 @@ fn new_vm_parameters() -> Result<VmParameters> {
         }
     };
     let cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME)?;
-    let task_profiles = vec!["VMCompilationPerformance".to_string()];
+    let task_profiles = vec!["SCHED_SP_COMPUTE".to_string()];
     Ok(VmParameters {
         cpus,
         cpu_set,
