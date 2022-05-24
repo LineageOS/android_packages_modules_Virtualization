@@ -27,7 +27,6 @@ mod service;
 use crate::instance_manager::InstanceManager;
 use android_system_composd::binder::{register_lazy_service, ProcessState};
 use anyhow::{Context, Result};
-use compos_common::compos_client::VmInstance;
 use log::{error, info};
 use std::panic;
 use std::sync::Arc;
@@ -46,7 +45,8 @@ fn try_main() -> Result<()> {
 
     ProcessState::start_thread_pool();
 
-    let virtualization_service = VmInstance::connect_to_virtualization_service()?;
+    let virtualization_service =
+        vmclient::connect().context("Failed to find VirtualizationService")?;
     let instance_manager = Arc::new(InstanceManager::new(virtualization_service));
     let composd_service = service::new_binder(instance_manager);
     register_lazy_service("android.system.composd", composd_service.as_binder())
