@@ -17,13 +17,12 @@
 mod create_idsig;
 mod create_partition;
 mod run;
-mod sync;
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
     VirtualMachineAppConfig::DebugLevel::DebugLevel,
 };
-use android_system_virtualizationservice::binder::{wait_for_interface, ProcessState, Strong};
+use android_system_virtualizationservice::binder::ProcessState;
 use anyhow::{Context, Error};
 use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
@@ -32,9 +31,6 @@ use rustutils::system_properties;
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
-
-const VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER: &str =
-    "android.system.virtualizationservice";
 
 #[derive(Debug)]
 struct Idsigs(Vec<PathBuf>);
@@ -191,9 +187,7 @@ fn main() -> Result<(), Error> {
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
 
-    let service: Strong<dyn IVirtualizationService> =
-        wait_for_interface(VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER)
-            .context("Failed to find VirtualizationService")?;
+    let service = vmclient::connect().context("Failed to find VirtualizationService")?;
 
     match opt {
         Opt::RunApp {

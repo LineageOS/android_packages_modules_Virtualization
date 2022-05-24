@@ -20,6 +20,7 @@ rust_binary {
         "libserde",
         "libstructopt",
         "libvmconfig",
+        "libvmclient",
         "libzip",
     ],
     apex_available: [
