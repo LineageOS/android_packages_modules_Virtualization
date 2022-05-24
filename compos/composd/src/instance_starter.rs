@@ -24,7 +24,7 @@ use anyhow::{Context, Result};
 use binder_common::lazy_service::LazyServiceGuard;
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_aidl_interface::binder::{ParcelFileDescriptor, Strong};
-use compos_common::compos_client::{VmInstance, VmParameters};
+use compos_common::compos_client::{ComposClient, VmParameters};
 use compos_common::{COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTANCE_IMAGE_FILE};
 use log::info;
 use std::fs;
@@ -33,7 +33,7 @@ use std::path::{Path, PathBuf};
 pub struct CompOsInstance {
     service: Strong<dyn ICompOsService>,
     #[allow(dead_code)] // Keeps VirtualizationService & the VM alive
-    vm_instance: VmInstance,
+    vm_instance: ComposClient,
     #[allow(dead_code)] // Keeps composd process alive
     lazy_service_guard: LazyServiceGuard,
 }
@@ -105,7 +105,7 @@ impl InstanceStarter {
             .write(true)
             .open(&self.instance_image)
             .context("Failed to open instance image")?;
-        let vm_instance = VmInstance::start(
+        let vm_instance = ComposClient::start(
             virtualization_service,
             instance_image,
             &self.idsig,
