@@ -20,7 +20,6 @@ use crate::timeouts::timeouts;
 use crate::{COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT, DEFAULT_VM_CONFIG_PATH};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DeathReason::DeathReason,
-    IVirtualMachine::IVirtualMachine,
     IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
     IVirtualizationService::IVirtualizationService,
     VirtualMachineAppConfig::{DebugLevel::DebugLevel, VirtualMachineAppConfig},
@@ -29,19 +28,13 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use android_system_virtualizationservice::binder::{
     BinderFeatures, Interface, ParcelFileDescriptor, Result as BinderResult, Strong,
 };
-use anyhow::{anyhow, bail, Context, Result};
-use binder::{
-    unstable_api::{new_spibinder, AIBinder},
-    FromIBinder,
-};
+use anyhow::{bail, Context, Result};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use log::{info, warn};
 use rustutils::system_properties;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
-use std::os::raw;
-use std::os::unix::io::IntoRawFd;
 use std::path::{Path, PathBuf};
 use std::thread;
 use vmclient::VmInstance;
@@ -159,13 +152,7 @@ impl ComposClient {
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
     pub fn get_service(&self) -> Result<Strong<dyn ICompOsService>> {
-        let mut vsock_factory = VsockFactory::new(&*self.0.vm);
-
-        let ibinder = vsock_factory
-            .connect_rpc_client()
-            .ok_or_else(|| anyhow!("Failed to connect to CompOS service"))?;
-
-        FromIBinder::try_from(ibinder).context("Connecting to CompOS service")
+        self.0.get_service(COMPOS_VSOCK_PORT).context("Connecting to CompOS service")
     }
 }
 
@@ -210,56 +197,6 @@ fn want_protected_vm() -> Result<bool> {
     }
 
     bail!("No VM support available")
-}
-
-struct VsockFactory<'a> {
-    vm: &'a dyn IVirtualMachine,
-}
-
-impl<'a> VsockFactory<'a> {
-    fn new(vm: &'a dyn IVirtualMachine) -> Self {
-        Self { vm }
-    }
-
-    fn connect_rpc_client(&mut self) -> Option<binder::SpIBinder> {
-        let param = self.as_void_ptr();
-
-        unsafe {
-            // SAFETY: AIBinder returned by RpcPreconnectedClient has correct reference count, and
-            // the ownership can be safely taken by new_spibinder.
-            // RpcPreconnectedClient does not take ownership of param, only passing it to
-            // request_fd.
-            let binder =
-                binder_rpc_unstable_bindgen::RpcPreconnectedClient(Some(Self::request_fd), param)
-                    as *mut AIBinder;
-            new_spibinder(binder)
-        }
-    }
-
-    fn as_void_ptr(&mut self) -> *mut raw::c_void {
-        self as *mut _ as *mut raw::c_void
-    }
-
-    fn try_new_vsock_fd(&self) -> Result<i32> {
-        let vsock = self.vm.connectVsock(COMPOS_VSOCK_PORT as i32)?;
-        // Ownership of the fd is transferred to binder
-        Ok(vsock.into_raw_fd())
-    }
-
-    fn new_vsock_fd(&self) -> i32 {
-        self.try_new_vsock_fd().unwrap_or_else(|e| {
-            warn!("Connecting vsock failed: {}", e);
-            -1_i32
-        })
-    }
-
-    unsafe extern "C" fn request_fd(param: *mut raw::c_void) -> raw::c_int {
-        // SAFETY: This is only ever called by RpcPreconnectedClient, within the lifetime of the
-        // VsockFactory, with param taking the value returned by as_void_ptr (so a properly aligned
-        // non-null pointer to an initialized instance).
-        let vsock_factory = param as *mut Self;
-        vsock_factory.as_ref().unwrap().new_vsock_fd()
-    }
 }
 
 struct VmCallback();
