@@ -24,6 +24,7 @@ rust_binary {
         "liblog_rust",
         "librustutils",
         "libshared_child",
+        "libvmclient",
     ],
     apex_available: [
         "com.android.compos",
