@@ -9,8 +9,13 @@ rust_library {
     edition: "2021",
     rustlibs: [
         "android.system.virtualizationservice-rust",
+        "libbinder_rpc_unstable_bindgen",
+        "libbinder_rs",
         "liblog_rust",
         "libthiserror",
+    ],
+    shared_libs: [
+        "libbinder_rpc_unstable",
     ],
     apex_available: [
         "com.android.compos",
