@@ -22,6 +22,8 @@ rust_defaults {
 rust_library {
     name: "libapkverify",
     defaults: ["libapkverify.defaults"],
+    // TODO(b/204562227): move to host_supported to the defaults to include tests
+    host_supported: true,
 }
 
 rust_test {
