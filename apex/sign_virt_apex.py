@@ -104,7 +104,7 @@ def ParseArgs(argv):
         help='the directory having files to be packaged')
     args = parser.parse_args(argv)
     # preprocess --key_override into a map
-    args.key_overrides = dict()
+    args.key_overrides = {}
     if args.key_override:
         for pair in args.key_override:
             name, key = pair.split('=')
@@ -159,7 +159,7 @@ def AvbInfo(args, image_path):
         - a list of descriptors.
     """
     if not os.path.exists(image_path):
-        raise ValueError('Failed to find image: {}'.format(image_path))
+        raise ValueError(f'Failed to find image: {image_path}')
 
     output, ret_code = RunCommand(
         args, ['avbtool', 'info_image', '--image', image_path], expected_return_values={0, 1})
@@ -283,8 +283,7 @@ def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None)
                 part_key = chained_partitions[part_name]
                 avbpubkey = os.path.join(work_dir, part_name + '.avbpubkey')
                 ExtractAvbPubkey(args, part_key, avbpubkey)
-                cmd.extend(['--chain_partition', '%s:%s:%s' %
-                           (part_name, ril, avbpubkey)])
+                cmd.extend(['--chain_partition', f'{part_name}:{ril}:{avbpubkey}'])
 
         if args.signing_args:
             cmd.extend(shlex.split(args.signing_args))
@@ -292,7 +291,7 @@ def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None)
         RunCommand(args, cmd)
         # libavb expects to be able to read the maximum vbmeta size, so we must provide a partition
         # which matches this or the read will fail.
-        with open(vbmeta_img, 'a') as f:
+        with open(vbmeta_img, 'a', encoding='utf8') as f:
             f.truncate(65536)
 
 
@@ -311,9 +310,8 @@ def MakeSuperImage(args, partitions, output):
             tmp_img = os.path.join(work_dir, part)
             RunCommand(args, ['img2simg', img, tmp_img])
 
-            image_arg = '--image=%s=%s' % (part, img)
-            partition_arg = '--partition=%s:readonly:%d:default' % (
-                part, os.path.getsize(img))
+            image_arg = f'--image={part}={img}'
+            partition_arg = f'--partition={part}:readonly:{os.path.getsize(img)}:default'
             cmd.extend([image_arg, partition_arg])
 
         RunCommand(args, cmd)
@@ -448,15 +446,15 @@ def VerifyVirtApex(args):
             return f.read()
 
     def check_equals_pubkey(file):
-        assert contents(file) == pubkey, 'pubkey mismatch: %s' % file
+        assert contents(file) == pubkey, f'pubkey mismatch: {file}'
 
     def check_contains_pubkey(file):
-        assert contents(file).find(pubkey) != -1, 'pubkey missing: %s' % file
+        assert contents(file).find(pubkey) != -1, f'pubkey missing: {file}'
 
     def check_avb_pubkey(file):
         info, _ = AvbInfo(args, file)
-        assert info is not None, 'no avbinfo: %s' % file
-        assert info['Public key (sha1)'] == pubkey_digest, 'pubkey mismatch: %s' % file
+        assert info is not None, f'no avbinfo: {file}'
+        assert info['Public key (sha1)'] == pubkey_digest, f'pubkey mismatch: {file}'
 
     for f in files.values():
         if f == files['bootloader.pubkey']:
