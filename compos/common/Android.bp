@@ -17,6 +17,7 @@ rust_library {
         "liblog_rust",
         "libnum_traits",
         "librustutils",
+        "libvmclient",
     ],
     proc_macros: ["libnum_derive"],
     shared_libs: [

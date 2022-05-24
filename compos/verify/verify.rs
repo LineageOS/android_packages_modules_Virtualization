@@ -20,7 +20,7 @@
 use android_logger::LogId;
 use anyhow::{bail, Context, Result};
 use compos_aidl_interface::binder::ProcessState;
-use compos_common::compos_client::{VmInstance, VmParameters};
+use compos_common::compos_client::{ComposClient, VmParameters};
 use compos_common::odrefresh::{
     CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR, PENDING_ARTIFACTS_SUBDIR,
     TEST_ARTIFACTS_SUBDIR,
@@ -98,8 +98,8 @@ fn try_main() -> Result<()> {
     // We need to start the thread pool to be able to receive Binder callbacks
     ProcessState::start_thread_pool();
 
-    let virtualization_service = VmInstance::connect_to_virtualization_service()?;
-    let vm_instance = VmInstance::start(
+    let virtualization_service = vmclient::connect()?;
+    let vm_instance = ComposClient::start(
         &*virtualization_service,
         instance_image,
         &idsig,
