@@ -175,7 +175,7 @@ impl<R: Read + Seek> V4Signature<R> {
 
         // Create hash tree (and root hash)
         let algorithm = match algorithm {
-            HashAlgorithm::SHA256 => &ring::digest::SHA256,
+            HashAlgorithm::SHA256 => openssl::hash::MessageDigest::sha256(),
         };
         let hash_tree = HashTree::from(&mut apk, size, salt, block_size, algorithm)?;
 
