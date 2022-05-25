@@ -102,7 +102,7 @@ guideline](https://source.android.com/setup/build/building-kernels).
 
 ```shell
 mkdir android-kernel && cd android-kernel
-repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10
+repo init -u https://android.googlesource.com/kernel/manifest -b common-android13-5.15
 repo sync
 FAST_BUILD=1 DIST_DIR=out/dist BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh -j80
 ```
@@ -113,7 +113,7 @@ for x86.
 Then copy the built kernel to the Android source tree.
 
 ```
-cp out/dist/Image <android_root>/kernel/prebuilts/5.10/arm64/kernel-5.10
+cp out/dist/Image <android_root>/kernel/prebuilts/5.15/arm64/kernel-5.15
 ```
 
 Finally rebuild the `com.android.virt` APEX and install it by following the
