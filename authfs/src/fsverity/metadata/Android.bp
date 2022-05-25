@@ -18,7 +18,7 @@ rust_library {
     ],
     rustlibs: [
         "libauthfs_fsverity_metadata_bindgen",
-        "libring",
+        "libopenssl",
     ],
     edition: "2018",
     apex_available: ["com.android.virt"],
