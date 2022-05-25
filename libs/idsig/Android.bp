@@ -11,8 +11,8 @@ rust_defaults {
     rustlibs: [
         "libanyhow",
         "libbyteorder",
-        "libring",
         "libnum_traits",
+        "libopenssl",
     ],
     proc_macros: ["libnum_derive"],
 }
