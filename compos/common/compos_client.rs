@@ -78,7 +78,7 @@ impl ComposClient {
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
         let data_dir = Path::new(COMPOS_DATA_ROOT);
 
-        let config_apk = Self::locate_config_apk(apex_dir)?;
+        let config_apk = locate_config_apk(apex_dir)?;
         let apk_fd = File::open(config_apk).context("Failed to open config APK file")?;
         let apk_fd = ParcelFileDescriptor::new(apk_fd);
         let idsig_fd = prepare_idsig(service, &apk_fd, idsig)?;
@@ -135,25 +135,25 @@ impl ComposClient {
         Ok(Self(instance))
     }
 
-    fn locate_config_apk(apex_dir: &Path) -> Result<PathBuf> {
-        // Our config APK will be in a directory under app, but the name of the directory is at the
-        // discretion of the build system. So just look in each sub-directory until we find it.
-        // (In practice there will be exactly one directory, so this shouldn't take long.)
-        let app_dir = apex_dir.join("app");
-        for dir in fs::read_dir(app_dir).context("Reading app dir")? {
-            let apk_file = dir?.path().join("CompOSPayloadApp.apk");
-            if apk_file.is_file() {
-                return Ok(apk_file);
-            }
-        }
-
-        bail!("Failed to locate CompOSPayloadApp.apk")
-    }
-
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
     pub fn get_service(&self) -> Result<Strong<dyn ICompOsService>> {
         self.0.get_service(COMPOS_VSOCK_PORT).context("Connecting to CompOS service")
     }
+}
+
+fn locate_config_apk(apex_dir: &Path) -> Result<PathBuf> {
+    // Our config APK will be in a directory under app, but the name of the directory is at the
+    // discretion of the build system. So just look in each sub-directory until we find it.
+    // (In practice there will be exactly one directory, so this shouldn't take long.)
+    let app_dir = apex_dir.join("app");
+    for dir in fs::read_dir(app_dir).context("Reading app dir")? {
+        let apk_file = dir?.path().join("CompOSPayloadApp.apk");
+        if apk_file.is_file() {
+            return Ok(apk_file);
+        }
+    }
+
+    bail!("Failed to locate CompOSPayloadApp.apk")
 }
 
 fn prepare_idsig(
