@@ -34,9 +34,9 @@ use itertools::sorted;
 use log::{error, info};
 use microdroid_metadata::{write_metadata, Metadata};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
+use openssl::sha::Sha512;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
 use rand::Fill;
-use ring::digest;
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
 use std::convert::TryInto;
@@ -148,8 +148,8 @@ fn try_main() -> Result<()> {
 
 fn dice_derivation(verified_data: &MicrodroidData, payload_config_path: &str) -> Result<()> {
     // Calculate compound digests of code and authorities
-    let mut code_hash_ctx = digest::Context::new(&digest::SHA512);
-    let mut authority_hash_ctx = digest::Context::new(&digest::SHA512);
+    let mut code_hash_ctx = Sha512::new();
+    let mut authority_hash_ctx = Sha512::new();
     code_hash_ctx.update(verified_data.apk_data.root_hash.as_ref());
     authority_hash_ctx.update(verified_data.apk_data.pubkey.as_ref());
     for extra_apk in &verified_data.extra_apks_data {
@@ -160,8 +160,8 @@ fn dice_derivation(verified_data: &MicrodroidData, payload_config_path: &str) ->
         code_hash_ctx.update(apex.root_digest.as_ref());
         authority_hash_ctx.update(apex.public_key.as_ref());
     }
-    let code_hash = code_hash_ctx.finish().as_ref().try_into().unwrap();
-    let authority_hash = authority_hash_ctx.finish().as_ref().try_into().unwrap();
+    let code_hash = code_hash_ctx.finish();
+    let authority_hash = authority_hash_ctx.finish();
 
     // {
     //   -70002: "Microdroid payload",
