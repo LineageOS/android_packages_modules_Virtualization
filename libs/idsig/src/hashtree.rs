@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-pub use ring::digest::{Algorithm, Digest};
-
-use ring::digest;
+use openssl::hash::{DigestBytes, Hasher, MessageDigest};
 use std::io::{Cursor, Read, Result, Write};
 
 /// `HashTree` is a merkle tree (and its root hash) that is compatible with fs-verity.
@@ -35,7 +33,7 @@ impl HashTree {
         input_size: usize,
         salt: &[u8],
         block_size: usize,
-        algorithm: &'static Algorithm,
+        algorithm: MessageDigest,
     ) -> Result<Self> {
         let salt = zero_pad_salt(salt, algorithm);
         let tree = generate_hash_tree(input, input_size, &salt, block_size, algorithm)?;
@@ -45,10 +43,10 @@ impl HashTree {
         let root_hash = if tree.is_empty() {
             let mut data = Vec::new();
             input.read_to_end(&mut data)?;
-            hash_one_block(&data, &salt, block_size, algorithm).as_ref().to_vec()
+            hash_one_block(&data, &salt, block_size, algorithm)?.as_ref().to_vec()
         } else {
             let first_block = &tree[0..block_size];
-            hash_one_block(first_block, &salt, block_size, algorithm).as_ref().to_vec()
+            hash_one_block(first_block, &salt, block_size, algorithm)?.as_ref().to_vec()
         };
         Ok(HashTree { tree, root_hash })
     }
@@ -69,9 +67,9 @@ pub fn generate_hash_tree<R: Read>(
     input_size: usize,
     salt: &[u8],
     block_size: usize,
-    algorithm: &'static Algorithm,
+    algorithm: MessageDigest,
 ) -> Result<Vec<u8>> {
-    let digest_size = algorithm.output_len;
+    let digest_size = algorithm.size();
     let levels = calc_hash_levels(input_size, block_size, digest_size);
     let tree_size = levels.iter().map(|r| r.len()).sum();
 
@@ -89,7 +87,7 @@ pub fn generate_hash_tree<R: Read>(
             let mut num_blocks = (input_size + block_size - 1) / block_size;
             while num_blocks > 0 {
                 input.read_exact(&mut a_block)?;
-                let h = hash_one_block(&a_block, salt, block_size, algorithm);
+                let h = hash_one_block(&a_block, salt, block_size, algorithm)?;
                 level0.write_all(h.as_ref()).unwrap();
                 num_blocks -= 1;
             }
@@ -102,10 +100,10 @@ pub fn generate_hash_tree<R: Read>(
             let cur_and_prev = &mut hash_tree[cur.start..prev.end];
             let (cur, prev) = cur_and_prev.split_at_mut(prev.start - cur.start);
             let mut cur = Cursor::new(cur);
-            prev.chunks(block_size).for_each(|data| {
-                let h = hash_one_block(data, salt, block_size, algorithm);
+            for data in prev.chunks(block_size) {
+                let h = hash_one_block(data, salt, block_size, algorithm)?;
                 cur.write_all(h.as_ref()).unwrap();
-            });
+            }
         }
     }
     Ok(hash_tree)
@@ -117,14 +115,14 @@ fn hash_one_block(
     input: &[u8],
     salt: &[u8],
     block_size: usize,
-    algorithm: &'static Algorithm,
-) -> Digest {
-    let mut ctx = digest::Context::new(algorithm);
-    ctx.update(salt);
-    ctx.update(input);
+    algorithm: MessageDigest,
+) -> Result<DigestBytes> {
+    let mut ctx = Hasher::new(algorithm)?;
+    ctx.update(salt)?;
+    ctx.update(input)?;
     let pad_size = block_size - input.len();
-    ctx.update(&vec![0; pad_size]);
-    ctx.finish()
+    ctx.update(&vec![0; pad_size])?;
+    Ok(ctx.finish()?)
 }
 
 type Range = std::ops::Range<usize>;
@@ -180,11 +178,11 @@ fn round_to_multiple(n: usize, unit: usize) -> usize {
 /// If a salt was specified, then it’s zero-padded to the closest multiple of the input size of the
 /// hash algorithm’s compression function, e.g. 64 bytes for SHA-256 or 128 bytes for SHA-512. The
 /// padded salt is prepended to every data or Merkle tree block that is hashed.
-fn zero_pad_salt(salt: &[u8], algorithm: &Algorithm) -> Vec<u8> {
+fn zero_pad_salt(salt: &[u8], algorithm: MessageDigest) -> Vec<u8> {
     if salt.is_empty() {
         salt.to_vec()
     } else {
-        let padded_len = round_to_multiple(salt.len(), algorithm.block_len);
+        let padded_len = round_to_multiple(salt.len(), algorithm.block_size());
         let mut salt = salt.to_vec();
         salt.resize(padded_len, 0);
         salt
@@ -194,7 +192,7 @@ fn zero_pad_salt(salt: &[u8], algorithm: &Algorithm) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ring::digest;
+    use openssl::hash::MessageDigest;
     use std::fs::{self, File};
 
     #[test]
@@ -210,7 +208,7 @@ mod tests {
 
             let size = std::fs::metadata(&input_name)?.len() as usize;
             let salt = vec![1, 2, 3, 4, 5, 6];
-            let ht = HashTree::from(&mut input, size, &salt, 4096, &digest::SHA256)?;
+            let ht = HashTree::from(&mut input, size, &salt, 4096, MessageDigest::sha256())?;
 
             assert_eq!(golden_hash_tree.as_slice(), ht.tree.as_slice());
             assert_eq!(golden_root_hash, ht.root_hash.as_slice());
