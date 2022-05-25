@@ -16,7 +16,7 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-kernel_version = "5.15"
+kernel_version = "5.10"
 
 kernel_stem = "kernel_prebuilts-" + kernel_version
 
