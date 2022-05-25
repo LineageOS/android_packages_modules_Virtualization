@@ -42,7 +42,6 @@ use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 mod common;
-mod crypto;
 mod file;
 mod fsstat;
 mod fsverity;
