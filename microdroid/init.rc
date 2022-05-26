@@ -173,7 +173,7 @@ on post-fs-data
     mkdir /data/local 0751 root root
     mkdir /data/local/tmp 0771 shell shell
 
-service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000
+service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000 -remove_tombstones_after_transmitting
     user root
     group system
 
