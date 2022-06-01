@@ -129,15 +129,20 @@ pub fn get_public_key_der<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
 }
 
 impl Signer {
-    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
-        // 1. Choose the strongest supported signature algorithm ID from signatures. The strength
-        //    ordering is up to each implementation/platform version.
-        let strongest: &Signature = self
+    /// Select the signature that uses the strongest algorithm according to the preferences of the
+    /// v4 signing scheme.
+    fn strongest_signature(&self) -> Result<&Signature> {
+        Ok(self
             .signatures
             .iter()
             .filter(|sig| is_supported_signature_algorithm(sig.signature_algorithm_id))
             .max_by_key(|sig| rank_signature_algorithm(sig.signature_algorithm_id).unwrap())
-            .ok_or_else(|| anyhow!("No supported signatures found"))?;
+            .ok_or_else(|| anyhow!("No supported signatures found"))?)
+    }
+
+    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
+        // 1. Choose the strongest supported signature algorithm ID from signatures.
+        let strongest = self.strongest_signature()?;
 
         // 2. Verify the corresponding signature from signatures against signed data using public key.
         //    (It is now safe to parse signed data.)
