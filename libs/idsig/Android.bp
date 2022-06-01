@@ -10,6 +10,7 @@ rust_defaults {
     prefer_rlib: true,
     rustlibs: [
         "libanyhow",
+        "libapkverify",
         "libbyteorder",
         "libnum_traits",
         "libopenssl",
