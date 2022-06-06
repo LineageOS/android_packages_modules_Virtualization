@@ -204,7 +204,7 @@ public class IsolatedCompilationJobService extends JobService {
                 Log.w(TAG, "Failed to cancel CompilationTask", e);
             }
 
-            mMetrics.onCompilationEnded(IsolatedCompilationMetrics.RESULT_JOB_CANCELED);
+            mMetrics.onCompilationJobCanceled(mParams.getStopReason());
             try {
                 task.asBinder().unlinkToDeath(this, 0);
             } catch (NoSuchElementException e) {
