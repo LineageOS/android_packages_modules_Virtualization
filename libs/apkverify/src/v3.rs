@@ -128,16 +128,43 @@ pub fn get_public_key_der<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
     })
 }
 
+/// Gets the APK digest.
+pub fn pick_v4_apk_digest<R: Read + Seek>(apk: R) -> Result<(u32, Box<[u8]>)> {
+    let mut sections = ApkSections::new(apk)?;
+    let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID)?;
+    let signers = block.read::<Signers>()?;
+    if signers.len() != 1 {
+        bail!("should only have one signer");
+    }
+    signers[0].pick_v4_apk_digest()
+}
+
 impl Signer {
-    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
-        // 1. Choose the strongest supported signature algorithm ID from signatures. The strength
-        //    ordering is up to each implementation/platform version.
-        let strongest: &Signature = self
+    /// Select the signature that uses the strongest algorithm according to the preferences of the
+    /// v4 signing scheme.
+    fn strongest_signature(&self) -> Result<&Signature> {
+        Ok(self
             .signatures
             .iter()
             .filter(|sig| is_supported_signature_algorithm(sig.signature_algorithm_id))
             .max_by_key(|sig| rank_signature_algorithm(sig.signature_algorithm_id).unwrap())
-            .ok_or_else(|| anyhow!("No supported signatures found"))?;
+            .ok_or_else(|| anyhow!("No supported signatures found"))?)
+    }
+
+    fn pick_v4_apk_digest(&self) -> Result<(u32, Box<[u8]>)> {
+        let strongest = self.strongest_signature()?;
+        let signed_data: SignedData = self.signed_data.slice(..).read()?;
+        let digest = signed_data
+            .digests
+            .iter()
+            .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
+            .ok_or_else(|| anyhow!("Digest not found"))?;
+        Ok((digest.signature_algorithm_id, digest.digest.as_ref().to_vec().into_boxed_slice()))
+    }
+
+    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
+        // 1. Choose the strongest supported signature algorithm ID from signatures.
+        let strongest = self.strongest_signature()?;
 
         // 2. Verify the corresponding signature from signatures against signed data using public key.
         //    (It is now safe to parse signed data.)
