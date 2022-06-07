@@ -282,6 +282,7 @@ fn to_content_digest_algorithm(algorithm_id: u32) -> Result<u32> {
     }
 }
 
+/// Rank the signature algorithm according to the preferences of the v4 signing scheme.
 pub fn rank_signature_algorithm(algo: u32) -> Result<u32> {
     rank_content_digest_algorithm(to_content_digest_algorithm(algo)?)
 }
