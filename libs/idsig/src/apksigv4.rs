@@ -15,6 +15,7 @@
  */
 
 use anyhow::{anyhow, bail, Context, Result};
+use apkverify::pick_v4_apk_digest;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -190,9 +191,12 @@ impl<R: Read + Seek> V4Signature<R> {
         ret.hashing_info.raw_root_hash = hash_tree.root_hash.into_boxed_slice();
         ret.hashing_info.log2_blocksize = log2(block_size);
 
-        // TODO(jiyong): fill the signing_info struct by reading the APK file. The information,
-        // especially `apk_digest` is needed to check if `V4Signature` is outdated, in which case
-        // it needs to be created from the updated APK.
+        apk.seek(SeekFrom::Start(start))?;
+        let (signature_algorithm_id, apk_digest) = pick_v4_apk_digest(apk)?;
+        ret.signing_info.signature_algorithm_id =
+            SignatureAlgorithmId::from(signature_algorithm_id)?;
+        ret.signing_info.apk_digest = apk_digest;
+        // TODO(jiyong): add a signature to the signing_info struct
 
         Ok(ret)
     }
