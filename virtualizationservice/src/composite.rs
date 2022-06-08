@@ -121,7 +121,13 @@ fn fd_path_for_file(file: &File) -> PathBuf {
 /// This will work for raw, QCOW2, composite and Android sparse images.
 fn get_partition_size(partition: &File, path: &Path) -> Result<u64, Error> {
     // TODO: Use `context` once disk::Error implements std::error::Error.
-    Ok(create_disk_file(partition.try_clone()?, MAX_NESTING_DEPTH, path)
-        .map_err(|e| anyhow!("Failed to open partition image: {}", e))?
-        .get_len()?)
+    // TODO: Add check for is_sparse_file
+    Ok(create_disk_file(
+        partition.try_clone()?,
+        /* is_sparse_file */ false,
+        MAX_NESTING_DEPTH,
+        path,
+    )
+    .map_err(|e| anyhow!("Failed to open partition image: {}", e))?
+    .get_len()?)
 }
