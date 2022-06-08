@@ -14,7 +14,8 @@ java_test_host {
         "VirtualizationTestHelper",
     ],
     test_suites: ["general-tests"],
-    data_device_bins: ["open_then_run"],
+    //TODO(b/235263148) use data_device_bins_64
+    data_device_bins_first: ["open_then_run"],
     per_testcase_directory: true,
     data: [
         ":authfs_test_files",
