@@ -3,12 +3,16 @@ package {
 }
 
 microdroid_filesystem_images = [
-    "microdroid_super",
     "microdroid_boot-5.10",
+    "microdroid_bootconfig_app_debuggable",
+    "microdroid_bootconfig_full_debuggable",
+    "microdroid_bootconfig_normal",
     "microdroid_init_boot",
-    "microdroid_vendor_boot-5.10",
+    "microdroid_super",
+    "microdroid_uboot_env",
     "microdroid_vbmeta",
     "microdroid_vbmeta_bootconfig",
+    "microdroid_vendor_boot-5.10",
 ]
 
 apex {
@@ -60,12 +64,8 @@ apex {
     prebuilts: [
         "com.android.virt.init.rc",
         "microdroid.json",
-        "microdroid_uboot_env",
         "microdroid_bootloader",
         "microdroid_bootloader.avbpubkey",
-        "microdroid_bootconfig_normal",
-        "microdroid_bootconfig_app_debuggable",
-        "microdroid_bootconfig_full_debuggable",
     ],
     file_contexts: ":com.android.virt-file_contexts",
     canned_fs_config: "canned_fs_config",
