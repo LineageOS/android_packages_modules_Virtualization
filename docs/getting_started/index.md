@@ -11,6 +11,10 @@ provides the same functionalities except that the virtual machines are not prote
 We support the following device:
 
 * aosp_cf_x86_64_phone (Cuttlefish a.k.a. Cloud Android)
+* oriole (Pixel 6)
+* raven (Pixel 6 Pro)
+
+### Cuttlefish
 
 Building Cuttlefish
 
@@ -24,6 +28,19 @@ Run Cuttlefish locally by
 
 ```shell
 acloud create --local-instance --local-image
+```
+
+### Pixel 6 and 6 Pro
+
+If the device is running Android 12, join the [Android Beta
+Program](https://www.google.com/android/beta) to uprade to Android 13 Beta.
+
+Once upgraded to Android 13, execute the following command to enable pKVM.
+
+```shell
+adb reboot bootloader
+fastboot oem pkvm enable
+fastboot reboot
 ```
 
 ## Running demo app
