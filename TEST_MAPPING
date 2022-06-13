@@ -35,6 +35,9 @@
       "path": "packages/modules/Virtualization/libs/apkverify"
     },
     {
+      "path": "packages/modules/Virtualization/libs/vbmeta"
+    },
+    {
       "path": "packages/modules/Virtualization/authfs"
     },
     {
