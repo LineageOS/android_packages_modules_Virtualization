@@ -361,8 +361,8 @@ def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
 virt_apex_files = {
     'bootloader.pubkey': 'etc/microdroid_bootloader.avbpubkey',
     'bootloader': 'etc/microdroid_bootloader',
-    'boot.img': 'etc/fs/microdroid_boot-5.10.img',
-    'vendor_boot.img': 'etc/fs/microdroid_vendor_boot-5.10.img',
+    'boot.img': 'etc/fs/microdroid_boot.img',
+    'vendor_boot.img': 'etc/fs/microdroid_vendor_boot.img',
     'init_boot.img': 'etc/fs/microdroid_init_boot.img',
     'super.img': 'etc/fs/microdroid_super.img',
     'vbmeta.img': 'etc/fs/microdroid_vbmeta.img',
