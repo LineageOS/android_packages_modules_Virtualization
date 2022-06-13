@@ -1,5 +1,5 @@
 {
-  "bootloader": "/apex/com.android.virt/etc/fs/microdroid_bootloader",
+  "bootloader": "/apex/com.android.virt/etc/microdroid_bootloader",
   "disks": [
     {
       "partitions": [
@@ -30,7 +30,7 @@
       "partitions": [
         {
           "label": "uboot_env",
-          "path": "/apex/com.android.virt/etc/fs/uboot_env.img",
+          "path": "/apex/com.android.virt/etc/uboot_env.img",
           "writable": false
         }
       ],

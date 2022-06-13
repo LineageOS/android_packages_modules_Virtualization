@@ -360,17 +360,17 @@ def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
 # dict of (key, file) for re-sign/verification. keys are un-versioned for readability.
 virt_apex_files = {
     'bootloader.pubkey': 'etc/microdroid_bootloader.avbpubkey',
-    'bootloader': 'etc/fs/microdroid_bootloader',
+    'bootloader': 'etc/microdroid_bootloader',
     'boot.img': 'etc/fs/microdroid_boot-5.10.img',
     'vendor_boot.img': 'etc/fs/microdroid_vendor_boot-5.10.img',
     'init_boot.img': 'etc/fs/microdroid_init_boot.img',
     'super.img': 'etc/fs/microdroid_super.img',
     'vbmeta.img': 'etc/fs/microdroid_vbmeta.img',
     'vbmeta_bootconfig.img': 'etc/fs/microdroid_vbmeta_bootconfig.img',
-    'bootconfig.normal': 'etc/fs/microdroid_bootconfig.normal',
-    'bootconfig.app_debuggable': 'etc/fs/microdroid_bootconfig.app_debuggable',
-    'bootconfig.full_debuggable': 'etc/fs/microdroid_bootconfig.full_debuggable',
-    'uboot_env.img': 'etc/fs/uboot_env.img'
+    'bootconfig.normal': 'etc/microdroid_bootconfig.normal',
+    'bootconfig.app_debuggable': 'etc/microdroid_bootconfig.app_debuggable',
+    'bootconfig.full_debuggable': 'etc/microdroid_bootconfig.full_debuggable',
+    'uboot_env.img': 'etc/uboot_env.img'
 }
 
 
