@@ -365,7 +365,7 @@ pub fn add_microdroid_images(
         )?),
         writable: false,
     });
-    let bootconfig_image = "/apex/com.android.virt/etc/microdroid_bootconfig.".to_owned()
+    let bootconfig_image = "/apex/com.android.virt/etc/fs/microdroid_bootconfig.".to_owned()
         + match config.debugLevel {
             DebugLevel::NONE => "normal",
             DebugLevel::APP_ONLY => "app_debuggable",
