@@ -386,84 +386,34 @@ vbmeta {
     ],
 }
 
-// See external/avb/avbtool.py
-// MAX_VBMETA_SIZE=64KB, MAX_FOOTER_SIZE=4KB
-avb_hash_footer_kb = "68"
-
-prebuilt_etc {
-    name: "microdroid_bootconfig_normal",
-    src: ":microdroid_bootconfig_normal_gen",
-    filename: "microdroid_bootconfig.normal",
-}
-
-prebuilt_etc {
-    name: "microdroid_bootconfig_app_debuggable",
-    src: ":microdroid_bootconfig_app_debuggable_gen",
-    filename: "microdroid_bootconfig.app_debuggable",
-}
-
-prebuilt_etc {
-    name: "microdroid_bootconfig_full_debuggable",
-    src: ":microdroid_bootconfig_full_debuggable_gen",
-    filename: "microdroid_bootconfig.full_debuggable",
-}
-
 // python -c "import hashlib; print(hashlib.sha256(b'bootconfig').hexdigest())"
 bootconfig_salt = "e158851fbebb402e1f18ea9372ea2f76b4dea23eceb5c4b92e5b27ade8537f5b"
 
-// TODO(jiyong): make a new module type that does the avb signing
-genrule {
-    name: "microdroid_bootconfig_normal_gen",
-    tools: ["avbtool"],
-    srcs: [
-        "bootconfig.normal",
-        ":microdroid_sign_key",
-    ],
-    out: ["microdroid_bootconfig.normal"],
-    cmd: "cp $(location bootconfig.normal) $(out) && " +
-        "$(location avbtool) add_hash_footer " +
-        "--algorithm SHA256_RSA4096 " +
-        "--salt " + bootconfig_salt + " " +
-        "--partition_name bootconfig " +
-        "--key $(location :microdroid_sign_key) " +
-        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
-        "--image $(out)",
+avb_add_hash_footer {
+    name: "microdroid_bootconfig_normal",
+    src: "bootconfig.normal",
+    filename: "microdroid_bootconfig.normal",
+    partition_name: "bootconfig",
+    private_key: ":microdroid_sign_key",
+    salt: bootconfig_salt,
 }
 
-genrule {
-    name: "microdroid_bootconfig_app_debuggable_gen",
-    tools: ["avbtool"],
-    srcs: [
-        "bootconfig.app_debuggable",
-        ":microdroid_sign_key",
-    ],
-    out: ["microdroid_bootconfig.app_debuggable"],
-    cmd: "cp $(location bootconfig.app_debuggable) $(out) && " +
-        "$(location avbtool) add_hash_footer " +
-        "--algorithm SHA256_RSA4096 " +
-        "--salt " + bootconfig_salt + " " +
-        "--partition_name bootconfig " +
-        "--key $(location :microdroid_sign_key) " +
-        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
-        "--image $(out)",
+avb_add_hash_footer {
+    name: "microdroid_bootconfig_app_debuggable",
+    src: "bootconfig.app_debuggable",
+    filename: "microdroid_bootconfig.app_debuggable",
+    partition_name: "bootconfig",
+    private_key: ":microdroid_sign_key",
+    salt: bootconfig_salt,
 }
 
-genrule {
-    name: "microdroid_bootconfig_full_debuggable_gen",
-    tools: ["avbtool"],
-    srcs: [
-        "bootconfig.full_debuggable",
-        ":microdroid_sign_key",
-    ],
-    out: ["microdroid_bootconfig.full_debuggable"],
-    cmd: "cp $(location bootconfig.full_debuggable) $(out) && " +
-        "$(location avbtool) add_hash_footer " +
-        "--algorithm SHA256_RSA4096 " +
-        "--salt " + bootconfig_salt + " " +
-        "--partition_name bootconfig " +
-        "--key $(location :microdroid_sign_key) " +
-        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
-        "--image $(out)",
+avb_add_hash_footer {
+    name: "microdroid_bootconfig_full_debuggable",
+    src: "bootconfig.full_debuggable",
+    filename: "microdroid_bootconfig.full_debuggable",
+    partition_name: "bootconfig",
+    private_key: ":microdroid_sign_key",
+    salt: bootconfig_salt,
 }
 
 prebuilt_etc {
@@ -475,7 +425,7 @@ prebuilt_etc {
 
 prebuilt_etc {
     name: "microdroid_bootloader",
-    src: ":microdroid_bootloader_gen",
+    src: ":microdroid_bootloader_signed",
     arch: {
         x86_64: {
             // For unknown reason, the signed bootloader doesn't work on x86_64. Until the problem
@@ -484,36 +434,20 @@ prebuilt_etc {
             src: ":microdroid_bootloader_pubkey_replaced",
         },
     },
+    relative_install_path: "fs",
     filename: "microdroid_bootloader",
 }
 
 // python -c "import hashlib; print(hashlib.sha256(b'bootloader').hexdigest())"
 bootloader_salt = "3b4a12881d11f33cff968a24d7c53723a8232cde9a8d91e29fdbd6a95ae6adf0"
 
-genrule {
-    name: "microdroid_bootloader_gen",
-    tools: ["avbtool"],
-    srcs: [
-        ":microdroid_bootloader_pubkey_replaced",
-        ":microdroid_sign_key",
-    ],
-    out: ["bootloader-signed"],
-    // 1. Copy the input to the output becaise avbtool modifies --image in
-    // place.
-    // 2. Check if the file is big enough. For arm and x86 we have fake
-    // bootloader file whose size is 1. It can't pass avbtool.
-    // 3. Add the hash footer. The partition size is set to (image size + 68KB)
-    // rounded up to 4KB boundary.
-    cmd: "cp $(location :microdroid_bootloader_pubkey_replaced) $(out) && " +
-        "if [ $$(stat --format=%s $(out)) -gt 4096 ]; then " +
-        "$(location avbtool) add_hash_footer " +
-        "--algorithm SHA256_RSA4096 " +
-        "--salt " + bootloader_salt + " " +
-        "--partition_name bootloader " +
-        "--key $(location :microdroid_sign_key) " +
-        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
-        "--image $(out)" +
-        "; fi",
+avb_add_hash_footer {
+    name: "microdroid_bootloader_signed",
+    src: ":microdroid_bootloader_pubkey_replaced",
+    filename: "microdroid_bootloader",
+    partition_name: "bootloader",
+    private_key: ":microdroid_sign_key",
+    salt: bootloader_salt,
 }
 
 // Replace avbpubkey of prebuilt bootloader with the avbpubkey of the signing key
@@ -556,34 +490,24 @@ genrule {
         "--output $(out)",
 }
 
-prebuilt_etc {
-    name: "microdroid_uboot_env",
-    src: ":microdroid_uboot_env_gen",
-    filename: "uboot_env.img",
-}
-
 // python -c "import hashlib; print(hashlib.sha256(b'uboot_env').hexdigest())"
 uboot_env_salt = "cbf2d76827ece5ca8d176a40c94ac6355edcf6511b4b887364a8c0e05850df10"
 
+avb_add_hash_footer {
+    name: "microdroid_uboot_env",
+    src: ":microdroid_uboot_env_gen",
+    filename: "uboot_env.img",
+    partition_name: "uboot_env",
+    private_key: ":microdroid_sign_key",
+    salt: uboot_env_salt,
+}
+
 genrule {
     name: "microdroid_uboot_env_gen",
-    tools: [
-        "mkenvimage_slim",
-        "avbtool",
-    ],
-    srcs: [
-        "uboot-env.txt",
-        ":microdroid_sign_key",
-    ],
+    tools: ["mkenvimage_slim"],
+    srcs: ["uboot-env.txt"],
     out: ["output.img"],
-    cmd: "$(location mkenvimage_slim) -output_path $(out) -input_path $(location uboot-env.txt) && " +
-        "$(location avbtool) add_hash_footer " +
-        "--algorithm SHA256_RSA4096 " +
-        "--salt " + uboot_env_salt + " " +
-        "--partition_name uboot_env " +
-        "--key $(location :microdroid_sign_key) " +
-        "--partition_size $$(( " + avb_hash_footer_kb + " * 1024 + ( $$(stat --format=%s $(out)) + 4096 - 1 ) / 4096 * 4096 )) " +
-        "--image $(out)",
+    cmd: "$(location mkenvimage_slim) -output_path $(out) -input_path $(location uboot-env.txt)",
 }
 
 // Note that keys can be different for filesystem images even though we're using the same key
