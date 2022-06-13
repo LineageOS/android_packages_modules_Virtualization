@@ -254,7 +254,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         // Add partitions to the second disk
         final String vbmetaPath = TEST_ROOT + "etc/fs/microdroid_vbmeta_bootconfig.img";
-        final String bootconfigPath = TEST_ROOT + "etc/fs/microdroid_bootconfig.full_debuggable";
+        final String bootconfigPath = TEST_ROOT + "etc/microdroid_bootconfig.full_debuggable";
         disks.getJSONObject(1).getJSONArray("partitions")
                 .put(newPartition("vbmeta", vbmetaPath))
                 .put(newPartition("bootconfig", bootconfigPath))
