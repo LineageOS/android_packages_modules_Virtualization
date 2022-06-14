@@ -5,7 +5,7 @@
       "partitions": [
         {
           "label": "boot_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_boot-5.10.img"
+          "path": "/apex/com.android.virt/etc/fs/microdroid_boot.img"
         },
         {
           "label": "init_boot_a",
@@ -13,7 +13,7 @@
         },
         {
           "label": "vendor_boot_a",
-          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot-5.10.img"
+          "path": "/apex/com.android.virt/etc/fs/microdroid_vendor_boot.img"
         },
         {
           "label": "vbmeta_a",
