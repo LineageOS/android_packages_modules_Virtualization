@@ -27,6 +27,7 @@ import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemProperties;
 import android.sysprop.HypervisorProperties;
+import android.system.virtualizationservice.DeathReason;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
@@ -479,10 +480,21 @@ public class MicrodroidTests {
         file.writeByte(b ^ 1);
     }
 
-    private boolean tryBootVm(String vmName)
+    private static class BootResult {
+        public final boolean payloadStarted;
+        public final int deathReason;
+
+        BootResult(boolean payloadStarted, int deathReason) {
+            this.payloadStarted = payloadStarted;
+            this.deathReason = deathReason;
+        }
+    }
+
+    private BootResult tryBootVm(String vmName)
             throws VirtualMachineException, InterruptedException {
         mInner.mVm = mInner.mVmm.get(vmName); // re-load the vm before running tests
         final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
+        final CompletableFuture<Integer> deathReason = new CompletableFuture<>();
         VmEventListener listener =
                 new VmEventListener() {
                     @Override
@@ -490,9 +502,15 @@ public class MicrodroidTests {
                         payloadStarted.complete(true);
                         forceStop(vm);
                     }
+                    @Override
+                    public void onDied(VirtualMachine vm, int reason) {
+                        deathReason.complete(reason);
+                        super.onDied(vm, reason);
+                    }
                 };
         listener.runToFinish(mInner.mVm);
-        return payloadStarted.getNow(false);
+        return new BootResult(
+                payloadStarted.getNow(false), deathReason.getNow(DeathReason.INFRASTRUCTURE_ERROR));
     }
 
     private RandomAccessFile prepareInstanceImage(String vmName)
@@ -506,7 +524,7 @@ public class MicrodroidTests {
         oldVm.delete();
         mInner.mVmm.getOrCreate(vmName, config);
 
-        assertThat(tryBootVm(vmName)).isTrue();
+        assertThat(tryBootVm(vmName).payloadStarted).isTrue();
 
         File vmRoot = new File(mInner.mContext.getFilesDir(), "vm");
         File vmDir = new File(vmRoot, vmName);
@@ -530,7 +548,7 @@ public class MicrodroidTests {
         assertThat(offset.isPresent()).isTrue();
 
         flipBit(instanceFile, offset.getAsLong());
-        assertThat(tryBootVm("test_vm_integrity")).isFalse();
+        assertThat(tryBootVm("test_vm_integrity").payloadStarted).isFalse();
     }
 
     @Test
@@ -570,5 +588,23 @@ public class MicrodroidTests {
             // non-protected VM shouldn't have pvmfw data
             assertThatPartitionIsMissing(PVM_FW_PARTITION_UUID);
         }
+    }
+
+    @Test
+    public void bootFailsWhenConfigIsInvalid()
+            throws VirtualMachineException, InterruptedException, IOException {
+        VirtualMachine existingVm = mInner.mVmm.get("test_vm_invalid_config");
+        if (existingVm != null) {
+            existingVm.delete();
+        }
+
+        VirtualMachineConfig.Builder builder =
+                mInner.newVmConfigBuilder("assets/vm_config_no_task.json");
+        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        mInner.mVmm.create("test_vm_invalid_config", normalConfig);
+
+        BootResult bootResult = tryBootVm("test_vm_invalid_config");
+        assertThat(bootResult.payloadStarted).isFalse();
+        assertThat(bootResult.deathReason).isEqualTo(DeathReason.MICRODROID_INVALID_PAYLOAD_CONFIG);
     }
 }
