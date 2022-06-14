@@ -240,17 +240,17 @@ microdroid_boot_cmdline = [
 ]
 
 bootimg {
-    name: "microdroid_boot-5.10",
+    name: "microdroid_boot",
     // We don't have kernel for arm and x86. But Soong demands one when it builds for
     // arm or x86 target. Satisfy that by providing an empty file as the kernel.
     kernel_prebuilt: "empty_kernel",
     arch: {
         arm64: {
-            kernel_prebuilt: ":kernel_prebuilts-5.10-arm64",
+            kernel_prebuilt: ":kernel_prebuilts-5.15-arm64",
             cmdline: microdroid_boot_cmdline,
         },
         x86_64: {
-            kernel_prebuilt: ":kernel_prebuilts-5.10-x86_64",
+            kernel_prebuilt: ":kernel_prebuilts-5.15-x86_64",
             cmdline: microdroid_boot_cmdline + [
                 // console=none is to work around the x86 specific u-boot behavior which when
                 // console= option is not found in the kernel commandline console=ttyS0 is
@@ -272,7 +272,7 @@ bootimg {
 
 bootimg {
     name: "microdroid_init_boot",
-    ramdisk_module: "microdroid_ramdisk-5.10",
+    ramdisk_module: "microdroid_ramdisk",
     kernel_prebuilt: "empty_kernel",
     header_version: "4",
     partition_name: "init_boot",
@@ -281,7 +281,7 @@ bootimg {
 }
 
 android_filesystem {
-    name: "microdroid_ramdisk-5.10",
+    name: "microdroid_ramdisk",
     deps: [
         "init_first_stage",
     ],
@@ -299,8 +299,8 @@ android_filesystem {
 }
 
 bootimg {
-    name: "microdroid_vendor_boot-5.10",
-    ramdisk_module: "microdroid_vendor_ramdisk-5.10",
+    name: "microdroid_vendor_boot",
+    ramdisk_module: "microdroid_vendor_ramdisk",
     dtb_prebuilt: "dummy_dtb.img",
     header_version: "4",
     vendor_boot: true,
@@ -321,17 +321,17 @@ prebuilt_kernel_modules {
     name: "microdroid_kernel_modules",
     arch: {
         arm64: {
-            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.10-arm64"],
+            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.15-arm64"],
         },
         x86_64: {
-            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.10-x86_64"],
+            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.15-x86_64"],
         },
     },
-    kernel_version: "5.10",
+    kernel_version: "5.15",
 }
 
 android_filesystem {
-    name: "microdroid_vendor_ramdisk-5.10",
+    name: "microdroid_vendor_ramdisk",
     deps: [
         "microdroid_fstab",
         "microdroid_kernel_modules",
@@ -600,9 +600,9 @@ vbmeta {
     private_key: ":microdroid_sign_key",
     partitions: [
         "microdroid_vendor",
-        "microdroid_vendor_boot-5.10",
+        "microdroid_vendor_boot",
         "microdroid",
-        "microdroid_boot-5.10",
+        "microdroid_boot",
         "microdroid_init_boot",
     ],
 }
