@@ -42,4 +42,14 @@ enum DeathReason {
     BOOTLOADER_PUBLIC_KEY_MISMATCH = 9,
     /** The bootloader failed to verify the VM because the instance image changed. */
     BOOTLOADER_INSTANCE_IMAGE_CHANGED = 10,
+    /** The microdroid failed to connect to VirtualizationService's RPC server. */
+    MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE = 11,
+    /** The payload for microdroid is changed. */
+    MICRODROID_PAYLOAD_HAS_CHANGED = 12,
+    /** The microdroid failed to verify given payload APK. */
+    MICRODROID_PAYLOAD_VERIFICATION_FAILED = 13,
+    /** The VM config for microdroid is invalid (e.g. missing tasks). */
+    MICRODROID_INVALID_PAYLOAD_CONFIG = 14,
+    /** There was a runtime error while running microdroid manager. */
+    MICRODROID_UNKNOWN_RUNTIME_ERROR = 15,
 }

@@ -276,6 +276,19 @@ fn death_reason(result: &Result<ExitStatus, io::Error>, failure_reason: &str) ->
             "BOOTLOADER_INSTANCE_IMAGE_CHANGED" => {
                 return DeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED
             }
+            "MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE" => {
+                return DeathReason::MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE
+            }
+            "MICRODROID_PAYLOAD_HAS_CHANGED" => return DeathReason::MICRODROID_PAYLOAD_HAS_CHANGED,
+            "MICRODROID_PAYLOAD_VERIFICATION_FAILED" => {
+                return DeathReason::MICRODROID_PAYLOAD_VERIFICATION_FAILED
+            }
+            "MICRODROID_INVALID_PAYLOAD_CONFIG" => {
+                return DeathReason::MICRODROID_INVALID_PAYLOAD_CONFIG
+            }
+            "MICRODROID_UNKNOWN_RUNTIME_ERROR" => {
+                return DeathReason::MICRODROID_UNKNOWN_RUNTIME_ERROR
+            }
             _ => {}
         }
         match status.code() {
