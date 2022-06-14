@@ -41,6 +41,7 @@ use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
 use std::convert::TryInto;
 use std::fs::{self, create_dir, File, OpenOptions};
+use std::io::Write;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -71,8 +72,13 @@ const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
 const LOGD_ENABLED_PROP: &str = "ro.boot.logd.enabled";
 const APP_DEBUGGABLE_PROP: &str = "ro.boot.microdroid.app_debuggable";
 
+// SYNC WITH virtualizationservice/src/crosvm.rs
+const FAILURE_SERIAL_DEVICE: &str = "/dev/ttyS1";
+
 #[derive(thiserror::Error, Debug)]
 enum MicrodroidError {
+    #[error("Cannot connect to virtualization service: {0}")]
+    FailedToConnectToVirtualizationService(String),
     #[error("Payload has changed: {0}")]
     PayloadChanged(String),
     #[error("Payload verification has failed: {0}")]
@@ -89,10 +95,48 @@ fn translate_error(err: &Error) -> (i32, String) {
                 (ERROR_PAYLOAD_VERIFICATION_FAILED, msg.to_string())
             }
             MicrodroidError::InvalidConfig(msg) => (ERROR_PAYLOAD_INVALID_CONFIG, msg.to_string()),
+
+            // Connection failure won't be reported to VS; return the default value
+            MicrodroidError::FailedToConnectToVirtualizationService(msg) => {
+                (ERROR_UNKNOWN, msg.to_string())
+            }
         }
     } else {
         (ERROR_UNKNOWN, err.to_string())
     }
+}
+
+fn write_death_reason_to_serial(err: &Error) -> Result<()> {
+    let death_reason = if let Some(e) = err.downcast_ref::<MicrodroidError>() {
+        match e {
+            MicrodroidError::FailedToConnectToVirtualizationService(_) => {
+                "MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE"
+            }
+            MicrodroidError::PayloadChanged(_) => "MICRODROID_PAYLOAD_HAS_CHANGED",
+            MicrodroidError::PayloadVerificationFailed(_) => {
+                "MICRODROID_PAYLOAD_VERIFICATION_FAILED"
+            }
+            MicrodroidError::InvalidConfig(_) => "MICRODROID_INVALID_PAYLOAD_CONFIG",
+        }
+    } else {
+        "MICRODROID_UNKNOWN_RUNTIME_ERROR"
+    };
+
+    let death_reason_bytes = death_reason.as_bytes();
+    let mut sent_total = 0;
+    while sent_total < death_reason_bytes.len() {
+        // TODO(b/220071963): Sometimes, sending more than 16 bytes at once makes MM hang.
+        let begin = sent_total;
+        let end = std::cmp::min(begin.saturating_add(16), death_reason_bytes.len());
+        OpenOptions::new()
+            .read(false)
+            .write(true)
+            .open(FAILURE_SERIAL_DEVICE)?
+            .write_all(&death_reason_bytes[begin..end])?;
+        sent_total = end;
+    }
+
+    Ok(())
 }
 
 fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
@@ -114,6 +158,9 @@ fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
 fn main() {
     if let Err(e) = try_main() {
         error!("Failed with {:?}. Shutting down...", e);
+        if let Err(e) = write_death_reason_to_serial(&e) {
+            error!("Failed to write death reason {:?}", e);
+        }
         if let Err(e) = system_properties::write("sys.powerctl", "shutdown") {
             error!("failed to shutdown {:?}", e);
         }
@@ -125,7 +172,9 @@ fn try_main() -> Result<()> {
     let _ = kernlog::init();
     info!("started.");
 
-    let service = get_vms_rpc_binder().context("cannot connect to VirtualMachineService")?;
+    let service = get_vms_rpc_binder()
+        .context("cannot connect to VirtualMachineService")
+        .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
     match try_run_payload(&service) {
         Ok(code) => {
             info!("notifying payload finished");
@@ -225,8 +274,9 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     }
 
     // Verify the payload before using it.
-    let verified_data =
-        verify_payload(&metadata, saved_data.as_ref()).context("Payload verification failed")?;
+    let verified_data = verify_payload(&metadata, saved_data.as_ref())
+        .context("Payload verification failed")
+        .map_err(|e| MicrodroidError::PayloadVerificationFailed(e.to_string()))?;
     if let Some(saved_data) = saved_data {
         ensure!(
             saved_data == verified_data,
