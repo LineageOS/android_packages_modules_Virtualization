@@ -47,6 +47,9 @@ cc_binary {
             enabled: true,
         },
     },
+    sanitize: {
+        hwaddress: false,
+    },
     apex_available: ["com.android.virt"],
 }
 
