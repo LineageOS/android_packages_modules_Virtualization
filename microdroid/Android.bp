@@ -246,11 +246,11 @@ bootimg {
     kernel_prebuilt: "empty_kernel",
     arch: {
         arm64: {
-            kernel_prebuilt: ":kernel_prebuilts-5.15-arm64",
+            kernel_prebuilt: ":microdroid_kernel_prebuilts-5.15-arm64",
             cmdline: microdroid_boot_cmdline,
         },
         x86_64: {
-            kernel_prebuilt: ":kernel_prebuilts-5.15-x86_64",
+            kernel_prebuilt: ":microdroid_kernel_prebuilts-5.15-x86_64",
             cmdline: microdroid_boot_cmdline + [
                 // console=none is to work around the x86 specific u-boot behavior which when
                 // console= option is not found in the kernel commandline console=ttyS0 is
@@ -317,6 +317,8 @@ bootimg {
     avb_private_key: ":microdroid_sign_key",
 }
 
+// TODO(b/231117670) remove this when VirtualizationTestCases moves to the
+// microdroid kernel
 prebuilt_kernel_modules {
     name: "microdroid_kernel_modules",
     arch: {
@@ -334,7 +336,6 @@ android_filesystem {
     name: "microdroid_vendor_ramdisk",
     deps: [
         "microdroid_fstab",
-        "microdroid_kernel_modules",
     ],
     base_dir: "first_stage_ramdisk",
     type: "compressed_cpio",
