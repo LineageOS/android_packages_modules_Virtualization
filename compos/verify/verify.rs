@@ -104,7 +104,7 @@ fn try_main() -> Result<()> {
         instance_image,
         &idsig,
         &idsig_manifest_apk,
-        &VmParameters { debug_mode, never_log: !debug_mode, ..Default::default() },
+        &VmParameters { debug_mode, ..Default::default() },
     )?;
     let service = vm_instance.get_service()?;
 
