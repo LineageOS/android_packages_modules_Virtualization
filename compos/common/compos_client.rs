@@ -58,8 +58,6 @@ pub struct VmParameters {
     pub config_path: Option<String>,
     /// If present, overrides the amount of RAM to give the VM
     pub memory_mib: Option<i32>,
-    /// Never save VM logs to files.
-    pub never_log: bool,
 }
 
 impl ComposClient {
@@ -94,7 +92,7 @@ impl ComposClient {
             (true, false) => DebugLevel::NONE,
         };
 
-        let (console_fd, log_fd) = if parameters.never_log || debug_level == DebugLevel::NONE {
+        let (console_fd, log_fd) = if debug_level == DebugLevel::NONE {
             (None, None)
         } else {
             // Console output and the system log output from the VM are redirected to file.
