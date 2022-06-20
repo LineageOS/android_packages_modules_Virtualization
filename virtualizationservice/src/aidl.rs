@@ -1090,7 +1090,7 @@ impl IVirtualMachineService for VirtualMachineService {
             vm.callbacks.notify_error(cid, error_code, message);
             Ok(())
         } else {
-            error!("notifyPayloadStarted is called from an unknown CID {}", cid);
+            error!("notifyError is called from an unknown CID {}", cid);
             Err(new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("cannot find a VM with CID {}", cid),
