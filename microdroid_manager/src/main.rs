@@ -155,17 +155,21 @@ fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
     }
 }
 
-fn main() {
-    if let Err(e) = try_main() {
-        error!("Failed with {:?}. Shutting down...", e);
-        if let Err(e) = write_death_reason_to_serial(&e) {
-            error!("Failed to write death reason {:?}", e);
-        }
+fn main() -> Result<()> {
+    scopeguard::defer! {
+        info!("Shutting down...");
         if let Err(e) = system_properties::write("sys.powerctl", "shutdown") {
             error!("failed to shutdown {:?}", e);
         }
-        std::process::exit(1);
     }
+
+    try_main().map_err(|e| {
+        error!("Failed with {:?}.", e);
+        if let Err(e) = write_death_reason_to_serial(&e) {
+            error!("Failed to write death reason {:?}", e);
+        }
+        e
+    })
 }
 
 fn try_main() -> Result<()> {
