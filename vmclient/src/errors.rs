@@ -33,9 +33,9 @@ pub enum VmWaitError {
     Finished,
 }
 
-/// An error connection to a VM RPC Binder service.
+/// An error connecting to a VM RPC Binder service.
 #[derive(Clone, Debug, Error)]
-pub enum GetServiceError {
+pub enum ConnectServiceError {
     /// The RPC binder connection failed.
     #[error("Vsock connection to RPC binder failed.")]
     ConnectionFailed,

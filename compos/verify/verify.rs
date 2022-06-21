@@ -106,11 +106,15 @@ fn try_main() -> Result<()> {
         &idsig_manifest_apk,
         &VmParameters { debug_mode, ..Default::default() },
     )?;
-    let service = vm_instance.get_service()?;
 
-    let public_key = service.getPublicKey().context("Getting public key")?;
+    let service = vm_instance.connect_service()?;
+    let public_key = service.getPublicKey().context("Getting public key");
 
-    if !compos_verify_native::verify(&public_key, &signature, &info) {
+    // Shut down the VM cleanly, giving time for any relevant logs to be written
+    let _ = service.quit(); // If this fails, the VM is probably dying anyway
+    vm_instance.wait_for_shutdown();
+
+    if !compos_verify_native::verify(&public_key?, &signature, &info) {
         bail!("Signature verification failed");
     }
 

@@ -20,7 +20,7 @@ mod rpc_binder;
 mod sync;
 
 pub use crate::death_reason::DeathReason;
-pub use crate::errors::{GetServiceError, VmWaitError};
+pub use crate::errors::{ConnectServiceError, VmWaitError};
 use crate::{rpc_binder::VsockFactory, sync::Monitor};
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
@@ -111,6 +111,15 @@ impl VmInstance {
         self.state.wait_while(|state| state.death_reason.is_none()).unwrap().death_reason.unwrap()
     }
 
+    /// Blocks until the VM or the VirtualizationService itself dies, or the given timeout expires.
+    /// Returns the reason why it died if it did so.
+    pub fn wait_for_death_with_timeout(&self, timeout: Duration) -> Option<DeathReason> {
+        let (state, _timeout_result) =
+            self.state.wait_timeout_while(timeout, |state| state.death_reason.is_none()).unwrap();
+        // We don't care if it timed out - we just return the reason if there now is one
+        state.death_reason
+    }
+
     /// Waits until the VM reports that it is ready.
     ///
     /// Returns an error if the VM dies first, or the `timeout` elapses before the VM is ready.
@@ -133,15 +142,15 @@ impl VmInstance {
     }
 
     /// Tries to connect to an RPC Binder service provided by the VM on the given vsock port.
-    pub fn get_service<T: FromIBinder + ?Sized>(
+    pub fn connect_service<T: FromIBinder + ?Sized>(
         &self,
         port: u32,
-    ) -> Result<Strong<T>, GetServiceError> {
+    ) -> Result<Strong<T>, ConnectServiceError> {
         let mut vsock_factory = VsockFactory::new(&*self.vm, port);
 
         let ibinder = vsock_factory.connect_rpc_client()?;
 
-        FromIBinder::try_from(ibinder).map_err(GetServiceError::WrongServiceType)
+        FromIBinder::try_from(ibinder).map_err(ConnectServiceError::WrongServiceType)
     }
 
     /// Get ramdump
