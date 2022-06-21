@@ -439,6 +439,7 @@ public class VirtualMachine {
                         }
                         @Override
                         public void onDied(int cid, int reason) {
+                            // TODO(b/236811123) translate `reason` into a stable reason numbers
                             service.asBinder().unlinkToDeath(deathRecipient, 0);
                             if (onDiedCalled.compareAndSet(false, true)) {
                                 executeCallback((cb) -> cb.onDied(VirtualMachine.this, reason));

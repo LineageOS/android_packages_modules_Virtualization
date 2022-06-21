@@ -18,10 +18,13 @@ use crate::aidl::VirtualMachineCallbacks;
 use crate::Cid;
 use anyhow::{bail, Error};
 use command_fds::CommandFdExt;
+use lazy_static::lazy_static;
 use log::{debug, error, info};
 use semver::{Version, VersionReq};
 use nix::{fcntl::OFlag, unistd::pipe2};
+use rustutils::system_properties;
 use shared_child::SharedChild;
+use std::borrow::Cow;
 use std::fs::{remove_dir_all, File};
 use std::io::{self, Read};
 use std::mem;
@@ -29,7 +32,8 @@ use std::num::NonZeroU32;
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 use std::thread;
 use vsock::VsockStream;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DeathReason::DeathReason;
@@ -51,6 +55,25 @@ const CROSVM_REBOOT_STATUS: i32 = 32;
 /// The exit status which crosvm returns when it crashes due to an error.
 const CROSVM_CRASH_STATUS: i32 = 33;
 
+fn is_nested_virtualization() -> bool {
+    //  Check if we are running on vsoc as a proxy for this.
+    matches!(
+        system_properties::read("ro.build.product").unwrap().as_deref(),
+        Some("vsoc_x86_64") | Some("vsoc_x86")
+    )
+}
+
+lazy_static! {
+    /// If the VM doesn't move to the Started state within this amount time, a hang-up error is
+    /// triggered.
+    static ref BOOT_HANGUP_TIMEOUT: Duration = if is_nested_virtualization() {
+        // Nested virtualization is slow, so we need a longer timeout.
+        Duration::from_secs(100)
+    } else {
+        Duration::from_secs(10)
+    };
+}
+
 /// Configuration for a VM to run with crosvm.
 #[derive(Debug)]
 pub struct CrosvmConfig {
@@ -69,6 +92,7 @@ pub struct CrosvmConfig {
     pub log_fd: Option<File>,
     pub indirect_files: Vec<File>,
     pub platform_version: VersionReq,
+    pub detect_hangup: bool,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -116,6 +140,7 @@ impl VmState {
     fn start(&mut self, instance: Arc<VmInstance>) -> Result<(), Error> {
         let state = mem::replace(self, VmState::Failed);
         if let VmState::NotStarted { config } = state {
+            let detect_hangup = config.detect_hangup;
             let (failure_pipe_read, failure_pipe_write) = create_pipe()?;
 
             // If this fails and returns an error, `self` will be left in the `Failed` state.
@@ -123,7 +148,7 @@ impl VmState {
 
             let child_clone = child.clone();
             thread::spawn(move || {
-                instance.monitor(child_clone, failure_pipe_read);
+                instance.monitor(child_clone, failure_pipe_read, detect_hangup);
             });
 
             // If it started correctly, update the state.
@@ -162,6 +187,8 @@ pub struct VmInstance {
     pub vm_service: Mutex<Option<Strong<dyn IVirtualMachineService>>>,
     /// The latest lifecycle state which the payload reported itself to be in.
     payload_state: Mutex<PayloadState>,
+    /// Represents the condition that payload_state becomes Started
+    payload_started: Condvar,
 }
 
 impl VmInstance {
@@ -188,6 +215,7 @@ impl VmInstance {
             stream: Mutex::new(None),
             vm_service: Mutex::new(None),
             payload_state: Mutex::new(PayloadState::Starting),
+            payload_started: Condvar::new(),
         })
     }
 
@@ -198,11 +226,38 @@ impl VmInstance {
     }
 
     /// Waits for the crosvm child process to finish, then marks the VM as no longer running and
-    /// calls any callbacks.
+    /// calls any callbacks. If `detect_hangup` is optionally set to true, waits for the start of
+    /// payload in the crosvm process. If that doesn't occur within a BOOT_HANGUP_TIMEOUT, declare
+    /// it as a hangup and forcibly kill the process.
     ///
     /// This takes a separate reference to the `SharedChild` rather than using the one in
     /// `self.vm_state` to avoid holding the lock on `vm_state` while it is running.
-    fn monitor(&self, child: Arc<SharedChild>, mut failure_pipe_read: File) {
+    fn monitor(&self, child: Arc<SharedChild>, mut failure_pipe_read: File, detect_hangup: bool) {
+        let hungup = if detect_hangup {
+            // Wait until payload is started or the crosvm process terminates. The checking of the
+            // child process is needed because otherwise we will be waiting for a condition that
+            // will never be satisfied (because crosvm is the one who can make the condition true).
+            let state = self.payload_state.lock().unwrap();
+            let (_, result) = self
+                .payload_started
+                .wait_timeout_while(state, *BOOT_HANGUP_TIMEOUT, |state| {
+                    *state < PayloadState::Started && child.try_wait().is_ok()
+                })
+                .unwrap();
+            if result.timed_out() {
+                error!(
+                    "Microdroid failed to start payload within {} secs timeout. Shutting down",
+                    BOOT_HANGUP_TIMEOUT.as_secs()
+                );
+                self.kill();
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         let result = child.wait();
         match &result {
             Err(e) => error!("Error waiting for crosvm({}) instance to die: {}", child.id(), e),
@@ -214,14 +269,17 @@ impl VmInstance {
         // Ensure that the mutex is released before calling the callbacks.
         drop(vm_state);
 
-        let mut failure_string = String::new();
-        let failure_read_result = failure_pipe_read.read_to_string(&mut failure_string);
-        if let Err(e) = &failure_read_result {
-            error!("Error reading VM failure reason from pipe: {}", e);
-        }
-        if !failure_string.is_empty() {
-            info!("VM returned failure reason '{}'", failure_string);
-        }
+        let failure_string = if hungup {
+            Cow::from("HANGUP")
+        } else {
+            let mut s = String::new();
+            match failure_pipe_read.read_to_string(&mut s) {
+                Err(e) => error!("Error reading VM failure reason from pipe: {}", e),
+                Ok(len) if len > 0 => info!("VM returned failure reason '{}'", &s),
+                _ => (),
+            };
+            Cow::from(s)
+        };
 
         self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_string));
 
@@ -243,6 +301,9 @@ impl VmInstance {
         // the other direction.
         if new_state > *state_locked {
             *state_locked = new_state;
+            if new_state >= PayloadState::Started {
+                self.payload_started.notify_all();
+            }
             Ok(())
         } else {
             bail!("Invalid payload state transition from {:?} to {:?}", *state_locked, new_state)
@@ -289,6 +350,7 @@ fn death_reason(result: &Result<ExitStatus, io::Error>, failure_reason: &str) ->
             "MICRODROID_UNKNOWN_RUNTIME_ERROR" => {
                 return DeathReason::MICRODROID_UNKNOWN_RUNTIME_ERROR
             }
+            "HANGUP" => return DeathReason::HANGUP,
             _ => {}
         }
         match status.code() {
