@@ -167,6 +167,7 @@ genrule {
         "grep ro\\.build\\.version\\.release= $(location :buildinfo.prop) && " +
         "grep ro\\.build\\.version\\.sdk= $(location :buildinfo.prop) && " +
         "grep ro\\.build\\.version\\.security_patch= $(location :buildinfo.prop) && " +
+        "grep ro\\.build\\.version\\.known_codenames= $(location :buildinfo.prop) && " +
         "cat $(location build.prop) && " +
         "echo ro.product.cpu.abilist=x86_64) > $(out)",
 }
@@ -183,6 +184,7 @@ genrule {
         "grep ro\\.build\\.version\\.release= $(location :buildinfo.prop) && " +
         "grep ro\\.build\\.version\\.sdk= $(location :buildinfo.prop) && " +
         "grep ro\\.build\\.version\\.security_patch= $(location :buildinfo.prop) && " +
+        "grep ro\\.build\\.version\\.known_codenames= $(location :buildinfo.prop) && " +
         "cat $(location build.prop) && " +
         "echo ro.product.cpu.abilist=arm64-v8a) > $(out)",
 }
