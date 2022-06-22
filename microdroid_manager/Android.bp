@@ -34,6 +34,7 @@ rust_defaults {
         "libopenssl",
         "libprotobuf",
         "librustutils",
+        "libscopeguard",
         "libserde",
         "libserde_cbor",
         "libserde_json",
