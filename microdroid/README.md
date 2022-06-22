@@ -162,6 +162,8 @@ the console where the `vm run-app` command was invoked.
 ## ADB
 
 On userdebug builds, you can have an adb connection to microdroid. To do so,
+first, add the `--debug=full` flag to the `/apex/com.android.virt/bin/vm
+run-app` command, and then
 
 ```sh
 adb forward tcp:8000 vsock:$CID:5555
