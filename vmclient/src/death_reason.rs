@@ -44,6 +44,18 @@ pub enum DeathReason {
     BootloaderPublicKeyMismatch,
     /// The bootloader failed to verify the VM because the instance image changed.
     BootloaderInstanceImageChanged,
+    /// The microdroid failed to connect to VirtualizationService's RPC server.
+    MicrodroidFailedToConnectToVirtualizationService,
+    /// The payload for microdroid is changed.
+    MicrodroidPayloadHasChanged,
+    /// The microdroid failed to verify given payload APK.
+    MicrodroidPayloadVerificationFailed,
+    /// The VM config for microdroid is invalid (e.g. missing tasks).
+    MicrodroidInvalidPayloadConfig,
+    /// There was a runtime error while running microdroid manager.
+    MicrodroidUnknownRuntimeError,
+    /// The VM was killed due to hangup.
+    Hangup,
     /// VirtualizationService sent a death reason which was not recognised by the client library.
     Unrecognised(AidlDeathReason),
 }
@@ -66,6 +78,20 @@ impl From<AidlDeathReason> for DeathReason {
             AidlDeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED => {
                 Self::BootloaderInstanceImageChanged
             }
+            AidlDeathReason::MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE => {
+                Self::MicrodroidFailedToConnectToVirtualizationService
+            }
+            AidlDeathReason::MICRODROID_PAYLOAD_HAS_CHANGED => Self::MicrodroidPayloadHasChanged,
+            AidlDeathReason::MICRODROID_PAYLOAD_VERIFICATION_FAILED => {
+                Self::MicrodroidPayloadVerificationFailed
+            }
+            AidlDeathReason::MICRODROID_INVALID_PAYLOAD_CONFIG => {
+                Self::MicrodroidInvalidPayloadConfig
+            }
+            AidlDeathReason::MICRODROID_UNKNOWN_RUNTIME_ERROR => {
+                Self::MicrodroidUnknownRuntimeError
+            }
+            AidlDeathReason::HANGUP => Self::Hangup,
             _ => Self::Unrecognised(reason),
         }
     }
@@ -94,6 +120,20 @@ impl Display for DeathReason {
             Self::BootloaderInstanceImageChanged => {
                 "Bootloader failed to verify the VM because the instance image changed."
             }
+            Self::MicrodroidFailedToConnectToVirtualizationService => {
+                "The microdroid failed to connect to VirtualizationService's RPC server."
+            }
+            Self::MicrodroidPayloadHasChanged => "The payload for microdroid is changed.",
+            Self::MicrodroidPayloadVerificationFailed => {
+                "The microdroid failed to verify given payload APK."
+            }
+            Self::MicrodroidInvalidPayloadConfig => {
+                "The VM config for microdroid is invalid (e.g. missing tasks)."
+            }
+            Self::MicrodroidUnknownRuntimeError => {
+                "There was a runtime error while running microdroid manager."
+            }
+            Self::Hangup => "VM hangup.",
             Self::Unrecognised(reason) => {
                 return write!(f, "Unrecognised death reason {:?}.", reason);
             }

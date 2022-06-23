@@ -52,4 +52,6 @@ enum DeathReason {
     MICRODROID_INVALID_PAYLOAD_CONFIG = 14,
     /** There was a runtime error while running microdroid manager. */
     MICRODROID_UNKNOWN_RUNTIME_ERROR = 15,
+    /** The VM killed due to hangup */
+    HANGUP = 16,
 }
