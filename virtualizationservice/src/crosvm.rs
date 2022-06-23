@@ -22,7 +22,6 @@ use lazy_static::lazy_static;
 use log::{debug, error, info};
 use semver::{Version, VersionReq};
 use nix::{fcntl::OFlag, unistd::pipe2};
-use rustutils::system_properties;
 use shared_child::SharedChild;
 use std::borrow::Cow;
 use std::fs::{remove_dir_all, File};
@@ -55,18 +54,10 @@ const CROSVM_REBOOT_STATUS: i32 = 32;
 /// The exit status which crosvm returns when it crashes due to an error.
 const CROSVM_CRASH_STATUS: i32 = 33;
 
-fn is_nested_virtualization() -> bool {
-    //  Check if we are running on vsoc as a proxy for this.
-    matches!(
-        system_properties::read("ro.build.product").unwrap().as_deref(),
-        Some("vsoc_x86_64") | Some("vsoc_x86")
-    )
-}
-
 lazy_static! {
     /// If the VM doesn't move to the Started state within this amount time, a hang-up error is
     /// triggered.
-    static ref BOOT_HANGUP_TIMEOUT: Duration = if is_nested_virtualization() {
+    static ref BOOT_HANGUP_TIMEOUT: Duration = if nested_virt::is_nested_virtualization().unwrap() {
         // Nested virtualization is slow, so we need a longer timeout.
         Duration::from_secs(100)
     } else {
