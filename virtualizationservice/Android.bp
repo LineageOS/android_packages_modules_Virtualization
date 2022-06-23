@@ -35,6 +35,7 @@ rust_defaults {
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
+        "libnested_virt",
         "libnix",
         "libonce_cell",
         "libregex",
