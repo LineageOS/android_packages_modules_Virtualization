@@ -66,7 +66,8 @@ public interface VirtualMachineCallback {
         DEATH_REASON_SHUTDOWN,
         DEATH_REASON_ERROR,
         DEATH_REASON_REBOOT,
-        DEATH_REASON_CRASH
+        DEATH_REASON_CRASH,
+        DEATH_REASON_HANGUP,
     })
     @interface DeathReason {}
 
@@ -96,6 +97,36 @@ public interface VirtualMachineCallback {
 
     /** The VM or crosvm crashed. */
     int DEATH_REASON_CRASH = 6;
+
+    /** The pVM firmware failed to verify the VM because the public key doesn't match. */
+    int DEATH_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH = 7;
+
+    /** The pVM firmware failed to verify the VM because the instance image changed. */
+    int DEATH_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED = 8;
+
+    /** The bootloader failed to verify the VM because the public key doesn't match. */
+    int DEATH_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH = 9;
+
+    /** The bootloader failed to verify the VM because the instance image changed. */
+    int DEATH_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED = 10;
+
+    /** The microdroid failed to connect to VirtualizationService's RPC server. */
+    int DEATH_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE = 11;
+
+    /** The payload for microdroid is changed. */
+    int DEATH_REASON_MICRODROID_PAYLOAD_HAS_CHANGED = 12;
+
+    /** The microdroid failed to verify given payload APK. */
+    int DEATH_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED = 13;
+
+    /** The VM config for microdroid is invalid (e.g. missing tasks). */
+    int DEATH_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG = 14;
+
+    /** There was a runtime error while running microdroid manager. */
+    int DEATH_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR = 15;
+
+    /** The VM killed due to hangup */
+    int DEATH_REASON_HANGUP = 16;
 
     /** Called when the payload starts in the VM. */
     void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
