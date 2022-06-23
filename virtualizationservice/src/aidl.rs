@@ -479,6 +479,7 @@ impl VirtualizationService {
             log_fd,
             indirect_files,
             platform_version: parse_platform_version_req(&config.platformVersion)?,
+            detect_hangup: is_app_config,
         };
         let instance = Arc::new(
             VmInstance::new(
