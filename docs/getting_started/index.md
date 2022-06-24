@@ -141,25 +141,25 @@ adb install out/dist/com.android.virt.apex
 adb reboot
 ```
 
-## Building and updating GKI inside Microdroid
+## Building and updating kernel inside Microdroid
 
 Checkout the Android common kernel and build it following the [official
 guideline](https://source.android.com/setup/build/building-kernels).
 
 ```shell
 mkdir android-kernel && cd android-kernel
-repo init -u https://android.googlesource.com/kernel/manifest -b common-android13-5.15
+repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-5.15
 repo sync
-FAST_BUILD=1 DIST_DIR=out/dist BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh -j80
+FAST_BUILD=1 DIST_DIR=out/dist BUILD_CONFIG=common/build.config.microdroid.aarch64 build/build.sh -j80
 ```
 
-Replace `build.config.gki.aarch64` with `build.config.gki.x86_64` if building
+Replace `build.config.microdroid.aarch64` with `build.config.microdroid.x86_64` if building
 for x86.
 
 Then copy the built kernel to the Android source tree.
 
 ```
-cp out/dist/Image <android_root>/kernel/prebuilts/5.15/arm64/kernel-5.15
+cp out/dist/Image <android_root>/packages/modules/Virtualization/microdroid/kernel/arm64/kernel-5.15
 ```
 
 Finally rebuild the `com.android.virt` APEX and install it by following the
