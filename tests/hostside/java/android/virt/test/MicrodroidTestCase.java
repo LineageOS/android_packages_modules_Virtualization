@@ -384,13 +384,16 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                         Optional.of(CPU_AFFINITY));
         adbConnectToMicrodroid(getDevice(), cid);
         waitForBootComplete();
-        runOnMicrodroid("logcat -c");
+        runOnMicrodroidRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
+                        MICRODROID_ADB_CONNECT_MAX_ATTEMPTS,
+                        "logcat -c");
         // We need root permission to write to /data/tombstones/
         rootMicrodroid();
         // Write a test tombstone file in /data/tombstones
         runOnMicrodroid("echo -n \'Test tombstone in VM with 34 bytes\'"
                     + "> /data/tombstones/transmit.txt");
-        // check if the tombstone have been tranferred from VM
+        // check if the tombstone have been tranferred from VM. This is a bit flaky - increasing
+        // timeout to 30s can result in SIGKILL inside microdroid due to logcat memory issue
         assertNotEquals(runOnMicrodroid("timeout 15s logcat | grep -m 1 "
                             + "'tombstone_transmit.microdroid:.*data/tombstones/transmit.txt'"),
                 "");
