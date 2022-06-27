@@ -149,7 +149,7 @@ pub struct DirEntriesSnapshotIterator {
     prev_offset: usize,
 }
 
-impl<'a> DirectoryIterator for DirEntriesSnapshotIterator {
+impl DirectoryIterator for DirEntriesSnapshotIterator {
     fn next(&mut self) -> Option<DirEntry> {
         // This iterator should not be the only reference to the snapshot. The snapshot should
         // still be hold in `dir_handle_table`, i.e. when the FD is not yet closed.
