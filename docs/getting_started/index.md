@@ -39,6 +39,7 @@ Once upgraded to Android 13, execute the following command to enable pKVM.
 
 ```shell
 adb reboot bootloader
+fastboot flashing unlock
 fastboot oem pkvm enable
 fastboot reboot
 ```
