@@ -27,9 +27,13 @@ use crate::layout::{
     bionic_tls, dtb_range, print_addresses, rodata_range, stack_chk_guard, text_range,
     writable_region, DEVICE_REGION,
 };
-use aarch64_paging::{idmap::IdMap, paging::Attributes};
+use aarch64_paging::{
+    idmap::IdMap,
+    paging::{Attributes, MemoryRegion},
+};
 use alloc::{vec, vec::Vec};
 use buddy_system_allocator::LockedHeap;
+use libfdt::Fdt;
 use log::{info, LevelFilter};
 use vmbase::{logger, main, println};
 
@@ -57,6 +61,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     assert_eq!(arg0, dtb_range().start.0 as u64);
     check_data();
     check_stack_guard();
+    check_fdt();
 
     unsafe {
         HEAP_ALLOCATOR.lock().init(HEAP.as_mut_ptr() as usize, HEAP.len());
@@ -136,6 +141,20 @@ fn check_data() {
         assert_eq!(MUTABLE_DATA[0], 1);
     }
     info!("Data looks good");
+}
+
+fn check_fdt() {
+    info!("Checking FDT...");
+    let fdt = MemoryRegion::from(layout::dtb_range());
+    let fdt = unsafe { core::slice::from_raw_parts_mut(fdt.start().0 as *mut u8, fdt.len()) };
+
+    let reader = Fdt::from_slice(fdt).unwrap();
+    info!("FDT passed verification.");
+    for reg in reader.memory().unwrap() {
+        info!("memory @ {reg:#x?}");
+    }
+
+    info!("FDT checks done.");
 }
 
 fn check_alloc() {
