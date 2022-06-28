@@ -210,6 +210,8 @@ impl IVirtualizationService for VirtualizationService {
         // TODO(b/193504400): do this only when (1) idsig_fd is empty or (2) the APK digest in
         // idsig_fd is different from APK digest in input_fd
 
+        check_manage_access()?;
+
         let mut input = clone_file(input_fd)?;
         let mut sig = V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256).unwrap();
 
