@@ -3,7 +3,7 @@
 ## Building
 
 ```
-TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
+UNBUNDLED_BUILD_SDKS_FROM_SOURCE=true TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
 ```
 
 ## Installing
