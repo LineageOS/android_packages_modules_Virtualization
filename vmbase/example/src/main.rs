@@ -50,8 +50,11 @@ main!(main);
 /// Entry point for VM bootloader.
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     println!("Hello world");
-    println!("x0={:#010x}, x1={:#010x}, x2={:#010x}, x3={:#010x}", arg0, arg1, arg2, arg3);
+    println!("x0={:#018x}, x1={:#018x}, x2={:#018x}, x3={:#018x}", arg0, arg1, arg2, arg3);
     print_addresses();
+    unsafe {
+        assert_eq!(arg0, &dtb_begin as *const u8 as u64);
+    }
     check_data();
 
     unsafe {
