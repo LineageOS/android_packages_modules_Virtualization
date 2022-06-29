@@ -38,13 +38,13 @@
 .align 12
 idmap:
 	/* level 1 */
-	.quad		.L_BLOCK_DEV | 0x0		// 1 GB of device mappings
-	.quad		.L_BLOCK_DEV | 0x40000000	// Another 1 GB of device mapppings
-	.quad		.L_TT_TYPE_TABLE + 0f		// up to 1 GB of DRAM
-	.fill		509, 8, 0x0			// 509 GB of remaining VA space
+	.quad		.L_BLOCK_DEV | 0x0		// 1 GiB of device mappings
+	.quad		0x0				// 1 GiB unmapped
+	.quad		.L_TT_TYPE_TABLE + 0f		// up to 1 GiB of DRAM
+	.fill		509, 8, 0x0			// 509 GiB of remaining VA space
 
 	/* level 2 */
 0:	.quad		.L_BLOCK_RO  | 0x80000000	// DT provided by VMM
-	.quad		.L_BLOCK_MEM_XIP | 0x80200000	// 2 MB of DRAM containing image
-	.quad		.L_BLOCK_MEM | 0x80400000	// 2 MB of writable DRAM
+	.quad		.L_BLOCK_MEM_XIP | 0x80200000	// 2 MiB of DRAM containing image
+	.quad		.L_BLOCK_MEM | 0x80400000	// 2 MiB of writable DRAM
 	.fill		509, 8, 0x0
