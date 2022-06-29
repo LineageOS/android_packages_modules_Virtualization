@@ -46,24 +46,22 @@ fastboot reboot
 
 Due to a bug in Android 13 for these devices, pKVM may stop working after an
 [OTA update](https://source.android.com/devices/tech/ota). To prevent this, it
-is necessary to manually replicate the `pvmfw` partition across A/B slots:
+is necessary to manually replicate the `pvmfw` partition to the other slot:
 
 ```shell
-adb root
-SLOT=$(adb shell getprop ro.boot.slot_suffix)
-adb pull /dev/block/by-name/pvmfw${SLOT} pvmfw.img
+git -C <android_root>/packages/modules/Virtualization
+show de6b0b2ecf6225a0a7b43241de27e74fc3e6ceb2:pvmfw/pvmfw.img > /tmp/pvmfw.img
 adb reboot bootloader
-fastboot --slot other flash pvmfw pvmfw.img
+fastboot --slot other flash pvmfw /tmp/pvmfw.img
 fastboot reboot
 ```
 
 Otherwise, if an OTA has already made pKVM unusable, the working partition
-should be copied over from the "other" slot:
+should be copied to the "current" slot:
 
 ```shell
-adb pull $(adb shell ls "/dev/block/by-name/pvmfw!(${SLOT})") pvmfw.img
 adb reboot bootloader
-fastboot flash pvmfw pvmfw.img
+fastboot flash pvmfw /tmp/pvmfw.img
 fastboot reboot
 ```
 
