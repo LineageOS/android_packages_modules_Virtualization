@@ -22,6 +22,10 @@ mod exceptions;
 
 extern crate alloc;
 
+use aarch64_paging::{
+    idmap::IdMap,
+    paging::{Attributes, MemoryRegion},
+};
 use alloc::{vec, vec::Vec};
 use buddy_system_allocator::LockedHeap;
 use vmbase::{main, println};
@@ -30,10 +34,16 @@ static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
 static mut MUTABLE_DATA: [u32; 4] = [1, 2, 3, 4];
 
+const ASID: usize = 1;
+const ROOT_LEVEL: usize = 1;
+
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
 
 static mut HEAP: [u8; 65536] = [0; 65536];
+
+/// The first 1 GiB of memory are used for MMIO.
+const DEVICE_REGION: MemoryRegion = MemoryRegion::new(0, 0x40000000);
 
 main!(main);
 
@@ -49,6 +59,56 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     }
 
     check_alloc();
+
+    let mut idmap = IdMap::new(ASID, ROOT_LEVEL);
+    idmap.map_range(&DEVICE_REGION, Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER).unwrap();
+    idmap
+        .map_range(
+            &text_region(),
+            Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::READ_ONLY,
+        )
+        .unwrap();
+    idmap
+        .map_range(
+            &rodata_region(),
+            Attributes::NORMAL
+                | Attributes::NON_GLOBAL
+                | Attributes::READ_ONLY
+                | Attributes::EXECUTE_NEVER,
+        )
+        .unwrap();
+    idmap
+        .map_range(
+            &writable_region(),
+            Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::EXECUTE_NEVER,
+        )
+        .unwrap();
+
+    println!("Activating IdMap...");
+    println!("{:?}", idmap);
+    idmap.activate();
+    println!("Activated.");
+
+    check_data();
+}
+
+/// Executable code.
+fn text_region() -> MemoryRegion {
+    unsafe { MemoryRegion::new(&text_begin as *const u8 as usize, &text_end as *const u8 as usize) }
+}
+
+/// Read-only data.
+fn rodata_region() -> MemoryRegion {
+    unsafe {
+        MemoryRegion::new(&rodata_begin as *const u8 as usize, &rodata_end as *const u8 as usize)
+    }
+}
+
+/// Writable data, including the stack.
+fn writable_region() -> MemoryRegion {
+    unsafe {
+        MemoryRegion::new(&data_begin as *const u8 as usize, &boot_stack_end as *const u8 as usize)
+    }
 }
 
 fn print_addresses() {
@@ -121,6 +181,8 @@ fn check_data() {
         assert_eq!(MUTABLE_DATA[3], 4);
         MUTABLE_DATA[0] += 41;
         assert_eq!(MUTABLE_DATA[0], 42);
+        MUTABLE_DATA[0] -= 41;
+        assert_eq!(MUTABLE_DATA[0], 1);
     }
     println!("Data looks good");
 }
