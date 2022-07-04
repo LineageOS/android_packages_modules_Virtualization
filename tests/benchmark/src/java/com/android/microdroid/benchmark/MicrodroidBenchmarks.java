@@ -282,7 +282,7 @@ public class MicrodroidBenchmarks {
         assertThat(found).isTrue();
 
         Bundle bundle = new Bundle();
-        bundle.putInt("microdroid_minimum_required_memory", minimum);
+        bundle.putInt("avf_perf/microdroid/minimum_required_memory", minimum);
         mInstrumentation.sendStatus(0, bundle);
     }
 }
