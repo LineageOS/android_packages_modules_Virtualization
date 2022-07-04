@@ -65,6 +65,15 @@ public class MicrodroidBenchmarks {
 
     private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
 
+    private boolean isCuttlefish() {
+        String productName = SystemProperties.get("ro.product.name");
+        return (null != productName)
+                && (productName.startsWith("aosp_cf_x86")
+                        || productName.startsWith("aosp_cf_arm")
+                        || productName.startsWith("cf_x86")
+                        || productName.startsWith("cf_arm"));
+    }
+
     /** Copy output from the VM to logcat. This is helpful when things go wrong. */
     private static void logVmOutput(InputStream vmOutputStream, String name) {
         new Thread(
@@ -254,11 +263,13 @@ public class MicrodroidBenchmarks {
     @Test
     public void testMinimumRequiredRAM()
             throws VirtualMachineException, InterruptedException, IOException {
-        int lo = 16, hi = 512, minimum = 0;
-        boolean found = false;
+        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
 
         // TODO(b/236672526): giving inefficient memory to pVM sometimes causes host crash.
         assume().withMessage("Skip on pVM. b/236672526").that(mProtectedVm).isFalse();
+
+        int lo = 16, hi = 512, minimum = 0;
+        boolean found = false;
 
         while (lo <= hi) {
             int mid = (lo + hi) / 2;
