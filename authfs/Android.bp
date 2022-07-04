@@ -65,3 +65,32 @@ filegroup {
         "testdata/input.4m.fsv_meta.bad_merkle",
     ],
 }
+
+java_genrule {
+    name: "authfs_test_apk_assets",
+    out: ["authfs_test_apk_assets.jar"],
+    tools: [
+        "fsverity_manifest_generator",
+        "fsverity",
+    ],
+    srcs: [
+        "testdata/input.4k",
+        "testdata/input.4k1",
+        "testdata/input.4m",
+    ],
+    /*
+     * Create a JAR file with an assets directory that can merge into the
+     * assets of an APK that depends on it in static_libs. Use this mechanism
+     * to load a generated fsverity manifest for the test input files into the
+     * test VM.
+     */
+    cmd: "out_dir=$$(dirname $(out))" +
+        "&& assets_dir=\"assets\" " +
+        "&& mkdir -p $$out_dir/$$assets_dir" +
+        "&& $(location fsverity_manifest_generator) " +
+        "    --fsverity-path $(location fsverity) " +
+        "    --base-dir $$(dirname $(in) | head -1) " +
+        "    --output $$out_dir/$$assets_dir/input_manifest.pb " +
+        "    $(in) " +
+        "&& jar cf $(out) -C $$out_dir $$assets_dir",
+}
