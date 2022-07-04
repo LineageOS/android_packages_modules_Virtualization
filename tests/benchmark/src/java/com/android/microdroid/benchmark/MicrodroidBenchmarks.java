@@ -265,9 +265,6 @@ public class MicrodroidBenchmarks {
             throws VirtualMachineException, InterruptedException, IOException {
         assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
 
-        // TODO(b/236672526): giving inefficient memory to pVM sometimes causes host crash.
-        assume().withMessage("Skip on pVM. b/236672526").that(mProtectedVm).isFalse();
-
         int lo = 16, hi = 512, minimum = 0;
         boolean found = false;
 
