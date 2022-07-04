@@ -44,6 +44,9 @@
       "path": "packages/modules/Virtualization/authfs"
     },
     {
+      "path": "packages/modules/Virtualization/vmbase"
+    },
+    {
       "path": "packages/modules/Virtualization/zipfuse"
     }
   ]
