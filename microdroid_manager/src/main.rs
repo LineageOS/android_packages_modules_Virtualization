@@ -299,7 +299,9 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     dice_derivation(&verified_data, &metadata.payload_config_path)?;
 
     // Before reading a file from the APK, start zipfuse
+    let noexec = false;
     run_zipfuse(
+        noexec,
         "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:system_file:s0",
         Path::new("/dev/block/mapper/microdroid-apk"),
         Path::new("/mnt/apk"),
@@ -364,9 +366,12 @@ fn run_apkdmverity(args: &[ApkDmverityArgument]) -> Result<Child> {
     cmd.spawn().context("Spawn apkdmverity")
 }
 
-fn run_zipfuse(option: &str, zip_path: &Path, mount_dir: &Path) -> Result<Child> {
-    Command::new(ZIPFUSE_BIN)
-        .arg("-o")
+fn run_zipfuse(noexec: bool, option: &str, zip_path: &Path, mount_dir: &Path) -> Result<Child> {
+    let mut cmd = Command::new(ZIPFUSE_BIN);
+    if noexec {
+        cmd.arg("--noexec");
+    }
+    cmd.arg("-o")
         .arg(option)
         .arg(zip_path)
         .arg(mount_dir)
@@ -537,7 +542,9 @@ fn mount_extra_apks(config: &VmPayloadConfig) -> Result<()> {
         create_dir(Path::new(&mount_dir)).context("Failed to create mount dir for extra apks")?;
 
         // don't wait, just detach
+        let noexec = true;
         run_zipfuse(
+            noexec,
             "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:extra_apk_file:s0",
             Path::new(&format!("/dev/block/mapper/extra-apk-{}", i)),
             Path::new(&mount_dir),
