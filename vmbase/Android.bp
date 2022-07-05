@@ -9,6 +9,7 @@ rust_library_rlib {
     srcs: ["src/lib.rs"],
     edition: "2021",
     rustlibs: [
+        "liblog_rust_nostd",
         "libpsci",
         "libspin_nostd",
     ],
