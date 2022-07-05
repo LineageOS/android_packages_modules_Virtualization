@@ -46,6 +46,12 @@ fn main() -> Result<()> {
                 .required(false)
                 .help("Comma separated list of mount options"),
         )
+        .arg(
+            Arg::with_name("noexec")
+                .long("noexec")
+                .takes_value(false)
+                .help("Disallow the execution of binary files"),
+        )
         .arg(Arg::with_name("ZIPFILE").required(true))
         .arg(Arg::with_name("MOUNTPOINT").required(true))
         .get_matches();
@@ -53,12 +59,18 @@ fn main() -> Result<()> {
     let zip_file = matches.value_of("ZIPFILE").unwrap().as_ref();
     let mount_point = matches.value_of("MOUNTPOINT").unwrap().as_ref();
     let options = matches.value_of("options");
-    run_fuse(zip_file, mount_point, options)?;
+    let noexec = matches.is_present("noexec");
+    run_fuse(zip_file, mount_point, options, noexec)?;
     Ok(())
 }
 
 /// Runs a fuse filesystem by mounting `zip_file` on `mount_point`.
-pub fn run_fuse(zip_file: &Path, mount_point: &Path, extra_options: Option<&str>) -> Result<()> {
+pub fn run_fuse(
+    zip_file: &Path,
+    mount_point: &Path,
+    extra_options: Option<&str>,
+    noexec: bool,
+) -> Result<()> {
     const MAX_READ: u32 = 1 << 20; // TODO(jiyong): tune this
     const MAX_WRITE: u32 = 1 << 13; // This is a read-only filesystem
 
@@ -76,12 +88,12 @@ pub fn run_fuse(zip_file: &Path, mount_point: &Path, extra_options: Option<&str>
         mount_options.push(MountOption::Extra(value));
     }
 
-    fuse::mount(
-        mount_point,
-        "zipfuse",
-        libc::MS_NOSUID | libc::MS_NODEV | libc::MS_RDONLY,
-        &mount_options,
-    )?;
+    let mut mount_flags = libc::MS_NOSUID | libc::MS_NODEV | libc::MS_RDONLY;
+    if noexec {
+        mount_flags |= libc::MS_NOEXEC;
+    }
+
+    fuse::mount(mount_point, "zipfuse", mount_flags, &mount_options)?;
     let mut config = fuse::FuseConfig::new();
     config.dev_fuse(dev_fuse).max_write(MAX_WRITE).max_read(MAX_READ);
     Ok(config.enter_message_loop(ZipFuse::new(zip_file)?)?)
@@ -435,22 +447,28 @@ mod tests {
     use zip::write::FileOptions;
 
     #[cfg(not(target_os = "android"))]
-    fn start_fuse(zip_path: &Path, mnt_path: &Path) {
+    fn start_fuse(zip_path: &Path, mnt_path: &Path, noexec: bool) {
         let zip_path = PathBuf::from(zip_path);
         let mnt_path = PathBuf::from(mnt_path);
         std::thread::spawn(move || {
-            crate::run_fuse(&zip_path, &mnt_path, None).unwrap();
+            crate::run_fuse(&zip_path, &mnt_path, None, noexec).unwrap();
         });
     }
 
     #[cfg(target_os = "android")]
-    fn start_fuse(zip_path: &Path, mnt_path: &Path) {
+    fn start_fuse(zip_path: &Path, mnt_path: &Path, noexec: bool) {
         // Note: for some unknown reason, running a thread to serve fuse doesn't work on Android.
         // Explicitly spawn a zipfuse process instead.
         // TODO(jiyong): fix this
+        let noexec = if noexec { "--noexec" } else { "" };
         assert!(std::process::Command::new("sh")
             .arg("-c")
-            .arg(format!("/data/local/tmp/zipfuse {} {}", zip_path.display(), mnt_path.display()))
+            .arg(format!(
+                "/data/local/tmp/zipfuse {} {} {}",
+                noexec,
+                zip_path.display(),
+                mnt_path.display()
+            ))
             .spawn()
             .is_ok());
     }
@@ -476,6 +494,14 @@ mod tests {
     // Creates a zip file, adds some files to the zip file, mounts it using zipfuse, runs the check
     // routine, and finally unmounts.
     fn run_test(add: fn(&mut zip::ZipWriter<File>), check: fn(&std::path::Path)) {
+        run_test_noexec(false, add, check);
+    }
+
+    fn run_test_noexec(
+        noexec: bool,
+        add: fn(&mut zip::ZipWriter<File>),
+        check: fn(&std::path::Path),
+    ) {
         // Create an empty zip file
         let test_dir = tempfile::TempDir::new().unwrap();
         let zip_path = test_dir.path().join("test.zip");
@@ -492,7 +518,7 @@ mod tests {
         let mnt_path = test_dir.path().join("mnt");
         assert!(fs::create_dir(&mnt_path).is_ok());
 
-        start_fuse(&zip_path, &mnt_path);
+        start_fuse(&zip_path, &mnt_path, noexec);
 
         let mnt_path = test_dir.path().join("mnt");
         // Give some time for the fuse to boot up
@@ -574,6 +600,26 @@ mod tests {
                 check_file(root, "foo", b"0123456789");
             },
         );
+    }
+
+    #[test]
+    fn noexec() {
+        fn add_executable(zip: &mut zip::ZipWriter<File>) {
+            zip.start_file("executable", FileOptions::default().unix_permissions(0o755)).unwrap();
+        }
+
+        // Executables can be run when not mounting with noexec.
+        run_test(add_executable, |root| {
+            let res = std::process::Command::new(root.join("executable")).status();
+            res.unwrap();
+        });
+
+        // Mounting with noexec results in permissions denial when running an executable.
+        let noexec = true;
+        run_test_noexec(noexec, add_executable, |root| {
+            let res = std::process::Command::new(root.join("executable")).status();
+            assert!(matches!(res.unwrap_err().kind(), std::io::ErrorKind::PermissionDenied));
+        });
     }
 
     #[test]
@@ -688,7 +734,8 @@ mod tests {
         let mnt_path = test_dir.join("mnt");
         assert!(fs::create_dir(&mnt_path).is_ok());
 
-        start_fuse(zip_path, &mnt_path);
+        let noexec = false;
+        start_fuse(zip_path, &mnt_path, noexec);
 
         // Give some time for the fuse to boot up
         assert!(wait_for_mount(&mnt_path).is_ok());
