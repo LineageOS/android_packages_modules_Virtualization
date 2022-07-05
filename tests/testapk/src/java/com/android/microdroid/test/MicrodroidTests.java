@@ -516,7 +516,7 @@ public class MicrodroidTests {
     private RandomAccessFile prepareInstanceImage(String vmName)
             throws VirtualMachineException, InterruptedException, IOException {
         VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.NONE)
+                .debugLevel(DebugLevel.FULL)
                 .build();
 
         // Remove any existing VM so we can start from scratch
