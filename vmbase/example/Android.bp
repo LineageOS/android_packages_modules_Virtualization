@@ -15,6 +15,7 @@ rust_ffi_static {
     rustlibs: [
         "libaarch64_paging",
         "libbuddy_system_allocator",
+        "liblog_rust_nostd",
         "libvmbase",
     ],
     enabled: false,
