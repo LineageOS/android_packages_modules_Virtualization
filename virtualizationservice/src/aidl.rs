@@ -466,7 +466,7 @@ impl VirtualizationService {
 
         // Creating this ramdump file unconditionally is not harmful as ramdump will be created
         // only when the VM is configured as such. `ramdump_write` is sent to crosvm and will
-        // be the backing store for the /dev/hvc3 where VM will emit ramdump to. `ramdump_read`
+        // be the backing store for the /dev/hvc1 where VM will emit ramdump to. `ramdump_read`
         // will be sent back to the client (i.e. the VM owner) for readout.
         let ramdump_path = temporary_directory.join("ramdump");
         let ramdump = prepare_ramdump_file(&ramdump_path).map_err(|e| {

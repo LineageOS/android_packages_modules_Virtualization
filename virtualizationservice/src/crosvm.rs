@@ -418,7 +418,7 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
     // 1. uart device: used as the output device by bootloaders and as early console by linux
     // 2. uart device: used to report the reason for the VM failing.
     // 3. virtio-console device: used as the console device where kmsg is redirected to
-    // 4. virtio-console device: used as the androidboot.console device (not used currently)
+    // 4. virtio-console device: used as the ramdump output
     // 5. virtio-console device: used as the logcat output
     //
     // When [console|log]_fd is not specified, the devices are attached to sink, which means what's
@@ -438,12 +438,10 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
     command.arg(format!("--serial=type=file,path={},hardware=serial,num=2", &failure_serial_path));
     // /dev/hvc0
     command.arg(format!("--serial={},hardware=virtio-console,num=1", &console_arg));
-    // /dev/hvc1 (not used currently)
-    command.arg("--serial=type=sink,hardware=virtio-console,num=2");
+    // /dev/hvc1
+    command.arg(format!("--serial={},hardware=virtio-console,num=2", &ramdump_arg));
     // /dev/hvc2
     command.arg(format!("--serial={},hardware=virtio-console,num=3", &log_arg));
-    // /dev/hvc3
-    command.arg(format!("--serial={},hardware=virtio-console,num=4", &ramdump_arg));
 
     if let Some(bootloader) = &config.bootloader {
         command.arg("--bios").arg(add_preserved_fd(&mut preserved_fds, bootloader));
