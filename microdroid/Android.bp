@@ -104,6 +104,7 @@ android_system_image {
 
                 "microdroid_plat_sepolicy.cil",
                 "microdroid_plat_mapping_file",
+                "microdroid_crashdump_initrd",
             ],
         },
         lib64: {
