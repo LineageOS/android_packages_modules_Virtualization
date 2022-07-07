@@ -67,6 +67,10 @@ enum Opt {
         #[structopt(long)]
         log: Option<PathBuf>,
 
+        /// Path to file where ramdump is recorded on kernel panic
+        #[structopt(long)]
+        ramdump: Option<PathBuf>,
+
         /// Debug level of the VM. Supported values: "none" (default), "app_only", and "full".
         #[structopt(long, default_value = "none", parse(try_from_str=parse_debug_level))]
         debug: DebugLevel,
@@ -198,6 +202,7 @@ fn main() -> Result<(), Error> {
             daemonize,
             console,
             log,
+            ramdump,
             debug,
             protected,
             mem,
@@ -214,6 +219,7 @@ fn main() -> Result<(), Error> {
             daemonize,
             console.as_deref(),
             log.as_deref(),
+            ramdump.as_deref(),
             debug,
             protected,
             mem,
