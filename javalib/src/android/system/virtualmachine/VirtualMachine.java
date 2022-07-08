@@ -445,6 +445,11 @@ public class VirtualMachine {
                                 executeCallback((cb) -> cb.onDied(VirtualMachine.this, reason));
                             }
                         }
+                        @Override
+                        public void onRamdump(int cid, ParcelFileDescriptor ramdump) {
+                            executeCallback(
+                                    (cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
+                        }
                     }
             );
             service.asBinder().linkToDeath(deathRecipient, 0);
