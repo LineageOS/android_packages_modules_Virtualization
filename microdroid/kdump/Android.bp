@@ -8,3 +8,21 @@ cc_binary {
     srcs: ["kexec.c"],
     installable: false,
 }
+
+cc_binary {
+    name: "microdroid_crashdump",
+    stem: "crashdump",
+    srcs: ["crashdump.c"],
+    static_executable: true,
+    installable: false,
+}
+
+android_filesystem {
+    name: "microdroid_crashdump_initrd",
+    deps: ["microdroid_crashdump"],
+    dirs: [
+        "dev",
+        "proc",
+    ],
+    type: "cpio",
+}
