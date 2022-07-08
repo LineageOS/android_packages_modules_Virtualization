@@ -134,10 +134,13 @@ impl PackageManager {
             let pm =
                 wait_for_interface::<dyn IPackageManagerNative>(PACKAGE_MANAGER_NATIVE_SERVICE)
                     .context("Failed to get service when prefer_staged is set.")?;
-            let staged = pm.getStagedApexModuleNames()?;
+            let staged =
+                pm.getStagedApexModuleNames().context("getStagedApexModuleNames failed")?;
             for apex_info in list.list.iter_mut() {
                 if staged.contains(&apex_info.name) {
-                    if let Some(staged_apex_info) = pm.getStagedApexInfo(&apex_info.name)? {
+                    if let Some(staged_apex_info) =
+                        pm.getStagedApexInfo(&apex_info.name).context("getStagedApexInfo failed")?
+                    {
                         apex_info.path = PathBuf::from(staged_apex_info.diskImagePath);
                         apex_info.has_classpath_jar = staged_apex_info.hasClassPathJars;
                         let metadata = metadata(&apex_info.path)?;
