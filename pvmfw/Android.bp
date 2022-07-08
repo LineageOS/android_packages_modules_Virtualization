@@ -38,7 +38,10 @@ cc_binary {
     nocrt: true,
     system_shared_libs: ["libc"],
     stl: "none",
-    linker_scripts: ["image.ld"],
+    linker_scripts: [
+        "image.ld",
+        ":vmbase_sections",
+    ],
     installable: false,
     enabled: false,
     target: {
