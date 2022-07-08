@@ -243,6 +243,8 @@ microdroid_boot_cmdline = [
     "panic=-1",
     "bootconfig",
     "ioremap_guard",
+    // TODO(b/237381762) do this only when ramdump is enabled. (bootloader shall append this)
+    "crashkernel=17M",
 ]
 
 bootimg {
