@@ -39,3 +39,8 @@ cc_library_static {
     },
     apex_available: ["com.android.virt"],
 }
+
+filegroup {
+    name: "vmbase_sections",
+    srcs: ["sections.ld"],
+}
