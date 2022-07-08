@@ -90,9 +90,6 @@ android_system_image {
         "microdroid_property_contexts",
         "microdroid_service_contexts",
 
-        "microdroid_kexec",
-        "microdroid_crashdump_kernel",
-
         // TODO(b/195425111) these should be added automatically
         "libcrypto", // used by many (init_second_stage, microdroid_manager, toybox, etc)
         "liblzma", // used by init_second_stage
@@ -113,6 +110,8 @@ android_system_image {
                 "apkdmverity",
                 "authfs",
                 "authfs_service",
+                "microdroid_crashdump_kernel",
+                "microdroid_kexec",
                 "microdroid_manager",
                 "zipfuse",
             ],
