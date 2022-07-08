@@ -80,7 +80,7 @@ int main() {
     if (fstat(vmcore, &statbuf) == -1) {
         FAIL("Failed to stat %s", DUMP_SOURCE);
     }
-    printf("Size is %ld bytes\n", (long)statbuf.st_size);
+    printf("Size is %ld bytes\n", statbuf.st_size);
 
     // sendfile(2) is faster, can't be used because /proc/vmcore doesn't support splice_read
     size_t dumped = 0;
