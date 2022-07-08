@@ -235,6 +235,11 @@ impl IVirtualMachineCallback for VmCallback {
         log::warn!("VM error, cid = {}, error code = {}, message = {}", cid, error_code, message,);
         Ok(())
     }
+
+    fn onRamdump(&self, _cid: i32, _ramdump: &ParcelFileDescriptor) -> BinderResult<()> {
+        // TODO(b/238295267) send this to tombstone?
+        Ok(())
+    }
 }
 
 fn start_logging(pfd: &ParcelFileDescriptor) -> Result<()> {
