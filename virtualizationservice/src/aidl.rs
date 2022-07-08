@@ -391,7 +391,7 @@ impl VirtualizationService {
             // At this point, we do not know the protected status of Vm
             // setting it to false, though this may not be correct.
             error!(
-                "Failed to create temporary directory {:?} for VM files: {}",
+                "Failed to create temporary directory {:?} for VM files: {:?}",
                 temporary_directory, e
             );
             new_binder_exception(
@@ -408,7 +408,7 @@ impl VirtualizationService {
         let config = match config {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
                 load_app_config(config, &temporary_directory).map_err(|e| {
-                    error!("Failed to load app config from {}: {}", &config.configPath, e);
+                    error!("Failed to load app config from {}: {:?}", &config.configPath, e);
                     *is_protected = config.protectedVm;
                     new_binder_exception(
                         ExceptionCode::SERVICE_SPECIFIC,
@@ -442,7 +442,7 @@ impl VirtualizationService {
 
         let zero_filler_path = temporary_directory.join("zero.img");
         write_zero_filler(&zero_filler_path).map_err(|e| {
-            error!("Failed to make composite image: {}", e);
+            error!("Failed to make composite image: {:?}", e);
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("Failed to make composite image: {}", e),
@@ -492,7 +492,7 @@ impl VirtualizationService {
                 requester_debug_pid,
             )
             .map_err(|e| {
-                error!("Failed to create VM with config {:?}: {}", config, e);
+                error!("Failed to create VM with config {:?}: {:?}", config, e);
                 new_binder_exception(
                     ExceptionCode::SERVICE_SPECIFIC,
                     format!("Failed to create VM: {}", e),
@@ -587,7 +587,7 @@ fn assemble_disk_image(
             &composite_image_filenames.footer,
         )
         .map_err(|e| {
-            error!("Failed to make composite image with config {:?}: {}", disk, e);
+            error!("Failed to make composite image with config {:?}: {:?}", disk, e);
             new_binder_exception(
                 ExceptionCode::SERVICE_SPECIFIC,
                 format!("Failed to make composite image: {}", e),
@@ -838,7 +838,7 @@ impl VirtualMachineCallbacks {
         let pfd = stream.map(vsock_stream_to_pfd);
         for callback in callbacks {
             if let Err(e) = callback.onPayloadStarted(cid as i32, pfd.as_ref()) {
-                error!("Error notifying payload start event from VM CID {}: {}", cid, e);
+                error!("Error notifying payload start event from VM CID {}: {:?}", cid, e);
             }
         }
     }
@@ -848,7 +848,7 @@ impl VirtualMachineCallbacks {
         let callbacks = &*self.0.lock().unwrap();
         for callback in callbacks {
             if let Err(e) = callback.onPayloadReady(cid as i32) {
-                error!("Error notifying payload ready event from VM CID {}: {}", cid, e);
+                error!("Error notifying payload ready event from VM CID {}: {:?}", cid, e);
             }
         }
     }
@@ -858,7 +858,7 @@ impl VirtualMachineCallbacks {
         let callbacks = &*self.0.lock().unwrap();
         for callback in callbacks {
             if let Err(e) = callback.onPayloadFinished(cid as i32, exit_code) {
-                error!("Error notifying payload finish event from VM CID {}: {}", cid, e);
+                error!("Error notifying payload finish event from VM CID {}: {:?}", cid, e);
             }
         }
     }
@@ -868,7 +868,7 @@ impl VirtualMachineCallbacks {
         let callbacks = &*self.0.lock().unwrap();
         for callback in callbacks {
             if let Err(e) = callback.onError(cid as i32, error_code, message) {
-                error!("Error notifying error event from VM CID {}: {}", cid, e);
+                error!("Error notifying error event from VM CID {}: {:?}", cid, e);
             }
         }
     }
@@ -878,7 +878,7 @@ impl VirtualMachineCallbacks {
         let callbacks = &*self.0.lock().unwrap();
         for callback in callbacks {
             if let Err(e) = callback.onDied(cid as i32, reason) {
-                error!("Error notifying exit of VM CID {}: {}", cid, e);
+                error!("Error notifying exit of VM CID {}: {:?}", cid, e);
             }
         }
     }
