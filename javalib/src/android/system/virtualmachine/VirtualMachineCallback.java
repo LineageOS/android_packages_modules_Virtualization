@@ -142,4 +142,7 @@ public interface VirtualMachineCallback {
 
     /** Called when the VM died. */
     void onDied(@NonNull VirtualMachine vm, @DeathReason int reason);
+
+    /** Called when kernel panic occurs and as a result ramdump is generated from the VM. */
+    void onRamdump(@NonNull VirtualMachine vm, @NonNull ParcelFileDescriptor ramdump);
 }

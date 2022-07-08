@@ -143,6 +143,11 @@ impl VmInstance {
 
         FromIBinder::try_from(ibinder).map_err(GetServiceError::WrongServiceType)
     }
+
+    /// Get ramdump
+    pub fn get_ramdump(&self) -> Option<File> {
+        self.state.get_ramdump()
+    }
 }
 
 impl Debug for VmInstance {
@@ -170,6 +175,7 @@ fn wait_for_binder_death(
 struct VmState {
     death_reason: Option<DeathReason>,
     reported_state: VirtualMachineState,
+    ramdump: Option<File>,
 }
 
 impl Monitor<VmState> {
@@ -185,6 +191,14 @@ impl Monitor<VmState> {
     fn notify_state(&self, state: VirtualMachineState) {
         self.state.lock().unwrap().reported_state = state;
         self.cv.notify_all();
+    }
+
+    fn set_ramdump(&self, ramdump: File) {
+        self.state.lock().unwrap().ramdump = Some(ramdump);
+    }
+
+    fn get_ramdump(&self) -> Option<File> {
+        self.state.lock().unwrap().ramdump.as_ref().and_then(|f| f.try_clone().ok())
     }
 }
 
@@ -217,6 +231,12 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
 
     fn onError(&self, _cid: i32, _error_code: i32, _message: &str) -> BinderResult<()> {
         self.state.notify_state(VirtualMachineState::FINISHED);
+        Ok(())
+    }
+
+    fn onRamdump(&self, _cid: i32, ramdump: &ParcelFileDescriptor) -> BinderResult<()> {
+        let ramdump: File = ramdump.as_ref().try_clone().unwrap();
+        self.state.set_ramdump(ramdump);
         Ok(())
     }
 
