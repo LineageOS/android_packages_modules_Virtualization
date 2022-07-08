@@ -76,7 +76,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     private static final String TEST_APK_NAME = "MicrodroidTestApp.apk";
 
     /** VM config entry path in the test APK */
-    private static final String VM_CONFIG_PATH_IN_APK = "assets/vm_config_extra_apk.json";
+    private static final String VM_CONFIG_PATH_IN_APK = "assets/vm_config.json";
 
     /** Path to open_then_run on Android */
     private static final String OPEN_THEN_RUN_BIN = "/data/local/tmp/open_then_run";
@@ -90,11 +90,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     /** Path to authfs on Microdroid */
     private static final String AUTHFS_BIN = "/system/bin/authfs";
 
-    /** Idsig paths to be created for each APK in the "extra_apks" of vm_config_extra_apk.json. */
-    private static final String EXTRA_IDSIG_PATH = TEST_DIR + "BuildManifest.apk.idsig";
-
-    /** Build manifest path in the VM. 0 is the index of extra_apks in vm_config_extra_apk.json. */
-    private static final String BUILD_MANIFEST_PATH = "/mnt/extra-apk/0/assets/build_manifest.pb";
+    /** Input manifest path in the VM. */
+    private static final String INPUT_MANIFEST_PATH = "/mnt/apk/assets/input_manifest.pb";
 
     /** Plenty of time for authfs to get ready */
     private static final int AUTHFS_INIT_TIMEOUT_MS = 3000;
@@ -145,7 +142,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                 MicrodroidBuilder
                         .fromFile(findTestApk(testInfo.getBuildInfo()), VM_CONFIG_PATH_IN_APK)
                         .debugLevel("full")
-                        .addExtraIdsigPath(EXTRA_IDSIG_PATH)
                         .build((TestDevice) androidDevice);
 
         // From this point on, we need to tear down the Microdroid instance
@@ -588,16 +584,15 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testInputDirectory_CanReadFile() throws Exception {
         // Setup
         String authfsInputDir = MOUNT_DIR + "/3";
-        runFdServerOnAndroid("--open-dir 3:/system", "--ro-dirs 3");
-        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + BUILD_MANIFEST_PATH + ":system/ --cid "
+        runFdServerOnAndroid("--open-dir 3:" + TEST_DIR, "--ro-dirs 3");
+        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + INPUT_MANIFEST_PATH + ": --cid "
                 + VMADDR_CID_HOST);
 
         // Action
-        String actualHash =
-                computeFileHash(sMicrodroid, authfsInputDir + "/system/framework/framework.jar");
+        String actualHash = computeFileHash(sMicrodroid, authfsInputDir + "/input.4m");
 
         // Verify
-        String expectedHash = computeFileHash(sAndroid, "/system/framework/framework.jar");
+        String expectedHash = computeFileHash(sAndroid, TEST_DIR + "/input.4m");
         assertEquals("Expect consistent hash through /authfs/3: ", expectedHash, actualHash);
     }
 
@@ -605,13 +600,13 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testInputDirectory_OnlyAllowlistedFilesExist() throws Exception {
         // Setup
         String authfsInputDir = MOUNT_DIR + "/3";
-        runFdServerOnAndroid("--open-dir 3:/system", "--ro-dirs 3");
-        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + BUILD_MANIFEST_PATH + ":system/ --cid "
+        runFdServerOnAndroid("--open-dir 3:" + TEST_DIR, "--ro-dirs 3");
+        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + INPUT_MANIFEST_PATH + ": --cid "
                 + VMADDR_CID_HOST);
 
         // Verify
-        sMicrodroid.run("test -f " + authfsInputDir + "/system/framework/services.jar");
-        assertThat(sMicrodroid.runForResult("test -f " + authfsInputDir + "/system/bin/sh"))
+        sMicrodroid.run("test -f " + authfsInputDir + "/input.4k");
+        assertThat(sMicrodroid.runForResult("test -f " + authfsInputDir + "/input.4k.fsv_meta"))
                 .isFailed();
     }
 
