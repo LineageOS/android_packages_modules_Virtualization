@@ -91,6 +91,7 @@ android_system_image {
         "microdroid_service_contexts",
 
         "microdroid_kexec",
+        "microdroid_crashdump_kernel",
 
         // TODO(b/195425111) these should be added automatically
         "libcrypto", // used by many (init_second_stage, microdroid_manager, toybox, etc)
