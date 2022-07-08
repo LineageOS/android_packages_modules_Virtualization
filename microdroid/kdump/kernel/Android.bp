@@ -12,7 +12,7 @@ license {
 
 prebuilt_etc {
     name: "microdroid_crashdump_kernel",
-    src: "empty", // for other 32-bit architectures like x86 and arm
+    compile_multilib: "64",
     arch: {
         arm64: {
             src: "arm64/kernel-5.15",
