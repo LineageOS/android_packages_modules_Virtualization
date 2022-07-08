@@ -53,4 +53,9 @@ oneway interface IVirtualMachineCallback {
      * also use `link_to_death` to handle that.
      */
     void onDied(int cid, in DeathReason reason);
+
+    /**
+     * Called when kernel panic occurs and as a result ramdump is generated from the VM.
+     */
+    void onRamdump(int cid, in ParcelFileDescriptor ramdump);
 }

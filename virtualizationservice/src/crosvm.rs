@@ -16,7 +16,7 @@
 
 use crate::aidl::VirtualMachineCallbacks;
 use crate::Cid;
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use command_fds::CommandFdExt;
 use lazy_static::lazy_static;
 use log::{debug, error, info};
@@ -81,6 +81,7 @@ pub struct CrosvmConfig {
     pub task_profiles: Vec<String>,
     pub console_fd: Option<File>,
     pub log_fd: Option<File>,
+    pub ramdump: Option<File>,
     pub indirect_files: Vec<File>,
     pub platform_version: VersionReq,
     pub detect_hangup: bool,
@@ -272,6 +273,7 @@ impl VmInstance {
             Cow::from(s)
         };
 
+        self.handle_ramdump().unwrap_or_else(|e| error!("Error handling ramdump: {}", e));
         self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_string));
 
         // Delete temporary files.
@@ -312,6 +314,18 @@ impl VmInstance {
                 error!("Error killing crosvm({}) instance: {}", id, e);
             }
         }
+    }
+
+    /// Checks if ramdump has been created. If so, send a notification to the user with the handle
+    /// to read the ramdump.
+    fn handle_ramdump(&self) -> Result<(), Error> {
+        let ramdump_path = self.temporary_directory.join("ramdump");
+        if std::fs::metadata(&ramdump_path)?.len() > 0 {
+            let ramdump = File::open(&ramdump_path)
+                .context(format!("Failed to open ramdump {:?} for reading", &ramdump_path))?;
+            self.callbacks.callback_on_ramdump(self.cid, ramdump);
+        }
+        Ok(())
     }
 }
 
@@ -404,7 +418,7 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
     // 1. uart device: used as the output device by bootloaders and as early console by linux
     // 2. uart device: used to report the reason for the VM failing.
     // 3. virtio-console device: used as the console device where kmsg is redirected to
-    // 4. virtio-console device: used as the androidboot.console device (not used currently)
+    // 4. virtio-console device: used as the ramdump output
     // 5. virtio-console device: used as the logcat output
     //
     // When [console|log]_fd is not specified, the devices are attached to sink, which means what's
@@ -412,6 +426,7 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
     let console_arg = format_serial_arg(&mut preserved_fds, &config.console_fd);
     let log_arg = format_serial_arg(&mut preserved_fds, &config.log_fd);
     let failure_serial_path = add_preserved_fd(&mut preserved_fds, &failure_pipe_write);
+    let ramdump_arg = format_serial_arg(&mut preserved_fds, &config.ramdump);
 
     // Warning: Adding more serial devices requires you to shift the PCI device ID of the boot
     // disks in bootconfig.x86_64. This is because x86 crosvm puts serial devices and the block
@@ -423,8 +438,8 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
     command.arg(format!("--serial=type=file,path={},hardware=serial,num=2", &failure_serial_path));
     // /dev/hvc0
     command.arg(format!("--serial={},hardware=virtio-console,num=1", &console_arg));
-    // /dev/hvc1 (not used currently)
-    command.arg("--serial=type=sink,hardware=virtio-console,num=2");
+    // /dev/hvc1
+    command.arg(format!("--serial={},hardware=virtio-console,num=2", &ramdump_arg));
     // /dev/hvc2
     command.arg(format!("--serial={},hardware=virtio-console,num=3", &log_arg));
 

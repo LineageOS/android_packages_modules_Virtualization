@@ -278,6 +278,13 @@ public class MainActivity extends AppCompatActivity {
                             mService.shutdownNow();
                             mStatus.postValue(VirtualMachine.Status.STOPPED);
                         }
+
+                        @Override
+                        public void onRamdump(VirtualMachine vm, ParcelFileDescriptor ramdump) {
+                            if (!mService.isShutdown()) {
+                                mPayloadOutput.postValue("(Kernel panic. Ramdump created)");
+                            }
+                        }
                     };
 
             try {

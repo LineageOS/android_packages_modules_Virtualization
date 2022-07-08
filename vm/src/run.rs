@@ -49,6 +49,7 @@ pub fn command_run_app(
     daemonize: bool,
     console_path: Option<&Path>,
     log_path: Option<&Path>,
+    ramdump_path: Option<&Path>,
     debug_level: DebugLevel,
     protected: bool,
     mem: Option<u32>,
@@ -115,6 +116,7 @@ pub fn command_run_app(
         daemonize,
         console_path,
         log_path,
+        ramdump_path,
     )
 }
 
@@ -149,6 +151,7 @@ pub fn command_run(
         daemonize,
         console_path,
         log_path,
+        /* ramdump_path */ None,
     )
 }
 
@@ -171,6 +174,7 @@ fn run(
     daemonize: bool,
     console_path: Option<&Path>,
     log_path: Option<&Path>,
+    ramdump_path: Option<&Path>,
 ) -> Result<(), Error> {
     let console = if let Some(console_path) = console_path {
         Some(
@@ -214,9 +218,24 @@ fn run(
         // Wait until the VM or VirtualizationService dies. If we just returned immediately then the
         // IVirtualMachine Binder object would be dropped and the VM would be killed.
         let death_reason = vm.wait_for_death();
+
+        if let Some(path) = ramdump_path {
+            save_ramdump_if_available(path, &vm)?;
+        }
         println!("{}", death_reason);
     }
 
+    Ok(())
+}
+
+fn save_ramdump_if_available(path: &Path, vm: &VmInstance) -> Result<(), Error> {
+    if let Some(mut ramdump) = vm.get_ramdump() {
+        let mut file =
+            File::create(path).context(format!("Failed to create ramdump file {:?}", path))?;
+        let size = std::io::copy(&mut ramdump, &mut file)
+            .context(format!("Failed to save ramdump to file {:?}", path))?;
+        eprintln!("Ramdump ({} bytes) saved to {:?}", size, path);
+    }
     Ok(())
 }
 
@@ -265,6 +284,11 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
 
     fn onError(&self, _cid: i32, error_code: i32, message: &str) -> BinderResult<()> {
         eprintln!("VM encountered an error: code={}, message={}", error_code, message);
+        Ok(())
+    }
+
+    fn onRamdump(&self, _cid: i32, _stream: &ParcelFileDescriptor) -> BinderResult<()> {
+        // Do nothing. We get ramdump from the vmclient library.
         Ok(())
     }
 
