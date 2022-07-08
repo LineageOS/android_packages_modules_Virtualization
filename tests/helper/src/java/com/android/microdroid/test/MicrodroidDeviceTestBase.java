@@ -185,10 +185,12 @@ public abstract class MicrodroidDeviceTestBase {
     public static class BootResult {
         public final boolean payloadStarted;
         public final int deathReason;
+        public final long elapsedNanoTime;
 
-        BootResult(boolean payloadStarted, int deathReason) {
+        BootResult(boolean payloadStarted, int deathReason, long elapsedNanoTime) {
             this.payloadStarted = payloadStarted;
             this.deathReason = deathReason;
+            this.elapsedNanoTime = elapsedNanoTime;
         }
     }
 
@@ -197,10 +199,12 @@ public abstract class MicrodroidDeviceTestBase {
         VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
         final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
         final CompletableFuture<Integer> deathReason = new CompletableFuture<>();
+        final CompletableFuture<Long> endTime = new CompletableFuture<>();
         VmEventListener listener =
                 new VmEventListener() {
                     @Override
                     public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        endTime.complete(System.nanoTime());
                         payloadStarted.complete(true);
                         forceStop(vm);
                     }
@@ -211,8 +215,11 @@ public abstract class MicrodroidDeviceTestBase {
                         super.onDied(vm, reason);
                     }
                 };
+        long beginTime = System.nanoTime();
         listener.runToFinish(logTag, vm);
         return new BootResult(
-                payloadStarted.getNow(false), deathReason.getNow(DeathReason.INFRASTRUCTURE_ERROR));
+                payloadStarted.getNow(false),
+                deathReason.getNow(DeathReason.INFRASTRUCTURE_ERROR),
+                endTime.getNow(beginTime) - beginTime);
     }
 }

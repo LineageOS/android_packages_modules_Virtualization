@@ -119,4 +119,44 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         bundle.putInt("avf_perf/microdroid/minimum_required_memory", minimum);
         mInstrumentation.sendStatus(0, bundle);
     }
+
+    @Test
+    public void testMicrodroidBootTime()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
+
+        final int trialCount = 10;
+
+        double sum = 0;
+        double squareSum = 0;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        for (int i = 0; i < trialCount; i++) {
+            VirtualMachineConfig.Builder builder =
+                    mInner.newVmConfigBuilder("assets/vm_config.json");
+            VirtualMachineConfig normalConfig =
+                    builder.debugLevel(DebugLevel.NONE).memoryMib(256).build();
+            mInner.forceCreateNewVirtualMachine("test_vm_boot_time", normalConfig);
+
+            BootResult result = tryBootVm(TAG, "test_vm_boot_time");
+            assertThat(result.payloadStarted).isTrue();
+
+            double elapsedMilliseconds = result.elapsedNanoTime / 1000000.0;
+
+            sum += elapsedMilliseconds;
+            squareSum += elapsedMilliseconds * elapsedMilliseconds;
+            if (min > elapsedMilliseconds) min = elapsedMilliseconds;
+            if (max < elapsedMilliseconds) max = elapsedMilliseconds;
+        }
+
+        Bundle bundle = new Bundle();
+        double average = sum / trialCount;
+        double variance = squareSum / trialCount - average * average;
+        double stdev = Math.sqrt(variance);
+        bundle.putDouble("avf_perf/microdroid/boot_time_average_ms", average);
+        bundle.putDouble("avf_perf/microdroid/boot_time_min_ms", min);
+        bundle.putDouble("avf_perf/microdroid/boot_time_max_ms", max);
+        bundle.putDouble("avf_perf/microdroid/boot_time_stdev_ms", stdev);
+        mInstrumentation.sendStatus(0, bundle);
+    }
 }
