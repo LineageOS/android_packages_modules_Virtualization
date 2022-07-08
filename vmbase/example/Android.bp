@@ -61,7 +61,6 @@ cc_binary {
 raw_binary {
     name: "vmbase_example",
     src: ":vmbase_example_elf",
-    stem: "vmbase_example.bin",
     enabled: false,
     target: {
         android_arm64: {

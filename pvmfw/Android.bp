@@ -55,7 +55,6 @@ cc_binary {
 raw_binary {
     name: "pvmfw",
     src: ":pvmfw_elf",
-    stem: "pvmfw.bin",
     enabled: false,
     target: {
         android_arm64: {
