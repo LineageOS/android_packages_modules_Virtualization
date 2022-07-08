@@ -201,6 +201,9 @@ public class MicrodroidBenchmarks {
         public void onDied(VirtualMachine vm, @DeathReason int reason) {
             mExecutorService.shutdown();
         }
+
+        @Override
+        public void onRamdump(VirtualMachine vm, ParcelFileDescriptor ramdump) {}
     }
 
     private static class BootResult {
