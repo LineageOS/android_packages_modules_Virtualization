@@ -464,6 +464,19 @@ impl VirtualizationService {
             })
             .collect::<Result<Vec<DiskFile>, _>>()?;
 
+        // Creating this ramdump file unconditionally is not harmful as ramdump will be created
+        // only when the VM is configured as such. `ramdump_write` is sent to crosvm and will
+        // be the backing store for the /dev/hvc1 where VM will emit ramdump to. `ramdump_read`
+        // will be sent back to the client (i.e. the VM owner) for readout.
+        let ramdump_path = temporary_directory.join("ramdump");
+        let ramdump = prepare_ramdump_file(&ramdump_path).map_err(|e| {
+            error!("Failed to prepare ramdump file: {}", e);
+            new_binder_exception(
+                ExceptionCode::SERVICE_SPECIFIC,
+                format!("Failed to prepare ramdump file: {}", e),
+            )
+        })?;
+
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
             cid,
@@ -479,6 +492,7 @@ impl VirtualizationService {
             task_profiles: config.taskProfiles.clone(),
             console_fd,
             log_fd,
+            ramdump: Some(ramdump),
             indirect_files,
             platform_version: parse_platform_version_req(&config.platformVersion)?,
             detect_hangup: is_app_config,
@@ -556,6 +570,11 @@ fn format_as_android_vm_instance(part: &mut dyn Write) -> std::io::Result<()> {
     part.write_all(ANDROID_VM_INSTANCE_MAGIC.as_bytes())?;
     part.write_all(&ANDROID_VM_INSTANCE_VERSION.to_le_bytes())?;
     part.flush()
+}
+
+fn prepare_ramdump_file(ramdump_path: &Path) -> Result<File> {
+    File::create(&ramdump_path)
+        .context(format!("Failed to create ramdump file {:?}", &ramdump_path))
 }
 
 /// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
@@ -879,6 +898,17 @@ impl VirtualMachineCallbacks {
         for callback in callbacks {
             if let Err(e) = callback.onDied(cid as i32, reason) {
                 error!("Error notifying exit of VM CID {}: {}", cid, e);
+            }
+        }
+    }
+
+    /// Call all registered callbacks to say that there was a ramdump to download.
+    pub fn callback_on_ramdump(&self, cid: Cid, ramdump: File) {
+        let callbacks = &*self.0.lock().unwrap();
+        let pfd = ParcelFileDescriptor::new(ramdump);
+        for callback in callbacks {
+            if let Err(e) = callback.onRamdump(cid as i32, &pfd) {
+                error!("Error notifying ramdump of VM CID {}: {}", cid, e);
             }
         }
     }

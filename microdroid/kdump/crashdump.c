@@ -28,7 +28,7 @@
 #include <unistd.h>
 
 #define DUMP_SOURCE "/proc/vmcore"
-#define DUMP_TARGET "/dev/hvc3" // See virtualizationserice/crosvm.rs
+#define DUMP_TARGET "/dev/hvc1" // See virtualizationserice/crosvm.rs
 #define BUF_SIZE 4096
 
 #define FAIL(format, ...)                                                \
