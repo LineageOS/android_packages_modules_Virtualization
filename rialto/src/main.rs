@@ -21,7 +21,6 @@
 mod exceptions;
 
 extern crate alloc;
-extern crate log;
 
 use aarch64_paging::{
     idmap::IdMap,
