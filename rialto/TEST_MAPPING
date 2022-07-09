@@ -1,0 +1,7 @@
+{
+  "presubmit": [
+    {
+      "name": "rialto_test"
+    }
+  ]
+}
