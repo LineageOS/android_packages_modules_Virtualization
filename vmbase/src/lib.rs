@@ -18,6 +18,7 @@
 
 pub mod console;
 mod entry;
+pub mod logger;
 pub mod power;
 pub mod uart;
 
