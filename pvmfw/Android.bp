@@ -5,57 +5,35 @@ package {
 rust_ffi_static {
     name: "libpvmfw",
     crate_name: "pvmfw",
+    defaults: ["vmbase_ffi_defaults"],
     srcs: ["src/main.rs"],
     edition: "2021",
-    no_stdlibs: true,
-    stdlibs: [
-        "libcompiler_builtins.rust_sysroot",
-        "libcore.rust_sysroot",
-    ],
     rustlibs: [
         "libvmbase",
     ],
-    enabled: false,
-    target: {
-        android_arm64: {
-            enabled: true,
-        },
-    },
     apex_available: ["com.android.virt"],
 }
 
 cc_binary {
     name: "pvmfw_elf",
     stem: "pvmfw",
+    defaults: ["vmbase_elf_defaults"],
     srcs: [
         "idmap.S",
     ],
     static_libs: [
         "libpvmfw",
-        "libvmbase_entry",
     ],
-    static_executable: true,
-    nocrt: true,
-    system_shared_libs: ["libc"],
-    stl: "none",
     linker_scripts: [
         "image.ld",
         ":vmbase_sections",
     ],
-    installable: false,
-    enabled: false,
-    target: {
-        android_arm64: {
-            enabled: true,
-        },
-    },
     apex_available: ["com.android.virt"],
 }
 
 raw_binary {
     name: "pvmfw",
     src: ":pvmfw_elf",
-    stem: "pvmfw.bin",
     enabled: false,
     target: {
         android_arm64: {

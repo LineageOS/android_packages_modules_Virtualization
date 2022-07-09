@@ -2,41 +2,76 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_library_rlib {
-    name: "libvmbase",
+rust_defaults {
+    name: "vmbase_rust_defaults",
     host_supported: false,
-    crate_name: "vmbase",
-    srcs: ["src/lib.rs"],
-    edition: "2021",
-    rustlibs: [
-        "libpsci",
-        "libspin_nostd",
-    ],
     enabled: false,
     target: {
         android_arm64: {
             enabled: true,
         },
     },
+}
+
+rust_defaults {
+    name: "vmbase_ffi_defaults",
+    defaults: ["vmbase_rust_defaults"],
+    no_stdlibs: true,
+    stdlibs: [
+        "libcompiler_builtins.rust_sysroot",
+        "libcore.rust_sysroot",
+    ],
+}
+
+cc_defaults {
+    name: "vmbase_cc_defaults",
+    nocrt: true,
+    system_shared_libs: [],
+    stl: "none",
+    installable: false,
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+    sanitize: {
+        hwaddress: false,
+    },
+}
+
+cc_defaults {
+    name: "vmbase_elf_defaults",
+    defaults: ["vmbase_cc_defaults"],
+    system_shared_libs: ["libc"],
+    static_executable: true,
+    static_libs: [
+        "libvmbase_entry",
+    ],
+}
+
+rust_library_rlib {
+    name: "libvmbase",
+    defaults: ["vmbase_rust_defaults"],
+    crate_name: "vmbase",
+    srcs: ["src/lib.rs"],
+    edition: "2021",
+    rustlibs: [
+        "liblog_rust_nostd",
+        "libpsci",
+        "libspin_nostd",
+    ],
     apex_available: ["com.android.virt"],
 }
 
 cc_library_static {
     name: "libvmbase_entry",
+    defaults: ["vmbase_cc_defaults"],
     srcs: [
         "entry.S",
         "exceptions.S",
     ],
-    nocrt: true,
     no_libcrt: true,
-    system_shared_libs: [],
-    stl: "none",
-    enabled: false,
-    target: {
-        android_arm64: {
-            enabled: true,
-        },
-    },
     apex_available: ["com.android.virt"],
 }
 
