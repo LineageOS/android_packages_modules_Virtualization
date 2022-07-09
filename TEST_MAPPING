@@ -44,6 +44,9 @@
       "path": "packages/modules/Virtualization/authfs"
     },
     {
+      "path": "packages/modules/Virtualization/rialto"
+    },
+    {
       "path": "packages/modules/Virtualization/vmbase"
     },
     {
