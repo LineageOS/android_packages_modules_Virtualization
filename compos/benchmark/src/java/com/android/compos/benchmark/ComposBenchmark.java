@@ -1,0 +1,125 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.android.compos.benchmark;
+
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
+
+import static org.junit.Assert.assertTrue;
+
+import android.app.Instrumentation;
+import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
+import android.util.Log;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@RunWith(JUnit4.class)
+public class ComposBenchmark {
+    private static final String TAG = "ComposBenchmark";
+    private static final int BUFFER_SIZE = 1024;
+    private static final int ROUND_COUNT = 10;
+
+    private Instrumentation mInstrumentation;
+
+    @Before
+    public void setup() {
+        mInstrumentation = getInstrumentation();
+    }
+
+    @After
+    public void cleanup() {
+
+    }
+
+    public byte[] executeCommandBlocking(String command) {
+        try (
+            InputStream is = new ParcelFileDescriptor.AutoCloseInputStream(
+                getInstrumentation().getUiAutomation().executeShellCommand(command));
+            ByteArrayOutputStream out = new ByteArrayOutputStream()
+        ) {
+            byte[] buf = new byte[BUFFER_SIZE];
+            int length;
+            while ((length = is.read(buf)) >= 0) {
+                out.write(buf, 0, length);
+            }
+            return out.toByteArray();
+        } catch (IOException e) {
+            Log.e(TAG, "Error executing: " + command, e);
+            return null;
+        }
+    }
+
+    public String executeCommand(String command)
+            throws  InterruptedException, IOException {
+
+        getInstrumentation().getUiAutomation()
+                .adoptShellPermissionIdentity();
+        byte[] output = executeCommandBlocking(command);
+        getInstrumentation().getUiAutomation()
+                .dropShellPermissionIdentity();
+
+        if (output == null) {
+            throw new RuntimeException("Failed to run the command.");
+        } else {
+            String stdout = new String(output, "UTF-8");
+            Log.i(TAG, "Get stdout : " + stdout);
+            return stdout;
+        }
+    }
+
+    @Test
+    public void testCompilationInVM()
+            throws InterruptedException, IOException {
+
+        final String command = "/apex/com.android.compos/bin/composd_cmd test-compile";
+
+        Long[] compileSecArray = new Long[ROUND_COUNT];
+
+        for (int round = 0; round < ROUND_COUNT; ++round) {
+            Long compileStartTime = System.nanoTime();
+            String output = executeCommand(command);
+            Long compileEndTime = System.nanoTime();
+            Long compileSec = Duration.ofNanos(compileEndTime - compileStartTime).getSeconds();
+
+            Pattern pattern = Pattern.compile("All Ok");
+            Matcher matcher = pattern.matcher(output);
+            assertTrue(matcher.find());
+
+            compileSecArray[round] = compileSec;
+        }
+
+        Long compileSecSum = 0L;
+        for (Long num: compileSecArray) {
+           compileSecSum += num;
+        }
+
+        Bundle bundle = new Bundle();
+        bundle.putLong("compliation_in_vm_elapse_second", compileSecSum / compileSecArray.length);
+        mInstrumentation.sendStatus(0, bundle);
+    }
+
+}
