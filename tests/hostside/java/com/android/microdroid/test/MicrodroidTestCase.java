@@ -31,6 +31,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
+import com.android.compatibility.common.util.CddTest;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.result.TestResult;
@@ -99,6 +100,11 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-1-2",
+            "9.17/C-1-4"
+    })
     public void testCreateVmRequiresPermission() throws Exception {
         // Revoke the MANAGE_VIRTUAL_MACHINE permission for the test app
         CommandRunner android = new CommandRunner(getDevice());
@@ -281,6 +287,11 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @CddTest(requirements = {
+            "9.17/C-2-1",
+            "9.17/C-2-2",
+            "9.17/C-2-6"
+    })
     public void testBootFailsWhenProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
         assumeTrue(isProtectedVmSupported());
@@ -296,6 +307,10 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @CddTest(requirements = {
+            "9.17/C-2-2",
+            "9.17/C-2-6"
+    })
     public void testBootSucceedsWhenNonProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
         File key = findTestFile("test.com.android.virt.pem");
@@ -311,6 +326,10 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @CddTest(requirements = {
+            "9.17/C-2-2",
+            "9.17/C-2-6"
+    })
     public void testBootFailsWhenBootloaderAndVbMetaAreSignedWithDifferentKeys()
             throws Exception {
         // Sign everything with key1 except vbmeta
@@ -331,6 +350,10 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @CddTest(requirements = {
+            "9.17/C-2-2",
+            "9.17/C-2-6"
+    })
     public void testBootSucceedsWhenBootloaderAndVbmetaHaveSameSigningKeys()
             throws Exception {
         // Sign everything with key1 except bootloader and vbmeta
@@ -392,6 +415,11 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-1-2",
+            "9.17/C/1-3"
+    })
     public void testMicrodroidBoots() throws Exception {
         final String configPath = "assets/vm_config.json"; // path inside the APK
         final String cid =
