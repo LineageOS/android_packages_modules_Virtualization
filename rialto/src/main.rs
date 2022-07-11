@@ -102,13 +102,9 @@ fn init_kernel_pgt(pgt: &mut IdMap) -> Result<(), AddressRangeError> {
     pgt.map_range(&reg_rodata, PROT_RO)?;
     pgt.map_range(&reg_data, PROT_RW)?;
 
-    info!("Finished preparing kernel page table.");
-    Ok(())
-}
-
-fn activate_kernel_pgt(pgt: &mut IdMap) {
     pgt.activate();
     info!("Activated kernel page table.");
+    Ok(())
 }
 
 /// Entry point for Rialto.
@@ -120,7 +116,6 @@ pub fn main(_a0: u64, _a1: u64, _a2: u64, _a3: u64) {
 
     let mut pgt = IdMap::new(PT_ASID, PT_ROOT_LEVEL);
     init_kernel_pgt(&mut pgt).unwrap();
-    activate_kernel_pgt(&mut pgt);
 }
 
 extern "C" {
