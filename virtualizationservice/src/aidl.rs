@@ -14,6 +14,7 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
+use crate::atom::write_vm_creation_stats;
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
@@ -48,11 +49,10 @@ use anyhow::{anyhow, bail, Context, Result};
 use binder_common::rpc_server::run_rpc_server_with_factory;
 use disk::QcowFile;
 use idsig::{HashAlgorithm, V4Signature};
-use log::{debug, error, info, warn, trace};
+use log::{debug, error, info, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
 use semver::VersionReq;
-use statslog_virtualization_rust::vm_creation_requested::{stats_write, Hypervisor};
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fs::{create_dir, File, OpenOptions};
@@ -131,23 +131,7 @@ impl IVirtualizationService for VirtualizationService {
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let mut is_protected = false;
         let ret = self.create_vm_internal(config, console_fd, log_fd, &mut is_protected);
-        match ret {
-            Ok(_) => {
-                let ok_status = Status::ok();
-                write_vm_creation_stats(
-                    is_protected,
-                    /*creation_succeeded*/ true,
-                    ok_status.exception_code() as i32,
-                );
-            }
-            Err(ref e) => {
-                write_vm_creation_stats(
-                    is_protected,
-                    /*creation_succeeded*/ false,
-                    e.exception_code() as i32,
-                );
-            }
-        }
+        write_vm_creation_stats(config, is_protected, &ret);
         ret
     }
 
@@ -503,16 +487,6 @@ impl VirtualizationService {
         );
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
-    }
-}
-
-/// Write the stats of VMCreation to statsd
-fn write_vm_creation_stats(is_protected: bool, creation_succeeded: bool, exception_code: i32) {
-    match stats_write(Hypervisor::Pkvm, is_protected, creation_succeeded, exception_code) {
-        Err(e) => {
-            warn!("statslog_rust failed with error: {}", e);
-        }
-        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
     }
 }
 
@@ -1003,7 +977,7 @@ fn get_state(instance: &VmInstance) -> VirtualMachineState {
 }
 
 /// Converts a `&ParcelFileDescriptor` to a `File` by cloning the file.
-fn clone_file(file: &ParcelFileDescriptor) -> Result<File, Status> {
+pub fn clone_file(file: &ParcelFileDescriptor) -> Result<File, Status> {
     file.as_ref().try_clone().map_err(|e| {
         Status::new_exception_str(
             ExceptionCode::BAD_PARCELABLE,
