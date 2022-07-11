@@ -42,6 +42,12 @@
 extern int __reboot(int, int, int, void*);
 
 int main() {
+    // Disable buffering for better display of the progress
+    if (setvbuf(stdout, NULL, _IONBF, 0) != 0) {
+        fprintf(stderr, "Failed to disable buffering for stdout: %s\n", strerror(errno));
+        // This isn't a critical error. Continue.
+    }
+
     printf("Crashdump started\n");
 
     if (mount("proc", "/proc", "proc", 0, NULL) == -1) {
@@ -86,12 +92,6 @@ int main() {
     size_t dumped = 0;
     char buf[BUF_SIZE];
     int progress = 0; // percentage
-
-    // Disable buffering for better display of the progress
-    if (setvbuf(stdout, NULL, _IONBF, 0) != 0) {
-        fprintf(stderr, "Failed to disable buffering for stdout: %s\n", strerror(errno));
-        // This isn't a critical error. Continue.
-    }
 
     while (dumped < statbuf.st_size) {
         ssize_t read_bytes = read(vmcore, buf, BUF_SIZE);
