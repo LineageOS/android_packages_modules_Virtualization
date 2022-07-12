@@ -84,6 +84,9 @@
 entry:
 	/* Load and apply the memory management configuration, ready to enable MMU and caches. */
 
+	adr x30, vector_table_panic
+	msr vbar_el1, x30
+
 	adrp x30, idmap
 	msr ttbr0_el1, x30
 
