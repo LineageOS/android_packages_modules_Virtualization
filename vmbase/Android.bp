@@ -70,6 +70,7 @@ cc_library_static {
     srcs: [
         "entry.S",
         "exceptions.S",
+        "exceptions_panic.S",
     ],
     no_libcrt: true,
     apex_available: ["com.android.virt"],
