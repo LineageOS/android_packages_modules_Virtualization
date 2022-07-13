@@ -21,7 +21,6 @@
 mod exceptions;
 
 extern crate alloc;
-extern crate log;
 
 use aarch64_paging::{
     idmap::IdMap,
@@ -41,6 +40,22 @@ const SZ_1G: usize = 1024 * SZ_1M;
 // entry.S. For 4KB granule and 39-bit VA, the root level is 1.
 const PT_ROOT_LEVEL: usize = 1;
 const PT_ASID: usize = 1;
+
+const PROT_DEV: Attributes = Attributes::from_bits_truncate(
+    Attributes::DEVICE_NGNRE.bits() | Attributes::EXECUTE_NEVER.bits(),
+);
+const PROT_RX: Attributes = Attributes::from_bits_truncate(
+    Attributes::NORMAL.bits() | Attributes::NON_GLOBAL.bits() | Attributes::READ_ONLY.bits(),
+);
+const PROT_RO: Attributes = Attributes::from_bits_truncate(
+    Attributes::NORMAL.bits()
+        | Attributes::NON_GLOBAL.bits()
+        | Attributes::READ_ONLY.bits()
+        | Attributes::EXECUTE_NEVER.bits(),
+);
+const PROT_RW: Attributes = Attributes::from_bits_truncate(
+    Attributes::NORMAL.bits() | Attributes::NON_GLOBAL.bits() | Attributes::EXECUTE_NEVER.bits(),
+);
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
@@ -76,32 +91,20 @@ fn init_kernel_pgt(pgt: &mut IdMap) -> Result<(), AddressRangeError> {
     let reg_rodata = unsafe { kimg_region(&rodata_begin, &rodata_end) };
     let reg_data = unsafe { kimg_region(&data_begin, &boot_stack_end) };
 
-    debug!("Preparing kernel page tables.");
+    debug!("Preparing kernel page table.");
     debug!("  dev:    {}-{}", reg_dev.start(), reg_dev.end());
     debug!("  text:   {}-{}", reg_text.start(), reg_text.end());
     debug!("  rodata: {}-{}", reg_rodata.start(), reg_rodata.end());
     debug!("  data:   {}-{}", reg_data.start(), reg_data.end());
 
-    let prot_dev = Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER;
-    let prot_rx = Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::READ_ONLY;
-    let prot_ro = Attributes::NORMAL
-        | Attributes::NON_GLOBAL
-        | Attributes::READ_ONLY
-        | Attributes::EXECUTE_NEVER;
-    let prot_rw = Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::EXECUTE_NEVER;
+    pgt.map_range(&reg_dev, PROT_DEV)?;
+    pgt.map_range(&reg_text, PROT_RX)?;
+    pgt.map_range(&reg_rodata, PROT_RO)?;
+    pgt.map_range(&reg_data, PROT_RW)?;
 
-    pgt.map_range(&reg_dev, prot_dev)?;
-    pgt.map_range(&reg_text, prot_rx)?;
-    pgt.map_range(&reg_rodata, prot_ro)?;
-    pgt.map_range(&reg_data, prot_rw)?;
-
-    info!("Finished preparing kernel page table.");
-    Ok(())
-}
-
-fn activate_kernel_pgt(pgt: &mut IdMap) {
     pgt.activate();
     info!("Activated kernel page table.");
+    Ok(())
 }
 
 /// Entry point for Rialto.
@@ -113,7 +116,6 @@ pub fn main(_a0: u64, _a1: u64, _a2: u64, _a3: u64) {
 
     let mut pgt = IdMap::new(PT_ASID, PT_ROOT_LEVEL);
     init_kernel_pgt(&mut pgt).unwrap();
-    activate_kernel_pgt(&mut pgt);
 }
 
 extern "C" {
