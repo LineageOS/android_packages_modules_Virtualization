@@ -27,6 +27,7 @@ rust_defaults {
         "libandroid_logger",
         "libanyhow",
         "libapkverify",
+        "libbase_rust",
         "libbinder_rs",
         "libcommand_fds",
         "libdisk",
