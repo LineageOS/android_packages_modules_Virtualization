@@ -179,6 +179,7 @@ on post-fs-data
 service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000 -remove_tombstones_after_transmitting
     user root
     group system
+    shutdown critical
 
 service apexd-vm /system/bin/apexd --vm
     user root
