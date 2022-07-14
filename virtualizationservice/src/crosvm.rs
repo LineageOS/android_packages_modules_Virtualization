@@ -241,7 +241,9 @@ impl VmInstance {
                     "Microdroid failed to start payload within {} secs timeout. Shutting down",
                     BOOT_HANGUP_TIMEOUT.as_secs()
                 );
-                self.kill();
+                if let Err(e) = self.kill() {
+                    error!("Error stopping timed-out VM with CID {}: {:?}", self.cid, e);
+                }
                 true
             } else {
                 false
@@ -304,15 +306,19 @@ impl VmInstance {
     }
 
     /// Kills the crosvm instance, if it is running.
-    pub fn kill(&self) {
+    pub fn kill(&self) -> Result<(), Error> {
         let vm_state = &*self.vm_state.lock().unwrap();
         if let VmState::Running { child } = vm_state {
             let id = child.id();
             debug!("Killing crosvm({})", id);
             // TODO: Talk to crosvm to shutdown cleanly.
             if let Err(e) = child.kill() {
-                error!("Error killing crosvm({}) instance: {}", id, e);
+                bail!("Error killing crosvm({}) instance: {}", id, e);
+            } else {
+                Ok(())
             }
+        } else {
+            bail!("VM is not running")
         }
     }
 
