@@ -1007,6 +1007,7 @@ fn get_state(instance: &VmInstance) -> VirtualMachineState {
             PayloadState::Started => VirtualMachineState::STARTED,
             PayloadState::Ready => VirtualMachineState::READY,
             PayloadState::Finished => VirtualMachineState::FINISHED,
+            PayloadState::Hangup => VirtualMachineState::DEAD,
         },
         VmState::Dead => VirtualMachineState::DEAD,
         VmState::Failed => VirtualMachineState::DEAD,
