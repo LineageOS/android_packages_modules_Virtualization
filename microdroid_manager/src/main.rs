@@ -314,12 +314,6 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     let config = load_config(Path::new(&metadata.payload_config_path))?;
 
-    // Start tombstone_transmit if enabled
-    if config.export_tombstones {
-        system_properties::write("ctl.start", "tombstone_transmit")
-            .context("Failed to start tombstone_transmit")?;
-    }
-
     if config.extra_apks.len() != verified_data.extra_apks_data.len() {
         return Err(anyhow!(
             "config expects {} extra apks, but found only {}",
@@ -332,6 +326,14 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     // Wait until apex config is done. (e.g. linker configuration for apexes)
     // TODO(jooyung): wait until sys.boot_completed?
     wait_for_apex_config_done()?;
+
+    // Start tombstone_transmit if enabled
+    if config.export_tombstones {
+        system_properties::write("ctl.start", "tombstone_transmit")
+            .context("Failed to start tombstone_transmit")?;
+    } else {
+        system_properties::write("ctl.stop", "tombstoned").context("Failed to stop tombstoned")?;
+    }
 
     ensure!(
         config.task.is_some(),

@@ -1,0 +1,13 @@
+{
+    "os": {
+      "name": "microdroid"
+    },
+    "task": {
+      "type": "microdroid_launcher",
+      "command": "MicrodroidTestNativeLib.so",
+      "args": [
+        "crash"
+      ]
+    },
+    "export_tombstones": false
+  }

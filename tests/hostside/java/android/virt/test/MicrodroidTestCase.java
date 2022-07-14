@@ -363,6 +363,46 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         shutdownMicrodroid(getDevice(), cid);
     }
 
+    private boolean isTombstoneGeneratedWithConfig(String configPath) throws Exception {
+        // Note this test relies on logcat values being printed by tombstone_transmit on
+        // and the reeceiver on host (virtualization_service)
+        final String cid =
+                startMicrodroid(
+                        getDevice(),
+                        getBuild(),
+                        APK_NAME,
+                        PACKAGE_NAME,
+                        configPath,
+                        /* debug */ true,
+                        minMemorySize(),
+                        Optional.of(NUM_VCPUS),
+                        Optional.of(CPU_AFFINITY));
+        // check until microdroid is shut down
+        CommandRunner android = new CommandRunner(getDevice());
+        android.runWithTimeout(
+                15000,
+                "logcat",
+                "-m",
+                "1",
+                "-e",
+                "'crosvm has exited normally'");
+        // Check that tombstone is received (from host logcat)
+        String result = runOnHost("adb", "-s", getDevice().getSerialNumber(),
+                "logcat", "-d", "-e",
+                "Received [0-9]+ bytes from guest & wrote to tombstone file");
+        return !result.trim().isEmpty();
+    }
+
+    @Test
+    public void testTombstonesAreGeneratedUponCrash() throws Exception {
+        assertTrue(isTombstoneGeneratedWithConfig("assets/vm_config_crash.json"));
+    }
+
+    @Test
+    public void testTombstonesAreNotGeneratedIfNotExported() throws Exception {
+        assertFalse(isTombstoneGeneratedWithConfig("assets/vm_config_crash_no_tombstone.json"));
+    }
+
     @Test
     public void testTombstonesAreBeingForwarded() throws Exception {
         // This test requires rooting. Skip on user builds where rooting is impossible.
