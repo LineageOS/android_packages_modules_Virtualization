@@ -104,6 +104,7 @@ pub enum PayloadState {
     Started,
     Ready,
     Finished,
+    Hangup, // Hasn't reached to Ready before timeout expires
 }
 
 /// The current state of the VM itself.
@@ -139,9 +140,17 @@ impl VmState {
             let child = Arc::new(run_vm(config, failure_pipe_write)?);
 
             let child_clone = child.clone();
+            let instance_clone = instance.clone();
             thread::spawn(move || {
-                instance.monitor(child_clone, failure_pipe_read, detect_hangup);
+                instance_clone.monitor_vm_exit(child_clone, failure_pipe_read);
             });
+
+            if detect_hangup {
+                let child_clone = child.clone();
+                thread::spawn(move || {
+                    instance.monitor_payload_hangup(child_clone);
+                });
+            }
 
             // If it started correctly, update the state.
             *self = VmState::Running { child };
@@ -179,8 +188,8 @@ pub struct VmInstance {
     pub vm_service: Mutex<Option<Strong<dyn IVirtualMachineService>>>,
     /// The latest lifecycle state which the payload reported itself to be in.
     payload_state: Mutex<PayloadState>,
-    /// Represents the condition that payload_state becomes Started
-    payload_started: Condvar,
+    /// Represents the condition that payload_state was updated
+    payload_state_updated: Condvar,
 }
 
 impl VmInstance {
@@ -207,7 +216,7 @@ impl VmInstance {
             stream: Mutex::new(None),
             vm_service: Mutex::new(None),
             payload_state: Mutex::new(PayloadState::Starting),
-            payload_started: Condvar::new(),
+            payload_state_updated: Condvar::new(),
         })
     }
 
@@ -217,41 +226,10 @@ impl VmInstance {
         self.vm_state.lock().unwrap().start(self.clone())
     }
 
-    /// Waits for the crosvm child process to finish, then marks the VM as no longer running and
-    /// calls any callbacks. If `detect_hangup` is optionally set to true, waits for the start of
-    /// payload in the crosvm process. If that doesn't occur within a BOOT_HANGUP_TIMEOUT, declare
-    /// it as a hangup and forcibly kill the process.
-    ///
-    /// This takes a separate reference to the `SharedChild` rather than using the one in
-    /// `self.vm_state` to avoid holding the lock on `vm_state` while it is running.
-    fn monitor(&self, child: Arc<SharedChild>, mut failure_pipe_read: File, detect_hangup: bool) {
-        let hungup = if detect_hangup {
-            // Wait until payload is started or the crosvm process terminates. The checking of the
-            // child process is needed because otherwise we will be waiting for a condition that
-            // will never be satisfied (because crosvm is the one who can make the condition true).
-            let state = self.payload_state.lock().unwrap();
-            let (_, result) = self
-                .payload_started
-                .wait_timeout_while(state, *BOOT_HANGUP_TIMEOUT, |state| {
-                    *state < PayloadState::Started && child.try_wait().is_ok()
-                })
-                .unwrap();
-            if result.timed_out() {
-                error!(
-                    "Microdroid failed to start payload within {} secs timeout. Shutting down",
-                    BOOT_HANGUP_TIMEOUT.as_secs()
-                );
-                if let Err(e) = self.kill() {
-                    error!("Error stopping timed-out VM with CID {}: {:?}", self.cid, e);
-                }
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
+    /// Monitors the exit of the VM (i.e. termination of the `child` process). When that happens,
+    /// handles the event by updating the state, noityfing the event to clients by calling
+    /// callbacks, and removing temporary files for the VM.
+    fn monitor_vm_exit(&self, child: Arc<SharedChild>, mut failure_pipe_read: File) {
         let result = child.wait();
         match &result {
             Err(e) => error!("Error waiting for crosvm({}) instance to die: {}", child.id(), e),
@@ -263,24 +241,54 @@ impl VmInstance {
         // Ensure that the mutex is released before calling the callbacks.
         drop(vm_state);
 
-        let failure_string = if hungup {
-            Cow::from("HANGUP")
-        } else {
-            let mut s = String::new();
-            match failure_pipe_read.read_to_string(&mut s) {
-                Err(e) => error!("Error reading VM failure reason from pipe: {}", e),
-                Ok(len) if len > 0 => info!("VM returned failure reason '{}'", &s),
-                _ => (),
-            };
-            Cow::from(s)
+        // Read the pipe to see if any failure reason is written
+        let mut failure_reason = String::new();
+        match failure_pipe_read.read_to_string(&mut failure_reason) {
+            Err(e) => error!("Error reading VM failure reason from pipe: {}", e),
+            Ok(len) if len > 0 => info!("VM returned failure reason '{}'", &failure_reason),
+            _ => (),
         };
 
+        // In case of hangup, the pipe doesn't give us any information because the hangup can't be
+        // detected on the VM side (otherwise, it isn't a hangup), but in the
+        // monitor_payload_hangup function below which updates the payload state to Hangup.
+        let failure_reason =
+            if failure_reason.is_empty() && self.payload_state() == PayloadState::Hangup {
+                Cow::from("HANGUP")
+            } else {
+                Cow::from(failure_reason)
+            };
+
         self.handle_ramdump().unwrap_or_else(|e| error!("Error handling ramdump: {}", e));
-        self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_string));
+        self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_reason));
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
             error!("Error removing temporary directory {:?}: {}", self.temporary_directory, e);
+        }
+    }
+
+    /// Waits until payload is started, or timeout expires. When timeout occurs, kill
+    /// the VM to prevent indefinite hangup and update the payload_state accordingly.
+    fn monitor_payload_hangup(&self, child: Arc<SharedChild>) {
+        debug!("Starting to monitor hangup for Microdroid({})", child.id());
+        let (_, result) = self
+            .payload_state_updated
+            .wait_timeout_while(self.payload_state.lock().unwrap(), *BOOT_HANGUP_TIMEOUT, |s| {
+                *s < PayloadState::Started
+            })
+            .unwrap();
+        let child_still_running = child.try_wait().ok() == Some(None);
+        if result.timed_out() && child_still_running {
+            error!(
+                "Microdroid({}) failed to start payload within {} secs timeout. Shutting down.",
+                child.id(),
+                BOOT_HANGUP_TIMEOUT.as_secs()
+            );
+            self.update_payload_state(PayloadState::Hangup).unwrap();
+            if let Err(e) = self.kill() {
+                error!("Error stopping timed-out VM with CID {}: {:?}", child.id(), e);
+            }
         }
     }
 
@@ -296,9 +304,7 @@ impl VmInstance {
         // the other direction.
         if new_state > *state_locked {
             *state_locked = new_state;
-            if new_state >= PayloadState::Started {
-                self.payload_started.notify_all();
-            }
+            self.payload_state_updated.notify_all();
             Ok(())
         } else {
             bail!("Invalid payload state transition from {:?} to {:?}", *state_locked, new_state)
