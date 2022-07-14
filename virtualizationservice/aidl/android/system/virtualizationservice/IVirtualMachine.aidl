@@ -34,6 +34,13 @@ interface IVirtualMachine {
     /** Starts running the VM. */
     void start();
 
+    /**
+     * Stops this virtual machine. Stopping a virtual machine is like pulling the plug on a real
+     * computer; the machine halts immediately. Software running on the virtual machine is not
+     * notified with the event.
+     */
+    void stop();
+
     /** Open a vsock connection to the CID of the VM on the given port. */
     ParcelFileDescriptor connectVsock(int port);
 }

@@ -823,6 +823,13 @@ impl IVirtualMachine for VirtualMachine {
         })
     }
 
+    fn stop(&self) -> binder::Result<()> {
+        self.instance.kill().map_err(|e| {
+            error!("Error stopping VM with CID {}: {:?}", self.instance.cid, e);
+            new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, e.to_string())
+        })
+    }
+
     fn connectVsock(&self, port: i32) -> binder::Result<ParcelFileDescriptor> {
         if !matches!(&*self.instance.vm_state.lock().unwrap(), VmState::Running { .. }) {
             return Err(new_binder_exception(ExceptionCode::SERVICE_SPECIFIC, "VM is not running"));
@@ -841,7 +848,9 @@ impl IVirtualMachine for VirtualMachine {
 impl Drop for VirtualMachine {
     fn drop(&mut self) {
         debug!("Dropping {:?}", self);
-        self.instance.kill();
+        if let Err(e) = self.instance.kill() {
+            debug!("Error stopping dropped VM with CID {}: {:?}", self.instance.cid, e);
+        }
     }
 }
 
