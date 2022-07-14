@@ -69,7 +69,6 @@ const AVF_NEW_INSTANCE: &str = "/sys/firmware/devicetree/base/chosen/avf,new-ins
 const VMADDR_CID_HOST: u32 = 2;
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
-const LOGD_ENABLED_PROP: &str = "ro.boot.logd.enabled";
 const APP_DEBUGGABLE_PROP: &str = "ro.boot.microdroid.app_debuggable";
 
 // SYNC WITH virtualizationservice/src/crosvm.rs
@@ -598,12 +597,6 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
 
     info!("notifying payload started");
     service.notifyPayloadStarted()?;
-
-    // Start logging if enabled
-    // TODO(b/200914564) set filterspec if debug_level is app_only
-    if system_properties::read_bool(LOGD_ENABLED_PROP, false)? {
-        system_properties::write("ctl.start", "seriallogging")?;
-    }
 
     let exit_status = command.spawn()?.wait()?;
     exit_status.code().ok_or_else(|| anyhow!("Failed to get exit_code from the paylaod."))
