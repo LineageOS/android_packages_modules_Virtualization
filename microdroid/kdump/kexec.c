@@ -27,6 +27,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#if defined(__aarch64__)
+#define EARLYCON "earlycon=uart8250,mmio,0x3f8"
+#elif defined(__x86_64__)
+#define EARLYCON "earlycon=uart8250,io,0x3f8"
+#endif
+
+static const char *KERNEL = "/system/etc/microdroid_crashdump_kernel";
+static const char *INITRD = "/system/etc/microdroid_crashdump_initrd.img";
+static const char *CMDLINE = "1 panic=-1 rdinit=/bin/crashdump nr_cpus=1 reset_devices "
+                             "console=hvc0 " EARLYCON;
+
 static int open_checked(const char* path) {
     int fd = open(path, O_RDONLY);
     if (fd == -1) {
@@ -36,20 +47,11 @@ static int open_checked(const char* path) {
     return fd;
 }
 
-int main(int argc, const char* argv[]) {
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <kernel> <initrd> <commandline>\n", argv[0]);
-        return 1;
-    }
+int main() {
+    unsigned long cmdline_len = strlen(CMDLINE) + 1; // include null terminator, otherwise EINVAL
 
-    // TODO(b/238272206): consider harding these
-    const char* kernel = argv[1];
-    const char* initrd = argv[2];
-    const char* cmdline = argv[3];
-    unsigned long cmdline_len = strlen(cmdline) + 1; // include null terminator, otherwise EINVAL
-
-    if (syscall(SYS_kexec_file_load, open_checked(kernel), open_checked(initrd), cmdline_len,
-                cmdline, KEXEC_FILE_ON_CRASH) == -1) {
+    if (syscall(SYS_kexec_file_load, open_checked(KERNEL), open_checked(INITRD), cmdline_len,
+                CMDLINE, KEXEC_FILE_ON_CRASH) == -1) {
         fprintf(stderr, "Failed to load panic kernel: %s\n", strerror(errno));
         return 1;
     }
