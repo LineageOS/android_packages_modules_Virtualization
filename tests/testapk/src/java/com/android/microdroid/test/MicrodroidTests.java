@@ -246,7 +246,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.NONE)
+                .debugLevel(DebugLevel.FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm_a", normalConfig);
         mInner.forceCreateNewVirtualMachine("test_vm_b", normalConfig);
@@ -270,7 +270,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.NONE)
+                .debugLevel(DebugLevel.FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
 
@@ -291,7 +291,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.NONE)
+                .debugLevel(DebugLevel.FULL)
                 .build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("bcc_vm", normalConfig);
         final VmCdis vmCdis = new VmCdis();
@@ -446,7 +446,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             throws VirtualMachineException, InterruptedException, IOException {
         VirtualMachineConfig.Builder builder =
                 mInner.newVmConfigBuilder("assets/vm_config_no_task.json");
-        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.FULL).build();
         mInner.forceCreateNewVirtualMachine("test_vm_invalid_config", normalConfig);
 
         BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_config");
