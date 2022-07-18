@@ -138,6 +138,18 @@ impl VbMetaImage {
         Some(&self.data[begin..end])
     }
 
+    /// Get the hash of the verified data in the VBMeta image from the authentication block. If the
+    /// image was not signed, there might not be a hash and, if there is, it's not known to be
+    /// correct.
+    pub fn hash(&self) -> Option<&[u8]> {
+        if self.header.algorithm_type == AvbAlgorithmType_AVB_ALGORITHM_TYPE_NONE {
+            return None;
+        }
+        let begin = size_of::<AvbVBMetaImageHeader>() + self.header.hash_offset as usize;
+        let end = begin + self.header.hash_size as usize;
+        Some(&self.data[begin..end])
+    }
+
     /// Get the descriptors of the VBMeta image.
     pub fn descriptors(&self) -> Result<Descriptors<'_>, VbMetaImageParseError> {
         Descriptors::from_image(&self.data)

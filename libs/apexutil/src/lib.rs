@@ -93,6 +93,19 @@ fn find_root_digest(vbmeta: &VbMetaImage) -> Result<Vec<u8>, ApexParseError> {
     Err(ApexParseError::DescriptorNotHashtree)
 }
 
+/// Gets the hash of the payload's verified VBMeta image data.
+pub fn get_payload_vbmeta_image_hash(path: &str) -> Result<Vec<u8>, ApexVerificationError> {
+    let apex_file = File::open(path).map_err(ApexParseError::Io)?;
+    let (_, offset, size) = get_public_key_and_image_info(&apex_file)?;
+    let vbmeta = VbMetaImage::verify_reader_region(apex_file, offset, size)?;
+    Ok(vbmeta.hash().ok_or(ApexVerificationError::ApexPubkeyMistmatch)?.to_vec())
+}
+
+/// Converts the buffer to a Hex String
+pub fn to_hex_string(buf: &[u8]) -> String {
+    buf.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
 fn get_public_key_and_image_info(apex_file: &File) -> Result<(Vec<u8>, u64, u64), ApexParseError> {
     let mut z = ZipArchive::new(apex_file).map_err(|err| match err {
         ZipError::Io(err) => ApexParseError::Io(err),
@@ -130,15 +143,22 @@ fn get_public_key_and_image_info(apex_file: &File) -> Result<(Vec<u8>, u64, u64)
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn to_hex_string(buf: &[u8]) -> String {
-        buf.iter().map(|b| format!("{:02x}", b)).collect()
-    }
+
     #[test]
     fn test_open_apex() {
         let res = verify("tests/data/test.apex").unwrap();
         assert_eq!(
             to_hex_string(&res.root_digest),
             "fe11ab17da0a3a738b54bdc3a13f6139cbdf91ec32f001f8d4bbbf8938e04e39"
+        );
+    }
+
+    #[test]
+    fn test_payload_vbmeta_image_hash() {
+        let result = get_payload_vbmeta_image_hash("tests/data/test.apex").unwrap();
+        assert_eq!(
+            to_hex_string(&result),
+            "296e32a76544de9da01713e471403ab4667705ad527bb4f1fac0cf61e7ce122d"
         );
     }
 }
