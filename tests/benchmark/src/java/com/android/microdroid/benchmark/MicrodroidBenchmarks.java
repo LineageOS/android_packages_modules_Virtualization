@@ -92,7 +92,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             VirtualMachineConfig.Builder builder =
                     mInner.newVmConfigBuilder("assets/vm_config.json");
             VirtualMachineConfig normalConfig =
-                    builder.debugLevel(DebugLevel.FULL).memoryMib(mem).build();
+                    builder.debugLevel(DebugLevel.NONE).memoryMib(mem).build();
             mInner.forceCreateNewVirtualMachine("test_vm_minimum_memory", normalConfig);
 
             if (tryBootVm(TAG, "test_vm_minimum_memory").payloadStarted) return true;
