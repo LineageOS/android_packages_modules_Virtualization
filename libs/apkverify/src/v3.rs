@@ -25,11 +25,11 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
 use openssl::rsa::Padding;
 use openssl::sign::Verifier;
+use openssl::x509::X509;
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::ops::Range;
 use std::path::Path;
-use x509_parser::{parse_x509_certificate, prelude::FromDer, x509::SubjectPublicKeyInfo};
 
 use crate::bytes_ext::{BytesExt, LengthPrefixed, ReadFromBytes};
 use crate::sigutil::*;
@@ -168,8 +168,8 @@ impl Signer {
 
         // 2. Verify the corresponding signature from signatures against signed data using public key.
         //    (It is now safe to parse signed data.)
-        let (_, key_info) = SubjectPublicKeyInfo::from_der(self.public_key.as_ref())?;
-        verify_signed_data(&self.signed_data, strongest, &key_info)?;
+        let public_key = PKey::public_key_from_der(self.public_key.as_ref())?;
+        verify_signed_data(&self.signed_data, strongest, &public_key)?;
 
         // It is now safe to parse signed data.
         let signed_data: SignedData = self.signed_data.slice(..).read()?;
@@ -209,11 +209,11 @@ impl Signer {
             );
         }
 
-        // 7. Verify that SubjectPublicKeyInfo of the first certificate of certificates is identical
+        // 7. Verify that public key of the first certificate of certificates is identical
         //    to public key.
         let cert = signed_data.certificates.first().context("No certificates listed")?;
-        let (_, cert) = parse_x509_certificate(cert.as_ref())?;
-        if cert.tbs_certificate.subject_pki != key_info {
+        let cert = X509::from_der(cert.as_ref())?;
+        if !cert.public_key()?.public_eq(&public_key) {
             bail!("Public key mismatch between certificate and signature record");
         }
 
@@ -222,11 +222,7 @@ impl Signer {
     }
 }
 
-fn verify_signed_data(
-    data: &Bytes,
-    signature: &Signature,
-    key_info: &SubjectPublicKeyInfo,
-) -> Result<()> {
+fn verify_signed_data(data: &Bytes, signature: &Signature, key: &PKey<pkey::Public>) -> Result<()> {
     let (pkey_id, padding, digest) = match signature.signature_algorithm_id {
         SIGNATURE_RSA_PSS_WITH_SHA256 => {
             (pkey::Id::RSA, Padding::PKCS1_PSS, MessageDigest::sha256())
@@ -254,9 +250,8 @@ fn verify_signed_data(
         }
         _ => bail!("Unsupported signature algorithm: {:#x}", signature.signature_algorithm_id),
     };
-    let key = PKey::public_key_from_der(key_info.raw)?;
     ensure!(key.id() == pkey_id, "Public key has the wrong ID");
-    let mut verifier = Verifier::new(digest, &key)?;
+    let mut verifier = Verifier::new(digest, key)?;
     if pkey_id == pkey::Id::RSA {
         verifier.set_rsa_padding(padding)?;
     }
