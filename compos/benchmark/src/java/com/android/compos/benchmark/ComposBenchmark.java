@@ -33,9 +33,15 @@ import org.junit.runners.JUnit4;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
+import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 
 @RunWith(JUnit4.class)
 public class ComposBenchmark {
@@ -119,6 +125,60 @@ public class ComposBenchmark {
 
         Bundle bundle = new Bundle();
         bundle.putLong("compliation_in_vm_elapse_second", compileSecSum / compileSecArray.length);
+        mInstrumentation.sendStatus(0, bundle);
+    }
+
+    private Timestamp getLatestDex2oatSuccessTime()
+            throws  InterruptedException, IOException, ParseException {
+
+        final String command = "logcat -d -e dex2oat";
+        String output = executeCommand(command);
+        String latestTime = "";
+
+        for (String line : output.split("[\r\n]+")) {
+            Pattern pattern = Pattern.compile("dex2oat64: dex2oat took");
+            Matcher matcher = pattern.matcher(line);
+            if (matcher.find()) {
+                latestTime = line.substring(0, 18);
+            }
+        }
+
+        DateFormat formatter = new SimpleDateFormat("MM-dd hh:mm:ss.SSS");
+        Date date = formatter.parse(latestTime);
+        Timestamp timeStampDate = new Timestamp(date.getTime());
+
+        return timeStampDate;
+    }
+
+    @Test
+    public void testCompilationInAndroid()
+            throws InterruptedException, IOException, ParseException {
+
+        final String command = "/apex/com.android.art/bin/odrefresh --force-compile";
+
+        Long[] compileSecArray = new Long[ROUND_COUNT];
+
+        for (int round = 0; round < ROUND_COUNT; ++round) {
+            Timestamp beforeCompileLatestTime = getLatestDex2oatSuccessTime();
+            Long compileStartTime = System.nanoTime();
+            String output = executeCommand(command);
+            Long compileEndTime = System.nanoTime();
+            Long compileSec = Duration.ofNanos(compileEndTime - compileStartTime).getSeconds();
+            Timestamp afterCompileLatestTime = getLatestDex2oatSuccessTime();
+
+            assertTrue(beforeCompileLatestTime.before(afterCompileLatestTime));
+
+            compileSecArray[round] = compileSec;
+        }
+
+        Long compileSecSum = 0L;
+        for (Long num: compileSecArray) {
+            compileSecSum += num;
+        }
+
+        Bundle bundle = new Bundle();
+        bundle.putLong("compliation_in_android_elapse_second",
+                compileSecSum / compileSecArray.length);
         mInstrumentation.sendStatus(0, bundle);
     }
 
