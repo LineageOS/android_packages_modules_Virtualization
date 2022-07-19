@@ -62,6 +62,16 @@ int main(int argc, const char *argv[]) {
         PLOG(ERROR) << "WriteStringToFd";
         return EXIT_FAILURE;
     }
+    shutdown(fd.get(), SHUT_WR); // close socket for writing
+
+    // Must not shut down until the server ACKs the message. Shutting down
+    // the VM would otherwise terminate the VMM and reset the server's socket.
+    LOG(INFO) << "Waiting for ACK from the server...";
+    if (!ReadFdToString(fd, &msg)) {
+        PLOG(ERROR) << "ReadFdToString";
+        return EXIT_FAILURE;
+    }
+    shutdown(fd.get(), SHUT_RD); // close socket for reading
 
     LOG(INFO) << "Exiting...";
     return EXIT_SUCCESS;
