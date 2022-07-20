@@ -24,7 +24,6 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -54,11 +53,6 @@ public class ComposBenchmark {
     @Before
     public void setup() {
         mInstrumentation = getInstrumentation();
-    }
-
-    @After
-    public void cleanup() {
-
     }
 
     public byte[] executeCommandBlocking(String command) {
