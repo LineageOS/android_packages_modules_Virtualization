@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
 public class ComposBenchmark {
     private static final String TAG = "ComposBenchmark";
     private static final int BUFFER_SIZE = 1024;
-    private static final int ROUND_COUNT = 10;
+    private static final int ROUND_COUNT = 5;
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
     private static final String METRIC_PREFIX = "avf_perf/compos/";
 
