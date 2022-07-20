@@ -118,8 +118,7 @@ public class ComposBenchmark {
     }
 
     @Test
-    public void testCompilationInVM()
-            throws InterruptedException, IOException {
+    public void testGuestCompileTime() throws InterruptedException, IOException {
 
         final String command = "/apex/com.android.compos/bin/composd_cmd test-compile";
 
@@ -137,7 +136,7 @@ public class ComposBenchmark {
             compileTime[round] = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
         }
 
-        reportMetric("compliation_in_vm_elapse", "second", compileTime);
+        reportMetric("guest_compile_time", "s", compileTime);
     }
 
     private Timestamp getLatestDex2oatSuccessTime()
@@ -167,7 +166,7 @@ public class ComposBenchmark {
     }
 
     @Test
-    public void testCompilationInAndroid()
+    public void testHostCompileTime()
             throws InterruptedException, IOException, ParseException {
 
         final String command = "/apex/com.android.art/bin/odrefresh --force-compile";
@@ -188,7 +187,7 @@ public class ComposBenchmark {
             compileTime[round] = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
         }
 
-        reportMetric("compliation_in_android_elapse", "second", compileTime);
+        reportMetric("host_compile_time", "s", compileTime);
     }
 
 }
