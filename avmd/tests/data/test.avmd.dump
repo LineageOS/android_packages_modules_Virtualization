@@ -1,0 +1,16 @@
+Descriptors:
+  VBMeta descriptor:
+    namespace:             microdroid
+    name:                  vbmeta
+    vbmeta digest:         296e32a76544de9da01713e471403ab4667705ad527bb4f1fac0cf61e7ce122d
+  APK descriptor:
+    namespace:             microdroid_manager
+    name:                  apk
+    Signing algorithm ID:  0x103
+    APK digest:            0df2426ea33aedaf495d88e5be0c6a1663ff0a81c5ed12d5b2929ae4b4300f2f
+  APK descriptor:
+    namespace:             microdroid_manager
+    name:                  extra-apk
+    Signing algorithm ID:  0x201
+    APK digest:            626bb647c0089717a7ffa52fd8e845f9403d5e27f7a5a8752e47b3345fb82f5c
+
