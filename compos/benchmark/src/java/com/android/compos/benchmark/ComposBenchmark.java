@@ -133,7 +133,7 @@ public class ComposBenchmark {
 
         final String command = "logcat -d -e dex2oat";
         String output = executeCommand(command);
-        String latestTime = "";
+        String latestTime = null;
 
         for (String line : output.split("[\r\n]+")) {
             Pattern pattern = Pattern.compile("dex2oat64: dex2oat took");
@@ -141,6 +141,10 @@ public class ComposBenchmark {
             if (matcher.find()) {
                 latestTime = line.substring(0, 18);
             }
+        }
+
+        if (latestTime == null) {
+            return null;
         }
 
         DateFormat formatter = new SimpleDateFormat("MM-dd hh:mm:ss.SSS");
@@ -166,7 +170,9 @@ public class ComposBenchmark {
             Long compileSec = Duration.ofNanos(compileEndTime - compileStartTime).getSeconds();
             Timestamp afterCompileLatestTime = getLatestDex2oatSuccessTime();
 
-            assertTrue(beforeCompileLatestTime.before(afterCompileLatestTime));
+            assertTrue(afterCompileLatestTime != null);
+            assertTrue(beforeCompileLatestTime == null
+                    || beforeCompileLatestTime.before(afterCompileLatestTime));
 
             compileSecArray[round] = compileSec;
         }
