@@ -36,7 +36,6 @@ import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.Duration;
 import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,12 +46,39 @@ public class ComposBenchmark {
     private static final String TAG = "ComposBenchmark";
     private static final int BUFFER_SIZE = 1024;
     private static final int ROUND_COUNT = 10;
+    private static final double NANOS_IN_SEC = 1_000_000_000.0;
+    private static final String METRIC_PREFIX = "avf_perf/compos/";
 
     private Instrumentation mInstrumentation;
 
     @Before
     public void setup() {
         mInstrumentation = getInstrumentation();
+    }
+
+    private void reportMetric(String name, String unit, double[] values) {
+        double sum = 0;
+        double squareSum = 0;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+
+        for (double val : values) {
+            sum += val;
+            squareSum += val * val;
+            min = val < min ? val : min;
+            max = val > max ? val : max;
+        }
+
+        double average = sum / values.length;
+        double variance = squareSum / values.length - average * average;
+        double stdev = Math.sqrt(variance);
+
+        Bundle bundle = new Bundle();
+        bundle.putDouble(METRIC_PREFIX + name + "_average_" + unit, average);
+        bundle.putDouble(METRIC_PREFIX + name + "_min_" + unit, min);
+        bundle.putDouble(METRIC_PREFIX + name + "_max_" + unit, max);
+        bundle.putDouble(METRIC_PREFIX + name + "_stdev_" + unit, stdev);
+        mInstrumentation.sendStatus(0, bundle);
     }
 
     public byte[] executeCommandBlocking(String command) {
@@ -97,29 +123,21 @@ public class ComposBenchmark {
 
         final String command = "/apex/com.android.compos/bin/composd_cmd test-compile";
 
-        Long[] compileSecArray = new Long[ROUND_COUNT];
+        double[] compileTime = new double[ROUND_COUNT];
 
         for (int round = 0; round < ROUND_COUNT; ++round) {
             Long compileStartTime = System.nanoTime();
             String output = executeCommand(command);
             Long compileEndTime = System.nanoTime();
-            Long compileSec = Duration.ofNanos(compileEndTime - compileStartTime).getSeconds();
 
             Pattern pattern = Pattern.compile("All Ok");
             Matcher matcher = pattern.matcher(output);
             assertTrue(matcher.find());
 
-            compileSecArray[round] = compileSec;
+            compileTime[round] = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
         }
 
-        Long compileSecSum = 0L;
-        for (Long num: compileSecArray) {
-           compileSecSum += num;
-        }
-
-        Bundle bundle = new Bundle();
-        bundle.putLong("compliation_in_vm_elapse_second", compileSecSum / compileSecArray.length);
-        mInstrumentation.sendStatus(0, bundle);
+        reportMetric("compliation_in_vm_elapse", "second", compileTime);
     }
 
     private Timestamp getLatestDex2oatSuccessTime()
@@ -154,32 +172,23 @@ public class ComposBenchmark {
 
         final String command = "/apex/com.android.art/bin/odrefresh --force-compile";
 
-        Long[] compileSecArray = new Long[ROUND_COUNT];
+        double[] compileTime = new double[ROUND_COUNT];
 
         for (int round = 0; round < ROUND_COUNT; ++round) {
             Timestamp beforeCompileLatestTime = getLatestDex2oatSuccessTime();
             Long compileStartTime = System.nanoTime();
             String output = executeCommand(command);
             Long compileEndTime = System.nanoTime();
-            Long compileSec = Duration.ofNanos(compileEndTime - compileStartTime).getSeconds();
             Timestamp afterCompileLatestTime = getLatestDex2oatSuccessTime();
 
             assertTrue(afterCompileLatestTime != null);
             assertTrue(beforeCompileLatestTime == null
                     || beforeCompileLatestTime.before(afterCompileLatestTime));
 
-            compileSecArray[round] = compileSec;
+            compileTime[round] = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
         }
 
-        Long compileSecSum = 0L;
-        for (Long num: compileSecArray) {
-            compileSecSum += num;
-        }
-
-        Bundle bundle = new Bundle();
-        bundle.putLong("compliation_in_android_elapse_second",
-                compileSecSum / compileSecArray.length);
-        mInstrumentation.sendStatus(0, bundle);
+        reportMetric("compliation_in_android_elapse", "second", compileTime);
     }
 
 }
