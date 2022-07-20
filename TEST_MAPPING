@@ -25,6 +25,9 @@
     },
     {
       "name": "MicrodroidBenchmarkApp"
+    },
+    {
+      "name": "ComposBenchmarkApp"
     }
   ],
   "imports": [
