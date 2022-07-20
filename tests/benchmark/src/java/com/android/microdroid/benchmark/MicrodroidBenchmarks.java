@@ -37,7 +37,9 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 
 @RunWith(Parameterized.class)
 public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
@@ -46,6 +48,11 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
     private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
+
+    private static final String APEX_ETC_FS = "/apex/com.android.virt/etc/fs/";
+    private static final double SIZE_MB = 1024.0 * 1024.0;
+    private static final String MICRODROID_IMG_PREFIX = "microdroid_";
+    private static final String MICRODROID_IMG_SUFFIX = ".img";
 
     private boolean isCuttlefish() {
         String productName = SystemProperties.get("ro.product.name");
@@ -157,6 +164,25 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         bundle.putDouble("avf_perf/microdroid/boot_time_min_ms", min);
         bundle.putDouble("avf_perf/microdroid/boot_time_max_ms", max);
         bundle.putDouble("avf_perf/microdroid/boot_time_stdev_ms", stdev);
+        mInstrumentation.sendStatus(0, bundle);
+    }
+
+    @Test
+    public void testMicrodroidImageSize() throws IOException {
+        Bundle bundle = new Bundle();
+        for (File file : new File(APEX_ETC_FS).listFiles()) {
+            String name = file.getName();
+
+            if (!name.startsWith(MICRODROID_IMG_PREFIX) || !name.endsWith(MICRODROID_IMG_SUFFIX)) {
+                continue;
+            }
+
+            String base = name.substring(MICRODROID_IMG_PREFIX.length(),
+                                         name.length() - MICRODROID_IMG_SUFFIX.length());
+            String metric = "avf_perf/microdroid/img_size_" + base + "_MB";
+            double size = Files.size(file.toPath()) / SIZE_MB;
+            bundle.putDouble(metric, size);
+        }
         mInstrumentation.sendStatus(0, bundle);
     }
 }
