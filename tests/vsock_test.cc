@@ -48,6 +48,7 @@ static constexpr const char kVmKernelPath[] = "/data/local/tmp/virt-test/kernel"
 static constexpr const char kVmInitrdPath[] = "/data/local/tmp/virt-test/initramfs";
 static constexpr const char kVmParams[] = "rdinit=/bin/init bin/vsock_client 2 45678 HelloWorld";
 static constexpr const char kTestMessage[] = "HelloWorld";
+static constexpr const char kAckMessage[] = "ACK";
 static constexpr const char kPlatformVersion[] = "~1.0";
 
 /** Returns true if the kernel supports unprotected VMs. */
@@ -108,9 +109,13 @@ TEST_F(VirtualizationTest, TestVsock) {
 
     LOG(INFO) << "Reading message from the client...";
     std::string msg;
-    ASSERT_TRUE(ReadFdToString(client_fd, &msg));
-
+    ASSERT_TRUE(ReadFdToString(client_fd, &msg)) << strerror(errno);
     LOG(INFO) << "Received message: " << msg;
+
+    // The client is waiting for a response to signal it can shut down.
+    LOG(INFO) << "Replying with '" << kAckMessage << "'...";
+    ASSERT_TRUE(WriteStringToFd(kAckMessage, client_fd));
+
     ASSERT_EQ(msg, kTestMessage);
 }
 
