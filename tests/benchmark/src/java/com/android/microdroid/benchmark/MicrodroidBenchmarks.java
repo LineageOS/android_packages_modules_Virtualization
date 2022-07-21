@@ -29,7 +29,6 @@ import android.system.virtualmachine.VirtualMachineException;
 
 import com.android.microdroid.test.MicrodroidDeviceTestBase;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -76,11 +75,6 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void setup() {
         prepareTestSetup(mProtectedVm);
         mInstrumentation = getInstrumentation();
-    }
-
-    @After
-    public void cleanup() throws VirtualMachineException {
-        cleanupTestSetup();
     }
 
     private boolean canBootMicrodroidWithMemory(int mem)

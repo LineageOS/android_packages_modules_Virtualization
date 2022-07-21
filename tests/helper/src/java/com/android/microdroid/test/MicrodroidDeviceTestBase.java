@@ -60,13 +60,11 @@ public abstract class MicrodroidDeviceTestBase {
                 }).start();
     }
 
-    private boolean mPkvmSupported;
-
     // TODO(b/220920264): remove Inner class; this is a hack to hide virt APEX types
     protected static class Inner {
-        private boolean mProtectedVm;
-        private Context mContext;
-        private VirtualMachineManager mVmm;
+        private final boolean mProtectedVm;
+        private final Context mContext;
+        private final VirtualMachineManager mVmm;
 
         public Inner(Context context, boolean protectedVm, VirtualMachineManager vmm) {
             mProtectedVm = protectedVm;
@@ -114,7 +112,6 @@ public abstract class MicrodroidDeviceTestBase {
         // classes, check the existence of a class in the package and skip this test if not exist.
         try {
             Class.forName("android.system.virtualmachine.VirtualMachineManager");
-            mPkvmSupported = true;
         } catch (ClassNotFoundException e) {
             assumeNoException(e);
             return;
@@ -130,12 +127,6 @@ public abstract class MicrodroidDeviceTestBase {
         }
         Context context = ApplicationProvider.getApplicationContext();
         mInner = new Inner(context, protectedVm, VirtualMachineManager.getInstance(context));
-    }
-
-    public void cleanupTestSetup() throws VirtualMachineException {
-        if (!mPkvmSupported) {
-            return;
-        }
     }
 
     protected abstract static class VmEventListener implements VirtualMachineCallback {
