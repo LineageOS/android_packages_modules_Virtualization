@@ -32,7 +32,6 @@ import android.util.Log;
 
 import com.android.microdroid.testservice.ITestService;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -75,11 +74,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Before
     public void setup() {
         prepareTestSetup(mProtectedVm);
-    }
-
-    @After
-    public void cleanup() throws VirtualMachineException {
-        cleanupTestSetup();
     }
 
     private static final int MIN_MEM_ARM64 = 150;
