@@ -113,7 +113,7 @@ impl InstanceStarter {
             &self.vm_parameters,
         )
         .context("Starting VM")?;
-        let service = vm_instance.get_service().context("Connecting to CompOS")?;
+        let service = vm_instance.connect_service().context("Connecting to CompOS")?;
         Ok(CompOsInstance { vm_instance, service, lazy_service_guard: Default::default() })
     }
 

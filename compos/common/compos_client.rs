@@ -16,7 +16,7 @@
 
 //! Support for starting CompOS in a VM and connecting to the service
 
-use crate::timeouts::timeouts;
+use crate::timeouts::TIMEOUTS;
 use crate::{COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT, DEFAULT_VM_CONFIG_PATH};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DeathReason::DeathReason,
@@ -37,7 +37,7 @@ use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::thread;
-use vmclient::VmInstance;
+use vmclient::{VmInstance, VmWaitError};
 
 /// This owns an instance of the CompOS VM.
 pub struct ComposClient(VmInstance);
@@ -128,14 +128,39 @@ impl ComposClient {
 
         instance.start()?;
 
-        instance.wait_until_ready(timeouts()?.vm_max_time_to_ready)?;
+        let ready = instance.wait_until_ready(TIMEOUTS.vm_max_time_to_ready);
+        if let Err(VmWaitError::Finished) = ready {
+            if debug_level != DebugLevel::NONE {
+                // The payload has (unexpectedly) finished, but the VM is still running. Give it
+                // some time to shutdown to maximize our chances of getting useful logs.
+                if let Some(death_reason) =
+                    instance.wait_for_death_with_timeout(TIMEOUTS.vm_max_time_to_exit)
+                {
+                    bail!("VM died during startup - reason {:?}", death_reason);
+                }
+            }
+        }
+        ready?;
 
         Ok(Self(instance))
     }
 
     /// Create and return an RPC Binder connection to the Comp OS service in the VM.
-    pub fn get_service(&self) -> Result<Strong<dyn ICompOsService>> {
-        self.0.get_service(COMPOS_VSOCK_PORT).context("Connecting to CompOS service")
+    pub fn connect_service(&self) -> Result<Strong<dyn ICompOsService>> {
+        self.0.connect_service(COMPOS_VSOCK_PORT).context("Connecting to CompOS service")
+    }
+
+    /// Wait for the instance to shut down. If it fails to shutdown within a reasonable time the
+    /// instance is dropped, which forcibly terminates it.
+    /// This should only be called when the instance has been requested to quit, or we believe that
+    /// it is already in the process of exiting due to some failure.
+    pub fn wait_for_shutdown(self) {
+        let death_reason = self.0.wait_for_death_with_timeout(TIMEOUTS.vm_max_time_to_exit);
+        match death_reason {
+            Some(vmclient::DeathReason::Shutdown) => info!("VM has exited normally"),
+            Some(reason) => warn!("VM died with reason {:?}", reason),
+            None => warn!("VM failed to exit, dropping"),
+        }
     }
 }
 

@@ -31,7 +31,7 @@ use android_system_composd::{
     },
 };
 use anyhow::{bail, Context, Result};
-use compos_common::timeouts::timeouts;
+use compos_common::timeouts::TIMEOUTS;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
@@ -147,7 +147,7 @@ where
 
     println!("Waiting");
 
-    match state.wait(timeouts()?.odrefresh_max_execution_time) {
+    match state.wait(TIMEOUTS.odrefresh_max_execution_time) {
         Ok(Outcome::Succeeded) => Ok(()),
         Ok(Outcome::TaskDied) => bail!("Compilation task died"),
         Ok(Outcome::Failed(reason, message)) => {

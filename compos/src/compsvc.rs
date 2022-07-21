@@ -151,6 +151,12 @@ impl ICompOsService for CompOsService {
     fn getAttestationChain(&self) -> BinderResult<Vec<u8>> {
         to_binder_result(compos_key::get_attestation_chain())
     }
+
+    fn quit(&self) -> BinderResult<()> {
+        // TODO(b/236581575) Consider shutting down the binder server a bit more gracefully.
+        // When our process exits, Microdroid will shut down the VM.
+        std::process::exit(0);
+    }
 }
 
 fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {
