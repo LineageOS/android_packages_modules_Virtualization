@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::GetServiceError;
+use crate::errors::ConnectServiceError;
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::IVirtualMachine::IVirtualMachine,
 };
@@ -30,7 +30,7 @@ impl<'a> VsockFactory<'a> {
         Self { vm, port }
     }
 
-    pub fn connect_rpc_client(&mut self) -> Result<binder::SpIBinder, GetServiceError> {
+    pub fn connect_rpc_client(&mut self) -> Result<binder::SpIBinder, ConnectServiceError> {
         let param = self.as_void_ptr();
 
         unsafe {
@@ -41,7 +41,7 @@ impl<'a> VsockFactory<'a> {
             let binder =
                 binder_rpc_unstable_bindgen::RpcPreconnectedClient(Some(Self::request_fd), param)
                     as *mut AIBinder;
-            new_spibinder(binder).ok_or(GetServiceError::ConnectionFailed)
+            new_spibinder(binder).ok_or(ConnectServiceError::ConnectionFailed)
         }
     }
 

@@ -74,4 +74,10 @@ interface ICompOsService {
      * hardware/interfaces/security/dice/aidl/android/hardware/security/dice/Bcc.aidl.
      */
     byte[] getAttestationChain();
+
+    /**
+     * Request the service to exit, triggering the termination of the VM. This may cause any
+     * requests in flight to fail.
+     */
+    oneway void quit();
 }
