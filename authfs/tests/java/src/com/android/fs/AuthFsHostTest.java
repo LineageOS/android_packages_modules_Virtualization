@@ -17,26 +17,15 @@
 package com.android.virt.fs;
 
 import static com.android.microdroid.test.host.CommandResultSubject.assertThat;
-import static com.android.microdroid.test.host.LogArchiver.archiveLogThenDelete;
-import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
-import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.RootPermissionTest;
 
-import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
-import com.android.compatibility.common.util.PollingCheck;
 import com.android.microdroid.test.host.CommandRunner;
-import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.ITestDevice;
-import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
@@ -45,18 +34,9 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 import com.android.tradefed.util.CommandResult;
 
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
@@ -68,38 +48,14 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     /** Output directory where the test can generate output on Android */
     private static final String TEST_OUTPUT_DIR = "/data/local/tmp/authfs/output_dir";
 
-    /** VM's log file */
-    private static final String LOG_PATH = TEST_OUTPUT_DIR + "/log.txt";
-
-    /** File name of the test APK */
-    private static final String TEST_APK_NAME = "MicrodroidTestApp.apk";
-
-    /** VM config entry path in the test APK */
-    private static final String VM_CONFIG_PATH_IN_APK = "assets/vm_config.json";
-
-    /** Path to open_then_run on Android */
-    private static final String OPEN_THEN_RUN_BIN = "/data/local/tmp/open_then_run";
-
     /** Path to fsverity on Android */
     private static final String FSVERITY_BIN = "/data/local/tmp/fsverity";
 
     /** Mount point of authfs on Microdroid during the test */
     private static final String MOUNT_DIR = "/data/local/tmp";
 
-    /** Path to fd_server on Android */
-    private static final String FD_SERVER_BIN = "/apex/com.android.virt/bin/fd_server";
-
-    /** Path to authfs on Microdroid */
-    private static final String AUTHFS_BIN = "/system/bin/authfs";
-
     /** Input manifest path in the VM. */
     private static final String INPUT_MANIFEST_PATH = "/mnt/apk/assets/input_manifest.pb";
-
-    /** Plenty of time for authfs to get ready */
-    private static final int AUTHFS_INIT_TIMEOUT_MS = 3000;
-
-    /** FUSE's magic from statfs(2) */
-    private static final String FUSE_SUPER_MAGIC_HEX = "65735546";
 
     // fs-verity digest (sha256) of testdata/input.{4k, 4k1, 4m}
     private static final String DIGEST_4K =
@@ -113,86 +69,20 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
     private static CommandRunner sAndroid;
     private static CommandRunner sMicrodroid;
-    private static boolean sAssumptionFailed;
 
-    private ExecutorService mThreadPool = Executors.newCachedThreadPool();
-
-    @Rule public TestLogData mTestLogs = new TestLogData();
-    @Rule public TestName mTestName = new TestName();
+    @Rule public final AuthFsTestRule mAuthFsTestRule = new AuthFsTestRule();
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        assertNotNull(testInfo.getDevice());
-        if (!(testInfo.getDevice() instanceof TestDevice)) {
-            CLog.w("Unexpected type of ITestDevice. Skipping.");
-            return;
-        }
-        TestDevice androidDevice = (TestDevice) testInfo.getDevice();
-        sAndroid = new CommandRunner(androidDevice);
-
-        // NB: We can't use assumeTrue because the assumption exception is NOT handled by the test
-        // infra when it is thrown from a class method (see b/37502066). We need to skip both here
-        // and in setUp.
-        if (!androidDevice.supportsMicrodroid()) {
-            CLog.i("Microdroid not supported. Skipping.");
-            return;
-        }
-
-        // For each test case, boot and adb connect to a new Microdroid
-        CLog.i("Starting the shared VM");
-        ITestDevice microdroidDevice =
-                MicrodroidBuilder
-                        .fromFile(findTestApk(testInfo.getBuildInfo()), VM_CONFIG_PATH_IN_APK)
-                        .debugLevel("full")
-                        .build((TestDevice) androidDevice);
-
-        // From this point on, we need to tear down the Microdroid instance
-        sMicrodroid = new CommandRunner(microdroidDevice);
-
-        // Root because authfs (started from shell in this test) currently require root to open
-        // /dev/fuse and mount the FUSE.
-        assertThat(microdroidDevice.enableAdbRoot()).isTrue();
+        AuthFsTestRule.setUpClass(testInfo);
+        sAndroid = AuthFsTestRule.getAndroid();
+        sMicrodroid = AuthFsTestRule.getMicrodroid();
     }
 
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo)
             throws DeviceNotAvailableException {
-        assertNotNull(sAndroid);
-
-        if (sMicrodroid != null) {
-            CLog.i("Shutting down shared VM");
-            ((TestDevice) testInfo.getDevice()).shutdownMicrodroid(sMicrodroid.getDevice());
-            sMicrodroid = null;
-        }
-
-        sAndroid = null;
-    }
-
-    @Before
-    public void setUp() throws Exception {
-        assumeTrue(((TestDevice) getDevice()).supportsMicrodroid());
-        sAndroid.run("mkdir " + TEST_OUTPUT_DIR);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        if (sMicrodroid != null) {
-            sMicrodroid.tryRun("killall authfs");
-            sMicrodroid.tryRun("umount " + MOUNT_DIR);
-        }
-
-        assertNotNull(sAndroid);
-        sAndroid.tryRun("killall fd_server");
-
-        // Even though we only run one VM for the whole class, and could have collect the VM log
-        // after all tests are done, TestLogData doesn't seem to work at class level. Hence,
-        // collect recent logs manually for each test method.
-        String vmRecentLog = TEST_OUTPUT_DIR + "/vm_recent.log";
-        sAndroid.tryRun("tail -n 50 " + LOG_PATH + " > " + vmRecentLog);
-        archiveLogThenDelete(mTestLogs, getDevice(), vmRecentLog,
-                "vm_recent.log-" + mTestName.getMethodName());
-
-        sAndroid.run("rm -rf " + TEST_OUTPUT_DIR);
+        AuthFsTestRule.tearDownClass(testInfo);
     }
 
     @Test
@@ -534,7 +424,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         sAndroid.run("test ! -d " + androidOutputDir + "/dir/dir2");
         // Can only delete a directory if empty
         assertThat(sMicrodroid.runForResult("rmdir " + authfsOutputDir + "/dir")).isFailed();
-        sMicrodroid.run("test -d " + authfsOutputDir + "/dir");  // still there
+        sMicrodroid.run("test -d " + authfsOutputDir + "/dir"); // still there
         sMicrodroid.run("rm " + authfsOutputDir + "/dir/file");
         sMicrodroid.run("rmdir " + authfsOutputDir + "/dir");
         sMicrodroid.run("test ! -d " + authfsOutputDir + "/dir");
@@ -560,9 +450,9 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_file")).isFailed();
         assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_dir")).isFailed();
         assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_dir/file"))
-            .isFailed();
+                .isFailed();
         assertThat(sMicrodroid.runForResult("mkdir " + authfsOutputDir + "/some_dir/dir"))
-            .isFailed();
+                .isFailed();
     }
 
     @Test
@@ -741,16 +631,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         // Verify
         // Magic matches. Has only 2 inodes (root and "/3").
         assertEquals(
-                FUSE_SUPER_MAGIC_HEX + " 2", sMicrodroid.run("stat -f -c '%t %c' " + MOUNT_DIR));
-    }
-
-    private static File findTestApk(IBuildInfo buildInfo) {
-        try {
-            return (new CompatibilityBuildHelper(buildInfo)).getTestFile(TEST_APK_NAME);
-        } catch (FileNotFoundException e) {
-            fail("Missing test file: " + TEST_APK_NAME);
-            return null;
-        }
+                mAuthFsTestRule.FUSE_SUPER_MAGIC_HEX + " 2",
+                sMicrodroid.run("stat -f -c '%t %c' " + MOUNT_DIR));
     }
 
     private void expectBackingFileConsistency(
@@ -832,66 +714,11 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     }
 
     private void runAuthFsOnMicrodroid(String flags) {
-        String cmd = AUTHFS_BIN + " " + MOUNT_DIR + " " + flags;
-
-        AtomicBoolean starting = new AtomicBoolean(true);
-        mThreadPool.submit(
-                () -> {
-                    // authfs may fail to start if fd_server is not yet listening on the vsock
-                    // ("Error: Invalid raw AIBinder"). Just restart if that happens.
-                    while (starting.get()) {
-                        try {
-                            CLog.i("Starting authfs");
-                            CommandResult result = sMicrodroid.runForResult(cmd);
-                            CLog.w("authfs has stopped: " + result);
-                        } catch (DeviceNotAvailableException e) {
-                            CLog.e("Error running authfs", e);
-                            throw new RuntimeException(e);
-                        }
-                    }
-                });
-        try {
-            PollingCheck.waitFor(
-                    AUTHFS_INIT_TIMEOUT_MS, () -> isMicrodroidDirectoryOnFuse(MOUNT_DIR));
-        } catch (Exception e) {
-            // Convert the broad Exception into an unchecked exception to avoid polluting all other
-            // methods. waitFor throws Exception because the callback, Callable#call(), has a
-            // signature to throw an Exception.
-            throw new RuntimeException(e);
-        } finally {
-            starting.set(false);
-        }
+        mAuthFsTestRule.runAuthFsOnMicrodroid(flags);
     }
 
     private void runFdServerOnAndroid(String helperFlags, String fdServerFlags)
             throws DeviceNotAvailableException {
-        String cmd =
-                "cd "
-                        + TEST_DIR
-                        + " && "
-                        + OPEN_THEN_RUN_BIN
-                        + " "
-                        + helperFlags
-                        + " -- "
-                        + FD_SERVER_BIN
-                        + " "
-                        + fdServerFlags;
-
-        mThreadPool.submit(
-                () -> {
-                    try {
-                        CLog.i("Starting fd_server");
-                        CommandResult result = sAndroid.runForResult(cmd);
-                        CLog.w("fd_server has stopped: " + result);
-                    } catch (DeviceNotAvailableException e) {
-                        CLog.e("Error running fd_server", e);
-                        throw new RuntimeException(e);
-                    }
-                });
-    }
-
-    private boolean isMicrodroidDirectoryOnFuse(String path) throws DeviceNotAvailableException {
-        String fs_type = sMicrodroid.tryRun("stat -f -c '%t' " + path);
-        return FUSE_SUPER_MAGIC_HEX.equals(fs_type);
+        mAuthFsTestRule.runFdServerOnAndroid(helperFlags, fdServerFlags);
     }
 }
