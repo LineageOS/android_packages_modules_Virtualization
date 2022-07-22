@@ -43,9 +43,9 @@ cc_defaults {
 cc_defaults {
     name: "vmbase_elf_defaults",
     defaults: ["vmbase_cc_defaults"],
-    system_shared_libs: ["libc"],
     static_executable: true,
     static_libs: [
+        "libarm-optimized-routines-mem",
         "libvmbase_entry",
     ],
 }
