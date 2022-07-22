@@ -13,7 +13,7 @@ java_test_host {
         "tradefed",
     ],
     static_libs: [
-        "VirtualizationTestHelper",
+        "MicrodroidHostTestHelper",
     ],
     per_testcase_directory: true,
     data: [
