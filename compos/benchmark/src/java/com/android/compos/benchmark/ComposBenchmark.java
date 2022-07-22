@@ -17,11 +17,14 @@ package com.android.compos.benchmark;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
+import static com.google.common.truth.TruthJUnit.assume;
+
 import static org.junit.Assert.assertTrue;
 
 import android.app.Instrumentation;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemProperties;
 import android.util.Log;
 
 import org.junit.Before;
@@ -50,6 +53,15 @@ public class ComposBenchmark {
     private static final String METRIC_PREFIX = "avf_perf/compos/";
 
     private Instrumentation mInstrumentation;
+
+    private boolean isCuttlefish() {
+        String productName = SystemProperties.get("ro.product.name");
+        return (null != productName)
+                && (productName.startsWith("aosp_cf_x86")
+                        || productName.startsWith("aosp_cf_arm")
+                        || productName.startsWith("cf_x86")
+                        || productName.startsWith("cf_arm"));
+    }
 
     @Before
     public void setup() {
@@ -119,6 +131,7 @@ public class ComposBenchmark {
 
     @Test
     public void testGuestCompileTime() throws InterruptedException, IOException {
+        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
 
         final String command = "/apex/com.android.compos/bin/composd_cmd test-compile";
 
