@@ -129,15 +129,13 @@ impl ComposClient {
         instance.start()?;
 
         let ready = instance.wait_until_ready(TIMEOUTS.vm_max_time_to_ready);
-        if let Err(VmWaitError::Finished) = ready {
-            if debug_level != DebugLevel::NONE {
-                // The payload has (unexpectedly) finished, but the VM is still running. Give it
-                // some time to shutdown to maximize our chances of getting useful logs.
-                if let Some(death_reason) =
-                    instance.wait_for_death_with_timeout(TIMEOUTS.vm_max_time_to_exit)
-                {
-                    bail!("VM died during startup - reason {:?}", death_reason);
-                }
+        if ready == Err(VmWaitError::Finished) && debug_level != DebugLevel::NONE {
+            // The payload has (unexpectedly) finished, but the VM is still running. Give it
+            // some time to shutdown to maximize our chances of getting useful logs.
+            if let Some(death_reason) =
+                instance.wait_for_death_with_timeout(TIMEOUTS.vm_max_time_to_exit)
+            {
+                bail!("VM died during startup - reason {:?}", death_reason);
             }
         }
         ready?;
