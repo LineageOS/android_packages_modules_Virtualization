@@ -21,6 +21,7 @@ import static org.junit.Assume.assumeNoException;
 
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemProperties;
 import android.sysprop.HypervisorProperties;
 import android.system.virtualizationservice.DeathReason;
 import android.system.virtualmachine.VirtualMachine;
@@ -32,6 +33,8 @@ import android.util.Log;
 
 import androidx.annotation.CallSuper;
 import androidx.test.core.app.ApplicationProvider;
+
+import com.android.virt.VirtualizationTestHelper;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -58,6 +61,10 @@ public abstract class MicrodroidDeviceTestBase {
                         Log.w(tag, name, e);
                     }
                 }).start();
+    }
+
+    public static boolean isCuttlefish() {
+        return VirtualizationTestHelper.isCuttlefish(SystemProperties.get("ro.product.name"));
     }
 
     // TODO(b/220920264): remove Inner class; this is a hack to hide virt APEX types
