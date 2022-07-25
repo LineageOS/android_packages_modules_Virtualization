@@ -34,6 +34,7 @@ import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.RunUtil;
+import com.android.virt.VirtualizationTestHelper;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -89,6 +90,10 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         android.tryRun("killall", "crosvm");
         android.tryRun("stop", "virtualizationservice");
         android.tryRun("rm", "-rf", "/data/misc/virtualizationservice/*");
+    }
+
+    protected boolean isCuttlefish() throws Exception {
+        return VirtualizationTestHelper.isCuttlefish(getDevice().getProperty("ro.product.name"));
     }
 
     public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
