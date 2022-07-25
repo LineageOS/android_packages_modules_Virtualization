@@ -77,16 +77,6 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     @Rule public TestLogData mTestLogs = new TestLogData();
     @Rule public TestName mTestName = new TestName();
 
-    // TODO(b/176805428): remove this
-    private boolean isCuttlefish() throws Exception {
-        String productName = getDevice().getProperty("ro.product.name");
-        return (null != productName)
-                && (productName.startsWith("aosp_cf_x86")
-                        || productName.startsWith("aosp_cf_arm")
-                        || productName.startsWith("cf_x86")
-                        || productName.startsWith("cf_arm"));
-    }
-
     private int minMemorySize() throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(getDevice());
         String abi = android.run("getprop", "ro.product.cpu.abi");

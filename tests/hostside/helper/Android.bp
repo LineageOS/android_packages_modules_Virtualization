@@ -10,4 +10,7 @@ java_library_host {
         "tradefed",
         "truth-prebuilt",
     ],
+    static_libs: [
+        "VirtualizationTestHelper",
+    ],
 }
