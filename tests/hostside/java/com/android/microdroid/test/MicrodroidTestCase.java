@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package android.virt.test;
+package com.android.microdroid.test;
 
-import static android.virt.test.CommandResultSubject.command_results;
-
+import static com.android.microdroid.test.CommandResultSubject.command_results;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -63,7 +62,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class MicrodroidTestCase extends VirtualizationTestCaseBase {
+public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
     private static final String SHELL_PACKAGE_NAME = "com.android.shell";
