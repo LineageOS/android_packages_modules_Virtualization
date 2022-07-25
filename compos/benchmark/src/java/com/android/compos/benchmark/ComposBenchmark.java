@@ -24,8 +24,9 @@ import static org.junit.Assert.assertTrue;
 import android.app.Instrumentation;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
-import android.os.SystemProperties;
 import android.util.Log;
+
+import com.android.microdroid.test.MicrodroidDeviceTestBase;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -45,7 +46,7 @@ import java.util.regex.Pattern;
 
 
 @RunWith(JUnit4.class)
-public class ComposBenchmark {
+public class ComposBenchmark extends MicrodroidDeviceTestBase {
     private static final String TAG = "ComposBenchmark";
     private static final int BUFFER_SIZE = 1024;
     private static final int ROUND_COUNT = 5;
@@ -53,15 +54,6 @@ public class ComposBenchmark {
     private static final String METRIC_PREFIX = "avf_perf/compos/";
 
     private Instrumentation mInstrumentation;
-
-    private boolean isCuttlefish() {
-        String productName = SystemProperties.get("ro.product.name");
-        return (null != productName)
-                && (productName.startsWith("aosp_cf_x86")
-                        || productName.startsWith("aosp_cf_arm")
-                        || productName.startsWith("cf_x86")
-                        || productName.startsWith("cf_arm"));
-    }
 
     @Before
     public void setup() {

@@ -22,7 +22,6 @@ import static com.google.common.truth.TruthJUnit.assume;
 
 import android.app.Instrumentation;
 import android.os.Bundle;
-import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
@@ -46,21 +45,10 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
-    private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
-
     private static final String APEX_ETC_FS = "/apex/com.android.virt/etc/fs/";
     private static final double SIZE_MB = 1024.0 * 1024.0;
     private static final String MICRODROID_IMG_PREFIX = "microdroid_";
     private static final String MICRODROID_IMG_SUFFIX = ".img";
-
-    private boolean isCuttlefish() {
-        String productName = SystemProperties.get("ro.product.name");
-        return (null != productName)
-                && (productName.startsWith("aosp_cf_x86")
-                        || productName.startsWith("aosp_cf_arm")
-                        || productName.startsWith("cf_x86")
-                        || productName.startsWith("cf_arm"));
-    }
 
     @Parameterized.Parameters(name = "protectedVm={0}")
     public static Object[] protectedVmConfigs() {
