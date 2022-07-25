@@ -16,9 +16,8 @@
 
 package com.android.virt.fs;
 
-import static android.virt.test.CommandResultSubject.assertThat;
-import static android.virt.test.LogArchiver.archiveLogThenDelete;
-
+import static com.android.microdroid.test.CommandResultSubject.assertThat;
+import static com.android.microdroid.test.LogArchiver.archiveLogThenDelete;
 import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
@@ -30,10 +29,10 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.RootPermissionTest;
-import android.virt.test.CommandRunner;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.PollingCheck;
+import com.android.microdroid.test.CommandRunner;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;

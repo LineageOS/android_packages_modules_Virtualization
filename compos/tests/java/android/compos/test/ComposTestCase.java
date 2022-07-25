@@ -16,18 +16,17 @@
 
 package android.compos.test;
 
-import static android.virt.test.CommandResultSubject.assertThat;
-import static android.virt.test.CommandResultSubject.command_results;
-
+import static com.android.microdroid.test.CommandResultSubject.assertThat;
+import static com.android.microdroid.test.CommandResultSubject.command_results;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.platform.test.annotations.RootPermissionTest;
-import android.virt.test.CommandRunner;
-import android.virt.test.VirtualizationTestCaseBase;
 
+import com.android.microdroid.test.CommandRunner;
+import com.android.microdroid.test.MicrodroidHostTestCaseBase;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.FileInputStreamSource;
 import com.android.tradefed.result.LogDataType;
@@ -46,7 +45,7 @@ import java.io.File;
 
 @RootPermissionTest
 @RunWith(DeviceJUnit4ClassRunner.class)
-public final class ComposTestCase extends VirtualizationTestCaseBase {
+public final class ComposTestCase extends MicrodroidHostTestCaseBase {
 
     // Binaries used in test. (These paths are valid both in host and Microdroid.)
     private static final String ODREFRESH_BIN = "/apex/com.android.art/bin/odrefresh";
