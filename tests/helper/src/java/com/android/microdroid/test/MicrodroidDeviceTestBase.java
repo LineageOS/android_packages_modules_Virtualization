@@ -139,7 +139,7 @@ public abstract class MicrodroidDeviceTestBase {
     protected abstract static class VmEventListener implements VirtualMachineCallback {
         private ExecutorService mExecutorService = Executors.newSingleThreadExecutor();
 
-        void runToFinish(String logTag, VirtualMachine vm)
+        public void runToFinish(String logTag, VirtualMachine vm)
                 throws VirtualMachineException, InterruptedException {
             vm.setCallback(mExecutorService, this);
             vm.run();
@@ -148,7 +148,7 @@ public abstract class MicrodroidDeviceTestBase {
             mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
         }
 
-        void forceStop(VirtualMachine vm) {
+        protected void forceStop(VirtualMachine vm) {
             try {
                 vm.clearCallback();
                 vm.stop();
