@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.virt.test;
+package com.android.microdroid.test;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.fail;

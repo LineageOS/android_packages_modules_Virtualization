@@ -12,7 +12,7 @@ java_test_host {
     ],
     data_native_bins: ["bcc_validator"],
     static_libs: [
-        "VirtualizationTestHelper",
+        "MicrodroidHostTestHelper",
     ],
     test_suites: [
         "general-tests",
