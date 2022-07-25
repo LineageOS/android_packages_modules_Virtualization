@@ -11,7 +11,7 @@ java_test_host {
         "compatibility-host-util",
     ],
     static_libs: [
-        "VirtualizationTestHelper",
+        "MicrodroidHostTestHelper",
     ],
     test_suites: ["general-tests"],
     //TODO(b/235263148) use data_device_bins_64
