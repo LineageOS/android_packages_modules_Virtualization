@@ -11,7 +11,7 @@ rust_defaults {
     rustlibs: [
         "libanyhow",
         "libbitflags",
-        "libclap",
+        "libclap_deprecated",
         "libdata_model",
         "libidsig",
         "libitertools",
