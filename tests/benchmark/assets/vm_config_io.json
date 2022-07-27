@@ -6,8 +6,13 @@
     "type": "microdroid_launcher",
     "command": "MicrodroidBenchmarkNativeLib.so",
     "args": [
-      "no_io"
+      "io"
     ]
   },
+  "apexes": [
+    {
+      "name": "com.android.virt"
+    }
+  ],
   "export_tombstones": true
 }
