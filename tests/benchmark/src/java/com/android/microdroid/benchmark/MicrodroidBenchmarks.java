@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.android.microdroid.benchmark;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
@@ -22,11 +23,13 @@ import static com.google.common.truth.TruthJUnit.assume;
 
 import android.app.Instrumentation;
 import android.os.Bundle;
+import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
 
 import com.android.microdroid.test.MicrodroidDeviceTestBase;
+import com.android.microdroid.testservice.IBenchmarkService;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -38,10 +41,13 @@ import org.junit.runners.Parameterized;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 
 @RunWith(Parameterized.class)
 public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidBenchmarks";
+    private static final int VIRTIO_BLK_TRIAL_COUNT = 5;
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
@@ -159,12 +165,100 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 continue;
             }
 
-            String base = name.substring(MICRODROID_IMG_PREFIX.length(),
-                                         name.length() - MICRODROID_IMG_SUFFIX.length());
-            String metric = "avf_perf/microdroid/img_size_" + base + "_MB";
+            String base =
+                    name.substring(
+                            MICRODROID_IMG_PREFIX.length(),
+                            name.length() - MICRODROID_IMG_SUFFIX.length());
+            String metric = "avf_perf/microdroid/img_size_" + base + "_MB" + "+" + name;
             double size = Files.size(file.toPath()) / SIZE_MB;
             bundle.putDouble(metric, size);
         }
         mInstrumentation.sendStatus(0, bundle);
+    }
+
+    @Test
+    public void testVirtioBlkSeqReadRate() throws Exception {
+        testVirtioBlkReadRate(/*isRand=*/ false);
+    }
+
+    @Test
+    public void testVirtioBlkRandReadRate() throws Exception {
+        testVirtioBlkReadRate(/*isRand=*/ true);
+    }
+
+    private void testVirtioBlkReadRate(boolean isRand) throws Exception {
+        VirtualMachineConfig.Builder builder =
+                mInner.newVmConfigBuilder("assets/vm_config_io.json");
+        VirtualMachineConfig config = builder.debugLevel(DebugLevel.FULL).build();
+        List<Double> readRates = new ArrayList<>();
+
+        for (int i = 0; i < VIRTIO_BLK_TRIAL_COUNT; ++i) {
+            String vmName = "test_vm_io_" + i;
+            mInner.forceCreateNewVirtualMachine(vmName, config);
+            VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+            VirtioBlkVmEventListener listener = new VirtioBlkVmEventListener(readRates, isRand);
+            listener.runToFinish(TAG, vm);
+        }
+        reportMetrics(readRates, isRand);
+    }
+
+    private void reportMetrics(List<Double> readRates, boolean isRand) {
+        double sum = 0;
+        for (double rate : readRates) {
+            sum += rate;
+        }
+        double mean = sum / readRates.size();
+        double sqSum = 0;
+        for (double rate : readRates) {
+            sqSum += (rate - mean) * (rate - mean);
+        }
+        double stdDev = Math.sqrt(sqSum / (readRates.size() - 1));
+
+        Bundle bundle = new Bundle();
+        String metricNamePrefix =
+                "avf_perf/virtio-blk/"
+                        + (mProtectedVm ? "protected-vm/" : "unprotected-vm/")
+                        + (isRand ? "rand_read_" : "seq_read_");
+        String unit = "_mb_per_sec";
+
+        bundle.putDouble(metricNamePrefix + "mean" + unit, mean);
+        bundle.putDouble(metricNamePrefix + "std" + unit, stdDev);
+        mInstrumentation.sendStatus(0, bundle);
+    }
+
+    private static class VirtioBlkVmEventListener extends VmEventListener {
+        private static final String FILENAME = APEX_ETC_FS + "microdroid_super.img";
+
+        private final long mFileSizeBytes;
+        private final List<Double> mReadRates;
+        private final boolean mIsRand;
+
+        VirtioBlkVmEventListener(List<Double> readRates, boolean isRand) {
+            File file = new File(FILENAME);
+            try {
+                mFileSizeBytes = Files.size(file.toPath());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            assertThat(mFileSizeBytes).isGreaterThan((long) SIZE_MB);
+            mReadRates = readRates;
+            mIsRand = isRand;
+        }
+
+        @Override
+        public void onPayloadReady(VirtualMachine vm) {
+            try {
+                IBenchmarkService benchmarkService =
+                        IBenchmarkService.Stub.asInterface(
+                                vm.connectToVsockServer(IBenchmarkService.SERVICE_PORT).get());
+                double elapsedSeconds =
+                        benchmarkService.readFile(FILENAME, mFileSizeBytes, mIsRand);
+                double fileSizeMb = mFileSizeBytes / SIZE_MB;
+                mReadRates.add(fileSizeMb / elapsedSeconds);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            forceStop(vm);
+        }
     }
 }
