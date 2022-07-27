@@ -12,6 +12,7 @@ android_test {
         "MicroroidDeviceTestHelper",
         "androidx.test.runner",
         "androidx.test.ext.junit",
+        "com.android.microdroid.testservice-java",
         "truth-prebuilt",
     ],
     libs: ["android.system.virtualmachine"],
@@ -24,4 +25,12 @@ android_test {
 cc_library_shared {
     name: "MicrodroidBenchmarkNativeLib",
     srcs: ["src/native/benchmarkbinary.cpp"],
+    shared_libs: [
+        "android.system.virtualmachineservice-ndk",
+        "com.android.microdroid.testservice-ndk",
+        "libbase",
+        "libbinder_ndk",
+        "libbinder_rpc_unstable",
+        "liblog",
+    ],
 }
