@@ -13,7 +13,7 @@ rust_binary {
         "libbinder_common",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
-        "libclap",
+        "libclap_deprecated",
         "liblibc",
         "liblog_rust",
         "libnix",
