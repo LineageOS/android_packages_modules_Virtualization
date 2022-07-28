@@ -68,7 +68,7 @@ private:
         char buf[kBlockSizeBytes];
 
         clock_t start = clock();
-        unique_fd fd(open(filename.c_str(), O_RDONLY));
+        unique_fd fd(open(filename.c_str(), O_RDONLY | O_CLOEXEC));
         if (fd.get() == -1) {
             return ErrnoError() << "Read: opening " << filename << " failed";
         }
