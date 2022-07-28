@@ -10,7 +10,7 @@ rust_binary {
         "android.system.composd-rust",
         "libanyhow",
         "libbinder_rs",
-        "libclap",
+        "libclap_deprecated",
         "libcompos_common",
     ],
     prefer_rlib: true,
