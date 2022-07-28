@@ -14,6 +14,8 @@
 
 //! Library for handling AVMD blobs.
 
+#![no_std]
+
 mod avmd;
 
 pub use avmd::{ApkDescriptor, Avmd, Descriptor, ResourceIdentifier, VbMetaDescriptor};
