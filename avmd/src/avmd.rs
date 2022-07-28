@@ -12,9 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate alloc;
+
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use apexutil::to_hex_string;
+use core::fmt;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 
 /// An Avmd struct contains
 /// - A header with version information that allows rollback when needed.
