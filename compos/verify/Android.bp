@@ -11,7 +11,7 @@ rust_binary {
         "libandroid_logger",
         "libanyhow",
         "libbinder_rs",
-        "libclap_deprecated",
+        "libclap",
         "libcompos_common",
         "libcompos_verify_native_rust",
         "liblog_rust",

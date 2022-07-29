@@ -149,8 +149,8 @@ fn main() -> Result<()> {
 
     let args = app.get_matches();
     match args.subcommand() {
-        ("create", Some(sub_args)) => create(sub_args)?,
-        ("dump", Some(sub_args)) => dump(sub_args)?,
+        Some(("create", sub_args)) => create(sub_args)?,
+        Some(("dump", sub_args)) => dump(sub_args)?,
         _ => bail!("Invalid arguments"),
     }
     Ok(())
