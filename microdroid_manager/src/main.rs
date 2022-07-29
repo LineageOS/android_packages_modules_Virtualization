@@ -190,7 +190,6 @@ fn try_main() -> Result<()> {
             Ok(())
         }
         Err(err) => {
-            error!("task terminated: {:?}", err);
             let (error_code, message) = translate_error(&err);
             service.notifyError(error_code, &message)?;
             Err(err)
