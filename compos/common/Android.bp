@@ -12,7 +12,6 @@ rust_library {
         "compos_aidl_interface-rust",
         "libanyhow",
         "libbinder_common",
-        "libbinder_rpc_unstable_bindgen",
         "liblazy_static",
         "liblog_rust",
         "libnested_virt",
