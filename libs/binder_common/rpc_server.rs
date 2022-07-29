@@ -20,12 +20,15 @@ use binder::unstable_api::AsNative;
 use binder::SpIBinder;
 use std::os::raw;
 
-/// Run a binder RPC server, serving the supplied binder service implementation on the given vsock
+/// Runs a binder RPC server, serving the supplied binder service implementation on the given vsock
 /// port.
-/// If and when the server is ready for connections (it is listening on the port) on_ready
-/// is called to allow appropriate action to be taken - e.g. to notify clients they
-/// may now attempt to connect.
+///
+/// If and when the server is ready for connections (it is listening on the port), `on_ready` is
+/// called to allow appropriate action to be taken - e.g. to notify clients that they may now
+/// attempt to connect.
+///
 /// The current thread is joined to the binder thread pool to handle incoming messages.
+///
 /// Returns true if the server has shutdown normally, false if it failed in some way.
 pub fn run_rpc_server<F>(service: SpIBinder, port: u32, on_ready: F) -> bool
 where
