@@ -28,12 +28,8 @@ use android_system_virtualmachineservice::{
     },
     binder::Strong,
 };
-use anyhow::{anyhow, bail, Context, Result};
-use binder::{
-    unstable_api::{new_spibinder, AIBinder},
-    FromIBinder,
-};
-use binder_common::rpc_server::run_rpc_server;
+use anyhow::{bail, Context, Result};
+use binder_common::{rpc_client::connect_rpc_binder, rpc_server::run_rpc_server};
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
 use std::panic;
@@ -76,15 +72,6 @@ fn try_main() -> Result<()> {
 }
 
 fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
-    // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership
-    // can be safely taken by new_spibinder.
-    let ibinder = unsafe {
-        new_spibinder(binder_rpc_unstable_bindgen::RpcClient(
-            VMADDR_CID_HOST,
-            VM_BINDER_SERVICE_PORT as u32,
-        ) as *mut AIBinder)
-    }
-    .ok_or_else(|| anyhow!("Failed to connect to IVirtualMachineService"))?;
-
-    FromIBinder::try_from(ibinder).context("Connecting to IVirtualMachineService")
+    connect_rpc_binder(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
+        .context("Connecting to IVirtualMachineService")
 }
