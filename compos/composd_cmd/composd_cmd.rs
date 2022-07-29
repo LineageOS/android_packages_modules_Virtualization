@@ -49,8 +49,8 @@ fn main() -> Result<()> {
     ProcessState::start_thread_pool();
 
     match args.subcommand() {
-        ("staged-apex-compile", _) => run_staged_apex_compile()?,
-        ("test-compile", Some(sub_matches)) => {
+        Some(("staged-apex-compile", _)) => run_staged_apex_compile()?,
+        Some(("test-compile", sub_matches)) => {
             let prefer_staged = sub_matches.is_present("prefer-staged");
             run_test_compile(prefer_staged)?;
         }

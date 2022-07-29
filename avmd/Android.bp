@@ -30,7 +30,7 @@ rust_binary {
         "libapexutil_rust",
         "libapkverify",
         "libavmd",
-        "libclap_deprecated",
+        "libclap",
         "libserde",
         "libserde_cbor",
         "libvbmeta_rust",

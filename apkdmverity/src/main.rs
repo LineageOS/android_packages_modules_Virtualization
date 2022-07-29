@@ -45,7 +45,7 @@ fn main() -> Result<()> {
                             block device is created at \"/dev/mapper/<name>\".' root_hash is \
                             optional; idsig file's root hash will be used if specified as \"none\"."
             ))
-        .arg(Arg::with_name("verbose").short("v").long("verbose").help("Shows verbose output"))
+        .arg(Arg::with_name("verbose").short('v').long("verbose").help("Shows verbose output"))
         .get_matches();
 
     let apks = matches.values_of("apk").unwrap();
