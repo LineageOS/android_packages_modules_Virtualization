@@ -14,7 +14,7 @@ rust_defaults {
         "libbinder_common",
         "libbinder_rpc_unstable_bindgen",
         "libbinder_rs",
-        "libclap_deprecated",
+        "libclap",
         "libcompos_common",
         "liblibc",
         "liblog_rust",

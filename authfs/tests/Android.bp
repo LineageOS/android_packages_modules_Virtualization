@@ -31,7 +31,7 @@ rust_test {
     rustlibs: [
         "libandroid_logger",
         "libanyhow",
-        "libclap_deprecated",
+        "libclap",
         "libcommand_fds",
         "liblog_rust",
         "libnix",
