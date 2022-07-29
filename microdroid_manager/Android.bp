@@ -16,7 +16,7 @@ rust_defaults {
         "libanyhow",
         "libapexutil_rust",
         "libapkverify",
-        "libbinder_rpc_unstable_bindgen",
+        "libbinder_common",
         "libbinder_rs",
         "libbyteorder",
         "libdiced_utils",

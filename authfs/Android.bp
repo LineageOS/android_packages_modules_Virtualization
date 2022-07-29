@@ -14,7 +14,7 @@ rust_defaults {
         "libandroid_logger",
         "libanyhow",
         "libauthfs_fsverity_metadata",
-        "libbinder_rpc_unstable_bindgen",
+        "libbinder_common",
         "libbinder_rs",
         "libcfg_if",
         "libfsverity_digests_proto_rust",

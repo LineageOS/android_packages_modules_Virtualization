@@ -25,8 +25,8 @@ use android_hardware_security_dice::aidl::android::hardware::security::dice::{
 use android_security_dice::aidl::android::security::dice::IDiceMaintenance::IDiceMaintenance;
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify};
-use binder::unstable_api::{new_spibinder, AIBinder};
-use binder::{wait_for_interface, FromIBinder, Strong};
+use binder::{wait_for_interface, Strong};
+use binder_common::rpc_client::connect_rpc_binder;
 use diced_utils::cbor::encode_header;
 use glob::glob;
 use idsig::V4Signature;
@@ -139,19 +139,8 @@ fn write_death_reason_to_serial(err: &Error) -> Result<()> {
 }
 
 fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
-    // SAFETY: AIBinder returned by RpcClient has correct reference count, and the ownership can be
-    // safely taken by new_spibinder.
-    let ibinder = unsafe {
-        new_spibinder(binder_rpc_unstable_bindgen::RpcClient(
-            VMADDR_CID_HOST,
-            VM_BINDER_SERVICE_PORT as u32,
-        ) as *mut AIBinder)
-    };
-    if let Some(ibinder) = ibinder {
-        <dyn IVirtualMachineService>::try_from(ibinder).context("Cannot connect to RPC service")
-    } else {
-        bail!("Invalid raw AIBinder")
-    }
+    connect_rpc_binder(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
+        .context("Cannot connect to RPC service")
 }
 
 fn main() -> Result<()> {
