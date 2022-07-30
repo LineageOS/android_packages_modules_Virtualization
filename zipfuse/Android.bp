@@ -10,7 +10,7 @@ rust_defaults {
     prefer_rlib: true,
     rustlibs: [
         "libanyhow",
-        "libclap_deprecated",
+        "libclap",
         "libfuse_rust",
         "liblibc",
         "libzip",

@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     let matches = App::new("zipfuse")
         .arg(
             Arg::with_name("options")
-                .short("o")
+                .short('o')
                 .takes_value(true)
                 .required(false)
                 .help("Comma separated list of mount options"),

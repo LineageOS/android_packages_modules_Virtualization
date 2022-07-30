@@ -13,7 +13,7 @@ rust_defaults {
         "libanyhow",
         "libbinder_common",
         "libbinder_rs",
-        "libclap_deprecated",
+        "libclap",
         "libcompos_common",
         "liblibc",
         "liblog_rust",
