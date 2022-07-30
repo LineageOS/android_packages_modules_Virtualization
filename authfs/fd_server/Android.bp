@@ -12,7 +12,7 @@ rust_binary {
         "libauthfs_fsverity_metadata",
         "libbinder_common",
         "libbinder_rs",
-        "libclap_deprecated",
+        "libclap",
         "liblibc",
         "liblog_rust",
         "libnix",
