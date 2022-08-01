@@ -7,6 +7,7 @@ rust_bindgen {
     host_supported: true,
     wrapper_src: "bindgen/avb.h",
     crate_name: "avb_bindgen",
+    visibility: ["//packages/modules/Virtualization:__subpackages__"],
     source_stem: "bindings",
     bindgen_flags: [
         "--size_t-is-usize",
