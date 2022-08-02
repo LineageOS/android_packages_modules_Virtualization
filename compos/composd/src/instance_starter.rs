@@ -42,6 +42,14 @@ impl CompOsInstance {
     pub fn get_service(&self) -> Strong<dyn ICompOsService> {
         self.service.clone()
     }
+
+    // Attempt to shut down the VM cleanly, giving time for any relevant logs to be written.
+    pub fn shutdown(self) -> LazyServiceGuard {
+        self.vm_instance.shutdown(self.service);
+        // Return the guard to the caller, since we might be terminated at any point after it is
+        // dropped, and there might still be things to do.
+        self.lazy_service_guard
+    }
 }
 
 pub struct InstanceStarter {

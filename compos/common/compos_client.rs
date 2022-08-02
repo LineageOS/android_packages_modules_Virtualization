@@ -148,11 +148,19 @@ impl ComposClient {
         self.0.connect_service(COMPOS_VSOCK_PORT).context("Connecting to CompOS service")
     }
 
+    /// Shut down the VM cleanly, by sending a quit request to the service, giving time for any
+    /// relevant logs to be written.
+    pub fn shutdown(self, service: Strong<dyn ICompOsService>) {
+        info!("Requesting CompOS VM to shutdown");
+        let _ = service.quit(); // If this fails, the VM is probably dying anyway
+        self.wait_for_shutdown();
+    }
+
     /// Wait for the instance to shut down. If it fails to shutdown within a reasonable time the
     /// instance is dropped, which forcibly terminates it.
     /// This should only be called when the instance has been requested to quit, or we believe that
     /// it is already in the process of exiting due to some failure.
-    pub fn wait_for_shutdown(self) {
+    fn wait_for_shutdown(self) {
         let death_reason = self.0.wait_for_death_with_timeout(TIMEOUTS.vm_max_time_to_exit);
         match death_reason {
             Some(vmclient::DeathReason::Shutdown) => info!("VM has exited normally"),
