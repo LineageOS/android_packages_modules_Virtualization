@@ -19,7 +19,6 @@ use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
 use crate::{Cid, FIRST_GUEST_CID, SYSPROP_LAST_CID};
 use crate::selinux::{SeContext, getfilecon};
-use ::binder::unstable_api::AsNative;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DeathReason::DeathReason,
@@ -36,8 +35,8 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice::binder::{
-    self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, Status, StatusCode, Strong,
-    ThreadState,
+    self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, SpIBinder, Status,
+    StatusCode, Strong, ThreadState,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
     IVirtualMachineService::{
@@ -46,7 +45,7 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
     },
 };
 use anyhow::{anyhow, bail, Context, Result};
-use binder_common::{lazy_service::LazyServiceGuard, new_binder_exception};
+use binder_common::{lazy_service::LazyServiceGuard, new_binder_exception, rpc_server::run_rpc_server_with_factory};
 use disk::QcowFile;
 use idsig::{HashAlgorithm, V4Signature};
 use log::{debug, error, info, warn, trace};
@@ -59,10 +58,8 @@ use std::ffi::CStr;
 use std::fs::{create_dir, File, OpenOptions};
 use std::io::{Error, ErrorKind, Write, Read};
 use std::num::NonZeroU32;
-use std::os::raw;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
-use std::ptr::null_mut;
 use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{TombstonedConnection, DebuggerdDumpType};
 use vmconfig::VmConfig;
@@ -330,28 +327,16 @@ impl VirtualizationService {
 
         // binder server for vm
         // reference to state (not the state itself) is copied
-        let mut state = service.state.clone();
+        let state = service.state.clone();
         std::thread::spawn(move || {
-            let state_ptr = &mut state as *mut _ as *mut raw::c_void;
-
-            debug!("virtual machine service is starting as an RPC service.");
-            // SAFETY: factory function is only ever called by RunRpcServerWithFactory, within the
-            // lifetime of the state, with context taking the pointer value above (so a properly
-            // aligned non-null pointer to an initialized instance).
-            let retval = unsafe {
-                binder_rpc_unstable_bindgen::RunRpcServerWithFactory(
-                    Some(VirtualMachineService::factory),
-                    state_ptr,
-                    VM_BINDER_SERVICE_PORT as u32,
-                )
-            };
-            if retval {
+            debug!("VirtualMachineService is starting as an RPC service.");
+            if run_rpc_server_with_factory(VM_BINDER_SERVICE_PORT as u32, |cid| {
+                VirtualMachineService::factory(cid, &state)
+            }) {
                 debug!("RPC server has shut down gracefully");
             } else {
-                bail!("Premature termination of RPC server");
+                panic!("Premature termination of RPC server");
             }
-
-            Ok(retval)
         });
         service
     }
@@ -1143,20 +1128,14 @@ impl IVirtualMachineService for VirtualMachineService {
 }
 
 impl VirtualMachineService {
-    // SAFETY: Service ownership is held by state, and the binder objects are threadsafe.
-    pub unsafe extern "C" fn factory(
-        cid: Cid,
-        context: *mut raw::c_void,
-    ) -> *mut binder_rpc_unstable_bindgen::AIBinder {
-        let state_ptr = context as *mut Arc<Mutex<State>>;
-        let state = state_ptr.as_ref().unwrap();
+    fn factory(cid: Cid, state: &Arc<Mutex<State>>) -> Option<SpIBinder> {
         if let Some(vm) = state.lock().unwrap().get_vm(cid) {
             let mut vm_service = vm.vm_service.lock().unwrap();
             let service = vm_service.get_or_insert_with(|| Self::new_binder(state.clone(), cid));
-            service.as_binder().as_native_mut() as *mut binder_rpc_unstable_bindgen::AIBinder
+            Some(service.as_binder())
         } else {
             error!("connection from cid={} is not from a guest VM", cid);
-            null_mut()
+            None
         }
     }
 
