@@ -39,6 +39,7 @@ import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
+import com.android.tradefed.util.xml.AbstractXmlParser;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -49,7 +50,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
+import org.xml.sax.Attributes;
+import org.xml.sax.helpers.DefaultHandler;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -175,9 +179,55 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         }
     }
 
+    static class ActiveApexInfo {
+        public String name;
+        public String path;
+        ActiveApexInfo(String name, String path) {
+            this.name = name;
+            this.path = path;
+        }
+    }
+
+    static class ActiveApexInfoList {
+        private List<ActiveApexInfo> mList;
+        ActiveApexInfoList(List<ActiveApexInfo> list) {
+            this.mList = list;
+        }
+        ActiveApexInfo get(String apexName) {
+            for (ActiveApexInfo info: mList) {
+                if (info.name.equals(apexName)) {
+                    return info;
+                }
+            }
+            return null;
+        }
+    }
+
+    private ActiveApexInfoList getActiveApexInfoList() throws Exception {
+        String apexInfoListXml = getDevice().pullFileContents("/apex/apex-info-list.xml");
+        List<ActiveApexInfo> list = new ArrayList<>();
+        new AbstractXmlParser() {
+            @Override
+            protected DefaultHandler createXmlHandler() {
+                return new DefaultHandler() {
+                    @Override
+                    public void startElement(String uri, String localName, String qName,
+                            Attributes attributes) {
+                        if (localName.equals("apex-info")
+                                && attributes.getValue("isActive").equals("true")) {
+                            list.add(new ActiveApexInfo(attributes.getValue("moduleName"),
+                                    attributes.getValue("modulePath")));
+                        }
+                    }
+                };
+            }
+        }.parse(new ByteArrayInputStream(apexInfoListXml.getBytes()));
+        return new ActiveApexInfoList(list);
+    }
+
     private String runMicrodroidWithResignedImages(File key, Map<String, File> keyOverrides,
             boolean isProtected, boolean daemonize, String consolePath)
-            throws DeviceNotAvailableException, IOException, JSONException {
+            throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
 
         File virtApexDir = FileUtil.createTempDir("virt_apex");
@@ -207,11 +257,10 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         final String payloadMetadataPath = TEST_ROOT + "payload-metadata.img";
         getDevice().pushFile(findTestFile("test-payload-metadata.img"), payloadMetadataPath);
 
-        // push APEXes required for the VM.
-        final String statsdApexPath = TEST_ROOT + "com.android.os.statsd.apex";
-        final String adbdApexPath = TEST_ROOT + "com.android.adbd.apex";
-        getDevice().pushFile(findTestFile("com.android.os.statsd.apex"), statsdApexPath);
-        getDevice().pushFile(findTestFile("com.android.adbd.apex"), adbdApexPath);
+        // get paths to the two APEXes required for the VM.
+        ActiveApexInfoList list = getActiveApexInfoList();
+        final String statsdApexPath = list.get("com.android.os.statsd").path;
+        final String adbdApexPath = list.get("com.android.adbd").path;
 
         // Since Java APP can't start a VM with a custom image, here, we start a VM using `vm run`
         // command with a VM Raw config which is equiv. to what virtualizationservice creates with
