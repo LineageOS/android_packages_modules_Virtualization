@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use super::DeathReason;
-use android_system_virtualizationservice::binder::StatusCode;
 use thiserror::Error;
 
 /// An error while waiting for a VM to do something.
@@ -31,15 +30,4 @@ pub enum VmWaitError {
     /// The VM payload finished before becoming ready.
     #[error("VM payload finished.")]
     Finished,
-}
-
-/// An error connecting to a VM RPC Binder service.
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
-pub enum ConnectServiceError {
-    /// The RPC binder connection failed.
-    #[error("Vsock connection to RPC binder failed.")]
-    ConnectionFailed,
-    /// The AIDL service type didn't match.
-    #[error("Service type didn't match ({0}).")]
-    WrongServiceType(StatusCode),
 }
