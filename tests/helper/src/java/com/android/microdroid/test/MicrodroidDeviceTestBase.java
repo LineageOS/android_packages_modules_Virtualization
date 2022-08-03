@@ -39,30 +39,13 @@ import com.android.virt.VirtualizationTestHelper;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public abstract class MicrodroidDeviceTestBase {
-    /** Copy output from the VM to logcat. This is helpful when things go wrong. */
-    protected static void logVmOutput(String tag, InputStream vmOutputStream, String name) {
-        new Thread(
-                () -> {
-                    try {
-                        BufferedReader reader =
-                                new BufferedReader(new InputStreamReader(vmOutputStream));
-                        String line;
-                        while ((line = reader.readLine()) != null
-                                && !Thread.interrupted()) {
-                            Log.i(tag, name + ": " + line);
-                        }
-                    } catch (Exception e) {
-                        Log.w(tag, name, e);
-                    }
-                }).start();
-    }
-
     public static boolean isCuttlefish() {
         return VirtualizationTestHelper.isCuttlefish(SystemProperties.get("ro.product.name"));
     }
@@ -138,14 +121,82 @@ public abstract class MicrodroidDeviceTestBase {
 
     protected abstract static class VmEventListener implements VirtualMachineCallback {
         private ExecutorService mExecutorService = Executors.newSingleThreadExecutor();
+        private OptionalLong mVcpuStartedNanoTime = OptionalLong.empty();
+        private OptionalLong mKernelStartedNanoTime = OptionalLong.empty();
+        private OptionalLong mInitStartedNanoTime = OptionalLong.empty();
+        private OptionalLong mPayloadStartedNanoTime = OptionalLong.empty();
+
+        private void processBootEvents(String log) {
+            if (!mVcpuStartedNanoTime.isPresent()) {
+                mVcpuStartedNanoTime = OptionalLong.of(System.nanoTime());
+            }
+            if (log.contains("Starting kernel") && !mKernelStartedNanoTime.isPresent()) {
+                mKernelStartedNanoTime = OptionalLong.of(System.nanoTime());
+            }
+            if (log.contains("Run /init as init process") && !mInitStartedNanoTime.isPresent()) {
+                mInitStartedNanoTime = OptionalLong.of(System.nanoTime());
+            }
+            if (log.contains("microdroid_manager") && log.contains("executing main task")
+                    && !mPayloadStartedNanoTime.isPresent()) {
+                mPayloadStartedNanoTime = OptionalLong.of(System.nanoTime());
+            }
+        }
+
+        private void logVmOutputAndMonitorBootEvents(String tag,
+                InputStream vmOutputStream,
+                String name,
+                boolean monitorEvents) {
+            new Thread(
+                    () -> {
+                        try {
+                            BufferedReader reader =
+                                    new BufferedReader(new InputStreamReader(vmOutputStream));
+                            String line;
+                            while ((line = reader.readLine()) != null
+                                    && !Thread.interrupted()) {
+                                if (monitorEvents) processBootEvents(line);
+                                Log.i(tag, name + ": " + line);
+                            }
+                        } catch (Exception e) {
+                            Log.w(tag, name, e);
+                        }
+                    }).start();
+        }
+
+        private void logVmOutputAndMonitorBootEvents(String tag,
+                InputStream vmOutputStream,
+                String name) {
+            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, true);
+        }
+
+        /** Copy output from the VM to logcat. This is helpful when things go wrong. */
+        protected void logVmOutput(String tag, InputStream vmOutputStream, String name) {
+            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, false);
+        }
 
         public void runToFinish(String logTag, VirtualMachine vm)
                 throws VirtualMachineException, InterruptedException {
             vm.setCallback(mExecutorService, this);
             vm.run();
-            logVmOutput(logTag, vm.getConsoleOutputStream(), "Console");
+            logVmOutputAndMonitorBootEvents(logTag, vm.getConsoleOutputStream(), "Console");
             logVmOutput(logTag, vm.getLogOutputStream(), "Log");
             mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
+        }
+
+        public OptionalLong getVcpuStartedNanoTime() {
+            return mVcpuStartedNanoTime;
+        }
+
+        public OptionalLong getKernelStartedNanoTime() {
+            return mKernelStartedNanoTime;
+        }
+
+        public OptionalLong getInitStartedNanoTime() {
+            return mInitStartedNanoTime;
+        }
+
+        public OptionalLong getPayloadStartedNanoTime() {
+            return mPayloadStartedNanoTime;
         }
 
         protected void forceStop(VirtualMachine vm) {
@@ -183,12 +234,55 @@ public abstract class MicrodroidDeviceTestBase {
     public static class BootResult {
         public final boolean payloadStarted;
         public final int deathReason;
-        public final long elapsedNanoTime;
+        public final long endToEndNanoTime;
 
-        BootResult(boolean payloadStarted, int deathReason, long elapsedNanoTime) {
+        public final OptionalLong vcpuStartedNanoTime;
+        public final OptionalLong kernelStartedNanoTime;
+        public final OptionalLong initStartedNanoTime;
+        public final OptionalLong payloadStartedNanoTime;
+
+        BootResult(boolean payloadStarted,
+                int deathReason,
+                long endToEndNanoTime,
+                OptionalLong vcpuStartedNanoTime,
+                OptionalLong kernelStartedNanoTime,
+                OptionalLong initStartedNanoTime,
+                OptionalLong payloadStartedNanoTime) {
             this.payloadStarted = payloadStarted;
             this.deathReason = deathReason;
-            this.elapsedNanoTime = elapsedNanoTime;
+            this.endToEndNanoTime = endToEndNanoTime;
+            this.vcpuStartedNanoTime = vcpuStartedNanoTime;
+            this.kernelStartedNanoTime = kernelStartedNanoTime;
+            this.initStartedNanoTime = initStartedNanoTime;
+            this.payloadStartedNanoTime = payloadStartedNanoTime;
+        }
+
+        private long getVcpuStartedNanoTime() {
+            return vcpuStartedNanoTime.getAsLong();
+        }
+
+        private long getKernelStartedNanoTime() {
+            return kernelStartedNanoTime.getAsLong();
+        }
+
+        private long getInitStartedNanoTime() {
+            return initStartedNanoTime.getAsLong();
+        }
+
+        private long getPayloadStartedNanoTime() {
+            return payloadStartedNanoTime.getAsLong();
+        }
+
+        public long getBootloaderElapsedNanoTime() {
+            return getKernelStartedNanoTime() - getVcpuStartedNanoTime();
+        }
+
+        public long getKernelElapsedNanoTime() {
+            return getInitStartedNanoTime() - getKernelStartedNanoTime();
+        }
+
+        public long getUserspaceElapsedNanoTime() {
+            return getPayloadStartedNanoTime() - getInitStartedNanoTime();
         }
     }
 
@@ -218,6 +312,10 @@ public abstract class MicrodroidDeviceTestBase {
         return new BootResult(
                 payloadStarted.getNow(false),
                 deathReason.getNow(DeathReason.INFRASTRUCTURE_ERROR),
-                endTime.getNow(beginTime) - beginTime);
+                endTime.getNow(beginTime) - beginTime,
+                listener.getVcpuStartedNanoTime(),
+                listener.getKernelStartedNanoTime(),
+                listener.getInitStartedNanoTime(),
+                listener.getPayloadStartedNanoTime());
     }
 }
