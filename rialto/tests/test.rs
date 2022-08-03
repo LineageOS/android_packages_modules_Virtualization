@@ -21,13 +21,14 @@ use android_system_virtualizationservice::{
     },
     binder::{ParcelFileDescriptor, ProcessState},
 };
-use anyhow::{Context, Error};
+use anyhow::{anyhow, Context, Error};
 use log::info;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::os::unix::io::FromRawFd;
 use std::panic;
 use std::thread;
+use std::time::Duration;
 use vmclient::{DeathReason, VmInstance};
 
 const RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
@@ -71,7 +72,9 @@ fn test_boots() -> Result<(), Error> {
     vm.start().context("Failed to start VM")?;
 
     // Wait for VM to finish, and check that it shut down cleanly.
-    let death_reason = vm.wait_for_death();
+    let death_reason = vm
+        .wait_for_death_with_timeout(Duration::from_secs(10))
+        .ok_or_else(|| anyhow!("Timed out waiting for VM exit"))?;
     assert_eq!(death_reason, DeathReason::Shutdown);
 
     Ok(())
