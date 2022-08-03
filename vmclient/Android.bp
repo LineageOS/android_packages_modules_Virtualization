@@ -9,7 +9,7 @@ rust_library {
     edition: "2021",
     rustlibs: [
         "android.system.virtualizationservice-rust",
-        "libbinder_rpc_unstable_bindgen",
+        "libbinder_common",
         "libbinder_rs",
         "liblog_rust",
         "libthiserror",
