@@ -17,10 +17,11 @@
 //! Helpers for implementing an RPC Binder client.
 
 use binder::unstable_api::{new_spibinder, AIBinder};
-use binder::{StatusCode, Strong};
+use binder::{FromIBinder, StatusCode, Strong};
+use std::os::{raw, unix::io::RawFd};
 
 /// Connects to a binder RPC server.
-pub fn connect_rpc_binder<T: binder::FromIBinder + ?Sized>(
+pub fn connect_rpc_binder<T: FromIBinder + ?Sized>(
     cid: u32,
     port: u32,
 ) -> Result<Strong<T>, StatusCode> {
@@ -34,4 +35,41 @@ pub fn connect_rpc_binder<T: binder::FromIBinder + ?Sized>(
     } else {
         Err(StatusCode::BAD_VALUE)
     }
+}
+
+type RequestFd<'a> = &'a mut dyn FnMut() -> Option<RawFd>;
+
+/// Connects to a Binder RPC server, using the given callback to get (and take ownership of) file
+/// descriptors already connected to it.
+pub fn connect_preconnected_rpc_binder<T: FromIBinder + ?Sized>(
+    mut request_fd: impl FnMut() -> Option<RawFd>,
+) -> Result<Strong<T>, StatusCode> {
+    // Double reference the factory because trait objects aren't FFI safe.
+    let mut request_fd_ref: RequestFd = &mut request_fd;
+    let param = &mut request_fd_ref as *mut RequestFd as *mut raw::c_void;
+
+    // SAFETY: AIBinder returned by RpcPreconnectedClient has correct reference count, and the
+    // ownership can be safely taken by new_spibinder. RpcPreconnectedClient does not take ownership
+    // of param, only passing it to request_fd_wrapper.
+    let ibinder = unsafe {
+        new_spibinder(binder_rpc_unstable_bindgen::RpcPreconnectedClient(
+            Some(request_fd_wrapper),
+            param,
+        ) as *mut AIBinder)
+    };
+
+    if let Some(ibinder) = ibinder {
+        <T>::try_from(ibinder)
+    } else {
+        Err(StatusCode::BAD_VALUE)
+    }
+}
+
+unsafe extern "C" fn request_fd_wrapper(param: *mut raw::c_void) -> raw::c_int {
+    // SAFETY: This is only ever called by RpcPreconnectedClient, within the lifetime of the
+    // BinderFdFactory reference, with param being a properly aligned non-null pointer to an
+    // initialized instance.
+    let request_fd_ptr = param as *mut RequestFd;
+    let request_fd = request_fd_ptr.as_mut().unwrap();
+    request_fd().unwrap_or(-1)
 }
