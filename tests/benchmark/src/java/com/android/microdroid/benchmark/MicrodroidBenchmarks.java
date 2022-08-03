@@ -122,37 +122,34 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
         final int trialCount = 10;
 
-        double sum = 0;
-        double squareSum = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
+        List<Double> bootTimeMetrics = new ArrayList<>();
+        List<Double> bootloaderTimeMetrics = new ArrayList<>();
+        List<Double> kernelBootTimeMetrics = new ArrayList<>();
+        List<Double> userspaceBootTimeMetrics = new ArrayList<>();
+
         for (int i = 0; i < trialCount; i++) {
             VirtualMachineConfig.Builder builder =
                     mInner.newVmConfigBuilder("assets/vm_config.json");
+
+            // To grab boot events from log, set debug mode to FULL
             VirtualMachineConfig normalConfig =
-                    builder.debugLevel(DebugLevel.NONE).memoryMib(256).build();
+                    builder.debugLevel(DebugLevel.FULL).memoryMib(256).build();
             mInner.forceCreateNewVirtualMachine("test_vm_boot_time", normalConfig);
 
             BootResult result = tryBootVm(TAG, "test_vm_boot_time");
             assertThat(result.payloadStarted).isTrue();
 
-            double elapsedMilliseconds = result.elapsedNanoTime / 1000000.0;
-
-            sum += elapsedMilliseconds;
-            squareSum += elapsedMilliseconds * elapsedMilliseconds;
-            if (min > elapsedMilliseconds) min = elapsedMilliseconds;
-            if (max < elapsedMilliseconds) max = elapsedMilliseconds;
+            final Double nanoToMilli = 1000000.0;
+            bootTimeMetrics.add(result.endToEndNanoTime / nanoToMilli);
+            bootloaderTimeMetrics.add(result.getBootloaderElapsedNanoTime() / nanoToMilli);
+            kernelBootTimeMetrics.add(result.getKernelElapsedNanoTime() / nanoToMilli);
+            userspaceBootTimeMetrics.add(result.getUserspaceElapsedNanoTime() / nanoToMilli);
         }
 
-        Bundle bundle = new Bundle();
-        double average = sum / trialCount;
-        double variance = squareSum / trialCount - average * average;
-        double stdev = Math.sqrt(variance);
-        bundle.putDouble("avf_perf/microdroid/boot_time_average_ms", average);
-        bundle.putDouble("avf_perf/microdroid/boot_time_min_ms", min);
-        bundle.putDouble("avf_perf/microdroid/boot_time_max_ms", max);
-        bundle.putDouble("avf_perf/microdroid/boot_time_stdev_ms", stdev);
-        mInstrumentation.sendStatus(0, bundle);
+        reportMetrics(bootTimeMetrics,          "avf_perf/microdroid/boot_time_",           "_ms");
+        reportMetrics(bootloaderTimeMetrics,    "avf_perf/microdroid/bootloader_time_",     "_ms");
+        reportMetrics(kernelBootTimeMetrics,    "avf_perf/microdroid/kernel_boot_time_",    "_ms");
+        reportMetrics(userspaceBootTimeMetrics, "avf_perf/microdroid/userspace_boot_time_", "_ms");
     }
 
     @Test
@@ -199,30 +196,36 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             VirtioBlkVmEventListener listener = new VirtioBlkVmEventListener(readRates, isRand);
             listener.runToFinish(TAG, vm);
         }
-        reportMetrics(readRates, isRand);
-    }
 
-    private void reportMetrics(List<Double> readRates, boolean isRand) {
-        double sum = 0;
-        for (double rate : readRates) {
-            sum += rate;
-        }
-        double mean = sum / readRates.size();
-        double sqSum = 0;
-        for (double rate : readRates) {
-            sqSum += (rate - mean) * (rate - mean);
-        }
-        double stdDev = Math.sqrt(sqSum / (readRates.size() - 1));
-
-        Bundle bundle = new Bundle();
         String metricNamePrefix =
                 "avf_perf/virtio-blk/"
                         + (mProtectedVm ? "protected-vm/" : "unprotected-vm/")
                         + (isRand ? "rand_read_" : "seq_read_");
         String unit = "_mb_per_sec";
+        reportMetrics(readRates, metricNamePrefix, unit);
+    }
 
-        bundle.putDouble(metricNamePrefix + "mean" + unit, mean);
-        bundle.putDouble(metricNamePrefix + "std" + unit, stdDev);
+    private void reportMetrics(List<Double> data, String prefix, String suffix) {
+        double sum = 0;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        for (double d : data) {
+            sum += d;
+            if (min > d) min = d;
+            if (max < d) max = d;
+        }
+        double avg = sum / data.size();
+        double sqSum = 0;
+        for (double d : data) {
+            sqSum += (d - avg) * (d - avg);
+        }
+        double stdDev = Math.sqrt(sqSum / (data.size() - 1));
+
+        Bundle bundle = new Bundle();
+        bundle.putDouble(prefix + "min" + suffix, min);
+        bundle.putDouble(prefix + "max" + suffix, max);
+        bundle.putDouble(prefix + "average" + suffix, avg);
+        bundle.putDouble(prefix + "stdev" + suffix, stdDev);
         mInstrumentation.sendStatus(0, bundle);
     }
 
