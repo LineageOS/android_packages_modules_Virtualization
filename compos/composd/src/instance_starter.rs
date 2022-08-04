@@ -21,8 +21,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
 };
 use anyhow::{Context, Result};
-use binder::{ParcelFileDescriptor, Strong};
-use binder_common::lazy_service::LazyServiceGuard;
+use binder::{LazyServiceGuard, ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_common::compos_client::{ComposClient, VmParameters};
 use compos_common::{COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTANCE_IMAGE_FILE};

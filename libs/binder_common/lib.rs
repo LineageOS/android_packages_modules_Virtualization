@@ -16,6 +16,5 @@
 
 //! Common items useful for binder clients and/or servers.
 
-pub mod lazy_service;
 pub mod rpc_client;
 pub mod rpc_server;
