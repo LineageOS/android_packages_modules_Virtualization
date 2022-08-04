@@ -49,7 +49,9 @@ impl Interface for OdrefreshTask {}
 impl ICompilationTask for OdrefreshTask {
     fn cancel(&self) -> BinderResult<()> {
         let task = self.take();
-        // Drop the VM, which should end compilation - and cause our thread to exit
+        // Drop the VM, which should end compilation - and cause our thread to exit.
+        // Note that we don't do a graceful shutdown here; we've been asked to give up our resources
+        // ASAP, and the VM has not failed so we don't need to ensure VM logs are written.
         drop(task);
         Ok(())
     }
@@ -95,27 +97,33 @@ impl OdrefreshTask {
 
             let task = self.take();
             // We don't do the callback if cancel has already happened.
-            if let Some(task) = task {
+            if let Some(RunningTask { callback, comp_os }) = task {
+                // If we are the last owners of the instance (and we probably are), then we
+                // shut it down now, so that logs get written.
+                let comp_os = Arc::try_unwrap(comp_os);
+                // Make sure we keep our service alive until we have called the callback.
+                let lazy_service_guard = comp_os.map(CompOsInstance::shutdown);
+
                 let result = match exit_code {
                     Ok(ExitCode::CompilationSuccess) => {
                         info!("CompilationSuccess");
-                        task.callback.onSuccess()
+                        callback.onSuccess()
                     }
                     Ok(exit_code) => {
                         let message = format!("Unexpected odrefresh result: {:?}", exit_code);
                         error!("{}", message);
-                        task.callback
-                            .onFailure(FailureReason::UnexpectedCompilationResult, &message)
+                        callback.onFailure(FailureReason::UnexpectedCompilationResult, &message)
                     }
                     Err(e) => {
                         let message = format!("Running odrefresh failed: {:?}", e);
                         error!("{}", message);
-                        task.callback.onFailure(FailureReason::CompilationFailed, &message)
+                        callback.onFailure(FailureReason::CompilationFailed, &message)
                     }
                 };
                 if let Err(e) = result {
                     warn!("Failed to deliver callback: {:?}", e);
                 }
+                drop(lazy_service_guard);
             }
         });
     }
