@@ -101,10 +101,6 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                 false);
     }
 
-    private void waitForBootComplete() {
-        runOnMicrodroidForResult("watch -e \"getprop dev.bootcomplete | grep '^0$'\"");
-    }
-
     // Wait until logd-init starts. The service is one of the last services that are started in
     // the microdroid boot procedure. Therefore, waiting for the service means that we wait for
     // the boot to complete. TODO: we need a better marker eventually.
@@ -384,25 +380,17 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
                         Optional.of(NUM_VCPUS),
                         Optional.of(CPU_AFFINITY));
         adbConnectToMicrodroid(getDevice(), cid);
-        waitForBootComplete();
-        runOnMicrodroidRetryingOnFailure(
-                MICRODROID_COMMAND_TIMEOUT_MILLIS, MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "true");
+        waitForLogdInit();
+        runOnMicrodroid("logcat -c");
         // We need root permission to write to /data/tombstones/
         rootMicrodroid();
         // Write a test tombstone file in /data/tombstones
         runOnMicrodroid("echo -n \'Test tombstone in VM with 34 bytes\'"
                     + "> /data/tombstones/transmit.txt");
-        // check if the tombstone have been tranferred from VM. This is a bit flaky - increasing
-        // timeout to 30s can result in SIGKILL inside microdroid due to logcat memory issue
-        CommandRunner android = new CommandRunner(getDevice());
-        android.runWithTimeout(
-                15000,
-                "grep",
-                "-m",
-                "1",
-                "'tombstone_transmit.microdroid:.*data/tombstones/transmit.txt'",
-                LOG_PATH);
-
+        // check if the tombstone have been tranferred from VM
+        assertNotEquals(runOnMicrodroid("timeout 15s logcat | grep -m 1 "
+                            + "'tombstone_transmit.microdroid:.*data/tombstones/transmit.txt'"),
+                "");
         // Confirm that tombstone is received (from host logcat)
         assertNotEquals(runOnHost("adb", "-s", getDevice().getSerialNumber(),
                             "logcat", "-d", "-e",
@@ -447,9 +435,7 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         assertThat(runOnMicrodroid("ls", "-Z", testLib), is(label + " " + testLib));
 
         // Check that no denials have happened so far
-        CommandRunner android = new CommandRunner(getDevice());
-        assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", LOG_PATH),
-                is(nullValue()));
+        assertThat(runOnMicrodroid("logcat -d -e 'avc:[[:space:]]{1,2}denied'"), is(""));
 
         assertThat(runOnMicrodroid("cat /proc/cpuinfo | grep processor | wc -l"),
                 is(Integer.toString(NUM_VCPUS)));
