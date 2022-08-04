@@ -20,7 +20,7 @@
 
 use anyhow::{bail, Context, Result};
 use binder_common::new_binder_exception;
-use log::error;
+use log::{error, info};
 use rustutils::system_properties;
 use std::default::Default;
 use std::fs::read_dir;
@@ -153,8 +153,8 @@ impl ICompOsService for CompOsService {
     }
 
     fn quit(&self) -> BinderResult<()> {
-        // TODO(b/236581575) Consider shutting down the binder server a bit more gracefully.
         // When our process exits, Microdroid will shut down the VM.
+        info!("Received quit request, exiting");
         std::process::exit(0);
     }
 }
