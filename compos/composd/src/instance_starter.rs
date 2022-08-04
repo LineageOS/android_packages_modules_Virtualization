@@ -29,6 +29,7 @@ use compos_common::{COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTA
 use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub struct CompOsInstance {
     service: Strong<dyn ICompOsService>,
@@ -36,6 +37,8 @@ pub struct CompOsInstance {
     vm_instance: ComposClient,
     #[allow(dead_code)] // Keeps composd process alive
     lazy_service_guard: LazyServiceGuard,
+    // Keep this alive as long as we are
+    instance_tracker: Arc<()>,
 }
 
 impl CompOsInstance {
@@ -43,7 +46,13 @@ impl CompOsInstance {
         self.service.clone()
     }
 
-    // Attempt to shut down the VM cleanly, giving time for any relevant logs to be written.
+    /// Returns an Arc that this instance holds a strong reference to as long as it exists. This
+    /// can be used to determine when the instance has been dropped.
+    pub fn get_instance_tracker(&self) -> &Arc<()> {
+        &self.instance_tracker
+    }
+
+    /// Attempt to shut down the VM cleanly, giving time for any relevant logs to be written.
     pub fn shutdown(self) -> LazyServiceGuard {
         self.vm_instance.shutdown(self.service);
         // Return the guard to the caller, since we might be terminated at any point after it is
@@ -122,7 +131,12 @@ impl InstanceStarter {
         )
         .context("Starting VM")?;
         let service = vm_instance.connect_service().context("Connecting to CompOS")?;
-        Ok(CompOsInstance { vm_instance, service, lazy_service_guard: Default::default() })
+        Ok(CompOsInstance {
+            vm_instance,
+            service,
+            lazy_service_guard: Default::default(),
+            instance_tracker: Default::default(),
+        })
     }
 
     fn create_instance_image(
