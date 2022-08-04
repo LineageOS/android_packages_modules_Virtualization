@@ -46,7 +46,7 @@ const NORMAL_TIMEOUTS: Timeouts = Timeouts {
     // Note: the source of truth for this odrefresh timeout is art/odrefresh/odrefresh.cc.
     odrefresh_max_execution_time: Duration::from_secs(300),
     vm_max_time_to_ready: Duration::from_secs(15),
-    vm_max_time_to_exit: Duration::from_secs(3),
+    vm_max_time_to_exit: Duration::from_secs(5),
 };
 
 /// The timeouts that we use when running under nested virtualization.
@@ -54,5 +54,5 @@ const EXTENDED_TIMEOUTS: Timeouts = Timeouts {
     // Note: the source of truth for this odrefresh timeout is art/odrefresh/odrefresh.cc.
     odrefresh_max_execution_time: Duration::from_secs(480),
     vm_max_time_to_ready: Duration::from_secs(120),
-    vm_max_time_to_exit: Duration::from_secs(10),
+    vm_max_time_to_exit: Duration::from_secs(20),
 };
