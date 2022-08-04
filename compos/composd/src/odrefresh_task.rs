@@ -60,7 +60,7 @@ impl ICompilationTask for OdrefreshTask {
 struct RunningTask {
     callback: Strong<dyn ICompilationTaskCallback>,
     #[allow(dead_code)] // Keeps the CompOS VM alive
-    comp_os: Arc<CompOsInstance>,
+    comp_os: CompOsInstance,
 }
 
 impl OdrefreshTask {
@@ -72,7 +72,7 @@ impl OdrefreshTask {
     }
 
     pub fn start(
-        comp_os: Arc<CompOsInstance>,
+        comp_os: CompOsInstance,
         compilation_mode: CompilationMode,
         target_dir_name: String,
         callback: &Strong<dyn ICompilationTaskCallback>,
@@ -98,11 +98,8 @@ impl OdrefreshTask {
             let task = self.take();
             // We don't do the callback if cancel has already happened.
             if let Some(RunningTask { callback, comp_os }) = task {
-                // If we are the last owners of the instance (and we probably are), then we
-                // shut it down now, so that logs get written.
-                let comp_os = Arc::try_unwrap(comp_os);
                 // Make sure we keep our service alive until we have called the callback.
-                let lazy_service_guard = comp_os.map(CompOsInstance::shutdown);
+                let lazy_service_guard = comp_os.shutdown();
 
                 let result = match exit_code {
                     Ok(ExitCode::CompilationSuccess) => {
