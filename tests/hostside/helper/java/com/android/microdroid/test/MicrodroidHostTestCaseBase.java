@@ -50,6 +50,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
     protected static final String VIRT_APEX = "/apex/com.android.virt/";
     protected static final String LOG_PATH = TEST_ROOT + "log.txt";
+    protected static final String CONSOLE_PATH = TEST_ROOT + "console.txt";
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
     private static final String INSTANCE_IMG = "instance.img";
@@ -258,6 +259,17 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
                 memoryMib, numCpus, cpuAffinity);
     }
 
+    private static void forwardFileToLog(CommandRunner android, String path, String tag)
+            throws DeviceNotAvailableException {
+        android.runWithTimeout(
+                MICRODROID_MAX_LIFETIME_MINUTES * 60 * 1000,
+                "logwrapper",
+                "sh",
+                "-c",
+                "\"$'tail -f -n +0 " + path
+                        + " | sed \\'s/^/" + tag + ": /g\\''\""); // add tags in front of lines
+    }
+
     public static String startMicrodroid(
             ITestDevice androidDevice,
             IBuildInfo buildInfo,
@@ -290,6 +302,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
 
         final String instanceImg = TEST_ROOT + INSTANCE_IMG;
         final String logPath = LOG_PATH;
+        final String consolePath = CONSOLE_PATH;
         final String debugFlag = debug ? "--debug full" : "";
 
         // Run the VM
@@ -298,6 +311,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
                 "run-app",
                 "--daemonize",
                 "--log " + logPath,
+                "--console " + consolePath,
                 "--mem " + memoryMib,
                 numCpus.isPresent() ? "--cpus " + numCpus.get() : "",
                 cpuAffinity.isPresent() ? "--cpu-affinity " + cpuAffinity.get() : "",
@@ -314,22 +328,25 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         }
         String ret = android.run(args.toArray(new String[0]));
 
-        // Redirect log.txt to logd using logwrapper
-        ExecutorService executor = Executors.newFixedThreadPool(1);
+        // Redirect log.txt and console.txt to logd using logwrapper
+        // Keep redirecting as long as the expecting maximum test time. When an adb
+        // command times out, it may trigger the device recovery process, which
+        // disconnect adb, which terminates any live adb commands. See an example at
+        // b/194974010#comment25.
+        ExecutorService executor = Executors.newFixedThreadPool(2);
         executor.execute(
                 () -> {
                     try {
-                        // Keep redirecting as long as the expecting maximum test time. When an adb
-                        // command times out, it may trigger the device recovery process, which
-                        // disconnect adb, which terminates any live adb commands. See an example at
-                        // b/194974010#comment25.
-                        android.runWithTimeout(
-                                MICRODROID_MAX_LIFETIME_MINUTES * 60 * 1000,
-                                "logwrapper",
-                                "tail",
-                                "-f",
-                                "-n +0",
-                                logPath);
+                        forwardFileToLog(android, logPath, "MicrodroidLog");
+                    } catch (Exception e) {
+                        // Consume
+                    }
+                });
+
+        executor.execute(
+                () -> {
+                    try {
+                        forwardFileToLog(android, consolePath, "MicrodroidConsole");
                     } catch (Exception e) {
                         // Consume
                     }
