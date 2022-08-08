@@ -45,7 +45,7 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
     },
 };
 use anyhow::{anyhow, bail, Context, Result};
-use binder_common::rpc_server::run_rpc_server_with_factory;
+use rpcbinder::run_rpc_server_with_factory;
 use disk::QcowFile;
 use idsig::{HashAlgorithm, V4Signature};
 use log::{debug, error, info, warn, trace};

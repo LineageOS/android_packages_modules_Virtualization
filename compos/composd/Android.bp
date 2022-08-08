@@ -13,7 +13,6 @@ rust_binary {
         "compos_aidl_interface-rust",
         "libandroid_logger",
         "libanyhow",
-        "libbinder_common",
         "libbinder_rs",
         "libcompos_common",
         "libcomposd_native_rust",
