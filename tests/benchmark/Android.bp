@@ -16,7 +16,10 @@ android_test {
         "truth-prebuilt",
     ],
     libs: ["android.system.virtualmachine"],
-    jni_libs: ["MicrodroidBenchmarkNativeLib"],
+    jni_libs: [
+        "MicrodroidBenchmarkNativeLib",
+        "libiovsock_host_jni",
+    ],
     platform_apis: true,
     use_embedded_native_libs: true,
     compile_multilib: "64",
@@ -25,6 +28,7 @@ android_test {
 cc_library_shared {
     name: "MicrodroidBenchmarkNativeLib",
     srcs: ["src/native/benchmarkbinary.cpp"],
+    static_libs: ["libiovsock_vm"],
     shared_libs: [
         "android.system.virtualmachineservice-ndk",
         "com.android.microdroid.testservice-ndk",
@@ -32,5 +36,14 @@ cc_library_shared {
         "libbinder_ndk",
         "libbinder_rpc_unstable",
         "liblog",
+    ],
+}
+
+cc_library {
+    name: "libiovsock_vm",
+    srcs: ["src/native/io_vsock.cpp"],
+    export_include_dirs: ["src/native/include"],
+    shared_libs: [
+        "libbase",
     ],
 }
