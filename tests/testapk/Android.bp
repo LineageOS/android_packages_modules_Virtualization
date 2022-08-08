@@ -17,6 +17,7 @@ android_test {
         "cbor-java",
         "com.android.microdroid.testservice-java",
         "truth-prebuilt",
+        "compatibility-common-util-devicesidelib",
     ],
     libs: ["android.system.virtualmachine"],
     jni_libs: ["MicrodroidTestNativeLib"],
