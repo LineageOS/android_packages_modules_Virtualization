@@ -34,9 +34,8 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::{
     BnAuthFsService, IAuthFsService,
 };
 use authfs_aidl_interface::binder::{
-    self, add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Strong,
+    self, add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Status, Strong,
 };
-use binder_common::new_binder_exception;
 
 const SERVICE_NAME: &str = "authfs_service";
 const SERVICE_ROOT: &str = "/data/misc/authfs";
@@ -57,16 +56,16 @@ impl IAuthFsService for AuthFsService {
 
         // The directory is supposed to be deleted when `AuthFs` is dropped.
         create_dir(&mountpoint).map_err(|e| {
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("Cannot create mount directory {:?}: {:?}", &mountpoint, e),
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Cannot create mount directory {:?}: {:?}", &mountpoint, e)),
             )
         })?;
 
         authfs::AuthFs::mount_and_wait(mountpoint, config, self.debuggable).map_err(|e| {
-            new_binder_exception(
-                ExceptionCode::SERVICE_SPECIFIC,
-                format!("mount_and_wait failed: {:?}", e),
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("mount_and_wait failed: {:?}", e)),
             )
         })
     }
@@ -80,9 +79,9 @@ impl AuthFsService {
 
     fn validate(&self, config: &AuthFsConfig) -> binder::Result<()> {
         if config.port < 0 {
-            return Err(new_binder_exception(
+            return Err(Status::new_exception_str(
                 ExceptionCode::ILLEGAL_ARGUMENT,
-                format!("Invalid port: {}", config.port),
+                Some(format!("Invalid port: {}", config.port)),
             ));
         }
         Ok(())
