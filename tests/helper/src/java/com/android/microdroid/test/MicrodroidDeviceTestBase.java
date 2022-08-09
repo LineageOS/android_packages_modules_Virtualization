@@ -234,6 +234,7 @@ public abstract class MicrodroidDeviceTestBase {
     public static class BootResult {
         public final boolean payloadStarted;
         public final int deathReason;
+        public final long apiCallNanoTime;
         public final long endToEndNanoTime;
 
         public final OptionalLong vcpuStartedNanoTime;
@@ -243,11 +244,13 @@ public abstract class MicrodroidDeviceTestBase {
 
         BootResult(boolean payloadStarted,
                 int deathReason,
+                long apiCallNanoTime,
                 long endToEndNanoTime,
                 OptionalLong vcpuStartedNanoTime,
                 OptionalLong kernelStartedNanoTime,
                 OptionalLong initStartedNanoTime,
                 OptionalLong payloadStartedNanoTime) {
+            this.apiCallNanoTime = apiCallNanoTime;
             this.payloadStarted = payloadStarted;
             this.deathReason = deathReason;
             this.endToEndNanoTime = endToEndNanoTime;
@@ -271,6 +274,10 @@ public abstract class MicrodroidDeviceTestBase {
 
         private long getPayloadStartedNanoTime() {
             return payloadStartedNanoTime.getAsLong();
+        }
+
+        public long getVMStartingElapsedNanoTime() {
+            return getVcpuStartedNanoTime() - apiCallNanoTime;
         }
 
         public long getBootloaderElapsedNanoTime() {
@@ -307,12 +314,13 @@ public abstract class MicrodroidDeviceTestBase {
                         super.onDied(vm, reason);
                     }
                 };
-        long beginTime = System.nanoTime();
+        long apiCallNanoTime = System.nanoTime();
         listener.runToFinish(logTag, vm);
         return new BootResult(
                 payloadStarted.getNow(false),
                 deathReason.getNow(DeathReason.INFRASTRUCTURE_ERROR),
-                endTime.getNow(beginTime) - beginTime,
+                apiCallNanoTime,
+                endTime.getNow(apiCallNanoTime) - apiCallNanoTime,
                 listener.getVcpuStartedNanoTime(),
                 listener.getKernelStartedNanoTime(),
                 listener.getInitStartedNanoTime(),
