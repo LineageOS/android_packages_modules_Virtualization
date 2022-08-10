@@ -304,3 +304,14 @@ fn command_info() -> Result<(), Error> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::IntoApp;
+
+    #[test]
+    fn verify_app() {
+        Opt::into_app().debug_assert();
+    }
+}
