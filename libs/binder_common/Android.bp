@@ -10,7 +10,6 @@ rust_library {
     rustlibs: [
         "libbinder_rs",
         "libbinder_rpc_unstable_bindgen",
-        "liblazy_static",
     ],
     apex_available: [
         "com.android.compos",
