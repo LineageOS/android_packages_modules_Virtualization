@@ -31,9 +31,7 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::AuthFsConfig::{
     OutputDirFdAnnotation::OutputDirFdAnnotation, OutputFdAnnotation::OutputFdAnnotation,
 };
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFs::{BnAuthFs, IAuthFs};
-use authfs_aidl_interface::binder::{
-    self, BinderFeatures, Interface, ParcelFileDescriptor, Status, Strong,
-};
+use binder::{self, BinderFeatures, Interface, ParcelFileDescriptor, Status, Strong};
 
 const AUTHFS_BIN: &str = "/system/bin/authfs";
 const AUTHFS_SETUP_POLL_INTERVAL_MS: Duration = Duration::from_millis(50);

@@ -34,7 +34,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineRawConfig::VirtualMachineRawConfig,
     VirtualMachineState::VirtualMachineState,
 };
-use android_system_virtualizationservice::binder::{
+use binder::{
     self, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor, SpIBinder, Status,
     StatusCode, Strong, ThreadState,
 };
