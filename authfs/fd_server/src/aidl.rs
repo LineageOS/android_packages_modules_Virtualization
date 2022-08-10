@@ -36,11 +36,11 @@ use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
     BnVirtFdService, FsStat::FsStat, IVirtFdService, MAX_REQUESTING_DATA,
 };
-use authfs_aidl_interface::binder::{
-    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, StatusCode, Strong,
-};
 use authfs_fsverity_metadata::{
     get_fsverity_metadata_path, parse_fsverity_metadata, FSVerityMetadata,
+};
+use binder::{
+    BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, StatusCode, Strong,
 };
 
 /// Bitflags of forbidden file mode, e.g. setuid, setgid and sticky bit.

@@ -16,7 +16,7 @@
 
 //! Helper for converting Error types to what Binder expects
 
-use android_system_virtualizationservice::binder::{Result as BinderResult, Status};
+use binder::{Result as BinderResult, Status};
 use log::warn;
 use std::fmt::Debug;
 
