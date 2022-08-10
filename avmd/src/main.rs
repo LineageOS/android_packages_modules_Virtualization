@@ -18,9 +18,13 @@ use anyhow::{anyhow, bail, Result};
 use apexutil::get_payload_vbmeta_image_hash;
 use apkverify::get_apk_digest;
 use avmd::{ApkDescriptor, Avmd, Descriptor, ResourceIdentifier, VbMetaDescriptor};
-use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
+use clap::{
+    builder::ValueParser,
+    parser::{Indices, ValuesRef},
+    Arg, ArgAction, ArgMatches, Command,
+};
 use serde::ser::Serialize;
-use std::fs::File;
+use std::{fs::File, path::PathBuf};
 use vbmeta::VbMetaImage;
 
 fn get_vbmeta_image_hash(file: &str) -> Result<Vec<u8>> {
@@ -31,13 +35,13 @@ fn get_vbmeta_image_hash(file: &str) -> Result<Vec<u8>> {
 /// Iterate over a set of argument values, that could be empty or come in
 /// (<index>, <namespace>, <name>, <file>) tuple.
 struct NamespaceNameFileIterator<'a> {
-    indices: Option<clap::Indices<'a>>,
-    values: Option<clap::Values<'a>>,
+    indices: Option<Indices<'a>>,
+    values: Option<ValuesRef<'a, String>>,
 }
 
 impl<'a> NamespaceNameFileIterator<'a> {
     fn new(args: &'a ArgMatches, name: &'a str) -> Self {
-        NamespaceNameFileIterator { indices: args.indices_of(name), values: args.values_of(name) }
+        NamespaceNameFileIterator { indices: args.indices_of(name), values: args.get_many(name) }
     }
 }
 
@@ -100,58 +104,73 @@ fn create(args: &ArgMatches) -> Result<()> {
             .packed_format()
             .legacy_enums(),
     )?;
-    std::fs::write(args.value_of("file").unwrap(), &bytes)?;
+    std::fs::write(args.get_one::<PathBuf>("file").unwrap(), &bytes)?;
     Ok(())
 }
 
 fn dump(args: &ArgMatches) -> Result<()> {
-    let file = std::fs::read(args.value_of("file").unwrap())?;
+    let file = std::fs::read(args.get_one::<PathBuf>("file").unwrap())?;
     let avmd: Avmd = serde_cbor::from_slice(&file)?;
     println!("{}", avmd);
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn clap_command() -> Command {
     let namespace_name_file = ["namespace", "name", "file"];
-    let app = App::new("avmdtool")
-        .setting(AppSettings::SubcommandRequiredElseHelp)
+
+    Command::new("avmdtool")
+        .subcommand_required(true)
+        .arg_required_else_help(true)
         .subcommand(
-            SubCommand::with_name("create")
-                .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(Arg::with_name("file").required(true).takes_value(true))
+            Command::new("create")
+                .arg_required_else_help(true)
+                .arg(Arg::new("file").value_parser(ValueParser::path_buf()).required(true))
                 .arg(
-                    Arg::with_name("vbmeta")
+                    Arg::new("vbmeta")
                         .long("vbmeta")
-                        .takes_value(true)
                         .value_names(&namespace_name_file)
-                        .multiple(true),
+                        .num_args(3)
+                        .action(ArgAction::Append),
                 )
                 .arg(
-                    Arg::with_name("apk")
+                    Arg::new("apk")
                         .long("apk")
-                        .takes_value(true)
                         .value_names(&namespace_name_file)
-                        .multiple(true),
+                        .num_args(3)
+                        .action(ArgAction::Append),
                 )
                 .arg(
-                    Arg::with_name("apex-payload")
+                    Arg::new("apex-payload")
                         .long("apex-payload")
-                        .takes_value(true)
                         .value_names(&namespace_name_file)
-                        .multiple(true),
+                        .num_args(3)
+                        .action(ArgAction::Append),
                 ),
         )
         .subcommand(
-            SubCommand::with_name("dump")
-                .setting(AppSettings::ArgRequiredElseHelp)
-                .arg(Arg::with_name("file").required(true).takes_value(true)),
-        );
+            Command::new("dump")
+                .arg_required_else_help(true)
+                .arg(Arg::new("file").value_parser(ValueParser::path_buf()).required(true)),
+        )
+}
 
-    let args = app.get_matches();
+fn main() -> Result<()> {
+    let args = clap_command().get_matches();
     match args.subcommand() {
         Some(("create", sub_args)) => create(sub_args)?,
         Some(("dump", sub_args)) => dump(sub_args)?,
         _ => bail!("Invalid arguments"),
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_command() {
+        // Check that the command parsing has been configured in a valid way.
+        clap_command().debug_assert();
+    }
 }

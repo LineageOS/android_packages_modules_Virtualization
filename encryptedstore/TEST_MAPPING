@@ -1,7 +1,7 @@
 {
   "avf-presubmit": [
     {
-      "name": "vm.test"
+      "name": "encryptedstore.test"
     }
   ]
 }
