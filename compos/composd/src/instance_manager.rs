@@ -20,7 +20,7 @@
 use crate::instance_starter::{CompOsInstance, InstanceStarter};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice;
 use anyhow::{bail, Result};
-use compos_aidl_interface::binder::Strong;
+use binder::Strong;
 use compos_common::compos_client::VmParameters;
 use compos_common::{
     CURRENT_INSTANCE_DIR, DEX2OAT_CPU_SET_PROP_NAME, DEX2OAT_THREADS_PROP_NAME,

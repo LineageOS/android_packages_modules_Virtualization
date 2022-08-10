@@ -8,8 +8,7 @@ pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader
 
 use crate::common::{divide_roundup, CHUNK_SIZE};
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::IVirtFdService;
-use authfs_aidl_interface::binder::{Status, Strong};
-use binder::StatusCode;
+use binder::{Status, StatusCode, Strong};
 use binder_common::rpc_client::connect_rpc_binder;
 use std::convert::TryFrom;
 use std::io;

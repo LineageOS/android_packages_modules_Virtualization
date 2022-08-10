@@ -22,7 +22,7 @@ mod selinux;
 
 use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
-use android_system_virtualizationservice::binder::{register_lazy_service, BinderFeatures, ProcessState};
+use binder::{register_lazy_service, BinderFeatures, ProcessState};
 use anyhow::Error;
 use log::{info, Level};
 use std::fs::{remove_dir_all, remove_file, read_dir};

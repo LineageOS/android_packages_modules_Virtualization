@@ -22,8 +22,8 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
     VirtualMachineAppConfig::DebugLevel::DebugLevel,
 };
-use android_system_virtualizationservice::binder::ProcessState;
 use anyhow::{Context, Error};
+use binder::ProcessState;
 use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
 use run::{command_run, command_run_app};
