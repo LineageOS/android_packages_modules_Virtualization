@@ -19,9 +19,8 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineAppConfig::VirtualMachineAppConfig,
     VirtualMachineRawConfig::VirtualMachineRawConfig,
 };
-use android_system_virtualizationservice::binder::ParcelFileDescriptor;
 use anyhow::{anyhow, bail, Context, Result};
-use binder::wait_for_interface;
+use binder::{wait_for_interface, ParcelFileDescriptor};
 use log::{info, warn};
 use microdroid_metadata::{ApexPayload, ApkPayload, Metadata};
 use microdroid_payload_config::{ApexConfig, VmPayloadConfig};

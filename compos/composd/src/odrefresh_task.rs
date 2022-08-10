@@ -22,8 +22,8 @@ use android_system_composd::aidl::android::system::composd::{
     ICompilationTask::ICompilationTask,
     ICompilationTaskCallback::{FailureReason::FailureReason, ICompilationTaskCallback},
 };
-use android_system_composd::binder::{Interface, Result as BinderResult, Strong};
 use anyhow::{Context, Result};
+use binder::{Interface, Result as BinderResult, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
     CompilationMode::CompilationMode, ICompOsService,
 };

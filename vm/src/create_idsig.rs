@@ -15,7 +15,7 @@
 //! Command to create or update an idsig for APK
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
-use android_system_virtualizationservice::binder::ParcelFileDescriptor;
+use binder::ParcelFileDescriptor;
 use anyhow::{Context, Error};
 use std::fs::{File, OpenOptions};
 use std::path::Path;

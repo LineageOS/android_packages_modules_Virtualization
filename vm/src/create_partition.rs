@@ -16,7 +16,7 @@
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::IVirtualizationService;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::PartitionType::PartitionType;
-use android_system_virtualizationservice::binder::ParcelFileDescriptor;
+use binder::ParcelFileDescriptor;
 use anyhow::{Context, Error};
 use std::convert::TryInto;
 use std::fs::OpenOptions;

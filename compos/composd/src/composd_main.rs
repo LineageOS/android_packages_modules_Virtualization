@@ -25,8 +25,8 @@ mod odrefresh_task;
 mod service;
 
 use crate::instance_manager::InstanceManager;
-use android_system_composd::binder::{register_lazy_service, ProcessState};
 use anyhow::{Context, Result};
+use binder::{register_lazy_service, ProcessState};
 use log::{error, info};
 use std::panic;
 use std::sync::Arc;

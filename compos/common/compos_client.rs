@@ -19,16 +19,12 @@
 use crate::timeouts::TIMEOUTS;
 use crate::{COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT, DEFAULT_VM_CONFIG_PATH};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    DeathReason::DeathReason,
-    IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
     IVirtualizationService::IVirtualizationService,
     VirtualMachineAppConfig::{DebugLevel::DebugLevel, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
 };
-use android_system_virtualizationservice::binder::{
-    BinderFeatures, Interface, ParcelFileDescriptor, Result as BinderResult, Strong,
-};
 use anyhow::{bail, Context, Result};
+use binder::{ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use log::{info, warn};
 use rustutils::system_properties;
@@ -37,7 +33,7 @@ use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::thread;
-use vmclient::{VmInstance, VmWaitError};
+use vmclient::{DeathReason, VmInstance, VmWaitError};
 
 /// This owns an instance of the CompOS VM.
 pub struct ComposClient(VmInstance);
@@ -119,12 +115,9 @@ impl ComposClient {
             taskProfiles: parameters.task_profiles.clone(),
         });
 
-        let instance = VmInstance::create(service, &config, console_fd, log_fd)
+        let callback = Box::new(Callback {});
+        let instance = VmInstance::create(service, &config, console_fd, log_fd, Some(callback))
             .context("Failed to create VM")?;
-
-        let callback =
-            BnVirtualMachineCallback::new_binder(VmCallback(), BinderFeatures::default());
-        instance.vm.registerCallback(&callback)?;
 
         instance.start()?;
 
@@ -163,7 +156,7 @@ impl ComposClient {
     fn wait_for_shutdown(self) {
         let death_reason = self.0.wait_for_death_with_timeout(TIMEOUTS.vm_max_time_to_exit);
         match death_reason {
-            Some(vmclient::DeathReason::Shutdown) => info!("VM has exited normally"),
+            Some(DeathReason::Shutdown) => info!("VM has exited normally"),
             Some(reason) => warn!("VM died with reason {:?}", reason),
             None => warn!("VM failed to exit, dropping"),
         }
@@ -228,53 +221,36 @@ fn want_protected_vm() -> Result<bool> {
     bail!("No VM support available")
 }
 
-struct VmCallback();
-
-impl Interface for VmCallback {}
-
-impl IVirtualMachineCallback for VmCallback {
-    fn onDied(&self, cid: i32, reason: DeathReason) -> BinderResult<()> {
-        log::warn!("VM died, cid = {}, reason = {:?}", cid, reason);
-        Ok(())
-    }
-
-    fn onPayloadStarted(
-        &self,
-        cid: i32,
-        stream: Option<&ParcelFileDescriptor>,
-    ) -> BinderResult<()> {
-        if let Some(pfd) = stream {
-            if let Err(e) = start_logging(pfd) {
+struct Callback {}
+impl vmclient::VmCallback for Callback {
+    fn on_payload_started(&self, cid: i32, stream: Option<&File>) {
+        if let Some(file) = stream {
+            if let Err(e) = start_logging(file) {
                 warn!("Can't log vm output: {}", e);
             };
         }
         log::info!("VM payload started, cid = {}", cid);
-        Ok(())
     }
 
-    fn onPayloadReady(&self, cid: i32) -> BinderResult<()> {
+    fn on_payload_ready(&self, cid: i32) {
         log::info!("VM payload ready, cid = {}", cid);
-        Ok(())
     }
 
-    fn onPayloadFinished(&self, cid: i32, exit_code: i32) -> BinderResult<()> {
+    fn on_payload_finished(&self, cid: i32, exit_code: i32) {
         log::warn!("VM payload finished, cid = {}, exit code = {}", cid, exit_code);
-        Ok(())
     }
 
-    fn onError(&self, cid: i32, error_code: i32, message: &str) -> BinderResult<()> {
-        log::warn!("VM error, cid = {}, error code = {}, message = {}", cid, error_code, message,);
-        Ok(())
+    fn on_error(&self, cid: i32, error_code: i32, message: &str) {
+        log::warn!("VM error, cid = {}, error code = {}, message = {}", cid, error_code, message);
     }
 
-    fn onRamdump(&self, _cid: i32, _ramdump: &ParcelFileDescriptor) -> BinderResult<()> {
-        // TODO(b/238295267) send this to tombstone?
-        Ok(())
+    fn on_died(&self, cid: i32, death_reason: DeathReason) {
+        log::warn!("VM died, cid = {}, reason = {:?}", cid, death_reason);
     }
 }
 
-fn start_logging(pfd: &ParcelFileDescriptor) -> Result<()> {
-    let reader = BufReader::new(pfd.as_ref().try_clone().context("Cloning fd failed")?);
+fn start_logging(file: &File) -> Result<()> {
+    let reader = BufReader::new(file.try_clone().context("Cloning file failed")?);
     thread::spawn(move || {
         for line in reader.lines() {
             match line {

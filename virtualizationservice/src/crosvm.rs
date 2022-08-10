@@ -36,7 +36,7 @@ use std::time::Duration;
 use std::thread;
 use vsock::VsockStream;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DeathReason::DeathReason;
-use android_system_virtualmachineservice::binder::Strong;
+use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";

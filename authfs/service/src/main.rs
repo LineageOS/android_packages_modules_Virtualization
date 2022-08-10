@@ -33,7 +33,7 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFs::IAuthFs;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::{
     BnAuthFsService, IAuthFsService,
 };
-use authfs_aidl_interface::binder::{
+use binder::{
     self, add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Status, Strong,
 };
 
