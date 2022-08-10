@@ -16,19 +16,13 @@
 
 use crate::create_partition::command_create_partition;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    DeathReason::DeathReason,
-    IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
-    IVirtualizationService::IVirtualizationService,
-    PartitionType::PartitionType,
+    IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
     VirtualMachineAppConfig::DebugLevel::DebugLevel,
-    VirtualMachineAppConfig::VirtualMachineAppConfig,
-    VirtualMachineConfig::VirtualMachineConfig,
+    VirtualMachineAppConfig::VirtualMachineAppConfig, VirtualMachineConfig::VirtualMachineConfig,
     VirtualMachineState::VirtualMachineState,
 };
-use android_system_virtualizationservice::binder::{
-    BinderFeatures, Interface, ParcelFileDescriptor, Result as BinderResult,
-};
 use anyhow::{bail, Context, Error};
+use binder::ParcelFileDescriptor;
 use microdroid_payload_config::VmPayloadConfig;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
@@ -197,10 +191,9 @@ fn run(
         Some(duplicate_stdout()?)
     };
 
-    let vm = VmInstance::create(service, config, console, log).context("Failed to create VM")?;
-    let callback =
-        BnVirtualMachineCallback::new_binder(VirtualMachineCallback {}, BinderFeatures::default());
-    vm.vm.registerCallback(&callback)?;
+    let callback = Box::new(Callback {});
+    let vm = VmInstance::create(service, config, console, log, Some(callback))
+        .context("Failed to create VM")?;
     vm.start().context("Failed to start VM")?;
 
     println!(
@@ -246,20 +239,13 @@ fn parse_extra_apk_list(apk: &Path, config_path: &str) -> Result<Vec<String>, Er
     Ok(config.extra_apks.into_iter().map(|x| x.path).collect())
 }
 
-#[derive(Debug)]
-struct VirtualMachineCallback {}
+struct Callback {}
 
-impl Interface for VirtualMachineCallback {}
-
-impl IVirtualMachineCallback for VirtualMachineCallback {
-    fn onPayloadStarted(
-        &self,
-        _cid: i32,
-        stream: Option<&ParcelFileDescriptor>,
-    ) -> BinderResult<()> {
+impl vmclient::VmCallback for Callback {
+    fn on_payload_started(&self, _cid: i32, stream: Option<&File>) {
         // Show the output of the payload
         if let Some(stream) = stream {
-            let mut reader = BufReader::new(stream.as_ref());
+            let mut reader = BufReader::new(stream);
             loop {
                 let mut s = String::new();
                 match reader.read_line(&mut s) {
@@ -269,31 +255,18 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
                 };
             }
         }
-        Ok(())
     }
 
-    fn onPayloadReady(&self, _cid: i32) -> BinderResult<()> {
+    fn on_payload_ready(&self, _cid: i32) {
         eprintln!("payload is ready");
-        Ok(())
     }
 
-    fn onPayloadFinished(&self, _cid: i32, exit_code: i32) -> BinderResult<()> {
+    fn on_payload_finished(&self, _cid: i32, exit_code: i32) {
         eprintln!("payload finished with exit code {}", exit_code);
-        Ok(())
     }
 
-    fn onError(&self, _cid: i32, error_code: i32, message: &str) -> BinderResult<()> {
+    fn on_error(&self, _cid: i32, error_code: i32, message: &str) {
         eprintln!("VM encountered an error: code={}, message={}", error_code, message);
-        Ok(())
-    }
-
-    fn onRamdump(&self, _cid: i32, _stream: &ParcelFileDescriptor) -> BinderResult<()> {
-        // Do nothing. We get ramdump from the vmclient library.
-        Ok(())
-    }
-
-    fn onDied(&self, _cid: i32, _reason: DeathReason) -> BinderResult<()> {
-        Ok(())
     }
 }
 

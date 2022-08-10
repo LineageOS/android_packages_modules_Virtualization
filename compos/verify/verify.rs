@@ -19,7 +19,7 @@
 
 use android_logger::LogId;
 use anyhow::{bail, Context, Result};
-use compos_aidl_interface::binder::ProcessState;
+use binder::ProcessState;
 use compos_common::compos_client::{ComposClient, VmParameters};
 use compos_common::odrefresh::{
     CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR, PENDING_ARTIFACTS_SUBDIR,
