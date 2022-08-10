@@ -32,7 +32,7 @@ use authfs_aidl_interface::aidl::com::android::virt::fs::{
     },
     IAuthFsService::IAuthFsService,
 };
-use authfs_aidl_interface::binder::Strong;
+use binder::Strong;
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::CompilationMode::CompilationMode;
 use compos_common::odrefresh::ExitCode;
 
