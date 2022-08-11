@@ -35,6 +35,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -110,8 +111,6 @@ public final class VirtualMachineConfig {
      * Path within the APK to the payload config file that defines software aspects of this config.
      */
     private final @NonNull String mPayloadConfigPath;
-
-    // TODO(jiyong): add more items like # of cpu, size of ram, debuggability, etc.
 
     private VirtualMachineConfig(
             @NonNull String apkPath,
@@ -256,8 +255,8 @@ public final class VirtualMachineConfig {
 
         /** Creates a builder for the given context (APK), and the payload config file in APK. */
         public Builder(@NonNull Context context, @NonNull String payloadConfigPath) {
-            mContext = context;
-            mPayloadConfigPath = payloadConfigPath;
+            mContext = Objects.requireNonNull(context);
+            mPayloadConfigPath = Objects.requireNonNull(payloadConfigPath);
             mDebugLevel = DebugLevel.NONE;
             mProtectedVm = false;
             mNumCpus = 1;

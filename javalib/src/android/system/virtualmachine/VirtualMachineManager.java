@@ -22,6 +22,7 @@ import android.content.Context;
 
 import java.lang.ref.WeakReference;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 
 /**
@@ -40,6 +41,7 @@ public class VirtualMachineManager {
 
     /** Returns the per-context instance. */
     public static @NonNull VirtualMachineManager getInstance(@NonNull Context context) {
+        Objects.requireNonNull(context);
         synchronized (sInstances) {
             VirtualMachineManager vmm =
                     sInstances.containsKey(context) ? sInstances.get(context).get() : null;
