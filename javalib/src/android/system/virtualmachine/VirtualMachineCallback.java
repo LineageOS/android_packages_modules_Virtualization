@@ -128,10 +128,16 @@ public interface VirtualMachineCallback {
     /** The VM killed due to hangup */
     int DEATH_REASON_HANGUP = 16;
 
-    /** Called when the payload starts in the VM. */
+    /**
+     * Called when the payload starts in the VM. The stream, if non-null, provides access
+     * to the stdin/stdout of the VM payload.
+     */
     void onPayloadStarted(@NonNull VirtualMachine vm, @Nullable ParcelFileDescriptor stream);
 
-    /** Called when the payload in the VM is ready to serve. */
+    /**
+     * Called when the payload in the VM is ready to serve. See
+     * {@link VirtualMachine#connectToVsockServer(int)} ()}.
+     */
     void onPayloadReady(@NonNull VirtualMachine vm);
 
     /** Called when the payload has finished in the VM. */
@@ -140,7 +146,7 @@ public interface VirtualMachineCallback {
     /** Called when an error occurs in the VM. */
     void onError(@NonNull VirtualMachine vm, @ErrorCode int errorCode, @NonNull String message);
 
-    /** Called when the VM died. */
+    /** Called when the VM has ended. */
     void onDied(@NonNull VirtualMachine vm, @DeathReason int reason);
 
     /** Called when kernel panic occurs and as a result ramdump is generated from the VM. */
