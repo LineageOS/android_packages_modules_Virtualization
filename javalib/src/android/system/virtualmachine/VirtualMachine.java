@@ -179,7 +179,7 @@ public class VirtualMachine {
     /**
      * Creates a virtual machine with the given name and config. Once a virtual machine is created
      * it is persisted until it is deleted by calling {@link #delete()}. The created virtual machine
-     * is in {@link #STOPPED} state. To run the VM, call {@link #run()}.
+     * is in {@link Status#STOPPED} state. To run the VM, call {@link #run()}.
      */
     /* package */ static @NonNull VirtualMachine create(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
@@ -270,7 +270,7 @@ public class VirtualMachine {
      * machines sharing the same config. Even in that case, the virtual machines are completely
      * isolated from each other; one cannot share its secret to another virtual machine even if they
      * share the same config. It is also possible that a virtual machine can switch its config,
-     * which can be done by calling {@link #setConfig(VirtualMachineCOnfig)}.
+     * which can be done by calling {@link #setConfig(VirtualMachineConfig)}.
      */
     public @NonNull VirtualMachineConfig getConfig() {
         return mConfig;
@@ -563,12 +563,9 @@ public class VirtualMachine {
 
     /**
      * Connects to a VM's RPC server via vsock, and returns a root IBinder object. Guest VMs are
-     * expected to set up vsock servers in their payload. After the host app receives onPayloadReady
-     * callback, the host app can use this method to establish an RPC session to the guest VMs.
-     *
-     * <p>If the connection succeeds, the root IBinder object will be returned via {@link
-     * VirtualMachineCallback.onVsockServerReady()}. If the connection fails, {@link
-     * VirtualMachineCallback.onVsockServerConnectionFailed()} will be called.
+     * expected to set up vsock servers in their payload. After the host app receives the {@link
+     * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to
+     * establish an RPC session to the guest VMs.
      */
     public Future<IBinder> connectToVsockServer(int port) throws VirtualMachineException {
         if (getStatus() != Status.RUNNING) {
@@ -580,13 +577,11 @@ public class VirtualMachine {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("VirtualMachine(");
-        sb.append("name:" + getName() + ", ");
-        sb.append("config:" + getConfig().getPayloadConfigPath() + ", ");
-        sb.append("package: " + mPackageName);
-        sb.append(")");
-        return sb.toString();
+        return "VirtualMachine("
+                + "name:" + getName() + ", "
+                + "config:" + getConfig().getPayloadConfigPath() + ", "
+                + "package: " + mPackageName
+                + ")";
     }
 
     private static List<String> parseExtraApkListFromPayloadConfig(JsonReader reader)
