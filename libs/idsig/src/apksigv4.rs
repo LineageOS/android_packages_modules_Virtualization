@@ -75,7 +75,7 @@ pub struct SigningInfo {
 }
 
 /// Version of the idsig file format
-#[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum Version {
     /// Version 2, the only supported version.
@@ -95,7 +95,7 @@ impl Default for Version {
 }
 
 /// Hash algorithm that can be used for idsig file.
-#[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum HashAlgorithm {
     /// SHA2-256
@@ -115,7 +115,7 @@ impl Default for HashAlgorithm {
 }
 
 /// Signature algorithm that can be used for idsig file
-#[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 #[repr(u32)]
 pub enum SignatureAlgorithmId {

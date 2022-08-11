@@ -62,7 +62,7 @@ pub struct DirectoryEntry {
     pub kind: InodeKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum InodeKind {
     Directory,
     File,
