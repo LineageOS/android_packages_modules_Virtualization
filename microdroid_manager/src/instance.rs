@@ -285,7 +285,7 @@ fn get_key() -> Result<ZVec> {
     Ok(key)
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MicrodroidData {
     pub salt: Vec<u8>, // Should be [u8; 64] but that isn't serializable.
     pub apk_data: ApkData,
@@ -293,7 +293,7 @@ pub struct MicrodroidData {
     pub apex_data: Vec<ApexData>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApkData {
     pub root_hash: Box<RootHash>,
     pub pubkey: Box<[u8]>,
@@ -301,7 +301,7 @@ pub struct ApkData {
 
 pub type RootHash = [u8];
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApexData {
     pub name: String,
     pub public_key: Vec<u8>,
