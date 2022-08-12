@@ -14,7 +14,7 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
-use crate::atom::write_vm_creation_stats;
+use crate::atom::{write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::add_microdroid_images;
@@ -1043,6 +1043,7 @@ impl IVirtualMachineService for VirtualMachineService {
             })?;
             let stream = vm.stream.lock().unwrap().take();
             vm.callbacks.notify_payload_started(cid, stream);
+            write_vm_booted_stats();
             Ok(())
         } else {
             error!("notifyPayloadStarted is called from an unknown CID {}", cid);

@@ -23,7 +23,7 @@ use android_system_virtualizationservice::binder::{Status, Strong};
 use anyhow::{anyhow, Result};
 use log::{trace, warn};
 use microdroid_payload_config::VmPayloadConfig;
-use statslog_virtualization_rust::vm_creation_requested;
+use statslog_virtualization_rust::{vm_booted, vm_creation_requested};
 use zip::ZipArchive;
 
 fn get_vm_payload_config(config: &VirtualMachineAppConfig) -> Result<VmPayloadConfig> {
@@ -106,6 +106,22 @@ pub fn write_vm_creation_stats(
     };
 
     match vm_creation_requested.stats_write() {
+        Err(e) => {
+            warn!("statslog_rust failed with error: {}", e);
+        }
+        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
+    }
+}
+
+/// Write the stats of VM boot to statsd
+pub fn write_vm_booted_stats() {
+    let empty_string = String::new();
+    let vm_booted = vm_booted::VmBooted {
+        // TODO(seungjaeyoo) Implement sending proper data about uid & vm_identifier
+        uid: -1,
+        vm_identifier: &empty_string,
+    };
+    match vm_booted.stats_write() {
         Err(e) => {
             warn!("statslog_rust failed with error: {}", e);
         }
