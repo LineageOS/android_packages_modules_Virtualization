@@ -15,6 +15,7 @@
 //! Functions for running instances of `crosvm`.
 
 use crate::aidl::VirtualMachineCallbacks;
+use crate::atom::write_vm_exited_stats;
 use crate::Cid;
 use anyhow::{bail, Context, Error};
 use command_fds::CommandFdExt;
@@ -260,7 +261,10 @@ impl VmInstance {
             };
 
         self.handle_ramdump().unwrap_or_else(|e| error!("Error handling ramdump: {}", e));
-        self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_reason));
+
+        let death_reason = death_reason(&result, &failure_reason);
+        self.callbacks.callback_on_died(self.cid, death_reason);
+        write_vm_exited_stats(death_reason);
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
