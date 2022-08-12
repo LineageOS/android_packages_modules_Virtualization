@@ -27,7 +27,7 @@ const EOCD_CENTRAL_DIRECTORY_OFFSET_FIELD_OFFSET: usize = 16;
 const EOCD_MAGIC: u32 = 0x06054b50;
 const ZIP64_MARK: u32 = 0xffffffff;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ZipSections {
     pub central_directory_offset: u32,
     pub central_directory_size: u32,
