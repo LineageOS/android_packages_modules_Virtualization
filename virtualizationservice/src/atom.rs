@@ -21,6 +21,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use android_system_virtualizationservice::binder::{Status, Strong};
 use anyhow::{anyhow, Result};
+use binder::ThreadState;
 use log::{trace, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use statslog_virtualization_rust::{vm_booted, vm_creation_requested, vm_exited};
@@ -54,6 +55,7 @@ pub fn write_vm_creation_stats(
         }
     }
 
+    let vm_identifier;
     let config_type;
     let num_cpus;
     let cpu_affinity;
@@ -61,6 +63,7 @@ pub fn write_vm_creation_stats(
     let apexes;
     match config {
         VirtualMachineConfig::AppConfig(config) => {
+            vm_identifier = &config.name;
             config_type = vm_creation_requested::ConfigType::VirtualMachineAppConfig;
             num_cpus = config.numCpus;
             cpu_affinity = config.cpuAffinity.clone().unwrap_or_default();
@@ -79,6 +82,7 @@ pub fn write_vm_creation_stats(
             }
         }
         VirtualMachineConfig::RawConfig(config) => {
+            vm_identifier = &config.name;
             config_type = vm_creation_requested::ConfigType::VirtualMachineRawConfig;
             num_cpus = config.numCpus;
             cpu_affinity = config.cpuAffinity.clone().unwrap_or_default();
@@ -87,11 +91,9 @@ pub fn write_vm_creation_stats(
         }
     }
 
-    let empty_string = String::new();
     let vm_creation_requested = vm_creation_requested::VmCreationRequested {
-        // TODO(seungjaeyoo) Implement sending proper data about uid & vm_identifier
-        uid: -1,
-        vm_identifier: &empty_string,
+        uid: ThreadState::get_calling_uid() as i32,
+        vm_identifier,
         hypervisor: vm_creation_requested::Hypervisor::Pkvm,
         is_protected,
         creation_succeeded,
@@ -114,13 +116,8 @@ pub fn write_vm_creation_stats(
 }
 
 /// Write the stats of VM boot to statsd
-pub fn write_vm_booted_stats() {
-    let empty_string = String::new();
-    let vm_booted = vm_booted::VmBooted {
-        // TODO(seungjaeyoo) Implement sending proper data about uid & vm_identifier
-        uid: -1,
-        vm_identifier: &empty_string,
-    };
+pub fn write_vm_booted_stats(uid: i32, vm_identifier: &String) {
+    let vm_booted = vm_booted::VmBooted { uid, vm_identifier };
     match vm_booted.stats_write() {
         Err(e) => {
             warn!("statslog_rust failed with error: {}", e);
@@ -130,12 +127,10 @@ pub fn write_vm_booted_stats() {
 }
 
 /// Write the stats of VM exit to statsd
-pub fn write_vm_exited_stats(reason: DeathReason) {
-    let empty_string = String::new();
+pub fn write_vm_exited_stats(uid: i32, vm_identifier: &String, reason: DeathReason) {
     let vm_exited = vm_exited::VmExited {
-        // TODO(seungjaeyoo) Implement sending proper data about uid & vm_identifier
-        uid: -1,
-        vm_identifier: &empty_string,
+        uid,
+        vm_identifier,
         death_reason: match reason {
             DeathReason::INFRASTRUCTURE_ERROR => vm_exited::DeathReason::InfrastructureError,
             DeathReason::KILLED => vm_exited::DeathReason::Killed,
