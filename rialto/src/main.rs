@@ -25,7 +25,7 @@ extern crate alloc;
 use aarch64_paging::{
     idmap::IdMap,
     paging::{Attributes, MemoryRegion},
-    AddressRangeError,
+    MapError,
 };
 use buddy_system_allocator::LockedHeap;
 use log::{debug, info};
@@ -82,7 +82,7 @@ fn init_heap() {
     info!("Initialized heap.");
 }
 
-fn init_kernel_pgt(pgt: &mut IdMap) -> Result<(), AddressRangeError> {
+fn init_kernel_pgt(pgt: &mut IdMap) -> Result<(), MapError> {
     // The first 1 GiB of address space is used by crosvm for MMIO.
     let reg_dev = MemoryRegion::new(0, SZ_1G);
     // SAFETY: Taking addresses of kernel image sections to set up page table
