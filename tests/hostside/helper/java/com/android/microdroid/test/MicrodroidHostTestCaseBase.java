@@ -144,7 +144,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         CommandResult result = RunUtil.getDefault()
                 .runTimedCmdRetry(timeoutMs,
                         MICRODROID_COMMAND_RETRY_INTERVAL_MILLIS, attempts, cmd);
-        assertWithMessage("Command `" + cmd + "` has failed")
+        assertWithMessage("Command `" + Arrays.toString(cmd) + "` has failed")
                 .about(command_results())
                 .that(result)
                 .isSuccess();
@@ -158,7 +158,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         CommandResult result = RunUtil.getDefault()
                 .runTimedCmdRetry(timeoutMs, MICRODROID_COMMAND_RETRY_INTERVAL_MILLIS, attempts,
                         "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
-        assertWithMessage("Command `" + cmd + "` has failed")
+        assertWithMessage("Command `" + Arrays.toString(cmd) + "` has failed")
                 .about(command_results())
                 .that(result)
                 .isSuccess();
