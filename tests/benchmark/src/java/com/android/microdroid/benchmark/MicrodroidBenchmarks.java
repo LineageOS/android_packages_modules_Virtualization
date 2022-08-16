@@ -47,6 +47,7 @@ import java.util.List;
 @RunWith(Parameterized.class)
 public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidBenchmarks";
+    private static final String METRIC_NAME_PREFIX = "avf_perf/microdroid/";
     private static final int VIRTIO_BLK_TRIAL_COUNT = 5;
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
@@ -148,11 +149,11 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             userspaceBootTimeMetrics.add(result.getUserspaceElapsedNanoTime() / nanoToMilli);
         }
 
-        reportMetrics(vmStartingTimeMetrics,    "avf_perf/microdroid/vm_starting_time_",    "_ms");
-        reportMetrics(bootTimeMetrics,          "avf_perf/microdroid/boot_time_",           "_ms");
-        reportMetrics(bootloaderTimeMetrics,    "avf_perf/microdroid/bootloader_time_",     "_ms");
-        reportMetrics(kernelBootTimeMetrics,    "avf_perf/microdroid/kernel_boot_time_",    "_ms");
-        reportMetrics(userspaceBootTimeMetrics, "avf_perf/microdroid/userspace_boot_time_", "_ms");
+        reportMetrics(vmStartingTimeMetrics, "vm_starting_time_", "_ms");
+        reportMetrics(bootTimeMetrics, "boot_time_", "_ms");
+        reportMetrics(bootloaderTimeMetrics, "bootloader_time_", "_ms");
+        reportMetrics(kernelBootTimeMetrics, "kernel_boot_time_", "_ms");
+        reportMetrics(userspaceBootTimeMetrics, "userspace_boot_time_", "_ms");
     }
 
     @Test
@@ -169,7 +170,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                     name.substring(
                             MICRODROID_IMG_PREFIX.length(),
                             name.length() - MICRODROID_IMG_SUFFIX.length());
-            String metric = "avf_perf/microdroid/img_size_" + base + "_MB" + "+" + name;
+            String metric = METRIC_NAME_PREFIX + "img_size_" + base + "_MB";
             double size = Files.size(file.toPath()) / SIZE_MB;
             bundle.putDouble(metric, size);
         }
@@ -199,16 +200,13 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             VirtioBlkVmEventListener listener = new VirtioBlkVmEventListener(readRates, isRand);
             listener.runToFinish(TAG, vm);
         }
-
-        String metricNamePrefix =
-                "avf_perf/virtio-blk/"
-                        + (mProtectedVm ? "protected-vm/" : "unprotected-vm/")
-                        + (isRand ? "rand_read_" : "seq_read_");
-        String unit = "_mb_per_sec";
-        reportMetrics(readRates, metricNamePrefix, unit);
+        reportMetrics(
+                readRates,
+                isRand ? "virtio-blk/rand_read_" : "virtio-blk/seq_read_",
+                "_mb_per_sec");
     }
 
-    private void reportMetrics(List<Double> data, String prefix, String suffix) {
+    private void reportMetrics(List<Double> data, String base, String suffix) {
         double sum = 0;
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
@@ -225,6 +223,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         double stdDev = Math.sqrt(sqSum / (data.size() - 1));
 
         Bundle bundle = new Bundle();
+        String prefix = METRIC_NAME_PREFIX + base;
         bundle.putDouble(prefix + "min" + suffix, min);
         bundle.putDouble(prefix + "max" + suffix, max);
         bundle.putDouble(prefix + "average" + suffix, avg);
