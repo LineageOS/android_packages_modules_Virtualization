@@ -193,7 +193,13 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         VirtualMachineConfig config = builder.debugLevel(DebugLevel.FULL).build();
         List<Double> readRates = new ArrayList<>();
 
-        for (int i = 0; i < VIRTIO_BLK_TRIAL_COUNT; ++i) {
+        for (int i = 0; i < VIRTIO_BLK_TRIAL_COUNT + 1; ++i) {
+            if (i == 1) {
+                // Clear the first result because when the file was loaded the first time,
+                // the data also needs to be loaded from hard drive to host. This is
+                // not part of the virtio-blk IO throughput.
+                readRates.clear();
+            }
             String vmName = "test_vm_io_" + i;
             mInner.forceCreateNewVirtualMachine(vmName, config);
             VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
