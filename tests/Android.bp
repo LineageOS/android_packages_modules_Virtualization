@@ -41,7 +41,7 @@ cc_test {
         // The existence of the library in the system partition is not guaranteed.
         // Let's have our own copy of it.
         "android.system.virtualizationservice-cpp",
-        "PlatformProperties",
+        "libPlatformProperties",
     ],
     shared_libs: [
         "libbase",
