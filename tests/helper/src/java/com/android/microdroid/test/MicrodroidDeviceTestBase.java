@@ -23,7 +23,6 @@ import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemProperties;
 import android.sysprop.HypervisorProperties;
-import android.system.virtualizationservice.DeathReason;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
@@ -223,7 +222,7 @@ public abstract class MicrodroidDeviceTestBase {
 
         @Override
         @CallSuper
-        public void onDied(VirtualMachine vm, @DeathReason int reason) {
+        public void onDied(VirtualMachine vm, int reason) {
             mExecutorService.shutdown();
         }
 
@@ -318,7 +317,7 @@ public abstract class MicrodroidDeviceTestBase {
         listener.runToFinish(logTag, vm);
         return new BootResult(
                 payloadStarted.getNow(false),
-                deathReason.getNow(DeathReason.INFRASTRUCTURE_ERROR),
+                deathReason.getNow(VirtualMachineCallback.DEATH_REASON_INFRASTRUCTURE_ERROR),
                 apiCallNanoTime,
                 endTime.getNow(apiCallNanoTime) - apiCallNanoTime,
                 listener.getVcpuStartedNanoTime(),
