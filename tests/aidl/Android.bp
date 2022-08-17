@@ -8,7 +8,6 @@ aidl_interface {
     unstable: true,
     backend: {
         java: {
-            platform_apis: true,
             gen_rpc: true,
         },
         cpp: {
