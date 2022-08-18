@@ -358,9 +358,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         List<DataItem> rootArrayItems = ((Array) dataItems.get(0)).getDataItems();
         assertThat(rootArrayItems.size()).isAtLeast(2); // Public key and one certificate
         if (mProtectedVm) {
-            // When a true BCC is created, microdroid expects entries for at least: the root public
-            // key, pvmfw, u-boot, u-boot-env, microdroid, app payload and the service process.
-            assertThat(rootArrayItems.size()).isAtLeast(7);
+            // When a true DICE chain is created, microdroid expects entries for: u-boot,
+            // u-boot-env, microdroid, app payload and the service process.
+            assertThat(rootArrayItems.size()).isAtLeast(5);
         }
     }
 
