@@ -28,6 +28,9 @@
     },
     {
       "name": "ComposBenchmarkApp"
+    },
+    {
+      "name": "AVFHostTestCases"
     }
   ],
   "imports": [
