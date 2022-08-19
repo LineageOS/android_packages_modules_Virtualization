@@ -272,4 +272,65 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             forceStop(vm);
         }
     }
+
+    @Test
+    public void testMemoryUsage() throws Exception {
+        final String vmName = "test_vm_mem_usage";
+        VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder(
+                "assets/vm_config_io.json");
+        VirtualMachineConfig config = builder.debugLevel(DebugLevel.NONE).memoryMib(256).build();
+        mInner.forceCreateNewVirtualMachine(vmName, config);
+        VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+        MemoryUsageListener listener = new MemoryUsageListener();
+        listener.runToFinish(TAG, vm);
+
+        double mem_overall = 256.0;
+        double mem_total = (double) listener.mMemTotal / 1024.0;
+        double mem_free = (double) listener.mMemFree / 1024.0;
+        double mem_avail = (double) listener.mMemAvailable / 1024.0;
+        double mem_buffers = (double) listener.mBuffers / 1024.0;
+        double mem_cached = (double) listener.mCached / 1024.0;
+        double mem_slab = (double) listener.mSlab / 1024.0;
+
+        double mem_kernel = mem_overall - mem_total;
+        double mem_used = mem_total - mem_free - mem_buffers - mem_cached - mem_slab;
+        double mem_unreclaimable = mem_total - mem_avail;
+
+        Bundle bundle = new Bundle();
+        bundle.putDouble(METRIC_NAME_PREFIX + "mem_kernel_MB", mem_kernel);
+        bundle.putDouble(METRIC_NAME_PREFIX + "mem_used_MB", mem_used);
+        bundle.putDouble(METRIC_NAME_PREFIX + "mem_buffers_MB", mem_buffers);
+        bundle.putDouble(METRIC_NAME_PREFIX + "mem_cached_MB", mem_cached);
+        bundle.putDouble(METRIC_NAME_PREFIX + "mem_slab_MB", mem_slab);
+        bundle.putDouble(METRIC_NAME_PREFIX + "mem_unreclaimable_MB", mem_unreclaimable);
+        mInstrumentation.sendStatus(0, bundle);
+    }
+
+    private static class MemoryUsageListener extends VmEventListener {
+        public long mMemTotal;
+        public long mMemFree;
+        public long mMemAvailable;
+        public long mBuffers;
+        public long mCached;
+        public long mSlab;
+
+        @Override
+        public void onPayloadReady(VirtualMachine vm) {
+            try {
+                IBenchmarkService service =
+                        IBenchmarkService.Stub.asInterface(
+                                vm.connectToVsockServer(IBenchmarkService.SERVICE_PORT).get());
+
+                mMemTotal = service.getMemInfoEntry("MemTotal");
+                mMemFree = service.getMemInfoEntry("MemFree");
+                mMemAvailable = service.getMemInfoEntry("MemAvailable");
+                mBuffers = service.getMemInfoEntry("Buffers");
+                mCached = service.getMemInfoEntry("Cached");
+                mSlab = service.getMemInfoEntry("Slab");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            forceStop(vm);
+        }
+    }
 }
