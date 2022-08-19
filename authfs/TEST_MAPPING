@@ -1,5 +1,5 @@
 {
-  "presubmit": [
+  "avf-presubmit": [
     {
       "name": "authfs_device_test_src_lib"
     },
