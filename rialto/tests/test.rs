@@ -54,6 +54,7 @@ fn test_boots() -> Result<(), Error> {
     let log = android_log_fd()?;
 
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
+        name: String::from("RialtoTest"),
         kernel: None,
         initrd: None,
         params: None,

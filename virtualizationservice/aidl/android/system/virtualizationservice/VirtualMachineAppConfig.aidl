@@ -17,6 +17,9 @@ package android.system.virtualizationservice;
 
 /** Configuration for running an App in a VM */
 parcelable VirtualMachineAppConfig {
+    /** Name of VM */
+    String name;
+
     /** Main APK */
     ParcelFileDescriptor apk;
 
