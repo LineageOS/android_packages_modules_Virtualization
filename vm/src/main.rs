@@ -40,6 +40,10 @@ struct Idsigs(Vec<PathBuf>);
 enum Opt {
     /// Run a virtual machine with a config in APK
     RunApp {
+        /// Name of VM
+        #[structopt(long)]
+        name: Option<String>,
+
         /// Path to VM Payload APK
         #[structopt(parse(from_os_str))]
         apk: PathBuf,
@@ -102,6 +106,10 @@ enum Opt {
     },
     /// Run a virtual machine
     Run {
+        /// Name of VM
+        #[structopt(long)]
+        name: Option<String>,
+
         /// Path to VM config JSON
         #[structopt(parse(from_os_str))]
         config: PathBuf,
@@ -195,6 +203,7 @@ fn main() -> Result<(), Error> {
 
     match opt {
         Opt::RunApp {
+            name,
             apk,
             idsig,
             instance,
@@ -211,6 +220,7 @@ fn main() -> Result<(), Error> {
             task_profiles,
             extra_idsigs,
         } => command_run_app(
+            name,
             service.as_ref(),
             &apk,
             &idsig,
@@ -228,8 +238,9 @@ fn main() -> Result<(), Error> {
             task_profiles,
             &extra_idsigs,
         ),
-        Opt::Run { config, daemonize, cpus, cpu_affinity, task_profiles, console, log } => {
+        Opt::Run { name, config, daemonize, cpus, cpu_affinity, task_profiles, console, log } => {
             command_run(
+                name,
                 service.as_ref(),
                 &config,
                 daemonize,

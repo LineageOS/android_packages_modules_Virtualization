@@ -16,14 +16,15 @@
 
 use crate::aidl::clone_file;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    IVirtualMachine::IVirtualMachine, VirtualMachineAppConfig::VirtualMachineAppConfig,
-    VirtualMachineConfig::VirtualMachineConfig,
+    DeathReason::DeathReason, IVirtualMachine::IVirtualMachine,
+    VirtualMachineAppConfig::VirtualMachineAppConfig, VirtualMachineConfig::VirtualMachineConfig,
 };
 use android_system_virtualizationservice::binder::{Status, Strong};
 use anyhow::{anyhow, Result};
+use binder::ThreadState;
 use log::{trace, warn};
 use microdroid_payload_config::VmPayloadConfig;
-use statslog_virtualization_rust::vm_creation_requested;
+use statslog_virtualization_rust::{vm_booted, vm_creation_requested, vm_exited};
 use zip::ZipArchive;
 
 fn get_vm_payload_config(config: &VirtualMachineAppConfig) -> Result<VmPayloadConfig> {
@@ -54,6 +55,7 @@ pub fn write_vm_creation_stats(
         }
     }
 
+    let vm_identifier;
     let config_type;
     let num_cpus;
     let cpu_affinity;
@@ -61,6 +63,7 @@ pub fn write_vm_creation_stats(
     let apexes;
     match config {
         VirtualMachineConfig::AppConfig(config) => {
+            vm_identifier = &config.name;
             config_type = vm_creation_requested::ConfigType::VirtualMachineAppConfig;
             num_cpus = config.numCpus;
             cpu_affinity = config.cpuAffinity.clone().unwrap_or_default();
@@ -79,6 +82,7 @@ pub fn write_vm_creation_stats(
             }
         }
         VirtualMachineConfig::RawConfig(config) => {
+            vm_identifier = &config.name;
             config_type = vm_creation_requested::ConfigType::VirtualMachineRawConfig;
             num_cpus = config.numCpus;
             cpu_affinity = config.cpuAffinity.clone().unwrap_or_default();
@@ -87,11 +91,9 @@ pub fn write_vm_creation_stats(
         }
     }
 
-    let empty_string = String::new();
     let vm_creation_requested = vm_creation_requested::VmCreationRequested {
-        // TODO(seungjaeyoo) Implement sending proper data about uid & vm_identifier
-        uid: -1,
-        vm_identifier: &empty_string,
+        uid: ThreadState::get_calling_uid() as i32,
+        vm_identifier,
         hypervisor: vm_creation_requested::Hypervisor::Pkvm,
         is_protected,
         creation_succeeded,
@@ -106,6 +108,69 @@ pub fn write_vm_creation_stats(
     };
 
     match vm_creation_requested.stats_write() {
+        Err(e) => {
+            warn!("statslog_rust failed with error: {}", e);
+        }
+        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
+    }
+}
+
+/// Write the stats of VM boot to statsd
+pub fn write_vm_booted_stats(uid: i32, vm_identifier: &String) {
+    let vm_booted = vm_booted::VmBooted { uid, vm_identifier };
+    match vm_booted.stats_write() {
+        Err(e) => {
+            warn!("statslog_rust failed with error: {}", e);
+        }
+        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
+    }
+}
+
+/// Write the stats of VM exit to statsd
+pub fn write_vm_exited_stats(uid: i32, vm_identifier: &String, reason: DeathReason) {
+    let vm_exited = vm_exited::VmExited {
+        uid,
+        vm_identifier,
+        death_reason: match reason {
+            DeathReason::INFRASTRUCTURE_ERROR => vm_exited::DeathReason::InfrastructureError,
+            DeathReason::KILLED => vm_exited::DeathReason::Killed,
+            DeathReason::UNKNOWN => vm_exited::DeathReason::Unknown,
+            DeathReason::SHUTDOWN => vm_exited::DeathReason::Shutdown,
+            DeathReason::ERROR => vm_exited::DeathReason::Error,
+            DeathReason::REBOOT => vm_exited::DeathReason::Reboot,
+            DeathReason::CRASH => vm_exited::DeathReason::Crash,
+            DeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH => {
+                vm_exited::DeathReason::PvmFirmwarePublicKeyMismatch
+            }
+            DeathReason::PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED => {
+                vm_exited::DeathReason::PvmFirmwareInstanceImageChanged
+            }
+            DeathReason::BOOTLOADER_PUBLIC_KEY_MISMATCH => {
+                vm_exited::DeathReason::BootloaderPublicKeyMismatch
+            }
+            DeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED => {
+                vm_exited::DeathReason::BootloaderInstanceImageChanged
+            }
+            DeathReason::MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE => {
+                vm_exited::DeathReason::MicrodroidFailedToConnectToVirtualizationService
+            }
+            DeathReason::MICRODROID_PAYLOAD_HAS_CHANGED => {
+                vm_exited::DeathReason::MicrodroidPayloadHasChanged
+            }
+            DeathReason::MICRODROID_PAYLOAD_VERIFICATION_FAILED => {
+                vm_exited::DeathReason::MicrodroidPayloadVerificationFailed
+            }
+            DeathReason::MICRODROID_INVALID_PAYLOAD_CONFIG => {
+                vm_exited::DeathReason::MicrodroidInvalidPayloadConfig
+            }
+            DeathReason::MICRODROID_UNKNOWN_RUNTIME_ERROR => {
+                vm_exited::DeathReason::MicrodroidUnknownRuntimeError
+            }
+            DeathReason::HANGUP => vm_exited::DeathReason::Hangup,
+            _ => vm_exited::DeathReason::Unknown,
+        },
+    };
+    match vm_exited.stats_write() {
         Err(e) => {
             warn!("statslog_rust failed with error: {}", e);
         }

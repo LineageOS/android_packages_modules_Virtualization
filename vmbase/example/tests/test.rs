@@ -48,7 +48,9 @@ fn test_run_example_vm() -> Result<(), Error> {
         File::open(VMBASE_EXAMPLE_PATH)
             .with_context(|| format!("Failed to open VM image {}", VMBASE_EXAMPLE_PATH))?,
     );
+
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
+        name: String::from("VmBaseTest"),
         kernel: None,
         initrd: None,
         params: None,

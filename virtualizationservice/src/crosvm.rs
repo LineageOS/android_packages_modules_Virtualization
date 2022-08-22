@@ -15,6 +15,7 @@
 //! Functions for running instances of `crosvm`.
 
 use crate::aidl::VirtualMachineCallbacks;
+use crate::atom::write_vm_exited_stats;
 use crate::Cid;
 use anyhow::{anyhow, bail, Context, Error};
 use command_fds::CommandFdExt;
@@ -70,6 +71,7 @@ lazy_static! {
 #[derive(Debug)]
 pub struct CrosvmConfig {
     pub cid: Cid,
+    pub name: String,
     pub bootloader: Option<File>,
     pub kernel: Option<File>,
     pub initrd: Option<File>,
@@ -170,6 +172,8 @@ pub struct VmInstance {
     pub vm_state: Mutex<VmState>,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
+    /// The name of the VM.
+    pub name: String,
     /// Whether the VM is a protected VM.
     pub protected: bool,
     /// Directory of temporary files used by the VM while it is running.
@@ -204,10 +208,12 @@ impl VmInstance {
     ) -> Result<VmInstance, Error> {
         validate_config(&config)?;
         let cid = config.cid;
+        let name = config.name.clone();
         let protected = config.protected;
         Ok(VmInstance {
             vm_state: Mutex::new(VmState::NotStarted { config }),
             cid,
+            name,
             protected,
             temporary_directory,
             requester_uid,
@@ -261,7 +267,10 @@ impl VmInstance {
             };
 
         self.handle_ramdump().unwrap_or_else(|e| error!("Error handling ramdump: {}", e));
-        self.callbacks.callback_on_died(self.cid, death_reason(&result, &failure_reason));
+
+        let death_reason = death_reason(&result, &failure_reason);
+        self.callbacks.callback_on_died(self.cid, death_reason);
+        write_vm_exited_stats(self.requester_uid as i32, &self.name, death_reason);
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
