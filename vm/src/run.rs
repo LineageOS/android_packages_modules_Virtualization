@@ -35,6 +35,7 @@ use zip::ZipArchive;
 /// Run a VM from the given APK, idsig, and config.
 #[allow(clippy::too_many_arguments)]
 pub fn command_run_app(
+    name: Option<String>,
     service: &dyn IVirtualizationService,
     apk: &Path,
     idsig: &Path,
@@ -91,6 +92,7 @@ pub fn command_run_app(
     let extra_idsig_fds = extra_idsig_files?.into_iter().map(ParcelFileDescriptor::new).collect();
 
     let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
+        name: name.unwrap_or_else(|| String::from("VmRunApp")),
         apk: apk_fd.into(),
         idsig: idsig_fd.into(),
         extraIdsigs: extra_idsig_fds,
@@ -117,6 +119,7 @@ pub fn command_run_app(
 /// Run a VM from the given configuration file.
 #[allow(clippy::too_many_arguments)]
 pub fn command_run(
+    name: Option<String>,
     service: &dyn IVirtualizationService,
     config_path: &Path,
     daemonize: bool,
@@ -135,6 +138,11 @@ pub fn command_run(
     }
     if let Some(cpus) = cpus {
         config.numCpus = cpus as i32;
+    }
+    if let Some(name) = name {
+        config.name = name;
+    } else {
+        config.name = String::from("VmRun");
     }
     config.cpuAffinity = cpu_affinity;
     config.taskProfiles = task_profiles;
