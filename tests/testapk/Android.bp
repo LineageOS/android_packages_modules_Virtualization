@@ -25,6 +25,7 @@ android_test {
     use_embedded_native_libs: true,
     // We only support 64-bit ABI, but CTS demands all APKs to be multi-ABI.
     compile_multilib: "both",
+    min_sdk_version: "33",
 }
 
 // TODO(jiyong): make this a binary, not a shared library
