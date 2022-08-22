@@ -22,8 +22,8 @@
  */
 
 .macro exception_panic
-	mov	x0, 0x80400000
-	add	x0, x0, 9
+	mov	x0, 0x84000000
+	movk	x0, 9
 	mov	x1, 0
 	mov	x2, 0
 	mov	x3, 0
