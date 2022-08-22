@@ -102,6 +102,7 @@ impl ComposClient {
 
         let config_path = parameters.config_path.as_deref().unwrap_or(DEFAULT_VM_CONFIG_PATH);
         let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
+            name: String::from("Compos"),
             apk: Some(apk_fd),
             idsig: Some(idsig_fd),
             instanceImage: Some(instance_fd),
