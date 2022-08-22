@@ -15,6 +15,7 @@
 //! Android VirtualizationService
 
 mod aidl;
+mod atom;
 mod composite;
 mod crosvm;
 mod payload;
