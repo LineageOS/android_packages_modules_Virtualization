@@ -16,7 +16,7 @@
 
 use crate::aidl::VirtualMachineCallbacks;
 use crate::Cid;
-use anyhow::{bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use command_fds::CommandFdExt;
 use lazy_static::lazy_static;
 use log::{debug, error, info};
@@ -29,7 +29,7 @@ use std::io::{self, Read};
 use std::mem;
 use std::num::NonZeroU32;
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
@@ -38,6 +38,7 @@ use vsock::VsockStream;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DeathReason::DeathReason;
 use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
+use tombstoned_client::{TombstonedConnection, DebuggerdDumpType};
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
@@ -336,7 +337,28 @@ impl VmInstance {
             let ramdump = File::open(&ramdump_path)
                 .context(format!("Failed to open ramdump {:?} for reading", &ramdump_path))?;
             self.callbacks.callback_on_ramdump(self.cid, ramdump);
+
+            Self::send_ramdump_to_tombstoned(&ramdump_path)?;
         }
+        Ok(())
+    }
+
+    fn send_ramdump_to_tombstoned(ramdump_path: &Path) -> Result<(), Error> {
+        let mut input = File::open(ramdump_path)
+            .context(format!("Failed to open raudmp {:?} for reading", ramdump_path))?;
+
+        let pid = std::process::id() as i32;
+        let conn = TombstonedConnection::connect(pid, DebuggerdDumpType::Tombstone)
+            .context("Failed to connect to tombstoned")?;
+        let mut output = conn
+            .text_output
+            .as_ref()
+            .ok_or_else(|| anyhow!("Could not get file to write the tombstones on"))?;
+
+        std::io::copy(&mut input, &mut output).context("Failed to send ramdump to tombstoned")?;
+        info!("Ramdump {:?} sent to tombstoned", ramdump_path);
+
+        conn.notify_completion()?;
         Ok(())
     }
 }
