@@ -379,6 +379,7 @@ public class VirtualMachine {
             }
 
             VirtualMachineAppConfig appConfig = getConfig().toParcel();
+            appConfig.name = mName;
 
             // Fill the idsig file by hashing the apk
             service.createOrUpdateIdsigFile(
