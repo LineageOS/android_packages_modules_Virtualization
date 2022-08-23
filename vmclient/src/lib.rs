@@ -35,8 +35,8 @@ use android_system_virtualizationservice::{
         ParcelFileDescriptor, Result as BinderResult, StatusCode, Strong,
     },
 };
-use binder_common::rpc_client::connect_preconnected_rpc_binder;
 use log::warn;
+use rpcbinder::get_preconnected_rpc_interface;
 use std::{
     fmt::{self, Debug, Formatter},
     fs::File,
@@ -174,7 +174,7 @@ impl VmInstance {
         &self,
         port: u32,
     ) -> Result<Strong<T>, StatusCode> {
-        connect_preconnected_rpc_binder(|| {
+        get_preconnected_rpc_interface(|| {
             match self.vm.connectVsock(port as i32) {
                 Ok(vsock) => {
                     // Ownership of the fd is transferred to binder

@@ -9,9 +9,9 @@ rust_library {
     edition: "2021",
     rustlibs: [
         "android.system.virtualizationservice-rust",
-        "libbinder_common",
         "libbinder_rs",
         "liblog_rust",
+        "librpcbinder_rs",
         "libthiserror",
     ],
     shared_libs: [
