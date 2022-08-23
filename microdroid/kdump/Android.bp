@@ -4,9 +4,10 @@ package {
 
 cc_binary {
     name: "microdroid_kexec",
-    stem: "kexec",
+    stem: "kexec_load",
     srcs: ["kexec.c"],
     installable: false,
+    static_executable: true, // required because this runs before linkerconfig
     compile_multilib: "64",
 }
 
