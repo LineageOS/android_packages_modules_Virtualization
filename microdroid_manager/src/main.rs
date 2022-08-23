@@ -26,7 +26,6 @@ use android_security_dice::aidl::android::security::dice::IDiceMaintenance::IDic
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify};
 use binder::{wait_for_interface, Strong};
-use binder_common::rpc_client::connect_rpc_binder;
 use diced_utils::cbor::encode_header;
 use glob::glob;
 use idsig::V4Signature;
@@ -37,6 +36,7 @@ use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use openssl::sha::Sha512;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
 use rand::Fill;
+use rpcbinder::get_vsock_rpc_interface;
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
 use std::convert::TryInto;
@@ -141,7 +141,7 @@ fn write_death_reason_to_serial(err: &Error) -> Result<()> {
 }
 
 fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
-    connect_rpc_binder(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
+    get_vsock_rpc_interface(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
         .context("Cannot connect to RPC service")
 }
 
