@@ -21,7 +21,6 @@ java_test_host {
         ":microdroid_general_sepolicy.conf",
         ":test.com.android.virt.pem",
         ":test2.com.android.virt.pem",
-        ":test-payload-metadata",
     ],
     data_native_bins: [
         "sepolicy-analyze",
@@ -30,6 +29,7 @@ java_test_host {
         "img2simg",
         "lpmake",
         "lpunpack",
+        "mk_payload",
         "sign_virt_apex",
         "simg2img",
     ],
