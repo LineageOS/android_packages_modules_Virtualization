@@ -31,23 +31,29 @@ import java.util.WeakHashMap;
  * @hide
  */
 public class VirtualMachineManager {
-    private final @NonNull Context mContext;
+    @NonNull private final Context mContext;
 
     private VirtualMachineManager(@NonNull Context context) {
         mContext = context;
     }
 
-    static Map<Context, WeakReference<VirtualMachineManager>> sInstances = new WeakHashMap<>();
+    private static final Map<Context, WeakReference<VirtualMachineManager>> sInstances =
+            new WeakHashMap<>();
 
-    /** Returns the per-context instance. */
-    public static @NonNull VirtualMachineManager getInstance(@NonNull Context context) {
+    /**
+     * Returns the per-context instance.
+     *
+     * @hide
+     */
+    @NonNull
+    public static VirtualMachineManager getInstance(@NonNull Context context) {
         Objects.requireNonNull(context);
         synchronized (sInstances) {
             VirtualMachineManager vmm =
                     sInstances.containsKey(context) ? sInstances.get(context).get() : null;
             if (vmm == null) {
                 vmm = new VirtualMachineManager(context);
-                sInstances.put(context, new WeakReference(vmm));
+                sInstances.put(context, new WeakReference<>(vmm));
             }
             return vmm;
         }
@@ -62,8 +68,11 @@ public class VirtualMachineManager {
      * machine has to be deleted before its name can be reused. Every call to this methods creates a
      * new (and different) virtual machine even if the name and the config are the same as the
      * deleted one.
+     *
+     * @hide
      */
-    public @NonNull VirtualMachine create(
+    @NonNull
+    public VirtualMachine create(
             @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         synchronized (sCreateLock) {
@@ -74,16 +83,22 @@ public class VirtualMachineManager {
     /**
      * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
      * such virtual machine.
+     *
+     * @hide
      */
-    public @Nullable VirtualMachine get(@NonNull String name) throws VirtualMachineException {
+    @Nullable
+    public VirtualMachine get(@NonNull String name) throws VirtualMachineException {
         return VirtualMachine.load(mContext, name);
     }
 
     /**
      * Returns an existing {@link VirtualMachine} if it exists, or create a new one. The config
      * parameter is used only when a new virtual machine is created.
+     *
+     * @hide
      */
-    public @NonNull VirtualMachine getOrCreate(
+    @NonNull
+    public VirtualMachine getOrCreate(
             @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         VirtualMachine vm;
