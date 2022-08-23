@@ -23,8 +23,8 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemProperties;
-import android.system.virtualizationservice.DeathReason;
 import android.system.virtualmachine.VirtualMachine;
+import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
@@ -172,13 +172,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VmEventListener listener =
                 new VmEventListener() {
                     @Override
-                    public void onDied(VirtualMachine vm, @DeathReason int reason) {
+                    public void onDied(VirtualMachine vm,  int reason) {
                         exception.complete(reason);
                         super.onDied(vm, reason);
                     }
                 };
         listener.runToFinish(TAG, vm);
-        assertThat(exception.getNow(0)).isAnyOf(DeathReason.REBOOT, DeathReason.HANGUP);
+        assertThat(exception.getNow(0)).isAnyOf(VirtualMachineCallback.DEATH_REASON_REBOOT,
+                VirtualMachineCallback.DEATH_REASON_HANGUP);
     }
 
     @Test
@@ -434,7 +435,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(result.payloadStarted).isFalse();
 
         // This failure should shut the VM down immediately and shouldn't trigger a hangup.
-        assertThat(result.deathReason).isNotEqualTo(DeathReason.HANGUP);
+        assertThat(result.deathReason).isNotEqualTo(VirtualMachineCallback.DEATH_REASON_HANGUP);
     }
 
     @Test
@@ -502,6 +503,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_config");
         assertThat(bootResult.payloadStarted).isFalse();
-        assertThat(bootResult.deathReason).isEqualTo(DeathReason.MICRODROID_INVALID_PAYLOAD_CONFIG);
+        assertThat(bootResult.deathReason).isEqualTo(
+                VirtualMachineCallback.DEATH_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG);
     }
 }

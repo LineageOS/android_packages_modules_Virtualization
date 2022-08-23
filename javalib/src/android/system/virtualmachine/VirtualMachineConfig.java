@@ -21,6 +21,7 @@ import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.PackageInfoFlags;
 import android.content.pm.Signature; // This actually is certificate!
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
@@ -59,10 +60,14 @@ public final class VirtualMachineConfig {
     private static final String KEY_CPU_AFFINITY = "cpuAffinity";
 
     // Paths to the APK file of this application.
-    private final @NonNull String mApkPath;
-    private final @NonNull Signature[] mCerts;
+    @NonNull private final String mApkPath;
+    @NonNull private final Signature[] mCerts;
 
-    /** A debug level defines the set of debug features that the VM can be configured to. */
+    /**
+     * A debug level defines the set of debug features that the VM can be configured to.
+     *
+     * @hide
+     */
     public enum DebugLevel {
         /**
          * Not debuggable at all. No log is exported from the VM. Debugger can't be attached to the
@@ -110,7 +115,7 @@ public final class VirtualMachineConfig {
     /**
      * Path within the APK to the payload config file that defines software aspects of this config.
      */
-    private final @NonNull String mPayloadConfigPath;
+    @NonNull private final String mPayloadConfigPath;
 
     private VirtualMachineConfig(
             @NonNull String apkPath,
@@ -132,7 +137,8 @@ public final class VirtualMachineConfig {
     }
 
     /** Loads a config from a stream, for example a file. */
-    /* package */ static @NonNull VirtualMachineConfig from(@NonNull InputStream input)
+    @NonNull
+    static VirtualMachineConfig from(@NonNull InputStream input)
             throws IOException, VirtualMachineException {
         PersistableBundle b = PersistableBundle.readFromStream(input);
         final int version = b.getInt(KEY_VERSION);
@@ -186,8 +192,13 @@ public final class VirtualMachineConfig {
         b.writeToStream(output);
     }
 
-    /** Returns the path to the payload config within the owning application. */
-    public @NonNull String getPayloadConfigPath() {
+    /**
+     * Returns the path to the payload config within the owning application.
+     *
+     * @hide
+     */
+    @NonNull
+    public String getPayloadConfigPath() {
         return mPayloadConfigPath;
     }
 
@@ -197,6 +208,8 @@ public final class VirtualMachineConfig {
      * number of CPUs and the size of the RAM, and change of the payload as long as the payload is
      * signed by the same signer. All other changes (e.g. using a payload from a different signer,
      * change of the debug mode, etc.) are considered as incompatible.
+     *
+     * @hide
      */
     public boolean isCompatibleWith(@NonNull VirtualMachineConfig other) {
         if (!Arrays.equals(this.mCerts, other.mCerts)) {
@@ -243,17 +256,25 @@ public final class VirtualMachineConfig {
         return parcel;
     }
 
-    /** A builder used to create a {@link VirtualMachineConfig}. */
+    /**
+     * A builder used to create a {@link VirtualMachineConfig}.
+     *
+     * @hide
+     */
     public static class Builder {
-        private Context mContext;
-        private String mPayloadConfigPath;
+        private final Context mContext;
+        private final String mPayloadConfigPath;
         private DebugLevel mDebugLevel;
         private boolean mProtectedVm;
         private int mMemoryMib;
         private int mNumCpus;
         private String mCpuAffinity;
 
-        /** Creates a builder for the given context (APK), and the payload config file in APK. */
+        /**
+         * Creates a builder for the given context (APK), and the payload config file in APK.
+         *
+         * @hide
+         */
         public Builder(@NonNull Context context, @NonNull String payloadConfigPath) {
             mContext = Objects.requireNonNull(context);
             mPayloadConfigPath = Objects.requireNonNull(payloadConfigPath);
@@ -263,13 +284,21 @@ public final class VirtualMachineConfig {
             mCpuAffinity = null;
         }
 
-        /** Sets the debug level */
+        /**
+         * Sets the debug level
+         *
+         * @hide
+         */
         public Builder debugLevel(DebugLevel debugLevel) {
             mDebugLevel = debugLevel;
             return this;
         }
 
-        /** Sets whether to protect the VM memory from the host. Defaults to false. */
+        /**
+         *  Sets whether to protect the VM memory from the host. Defaults to false.
+         *
+         * @hide
+         */
         public Builder protectedVm(boolean protectedVm) {
             mProtectedVm = protectedVm;
             return this;
@@ -278,6 +307,8 @@ public final class VirtualMachineConfig {
         /**
          * Sets the amount of RAM to give the VM. If this is zero or negative then the default will
          * be used.
+         *
+         * @hide
          */
         public Builder memoryMib(int memoryMib) {
             mMemoryMib = memoryMib;
@@ -286,6 +317,8 @@ public final class VirtualMachineConfig {
 
         /**
          * Sets the number of vCPUs in the VM. Defaults to 1.
+         *
+         * @hide
          */
         public Builder numCpus(int num) {
             mNumCpus = num;
@@ -297,24 +330,30 @@ public final class VirtualMachineConfig {
          * or CPU ranges to run vCPUs on. e.g. "0,1-3,5" to choose host CPUs 0, 1, 2, 3, and 5.
          * Or this can be a colon-separated list of assignments of vCPU to host CPU assignments.
          * e.g. "0=0:1=1:2=2" to map vCPU 0 to host CPU 0, and so on.
+         *
+         * @hide
          */
         public Builder cpuAffinity(String affinity) {
             mCpuAffinity = affinity;
             return this;
         }
 
-        /** Builds an immutable {@link VirtualMachineConfig} */
-        public @NonNull VirtualMachineConfig build() {
+        /**
+         * Builds an immutable {@link VirtualMachineConfig}
+         *
+         * @hide
+         */
+        @NonNull
+        public VirtualMachineConfig build() {
             final String apkPath = mContext.getPackageCodePath();
             final String packageName = mContext.getPackageName();
             Signature[] certs;
             try {
-                certs =
-                        mContext.getPackageManager()
-                                .getPackageInfo(
-                                        packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-                                .signingInfo
-                                .getSigningCertificateHistory();
+                certs = mContext.getPackageManager()
+                        .getPackageInfo(packageName,
+                                PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES))
+                        .signingInfo
+                        .getSigningCertificateHistory();
             } catch (PackageManager.NameNotFoundException e) {
                 // This cannot happen as `packageName` is from this app.
                 throw new RuntimeException(e);
