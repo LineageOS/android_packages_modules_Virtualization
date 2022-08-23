@@ -29,9 +29,9 @@ use android_system_virtualmachineservice::{
     binder::Strong,
 };
 use anyhow::{bail, Context, Result};
-use binder_common::{rpc_client::connect_rpc_binder, rpc_server::run_rpc_server};
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
+use rpcbinder::{get_vsock_rpc_interface, run_rpc_server};
 use std::panic;
 
 /// The CID representing the host VM
@@ -72,6 +72,6 @@ fn try_main() -> Result<()> {
 }
 
 fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
-    connect_rpc_binder(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
+    get_vsock_rpc_interface(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
         .context("Connecting to IVirtualMachineService")
 }
