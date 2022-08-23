@@ -17,8 +17,11 @@ java_sdk_library {
         "android.system.virtualmachine",
         "android.system.virtualizationservice",
     ],
-    // TODO(jiyong): remove the below once this gets public
-    unsafe_ignore_missing_latest_api: true,
+}
+
+prebuilt_apis {
+    name: "android-virtualization-framework-sdk",
+    api_dirs: ["32"],
 }
 
 android_app {
