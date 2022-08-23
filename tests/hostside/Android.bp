@@ -22,8 +22,6 @@ java_test_host {
         ":test.com.android.virt.pem",
         ":test2.com.android.virt.pem",
         ":test-payload-metadata",
-        ":com.android.adbd{.apex}",
-        ":com.android.os.statsd{.apex}",
     ],
     data_native_bins: [
         "sepolicy-analyze",
