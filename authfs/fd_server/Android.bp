@@ -10,12 +10,12 @@ rust_binary {
         "libandroid_logger",
         "libanyhow",
         "libauthfs_fsverity_metadata",
-        "libbinder_common",
         "libbinder_rs",
         "libclap",
         "liblibc",
         "liblog_rust",
         "libnix",
+        "librpcbinder_rs",
     ],
     prefer_rlib: true,
     shared_libs: [
