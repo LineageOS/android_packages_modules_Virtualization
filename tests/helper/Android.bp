@@ -18,5 +18,4 @@ java_library_static {
         "truth-prebuilt",
     ],
     libs: ["android.system.virtualmachine"],
-    platform_apis: true,
 }
