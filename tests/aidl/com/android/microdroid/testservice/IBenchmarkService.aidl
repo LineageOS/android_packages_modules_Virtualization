@@ -22,4 +22,7 @@ interface IBenchmarkService {
 
     /** Reads a file and returns the elapsed seconds for the reading. */
     double readFile(String filename, long fileSizeBytes, boolean isRand);
+
+    /** Returns an entry from /proc/meminfo. */
+    long getMemInfoEntry(String name);
 }
