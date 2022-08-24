@@ -558,6 +558,11 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         AtomsProto.VmExited atomVmExited = data.get(0).getAtom().getVmExited();
         assertEquals("VmRunApp", atomVmExited.getVmIdentifier());
         assertEquals(AtomsProto.VmExited.DeathReason.KILLED, atomVmExited.getDeathReason());
+
+        // Check UID and elapsed_time by comparing each other.
+        assertEquals(atomVmCreationRequested.getUid(), atomVmBooted.getUid());
+        assertEquals(atomVmCreationRequested.getUid(), atomVmExited.getUid());
+        assertTrue(atomVmBooted.getElapsedTimeMillis() < atomVmExited.getElapsedTimeMillis());
     }
 
     @Test
