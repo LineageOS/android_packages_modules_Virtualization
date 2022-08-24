@@ -25,10 +25,13 @@
 
 #include <binder_rpc_unstable.hpp>
 #include <chrono>
+#include <fstream>
 #include <random>
 #include <string>
 
 #include "android-base/logging.h"
+#include "android-base/parseint.h"
+#include "android-base/strings.h"
 
 using aidl::android::system::virtualmachineservice::IVirtualMachineService;
 using android::base::ErrnoError;
@@ -39,18 +42,35 @@ using android::base::unique_fd;
 namespace {
 constexpr uint64_t kBlockSizeBytes = 4096;
 
+template <typename T>
+static ndk::ScopedAStatus resultStatus(const T& result) {
+    if (!result.ok()) {
+        std::stringstream error;
+        error << result.error();
+        return ndk::ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_ARGUMENT,
+                                                                error.str().c_str());
+    }
+    return ndk::ScopedAStatus::ok();
+}
+
 class IOBenchmarkService : public aidl::com::android::microdroid::testservice::BnBenchmarkService {
 public:
     ndk::ScopedAStatus readFile(const std::string& filename, int64_t fileSizeBytes, bool isRand,
                                 double* out) override {
-        if (auto res = read_file(filename, fileSizeBytes, isRand); res.ok()) {
+        auto res = read_file(filename, fileSizeBytes, isRand);
+        if (res.ok()) {
             *out = res.value();
-        } else {
-            std::stringstream error;
-            error << "Failed reading file: " << res.error();
-            return ndk::ScopedAStatus::fromExceptionCodeWithMessage(EX_ILLEGAL_ARGUMENT,
-                                                                    error.str().c_str());
         }
+        return resultStatus(res);
+    }
+
+    ndk::ScopedAStatus getMemInfoEntry(const std::string& name, int64_t* out) override {
+        auto value = read_meminfo_entry(name);
+        if (!value.ok()) {
+            return resultStatus(value);
+        }
+
+        *out = (int64_t)value.value();
         return ndk::ScopedAStatus::ok();
     }
 
@@ -86,6 +106,32 @@ private:
             }
         }
         return {((double)clock() - start) / CLOCKS_PER_SEC};
+    }
+
+    Result<size_t> read_meminfo_entry(const std::string& stat) {
+        std::ifstream fs("/proc/meminfo");
+        if (!fs.is_open()) {
+            return Error() << "could not open /proc/meminfo";
+        }
+
+        std::string line;
+        while (std::getline(fs, line)) {
+            auto elems = android::base::Split(line, ":");
+            if (elems[0] != stat) continue;
+
+            std::string str = android::base::Trim(elems[1]);
+            if (android::base::EndsWith(str, " kB")) {
+                str = str.substr(0, str.length() - 3);
+            }
+
+            size_t value;
+            if (!android::base::ParseUint(str, &value)) {
+                return ErrnoError() << "failed to parse \"" << str << "\" as size_t";
+            }
+            return {value};
+        }
+
+        return Error() << "entry \"" << stat << "\" not found";
     }
 };
 
