@@ -23,7 +23,6 @@
 //! client can then request the content of file 9 by offset and size.
 
 mod aidl;
-mod common;
 mod fsverity;
 
 use anyhow::{bail, Result};
