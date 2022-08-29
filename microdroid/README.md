@@ -167,17 +167,7 @@ requires a new instance. Then add the `--debug=full` flag to the
 `/apex/com.android.virt/bin/vm run-app` command, and then
 
 ```sh
-adb forward tcp:8000 vsock:$CID:5555
-adb connect localhost:8000
+vm_shell
 ```
 
-`$CID` should be the CID that `vm` reported upon execution of the `vm run`
-command in the above. You can also check it with
-`adb shell "/apex/com.android.virt/bin/vm list"`. `5555` must be the value.
-`8000` however can be any port on the development machine.
-
-Done. Now you can log into microdroid. Have fun!
-
-```sh
-$ adb -s localhost:8000 shell
-```
+Done. Now you are logged into Microdroid. Have fun!
