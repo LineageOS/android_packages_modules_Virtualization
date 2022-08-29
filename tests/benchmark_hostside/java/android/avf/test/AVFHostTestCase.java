@@ -84,7 +84,6 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
             // Boot time with compilation OS test.
             reInstallApex(REINSTALL_APEX_TIMEOUT_SEC);
-            getDevice().setProperty(SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME, "speed");
             compileStagedApex(COMPILE_STAGED_APEX_TIMEOUT_SEC);
             long start = System.nanoTime();
             rebootAndWaitBootCompleted();
