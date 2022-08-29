@@ -28,3 +28,8 @@ rust_binary {
         "com.android.virt",
     ],
 }
+
+sh_binary_host {
+    name: "vm_shell",
+    src: "vm_shell.sh",
+}
