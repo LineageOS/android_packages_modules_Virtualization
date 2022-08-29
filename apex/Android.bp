@@ -69,6 +69,9 @@ apex {
     ],
     file_contexts: ":com.android.virt-file_contexts",
     canned_fs_config: "canned_fs_config",
+    host_required: [
+        "vm_shell",
+    ],
 }
 
 apex_key {
