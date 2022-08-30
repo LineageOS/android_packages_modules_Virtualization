@@ -33,7 +33,7 @@ use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use std::thread;
 use vsock::VsockStream;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DeathReason::DeathReason;
@@ -191,6 +191,8 @@ pub struct VmInstance {
     pub stream: Mutex<Option<VsockStream>>,
     /// VirtualMachineService binder object for the VM.
     pub vm_service: Mutex<Option<Strong<dyn IVirtualMachineService>>>,
+    /// Recorded timestamp when the VM is started.
+    pub vm_start_timestamp: Mutex<Option<SystemTime>>,
     /// The latest lifecycle state which the payload reported itself to be in.
     payload_state: Mutex<PayloadState>,
     /// Represents the condition that payload_state was updated
@@ -222,6 +224,7 @@ impl VmInstance {
             callbacks: Default::default(),
             stream: Mutex::new(None),
             vm_service: Mutex::new(None),
+            vm_start_timestamp: Mutex::new(None),
             payload_state: Mutex::new(PayloadState::Starting),
             payload_state_updated: Condvar::new(),
         })
@@ -230,6 +233,7 @@ impl VmInstance {
     /// Starts an instance of `crosvm` to manage the VM. The `crosvm` instance will be killed when
     /// the `VmInstance` is dropped.
     pub fn start(self: &Arc<Self>) -> Result<(), Error> {
+        *self.vm_start_timestamp.lock().unwrap() = Some(SystemTime::now());
         self.vm_state.lock().unwrap().start(self.clone())
     }
 
@@ -270,7 +274,14 @@ impl VmInstance {
 
         let death_reason = death_reason(&result, &failure_reason);
         self.callbacks.callback_on_died(self.cid, death_reason);
-        write_vm_exited_stats(self.requester_uid as i32, &self.name, death_reason);
+
+        let vm_start_timestamp = self.vm_start_timestamp.lock().unwrap();
+        write_vm_exited_stats(
+            self.requester_uid as i32,
+            &self.name,
+            death_reason,
+            *vm_start_timestamp,
+        );
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
