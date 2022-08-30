@@ -22,9 +22,9 @@ use anyhow::{bail, Context, Result};
 use clap::{App, Arg, Values};
 use command_fds::{CommandFdExt, FdMapping};
 use log::{debug, error};
-use nix::{dir::Dir, fcntl::OFlag, sys::stat::Mode};
-use std::fs::{File, OpenOptions};
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::fs::OpenOptions;
+use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::{AsRawFd, OwnedFd, RawFd};
 use std::process::Command;
 
 // `PseudoRawFd` is just an integer and not necessarily backed by a real FD. It is used to denote
@@ -32,31 +32,30 @@ use std::process::Command;
 // with this alias is to improve readability by distinguishing from actual RawFd.
 type PseudoRawFd = RawFd;
 
-struct FileMapping<T: AsRawFd> {
-    file: T,
+struct OwnedFdMapping {
+    owned_fd: OwnedFd,
     target_fd: PseudoRawFd,
 }
 
-impl<T: AsRawFd> FileMapping<T> {
+impl OwnedFdMapping {
     fn as_fd_mapping(&self) -> FdMapping {
-        FdMapping { parent_fd: self.file.as_raw_fd(), child_fd: self.target_fd }
+        FdMapping { parent_fd: self.owned_fd.as_raw_fd(), child_fd: self.target_fd }
     }
 }
 
 struct Args {
-    ro_files: Vec<FileMapping<File>>,
-    rw_files: Vec<FileMapping<File>>,
-    dir_files: Vec<FileMapping<Dir>>,
+    ro_file_fds: Vec<OwnedFdMapping>,
+    rw_file_fds: Vec<OwnedFdMapping>,
+    dir_fds: Vec<OwnedFdMapping>,
     cmdline_args: Vec<String>,
 }
 
-fn parse_and_create_file_mapping<F, T>(
+fn parse_and_create_file_mapping<F>(
     values: Option<Values<'_>>,
     opener: F,
-) -> Result<Vec<FileMapping<T>>>
+) -> Result<Vec<OwnedFdMapping>>
 where
-    F: Fn(&str) -> Result<T>,
-    T: AsRawFd,
+    F: Fn(&str) -> Result<OwnedFd>,
 {
     if let Some(options) = values {
         options
@@ -68,7 +67,7 @@ where
                 }
                 let fd = strs[0].parse::<PseudoRawFd>().context("Invalid FD format")?;
                 let path = strs[1];
-                Ok(FileMapping { target_fd: fd, file: opener(path)? })
+                Ok(OwnedFdMapping { target_fd: fd, owned_fd: opener(path)? })
             })
             .collect::<Result<_>>()
     } else {
@@ -104,27 +103,39 @@ fn parse_args() -> Result<Args> {
              .multiple(true))
         .get_matches();
 
-    let ro_files = parse_and_create_file_mapping(matches.values_of("open-ro"), |path| {
-        OpenOptions::new().read(true).open(path).with_context(|| format!("Open {} read-only", path))
+    let ro_file_fds = parse_and_create_file_mapping(matches.values_of("open-ro"), |path| {
+        Ok(OwnedFd::from(
+            OpenOptions::new()
+                .read(true)
+                .open(path)
+                .with_context(|| format!("Open {} read-only", path))?,
+        ))
     })?;
 
-    let rw_files = parse_and_create_file_mapping(matches.values_of("open-rw"), |path| {
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)
-            .with_context(|| format!("Open {} read-write", path))
+    let rw_file_fds = parse_and_create_file_mapping(matches.values_of("open-rw"), |path| {
+        Ok(OwnedFd::from(
+            OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(path)
+                .with_context(|| format!("Open {} read-write", path))?,
+        ))
     })?;
 
-    let dir_files = parse_and_create_file_mapping(matches.values_of("open-dir"), |path| {
-        Dir::open(path, OFlag::O_DIRECTORY | OFlag::O_RDONLY, Mode::S_IRWXU)
-            .with_context(|| format!("Open {} directory", path))
+    let dir_fds = parse_and_create_file_mapping(matches.values_of("open-dir"), |path| {
+        Ok(OwnedFd::from(
+            OpenOptions::new()
+                .custom_flags(libc::O_DIRECTORY)
+                .read(true) // O_DIRECTORY can only be opened with read
+                .open(path)
+                .with_context(|| format!("Open {} directory", path))?,
+        ))
     })?;
 
     let cmdline_args: Vec<_> = matches.values_of("args").unwrap().map(|s| s.to_string()).collect();
 
-    Ok(Args { ro_files, rw_files, dir_files, cmdline_args })
+    Ok(Args { ro_file_fds, rw_file_fds, dir_fds, cmdline_args })
 }
 
 fn try_main() -> Result<()> {
@@ -135,9 +146,9 @@ fn try_main() -> Result<()> {
 
     // Set up FD mappings in the child process.
     let mut fd_mappings = Vec::new();
-    fd_mappings.extend(args.ro_files.iter().map(FileMapping::as_fd_mapping));
-    fd_mappings.extend(args.rw_files.iter().map(FileMapping::as_fd_mapping));
-    fd_mappings.extend(args.dir_files.iter().map(FileMapping::as_fd_mapping));
+    fd_mappings.extend(args.ro_file_fds.iter().map(OwnedFdMapping::as_fd_mapping));
+    fd_mappings.extend(args.rw_file_fds.iter().map(OwnedFdMapping::as_fd_mapping));
+    fd_mappings.extend(args.dir_fds.iter().map(OwnedFdMapping::as_fd_mapping));
     command.fd_mappings(fd_mappings)?;
 
     debug!("Spawning {:?}", command);
