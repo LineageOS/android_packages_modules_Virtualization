@@ -7,6 +7,7 @@ rust_bindgen {
     host_supported: true,
     wrapper_src: "bindgen/avb.h",
     crate_name: "avb_bindgen",
+    edition: "2021",
     visibility: ["//packages/modules/Virtualization:__subpackages__"],
     source_stem: "bindings",
     bindgen_flags: [
@@ -26,6 +27,7 @@ rust_test {
     name: "libavb_bindgen_test",
     srcs: [":libavb_bindgen"],
     crate_name: "avb_bindgen_test",
+    edition: "2021",
     test_suites: ["general-tests"],
     auto_gen_config: true,
     clippy_lints: "none",

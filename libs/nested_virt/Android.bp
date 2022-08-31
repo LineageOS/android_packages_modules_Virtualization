@@ -6,7 +6,7 @@ rust_library {
     name: "libnested_virt",
     crate_name: "nested_virt",
     srcs: ["src/lib.rs"],
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "libanyhow",
         "librustutils",
