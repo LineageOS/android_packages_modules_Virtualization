@@ -23,10 +23,12 @@ import static com.google.common.truth.TruthJUnit.assume;
 
 import android.app.Instrumentation;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
+import android.util.Log;
 
 import com.android.microdroid.test.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.IBenchmarkService;
@@ -43,12 +45,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(Parameterized.class)
 public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidBenchmarks";
     private static final String METRIC_NAME_PREFIX = "avf_perf/microdroid/";
-    private static final int VIRTIO_BLK_TRIAL_COUNT = 5;
+    private static final int IO_TEST_TRIAL_COUNT = 5;
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
@@ -178,6 +181,25 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void testVsockTransferFromHostToVM() throws Exception {
+        VirtualMachineConfig config =
+                mInner.newVmConfigBuilder("assets/vm_config_io.json")
+                        .debugLevel(DebugLevel.FULL)
+                        .build();
+        List<Double> transferRates = new ArrayList<>();
+
+        for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
+            int port = (mProtectedVm ? 5666 : 6666) + i;
+            String vmName = "test_vm_io_" + i;
+            mInner.forceCreateNewVirtualMachine(vmName, config);
+            VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+            VsockVmEventListener listener = new VsockVmEventListener(transferRates, port);
+            listener.runToFinish(TAG, vm);
+        }
+        reportMetrics(transferRates, "vsock/transfer_host_to_vm_", "_mb_per_sec");
+    }
+
+    @Test
     public void testVirtioBlkSeqReadRate() throws Exception {
         testVirtioBlkReadRate(/*isRand=*/ false);
     }
@@ -188,12 +210,13 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     private void testVirtioBlkReadRate(boolean isRand) throws Exception {
-        VirtualMachineConfig.Builder builder =
-                mInner.newVmConfigBuilder("assets/vm_config_io.json");
-        VirtualMachineConfig config = builder.debugLevel(DebugLevel.FULL).build();
+        VirtualMachineConfig config =
+                mInner.newVmConfigBuilder("assets/vm_config_io.json")
+                        .debugLevel(DebugLevel.FULL)
+                        .build();
         List<Double> readRates = new ArrayList<>();
 
-        for (int i = 0; i < VIRTIO_BLK_TRIAL_COUNT + 1; ++i) {
+        for (int i = 0; i < IO_TEST_TRIAL_COUNT + 1; ++i) {
             if (i == 1) {
                 // Clear the first result because when the file was loaded the first time,
                 // the data also needs to be loaded from hard drive to host. This is
@@ -331,6 +354,52 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 throw new RuntimeException(e);
             }
             forceStop(vm);
+        }
+    }
+
+    private static class VsockVmEventListener extends VmEventListener {
+        private static final int NUM_BYTES_TO_TRANSFER = 48 * 1024 * 1024;
+
+        private final List<Double> mReadRates;
+        private final int mPort;
+
+        VsockVmEventListener(List<Double> readRates, int port) {
+            mReadRates = readRates;
+            mPort = port;
+        }
+
+        @Override
+        public void onPayloadReady(VirtualMachine vm) {
+            try {
+                IBenchmarkService benchmarkService =
+                        IBenchmarkService.Stub.asInterface(
+                                vm.connectToVsockServer(IBenchmarkService.SERVICE_PORT).get());
+                assertThat(benchmarkService).isNotNull();
+                AtomicReference<Double> sendRate = new AtomicReference();
+
+                int serverFd = benchmarkService.initVsockServer(mPort);
+                new Thread(() -> sendRate.set(runVsockClientAndSendData(vm))).start();
+                benchmarkService.runVsockServerAndReceiveData(serverFd, NUM_BYTES_TO_TRANSFER);
+
+                mReadRates.add(sendRate.get());
+            } catch (Exception e) {
+                Log.e(TAG, "Test failed in VM:" + e);
+                throw new RuntimeException(e);
+            }
+            forceStop(vm);
+        }
+
+        private double runVsockClientAndSendData(VirtualMachine vm) {
+            try {
+                ParcelFileDescriptor fd = vm.connectVsock(mPort);
+                double sendRate =
+                        IoVsockHostNative.measureSendRate(fd.getFd(), NUM_BYTES_TO_TRANSFER);
+                fd.closeWithError("Cannot close socket file descriptor");
+                return sendRate;
+            } catch (Exception e) {
+                Log.e(TAG, "Error inside runVsockClientAndSendData():" + e);
+                throw new RuntimeException(e);
+            }
         }
     }
 }
