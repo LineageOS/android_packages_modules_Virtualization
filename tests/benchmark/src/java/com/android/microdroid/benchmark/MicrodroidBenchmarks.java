@@ -112,7 +112,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         assertThat(found).isTrue();
 
         Bundle bundle = new Bundle();
-        bundle.putInt("avf_perf/microdroid/minimum_required_memory", minimum);
+        bundle.putInt(METRIC_NAME_PREFIX + "minimum_required_memory", minimum);
         mInstrumentation.sendStatus(0, bundle);
     }
 
