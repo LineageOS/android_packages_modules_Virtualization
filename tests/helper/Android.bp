@@ -9,7 +9,7 @@ java_library_static {
 }
 
 java_library_static {
-    name: "MicroroidDeviceTestHelper",
+    name: "MicrodroidDeviceTestHelper",
     srcs: ["src/java/com/android/microdroid/**/*.java"],
     static_libs: [
         "androidx.test.runner",
