@@ -1,6 +1,6 @@
 drops {
   android_build_drop {
-    build_id: "8964254"
+    build_id: "8966862"
     target: "u-boot_pvmfw"
     source_file: "pvmfw.img"
   }
