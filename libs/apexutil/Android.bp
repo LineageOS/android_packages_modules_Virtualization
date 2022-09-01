@@ -7,7 +7,7 @@ rust_defaults {
     crate_name: "apexutil",
     host_supported: true,
     srcs: ["src/lib.rs"],
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "liblog_rust",
         "libthiserror",

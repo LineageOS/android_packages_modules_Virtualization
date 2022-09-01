@@ -6,7 +6,7 @@ rust_binary {
     name: "vm",
     crate_name: "vm",
     srcs: ["src/main.rs"],
-    edition: "2018",
+    edition: "2021",
     prefer_rlib: true,
     rustlibs: [
         "android.system.virtualizationservice-rust",

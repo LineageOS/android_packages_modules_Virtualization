@@ -6,7 +6,7 @@ rust_defaults {
     name: "zipfuse.defaults",
     crate_name: "zipfuse",
     srcs: ["src/main.rs"],
-    edition: "2018",
+    edition: "2021",
     prefer_rlib: true,
     rustlibs: [
         "libanyhow",

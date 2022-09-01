@@ -7,7 +7,7 @@ rust_binary {
     srcs: [
         "src/main.rs",
     ],
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "authfs_aidl_interface-rust",
         "libandroid_logger",
