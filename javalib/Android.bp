@@ -2,31 +2,38 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+// Defines our permissions
+android_app {
+    name: "android.system.virtualmachine.res",
+    installable: true,
+    apex_available: ["com.android.virt"],
+    sdk_version: "current",
+}
+
 java_sdk_library {
     name: "android.system.virtualmachine",
     installable: true,
     compile_dex: true,
 
+    jarjar_rules: "jarjar-rules.txt",
+
     srcs: ["src/**/*.java"],
     static_libs: [
         "android.system.virtualizationservice-java",
+        // For android.sysprop.HypervisorProperties
+        "PlatformProperties",
     ],
 
     apex_available: ["com.android.virt"],
     permitted_packages: [
         "android.system.virtualmachine",
         "android.system.virtualizationservice",
+        // android.sysprop.*, renamed by jarjar
+        "com.android.system.virtualmachine.sysprop",
     ],
 }
 
 prebuilt_apis {
     name: "android-virtualization-framework-sdk",
     api_dirs: ["32"],
-}
-
-android_app {
-    name: "android.system.virtualmachine.res",
-    installable: true,
-    apex_available: ["com.android.virt"],
-    sdk_version: "current",
 }
