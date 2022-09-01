@@ -16,8 +16,6 @@
 
 package android.avf.test;
 
-import android.platform.test.annotations.RootPermissionTest;
-
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -25,8 +23,11 @@ import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assume.assumeTrue;
 
+import android.platform.test.annotations.RootPermissionTest;
+
 import com.android.microdroid.test.CommandRunner;
 import com.android.microdroid.test.MicrodroidHostTestCaseBase;
+import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
@@ -36,6 +37,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,6 +65,8 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     private static final int ROUND_COUNT = 5;
     private static final String METRIC_PREFIX = "avf_perf/hostside/";
 
+    private final MetricsProcessor mMetricsProcessor = new MetricsProcessor(METRIC_PREFIX);
+
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
@@ -80,11 +86,10 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testBootEnableAndDisablePKVM() throws Exception {
-
         testPKVMStatusSwitchSupported();
 
-        double[] bootWithPKVMEnableTime = new double[ROUND_COUNT];
-        double[] bootWithoutPKVMEnableTime = new double[ROUND_COUNT];
+        List<Double> bootWithPKVMEnableTime = new ArrayList<>(ROUND_COUNT);
+        List<Double> bootWithoutPKVMEnableTime = new ArrayList<>(ROUND_COUNT);
 
         for (int round = 0; round < ROUND_COUNT; ++round) {
 
@@ -93,7 +98,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             rebootFromBootloaderAndWaitBootCompleted();
             long elapsedWithPKVMEnable = System.nanoTime() - start;
             double elapsedSec = elapsedWithPKVMEnable / NANOS_IN_SEC;
-            bootWithPKVMEnableTime[round] = elapsedSec;
+            bootWithPKVMEnableTime.add(elapsedSec);
             CLog.i("Boot time with PKVM enable took " + elapsedSec + "s");
 
             setPKVMStatusWithRebootToBootloader(false);
@@ -101,20 +106,20 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             rebootFromBootloaderAndWaitBootCompleted();
             long elapsedWithoutPKVMEnable = System.nanoTime() - start;
             elapsedSec = elapsedWithoutPKVMEnable / NANOS_IN_SEC;
-            bootWithoutPKVMEnableTime[round] = elapsedSec;
+            bootWithoutPKVMEnableTime.add(elapsedSec);
             CLog.i("Boot time with PKVM disable took " + elapsedSec + "s");
         }
 
-        reportMetric("boot_time_with_pkvm_enable", "s", bootWithPKVMEnableTime);
-        reportMetric("boot_time_with_pkvm_disable", "s", bootWithoutPKVMEnableTime);
+        reportMetric(bootWithPKVMEnableTime, "boot_time_with_pkvm_enable", "s");
+        reportMetric(bootWithoutPKVMEnableTime, "boot_time_with_pkvm_disable", "s");
     }
 
     @Test
     public void testBootWithAndWithoutCompOS() throws Exception {
         assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
 
-        double[] bootWithCompOsTime = new double[ROUND_COUNT];
-        double[] bootWithoutCompOsTime = new double[ROUND_COUNT];
+        List<Double> bootWithCompOsTime = new ArrayList<>(ROUND_COUNT);
+        List<Double> bootWithoutCompOsTime = new ArrayList<>(ROUND_COUNT);
 
         for (int round = 0; round < ROUND_COUNT; ++round) {
 
@@ -125,7 +130,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             rebootAndWaitBootCompleted();
             long elapsedWithCompOS = System.nanoTime() - start;
             double elapsedSec = elapsedWithCompOS / NANOS_IN_SEC;
-            bootWithCompOsTime[round] = elapsedSec;
+            bootWithCompOsTime.add(elapsedSec);
             CLog.i("Boot time with compilation OS took " + elapsedSec + "s");
 
             // Boot time without compilation OS test.
@@ -134,12 +139,12 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             rebootAndWaitBootCompleted();
             long elapsedWithoutCompOS = System.nanoTime() - start;
             elapsedSec = elapsedWithoutCompOS / NANOS_IN_SEC;
-            bootWithoutCompOsTime[round] = elapsedSec;
+            bootWithoutCompOsTime.add(elapsedSec);
             CLog.i("Boot time without compilation OS took " + elapsedSec + "s");
         }
 
-        reportMetric("boot_time_with_compos", "s", bootWithCompOsTime);
-        reportMetric("boot_time_without_compos", "s", bootWithoutCompOsTime);
+        reportMetric(bootWithCompOsTime, "boot_time_with_compos", "s");
+        reportMetric(bootWithoutCompOsTime, "boot_time_without_compos", "s");
     }
 
     private void testPKVMStatusSwitchSupported() throws Exception {
@@ -154,31 +159,12 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         assumeTrue(!result.getStderr().contains("Invalid oem command"));
     }
 
-    private void reportMetric(String name, String unit, double[] values) {
-        double sum = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-
-        for (double val : values) {
-            sum += val;
-            min = val < min ? val : min;
-            max = val > max ? val : max;
-        }
-
-        double average = sum / values.length;
-
-        double variance = 0;
-        for (double val : values) {
-            final double tmp = val - average;
-            variance += tmp * tmp;
-        }
-        double stdev = Math.sqrt(variance / (double) (values.length - 1));
-
+    private void reportMetric(List<Double> data, String name, String unit) {
+        Map<String, Double> stats = mMetricsProcessor.computeStats(data, name, unit);
         TestMetrics metrics = new TestMetrics();
-        metrics.addTestMetric(METRIC_PREFIX + name + "_average_" + unit, Double.toString(average));
-        metrics.addTestMetric(METRIC_PREFIX + name + "_min_" + unit, Double.toString(min));
-        metrics.addTestMetric(METRIC_PREFIX + name + "_max_" + unit, Double.toString(max));
-        metrics.addTestMetric(METRIC_PREFIX + name + "_stdev_" + unit, Double.toString(stdev));
+        for (Map.Entry<String, Double> entry : stats.entrySet()) {
+            metrics.addTestMetric(entry.getKey(), Double.toString(entry.getValue()));
+        }
     }
 
     private void setPKVMStatusWithRebootToBootloader(boolean isEnable) throws Exception {
