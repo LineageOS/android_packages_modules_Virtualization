@@ -6,7 +6,7 @@ rust_defaults {
     name: "virtualizationservice_defaults",
     crate_name: "virtualizationservice",
     srcs: ["src/main.rs"],
-    edition: "2018",
+    edition: "2021",
     // Only build on targets which crosvm builds on.
     enabled: false,
     target: {

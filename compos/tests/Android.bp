@@ -10,11 +10,18 @@ java_test_host {
         "compatibility-tradefed",
         "compatibility-host-util",
     ],
-    data_native_bins: ["bcc_validator"],
     static_libs: [
         "MicrodroidHostTestHelper",
     ],
     test_suites: [
         "general-tests",
+    ],
+    // java_test_host doesn't have data_native_libs but jni_libs can be used to put
+    // native modules under ./lib directory.
+    // This works because host tools have rpath (../lib and ./lib).
+    data_native_bins: ["bcc_validator"],
+    jni_libs: [
+        "libcrypto",
+        "libc++",
     ],
 }

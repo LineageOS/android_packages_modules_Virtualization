@@ -5,7 +5,7 @@ package {
 rust_binary {
     name: "composd_cmd",
     srcs: ["composd_cmd.rs"],
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "android.system.composd-rust",
         "libanyhow",
