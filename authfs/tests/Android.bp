@@ -27,7 +27,7 @@ rust_test {
     name: "open_then_run",
     crate_name: "open_then_run",
     srcs: ["open_then_run.rs"],
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "libandroid_logger",
         "libanyhow",

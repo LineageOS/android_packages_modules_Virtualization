@@ -4,6 +4,7 @@ package {
 
 rust_defaults {
     name: "vmbase_rust_defaults",
+    edition: "2021",
     host_supported: false,
     enabled: false,
     target: {
@@ -55,7 +56,6 @@ rust_library_rlib {
     defaults: ["vmbase_rust_defaults"],
     crate_name: "vmbase",
     srcs: ["src/lib.rs"],
-    edition: "2021",
     rustlibs: [
         "liblog_rust_nostd",
         "libpsci",

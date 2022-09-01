@@ -7,7 +7,7 @@ rust_defaults {
     crate_name: "apkverify",
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "libanyhow",
         "libbyteorder",
@@ -37,7 +37,7 @@ rust_test {
     crate_name: "apkverify_test",
     srcs: ["tests/*_test.rs"],
     prefer_rlib: true,
-    edition: "2018",
+    edition: "2021",
     test_suites: ["general-tests"],
     rustlibs: [
         "libapkverify",
