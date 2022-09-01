@@ -4,6 +4,7 @@ package {
 
 rust_defaults {
     name: "compsvc_defaults",
+    edition: "2021",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
         "android.system.virtualmachineservice-rust",
