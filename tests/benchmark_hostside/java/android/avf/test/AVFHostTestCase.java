@@ -21,6 +21,7 @@ import android.platform.test.annotations.RootPermissionTest;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertWithMessage;
+import static com.google.common.truth.TruthJUnit.assume;
 
 import com.android.microdroid.test.CommandRunner;
 import com.android.microdroid.test.MicrodroidHostTestCaseBase;
@@ -76,6 +77,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testBootWithAndWithoutCompOS() throws Exception {
+        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
 
         double[] bootWithCompOsTime = new double[ROUND_COUNT];
         double[] bootWithoutCompOsTime = new double[ROUND_COUNT];
