@@ -118,7 +118,7 @@ public abstract class MicrodroidDeviceTestBase {
         mInner = new Inner(context, protectedVm, VirtualMachineManager.getInstance(context));
     }
 
-    protected abstract static class VmEventListener implements VirtualMachineCallback {
+    public abstract static class VmEventListener implements VirtualMachineCallback {
         private ExecutorService mExecutorService = Executors.newSingleThreadExecutor();
         private OptionalLong mVcpuStartedNanoTime = OptionalLong.empty();
         private OptionalLong mKernelStartedNanoTime = OptionalLong.empty();
