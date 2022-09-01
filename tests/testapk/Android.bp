@@ -10,7 +10,7 @@ android_test {
     ],
     srcs: ["src/java/**/*.java"],
     static_libs: [
-        "MicroroidDeviceTestHelper",
+        "MicrodroidDeviceTestHelper",
         "androidx.test.runner",
         "androidx.test.ext.junit",
         "authfs_test_apk_assets",
