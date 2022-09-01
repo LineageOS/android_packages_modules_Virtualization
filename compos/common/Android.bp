@@ -6,7 +6,7 @@ rust_library {
     name: "libcompos_common",
     crate_name: "compos_common",
     srcs: ["lib.rs"],
-    edition: "2018",
+    edition: "2021",
     rustlibs: [
         "android.system.virtualizationservice-rust",
         "compos_aidl_interface-rust",

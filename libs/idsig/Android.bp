@@ -6,7 +6,7 @@ rust_defaults {
     name: "libidsig.defaults",
     crate_name: "idsig",
     srcs: ["src/lib.rs"],
-    edition: "2018",
+    edition: "2021",
     prefer_rlib: true,
     rustlibs: [
         "libanyhow",
