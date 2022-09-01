@@ -1,0 +1,9 @@
+# Rules for the android.system.virtualmachine java_sdk_library.
+
+# This is the root of the API, everything we care about should be
+# reachable from here.
+# (This gets rid of all the android.sysprop classes we don't use.)
+keep android.system.virtualmachine.VirtualMachineManager
+
+# We statically link PlatformProperties, rename to avoid clashes.
+rule android.sysprop.** com.android.system.virtualmachine.sysprop.@1
