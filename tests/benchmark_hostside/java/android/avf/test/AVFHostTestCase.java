@@ -23,6 +23,8 @@ import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
 
+import static org.junit.Assume.assumeTrue;
+
 import com.android.microdroid.test.CommandRunner;
 import com.android.microdroid.test.MicrodroidHostTestCaseBase;
 import com.android.tradefed.log.LogUtil.CLog;
@@ -57,7 +59,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 10 * 60 * 1000;
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
     private static final int ROUND_COUNT = 5;
-    private static final String METRIC_PREFIX = "avf_perf/compos/";
+    private static final String METRIC_PREFIX = "avf_perf/hostside/";
 
     @Before
     public void setUp() throws Exception {
@@ -66,13 +68,45 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @After
     public void tearDown() throws Exception {
-        // Reboot to prevent previous staged session.
-        rebootAndWaitBootCompleted();
+        // Set PKVM enable and reboot to prevent previous staged session.
+        setPKVMStatusWithRebootToBootloader(true);
+        rebootFromBootloaderAndWaitBootCompleted();
 
         CommandRunner android = new CommandRunner(getDevice());
 
         // Clear up any CompOS instance files we created.
         android.tryRun("rm", "-rf", COMPOS_TEST_ROOT);
+    }
+
+    @Test
+    public void testBootEnableAndDisablePKVM() throws Exception {
+
+        testPKVMStatusSwitchSupported();
+
+        double[] bootWithPKVMEnableTime = new double[ROUND_COUNT];
+        double[] bootWithoutPKVMEnableTime = new double[ROUND_COUNT];
+
+        for (int round = 0; round < ROUND_COUNT; ++round) {
+
+            setPKVMStatusWithRebootToBootloader(true);
+            long start = System.nanoTime();
+            rebootFromBootloaderAndWaitBootCompleted();
+            long elapsedWithPKVMEnable = System.nanoTime() - start;
+            double elapsedSec = elapsedWithPKVMEnable / NANOS_IN_SEC;
+            bootWithPKVMEnableTime[round] = elapsedSec;
+            CLog.i("Boot time with PKVM enable took " + elapsedSec + "s");
+
+            setPKVMStatusWithRebootToBootloader(false);
+            start = System.nanoTime();
+            rebootFromBootloaderAndWaitBootCompleted();
+            long elapsedWithoutPKVMEnable = System.nanoTime() - start;
+            elapsedSec = elapsedWithoutPKVMEnable / NANOS_IN_SEC;
+            bootWithoutPKVMEnableTime[round] = elapsedSec;
+            CLog.i("Boot time with PKVM disable took " + elapsedSec + "s");
+        }
+
+        reportMetric("boot_time_with_pkvm_enable", "s", bootWithPKVMEnableTime);
+        reportMetric("boot_time_with_pkvm_disable", "s", bootWithoutPKVMEnableTime);
     }
 
     @Test
@@ -108,6 +142,18 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         reportMetric("boot_time_without_compos", "s", bootWithoutCompOsTime);
     }
 
+    private void testPKVMStatusSwitchSupported() throws Exception {
+        if (!getDevice().isStateBootloaderOrFastbootd()) {
+            getDevice().rebootIntoBootloader();
+        }
+        getDevice().waitForDeviceBootloader();
+
+        CommandResult result;
+        result = getDevice().executeFastbootCommand("oem", "pkvm", "status");
+        rebootFromBootloaderAndWaitBootCompleted();
+        assumeTrue(!result.getStderr().contains("Invalid oem command"));
+    }
+
     private void reportMetric(String name, String unit, double[] values) {
         double sum = 0;
         double min = Double.MAX_VALUE;
@@ -133,6 +179,41 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         metrics.addTestMetric(METRIC_PREFIX + name + "_min_" + unit, Double.toString(min));
         metrics.addTestMetric(METRIC_PREFIX + name + "_max_" + unit, Double.toString(max));
         metrics.addTestMetric(METRIC_PREFIX + name + "_stdev_" + unit, Double.toString(stdev));
+    }
+
+    private void setPKVMStatusWithRebootToBootloader(boolean isEnable) throws Exception {
+
+        if (!getDevice().isStateBootloaderOrFastbootd()) {
+            getDevice().rebootIntoBootloader();
+        }
+        getDevice().waitForDeviceBootloader();
+
+        CommandResult result;
+        if (isEnable) {
+            result = getDevice().executeFastbootCommand("oem", "pkvm", "enable");
+        } else {
+            result = getDevice().executeFastbootCommand("oem", "pkvm", "disable");
+        }
+
+        result = getDevice().executeFastbootCommand("oem", "pkvm", "status");
+        CLog.i("Gets PKVM status : " + result);
+
+        String expectedOutput = "";
+
+        if (isEnable) {
+            expectedOutput = "pkvm is enabled";
+        } else {
+            expectedOutput = "pkvm is disabled";
+        }
+        assertWithMessage("Failed to set PKVM status. Reason: " + result)
+            .that(result.toString()).ignoringCase().contains(expectedOutput);
+    }
+
+    private void rebootFromBootloaderAndWaitBootCompleted() throws Exception {
+        getDevice().executeFastbootCommand("reboot");
+        getDevice().waitForDeviceOnline(BOOT_COMPLETE_TIMEOUT_MS);
+        getDevice().waitForBootComplete(BOOT_COMPLETE_TIMEOUT_MS);
+        getDevice().enableAdbRoot();
     }
 
     private void rebootAndWaitBootCompleted() throws Exception {
