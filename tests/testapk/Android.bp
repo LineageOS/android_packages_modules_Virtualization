@@ -28,7 +28,6 @@ android_test {
     min_sdk_version: "33",
 }
 
-// TODO(jiyong): make this a binary, not a shared library
 cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/testbinary.cpp"],
