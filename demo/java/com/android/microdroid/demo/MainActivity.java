@@ -38,7 +38,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.android.microdroid.testservice.ITestService;
@@ -64,44 +63,39 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Button runStopButton = (Button) findViewById(R.id.runStopButton);
-        TextView consoleView = (TextView) findViewById(R.id.consoleOutput);
-        TextView logView = (TextView) findViewById(R.id.logOutput);
-        TextView payloadView = (TextView) findViewById(R.id.payloadOutput);
-        ScrollView scrollConsoleView = (ScrollView) findViewById(R.id.scrollConsoleOutput);
-        ScrollView scrollLogView = (ScrollView) findViewById(R.id.scrollLogOutput);
+        Button runStopButton = findViewById(R.id.runStopButton);
+        TextView consoleView = findViewById(R.id.consoleOutput);
+        TextView logView = findViewById(R.id.logOutput);
+        TextView payloadView = findViewById(R.id.payloadOutput);
+        ScrollView scrollConsoleView = findViewById(R.id.scrollConsoleOutput);
+        ScrollView scrollLogView = findViewById(R.id.scrollLogOutput);
 
         VirtualMachineModel model = new ViewModelProvider(this).get(VirtualMachineModel.class);
 
         // When the button is clicked, run or stop the VM
         runStopButton.setOnClickListener(
-                new View.OnClickListener() {
-                    public void onClick(View v) {
-                        if (model.getStatus().getValue() == VirtualMachine.Status.RUNNING) {
-                            model.stop();
-                        } else {
-                            CheckBox debugModeCheckBox = (CheckBox) findViewById(R.id.debugMode);
-                            final boolean debug = debugModeCheckBox.isChecked();
-                            model.run(debug);
-                        }
+                v -> {
+                    if (model.getStatus().getValue() == VirtualMachine.Status.RUNNING) {
+                        model.stop();
+                    } else {
+                        CheckBox debugModeCheckBox = (CheckBox) findViewById(R.id.debugMode);
+                        final boolean debug = debugModeCheckBox.isChecked();
+                        model.run(debug);
                     }
                 });
 
         // When the VM status is updated, change the label of the button
         model.getStatus()
                 .observeForever(
-                        new Observer<VirtualMachine.Status>() {
-                            @Override
-                            public void onChanged(VirtualMachine.Status status) {
-                                if (status == VirtualMachine.Status.RUNNING) {
-                                    runStopButton.setText("Stop");
-                                    // Clear the outputs from the previous run
-                                    consoleView.setText("");
-                                    logView.setText("");
-                                    payloadView.setText("");
-                                } else {
-                                    runStopButton.setText("Run");
-                                }
+                        status -> {
+                            if (status == VirtualMachine.Status.RUNNING) {
+                                runStopButton.setText("Stop");
+                                // Clear the outputs from the previous run
+                                consoleView.setText("");
+                                logView.setText("");
+                                payloadView.setText("");
+                            } else {
+                                runStopButton.setText("Run");
                             }
                         });
 
@@ -109,30 +103,19 @@ public class MainActivity extends AppCompatActivity {
         // corresponding text view.
         model.getConsoleOutput()
                 .observeForever(
-                        new Observer<String>() {
-                            @Override
-                            public void onChanged(String line) {
-                                consoleView.append(line + "\n");
-                                scrollConsoleView.fullScroll(View.FOCUS_DOWN);
-                            }
+                        line -> {
+                            consoleView.append(line + "\n");
+                            scrollConsoleView.fullScroll(View.FOCUS_DOWN);
                         });
         model.getLogOutput()
                 .observeForever(
-                        new Observer<String>() {
-                            @Override
-                            public void onChanged(String line) {
-                                logView.append(line + "\n");
-                                scrollLogView.fullScroll(View.FOCUS_DOWN);
-                            }
+                        line -> {
+                            logView.append(line + "\n");
+                            scrollLogView.fullScroll(View.FOCUS_DOWN);
                         });
         model.getPayloadOutput()
                 .observeForever(
-                        new Observer<String>() {
-                            @Override
-                            public void onChanged(String line) {
-                                payloadView.append(line + "\n");
-                            }
-                        });
+                        line -> payloadView.append(line + "\n"));
     }
 
     /** Reads data from an input stream and posts it to the output data */
@@ -178,7 +161,6 @@ public class MainActivity extends AppCompatActivity {
         /** Runs a VM */
         public void run(boolean debug) {
             // Create a VM and run it.
-            // TODO(jiyong): remove the call to idsigPath
             mExecutorService = Executors.newFixedThreadPool(4);
 
             VirtualMachineCallback callback =
@@ -274,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         @Override
-                        public void onDied(VirtualMachine vm, @DeathReason int reason) {
+                        public void onDied(VirtualMachine vm, int reason) {
                             mService.shutdownNow();
                             mStatus.postValue(VirtualMachine.Status.STOPPED);
                         }
