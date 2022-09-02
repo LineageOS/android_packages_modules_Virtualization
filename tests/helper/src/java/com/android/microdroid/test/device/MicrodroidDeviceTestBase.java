@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.microdroid.test;
+package com.android.microdroid.test.device;
 
 import static com.google.common.truth.TruthJUnit.assume;
 
