@@ -31,6 +31,7 @@ import android.system.virtualmachine.VirtualMachineException;
 import android.util.Log;
 
 import com.android.compatibility.common.util.CddTest;
+import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.ITestService;
 
 import org.junit.Before;
