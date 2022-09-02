@@ -72,12 +72,3 @@ fn clear_temporary_files() -> Result<(), Error> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    /// We need to have at least one test to avoid errors running the test suite, so this is a
-    /// placeholder until we have real tests.
-    #[test]
-    #[ignore]
-    fn placeholder() {}
-}

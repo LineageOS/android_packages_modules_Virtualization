@@ -201,7 +201,7 @@ fn make_metadata_file(
 }
 
 /// Creates a DiskImage with partitions:
-///   metadata: metadata
+///   payload-metadata: metadata
 ///   microdroid-apex-0: apex 0
 ///   microdroid-apex-1: apex 1
 ///   ..
