@@ -14,7 +14,7 @@
 
 //! Wrapper to libselinux
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use std::ffi::{CStr, CString};
 use std::fmt;
 use std::fs::File;
@@ -30,6 +30,7 @@ use std::ptr;
 /// `freecon` to free the resources when dropped. In its second variant it stores
 /// an `std::ffi::CString` that can be initialized from a Rust string slice.
 #[derive(Debug)]
+#[allow(dead_code)] // CString variant is used in tests
 pub enum SeContext {
     /// Wraps a raw context c-string as returned by libselinux.
     Raw(*mut ::std::os::raw::c_char),
@@ -78,11 +79,26 @@ impl Deref for SeContext {
 
 impl SeContext {
     /// Initializes the `SeContext::CString` variant from a Rust string slice.
+    #[allow(dead_code)] // Used in tests
     pub fn new(con: &str) -> Result<Self> {
         Ok(Self::CString(
             CString::new(con)
                 .with_context(|| format!("Failed to create SeContext with \"{}\"", con))?,
         ))
+    }
+
+    pub fn selinux_type(&self) -> Result<&str> {
+        let context = self.deref().to_str().context("Label is not valid UTF8")?;
+
+        // The syntax is user:role:type:sensitivity[:category,...],
+        // ignoring security level ranges, which don't occur on Android. See
+        // https://github.com/SELinuxProject/selinux-notebook/blob/main/src/security_context.md
+        // We only want the type.
+        let fields: Vec<_> = context.split(':').collect();
+        if fields.len() < 4 || fields.len() > 5 {
+            bail!("Syntactically invalid label {}", self);
+        }
+        Ok(fields[2])
     }
 }
 
