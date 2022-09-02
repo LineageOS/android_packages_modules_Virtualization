@@ -26,7 +26,7 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
-import com.android.microdroid.test.MicrodroidDeviceTestBase;
+import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 
 import org.junit.Before;
 import org.junit.Test;

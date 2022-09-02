@@ -31,8 +31,8 @@ import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
 import android.system.virtualmachine.VirtualMachineException;
 import android.util.Log;
 
-import com.android.microdroid.test.MicrodroidDeviceTestBase;
 import com.android.microdroid.test.common.MetricsProcessor;
+import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.IBenchmarkService;
 
 import org.junit.Before;
