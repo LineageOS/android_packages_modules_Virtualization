@@ -36,7 +36,7 @@ Result<double> measure_send_rate(int fd, int num_bytes_to_send) {
     clock_t end = clock();
     double elapsed_seconds = (double)(end - start) / CLOCKS_PER_SEC;
     LOG(INFO) << "Host:Finished sending data in " << elapsed_seconds << " seconds.";
-    double send_rate = num_bytes_to_send / kNumBytesPerMB / elapsed_seconds;
+    double send_rate = (double)num_bytes_to_send / kNumBytesPerMB / elapsed_seconds;
     return {send_rate};
 }
 
