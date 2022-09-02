@@ -32,6 +32,7 @@ import android.system.virtualmachine.VirtualMachineException;
 import android.util.Log;
 
 import com.android.microdroid.test.MicrodroidDeviceTestBase;
+import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.microdroid.testservice.IBenchmarkService;
 
 import org.junit.Before;
@@ -46,6 +47,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 @RunWith(Parameterized.class)
@@ -67,6 +69,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     @Parameterized.Parameter public boolean mProtectedVm;
+
+    private final MetricsProcessor mMetricsProcessor = new MetricsProcessor(METRIC_NAME_PREFIX);
 
     private Instrumentation mInstrumentation;
 
@@ -153,11 +157,11 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             userspaceBootTimeMetrics.add(result.getUserspaceElapsedNanoTime() / nanoToMilli);
         }
 
-        reportMetrics(vmStartingTimeMetrics, "vm_starting_time_", "_ms");
-        reportMetrics(bootTimeMetrics, "boot_time_", "_ms");
-        reportMetrics(bootloaderTimeMetrics, "bootloader_time_", "_ms");
-        reportMetrics(kernelBootTimeMetrics, "kernel_boot_time_", "_ms");
-        reportMetrics(userspaceBootTimeMetrics, "userspace_boot_time_", "_ms");
+        reportMetrics(vmStartingTimeMetrics, "vm_starting_time", "ms");
+        reportMetrics(bootTimeMetrics, "boot_time", "ms");
+        reportMetrics(bootloaderTimeMetrics, "bootloader_time", "ms");
+        reportMetrics(kernelBootTimeMetrics, "kernel_boot_time", "ms");
+        reportMetrics(userspaceBootTimeMetrics, "userspace_boot_time", "ms");
     }
 
     @Test
@@ -187,7 +191,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 mInner.newVmConfigBuilder("assets/vm_config_io.json")
                         .debugLevel(DebugLevel.FULL)
                         .build();
-        List<Double> transferRates = new ArrayList<>();
+        List<Double> transferRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
 
         for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
             int port = (mProtectedVm ? 5666 : 6666) + i;
@@ -196,7 +200,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
             BenchmarkVmListener.create(new VsockListener(transferRates, port)).runToFinish(TAG, vm);
         }
-        reportMetrics(transferRates, "vsock/transfer_host_to_vm_", "_mb_per_sec");
+        reportMetrics(transferRates, "vsock/transfer_host_to_vm", "mb_per_sec");
     }
 
     @Test
@@ -214,7 +218,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 mInner.newVmConfigBuilder("assets/vm_config_io.json")
                         .debugLevel(DebugLevel.FULL)
                         .build();
-        List<Double> readRates = new ArrayList<>();
+        List<Double> readRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
 
         for (int i = 0; i < IO_TEST_TRIAL_COUNT + 1; ++i) {
             if (i == 1) {
@@ -230,33 +234,15 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                     .runToFinish(TAG, vm);
         }
         reportMetrics(
-                readRates,
-                isRand ? "virtio-blk/rand_read_" : "virtio-blk/seq_read_",
-                "_mb_per_sec");
+                readRates, isRand ? "virtio-blk/rand_read" : "virtio-blk/seq_read", "mb_per_sec");
     }
 
-    private void reportMetrics(List<Double> data, String base, String suffix) {
-        double sum = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        for (double d : data) {
-            sum += d;
-            if (min > d) min = d;
-            if (max < d) max = d;
-        }
-        double avg = sum / data.size();
-        double sqSum = 0;
-        for (double d : data) {
-            sqSum += (d - avg) * (d - avg);
-        }
-        double stdDev = Math.sqrt(sqSum / (data.size() - 1));
-
+    private void reportMetrics(List<Double> metrics, String name, String unit) {
+        Map<String, Double> stats = mMetricsProcessor.computeStats(metrics, name, unit);
         Bundle bundle = new Bundle();
-        String prefix = METRIC_NAME_PREFIX + base;
-        bundle.putDouble(prefix + "min" + suffix, min);
-        bundle.putDouble(prefix + "max" + suffix, max);
-        bundle.putDouble(prefix + "average" + suffix, avg);
-        bundle.putDouble(prefix + "stdev" + suffix, stdDev);
+        for (Map.Entry<String, Double> entry : stats.entrySet()) {
+            bundle.putDouble(entry.getKey(), entry.getValue());
+        }
         mInstrumentation.sendStatus(0, bundle);
     }
 
