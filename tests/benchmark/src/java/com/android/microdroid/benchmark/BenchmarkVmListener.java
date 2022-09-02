@@ -22,7 +22,7 @@ import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
 import android.util.Log;
 
-import com.android.microdroid.test.MicrodroidDeviceTestBase.VmEventListener;
+import com.android.microdroid.test.device.MicrodroidDeviceTestBase.VmEventListener;
 import com.android.microdroid.testservice.IBenchmarkService;
 
 /**
