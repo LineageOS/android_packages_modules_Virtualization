@@ -12,6 +12,7 @@ java_test_host {
     ],
     static_libs: [
         "MicrodroidHostTestHelper",
+        "MicrodroidTestHelper",
     ],
     test_suites: [
         "general-tests",
