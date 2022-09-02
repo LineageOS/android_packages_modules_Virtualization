@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package com.android.microdroid.test;
+package com.android.microdroid.test.host;
 
-import static com.android.microdroid.test.CommandResultSubject.assertThat;
-import static com.android.microdroid.test.CommandResultSubject.command_results;
+import static com.android.microdroid.test.host.CommandResultSubject.assertThat;
+import static com.android.microdroid.test.host.CommandResultSubject.command_results;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertWithMessage;

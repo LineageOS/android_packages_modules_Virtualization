@@ -16,8 +16,8 @@
 
 package android.compos.test;
 
-import static com.android.microdroid.test.CommandResultSubject.assertThat;
-import static com.android.microdroid.test.CommandResultSubject.command_results;
+import static com.android.microdroid.test.host.CommandResultSubject.assertThat;
+import static com.android.microdroid.test.host.CommandResultSubject.command_results;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -25,8 +25,8 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.platform.test.annotations.RootPermissionTest;
 
-import com.android.microdroid.test.CommandRunner;
-import com.android.microdroid.test.MicrodroidHostTestCaseBase;
+import com.android.microdroid.test.host.CommandRunner;
+import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.result.FileInputStreamSource;
 import com.android.tradefed.result.LogDataType;

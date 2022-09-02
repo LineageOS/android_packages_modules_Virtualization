@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.microdroid.test;
+package com.android.microdroid.test.host;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.fail;
