@@ -16,8 +16,8 @@
 
 package com.android.virt.fs;
 
-import static com.android.microdroid.test.CommandResultSubject.assertThat;
-import static com.android.microdroid.test.LogArchiver.archiveLogThenDelete;
+import static com.android.microdroid.test.host.CommandResultSubject.assertThat;
+import static com.android.microdroid.test.host.LogArchiver.archiveLogThenDelete;
 import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
@@ -32,7 +32,7 @@ import android.platform.test.annotations.RootPermissionTest;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.PollingCheck;
-import com.android.microdroid.test.CommandRunner;
+import com.android.microdroid.test.host.CommandRunner;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
