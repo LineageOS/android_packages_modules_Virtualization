@@ -195,6 +195,11 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         }
         assertWithMessage("Failed to set PKVM status. Reason: " + result)
             .that(result.toString()).ignoringCase().contains(expectedOutput);
+
+        // Skip the test if running on a build with pkvm_enabler. Disabling
+        // pKVM for such build results in a bootloop.
+        assertWithMessage("Expected build with PKVM status misc=auto. Reason: " + result)
+            .that(result.toString()).ignoringCase().contains("misc=auto");
     }
 
     private void rebootFromBootloaderAndWaitBootCompleted() throws Exception {
