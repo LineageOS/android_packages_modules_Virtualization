@@ -38,5 +38,5 @@ parcelable VirtualMachineDebugInfo {
     int requesterPid;
 
     /** The current lifecycle state of the VM. */
-    VirtualMachineState state;
+    VirtualMachineState state = VirtualMachineState.NOT_STARTED;
 }

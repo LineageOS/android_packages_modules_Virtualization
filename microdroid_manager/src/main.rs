@@ -23,6 +23,10 @@ use android_hardware_security_dice::aidl::android::hardware::security::dice::{
     Config::Config, InputValues::InputValues, Mode::Mode,
 };
 use android_security_dice::aidl::android::security::dice::IDiceMaintenance::IDiceMaintenance;
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
+    VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
+};
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify};
 use binder::{wait_for_interface, Strong};
@@ -48,10 +52,6 @@ use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::{Duration, SystemTime};
 use vsock::VsockStream;
-
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-    ERROR_PAYLOAD_CHANGED, ERROR_PAYLOAD_VERIFICATION_FAILED, ERROR_PAYLOAD_INVALID_CONFIG, ERROR_UNKNOWN, VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
-};
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const MAIN_APK_PATH: &str = "/dev/block/by-name/microdroid-apk";
@@ -88,22 +88,24 @@ enum MicrodroidError {
     InvalidConfig(String),
 }
 
-fn translate_error(err: &Error) -> (i32, String) {
+fn translate_error(err: &Error) -> (ErrorCode, String) {
     if let Some(e) = err.downcast_ref::<MicrodroidError>() {
         match e {
-            MicrodroidError::PayloadChanged(msg) => (ERROR_PAYLOAD_CHANGED, msg.to_string()),
+            MicrodroidError::PayloadChanged(msg) => (ErrorCode::PAYLOAD_CHANGED, msg.to_string()),
             MicrodroidError::PayloadVerificationFailed(msg) => {
-                (ERROR_PAYLOAD_VERIFICATION_FAILED, msg.to_string())
+                (ErrorCode::PAYLOAD_VERIFICATION_FAILED, msg.to_string())
             }
-            MicrodroidError::InvalidConfig(msg) => (ERROR_PAYLOAD_INVALID_CONFIG, msg.to_string()),
+            MicrodroidError::InvalidConfig(msg) => {
+                (ErrorCode::PAYLOAD_CONFIG_INVALID, msg.to_string())
+            }
 
             // Connection failure won't be reported to VS; return the default value
             MicrodroidError::FailedToConnectToVirtualizationService(msg) => {
-                (ERROR_UNKNOWN, msg.to_string())
+                (ErrorCode::UNKNOWN, msg.to_string())
             }
         }
     } else {
-        (ERROR_UNKNOWN, err.to_string())
+        (ErrorCode::UNKNOWN, err.to_string())
     }
 }
 
