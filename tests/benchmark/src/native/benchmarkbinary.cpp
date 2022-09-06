@@ -42,6 +42,7 @@ using android::base::unique_fd;
 
 namespace {
 constexpr uint64_t kBlockSizeBytes = 4096;
+constexpr uint64_t kNumBytesPerMB = 1024 * 1024;
 
 template <typename T>
 static ndk::ScopedAStatus resultStatus(const T& result) {
@@ -56,9 +57,9 @@ static ndk::ScopedAStatus resultStatus(const T& result) {
 
 class IOBenchmarkService : public aidl::com::android::microdroid::testservice::BnBenchmarkService {
 public:
-    ndk::ScopedAStatus readFile(const std::string& filename, int64_t fileSizeBytes, bool isRand,
-                                double* out) override {
-        auto res = read_file(filename, fileSizeBytes, isRand);
+    ndk::ScopedAStatus measureReadRate(const std::string& filename, int64_t fileSizeBytes,
+                                       bool isRand, double* out) override {
+        auto res = measure_read_rate(filename, fileSizeBytes, isRand);
         if (res.ok()) {
             *out = res.value();
         }
@@ -90,8 +91,9 @@ public:
     }
 
 private:
-    /** Returns the elapsed seconds for reading the file. */
-    Result<double> read_file(const std::string& filename, int64_t fileSizeBytes, bool is_rand) {
+    /** Measures the read rate for reading the given file. */
+    Result<double> measure_read_rate(const std::string& filename, int64_t fileSizeBytes,
+                                     bool is_rand) {
         const int64_t block_count = fileSizeBytes / kBlockSizeBytes;
         std::vector<uint64_t> offsets;
         if (is_rand) {
@@ -120,7 +122,9 @@ private:
                 return ErrnoError() << "failed to read";
             }
         }
-        return {((double)clock() - start) / CLOCKS_PER_SEC};
+        double elapsed_seconds = ((double)clock() - start) / CLOCKS_PER_SEC;
+        double read_rate = (double)fileSizeBytes / kNumBytesPerMB / elapsed_seconds;
+        return {read_rate};
     }
 
     Result<size_t> read_meminfo_entry(const std::string& stat) {
