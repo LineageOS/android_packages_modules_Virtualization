@@ -143,7 +143,11 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
             // To grab boot events from log, set debug mode to FULL
             VirtualMachineConfig normalConfig =
-                    builder.debugLevel(DebugLevel.FULL).memoryMib(256).build();
+                    builder.debugLevel(DebugLevel.FULL)
+                            .memoryMib(256)
+                            .numCpus(2)
+                            .cpuAffinity("0=0:1=1")
+                            .build();
             mInner.forceCreateNewVirtualMachine("test_vm_boot_time", normalConfig);
 
             BootResult result = tryBootVm(TAG, "test_vm_boot_time");
@@ -190,6 +194,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         VirtualMachineConfig config =
                 mInner.newVmConfigBuilder("assets/vm_config_io.json")
                         .debugLevel(DebugLevel.FULL)
+                        .numCpus(2)
+                        .cpuAffinity("0=0:1=1")
                         .build();
         List<Double> transferRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
 
@@ -217,6 +223,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         VirtualMachineConfig config =
                 mInner.newVmConfigBuilder("assets/vm_config_io.json")
                         .debugLevel(DebugLevel.FULL)
+                        .numCpus(2)
+                        .cpuAffinity("0=0:1=1")
                         .build();
         List<Double> readRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
 
