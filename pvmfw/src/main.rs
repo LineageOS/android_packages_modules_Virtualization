@@ -30,4 +30,15 @@ pub fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) 
         "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}, x3={:#018x}",
         fdt_address, payload_start, payload_size, arg3,
     );
+
+    println!("Starting payload...");
+    // Safe because this is a function we have implemented in assembly that matches its signature
+    // here.
+    unsafe {
+        start_payload(fdt_address, payload_start);
+    }
+}
+
+extern "C" {
+    fn start_payload(fdt_address: u64, payload_start: u64) -> !;
 }

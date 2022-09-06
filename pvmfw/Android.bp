@@ -20,6 +20,7 @@ cc_binary {
     defaults: ["vmbase_elf_defaults"],
     srcs: [
         "idmap.S",
+        "payload.S",
     ],
     static_libs: [
         "libpvmfw",
