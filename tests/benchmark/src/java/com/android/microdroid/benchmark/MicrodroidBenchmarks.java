@@ -268,9 +268,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         @Override
         public void onPayloadReady(VirtualMachine vm, IBenchmarkService benchmarkService)
                 throws RemoteException {
-            double elapsedSeconds = benchmarkService.readFile(FILENAME, mFileSizeBytes, mIsRand);
-            double fileSizeMb = mFileSizeBytes / SIZE_MB;
-            mReadRates.add(fileSizeMb / elapsedSeconds);
+            double readRate = benchmarkService.measureReadRate(FILENAME, mFileSizeBytes, mIsRand);
+            mReadRates.add(readRate);
         }
     }
 
