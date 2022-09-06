@@ -86,7 +86,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testBootEnableAndDisablePKVM() throws Exception {
-        testPKVMStatusSwitchSupported();
+        skipIfPKVMStatusSwitchNotSupported();
 
         List<Double> bootWithPKVMEnableTime = new ArrayList<>(ROUND_COUNT);
         List<Double> bootWithoutPKVMEnableTime = new ArrayList<>(ROUND_COUNT);
@@ -149,7 +149,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         reportMetric(bootWithoutCompOsTime, "boot_time_without_compos", "s");
     }
 
-    private void testPKVMStatusSwitchSupported() throws Exception {
+    private void skipIfPKVMStatusSwitchNotSupported() throws Exception {
         if (!getDevice().isStateBootloaderOrFastbootd()) {
             getDevice().rebootIntoBootloader();
         }
@@ -159,6 +159,9 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         result = getDevice().executeFastbootCommand("oem", "pkvm", "status");
         rebootFromBootloaderAndWaitBootCompleted();
         assumeTrue(!result.getStderr().contains("Invalid oem command"));
+        // Skip the test if running on a build with pkvm_enabler. Disabling pKVM
+        // for such builds results in a bootloop.
+        assumeTrue(result.getStdout().contains("misc=auto"));
     }
 
     private void reportMetric(List<Double> data, String name, String unit) {
@@ -195,11 +198,6 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         }
         assertWithMessage("Failed to set PKVM status. Reason: " + result)
             .that(result.toString()).ignoringCase().contains(expectedOutput);
-
-        // Skip the test if running on a build with pkvm_enabler. Disabling
-        // pKVM for such build results in a bootloop.
-        assertWithMessage("Expected build with PKVM status misc=auto. Reason: " + result)
-            .that(result.toString()).ignoringCase().contains("misc=auto");
     }
 
     private void rebootFromBootloaderAndWaitBootCompleted() throws Exception {
