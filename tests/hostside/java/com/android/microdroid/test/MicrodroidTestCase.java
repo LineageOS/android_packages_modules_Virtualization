@@ -713,6 +713,11 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         }
     }
 
+    // TODO(b/6184548): to be replaced by ProcessUtil
+    /**
+    * @deprecated use ProcessUtil instead.
+    */
+    @Deprecated
     private Map<String, Long> parseMemInfo(String file) {
         Map<String, Long> stats = new HashMap<>();
         file.lines().forEach(line -> {
@@ -725,11 +730,21 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         return stats;
     }
 
+    // TODO(b/6184548): to be replaced by ProcessUtil
+    /**
+    * @deprecated use ProcessUtil instead.
+    */
+    @Deprecated
     private String skipFirstLine(String str) {
         int index = str.indexOf("\n");
         return (index < 0) ? "" : str.substring(index + 1);
     }
 
+    // TODO(b/6184548): to be replaced by ProcessUtil
+    /**
+    * @deprecated use ProcessUtil instead.
+    */
+    @Deprecated
     private List<ProcessInfo> getRunningProcessesList() {
         List<ProcessInfo> list = new ArrayList<ProcessInfo>();
         skipFirstLine(runOnMicrodroid("ps", "-Ao", "PID,NAME")).lines().forEach(ps -> {
@@ -744,10 +759,20 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         return list;
     }
 
+    // TODO(b/6184548): to be replaced by ProcessUtil
+    /**
+    * @deprecated use ProcessUtil instead.
+    */
+    @Deprecated
     private Map<String, Long> getProcMemInfo() {
         return parseMemInfo(runOnMicrodroid("cat", "/proc/meminfo"));
     }
 
+    // TODO(b/6184548): to be replaced by ProcessUtil
+    /**
+    * @deprecated use ProcessUtil instead.
+    */
+    @Deprecated
     private Map<String, Long> getProcSmapsRollup(int pid) {
         String path = "/proc/" + pid + "/smaps_rollup";
         return  parseMemInfo(skipFirstLine(runOnMicrodroid("cat", path, "||", "true")));
