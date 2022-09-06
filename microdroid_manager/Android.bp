@@ -11,6 +11,7 @@ rust_defaults {
     rustlibs: [
         "android.hardware.security.dice-V1-rust",
         "android.security.dice-rust",
+        "android.system.virtualizationcommon-rust",
         "android.system.virtualizationservice-rust",
         "android.system.virtualmachineservice-rust",
         "libanyhow",

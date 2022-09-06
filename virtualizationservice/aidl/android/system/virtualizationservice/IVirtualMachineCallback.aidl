@@ -15,6 +15,7 @@
  */
 package android.system.virtualizationservice;
 
+import android.system.virtualizationcommon.ErrorCode;
 import android.system.virtualizationservice.DeathReason;
 
 /**
@@ -44,7 +45,7 @@ oneway interface IVirtualMachineCallback {
     /**
      * Called when an error occurs in the VM.
      */
-    void onError(int cid, int errorCode, in String message);
+    void onError(int cid, ErrorCode errorCode, in String message);
 
     /**
      * Called when the VM dies.

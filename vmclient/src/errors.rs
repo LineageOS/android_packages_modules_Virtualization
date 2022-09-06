@@ -22,7 +22,7 @@ pub enum VmWaitError {
     #[error("Timed out waiting for VM.")]
     TimedOut,
     /// The VM died before it was ready.
-    #[error("VM died. ({reason})")]
+    #[error("VM died. ({reason:?})")]
     Died {
         /// The reason why the VM died.
         reason: DeathReason,
