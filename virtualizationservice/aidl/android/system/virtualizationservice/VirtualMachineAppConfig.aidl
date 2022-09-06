@@ -48,7 +48,7 @@ parcelable VirtualMachineAppConfig {
     }
 
     /** Debug level of the VM */
-    DebugLevel debugLevel;
+    DebugLevel debugLevel = DebugLevel.NONE;
 
     /** Whether the VM should be a protected VM. */
     boolean protectedVm;

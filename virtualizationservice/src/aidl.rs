@@ -39,12 +39,11 @@ use binder::{
     self, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, ParcelFileDescriptor,
     SpIBinder, Status, StatusCode, Strong, ThreadState,
 };
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
-    IVirtualMachineService::{
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
         BnVirtualMachineService, IVirtualMachineService, VM_BINDER_SERVICE_PORT,
         VM_STREAM_SERVICE_PORT, VM_TOMBSTONES_SERVICE_PORT,
-    },
 };
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
 use anyhow::{anyhow, bail, Context, Result};
 use rpcbinder::run_rpc_server_with_factory;
 use disk::QcowFile;
@@ -878,7 +877,7 @@ impl VirtualMachineCallbacks {
     }
 
     /// Call all registered callbacks to say that the VM encountered an error.
-    pub fn notify_error(&self, cid: Cid, error_code: i32, message: &str) {
+    pub fn notify_error(&self, cid: Cid, error_code: ErrorCode, message: &str) {
         let callbacks = &*self.0.lock().unwrap();
         for callback in callbacks {
             if let Err(e) = callback.onError(cid as i32, error_code, message) {
@@ -1116,7 +1115,7 @@ impl IVirtualMachineService for VirtualMachineService {
         }
     }
 
-    fn notifyError(&self, error_code: i32, message: &str) -> binder::Result<()> {
+    fn notifyError(&self, error_code: ErrorCode, message: &str) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
             info!("VM having CID {} encountered an error", cid);
