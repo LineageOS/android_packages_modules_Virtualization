@@ -28,7 +28,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::{Path, PathBuf};
-use vmclient::VmInstance;
+use vmclient::{ErrorCode, VmInstance};
 use vmconfig::{open_parcel_file, VmConfig};
 use zip::ZipArchive;
 
@@ -223,7 +223,7 @@ fn run(
         if let Some(path) = ramdump_path {
             save_ramdump_if_available(path, &vm)?;
         }
-        println!("{}", death_reason);
+        println!("VM ended: {:?}", death_reason);
     }
 
     Ok(())
@@ -273,8 +273,8 @@ impl vmclient::VmCallback for Callback {
         eprintln!("payload finished with exit code {}", exit_code);
     }
 
-    fn on_error(&self, _cid: i32, error_code: i32, message: &str) {
-        eprintln!("VM encountered an error: code={}, message={}", error_code, message);
+    fn on_error(&self, _cid: i32, error_code: ErrorCode, message: &str) {
+        eprintln!("VM encountered an error: code={:?}, message={}", error_code, message);
     }
 }
 
