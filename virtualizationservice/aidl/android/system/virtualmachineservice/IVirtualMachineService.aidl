@@ -15,6 +15,8 @@
  */
 package android.system.virtualmachineservice;
 
+import android.system.virtualizationcommon.ErrorCode;
+
 /** {@hide} */
 interface IVirtualMachineService {
     /**
@@ -51,28 +53,7 @@ interface IVirtualMachineService {
     void notifyPayloadFinished(int exitCode);
 
     /**
-     * Notifies that an error has occurred. See the ERROR_* constants.
+     * Notifies that an error has occurred inside the VM..
      */
-    void notifyError(int errorCode, in String message);
-
-    /**
-     * Error code for all other errors not listed below.
-     */
-    const int ERROR_UNKNOWN = 0;
-
-    /**
-     * Error code indicating that the payload can't be verified due to various reasons (e.g invalid
-     * merkle tree, invalid formats, etc).
-     */
-    const int ERROR_PAYLOAD_VERIFICATION_FAILED = 1;
-
-    /**
-     * Error code indicating that the payload is verified, but has changed since the last boot.
-     */
-    const int ERROR_PAYLOAD_CHANGED = 2;
-
-    /**
-     * Error code indicating that the payload config is invalid.
-     */
-    const int ERROR_PAYLOAD_INVALID_CONFIG = 3;
+    void notifyError(ErrorCode errorCode, in String message);
 }
