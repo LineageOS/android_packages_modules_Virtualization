@@ -33,7 +33,7 @@ use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::thread;
-use vmclient::{DeathReason, VmInstance, VmWaitError};
+use vmclient::{DeathReason, ErrorCode, VmInstance, VmWaitError};
 
 /// This owns an instance of the CompOS VM.
 pub struct ComposClient(VmInstance);
@@ -241,8 +241,8 @@ impl vmclient::VmCallback for Callback {
         log::warn!("VM payload finished, cid = {}, exit code = {}", cid, exit_code);
     }
 
-    fn on_error(&self, cid: i32, error_code: i32, message: &str) {
-        log::warn!("VM error, cid = {}, error code = {}, message = {}", cid, error_code, message);
+    fn on_error(&self, cid: i32, error_code: ErrorCode, message: &str) {
+        log::warn!("VM error, cid = {}, error code = {:?}, message = {}", cid, error_code, message);
     }
 
     fn on_died(&self, cid: i32, death_reason: DeathReason) {
