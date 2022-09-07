@@ -163,7 +163,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         assumeTrue(!result.getStderr().contains("Invalid oem command"));
         // Skip the test if running on a build with pkvm_enabler. Disabling pKVM
         // for such builds results in a bootloop.
-        assumeTrue(result.getStdout().contains("misc=auto"));
+        assumeTrue(result.getStderr().contains("misc=auto"));
     }
 
     private void reportMetric(List<Double> data, String name, String unit) {
