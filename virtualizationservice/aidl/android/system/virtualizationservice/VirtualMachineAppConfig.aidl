@@ -68,11 +68,15 @@ parcelable VirtualMachineAppConfig {
      * Comma-separated list of CPUs or CPU ranges to run vCPUs on (e.g. 0,1-3,5), or
      * colon-separated list of assignments of vCPU to host CPU assignments (e.g. 0=0:1=1:2=2).
      * Default is no mask which means a vCPU can run on any host CPU.
+     *
+     * Note: Using a non-null value requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
      */
     @nullable String cpuAffinity;
 
     /**
      * List of task profile names to apply for the VM
+     *
+     * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
      */
     String[] taskProfiles;
 }
