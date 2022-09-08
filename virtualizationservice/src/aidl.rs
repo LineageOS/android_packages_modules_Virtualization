@@ -596,6 +596,12 @@ fn load_app_config(
     config: &VirtualMachineAppConfig,
     temporary_directory: &Path,
 ) -> Result<VirtualMachineRawConfig> {
+    // Controlling CPUs is reserved for platform apps only, even when using
+    // VirtualMachineAppConfig.
+    if config.cpuAffinity.is_some() || !config.taskProfiles.is_empty() {
+        check_use_custom_virtual_machine()?
+    }
+
     let apk_file = clone_file(config.apk.as_ref().unwrap())?;
     let idsig_file = clone_file(config.idsig.as_ref().unwrap())?;
     let instance_file = clone_file(config.instanceImage.as_ref().unwrap())?;
