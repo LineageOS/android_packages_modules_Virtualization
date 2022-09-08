@@ -13,7 +13,3 @@ kernel.console=null
 
 # ADB is supported but rooting is prohibited.
 androidboot.adb.enabled=1
-
-# logd is enabled
-# TODO(b/200914564) Filter only the log from the app
-androidboot.logd.enabled=1
