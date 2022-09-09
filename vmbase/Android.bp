@@ -49,6 +49,7 @@ cc_defaults {
         "libarm-optimized-routines-mem",
         "libvmbase_entry",
     ],
+    installable: false,
     enabled: false,
     target: {
         android_arm64: {
