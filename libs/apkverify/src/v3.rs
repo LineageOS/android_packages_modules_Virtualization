@@ -16,9 +16,6 @@
 
 //! Verifies APK Signature Scheme V3
 
-// TODO(jooyung) remove this
-#![allow(dead_code)]
-
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use bytes::Bytes;
 use openssl::hash::MessageDigest;
@@ -63,6 +60,7 @@ struct SignedData {
     certificates: LengthPrefixed<Vec<LengthPrefixed<X509Certificate>>>,
     min_sdk: u32,
     max_sdk: u32,
+    #[allow(dead_code)]
     additional_attributes: LengthPrefixed<Vec<LengthPrefixed<AdditionalAttributes>>>,
 }
 
