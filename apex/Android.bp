@@ -63,6 +63,9 @@ apex {
     ],
     prebuilts: [
         "com.android.virt.init.rc",
+        "microdroid_initrd_app_debuggable",
+        "microdroid_initrd_full_debuggable",
+        "microdroid_initrd_normal",
         "microdroid.json",
         "microdroid_bootloader",
         "microdroid_bootloader.avbpubkey",
