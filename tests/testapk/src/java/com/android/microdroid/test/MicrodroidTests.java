@@ -170,19 +170,25 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     .debugLevel(DebugLevel.NONE)
                     .build();
             VirtualMachine vm = mInner.forceCreateNewVirtualMachine("low_mem", lowMemConfig);
-            final CompletableFuture<Integer> exception = new CompletableFuture<>();
+            final CompletableFuture<Boolean> onPayloadReadyExecuted = new CompletableFuture<>();
+            final CompletableFuture<Boolean> onDiedExecuted = new CompletableFuture<>();
             VmEventListener listener =
                     new VmEventListener() {
                         @Override
+                        public void onPayloadReady(VirtualMachine vm) {
+                            onPayloadReadyExecuted.complete(true);
+                            super.onPayloadReady(vm);
+                        }
+                        @Override
                         public void onDied(VirtualMachine vm,  int reason) {
-                            exception.complete(reason);
+                            onDiedExecuted.complete(true);
                             super.onDied(vm, reason);
                         }
                     };
             listener.runToFinish(TAG, vm);
-            assertThat(exception.getNow(0)).isAnyOf(VirtualMachineCallback.DEATH_REASON_REBOOT,
-                    VirtualMachineCallback.DEATH_REASON_HANGUP,
-                    VirtualMachineCallback.DEATH_REASON_CRASH);
+            // Assert that onDied() was executed but onPayloadReady() was never run
+            assertThat(onDiedExecuted.getNow(false)).isTrue();
+            assertThat(onPayloadReadyExecuted.getNow(false)).isFalse();
         }
     }
 
