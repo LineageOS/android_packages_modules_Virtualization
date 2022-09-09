@@ -23,8 +23,8 @@ use anyhow::{bail, Result};
 use binder::Strong;
 use compos_common::compos_client::VmParameters;
 use compos_common::{
-    CURRENT_INSTANCE_DIR, DEX2OAT_CPU_SET_PROP_NAME, DEX2OAT_THREADS_PROP_NAME,
-    PREFER_STAGED_VM_CONFIG_PATH, TEST_INSTANCE_DIR,
+    CURRENT_INSTANCE_DIR, DEX2OAT_THREADS_PROP_NAME, PREFER_STAGED_VM_CONFIG_PATH,
+    TEST_INSTANCE_DIR,
 };
 use rustutils::system_properties;
 use std::num::NonZeroU32;
@@ -92,15 +92,8 @@ fn new_vm_parameters() -> Result<VmParameters> {
             NonZeroU32::new(num_cpus::get() as u32)
         }
     };
-    let cpu_set = system_properties::read(DEX2OAT_CPU_SET_PROP_NAME)?;
     let task_profiles = vec!["SCHED_SP_COMPUTE".to_string()];
-    Ok(VmParameters {
-        cpus,
-        cpu_set,
-        task_profiles,
-        memory_mib: Some(VM_MEMORY_MIB),
-        ..Default::default()
-    })
+    Ok(VmParameters { cpus, task_profiles, memory_mib: Some(VM_MEMORY_MIB), ..Default::default() })
 }
 
 // Ensures we only run one instance at a time.
