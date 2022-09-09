@@ -49,6 +49,13 @@ const CONTENT_DIGEST_SHA256: u32 = 4;
 
 const CHUNK_SIZE_BYTES: u64 = 1024 * 1024;
 
+/// The [APK structure] has four major sections:
+///
+/// | Zip contents | APK Signing Block | Central directory | EOCD(End of Central Directory) |
+///
+/// This structure contains the offset/size information of all the sections except the Zip contents.
+///
+/// [APK structure]: https://source.android.com/docs/security/apksigning/v2#apk-signing-block
 pub struct ApkSections<R> {
     inner: R,
     signing_block_offset: u32,
@@ -293,5 +300,46 @@ fn rank_content_digest_algorithm(id: u32) -> Result<u32> {
         CONTENT_DIGEST_VERITY_CHUNKED_SHA256 => Ok(1),
         CONTENT_DIGEST_CHUNKED_SHA512 => Ok(2),
         _ => bail!("Unknown digest algorithm: {}", id),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use byteorder::LittleEndian;
+    use std::fs::File;
+    use std::mem::size_of_val;
+
+    const CENTRAL_DIRECTORY_HEADER_SIGNATURE: u32 = 0x02014b50;
+
+    #[test]
+    fn test_apk_sections() {
+        let apk_file = File::open("tests/data/v3-only-with-ecdsa-sha512-p521.apk").unwrap();
+        let apk_sections = ApkSections::new(apk_file).unwrap();
+        let mut reader = &apk_sections.inner;
+
+        // Checks APK Signing Block.
+        assert_eq!(
+            apk_sections.signing_block_offset + apk_sections.signing_block_size,
+            apk_sections.central_directory_offset
+        );
+        let apk_signature_offset = SeekFrom::Start(
+            apk_sections.central_directory_offset as u64 - size_of_val(&APK_SIG_BLOCK_MAGIC) as u64,
+        );
+        reader.seek(apk_signature_offset).unwrap();
+        assert_eq!(reader.read_u128::<LittleEndian>().unwrap(), APK_SIG_BLOCK_MAGIC);
+
+        // Checks Central directory.
+        assert_eq!(reader.read_u32::<LittleEndian>().unwrap(), CENTRAL_DIRECTORY_HEADER_SIGNATURE);
+        assert_eq!(
+            apk_sections.central_directory_offset + apk_sections.central_directory_size,
+            apk_sections.eocd_offset
+        );
+
+        // Checks EOCD.
+        assert_eq!(
+            reader.metadata().unwrap().len(),
+            (apk_sections.eocd_offset + apk_sections.eocd_size) as u64
+        );
     }
 }
