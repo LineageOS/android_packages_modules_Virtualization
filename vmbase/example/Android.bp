@@ -18,8 +18,7 @@ rust_ffi_static {
 }
 
 cc_binary {
-    name: "vmbase_example_elf",
-    stem: "vmbase_example",
+    name: "vmbase_example",
     defaults: ["vmbase_elf_defaults"],
     srcs: [
         "idmap.S",
@@ -35,8 +34,9 @@ cc_binary {
 }
 
 raw_binary {
-    name: "vmbase_example",
-    src: ":vmbase_example_elf",
+    name: "vmbase_example_bin",
+    stem: "vmbase_example.bin",
+    src: ":vmbase_example",
     enabled: false,
     target: {
         android_arm64: {
@@ -60,7 +60,7 @@ rust_test {
         "libvmclient",
     ],
     data: [
-        ":vmbase_example",
+        ":vmbase_example_bin",
     ],
     test_suites: ["general-tests"],
     enabled: false,

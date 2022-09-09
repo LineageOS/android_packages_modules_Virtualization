@@ -15,8 +15,7 @@ rust_ffi_static {
 }
 
 cc_binary {
-    name: "pvmfw_elf",
-    stem: "pvmfw",
+    name: "pvmfw",
     defaults: ["vmbase_elf_defaults"],
     srcs: [
         "idmap.S",
@@ -33,8 +32,9 @@ cc_binary {
 }
 
 raw_binary {
-    name: "pvmfw",
-    src: ":pvmfw_elf",
+    name: "pvmfw_bin",
+    stem: "pvmfw.bin",
+    src: ":pvmfw",
     enabled: false,
     target: {
         android_arm64: {
