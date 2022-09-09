@@ -289,17 +289,20 @@ fn to_content_digest_algorithm(algorithm_id: u32) -> Result<u32> {
     }
 }
 
-/// Rank the signature algorithm according to the preferences of the v4 signing scheme.
-pub fn rank_signature_algorithm(algo: u32) -> Result<u32> {
-    rank_content_digest_algorithm(to_content_digest_algorithm(algo)?)
-}
-
-fn rank_content_digest_algorithm(id: u32) -> Result<u32> {
-    match id {
+/// This method is used to help pick v4 apk digest. According to APK Signature
+/// Scheme v4, apk digest is the first available content digest of the highest
+/// rank (rank N).
+///
+/// This rank was also used for step 3a of the v3 signature verification.
+///
+/// [v3 verification]: https://source.android.com/docs/security/apksigning/v3#v3-verification
+pub fn get_signature_algorithm_rank(algo: u32) -> Result<u32> {
+    let content_digest = to_content_digest_algorithm(algo)?;
+    match content_digest {
         CONTENT_DIGEST_CHUNKED_SHA256 => Ok(0),
         CONTENT_DIGEST_VERITY_CHUNKED_SHA256 => Ok(1),
         CONTENT_DIGEST_CHUNKED_SHA512 => Ok(2),
-        _ => bail!("Unknown digest algorithm: {}", id),
+        _ => bail!("Unknown digest algorithm: {}", content_digest),
     }
 }
 
