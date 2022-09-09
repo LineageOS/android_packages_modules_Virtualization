@@ -16,12 +16,12 @@
 
 //! Utilities for Signature Verification
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, ensure, Error, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use openssl::hash::{DigestBytes, Hasher, MessageDigest};
 use std::cmp::min;
-use std::io::{Cursor, Read, Seek, SeekFrom, Take};
+use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Take};
 
 use crate::ziputil::{set_central_directory_offset, zip_sections};
 
@@ -86,7 +86,6 @@ impl<R: Read + Seek> ApkSections<R> {
     /// and the additional information relevant for verifying the block against the file.
     pub fn find_signature(&mut self, block_id: u32) -> Result<Bytes> {
         let signing_block = self.bytes(self.signing_block_offset, self.signing_block_size)?;
-        // TODO(jooyung): propagate NotFound error so that verification can fallback to V2
         find_signature_scheme_block(Bytes::from(signing_block), block_id)
     }
 
@@ -205,30 +204,30 @@ fn find_signing_block<T: Read + Seek>(
     // * @+8  bytes payload
     // * @-24 bytes uint64:    size in bytes (same as the one above)
     // * @-16 bytes uint128:   magic
-    if central_directory_offset < APK_SIG_BLOCK_MIN_SIZE {
-        bail!(
-            "APK too small for APK Signing Block. ZIP Central Directory offset: {}",
-            central_directory_offset
-        );
-    }
+    ensure!(
+        central_directory_offset >= APK_SIG_BLOCK_MIN_SIZE,
+        "APK too small for APK Signing Block. ZIP Central Directory offset: {}",
+        central_directory_offset
+    );
     reader.seek(SeekFrom::Start((central_directory_offset - 24) as u64))?;
     let size_in_footer = reader.read_u64::<LittleEndian>()? as u32;
-    if reader.read_u128::<LittleEndian>()? != APK_SIG_BLOCK_MAGIC {
-        bail!("No APK Signing Block before ZIP Central Directory")
-    }
+    ensure!(
+        reader.read_u128::<LittleEndian>()? == APK_SIG_BLOCK_MAGIC,
+        "No APK Signing Block before ZIP Central Directory"
+    );
     let total_size = size_in_footer + 8;
     let signing_block_offset = central_directory_offset
         .checked_sub(total_size)
         .ok_or_else(|| anyhow!("APK Signing Block size out of range: {}", size_in_footer))?;
     reader.seek(SeekFrom::Start(signing_block_offset as u64))?;
     let size_in_header = reader.read_u64::<LittleEndian>()? as u32;
-    if size_in_header != size_in_footer {
-        bail!(
-            "APK Signing Block sizes in header and footer do not match: {} vs {}",
-            size_in_header,
-            size_in_footer
-        );
-    }
+    // This corresponds to APK Signature Scheme v3 verification step 1a.
+    ensure!(
+        size_in_header == size_in_footer,
+        "APK Signing Block sizes in header and footer do not match: {} vs {}",
+        size_in_header,
+        size_in_footer
+    );
     Ok((signing_block_offset, total_size))
 }
 
@@ -243,9 +242,11 @@ fn find_signature_scheme_block(buf: Bytes, block_id: u32) -> Result<Bytes> {
     let mut entry_count = 0;
     while pairs.has_remaining() {
         entry_count += 1;
-        if pairs.remaining() < 8 {
-            bail!("Insufficient data to read size of APK Signing Block entry #{}", entry_count);
-        }
+        ensure!(
+            pairs.remaining() >= 8,
+            "Insufficient data to read size of APK Signing Block entry #{}",
+            entry_count
+        );
         let length = pairs.get_u64_le();
         let mut pair = pairs.split_to(length as usize);
         let id = pair.get_u32_le();
@@ -253,8 +254,9 @@ fn find_signature_scheme_block(buf: Bytes, block_id: u32) -> Result<Bytes> {
             return Ok(pair);
         }
     }
-    // TODO(jooyung): return NotFound error
-    bail!("No APK Signature Scheme block in APK Signing Block with ID: {}", block_id)
+    let context =
+        format!("No APK Signature Scheme block in APK Signing Block with ID: {}", block_id);
+    Err(Error::new(io::Error::from(ErrorKind::NotFound)).context(context))
 }
 
 pub fn is_supported_signature_algorithm(algorithm_id: u32) -> bool {
@@ -313,7 +315,7 @@ mod tests {
     use std::fs::File;
     use std::mem::size_of_val;
 
-    use crate::v3::to_hex_string;
+    use crate::v3::{to_hex_string, APK_SIGNATURE_SCHEME_V3_BLOCK_ID};
 
     const CENTRAL_DIRECTORY_HEADER_SIGNATURE: u32 = 0x02014b50;
 
@@ -357,5 +359,31 @@ mod tests {
             "0DF2426EA33AEDAF495D88E5BE0C6A1663FF0A81C5ED12D5B2929AE4B4300F2F",
             to_hex_string(&digest[..])
         );
+    }
+
+    #[test]
+    fn test_apk_sections_cannot_find_signature() {
+        let apk_file = File::open("tests/data/v2-only-two-signers.apk").unwrap();
+        let mut apk_sections = ApkSections::new(apk_file).unwrap();
+        let result = apk_sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID);
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        assert_eq!(error.downcast_ref::<io::Error>().unwrap().kind(), ErrorKind::NotFound);
+        assert!(
+            error.to_string().contains(&APK_SIGNATURE_SCHEME_V3_BLOCK_ID.to_string()),
+            "Error should contain the block ID: {}",
+            error
+        );
+    }
+
+    #[test]
+    fn test_apk_sections_find_signature() {
+        let apk_file = File::open("tests/data/v3-only-with-dsa-sha256-1024.apk").unwrap();
+        let mut apk_sections = ApkSections::new(apk_file).unwrap();
+        let signature = apk_sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID).unwrap();
+
+        let expected_v3_signature_block_size = 1289; // Only for this specific APK
+        assert_eq!(signature.len(), expected_v3_signature_block_size);
     }
 }
