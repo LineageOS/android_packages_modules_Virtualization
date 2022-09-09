@@ -30,6 +30,7 @@ rust_test {
     name: "libapkverify.test",
     defaults: ["libapkverify.defaults"],
     test_suites: ["general-tests"],
+    data: ["tests/data/*"],
 }
 
 rust_test {
