@@ -1,0 +1,13 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_binary_host {
+    name: "initrd_bootconfig",
+    srcs: ["src/main.rs"],
+    rustlibs: [
+        "libanyhow",
+        "libstructopt",
+    ],
+    prefer_rlib: true,
+}
