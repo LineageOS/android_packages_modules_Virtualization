@@ -61,6 +61,3 @@ pub const PREFER_STAGED_VM_CONFIG_PATH: &str = "assets/vm_config_staged.json";
 
 /// Number of CPUs to run dex2oat (actually the entire compos VM) with
 pub const DEX2OAT_THREADS_PROP_NAME: &str = "dalvik.vm.boot-dex2oat-threads";
-
-/// Set of host-side CPUs to run dex2oat (actually the entire compos VM) on
-pub const DEX2OAT_CPU_SET_PROP_NAME: &str = "dalvik.vm.boot-dex2oat-cpu-set";
