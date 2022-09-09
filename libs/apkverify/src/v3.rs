@@ -15,6 +15,8 @@
  */
 
 //! Verifies APK Signature Scheme V3
+//!
+//! [v3 verification]: https://source.android.com/security/apksigning/v3#verification
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use bytes::Bytes;
@@ -35,9 +37,6 @@ pub const APK_SIGNATURE_SCHEME_V3_BLOCK_ID: u32 = 0xf05368c0;
 
 // TODO(jooyung): get "ro.build.version.sdk"
 const SDK_INT: u32 = 31;
-
-/// Data model for Signature Scheme V3
-/// https://source.android.com/security/apksigning/v3#verification
 
 type Signers = LengthPrefixed<Vec<LengthPrefixed<Signer>>>;
 
@@ -160,6 +159,7 @@ impl Signer {
         Ok((digest.signature_algorithm_id, digest.digest.as_ref().to_vec().into_boxed_slice()))
     }
 
+    /// The steps in this method implements APK Signature Scheme v3 verification step 3.
     fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
         // 1. Choose the strongest supported signature algorithm ID from signatures.
         let strongest = self.strongest_signature()?;
