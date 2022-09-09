@@ -187,11 +187,11 @@ impl Digester {
 
     // v2/v3 digests are computed after prepending "header" byte and "size" info.
     fn digest(&self, data: &[u8], header: &[u8], size: u32) -> Result<DigestBytes> {
-        let mut ctx = Hasher::new(self.algorithm)?;
-        ctx.update(header)?;
-        ctx.update(&size.to_le_bytes())?;
-        ctx.update(data)?;
-        Ok(ctx.finish()?)
+        let mut hasher = Hasher::new(self.algorithm)?;
+        hasher.update(header)?;
+        hasher.update(&size.to_le_bytes())?;
+        hasher.update(data)?;
+        Ok(hasher.finish()?)
     }
 }
 
@@ -313,6 +313,8 @@ mod tests {
     use std::fs::File;
     use std::mem::size_of_val;
 
+    use crate::v3::to_hex_string;
+
     const CENTRAL_DIRECTORY_HEADER_SIGNATURE: u32 = 0x02014b50;
 
     #[test]
@@ -343,6 +345,17 @@ mod tests {
         assert_eq!(
             reader.metadata().unwrap().len(),
             (apk_sections.eocd_offset + apk_sections.eocd_size) as u64
+        );
+    }
+
+    #[test]
+    fn test_apk_digest() {
+        let apk_file = File::open("tests/data/v3-only-with-dsa-sha256-1024.apk").unwrap();
+        let mut apk_sections = ApkSections::new(apk_file).unwrap();
+        let digest = apk_sections.compute_digest(SIGNATURE_DSA_WITH_SHA256).unwrap();
+        assert_eq!(
+            "0DF2426EA33AEDAF495D88E5BE0C6A1663FF0A81C5ED12D5B2929AE4B4300F2F",
+            to_hex_string(&digest[..])
         );
     }
 }
