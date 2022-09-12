@@ -66,7 +66,6 @@ pub fn write_vm_creation_stats(
     let vm_identifier;
     let config_type;
     let num_cpus;
-    let cpu_affinity;
     let memory_mib;
     let apexes;
     match config {
@@ -74,7 +73,6 @@ pub fn write_vm_creation_stats(
             vm_identifier = &config.name;
             config_type = vm_creation_requested::ConfigType::VirtualMachineAppConfig;
             num_cpus = config.numCpus;
-            cpu_affinity = config.cpuAffinity.clone().unwrap_or_default();
             memory_mib = config.memoryMib;
 
             let vm_payload_config = get_vm_payload_config(config);
@@ -93,7 +91,6 @@ pub fn write_vm_creation_stats(
             vm_identifier = &config.name;
             config_type = vm_creation_requested::ConfigType::VirtualMachineRawConfig;
             num_cpus = config.numCpus;
-            cpu_affinity = config.cpuAffinity.clone().unwrap_or_default();
             memory_mib = config.memoryMib;
             apexes = String::new();
         }
@@ -108,7 +105,7 @@ pub fn write_vm_creation_stats(
         binder_exception_code,
         config_type,
         num_cpus,
-        cpu_affinity: &cpu_affinity,
+        cpu_affinity: "", // deprecated
         memory_mib,
         apexes: &apexes,
         // TODO(seungjaeyoo) Fill information about task_profile
