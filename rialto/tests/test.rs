@@ -63,7 +63,6 @@ fn test_boots() -> Result<(), Error> {
         protectedVm: false,
         memoryMib: 300,
         numCpus: 1,
-        cpuAffinity: None,
         platformVersion: "~1.0".to_string(),
         taskProfiles: vec![],
     });
