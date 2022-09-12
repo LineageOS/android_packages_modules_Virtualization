@@ -55,13 +55,6 @@ parcelable VirtualMachineRawConfig {
     int numCpus = 1;
 
     /**
-     * Comma-separated list of CPUs or CPU ranges to run vCPUs on (e.g. 0,1-3,5), or
-     * colon-separated list of assignments of vCPU to host CPU assignments (e.g. 0=0:1=1:2=2).
-     * Default is no mask which means a vCPU can run on any host CPU.
-     */
-    @nullable String cpuAffinity;
-
-    /**
      * A version or range of versions of the virtual platform that this config is compatible with.
      * The format follows SemVer.
      */

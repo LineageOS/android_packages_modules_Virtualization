@@ -92,10 +92,6 @@ enum Opt {
         #[structopt(long)]
         cpus: Option<u32>,
 
-        /// Host CPUs where vCPUs are run on. If unspecified, vCPU runs on any host CPU.
-        #[structopt(long)]
-        cpu_affinity: Option<String>,
-
         /// Comma separated list of task profile names to apply to the VM
         #[structopt(long)]
         task_profiles: Vec<String>,
@@ -121,14 +117,6 @@ enum Opt {
         /// Number of vCPUs in the VM. If unspecified, defaults to 1.
         #[structopt(long)]
         cpus: Option<u32>,
-
-        /// Host CPUs where vCPUs are run on. If unspecified, vCPU runs on any host CPU. The format
-        /// can be either a comma-separated list of CPUs or CPU ranges to run vCPUs on (e.g.
-        /// "0,1-3,5" to choose host CPUs 0, 1, 2, 3, and 5, or a colon-separated list of
-        /// assignments of vCPU-to-host-CPU assignments e.g. "0=0:1=1:2=2" to map vCPU 0 to host
-        /// CPU 0 and so on.
-        #[structopt(long)]
-        cpu_affinity: Option<String>,
 
         /// Comma separated list of task profile names to apply to the VM
         #[structopt(long)]
@@ -216,7 +204,6 @@ fn main() -> Result<(), Error> {
             protected,
             mem,
             cpus,
-            cpu_affinity,
             task_profiles,
             extra_idsigs,
         } => command_run_app(
@@ -234,11 +221,10 @@ fn main() -> Result<(), Error> {
             protected,
             mem,
             cpus,
-            cpu_affinity,
             task_profiles,
             &extra_idsigs,
         ),
-        Opt::Run { name, config, daemonize, cpus, cpu_affinity, task_profiles, console, log } => {
+        Opt::Run { name, config, daemonize, cpus, task_profiles, console, log } => {
             command_run(
                 name,
                 service.as_ref(),
@@ -248,7 +234,6 @@ fn main() -> Result<(), Error> {
                 log.as_deref(),
                 /* mem */ None,
                 cpus,
-                cpu_affinity,
                 task_profiles,
             )
         }
