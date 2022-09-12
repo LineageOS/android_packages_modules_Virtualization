@@ -80,7 +80,6 @@ pub struct CrosvmConfig {
     pub protected: bool,
     pub memory_mib: Option<NonZeroU32>,
     pub cpus: Option<NonZeroU32>,
-    pub cpu_affinity: Option<String>,
     pub task_profiles: Vec<String>,
     pub console_fd: Option<File>,
     pub log_fd: Option<File>,
@@ -455,10 +454,6 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
 
     if let Some(cpus) = config.cpus {
         command.arg("--cpus").arg(cpus.to_string());
-    }
-
-    if let Some(cpu_affinity) = config.cpu_affinity {
-        command.arg("--cpu-affinity").arg(cpu_affinity);
     }
 
     if !config.task_profiles.is_empty() {

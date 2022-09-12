@@ -45,9 +45,6 @@ pub struct VmParameters {
     pub debug_mode: bool,
     /// Number of vCPUs to have in the VM. If None, defaults to 1.
     pub cpus: Option<NonZeroU32>,
-    /// Comma separated list of host CPUs where vCPUs are assigned to. If None, any host CPU can be
-    /// used to run any vCPU.
-    pub cpu_set: Option<String>,
     /// List of task profiles to apply to the VM
     pub task_profiles: Vec<String>,
     /// If present, overrides the path to the VM config JSON file
@@ -112,7 +109,6 @@ impl ComposClient {
             protectedVm: protected_vm,
             memoryMib: parameters.memory_mib.unwrap_or(0), // 0 means use the default
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
-            cpuAffinity: parameters.cpu_set.clone(),
             taskProfiles: parameters.task_profiles.clone(),
         });
 

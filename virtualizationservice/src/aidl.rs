@@ -459,7 +459,6 @@ impl VirtualizationService {
             protected: *is_protected,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
             cpus: config.numCpus.try_into().ok().and_then(NonZeroU32::new),
-            cpu_affinity: config.cpuAffinity.clone(),
             task_profiles: config.taskProfiles.clone(),
             console_fd,
             log_fd,
@@ -598,7 +597,7 @@ fn load_app_config(
 ) -> Result<VirtualMachineRawConfig> {
     // Controlling CPUs is reserved for platform apps only, even when using
     // VirtualMachineAppConfig.
-    if config.cpuAffinity.is_some() || !config.taskProfiles.is_empty() {
+    if !config.taskProfiles.is_empty() {
         check_use_custom_virtual_machine()?
     }
 
@@ -631,7 +630,6 @@ fn load_app_config(
     vm_config.name = config.name.clone();
     vm_config.protectedVm = config.protectedVm;
     vm_config.numCpus = config.numCpus;
-    vm_config.cpuAffinity = config.cpuAffinity.clone();
     vm_config.taskProfiles = config.taskProfiles.clone();
 
     // Microdroid requires an additional payload disk image and the bootconfig partition.
