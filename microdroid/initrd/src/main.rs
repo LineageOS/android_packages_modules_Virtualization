@@ -14,26 +14,23 @@
 
 //! Append bootconfig to initrd image
 use anyhow::Result;
-
+use clap::Parser;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use structopt::StructOpt;
 
 const FOOTER_ALIGNMENT: usize = 4;
 const ZEROS: [u8; 4] = [0u8; 4_usize];
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 struct Args {
-    /// Output
-    #[structopt(parse(from_os_str), long = "output")]
-    output: PathBuf,
     /// Initrd (without bootconfig)
-    #[structopt(parse(from_os_str))]
     initrd: PathBuf,
     /// Bootconfig
-    #[structopt(parse(from_os_str))]
     bootconfigs: Vec<PathBuf>,
+    /// Output
+    #[clap(long = "output")]
+    output: PathBuf,
 }
 
 fn get_checksum(file_path: &PathBuf) -> Result<u32> {
@@ -67,7 +64,7 @@ fn attach_bootconfig(initrd: PathBuf, bootconfigs: Vec<PathBuf>, output: PathBuf
 }
 
 fn try_main() -> Result<()> {
-    let args = Args::from_args_safe()?;
+    let args = Args::parse();
     attach_bootconfig(args.initrd, args.bootconfigs, args.output)?;
     Ok(())
 }
