@@ -7,7 +7,7 @@ rust_binary_host {
     srcs: ["src/main.rs"],
     rustlibs: [
         "libanyhow",
-        "libstructopt",
+        "libclap",
     ],
     prefer_rlib: true,
 }
