@@ -20,6 +20,7 @@
 use android_logger::LogId;
 use anyhow::{bail, Context, Result};
 use binder::ProcessState;
+use clap::{Parser, ValueEnum};
 use compos_common::compos_client::{ComposClient, VmParameters};
 use compos_common::odrefresh::{
     CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR, PENDING_ARTIFACTS_SUBDIR,
@@ -36,6 +37,24 @@ use std::panic;
 use std::path::Path;
 
 const MAX_FILE_SIZE_BYTES: u64 = 100 * 1024;
+
+#[derive(Parser)]
+struct Args {
+    /// Type of the VM instance
+    #[clap(long, value_enum)]
+    instance: Instance,
+
+    /// Starts the VM in debug mode
+    #[clap(long, action)]
+    debug: bool,
+}
+
+#[derive(ValueEnum, Clone)]
+enum Instance {
+    Current,
+    Pending,
+    Test,
+}
 
 fn main() {
     android_logger::init_once(
@@ -57,23 +76,11 @@ fn main() {
 }
 
 fn try_main() -> Result<()> {
-    let matches = clap::App::new("compos_verify")
-        .arg(
-            clap::Arg::with_name("instance")
-                .long("instance")
-                .takes_value(true)
-                .required(true)
-                .possible_values(&["current", "pending", "test"]),
-        )
-        .arg(clap::Arg::with_name("debug").long("debug"))
-        .get_matches();
-
-    let debug_mode = matches.is_present("debug");
-    let (instance_dir, artifacts_dir) = match matches.value_of("instance").unwrap() {
-        "current" => (CURRENT_INSTANCE_DIR, CURRENT_ARTIFACTS_SUBDIR),
-        "pending" => (CURRENT_INSTANCE_DIR, PENDING_ARTIFACTS_SUBDIR),
-        "test" => (TEST_INSTANCE_DIR, TEST_ARTIFACTS_SUBDIR),
-        _ => unreachable!("Unexpected instance name"),
+    let args = Args::parse();
+    let (instance_dir, artifacts_dir) = match args.instance {
+        Instance::Current => (CURRENT_INSTANCE_DIR, CURRENT_ARTIFACTS_SUBDIR),
+        Instance::Pending => (CURRENT_INSTANCE_DIR, PENDING_ARTIFACTS_SUBDIR),
+        Instance::Test => (TEST_INSTANCE_DIR, TEST_ARTIFACTS_SUBDIR),
     };
 
     let instance_dir = Path::new(COMPOS_DATA_ROOT).join(instance_dir);
@@ -104,7 +111,7 @@ fn try_main() -> Result<()> {
         instance_image,
         &idsig,
         &idsig_manifest_apk,
-        &VmParameters { debug_mode, ..Default::default() },
+        &VmParameters { debug_mode: args.debug, ..Default::default() },
     )?;
 
     let service = vm_instance.connect_service()?;

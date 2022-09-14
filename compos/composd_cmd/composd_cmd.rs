@@ -31,30 +31,32 @@ use android_system_composd::{
     },
 };
 use anyhow::{bail, Context, Result};
+use clap::Parser;
 use compos_common::timeouts::TIMEOUTS;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
+#[derive(Parser)]
+enum Actions {
+    /// Compile classpath for real. Output can be used after a reboot.
+    StagedApexCompile {},
+
+    /// Compile classpath in a debugging VM. Output is ignored.
+    TestCompile {
+        /// If any APEX is staged, prefer the staged version.
+        #[clap(long)]
+        prefer_staged: bool,
+    },
+}
+
 fn main() -> Result<()> {
-    #[rustfmt::skip]
-    let app = clap::App::new("composd_cmd")
-        .subcommand(
-            clap::SubCommand::with_name("staged-apex-compile"))
-        .subcommand(
-            clap::SubCommand::with_name("test-compile")
-                .arg(clap::Arg::with_name("prefer-staged").long("prefer-staged")),
-        );
-    let args = app.get_matches();
+    let action = Actions::parse();
 
     ProcessState::start_thread_pool();
 
-    match args.subcommand() {
-        Some(("staged-apex-compile", _)) => run_staged_apex_compile()?,
-        Some(("test-compile", sub_matches)) => {
-            let prefer_staged = sub_matches.is_present("prefer-staged");
-            run_test_compile(prefer_staged)?;
-        }
-        _ => panic!("Unrecognized subcommand"),
+    match action {
+        Actions::StagedApexCompile {} => run_staged_apex_compile()?,
+        Actions::TestCompile { prefer_staged } => run_test_compile(prefer_staged)?,
     }
 
     println!("All Ok!");
