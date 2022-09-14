@@ -13,7 +13,6 @@ rust_defaults {
         "libandroid_logger",
         "libanyhow",
         "libbinder_rs",
-        "libclap",
         "libcompos_common",
         "liblibc",
         "liblog_rust",
