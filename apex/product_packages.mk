@@ -32,4 +32,4 @@ PRODUCT_APEX_SYSTEM_SERVER_JARS := com.android.compos:service-compos
 
 PRODUCT_SYSTEM_EXT_PROPERTIES := ro.config.isolated_compilation_enabled=true
 
-PRODUCT_FSVERITY_GENERATE_METADATA := true
+PRODUCT_SYSTEM_FSVERITY_GENERATE_METADATA := true
