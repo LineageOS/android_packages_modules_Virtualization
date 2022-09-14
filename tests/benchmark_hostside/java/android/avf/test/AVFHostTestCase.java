@@ -19,8 +19,8 @@ package android.avf.test;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertWithMessage;
-import static com.google.common.truth.TruthJUnit.assume;
 
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import android.platform.test.annotations.RootPermissionTest;
@@ -77,8 +77,10 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     @After
     public void tearDown() throws Exception {
         // Set PKVM enable and reboot to prevent previous staged session.
-        setPKVMStatusWithRebootToBootloader(true);
-        rebootFromBootloaderAndWaitBootCompleted();
+        if (!isCuttlefish()) {
+            setPKVMStatusWithRebootToBootloader(true);
+            rebootFromBootloaderAndWaitBootCompleted();
+        }
 
         CommandRunner android = new CommandRunner(getDevice());
 
@@ -118,7 +120,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testBootWithAndWithoutCompOS() throws Exception {
-        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
+        assumeFalse(isCuttlefish());
 
         List<Double> bootWithCompOsTime = new ArrayList<>(ROUND_COUNT);
         List<Double> bootWithoutCompOsTime = new ArrayList<>(ROUND_COUNT);
@@ -152,6 +154,8 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     private void skipIfPKVMStatusSwitchNotSupported() throws Exception {
+        assumeFalse(isCuttlefish());
+
         if (!getDevice().isStateBootloaderOrFastbootd()) {
             getDevice().rebootIntoBootloader();
         }
@@ -160,7 +164,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         CommandResult result;
         result = getDevice().executeFastbootCommand("oem", "pkvm", "status");
         rebootFromBootloaderAndWaitBootCompleted();
-        assumeTrue(!result.getStderr().contains("Invalid oem command"));
+        assumeFalse(result.getStderr().contains("Invalid oem command"));
         // Skip the test if running on a build with pkvm_enabler. Disabling pKVM
         // for such builds results in a bootloop.
         assumeTrue(result.getStderr().contains("misc=auto"));
