@@ -317,22 +317,6 @@ def MakeSuperImage(args, partitions, output):
         RunCommand(args, cmd)
 
 
-def SignSuperImg(args, key, super_img, work_dir):
-    # unpack super.img
-    UnpackSuperImg(args, super_img, work_dir)
-
-    system_a_img = os.path.join(work_dir, 'system_a.img')
-    vendor_a_img = os.path.join(work_dir, 'vendor_a.img')
-
-    # re-sign each partition
-    system_a_f = Async(AddHashTreeFooter, args, key, system_a_img)
-    vendor_a_f = Async(AddHashTreeFooter, args, key, vendor_a_img)
-
-    # 3. re-pack super.img
-    partitions = {"system_a": system_a_img, "vendor_a": vendor_a_img}
-    Async(MakeSuperImage, args, partitions, super_img, wait=[system_a_f, vendor_a_f])
-
-
 def ReplaceBootloaderPubkey(args, key, bootloader, bootloader_pubkey):
     if os.path.basename(bootloader) in args.key_overrides:
         key = args.key_overrides[os.path.basename(bootloader)]
@@ -399,13 +383,20 @@ def SignVirtApex(args):
     init_boot_img_f = Async(AddHashFooter, args, key, files['init_boot.img'])
 
     # re-sign super.img
-    super_img_f = Async(SignSuperImg, args, key, files['super.img'], unpack_dir.name)
+    # 1. unpack super.img
+    # 2. resign system and vendor
+    # 3. repack super.img out of resigned system and vendor
+    UnpackSuperImg(args, files['super.img'], unpack_dir.name)
+    system_a_f = Async(AddHashTreeFooter, args, key, system_a_img)
+    vendor_a_f = Async(AddHashTreeFooter, args, key, vendor_a_img)
+    partitions = {"system_a": system_a_img, "vendor_a": vendor_a_img}
+    Async(MakeSuperImage, args, partitions, files['super.img'], wait=[system_a_f, vendor_a_f])
 
     # re-generate vbmeta from re-signed {boot, vendor_boot, init_boot, system_a, vendor_a}.img
     Async(MakeVbmetaImage, args, key, files['vbmeta.img'],
           images=[files['boot.img'], files['vendor_boot.img'],
                   files['init_boot.img'], system_a_img, vendor_a_img],
-          wait=[boot_img_f, vendor_boot_img_f, init_boot_img_f, super_img_f])
+          wait=[boot_img_f, vendor_boot_img_f, init_boot_img_f, system_a_f, vendor_a_f])
 
     # Re-sign bootconfigs and the uboot_env with the same key
     bootconfig_sign_key = key
