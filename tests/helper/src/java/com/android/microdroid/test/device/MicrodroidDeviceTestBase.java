@@ -210,9 +210,7 @@ public abstract class MicrodroidDeviceTestBase {
 
         protected void forceStop(VirtualMachine vm) {
             try {
-                vm.clearCallback();
                 vm.stop();
-                mExecutorService.shutdown();
             } catch (VirtualMachineException e) {
                 throw new RuntimeException(e);
             }
@@ -233,6 +231,7 @@ public abstract class MicrodroidDeviceTestBase {
         @Override
         @CallSuper
         public void onDied(VirtualMachine vm, int reason) {
+            vm.clearCallback();
             mExecutorService.shutdown();
         }
 
