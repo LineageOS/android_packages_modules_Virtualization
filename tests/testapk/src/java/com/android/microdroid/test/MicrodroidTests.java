@@ -206,39 +206,27 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder("assets/vm_config.json");
         VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
-        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
-        VmEventListener listener =
-                new VmEventListener() {
-                    @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        forceStop(vm);
-                    }
-                };
-        listener.runToFinish(TAG, vm);
+        mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
+        assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
+
+        // Try to run the VM again with the previous instance.img
+        // We need to make sure that no changes on config don't invalidate the identity, to compare
+        // the result with the below "different debug level" test.
+        File vmRoot = new File(getContext().getFilesDir(), "vm");
+        File vmInstance = new File(new File(vmRoot, "test_vm"), "instance.img");
+        File vmInstanceBackup = File.createTempFile("instance", ".img");
+        Files.copy(vmInstance.toPath(), vmInstanceBackup.toPath(), REPLACE_EXISTING);
+        mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
+        Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
+        assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
 
         // Launch the same VM with different debug level. The Java API prohibits this (thankfully).
-        // For testing, we do that by creating another VM with debug level, and copy the config file
-        // from the new VM directory to the old VM directory.
+        // For testing, we do that by creating a new VM with debug level, and copy the old instance
+        // image to the new VM instance image.
         VirtualMachineConfig debugConfig = builder.debugLevel(DebugLevel.FULL).build();
-        VirtualMachine newVm = mInner.forceCreateNewVirtualMachine("test_debug_vm", debugConfig);
-        File vmRoot = new File(getContext().getFilesDir(), "vm");
-        File newVmConfig = new File(new File(vmRoot, "test_debug_vm"), "config.xml");
-        File oldVmConfig = new File(new File(vmRoot, "test_vm"), "config.xml");
-        Files.copy(newVmConfig.toPath(), oldVmConfig.toPath(), REPLACE_EXISTING);
-        newVm.delete();
-        // re-load with the copied-in config file.
-        vm = mInner.getVirtualMachineManager().get("test_vm");
-        final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        listener =
-                new VmEventListener() {
-                    @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        payloadStarted.complete(true);
-                        forceStop(vm);
-                    }
-                };
-        listener.runToFinish(TAG, vm);
-        assertThat(payloadStarted.getNow(false)).isFalse();
+        mInner.forceCreateNewVirtualMachine("test_vm", debugConfig);
+        Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
+        assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isFalse();
     }
 
     private class VmCdis {
