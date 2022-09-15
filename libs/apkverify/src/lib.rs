@@ -16,6 +16,7 @@
 
 //! Verifies APK/APEX signing with v2/v3 scheme
 
+mod algorithms;
 mod bytes_ext;
 mod sigutil;
 #[allow(dead_code)]
