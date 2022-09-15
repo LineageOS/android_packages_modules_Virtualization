@@ -504,4 +504,21 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(bootResult.deathReason).isEqualTo(
                 VirtualMachineCallback.DEATH_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG);
     }
+
+    @Test
+    public void sameInstancesShareTheSameVmObject()
+            throws VirtualMachineException, InterruptedException, IOException {
+        VirtualMachineConfig.Builder builder =
+                mInner.newVmConfigBuilder("assets/vm_config.json");
+        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
+        VirtualMachine vm2 = mInner.getVirtualMachineManager().get("test_vm");
+        assertThat(vm).isEqualTo(vm2);
+
+        VirtualMachine newVm = mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
+        VirtualMachine newVm2 = mInner.getVirtualMachineManager().get("test_vm");
+        assertThat(newVm).isEqualTo(newVm2);
+
+        assertThat(vm).isNotEqualTo(newVm);
+    }
 }

@@ -45,11 +45,15 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.ref.WeakReference;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.WeakHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,6 +69,11 @@ import java.util.zip.ZipFile;
  * @hide
  */
 public class VirtualMachine {
+    private static final Map<Context, Map<String, WeakReference<VirtualMachine>>> sInstances =
+            new WeakHashMap<>();
+
+    private static final Object sInstancesLock = new Object();
+
     /** Name of the directory under the files directory where all VMs created for the app exist. */
     private static final String VM_DIR = "vm";
 
@@ -159,6 +168,8 @@ public class VirtualMachine {
 
     private final ExecutorService mExecutorService = Executors.newCachedThreadPool();
 
+    @NonNull private final Context mContext;
+
     static {
         System.loadLibrary("virtualmachine_jni");
     }
@@ -166,6 +177,7 @@ public class VirtualMachine {
     private VirtualMachine(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
+        mContext = context;
         mPackageName = context.getPackageName();
         mName = name;
         mConfig = config;
@@ -231,6 +243,18 @@ public class VirtualMachine {
             throw new VirtualMachineException("failed to create instance partition", e);
         }
 
+        synchronized (sInstancesLock) {
+            Map<String, WeakReference<VirtualMachine>> instancesMap;
+            if (sInstances.containsKey(context)) {
+                instancesMap = sInstances.get(context);
+            } else {
+                instancesMap = new HashMap<>();
+                sInstances.put(context, instancesMap);
+            }
+
+            instancesMap.put(name, new WeakReference<>(vm));
+        }
+
         return vm;
     }
 
@@ -249,7 +273,23 @@ public class VirtualMachine {
             throw new VirtualMachineException(e);
         }
 
-        VirtualMachine vm = new VirtualMachine(context, name, config);
+        VirtualMachine vm;
+        synchronized (sInstancesLock) {
+            Map<String, WeakReference<VirtualMachine>> instancesMap;
+            if (sInstances.containsKey(context)) {
+                instancesMap = sInstances.get(context);
+            } else {
+                instancesMap = new HashMap<>();
+                sInstances.put(context, instancesMap);
+            }
+
+            if (instancesMap.containsKey(name)) {
+                vm = instancesMap.get(name).get();
+            } else {
+                vm = new VirtualMachine(context, name, config);
+                instancesMap.put(name, new WeakReference<>(vm));
+            }
+        }
 
         // If config file exists, but the instance image file doesn't, it means that the VM is
         // corrupted. That's different from the case that the VM doesn't exist. Throw an exception
@@ -544,6 +584,11 @@ public class VirtualMachine {
         mInstanceFilePath.delete();
         mIdsigFilePath.delete();
         vmRootDir.delete();
+
+        synchronized (sInstancesLock) {
+            Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(mContext);
+            if (instancesMap != null) instancesMap.remove(mName);
+        }
     }
 
     /**
