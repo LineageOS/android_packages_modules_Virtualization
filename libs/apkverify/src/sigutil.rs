@@ -16,19 +16,21 @@
 
 //! Utilities for Signature Verification
 
-use anyhow::{anyhow, bail, ensure, Error, Result};
+use anyhow::{anyhow, ensure, Error, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use num_traits::FromPrimitive;
 use openssl::hash::{DigestBytes, Hasher, MessageDigest};
 use std::cmp::min;
 use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Take};
 
+use crate::algorithms::SignatureAlgorithmID;
 use crate::ziputil::{set_central_directory_offset, zip_sections};
 
 const APK_SIG_BLOCK_MIN_SIZE: u32 = 32;
 const APK_SIG_BLOCK_MAGIC: u128 = 0x3234206b636f6c4220676953204b5041;
 
-// TODO(jooyung): introduce type
+// TODO(b/246254355): Migrates usages of raw signature algorithm id to the enum.
 pub const SIGNATURE_RSA_PSS_WITH_SHA256: u32 = 0x0101;
 pub const SIGNATURE_RSA_PSS_WITH_SHA512: u32 = 0x0102;
 pub const SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256: u32 = 0x0103;
@@ -39,13 +41,6 @@ pub const SIGNATURE_DSA_WITH_SHA256: u32 = 0x0301;
 pub const SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256: u32 = 0x0421;
 pub const SIGNATURE_VERITY_ECDSA_WITH_SHA256: u32 = 0x0423;
 pub const SIGNATURE_VERITY_DSA_WITH_SHA256: u32 = 0x0425;
-
-// TODO(jooyung): introduce type
-const CONTENT_DIGEST_CHUNKED_SHA256: u32 = 1;
-const CONTENT_DIGEST_CHUNKED_SHA512: u32 = 2;
-const CONTENT_DIGEST_VERITY_CHUNKED_SHA256: u32 = 3;
-#[allow(unused)]
-const CONTENT_DIGEST_SHA256: u32 = 4;
 
 const CHUNK_SIZE_BYTES: u64 = 1024 * 1024;
 
@@ -97,6 +92,9 @@ impl<R: Read + Seek> ApkSections<R> {
     ///    order the chunks appear in the APK.
     /// (see https://source.android.com/security/apksigning/v2#integrity-protected-contents)
     pub fn compute_digest(&mut self, signature_algorithm_id: u32) -> Result<Vec<u8>> {
+        // TODO(b/246254355): Passes the enum SignatureAlgorithmID directly to this method.
+        let signature_algorithm_id = SignatureAlgorithmID::from_u32(signature_algorithm_id)
+            .ok_or_else(|| anyhow!("Unsupported algorithm ID: {}", signature_algorithm_id))?;
         let digester = Digester::new(signature_algorithm_id)?;
 
         let mut digests_of_chunks = BytesMut::new();
@@ -163,30 +161,22 @@ fn scoped_read<'a, R: Read + Seek>(
 }
 
 struct Digester {
-    algorithm: MessageDigest,
+    message_digest: MessageDigest,
 }
 
 const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
 const CHUNK_HEADER_MID: &[u8] = &[0xa5];
 
 impl Digester {
-    fn new(signature_algorithm_id: u32) -> Result<Digester> {
-        let digest_algorithm_id = to_content_digest_algorithm(signature_algorithm_id)?;
-        let algorithm = match digest_algorithm_id {
-            CONTENT_DIGEST_CHUNKED_SHA256 => MessageDigest::sha256(),
-            CONTENT_DIGEST_CHUNKED_SHA512 => MessageDigest::sha512(),
-            // TODO(jooyung): implement
-            CONTENT_DIGEST_VERITY_CHUNKED_SHA256 => {
-                bail!("TODO(b/190343842): CONTENT_DIGEST_VERITY_CHUNKED_SHA256: not implemented")
-            }
-            _ => bail!("Unknown digest algorithm: {}", digest_algorithm_id),
-        };
-        Ok(Digester { algorithm })
+    fn new(signature_algorithm_id: SignatureAlgorithmID) -> Result<Digester> {
+        let message_digest =
+            signature_algorithm_id.to_content_digest_algorithm().new_message_digest()?;
+        Ok(Digester { message_digest })
     }
 
     // v2/v3 digests are computed after prepending "header" byte and "size" info.
     fn digest(&self, data: &[u8], header: &[u8], size: u32) -> Result<DigestBytes> {
-        let mut hasher = Hasher::new(self.algorithm)?;
+        let mut hasher = Hasher::new(self.message_digest)?;
         hasher.update(header)?;
         hasher.update(&size.to_le_bytes())?;
         hasher.update(data)?;
@@ -257,55 +247,6 @@ fn find_signature_scheme_block(buf: Bytes, block_id: u32) -> Result<Bytes> {
     let context =
         format!("No APK Signature Scheme block in APK Signing Block with ID: {}", block_id);
     Err(Error::new(io::Error::from(ErrorKind::NotFound)).context(context))
-}
-
-pub fn is_supported_signature_algorithm(algorithm_id: u32) -> bool {
-    matches!(
-        algorithm_id,
-        SIGNATURE_RSA_PSS_WITH_SHA256
-            | SIGNATURE_RSA_PSS_WITH_SHA512
-            | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256
-            | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512
-            | SIGNATURE_ECDSA_WITH_SHA256
-            | SIGNATURE_ECDSA_WITH_SHA512
-            | SIGNATURE_DSA_WITH_SHA256
-            | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256
-            | SIGNATURE_VERITY_ECDSA_WITH_SHA256
-            | SIGNATURE_VERITY_DSA_WITH_SHA256
-    )
-}
-
-fn to_content_digest_algorithm(algorithm_id: u32) -> Result<u32> {
-    match algorithm_id {
-        SIGNATURE_RSA_PSS_WITH_SHA256
-        | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256
-        | SIGNATURE_ECDSA_WITH_SHA256
-        | SIGNATURE_DSA_WITH_SHA256 => Ok(CONTENT_DIGEST_CHUNKED_SHA256),
-        SIGNATURE_RSA_PSS_WITH_SHA512
-        | SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512
-        | SIGNATURE_ECDSA_WITH_SHA512 => Ok(CONTENT_DIGEST_CHUNKED_SHA512),
-        SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256
-        | SIGNATURE_VERITY_ECDSA_WITH_SHA256
-        | SIGNATURE_VERITY_DSA_WITH_SHA256 => Ok(CONTENT_DIGEST_VERITY_CHUNKED_SHA256),
-        _ => bail!("Unknown signature algorithm: {}", algorithm_id),
-    }
-}
-
-/// This method is used to help pick v4 apk digest. According to APK Signature
-/// Scheme v4, apk digest is the first available content digest of the highest
-/// rank (rank N).
-///
-/// This rank was also used for step 3a of the v3 signature verification.
-///
-/// [v3 verification]: https://source.android.com/docs/security/apksigning/v3#v3-verification
-pub fn get_signature_algorithm_rank(algo: u32) -> Result<u32> {
-    let content_digest = to_content_digest_algorithm(algo)?;
-    match content_digest {
-        CONTENT_DIGEST_CHUNKED_SHA256 => Ok(0),
-        CONTENT_DIGEST_VERITY_CHUNKED_SHA256 => Ok(1),
-        CONTENT_DIGEST_CHUNKED_SHA512 => Ok(2),
-        _ => bail!("Unknown digest algorithm: {}", content_digest),
-    }
 }
 
 #[cfg(test)]
