@@ -20,6 +20,7 @@
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use bytes::Bytes;
+use num_traits::FromPrimitive;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
 use openssl::rsa::Padding;
@@ -30,6 +31,7 @@ use std::io::{Read, Seek};
 use std::ops::Range;
 use std::path::Path;
 
+use crate::algorithms::SignatureAlgorithmID;
 use crate::bytes_ext::{BytesExt, LengthPrefixed, ReadFromBytes};
 use crate::sigutil::*;
 
@@ -71,6 +73,7 @@ impl SignedData {
 
 #[derive(Debug)]
 struct Signature {
+    /// TODO(b/246254355): Change the type of signature_algorithm_id to SignatureAlgorithmID
     signature_algorithm_id: u32,
     signature: LengthPrefixed<Bytes>,
 }
@@ -143,8 +146,8 @@ impl Signer {
         Ok(self
             .signatures
             .iter()
-            .filter(|sig| is_supported_signature_algorithm(sig.signature_algorithm_id))
-            .max_by_key(|sig| get_signature_algorithm_rank(sig.signature_algorithm_id).unwrap())
+            .filter(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).is_some())
+            .max_by_key(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).unwrap())
             .ok_or_else(|| anyhow!("No supported signatures found"))?)
     }
 

@@ -13,9 +13,11 @@ rust_defaults {
         "libbyteorder",
         "libbytes",
         "liblog_rust",
+        "libnum_traits",
         "libopenssl",
         "libzip",
     ],
+    proc_macros: ["libnum_derive"],
 }
 
 rust_library {
