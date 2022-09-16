@@ -16,9 +16,12 @@
 
 //! Algorithms used for APK Signature Scheme.
 
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, Result};
 use num_derive::FromPrimitive;
 use openssl::hash::MessageDigest;
+use openssl::pkey::{self, PKey};
+use openssl::rsa::Padding;
+use openssl::sign::Verifier;
 use std::cmp::Ordering;
 
 /// [Signature Algorithm IDs]: https://source.android.com/docs/security/apksigning/v2#signature-algorithm-ids
@@ -74,6 +77,77 @@ impl SignatureAlgorithmID {
             | SignatureAlgorithmID::VerityDsaWithSha256 => {
                 ContentDigestAlgorithm::VerityChunkedSha256
             }
+        }
+    }
+
+    pub(crate) fn new_verifier<'a>(
+        &self,
+        public_key: &'a PKey<pkey::Public>,
+    ) -> Result<Verifier<'a>> {
+        ensure!(
+            !matches!(
+                self,
+                SignatureAlgorithmID::EcdsaWithSha512
+                    | SignatureAlgorithmID::DsaWithSha256
+                    | SignatureAlgorithmID::VerityDsaWithSha256
+            ),
+            "TODO(b/197052981): Algorithm '{:#?}' is not implemented.",
+            self
+        );
+        ensure!(public_key.id() == self.pkey_id(), "Public key has the wrong ID");
+        let mut verifier = Verifier::new(self.new_message_digest(), public_key)?;
+        if public_key.id() == pkey::Id::RSA {
+            verifier.set_rsa_padding(self.rsa_padding())?;
+        }
+        Ok(verifier)
+    }
+
+    /// Returns the message digest corresponding to the signature algorithm
+    /// according to the spec [Signature Algorithm IDs].
+    fn new_message_digest(&self) -> MessageDigest {
+        match self {
+            SignatureAlgorithmID::RsaPssWithSha256
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::EcdsaWithSha256
+            | SignatureAlgorithmID::DsaWithSha256
+            | SignatureAlgorithmID::VerityRsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::VerityEcdsaWithSha256
+            | SignatureAlgorithmID::VerityDsaWithSha256 => MessageDigest::sha256(),
+            SignatureAlgorithmID::RsaPssWithSha512
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha512
+            | SignatureAlgorithmID::EcdsaWithSha512 => MessageDigest::sha512(),
+        }
+    }
+
+    fn pkey_id(&self) -> pkey::Id {
+        match self {
+            SignatureAlgorithmID::RsaPssWithSha256
+            | SignatureAlgorithmID::RsaPssWithSha512
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha512
+            | SignatureAlgorithmID::VerityRsaPkcs1V15WithSha256 => pkey::Id::RSA,
+            SignatureAlgorithmID::EcdsaWithSha256
+            | SignatureAlgorithmID::EcdsaWithSha512
+            | SignatureAlgorithmID::VerityEcdsaWithSha256 => pkey::Id::EC,
+            SignatureAlgorithmID::DsaWithSha256 | SignatureAlgorithmID::VerityDsaWithSha256 => {
+                pkey::Id::DSA
+            }
+        }
+    }
+
+    fn rsa_padding(&self) -> Padding {
+        match self {
+            SignatureAlgorithmID::RsaPssWithSha256 | SignatureAlgorithmID::RsaPssWithSha512 => {
+                Padding::PKCS1_PSS
+            }
+            SignatureAlgorithmID::RsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::VerityRsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha512 => Padding::PKCS1,
+            SignatureAlgorithmID::EcdsaWithSha256
+            | SignatureAlgorithmID::EcdsaWithSha512
+            | SignatureAlgorithmID::VerityEcdsaWithSha256
+            | SignatureAlgorithmID::DsaWithSha256
+            | SignatureAlgorithmID::VerityDsaWithSha256 => Padding::NONE,
         }
     }
 }

@@ -16,6 +16,10 @@
 
 //! Utilities for Signature Verification
 
+// TODO(b/246254355): Remove this once we migrate all the usages of
+// raw signature algorithm id to the enum.
+#![allow(dead_code)]
+
 use anyhow::{anyhow, ensure, Error, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
