@@ -42,10 +42,7 @@ fn test_verify_v3_dsa_sha256() {
     for key_name in KEY_NAMES_DSA.iter() {
         let res = verify(format!("tests/data/v3-only-with-dsa-sha256-{}.apk", key_name));
         assert!(res.is_err());
-        assert_contains(
-            &res.unwrap_err().to_string(),
-            "TODO(b/190343842) not implemented signature algorithm",
-        );
+        assert_contains(&res.unwrap_err().to_string(), "not implemented");
     }
 }
 
@@ -61,10 +58,7 @@ fn test_verify_v3_ecdsa_sha512() {
     for key_name in KEY_NAMES_ECDSA.iter() {
         let res = verify(format!("tests/data/v3-only-with-ecdsa-sha512-{}.apk", key_name));
         assert!(res.is_err());
-        assert_contains(
-            &res.unwrap_err().to_string(),
-            "TODO(b/190343842) not implemented signature algorithm",
-        );
+        assert_contains(&res.unwrap_err().to_string(), "not implemented");
     }
 }
 
@@ -98,8 +92,7 @@ fn test_verify_v3_sig_does_not_verify() {
         assert!(res.is_err());
         let error_msg = &res.unwrap_err().to_string();
         assert!(
-            error_msg.contains("Signature is invalid")
-                || error_msg.contains("TODO(b/190343842) not implemented signature algorithm")
+            error_msg.contains("Signature is invalid") || error_msg.contains("not implemented")
         );
     }
 }
@@ -114,10 +107,7 @@ fn test_verify_v3_digest_mismatch() {
         let res = verify(path);
         assert!(res.is_err());
         let error_msg = &res.unwrap_err().to_string();
-        assert!(
-            error_msg.contains("Digest mismatch")
-                || error_msg.contains("TODO(b/190343842) not implemented signature algorithm")
-        );
+        assert!(error_msg.contains("Digest mismatch") || error_msg.contains("not implemented"));
     }
 }
 
