@@ -56,9 +56,7 @@ fn test_verify_v3_ecdsa_sha256() {
 #[test]
 fn test_verify_v3_ecdsa_sha512() {
     for key_name in KEY_NAMES_ECDSA.iter() {
-        let res = verify(format!("tests/data/v3-only-with-ecdsa-sha512-{}.apk", key_name));
-        assert!(res.is_err());
-        assert_contains(&res.unwrap_err().to_string(), "not implemented");
+        assert!(verify(format!("tests/data/v3-only-with-ecdsa-sha512-{}.apk", key_name)).is_ok());
     }
 }
 
