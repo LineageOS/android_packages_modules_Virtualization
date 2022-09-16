@@ -87,9 +87,7 @@ impl SignatureAlgorithmID {
         ensure!(
             !matches!(
                 self,
-                SignatureAlgorithmID::EcdsaWithSha512
-                    | SignatureAlgorithmID::DsaWithSha256
-                    | SignatureAlgorithmID::VerityDsaWithSha256
+                SignatureAlgorithmID::DsaWithSha256 | SignatureAlgorithmID::VerityDsaWithSha256
             ),
             "TODO(b/197052981): Algorithm '{:#?}' is not implemented.",
             self
