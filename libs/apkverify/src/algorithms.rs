@@ -16,7 +16,7 @@
 
 //! Algorithms used for APK Signature Scheme.
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{ensure, Result};
 use num_derive::FromPrimitive;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
@@ -63,23 +63,6 @@ impl PartialEq for SignatureAlgorithmID {
 }
 
 impl SignatureAlgorithmID {
-    pub(crate) fn to_content_digest_algorithm(&self) -> ContentDigestAlgorithm {
-        match self {
-            SignatureAlgorithmID::RsaPssWithSha256
-            | SignatureAlgorithmID::RsaPkcs1V15WithSha256
-            | SignatureAlgorithmID::EcdsaWithSha256
-            | SignatureAlgorithmID::DsaWithSha256 => ContentDigestAlgorithm::ChunkedSha256,
-            SignatureAlgorithmID::RsaPssWithSha512
-            | SignatureAlgorithmID::RsaPkcs1V15WithSha512
-            | SignatureAlgorithmID::EcdsaWithSha512 => ContentDigestAlgorithm::ChunkedSha512,
-            SignatureAlgorithmID::VerityRsaPkcs1V15WithSha256
-            | SignatureAlgorithmID::VerityEcdsaWithSha256
-            | SignatureAlgorithmID::VerityDsaWithSha256 => {
-                ContentDigestAlgorithm::VerityChunkedSha256
-            }
-        }
-    }
-
     pub(crate) fn new_verifier<'a>(
         &self,
         public_key: &'a PKey<pkey::Public>,
@@ -102,7 +85,7 @@ impl SignatureAlgorithmID {
 
     /// Returns the message digest corresponding to the signature algorithm
     /// according to the spec [Signature Algorithm IDs].
-    fn new_message_digest(&self) -> MessageDigest {
+    pub(crate) fn new_message_digest(&self) -> MessageDigest {
         match self {
             SignatureAlgorithmID::RsaPssWithSha256
             | SignatureAlgorithmID::RsaPkcs1V15WithSha256
@@ -148,6 +131,23 @@ impl SignatureAlgorithmID {
             | SignatureAlgorithmID::VerityDsaWithSha256 => Padding::NONE,
         }
     }
+
+    fn to_content_digest_algorithm(&self) -> ContentDigestAlgorithm {
+        match self {
+            SignatureAlgorithmID::RsaPssWithSha256
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::EcdsaWithSha256
+            | SignatureAlgorithmID::DsaWithSha256 => ContentDigestAlgorithm::ChunkedSha256,
+            SignatureAlgorithmID::RsaPssWithSha512
+            | SignatureAlgorithmID::RsaPkcs1V15WithSha512
+            | SignatureAlgorithmID::EcdsaWithSha512 => ContentDigestAlgorithm::ChunkedSha512,
+            SignatureAlgorithmID::VerityRsaPkcs1V15WithSha256
+            | SignatureAlgorithmID::VerityEcdsaWithSha256
+            | SignatureAlgorithmID::VerityDsaWithSha256 => {
+                ContentDigestAlgorithm::VerityChunkedSha256
+            }
+        }
+    }
 }
 
 /// The rank of the content digest algorithm in this enum is used to help pick
@@ -160,20 +160,8 @@ impl SignatureAlgorithmID {
 /// [apk digest]: https://source.android.com/docs/security/features/apksigning/v4#apk-digest
 /// [v3 verification]: https://source.android.com/docs/security/apksigning/v3#v3-verification
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ContentDigestAlgorithm {
+enum ContentDigestAlgorithm {
     ChunkedSha256 = 1,
     VerityChunkedSha256,
     ChunkedSha512,
-}
-
-impl ContentDigestAlgorithm {
-    pub(crate) fn new_message_digest(&self) -> Result<MessageDigest> {
-        match self {
-            ContentDigestAlgorithm::ChunkedSha256 => Ok(MessageDigest::sha256()),
-            ContentDigestAlgorithm::ChunkedSha512 => Ok(MessageDigest::sha512()),
-            ContentDigestAlgorithm::VerityChunkedSha256 => {
-                bail!("TODO(b/197052981): CONTENT_DIGEST_VERITY_CHUNKED_SHA256 is not implemented")
-            }
-        }
-    }
 }
