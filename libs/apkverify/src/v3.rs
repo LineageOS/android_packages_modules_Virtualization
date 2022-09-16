@@ -37,7 +37,7 @@ use crate::sigutil::*;
 
 pub const APK_SIGNATURE_SCHEME_V3_BLOCK_ID: u32 = 0xf05368c0;
 
-// TODO(jooyung): get "ro.build.version.sdk"
+// TODO(b/190343842): get "ro.build.version.sdk"
 const SDK_INT: u32 = 31;
 
 type Signers = LengthPrefixed<Vec<LengthPrefixed<Signer>>>;
@@ -218,7 +218,9 @@ impl Signer {
             bail!("Public key mismatch between certificate and signature record");
         }
 
-        // TODO(jooyung) 8. If the proof-of-rotation attribute exists for the signer verify that the struct is valid and this signer is the last certificate in the list.
+        // TODO(b/245914104)
+        // 8. If the proof-of-rotation attribute exists for the signer verify that the
+        // struct is valid and this signer is the last certificate in the list.
         Ok(self.public_key.to_vec().into_boxed_slice())
     }
 }
@@ -263,7 +265,7 @@ fn verify_signed_data(data: &Bytes, signature: &Signature, key: &PKey<pkey::Publ
 }
 
 // ReadFromBytes implementations
-// TODO(jooyung): add derive macro: #[derive(ReadFromBytes)]
+// TODO(b/190343842): add derive macro: #[derive(ReadFromBytes)]
 
 impl ReadFromBytes for Signer {
     fn read_from_bytes(buf: &mut Bytes) -> Result<Self> {
