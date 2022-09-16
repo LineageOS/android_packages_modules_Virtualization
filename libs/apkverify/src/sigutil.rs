@@ -99,7 +99,7 @@ impl<R: Read + Seek> ApkSections<R> {
         // TODO(b/246254355): Passes the enum SignatureAlgorithmID directly to this method.
         let signature_algorithm_id = SignatureAlgorithmID::from_u32(signature_algorithm_id)
             .ok_or_else(|| anyhow!("Unsupported algorithm ID: {}", signature_algorithm_id))?;
-        let digester = Digester::new(signature_algorithm_id)?;
+        let digester = Digester { message_digest: signature_algorithm_id.new_message_digest() };
 
         let mut digests_of_chunks = BytesMut::new();
         let mut chunk_count = 0u32;
@@ -172,12 +172,6 @@ const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
 const CHUNK_HEADER_MID: &[u8] = &[0xa5];
 
 impl Digester {
-    fn new(signature_algorithm_id: SignatureAlgorithmID) -> Result<Digester> {
-        let message_digest =
-            signature_algorithm_id.to_content_digest_algorithm().new_message_digest()?;
-        Ok(Digester { message_digest })
-    }
-
     // v2/v3 digests are computed after prepending "header" byte and "size" info.
     fn digest(&self, data: &[u8], header: &[u8], size: u32) -> Result<DigestBytes> {
         let mut hasher = Hasher::new(self.message_digest)?;
