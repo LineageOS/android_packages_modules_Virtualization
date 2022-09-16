@@ -21,10 +21,7 @@
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use bytes::Bytes;
 use num_traits::FromPrimitive;
-use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
-use openssl::rsa::Padding;
-use openssl::sign::Verifier;
 use openssl::x509::X509;
 use std::fs::File;
 use std::io::{Read, Seek};
@@ -225,39 +222,14 @@ impl Signer {
     }
 }
 
-fn verify_signed_data(data: &Bytes, signature: &Signature, key: &PKey<pkey::Public>) -> Result<()> {
-    let (pkey_id, padding, digest) = match signature.signature_algorithm_id {
-        SIGNATURE_RSA_PSS_WITH_SHA256 => {
-            (pkey::Id::RSA, Padding::PKCS1_PSS, MessageDigest::sha256())
-        }
-        SIGNATURE_RSA_PSS_WITH_SHA512 => {
-            (pkey::Id::RSA, Padding::PKCS1_PSS, MessageDigest::sha512())
-        }
-        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256 | SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256 => {
-            (pkey::Id::RSA, Padding::PKCS1, MessageDigest::sha256())
-        }
-        SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512 => {
-            (pkey::Id::RSA, Padding::PKCS1, MessageDigest::sha512())
-        }
-        SIGNATURE_ECDSA_WITH_SHA256 | SIGNATURE_VERITY_ECDSA_WITH_SHA256 => {
-            (pkey::Id::EC, Padding::NONE, MessageDigest::sha256())
-        }
-        // TODO(b/190343842) not implemented signature algorithm
-        SIGNATURE_ECDSA_WITH_SHA512
-        | SIGNATURE_DSA_WITH_SHA256
-        | SIGNATURE_VERITY_DSA_WITH_SHA256 => {
-            bail!(
-                "TODO(b/190343842) not implemented signature algorithm: {:#x}",
-                signature.signature_algorithm_id
-            );
-        }
-        _ => bail!("Unsupported signature algorithm: {:#x}", signature.signature_algorithm_id),
-    };
-    ensure!(key.id() == pkey_id, "Public key has the wrong ID");
-    let mut verifier = Verifier::new(digest, key)?;
-    if pkey_id == pkey::Id::RSA {
-        verifier.set_rsa_padding(padding)?;
-    }
+fn verify_signed_data(
+    data: &Bytes,
+    signature: &Signature,
+    public_key: &PKey<pkey::Public>,
+) -> Result<()> {
+    let mut verifier = SignatureAlgorithmID::from_u32(signature.signature_algorithm_id)
+        .context("Unsupported algorithm")?
+        .new_verifier(public_key)?;
     verifier.update(data)?;
     let verified = verifier.verify(&signature.signature)?;
     ensure!(verified, "Signature is invalid ");
