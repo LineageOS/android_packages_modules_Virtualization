@@ -25,7 +25,7 @@ const KEY_NAMES_RSA: &[&str] = &["1024", "2048", "3072", "4096", "8192", "16384"
 fn test_verify_truncated_cd() {
     use zip::result::ZipError;
     let res = verify("tests/data/v2-only-truncated-cd.apk");
-    // TODO(jooyung): consider making a helper for err assertion
+    // TODO(b/190343842): consider making a helper for err assertion
     assert!(matches!(
         res.unwrap_err().root_cause().downcast_ref::<ZipError>().unwrap(),
         ZipError::InvalidArchive(_),
@@ -37,7 +37,6 @@ fn test_verify_v3() {
     assert!(verify("tests/data/test.apex").is_ok());
 }
 
-// TODO(b/190343842)
 #[test]
 fn test_verify_v3_dsa_sha256() {
     for key_name in KEY_NAMES_DSA.iter() {
@@ -57,7 +56,6 @@ fn test_verify_v3_ecdsa_sha256() {
     }
 }
 
-// TODO(b/190343842)
 #[test]
 fn test_verify_v3_ecdsa_sha512() {
     for key_name in KEY_NAMES_ECDSA.iter() {
@@ -88,7 +86,6 @@ fn test_verify_v3_rsa_sha512() {
     }
 }
 
-// TODO(b/190343842)
 #[test]
 fn test_verify_v3_sig_does_not_verify() {
     let path_list = [
@@ -107,7 +104,6 @@ fn test_verify_v3_sig_does_not_verify() {
     }
 }
 
-// TODO(b/190343842)
 #[test]
 fn test_verify_v3_digest_mismatch() {
     let path_list = [
