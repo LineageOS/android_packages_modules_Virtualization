@@ -40,6 +40,9 @@ rust_test {
     name: "avmdtool_tests",
     srcs: ["tests/*_test.rs"],
     test_suites: ["general-tests"],
+    rustlibs: [
+        "libtempfile",
+    ],
     compile_multilib: "first",
     data_bins: ["avmdtool"],
     data: ["tests/data/*"],
