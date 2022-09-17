@@ -12,6 +12,3 @@ kernel.console=hvc0
 # ro.adb.secure is still 0 (see build.prop) which means that adbd is started
 # unrooted by default. To root, developer should explicitly execute `adb root`.
 androidboot.adb.enabled=1
-
-# logd is enabled
-androidboot.logd.enabled=1
