@@ -12,6 +12,7 @@ android_test {
         "androidx.test.runner",
         "androidx.test.ext.junit",
         "MicrodroidDeviceTestHelper",
+        "MicrodroidTestHelper",
         "truth-prebuilt",
     ],
     platform_apis: true,

@@ -26,8 +26,11 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import com.android.microdroid.test.common.MetricsProcessor;
+import com.android.microdroid.test.common.ProcessUtil;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,10 +43,14 @@ import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 
 @RunWith(JUnit4.class)
 public class ComposBenchmark extends MicrodroidDeviceTestBase {
@@ -53,100 +60,106 @@ public class ComposBenchmark extends MicrodroidDeviceTestBase {
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
     private static final String METRIC_PREFIX = "avf_perf/compos/";
 
+    private final MetricsProcessor mMetricsProcessor = new MetricsProcessor(METRIC_PREFIX);
+
     private Instrumentation mInstrumentation;
 
     @Before
     public void setup() {
         mInstrumentation = getInstrumentation();
+        mInstrumentation.getUiAutomation().adoptShellPermissionIdentity();
     }
 
-    private void reportMetric(String name, String unit, double[] values) {
-        double sum = 0;
-        double squareSum = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-
-        for (double val : values) {
-            sum += val;
-            squareSum += val * val;
-            min = val < min ? val : min;
-            max = val > max ? val : max;
-        }
-
-        double average = sum / values.length;
-        double variance = squareSum / values.length - average * average;
-        double stdev = Math.sqrt(variance);
-
-        Bundle bundle = new Bundle();
-        bundle.putDouble(METRIC_PREFIX + name + "_average_" + unit, average);
-        bundle.putDouble(METRIC_PREFIX + name + "_min_" + unit, min);
-        bundle.putDouble(METRIC_PREFIX + name + "_max_" + unit, max);
-        bundle.putDouble(METRIC_PREFIX + name + "_stdev_" + unit, stdev);
-        mInstrumentation.sendStatus(0, bundle);
-    }
-
-    public byte[] executeCommandBlocking(String command) {
-        try (
-            InputStream is = new ParcelFileDescriptor.AutoCloseInputStream(
-                getInstrumentation().getUiAutomation().executeShellCommand(command));
-            ByteArrayOutputStream out = new ByteArrayOutputStream()
-        ) {
-            byte[] buf = new byte[BUFFER_SIZE];
-            int length;
-            while ((length = is.read(buf)) >= 0) {
-                out.write(buf, 0, length);
-            }
-            return out.toByteArray();
-        } catch (IOException e) {
-            Log.e(TAG, "Error executing: " + command, e);
-            return null;
-        }
-    }
-
-    public String executeCommand(String command)
-            throws  InterruptedException, IOException {
-
-        getInstrumentation().getUiAutomation()
-                .adoptShellPermissionIdentity();
-        byte[] output = executeCommandBlocking(command);
-        getInstrumentation().getUiAutomation()
-                .dropShellPermissionIdentity();
-
-        if (output == null) {
-            throw new RuntimeException("Failed to run the command.");
-        } else {
-            String stdout = new String(output, "UTF-8");
-            Log.i(TAG, "Get stdout : " + stdout);
-            return stdout;
-        }
+    @After
+    public void tearDown() throws Exception {
+        mInstrumentation.getUiAutomation().dropShellPermissionIdentity();
     }
 
     @Test
-    public void testGuestCompileTime() throws InterruptedException, IOException {
-        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
+    public void testHostCompileTime() throws Exception {
+        final String command = "/apex/com.android.art/bin/odrefresh --force-compile";
 
-        final String command = "/apex/com.android.compos/bin/composd_cmd test-compile";
-
-        double[] compileTime = new double[ROUND_COUNT];
+        final List<Double> compileTimes = new ArrayList<>(ROUND_COUNT);
+        // The mapping is <memory metrics name> -> <all rounds value list>.
+        // EX : pss -> [10, 20, 30, ........]
+        final Map<String, List<Long>> processMemory = new HashMap<>();
 
         for (int round = 0; round < ROUND_COUNT; ++round) {
+
+            GetMetricsRunnable getMetricsRunnable =
+                    new GetMetricsRunnable("dex2oat64", processMemory);
+            Thread threadGetMetrics = new Thread(getMetricsRunnable);
+
+            threadGetMetrics.start();
+
+            Timestamp beforeCompileLatestTime = getLatestDex2oatSuccessTime();
+            Long compileStartTime = System.nanoTime();
+            executeCommand(command);
+            Long compileEndTime = System.nanoTime();
+            Timestamp afterCompileLatestTime = getLatestDex2oatSuccessTime();
+
+            assertTrue(afterCompileLatestTime != null);
+            assertTrue(
+                    beforeCompileLatestTime == null
+                            || beforeCompileLatestTime.before(afterCompileLatestTime));
+
+            double elapsedSec = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
+            Log.i(TAG, "Compile time in host took " + elapsedSec + "s");
+            getMetricsRunnable.stop();
+
+            Log.i(TAG, "Waits for thread finish");
+            threadGetMetrics.join();
+            Log.i(TAG, "Thread is finish");
+
+            compileTimes.add(elapsedSec);
+        }
+
+        reportMetric("host_compile_time", "s", compileTimes);
+
+        reportAggregatedMetric(processMemory, "host_compile_dex2oat64_", "kB");
+    }
+
+    @Test
+    public void testGuestCompileTime() throws Exception {
+        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
+        final String command = "/apex/com.android.compos/bin/composd_cmd test-compile";
+
+        final List<Double> compileTimes = new ArrayList<>(ROUND_COUNT);
+        // The mapping is <memory metrics name> -> <all rounds value list>.
+        // EX : pss -> [10, 20, 30, ........]
+        final Map<String, List<Long>> processMemory = new HashMap<>();
+
+        for (int round = 0; round < ROUND_COUNT; ++round) {
+
+            GetMetricsRunnable getMetricsRunnable = new GetMetricsRunnable("crosvm", processMemory);
+            Thread threadGetMetrics = new Thread(getMetricsRunnable);
+
+            threadGetMetrics.start();
+
             Long compileStartTime = System.nanoTime();
             String output = executeCommand(command);
             Long compileEndTime = System.nanoTime();
-
             Pattern pattern = Pattern.compile("All Ok");
             Matcher matcher = pattern.matcher(output);
             assertTrue(matcher.find());
+            double elapsedSec = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
+            Log.i(TAG, "Compile time in guest took " + elapsedSec + "s");
+            getMetricsRunnable.stop();
 
-            compileTime[round] = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
+            Log.i(TAG, "Waits for thread finish");
+            threadGetMetrics.join();
+            Log.i(TAG, "Thread is finish");
+
+            compileTimes.add(elapsedSec);
         }
 
-        reportMetric("guest_compile_time", "s", compileTime);
+        reportMetric("guest_compile_time", "s", compileTimes);
+
+        reportAggregatedMetric(processMemory, "guest_compile_crosvm_", "kB");
     }
 
     private Timestamp getLatestDex2oatSuccessTime()
-            throws  InterruptedException, IOException, ParseException {
-
+            throws InterruptedException, IOException, ParseException {
         final String command = "logcat -d -e dex2oat";
         String output = executeCommand(command);
         String latestTime = null;
@@ -170,29 +183,106 @@ public class ComposBenchmark extends MicrodroidDeviceTestBase {
         return timeStampDate;
     }
 
-    @Test
-    public void testHostCompileTime()
-            throws InterruptedException, IOException, ParseException {
-
-        final String command = "/apex/com.android.art/bin/odrefresh --force-compile";
-
-        double[] compileTime = new double[ROUND_COUNT];
-
-        for (int round = 0; round < ROUND_COUNT; ++round) {
-            Timestamp beforeCompileLatestTime = getLatestDex2oatSuccessTime();
-            Long compileStartTime = System.nanoTime();
-            String output = executeCommand(command);
-            Long compileEndTime = System.nanoTime();
-            Timestamp afterCompileLatestTime = getLatestDex2oatSuccessTime();
-
-            assertTrue(afterCompileLatestTime != null);
-            assertTrue(beforeCompileLatestTime == null
-                    || beforeCompileLatestTime.before(afterCompileLatestTime));
-
-            compileTime[round] = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
+    private void reportMetric(String name, String unit, List<? extends Number> values) {
+        Log.d(TAG, "Report metric " + name + "(" + unit + ") : " + values.toString());
+        Map<String, Double> stats = mMetricsProcessor.computeStats(values, name, unit);
+        Bundle bundle = new Bundle();
+        for (Map.Entry<String, Double> entry : stats.entrySet()) {
+            bundle.putDouble(entry.getKey(), entry.getValue());
         }
-
-        reportMetric("host_compile_time", "s", compileTime);
+        mInstrumentation.sendStatus(0, bundle);
     }
 
+    private void reportAggregatedMetric(
+            Map<String, List<Long>> processMemory, String prefix, String unit) {
+        processMemory.forEach((k, v) -> reportMetric(prefix + k, unit, v));
+    }
+
+    private byte[] executeCommandBlocking(String command) {
+        try (InputStream is =
+                        new ParcelFileDescriptor.AutoCloseInputStream(
+                                mInstrumentation.getUiAutomation().executeShellCommand(command));
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[BUFFER_SIZE];
+            int length;
+            while ((length = is.read(buf)) >= 0) {
+                out.write(buf, 0, length);
+            }
+            return out.toByteArray();
+        } catch (IOException e) {
+            Log.e(TAG, "Error executing: " + command, e);
+            return null;
+        }
+    }
+
+    private String executeCommand(String command) {
+        try {
+            byte[] output = executeCommandBlocking(command);
+
+            if (output == null) {
+                throw new RuntimeException("Failed to run the command.");
+            } else {
+                String stdout = new String(output, "UTF-8");
+                Log.i(TAG, "Get stdout : " + stdout);
+                return stdout;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error executing: " + command + " , Exception: " + e);
+        }
+    }
+
+    private class GetMetricsRunnable implements Runnable {
+        private final String mProcessName;
+        private Map<String, List<Long>> mProcessMemory;
+        private AtomicBoolean mStop = new AtomicBoolean(false);
+
+        GetMetricsRunnable(String processName, Map<String, List<Long>> processMemory) {
+            this.mProcessName = processName;
+            this.mProcessMemory = processMemory;
+        }
+
+        void stop() {
+            mStop.set(true);
+        }
+
+        public void run() {
+            while (!mStop.get()) {
+                try {
+                    updateProcessMemory(mProcessName, mProcessMemory);
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (Exception e) {
+                    Log.e(TAG, "Get exception : " + e);
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
+
+    private void updateProcessMemory(String processName, Map<String, List<Long>> processMemory)
+            throws Exception {
+        for (Map.Entry<Integer, String> process :
+                ProcessUtil.getProcessMap(this::executeCommand).entrySet()) {
+            int pId = process.getKey();
+            String pName = process.getValue();
+            if (pName.equalsIgnoreCase(processName)) {
+                for (Map.Entry<String, Long> stat :
+                        ProcessUtil.getProcessSmapsRollup(pId, this::executeCommand).entrySet()) {
+                    Log.i(
+                            TAG,
+                            "Get running process "
+                                    + pName
+                                    + " metrics : "
+                                    + stat.getKey().toLowerCase()
+                                    + '-'
+                                    + stat.getValue());
+                    processMemory
+                            .computeIfAbsent(stat.getKey().toLowerCase(), k -> new ArrayList<>())
+                            .add(stat.getValue());
+                }
+            }
+        }
+    }
 }
