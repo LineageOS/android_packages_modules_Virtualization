@@ -18,7 +18,7 @@
 //!
 //! [v3 verification]: https://source.android.com/security/apksigning/v3#verification
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{ensure, Context, Result};
 use bytes::Bytes;
 use num_traits::FromPrimitive;
 use openssl::pkey::{self, PKey};
@@ -105,12 +105,11 @@ where
     let supported = signers.iter().filter(|s| s.sdk_range().contains(&SDK_INT)).collect::<Vec<_>>();
 
     // there should be exactly one
-    if supported.len() != 1 {
-        bail!(
-            "APK Signature Scheme V3 only supports one signer: {} signers found.",
-            supported.len()
-        )
-    }
+    ensure!(
+        supported.len() == 1,
+        "APK Signature Scheme V3 only supports one signer: {} signers found.",
+        supported.len()
+    );
 
     // Call the supplied function
     f((supported[0], sections))
@@ -145,7 +144,7 @@ impl Signer {
             .iter()
             .filter(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).is_some())
             .max_by_key(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).unwrap())
-            .ok_or_else(|| anyhow!("No supported signatures found"))?)
+            .context("No supported signatures found")?)
     }
 
     fn pick_v4_apk_digest(&self) -> Result<(u32, Box<[u8]>)> {
@@ -155,7 +154,7 @@ impl Signer {
             .digests
             .iter()
             .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
-            .ok_or_else(|| anyhow!("Digest not found"))?;
+            .context("Digest not found")?;
         Ok((digest.signature_algorithm_id, digest.digest.as_ref().to_vec().into_boxed_slice()))
     }
 
@@ -174,20 +173,20 @@ impl Signer {
 
         // 3. Verify the min and max SDK versions in the signed data match those specified for the
         //    signer.
-        if self.sdk_range() != signed_data.sdk_range() {
-            bail!("SDK versions mismatch between signed and unsigned in v3 signer block.");
-        }
+        ensure!(
+            self.sdk_range() == signed_data.sdk_range(),
+            "SDK versions mismatch between signed and unsigned in v3 signer block."
+        );
 
         // 4. Verify that the ordered list of signature algorithm IDs in digests and signatures is
         //    identical. (This is to prevent signature stripping/addition.)
-        if !self
-            .signatures
-            .iter()
-            .map(|sig| sig.signature_algorithm_id)
-            .eq(signed_data.digests.iter().map(|dig| dig.signature_algorithm_id))
-        {
-            bail!("Signature algorithms don't match between digests and signatures records");
-        }
+        ensure!(
+            self.signatures
+                .iter()
+                .map(|sig| sig.signature_algorithm_id)
+                .eq(signed_data.digests.iter().map(|dig| dig.signature_algorithm_id)),
+            "Signature algorithms don't match between digests and signatures records"
+        );
 
         // 5. Compute the digest of APK contents using the same digest algorithm as the digest
         //    algorithm used by the signature algorithm.
@@ -199,21 +198,21 @@ impl Signer {
         let computed = sections.compute_digest(digest.signature_algorithm_id)?;
 
         // 6. Verify that the computed digest is identical to the corresponding digest from digests.
-        if computed != digest.digest.as_ref() {
-            bail!(
-                "Digest mismatch: computed={:?} vs expected={:?}",
-                to_hex_string(&computed),
-                to_hex_string(&digest.digest),
-            );
-        }
+        ensure!(
+            computed == digest.digest.as_ref(),
+            "Digest mismatch: computed={:?} vs expected={:?}",
+            to_hex_string(&computed),
+            to_hex_string(&digest.digest),
+        );
 
         // 7. Verify that public key of the first certificate of certificates is identical
         //    to public key.
         let cert = signed_data.certificates.first().context("No certificates listed")?;
         let cert = X509::from_der(cert.as_ref())?;
-        if !cert.public_key()?.public_eq(&public_key) {
-            bail!("Public key mismatch between certificate and signature record");
-        }
+        ensure!(
+            cert.public_key()?.public_eq(&public_key),
+            "Public key mismatch between certificate and signature record"
+        );
 
         // TODO(b/245914104)
         // 8. If the proof-of-rotation attribute exists for the signer verify that the

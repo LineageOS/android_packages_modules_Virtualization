@@ -16,7 +16,7 @@
 
 //! Utilities for zip handling of APK files.
 
-use anyhow::{bail, Result};
+use anyhow::{ensure, Result};
 use bytes::{Buf, BufMut};
 use std::io::{Read, Seek, SeekFrom};
 use zip::ZipArchive;
@@ -41,25 +41,26 @@ pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<(R, ZipSections)> {
     // open a zip to parse EOCD
     let archive = ZipArchive::new(reader)?;
     let eocd_size = archive.comment().len() + EOCD_SIZE_WITHOUT_COMMENT;
-    if archive.offset() != 0 {
-        bail!("Invalid ZIP: offset should be 0, but {}.", archive.offset());
-    }
+    ensure!(archive.offset() == 0, "Invalid ZIP: offset should be 0, but {}.", archive.offset());
     // retrieve reader back
     reader = archive.into_inner();
     // the current position should point EOCD offset
     let eocd_offset = reader.seek(SeekFrom::Current(0))? as u32;
     let mut eocd = vec![0u8; eocd_size as usize];
     reader.read_exact(&mut eocd)?;
-    if (&eocd[0..]).get_u32_le() != EOCD_SIGNATURE {
-        bail!("Invalid ZIP: ZipArchive::new() should point EOCD after reading.");
-    }
+    ensure!(
+        (&eocd[0..]).get_u32_le() == EOCD_SIGNATURE,
+        "Invalid ZIP: ZipArchive::new() should point EOCD after reading."
+    );
     let (central_directory_size, central_directory_offset) = get_central_directory(&eocd)?;
-    if central_directory_offset == ZIP64_MARK || central_directory_size == ZIP64_MARK {
-        bail!("Unsupported ZIP: ZIP64 is not supported.");
-    }
-    if central_directory_offset + central_directory_size != eocd_offset {
-        bail!("Invalid ZIP: EOCD should follow CD with no extra data or overlap.");
-    }
+    ensure!(
+        central_directory_offset != ZIP64_MARK && central_directory_size != ZIP64_MARK,
+        "Unsupported ZIP: ZIP64 is not supported."
+    );
+    ensure!(
+        central_directory_offset + central_directory_size == eocd_offset,
+        "Invalid ZIP: EOCD should follow CD with no extra data or overlap."
+    );
 
     Ok((
         reader,
@@ -73,9 +74,7 @@ pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<(R, ZipSections)> {
 }
 
 fn get_central_directory(buf: &[u8]) -> Result<(u32, u32)> {
-    if buf.len() < EOCD_SIZE_WITHOUT_COMMENT {
-        bail!("Invalid EOCD size: {}", buf.len());
-    }
+    ensure!(buf.len() >= EOCD_SIZE_WITHOUT_COMMENT, "Invalid EOCD size: {}", buf.len());
     let mut buf = &buf[EOCD_CENTRAL_DIRECTORY_SIZE_FIELD_OFFSET..];
     let size = buf.get_u32_le();
     let offset = buf.get_u32_le();
@@ -84,9 +83,7 @@ fn get_central_directory(buf: &[u8]) -> Result<(u32, u32)> {
 
 /// Update EOCD's central_directory_offset field.
 pub fn set_central_directory_offset(buf: &mut [u8], value: u32) -> Result<()> {
-    if buf.len() < EOCD_SIZE_WITHOUT_COMMENT {
-        bail!("Invalid EOCD size: {}", buf.len());
-    }
+    ensure!(buf.len() >= EOCD_SIZE_WITHOUT_COMMENT, "Invalid EOCD size: {}", buf.len());
     (&mut buf[EOCD_CENTRAL_DIRECTORY_OFFSET_FIELD_OFFSET..]).put_u32_le(value);
     Ok(())
 }
