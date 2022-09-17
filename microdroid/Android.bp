@@ -57,8 +57,6 @@ android_system_image {
         "libbinder",
         "libbinder_ndk",
         "libstdc++",
-        "logcat.microdroid",
-        "logd.microdroid",
         "secilc",
 
         // "com.android.adbd" requires these,
