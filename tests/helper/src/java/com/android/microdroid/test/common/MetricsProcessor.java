@@ -33,18 +33,21 @@ public final class MetricsProcessor {
      * a {@link Map} with the corresponding keys equal to [mPrefix + name +
      * _[min|max|average|stdev]_ + unit].
      */
-    public Map<String, Double> computeStats(List<Double> metrics, String name, String unit) {
+    public Map<String, Double> computeStats(List<? extends Number> metrics, String name,
+            String unit) {
         double sum = 0;
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
-        for (double d : metrics) {
+        for (Number metric : metrics) {
+            double d = metric.doubleValue();
             sum += d;
             if (min > d) min = d;
             if (max < d) max = d;
         }
         double avg = sum / metrics.size();
         double sqSum = 0;
-        for (double d : metrics) {
+        for (Number metric : metrics) {
+            double d = metric.doubleValue();
             sqSum += (d - avg) * (d - avg);
         }
         double stdDev = Math.sqrt(sqSum / (metrics.size() - 1));
