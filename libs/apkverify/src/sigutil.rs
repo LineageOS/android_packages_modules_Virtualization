@@ -23,7 +23,6 @@
 use anyhow::{anyhow, ensure, Error, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use num_traits::FromPrimitive;
 use openssl::hash::{DigestBytes, Hasher, MessageDigest};
 use std::cmp::min;
 use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Take};
@@ -95,12 +94,11 @@ impl<R: Read + Seek> ApkSections<R> {
     ///    chunks (little-endian uint32), and the concatenation of digests of the chunks in the
     ///    order the chunks appear in the APK.
     /// (see https://source.android.com/security/apksigning/v2#integrity-protected-contents)
-    pub fn compute_digest(&mut self, signature_algorithm_id: u32) -> Result<Vec<u8>> {
-        // TODO(b/246254355): Passes the enum SignatureAlgorithmID directly to this method.
-        let signature_algorithm_id = SignatureAlgorithmID::from_u32(signature_algorithm_id)
-            .ok_or_else(|| anyhow!("Unsupported algorithm ID: {}", signature_algorithm_id))?;
+    pub(crate) fn compute_digest(
+        &mut self,
+        signature_algorithm_id: SignatureAlgorithmID,
+    ) -> Result<Vec<u8>> {
         let digester = Digester { message_digest: signature_algorithm_id.new_message_digest() };
-
         let mut digests_of_chunks = BytesMut::new();
         let mut chunk_count = 0u32;
         let mut chunk = vec![0u8; CHUNK_SIZE_BYTES as usize];
@@ -293,7 +291,7 @@ mod tests {
     fn test_apk_digest() {
         let apk_file = File::open("tests/data/v3-only-with-dsa-sha256-1024.apk").unwrap();
         let mut apk_sections = ApkSections::new(apk_file).unwrap();
-        let digest = apk_sections.compute_digest(SIGNATURE_DSA_WITH_SHA256).unwrap();
+        let digest = apk_sections.compute_digest(SignatureAlgorithmID::DsaWithSha256).unwrap();
         assert_eq!(
             "0DF2426EA33AEDAF495D88E5BE0C6A1663FF0A81C5ED12D5B2929AE4B4300F2F",
             to_hex_string(&digest[..])
