@@ -22,13 +22,12 @@ use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
 use openssl::rsa::Padding;
 use openssl::sign::Verifier;
-use std::cmp::Ordering;
 
 /// [Signature Algorithm IDs]: https://source.android.com/docs/security/apksigning/v2#signature-algorithm-ids
 /// [SignatureAlgorithm.java]: (tools/apksig/src/main/java/com/android/apksig/internal/apk/SignatureAlgorithm.java)
 ///
 /// Some of the algorithms are not implemented. See b/197052981.
-#[derive(Clone, Debug, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Clone, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum SignatureAlgorithmID {
     /// RSASSA-PSS with SHA2-256 digest, SHA2-256 MGF1, 32 bytes of salt, trailer: 0xbc, content
@@ -74,26 +73,6 @@ pub enum SignatureAlgorithmID {
 impl Default for SignatureAlgorithmID {
     fn default() -> Self {
         SignatureAlgorithmID::DsaWithSha256
-    }
-}
-
-impl Ord for SignatureAlgorithmID {
-    /// Ranks the signature algorithm according to the corresponding content
-    /// digest algorithm's rank.
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.to_content_digest_algorithm().cmp(&other.to_content_digest_algorithm())
-    }
-}
-
-impl PartialOrd for SignatureAlgorithmID {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for SignatureAlgorithmID {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
     }
 }
 
@@ -167,7 +146,7 @@ impl SignatureAlgorithmID {
         }
     }
 
-    fn to_content_digest_algorithm(&self) -> ContentDigestAlgorithm {
+    pub(crate) fn to_content_digest_algorithm(&self) -> ContentDigestAlgorithm {
         match self {
             SignatureAlgorithmID::RsaPssWithSha256
             | SignatureAlgorithmID::RsaPkcs1V15WithSha256
@@ -195,7 +174,7 @@ impl SignatureAlgorithmID {
 /// [apk digest]: https://source.android.com/docs/security/features/apksigning/v4#apk-digest
 /// [v3 verification]: https://source.android.com/docs/security/apksigning/v3#v3-verification
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum ContentDigestAlgorithm {
+pub(crate) enum ContentDigestAlgorithm {
     ChunkedSha256 = 1,
     VerityChunkedSha256,
     ChunkedSha512,
