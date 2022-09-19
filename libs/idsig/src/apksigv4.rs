@@ -15,7 +15,7 @@
  */
 
 use anyhow::{anyhow, bail, Context, Result};
-use apkverify::pick_v4_apk_digest;
+use apkverify::{pick_v4_apk_digest, SignatureAlgorithmID};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -69,7 +69,7 @@ pub struct SigningInfo {
     /// Public key of the signer in ASN.1 DER form. This must match the `x509_certificate` field.
     pub public_key: Box<[u8]>,
     /// Signature algorithm used to sign this file.
-    pub signature_algorithm_id: SignatureAlgorithmId,
+    pub signature_algorithm_id: SignatureAlgorithmID,
     /// The signature of this file.
     pub signature: Box<[u8]>,
 }
@@ -111,40 +111,6 @@ impl HashAlgorithm {
 impl Default for HashAlgorithm {
     fn default() -> Self {
         HashAlgorithm::SHA256
-    }
-}
-
-/// Signature algorithm that can be used for idsig file
-#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[allow(non_camel_case_types)]
-#[repr(u32)]
-pub enum SignatureAlgorithmId {
-    /// RSASSA-PSS with SHA2-256 digest, SHA2-256 MGF1, 32 bytes of salt, trailer: 0xbc
-    RSASSA_PSS_SHA2_256 = 0x0101,
-    /// RSASSA-PSS with SHA2-512 digest, SHA2-512 MGF1, 64 bytes of salt, trailer: 0xbc
-    RSASSA_PSS_SHA2_512 = 0x0102,
-    /// RSASSA-PKCS1-v1_5 with SHA2-256 digest.
-    RSASSA_PKCS1_SHA2_256 = 0x0103,
-    /// RSASSA-PKCS1-v1_5 with SHA2-512 digest.
-    RSASSA_PKCS1_SHA2_512 = 0x0104,
-    /// ECDSA with SHA2-256 digest.
-    ECDSA_SHA2_256 = 0x0201,
-    /// ECDSA with SHA2-512 digest.
-    ECDSA_SHA2_512 = 0x0202,
-    /// DSA with SHA2-256 digest
-    DSA_SHA2_256 = 0x0301,
-}
-
-impl SignatureAlgorithmId {
-    fn from(val: u32) -> Result<SignatureAlgorithmId> {
-        Self::from_u32(val)
-            .with_context(|| format!("{:#06x} is an unsupported signature algorithm", val))
-    }
-}
-
-impl Default for SignatureAlgorithmId {
-    fn default() -> Self {
-        SignatureAlgorithmId::DSA_SHA2_256
     }
 }
 
@@ -193,8 +159,11 @@ impl<R: Read + Seek> V4Signature<R> {
 
         apk.seek(SeekFrom::Start(start))?;
         let (signature_algorithm_id, apk_digest) = pick_v4_apk_digest(apk)?;
+        // TODO(b/246254355): Removes this conversion once pick_v4_apk_digest
+        // returns the enum SignatureAlgorithmID instead of raw integer.
         ret.signing_info.signature_algorithm_id =
-            SignatureAlgorithmId::from(signature_algorithm_id)?;
+            SignatureAlgorithmID::from_u32(signature_algorithm_id)
+                .context("Unsupported algorithm")?;
         ret.signing_info.apk_digest = apk_digest;
         // TODO(jiyong): add a signature to the signing_info struct
 
@@ -276,7 +245,8 @@ impl SigningInfo {
             x509_certificate: read_sized_array(&mut r)?,
             additional_data: read_sized_array(&mut r)?,
             public_key: read_sized_array(&mut r)?,
-            signature_algorithm_id: SignatureAlgorithmId::from(r.read_u32::<LittleEndian>()?)?,
+            signature_algorithm_id: SignatureAlgorithmID::from_u32(r.read_u32::<LittleEndian>()?)
+                .context("Unsupported signature algorithm")?,
             signature: read_sized_array(&mut r)?,
         })
     }
@@ -358,7 +328,7 @@ mod tests {
                    a8585c38d7f654835eb219ae9e176b44e86dcb23153e3d9d6",
             hexstring_from(si.signature.as_ref())
         );
-        assert_eq!(SignatureAlgorithmId::DSA_SHA2_256, si.signature_algorithm_id);
+        assert_eq!(SignatureAlgorithmID::DsaWithSha256, si.signature_algorithm_id);
 
         assert_eq!(36864, parsed.merkle_tree_size);
         assert_eq!(2251, parsed.merkle_tree_offset);
