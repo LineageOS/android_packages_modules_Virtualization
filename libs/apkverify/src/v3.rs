@@ -143,7 +143,11 @@ impl Signer {
             .signatures
             .iter()
             .filter(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).is_some())
-            .max_by_key(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).unwrap())
+            .max_by_key(|sig| {
+                SignatureAlgorithmID::from_u32(sig.signature_algorithm_id)
+                    .unwrap()
+                    .to_content_digest_algorithm()
+            })
             .context("No supported signatures found")?)
     }
 
