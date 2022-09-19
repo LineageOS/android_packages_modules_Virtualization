@@ -195,7 +195,12 @@ impl Signer {
             .iter()
             .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
             .unwrap(); // ok to unwrap since we check if two lists are the same above
-        let computed = sections.compute_digest(digest.signature_algorithm_id)?;
+        let computed = sections.compute_digest(
+            // TODO(b/246254355): Removes the conversion once Digest contains the enum
+            // SignatureAlgorithmID.
+            SignatureAlgorithmID::from_u32(digest.signature_algorithm_id)
+                .context("Unsupported algorithm")?,
+        )?;
 
         // 6. Verify that the computed digest is identical to the corresponding digest from digests.
         ensure!(
