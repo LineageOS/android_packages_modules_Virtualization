@@ -85,9 +85,9 @@ type AdditionalAttributes = Bytes;
 
 /// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the public key
 /// associated with the signer in DER format.
-pub fn verify<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
-    let f = File::open(path.as_ref())?;
-    let mut sections = ApkSections::new(f)?;
+pub fn verify<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
+    let apk = File::open(apk_path.as_ref())?;
+    let mut sections = ApkSections::new(apk)?;
     find_signer_and_then(&mut sections, |(signer, sections)| signer.verify(sections))
 }
 
@@ -116,9 +116,9 @@ where
 }
 
 /// Gets the public key (in DER format) that was used to sign the given APK/APEX file
-pub fn get_public_key_der<P: AsRef<Path>>(path: P) -> Result<Box<[u8]>> {
-    let f = File::open(path.as_ref())?;
-    let mut sections = ApkSections::new(f)?;
+pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
+    let apk = File::open(apk_path.as_ref())?;
+    let mut sections = ApkSections::new(apk)?;
     find_signer_and_then(&mut sections, |(signer, _)| {
         Ok(signer.public_key.to_vec().into_boxed_slice())
     })
