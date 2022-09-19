@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-use apkverify::{testing::assert_contains, verify};
+use apkverify::{get_public_key_der, testing::assert_contains, verify};
 use std::{fs, matches, path::Path};
 
 const KEY_NAMES_DSA: &[&str] = &["1024", "2048", "3072"];
@@ -208,6 +208,10 @@ fn validate_apk_public_key<P: AsRef<Path>>(apk_path: P) {
         expected_public_key_path
     );
 
-    // TODO(b/239534874): Validates public key extracted directly from apk
+    // Validates public key extracted directly from apk
     // (without verification) == expected public key.
+    let public_key_from_apk = get_public_key_der(apk_path.as_ref());
+    let public_key_from_apk =
+        public_key_from_apk.expect("Error when extracting public key from apk");
+    assert_eq!(expected_public_key, public_key_from_apk.as_ref(), "{}", expected_public_key_path);
 }
