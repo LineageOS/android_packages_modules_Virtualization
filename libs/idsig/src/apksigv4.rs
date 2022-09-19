@@ -159,11 +159,7 @@ impl<R: Read + Seek> V4Signature<R> {
 
         apk.seek(SeekFrom::Start(start))?;
         let (signature_algorithm_id, apk_digest) = pick_v4_apk_digest(apk)?;
-        // TODO(b/246254355): Removes this conversion once pick_v4_apk_digest
-        // returns the enum SignatureAlgorithmID instead of raw integer.
-        ret.signing_info.signature_algorithm_id =
-            SignatureAlgorithmID::from_u32(signature_algorithm_id)
-                .context("Unsupported algorithm")?;
+        ret.signing_info.signature_algorithm_id = signature_algorithm_id;
         ret.signing_info.apk_digest = apk_digest;
         // TODO(jiyong): add a signature to the signing_info struct
 
@@ -261,7 +257,7 @@ impl SigningInfo {
         write_sized_array(&mut w, &self.x509_certificate)?;
         write_sized_array(&mut w, &self.additional_data)?;
         write_sized_array(&mut w, &self.public_key)?;
-        w.write_u32::<LittleEndian>(self.signature_algorithm_id.to_u32().unwrap())?;
+        w.write_u32::<LittleEndian>(self.signature_algorithm_id.to_u32())?;
         write_sized_array(&mut w, &self.signature)?;
 
         // Determine the size of signing_info, and write it in front of the struct where the value
