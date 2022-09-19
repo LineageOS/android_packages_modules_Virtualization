@@ -39,6 +39,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -55,6 +56,11 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     private static final String SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME =
             "dalvik.vm.systemservercompilerfilter";
+
+    private static final String BOOTLOADER_TIME_PROP_NAME = "ro.boot.boottime";
+    private static final String BOOTLOADER_PREFIX = "bootloader-";
+    private static final String BOOTLOADER_TIME = "bootloader_time";
+    private static final String BOOTLOADER_PHASE_SW = "SW";
 
     /** Boot time test related variables */
     private static final int REINSTALL_APEX_RETRY_INTERVAL_MS = 5 * 1000;
@@ -89,72 +95,124 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testBootEnableAndDisablePKVM() throws Exception {
-        skipIfPKVMStatusSwitchNotSupported();
-
-        List<Double> bootWithPKVMEnableTime = new ArrayList<>(ROUND_COUNT);
-        List<Double> bootWithoutPKVMEnableTime = new ArrayList<>(ROUND_COUNT);
-
-        for (int round = 0; round < ROUND_COUNT; ++round) {
-
-            setPKVMStatusWithRebootToBootloader(true);
-            long start = System.nanoTime();
-            rebootFromBootloaderAndWaitBootCompleted();
-            long elapsedWithPKVMEnable = System.nanoTime() - start;
-            double elapsedSec = elapsedWithPKVMEnable / NANOS_IN_SEC;
-            bootWithPKVMEnableTime.add(elapsedSec);
-            CLog.i("Boot time with PKVM enable took " + elapsedSec + "s");
-
-            setPKVMStatusWithRebootToBootloader(false);
-            start = System.nanoTime();
-            rebootFromBootloaderAndWaitBootCompleted();
-            long elapsedWithoutPKVMEnable = System.nanoTime() - start;
-            elapsedSec = elapsedWithoutPKVMEnable / NANOS_IN_SEC;
-            bootWithoutPKVMEnableTime.add(elapsedSec);
-            CLog.i("Boot time with PKVM disable took " + elapsedSec + "s");
-        }
-
-        reportMetric(bootWithPKVMEnableTime, "boot_time_with_pkvm_enable", "s");
-        reportMetric(bootWithoutPKVMEnableTime, "boot_time_with_pkvm_disable", "s");
+    public void testBootEnablePKVM() throws Exception {
+        enableDisablePKVMTestHelper(true);
     }
 
     @Test
-    public void testBootWithAndWithoutCompOS() throws Exception {
-        assumeFalse(isCuttlefish());
+    public void testBootDisablePKVM() throws Exception {
+        enableDisablePKVMTestHelper(false);
+    }
 
-        List<Double> bootWithCompOsTime = new ArrayList<>(ROUND_COUNT);
-        List<Double> bootWithoutCompOsTime = new ArrayList<>(ROUND_COUNT);
+    @Test
+    public void testBootWithCompOS() throws Exception {
+        composTestHelper(true);
+    }
 
+    @Test
+    public void testBootWithoutCompOS() throws Exception {
+        composTestHelper(false);
+    }
+
+    private void updateBootloaderTimeInfo(Map<String, List<Double>> bootloaderTime)
+            throws Exception {
+
+        String bootLoaderVal = getDevice().getProperty(BOOTLOADER_TIME_PROP_NAME);
+        // Sample Output : 1BLL:89,1BLE:590,2BLL:0,2BLE:1344,SW:6734,KL:1193
+        if (bootLoaderVal != null) {
+            String[] bootLoaderPhases = bootLoaderVal.split(",");
+            double bootLoaderTotalTime = 0d;
+            for (String bootLoaderPhase : bootLoaderPhases) {
+                String[] bootKeyVal = bootLoaderPhase.split(":");
+                String key = String.format("%s%s", BOOTLOADER_PREFIX, bootKeyVal[0]);
+
+                bootloaderTime.computeIfAbsent(key,
+                        k -> new ArrayList<>()).add(Double.parseDouble(bootKeyVal[1]));
+                // SW is the time spent on the warning screen. So ignore it in
+                // final boot time calculation.
+                if (BOOTLOADER_PHASE_SW.equalsIgnoreCase(bootKeyVal[0])) {
+                    continue;
+                }
+                bootLoaderTotalTime += Double.parseDouble(bootKeyVal[1]);
+            }
+            bootloaderTime.computeIfAbsent(BOOTLOADER_TIME,
+                    k -> new ArrayList<>()).add(bootLoaderTotalTime);
+        }
+    }
+
+    private Double getDmesgBootTime() throws Exception {
+
+        CommandRunner android = new CommandRunner(getDevice());
+        String result = android.run("dmesg");
+        Pattern pattern = Pattern.compile("\\[(.*)\\].*sys.boot_completed=1.*");
+        for (String line : result.split("[\r\n]+")) {
+            Matcher matcher = pattern.matcher(line);
+            if (matcher.find()) {
+                return Double.valueOf(matcher.group(1));
+            }
+        }
+        throw new IllegalArgumentException("Failed to get boot time info.");
+    }
+
+    private void enableDisablePKVMTestHelper(boolean isEnable) throws Exception {
+        skipIfPKVMStatusSwitchNotSupported();
+
+        List<Double> bootDmesgTime = new ArrayList<>(ROUND_COUNT);
+        Map<String, List<Double>> bootloaderTime = new HashMap<>();
+
+        setPKVMStatusWithRebootToBootloader(isEnable);
+        rebootFromBootloaderAndWaitBootCompleted();
         for (int round = 0; round < ROUND_COUNT; ++round) {
-
-            // Boot time with compilation OS test.
-            reInstallApex(REINSTALL_APEX_TIMEOUT_SEC);
-            compileStagedApex(COMPILE_STAGED_APEX_TIMEOUT_SEC);
             getDevice().nonBlockingReboot();
-            long start = System.nanoTime();
             waitForBootCompleted();
-            long elapsedWithCompOS = System.nanoTime() - start;
-            double elapsedSec = elapsedWithCompOS / NANOS_IN_SEC;
-            bootWithCompOsTime.add(elapsedSec);
-            CLog.i("Boot time with compilation OS took " + elapsedSec + "s");
 
-            // Boot time without compilation OS test.
-            reInstallApex(REINSTALL_APEX_TIMEOUT_SEC);
-            getDevice().nonBlockingReboot();
-            start = System.nanoTime();
-            waitForBootCompleted();
-            long elapsedWithoutCompOS = System.nanoTime() - start;
-            elapsedSec = elapsedWithoutCompOS / NANOS_IN_SEC;
-            bootWithoutCompOsTime.add(elapsedSec);
-            CLog.i("Boot time without compilation OS took " + elapsedSec + "s");
+            updateBootloaderTimeInfo(bootloaderTime);
+
+            double elapsedSec = getDmesgBootTime();
+            bootDmesgTime.add(elapsedSec);
         }
 
-        reportMetric(bootWithCompOsTime, "boot_time_with_compos", "s");
-        reportMetric(bootWithoutCompOsTime, "boot_time_without_compos", "s");
+        String suffix = "";
+        if (isEnable) {
+            suffix = "enable";
+        } else {
+            suffix = "disable";
+        }
+
+        reportMetric(bootDmesgTime, "dmesg_boot_time_with_pkvm_" + suffix, "s");
+        reportAggregatedMetrics(bootloaderTime,
+                "bootloader_time_with_pkvm_" + suffix, "ms");
+    }
+
+    private void composTestHelper(boolean isWithCompos) throws Exception {
+        assumeFalse("Skip on CF; too slow", isCuttlefish());
+
+        List<Double> bootDmesgTime = new ArrayList<>(ROUND_COUNT);
+
+        for (int round = 0; round < ROUND_COUNT; ++round) {
+            reInstallApex(REINSTALL_APEX_TIMEOUT_SEC);
+            if (isWithCompos) {
+                compileStagedApex(COMPILE_STAGED_APEX_TIMEOUT_SEC);
+            }
+            getDevice().nonBlockingReboot();
+            waitForBootCompleted();
+
+            double elapsedSec = getDmesgBootTime();
+            bootDmesgTime.add(elapsedSec);
+        }
+
+        String suffix = "";
+        if (isWithCompos) {
+            suffix = "with_compos";
+        } else {
+            suffix = "without_compos";
+        }
+
+        reportMetric(bootDmesgTime, "dmesg_boot_time_" + suffix, "s");
     }
 
     private void skipIfPKVMStatusSwitchNotSupported() throws Exception {
-        assumeFalse(isCuttlefish());
+        assumeFalse("Skip on CF; can't reboot to bootloader", isCuttlefish());
 
         if (!getDevice().isStateBootloaderOrFastbootd()) {
             getDevice().rebootIntoBootloader();
@@ -171,9 +229,19 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     private void reportMetric(List<Double> data, String name, String unit) {
+        CLog.d("Report metric " + name + "(" + unit + ") : " + data.toString());
         Map<String, Double> stats = mMetricsProcessor.computeStats(data, name, unit);
         for (Map.Entry<String, Double> entry : stats.entrySet()) {
+            CLog.d("Add test metrics " + entry.getKey() + " : " + entry.getValue().toString());
             mMetrics.addTestMetric(entry.getKey(), entry.getValue().toString());
+        }
+    }
+
+    private void reportAggregatedMetrics(Map<String, List<Double>> bootloaderTime,
+            String prefix, String unit) {
+
+        for (Map.Entry<String, List<Double>> entry : bootloaderTime.entrySet()) {
+            reportMetric(entry.getValue(), prefix + "_" + entry.getKey(), unit);
         }
     }
 
