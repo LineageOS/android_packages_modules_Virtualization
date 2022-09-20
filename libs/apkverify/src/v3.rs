@@ -86,52 +86,42 @@ type AdditionalAttributes = Bytes;
 /// associated with the signer in DER format.
 pub fn verify<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
     let apk = File::open(apk_path.as_ref())?;
-    let mut sections = ApkSections::new(apk)?;
-    find_signer_and_then(&mut sections, |(signer, sections)| signer.verify(sections))
-}
-
-/// Finds the supported signer and execute a function on it.
-fn find_signer_and_then<R, U, F>(sections: &mut ApkSections<R>, f: F) -> Result<U>
-where
-    R: Read + Seek,
-    F: FnOnce((&Signer, &mut ApkSections<R>)) -> Result<U>,
-{
-    let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID)?;
-    // parse v3 scheme block
-    let signers = block.read::<Signers>()?;
-
-    // find supported by platform
-    let supported = signers.iter().filter(|s| s.sdk_range().contains(&SDK_INT)).collect::<Vec<_>>();
-
-    // there should be exactly one
-    ensure!(
-        supported.len() == 1,
-        "APK Signature Scheme V3 only supports one signer: {} signers found.",
-        supported.len()
-    );
-
-    // Call the supplied function
-    f((supported[0], sections))
+    let (signer, mut sections) = extract_signer_and_apk_sections(apk)?;
+    signer.verify(&mut sections)
 }
 
 /// Gets the public key (in DER format) that was used to sign the given APK/APEX file
 pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
     let apk = File::open(apk_path.as_ref())?;
-    let mut sections = ApkSections::new(apk)?;
-    find_signer_and_then(&mut sections, |(signer, _)| {
-        Ok(signer.public_key.public_key_to_der()?.into_boxed_slice())
-    })
+    let (signer, _) = extract_signer_and_apk_sections(apk)?;
+    Ok(signer.public_key.public_key_to_der()?.into_boxed_slice())
 }
 
 /// Gets the v4 [apk_digest].
 ///
 /// [apk_digest]: https://source.android.com/docs/security/apksigning/v4#apk-digest
 pub fn pick_v4_apk_digest<R: Read + Seek>(apk: R) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
+    let (signer, _) = extract_signer_and_apk_sections(apk)?;
+    signer.pick_v4_apk_digest()
+}
+
+fn extract_signer_and_apk_sections<R: Read + Seek>(apk: R) -> Result<(Signer, ApkSections<R>)> {
     let mut sections = ApkSections::new(apk)?;
-    let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID)?;
-    let signers = block.read::<Signers>()?;
-    ensure!(signers.len() == 1, "should only have one signer");
-    signers[0].pick_v4_apk_digest()
+    let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID).context(
+        "Fallback to v2 when v3 block not found is not yet implemented. See b/197052981.",
+    )?;
+    let mut supported = block
+        .read::<Signers>()?
+        .into_inner()
+        .into_iter()
+        .filter(|s| s.sdk_range().contains(&SDK_INT))
+        .collect::<Vec<_>>();
+    ensure!(
+        supported.len() == 1,
+        "APK Signature Scheme V3 only supports one signer: {} signers found.",
+        supported.len()
+    );
+    Ok((supported.pop().unwrap().into_inner(), sections))
 }
 
 impl Signer {
