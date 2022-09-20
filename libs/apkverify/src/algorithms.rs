@@ -17,19 +17,22 @@
 //! Algorithms used for APK Signature Scheme.
 
 use anyhow::{ensure, Result};
+use bytes::{Buf, Bytes};
 use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::ToPrimitive;
+use num_traits::{FromPrimitive, ToPrimitive};
 use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
 use openssl::rsa::Padding;
 use openssl::sign::Verifier;
 use serde::{Deserialize, Serialize};
 
+use crate::bytes_ext::ReadFromBytes;
+
 /// [Signature Algorithm IDs]: https://source.android.com/docs/security/apksigning/v2#signature-algorithm-ids
 /// [SignatureAlgorithm.java]: (tools/apksig/src/main/java/com/android/apksig/internal/apk/SignatureAlgorithm.java)
 ///
 /// Some of the algorithms are not implemented. See b/197052981.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum SignatureAlgorithmID {
     /// RSASSA-PSS with SHA2-256 digest, SHA2-256 MGF1, 32 bytes of salt, trailer: 0xbc, content
@@ -75,6 +78,12 @@ pub enum SignatureAlgorithmID {
 impl Default for SignatureAlgorithmID {
     fn default() -> Self {
         SignatureAlgorithmID::DsaWithSha256
+    }
+}
+
+impl ReadFromBytes for Option<SignatureAlgorithmID> {
+    fn read_from_bytes(buf: &mut Bytes) -> Result<Self> {
+        Ok(SignatureAlgorithmID::from_u32(buf.get_u32_le()))
     }
 }
 
@@ -153,7 +162,7 @@ impl SignatureAlgorithmID {
         }
     }
 
-    pub(crate) fn to_content_digest_algorithm(&self) -> ContentDigestAlgorithm {
+    pub(crate) fn content_digest_algorithm(&self) -> ContentDigestAlgorithm {
         match self {
             SignatureAlgorithmID::RsaPssWithSha256
             | SignatureAlgorithmID::RsaPkcs1V15WithSha256
