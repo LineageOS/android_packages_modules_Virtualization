@@ -16,10 +16,6 @@
 
 //! Utilities for Signature Verification
 
-// TODO(b/246254355): Remove this once we migrate all the usages of
-// raw signature algorithm id to the enum.
-#![allow(dead_code)]
-
 use anyhow::{anyhow, ensure, Error, Result};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
@@ -33,19 +29,9 @@ use crate::ziputil::{set_central_directory_offset, zip_sections};
 const APK_SIG_BLOCK_MIN_SIZE: u32 = 32;
 const APK_SIG_BLOCK_MAGIC: u128 = 0x3234206b636f6c4220676953204b5041;
 
-// TODO(b/246254355): Migrates usages of raw signature algorithm id to the enum.
-pub const SIGNATURE_RSA_PSS_WITH_SHA256: u32 = 0x0101;
-pub const SIGNATURE_RSA_PSS_WITH_SHA512: u32 = 0x0102;
-pub const SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA256: u32 = 0x0103;
-pub const SIGNATURE_RSA_PKCS1_V1_5_WITH_SHA512: u32 = 0x0104;
-pub const SIGNATURE_ECDSA_WITH_SHA256: u32 = 0x0201;
-pub const SIGNATURE_ECDSA_WITH_SHA512: u32 = 0x0202;
-pub const SIGNATURE_DSA_WITH_SHA256: u32 = 0x0301;
-pub const SIGNATURE_VERITY_RSA_PKCS1_V1_5_WITH_SHA256: u32 = 0x0421;
-pub const SIGNATURE_VERITY_ECDSA_WITH_SHA256: u32 = 0x0423;
-pub const SIGNATURE_VERITY_DSA_WITH_SHA256: u32 = 0x0425;
-
 const CHUNK_SIZE_BYTES: u64 = 1024 * 1024;
+const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
+const CHUNK_HEADER_MID: &[u8] = &[0xa5];
 
 /// The [APK structure] has four major sections:
 ///
@@ -165,9 +151,6 @@ fn scoped_read<'a, R: Read + Seek>(
 struct Digester {
     message_digest: MessageDigest,
 }
-
-const CHUNK_HEADER_TOP: &[u8] = &[0x5a];
-const CHUNK_HEADER_MID: &[u8] = &[0xa5];
 
 impl Digester {
     // v2/v3 digests are computed after prepending "header" byte and "size" info.
