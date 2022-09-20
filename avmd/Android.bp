@@ -11,6 +11,7 @@ rust_defaults {
     rustlibs: [
         "libserde",
         "libapexutil_rust", // TODO(b/239413416): Remove this after adding hex
+        "libapkverify",
     ],
 }
 
