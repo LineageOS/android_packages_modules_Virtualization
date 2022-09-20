@@ -15,6 +15,7 @@ rust_defaults {
         "liblog_rust",
         "libnum_traits",
         "libopenssl",
+        "libserde",
         "libzip",
     ],
     proc_macros: ["libnum_derive"],
