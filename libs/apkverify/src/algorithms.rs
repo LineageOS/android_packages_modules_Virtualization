@@ -18,16 +18,18 @@
 
 use anyhow::{ensure, Result};
 use num_derive::{FromPrimitive, ToPrimitive};
+use num_traits::ToPrimitive;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{self, PKey};
 use openssl::rsa::Padding;
 use openssl::sign::Verifier;
+use serde::{Deserialize, Serialize};
 
 /// [Signature Algorithm IDs]: https://source.android.com/docs/security/apksigning/v2#signature-algorithm-ids
 /// [SignatureAlgorithm.java]: (tools/apksig/src/main/java/com/android/apksig/internal/apk/SignatureAlgorithm.java)
 ///
 /// Some of the algorithms are not implemented. See b/197052981.
-#[derive(Clone, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum SignatureAlgorithmID {
     /// RSASSA-PSS with SHA2-256 digest, SHA2-256 MGF1, 32 bytes of salt, trailer: 0xbc, content
@@ -77,6 +79,11 @@ impl Default for SignatureAlgorithmID {
 }
 
 impl SignatureAlgorithmID {
+    /// Converts the signature algorithm ID to the corresponding u32.
+    pub fn to_u32(&self) -> u32 {
+        ToPrimitive::to_u32(self).expect("Unsupported algorithm for to_u32.")
+    }
+
     pub(crate) fn new_verifier<'a>(
         &self,
         public_key: &'a PKey<pkey::Public>,
@@ -86,7 +93,7 @@ impl SignatureAlgorithmID {
                 self,
                 SignatureAlgorithmID::DsaWithSha256 | SignatureAlgorithmID::VerityDsaWithSha256
             ),
-            "TODO(b/197052981): Algorithm '{:#?}' is not implemented.",
+            "TODO(b/197052981): Algorithm '{:?}' is not implemented.",
             self
         );
         ensure!(public_key.id() == self.pkey_id(), "Public key has the wrong ID");
