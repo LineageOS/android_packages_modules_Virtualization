@@ -102,11 +102,7 @@ python_binary_host {
         "sign_virt_apex.py",
     ],
     version: {
-        py2: {
-            enabled: false,
-        },
         py3: {
-            enabled: true,
             embedded_launcher: true,
         },
     },
@@ -170,11 +166,7 @@ python_binary_host {
         "replace_bytes.py",
     ],
     version: {
-        py2: {
-            enabled: false,
-        },
         py3: {
-            enabled: true,
             embedded_launcher: true,
         },
     },
