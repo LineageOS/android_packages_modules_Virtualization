@@ -26,12 +26,13 @@ mod aidl;
 mod fsverity;
 
 use anyhow::{bail, Result};
+use clap::Parser;
 use log::debug;
 use nix::sys::stat::{umask, Mode};
 use rpcbinder::run_rpc_server;
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::os::unix::io::FromRawFd;
+use std::os::unix::io::{FromRawFd, OwnedFd};
 
 use aidl::{FdConfig, FdService};
 use authfs_fsverity_metadata::parse_fsverity_metadata;
@@ -72,86 +73,52 @@ fn parse_arg_ro_fds(arg: &str) -> Result<(i32, FdConfig)> {
     ))
 }
 
-fn parse_arg_rw_fds(arg: &str) -> Result<(i32, FdConfig)> {
-    let fd = arg.parse::<i32>()?;
-    let file = fd_to_owned::<File>(fd)?;
-    if file.metadata()?.len() > 0 {
-        bail!("File is expected to be empty");
-    }
-    Ok((fd, FdConfig::ReadWrite(file)))
-}
-
-fn parse_arg_ro_dirs(arg: &str) -> Result<(i32, FdConfig)> {
-    let fd = arg.parse::<i32>()?;
-    Ok((fd, FdConfig::InputDir(fd_to_owned(fd)?)))
-}
-
-fn parse_arg_rw_dirs(arg: &str) -> Result<(i32, FdConfig)> {
-    let fd = arg.parse::<i32>()?;
-    Ok((fd, FdConfig::OutputDir(fd_to_owned(fd)?)))
-}
-
+#[derive(Parser)]
 struct Args {
-    fd_pool: BTreeMap<i32, FdConfig>,
-    ready_fd: Option<File>,
+    /// Read-only FD of file, with optional FD of corresponding .fsv_meta, joined with a ':'.
+    /// Example: "1:2", "3".
+    #[clap(long)]
+    ro_fds: Vec<String>,
+
+    /// Read-writable FD of file
+    #[clap(long)]
+    rw_fds: Vec<i32>,
+
+    /// Read-only FD of directory
+    #[clap(long)]
+    ro_dirs: Vec<i32>,
+
+    /// Read-writable FD of directory
+    #[clap(long)]
+    rw_dirs: Vec<i32>,
+
+    /// A pipe FD for signaling the other end once ready
+    #[clap(long)]
+    ready_fd: Option<i32>,
 }
 
-fn parse_args() -> Result<Args> {
-    #[rustfmt::skip]
-    let matches = clap::App::new("fd_server")
-        .arg(clap::Arg::with_name("ro-fds")
-             .long("ro-fds")
-             .multiple(true)
-             .number_of_values(1))
-        .arg(clap::Arg::with_name("rw-fds")
-             .long("rw-fds")
-             .multiple(true)
-             .number_of_values(1))
-        .arg(clap::Arg::with_name("ro-dirs")
-             .long("ro-dirs")
-             .multiple(true)
-             .number_of_values(1))
-        .arg(clap::Arg::with_name("rw-dirs")
-             .long("rw-dirs")
-             .multiple(true)
-             .number_of_values(1))
-        .arg(clap::Arg::with_name("ready-fd")
-            .long("ready-fd")
-            .takes_value(true))
-        .get_matches();
-
+/// Convert argument strings and integers to a form that is easier to use and handles ownership.
+fn convert_args(args: Args) -> Result<(BTreeMap<i32, FdConfig>, Option<OwnedFd>)> {
     let mut fd_pool = BTreeMap::new();
-    if let Some(args) = matches.values_of("ro-fds") {
-        for arg in args {
-            let (fd, config) = parse_arg_ro_fds(arg)?;
-            fd_pool.insert(fd, config);
-        }
+    for arg in args.ro_fds {
+        let (fd, config) = parse_arg_ro_fds(&arg)?;
+        fd_pool.insert(fd, config);
     }
-    if let Some(args) = matches.values_of("rw-fds") {
-        for arg in args {
-            let (fd, config) = parse_arg_rw_fds(arg)?;
-            fd_pool.insert(fd, config);
+    for fd in args.rw_fds {
+        let file = fd_to_owned::<File>(fd)?;
+        if file.metadata()?.len() > 0 {
+            bail!("File is expected to be empty");
         }
+        fd_pool.insert(fd, FdConfig::ReadWrite(file));
     }
-    if let Some(args) = matches.values_of("ro-dirs") {
-        for arg in args {
-            let (fd, config) = parse_arg_ro_dirs(arg)?;
-            fd_pool.insert(fd, config);
-        }
+    for fd in args.ro_dirs {
+        fd_pool.insert(fd, FdConfig::InputDir(fd_to_owned(fd)?));
     }
-    if let Some(args) = matches.values_of("rw-dirs") {
-        for arg in args {
-            let (fd, config) = parse_arg_rw_dirs(arg)?;
-            fd_pool.insert(fd, config);
-        }
+    for fd in args.rw_dirs {
+        fd_pool.insert(fd, FdConfig::OutputDir(fd_to_owned(fd)?));
     }
-    let ready_fd = if let Some(arg) = matches.value_of("ready-fd") {
-        let fd = arg.parse::<i32>()?;
-        Some(fd_to_owned(fd)?)
-    } else {
-        None
-    };
-    Ok(Args { fd_pool, ready_fd })
+    let ready_fd = args.ready_fd.map(fd_to_owned).transpose()?;
+    Ok((fd_pool, ready_fd))
 }
 
 fn main() -> Result<()> {
@@ -159,7 +126,8 @@ fn main() -> Result<()> {
         android_logger::Config::default().with_tag("fd_server").with_min_level(log::Level::Debug),
     );
 
-    let args = parse_args()?;
+    let args = Args::parse();
+    let (fd_pool, mut ready_fd) = convert_args(args)?;
 
     // Allow open/create/mkdir from authfs to create with expecting mode. It's possible to still
     // use a custom mask on creation, then report the actual file mode back to authfs. But there
@@ -167,9 +135,8 @@ fn main() -> Result<()> {
     let old_umask = umask(Mode::empty());
     debug!("Setting umask to 0 (old: {:03o})", old_umask.bits());
 
-    let service = FdService::new_binder(args.fd_pool).as_binder();
+    let service = FdService::new_binder(fd_pool).as_binder();
     debug!("fd_server is starting as a rpc service.");
-    let mut ready_fd = args.ready_fd;
     let retval = run_rpc_server(service, RPC_SERVICE_PORT, || {
         debug!("fd_server is ready");
         // Close the ready-fd if we were given one to signal our readiness.
