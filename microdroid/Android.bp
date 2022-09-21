@@ -236,14 +236,6 @@ logical_partition {
     ],
 }
 
-microdroid_boot_cmdline = [
-    "panic=-1",
-    "bootconfig",
-    "ioremap_guard",
-    // TODO(b/237381762) do this only when ramdump is enabled. (bootloader shall append this)
-    "crashkernel=17M",
-]
-
 bootimg {
     name: "microdroid_boot",
     // We don't have kernel for arm and x86. But Soong demands one when it builds for
@@ -252,19 +244,9 @@ bootimg {
     arch: {
         arm64: {
             kernel_prebuilt: ":microdroid_kernel_prebuilts-5.15-arm64",
-            cmdline: microdroid_boot_cmdline,
         },
         x86_64: {
             kernel_prebuilt: ":microdroid_kernel_prebuilts-5.15-x86_64",
-            cmdline: microdroid_boot_cmdline + [
-                // console=none is to work around the x86 specific u-boot behavior which when
-                // console= option is not found in the kernel commandline console=ttyS0 is
-                // automatically added. By adding console=none, we can prevent u-boot from doing
-                // that. Note that console is set to hvc0 by bootconfig if the VM is configured as
-                // debuggable.
-                "console=none",
-                "acpi=noirq",
-            ],
         },
     },
 
