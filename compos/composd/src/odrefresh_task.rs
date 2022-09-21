@@ -161,9 +161,18 @@ fn run_in_vm(
     let output_dir_raw_fd = output_dir_fd.as_raw_fd();
     let staging_dir_raw_fd = staging_dir_fd.as_raw_fd();
 
+    // Get the /system_ext FD differently because it may not exist.
+    // TODO(245761690): pass system_ext_dir_raw_fd to service.odrefresh(...)
+    let (_system_ext_dir_raw_fd, ro_dir_fds) =
+        if let Ok(system_ext_dir_fd) = open_dir(Path::new("/system_ext")) {
+            (system_ext_dir_fd.as_raw_fd(), vec![system_dir_fd, system_ext_dir_fd])
+        } else {
+            (-1, vec![system_dir_fd])
+        };
+
     // Spawn a fd_server to serve the FDs.
     let fd_server_config = FdServerConfig {
-        ro_dir_fds: vec![system_dir_fd],
+        ro_dir_fds,
         rw_dir_fds: vec![staging_dir_fd, output_dir_fd],
         ..Default::default()
     };
