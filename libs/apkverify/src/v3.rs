@@ -20,7 +20,6 @@
 
 use anyhow::{ensure, Context, Result};
 use bytes::Bytes;
-use num_traits::FromPrimitive;
 use openssl::pkey::{self, PKey};
 use openssl::x509::X509;
 use std::fs::File;
@@ -70,13 +69,13 @@ impl SignedData {
 
 #[derive(Debug)]
 struct Signature {
-    /// TODO(b/246254355): Change the type of signature_algorithm_id to SignatureAlgorithmID
-    signature_algorithm_id: u32,
+    /// Option is used here to allow us to ignore unsupported algorithm.
+    signature_algorithm_id: Option<SignatureAlgorithmID>,
     signature: LengthPrefixed<Bytes>,
 }
 
 struct Digest {
-    signature_algorithm_id: u32,
+    signature_algorithm_id: Option<SignatureAlgorithmID>,
     digest: LengthPrefixed<Bytes>,
 }
 
@@ -142,12 +141,8 @@ impl Signer {
         Ok(self
             .signatures
             .iter()
-            .filter(|sig| SignatureAlgorithmID::from_u32(sig.signature_algorithm_id).is_some())
-            .max_by_key(|sig| {
-                SignatureAlgorithmID::from_u32(sig.signature_algorithm_id)
-                    .unwrap()
-                    .to_content_digest_algorithm()
-            })
+            .filter(|sig| sig.signature_algorithm_id.is_some())
+            .max_by_key(|sig| sig.signature_algorithm_id.unwrap().content_digest_algorithm())
             .context("No supported signatures found")?)
     }
 
@@ -159,10 +154,10 @@ impl Signer {
             .iter()
             .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
             .context("Digest not found")?;
-        // TODO(b/246254355): Remove this conversion once Digest contains the enum SignatureAlgorithmID
-        let signature_algorithm_id = SignatureAlgorithmID::from_u32(digest.signature_algorithm_id)
-            .context("Unsupported algorithm")?;
-        Ok((signature_algorithm_id, digest.digest.as_ref().to_vec().into_boxed_slice()))
+        Ok((
+            digest.signature_algorithm_id.context("Unsupported algorithm")?,
+            digest.digest.as_ref().to_vec().into_boxed_slice(),
+        ))
     }
 
     /// The steps in this method implements APK Signature Scheme v3 verification step 3.
@@ -202,12 +197,8 @@ impl Signer {
             .iter()
             .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
             .unwrap(); // ok to unwrap since we check if two lists are the same above
-        let computed = sections.compute_digest(
-            // TODO(b/246254355): Removes the conversion once Digest contains the enum
-            // SignatureAlgorithmID.
-            SignatureAlgorithmID::from_u32(digest.signature_algorithm_id)
-                .context("Unsupported algorithm")?,
-        )?;
+        let computed = sections
+            .compute_digest(digest.signature_algorithm_id.context("Unsupported algorithm")?)?;
 
         // 6. Verify that the computed digest is identical to the corresponding digest from digests.
         ensure!(
@@ -238,7 +229,8 @@ fn verify_signed_data(
     signature: &Signature,
     public_key: &PKey<pkey::Public>,
 ) -> Result<()> {
-    let mut verifier = SignatureAlgorithmID::from_u32(signature.signature_algorithm_id)
+    let mut verifier = signature
+        .signature_algorithm_id
         .context("Unsupported algorithm")?
         .new_verifier(public_key)?;
     verifier.update(data)?;
