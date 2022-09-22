@@ -117,7 +117,7 @@ impl ICompOsService for CompOsService {
             ));
         }
 
-        let context = to_binder_result(OdrefreshContext::new(
+        let context = OdrefreshContext::new(
             compilation_mode,
             system_dir_fd,
             if system_ext_dir_fd >= 0 { Some(system_ext_dir_fd) } else { None },
@@ -126,21 +126,9 @@ impl ICompOsService for CompOsService {
             target_dir_name,
             zygote_arch,
             system_server_compiler_filter,
-        ))?;
+        );
 
-        let authfs_service = binder::get_interface(AUTHFS_SERVICE_NAME)?;
-        let exit_code = to_binder_result(
-            odrefresh(&self.odrefresh_path, context, authfs_service, |output_dir| {
-                // authfs only shows us the files we created, so it's ok to just sign everything
-                // under the output directory.
-                let mut artifact_signer = ArtifactSigner::new(&output_dir);
-                add_artifacts(&output_dir, &mut artifact_signer)?;
-
-                artifact_signer.write_info_and_signature(&output_dir.join("compos.info"))
-            })
-            .context("odrefresh failed"),
-        )?;
-        Ok(exit_code as i8)
+        to_binder_result(context.and_then(|c| self.do_odrefresh(c)))
     }
 
     fn getPublicKey(&self) -> BinderResult<Vec<u8>> {
@@ -155,6 +143,23 @@ impl ICompOsService for CompOsService {
         // When our process exits, Microdroid will shut down the VM.
         info!("Received quit request, exiting");
         std::process::exit(0);
+    }
+}
+
+impl CompOsService {
+    fn do_odrefresh(&self, context: OdrefreshContext) -> Result<i8> {
+        let authfs_service = binder::get_interface(AUTHFS_SERVICE_NAME)
+            .context("Unable to connect to AuthFS service")?;
+        let exit_code = odrefresh(&self.odrefresh_path, context, authfs_service, |output_dir| {
+            // authfs only shows us the files we created, so it's ok to just sign everything
+            // under the output directory.
+            let mut artifact_signer = ArtifactSigner::new(&output_dir);
+            add_artifacts(&output_dir, &mut artifact_signer)?;
+
+            artifact_signer.write_info_and_signature(&output_dir.join("compos.info"))
+        })
+        .context("odrefresh failed")?;
+        Ok(exit_code as i8)
     }
 }
 
