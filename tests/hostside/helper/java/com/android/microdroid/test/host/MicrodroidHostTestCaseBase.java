@@ -367,10 +367,11 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         runOnHostRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
                 MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "adb", "-s", MICRODROID_SERIAL, "root");
         // adbd reboots after root. Some commands (including wait-for-device) following this fails
-        // with error: closed. Hence, we run adb shell true in microdroid with retries
-        // before returning.
-        runOnMicrodroidRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
-                MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "true");
+        // with error: closed. Hence, we disconnect and re-connect to the device before returning.
+        runOnHostRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
+                MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "adb", "disconnect", MICRODROID_SERIAL);
+        runOnHostRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
+                MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "adb", "connect", MICRODROID_SERIAL);
     }
 
     // Establish an adb connection to microdroid by letting Android forward the connection to
