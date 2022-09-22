@@ -43,7 +43,7 @@ struct Signer {
     min_sdk: u32,
     max_sdk: u32,
     signatures: LengthPrefixed<Vec<LengthPrefixed<Signature>>>,
-    public_key: LengthPrefixed<Bytes>,
+    public_key: PKey<pkey::Public>,
 }
 
 impl Signer {
@@ -119,7 +119,7 @@ pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
     let apk = File::open(apk_path.as_ref())?;
     let mut sections = ApkSections::new(apk)?;
     find_signer_and_then(&mut sections, |(signer, _)| {
-        Ok(signer.public_key.to_vec().into_boxed_slice())
+        Ok(signer.public_key.public_key_to_der()?.into_boxed_slice())
     })
 }
 
@@ -160,23 +160,31 @@ impl Signer {
         ))
     }
 
+    /// Verifies the strongest signature from signatures against signed data using public key.
+    /// Returns the verified signed data.
+    fn verify_signature(&self, strongest: &Signature) -> Result<SignedData> {
+        let mut verifier = strongest
+            .signature_algorithm_id
+            .context("Unsupported algorithm")?
+            .new_verifier(&self.public_key)?;
+        verifier.update(&self.signed_data)?;
+        ensure!(verifier.verify(&strongest.signature)?, "Signature is invalid.");
+        // It is now safe to parse signed data.
+        self.signed_data.slice(..).read()
+    }
+
     /// The steps in this method implements APK Signature Scheme v3 verification step 3.
     fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
         // 1. Choose the strongest supported signature algorithm ID from signatures.
         let strongest = self.strongest_signature()?;
 
         // 2. Verify the corresponding signature from signatures against signed data using public key.
-        //    (It is now safe to parse signed data.)
-        let public_key = PKey::public_key_from_der(self.public_key.as_ref())?;
-        verify_signed_data(&self.signed_data, strongest, &public_key)?;
-
-        // It is now safe to parse signed data.
-        let signed_data: SignedData = self.signed_data.slice(..).read()?;
+        let verified_signed_data = self.verify_signature(strongest)?;
 
         // 3. Verify the min and max SDK versions in the signed data match those specified for the
         //    signer.
         ensure!(
-            self.sdk_range() == signed_data.sdk_range(),
+            self.sdk_range() == verified_signed_data.sdk_range(),
             "SDK versions mismatch between signed and unsigned in v3 signer block."
         );
 
@@ -186,13 +194,13 @@ impl Signer {
             self.signatures
                 .iter()
                 .map(|sig| sig.signature_algorithm_id)
-                .eq(signed_data.digests.iter().map(|dig| dig.signature_algorithm_id)),
+                .eq(verified_signed_data.digests.iter().map(|dig| dig.signature_algorithm_id)),
             "Signature algorithms don't match between digests and signatures records"
         );
 
         // 5. Compute the digest of APK contents using the same digest algorithm as the digest
         //    algorithm used by the signature algorithm.
-        let digest = signed_data
+        let digest = verified_signed_data
             .digests
             .iter()
             .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
@@ -210,33 +218,18 @@ impl Signer {
 
         // 7. Verify that public key of the first certificate of certificates is identical
         //    to public key.
-        let cert = signed_data.certificates.first().context("No certificates listed")?;
+        let cert = verified_signed_data.certificates.first().context("No certificates listed")?;
         let cert = X509::from_der(cert.as_ref())?;
         ensure!(
-            cert.public_key()?.public_eq(&public_key),
+            cert.public_key()?.public_eq(&self.public_key),
             "Public key mismatch between certificate and signature record"
         );
 
         // TODO(b/245914104)
         // 8. If the proof-of-rotation attribute exists for the signer verify that the
         // struct is valid and this signer is the last certificate in the list.
-        Ok(self.public_key.to_vec().into_boxed_slice())
+        Ok(self.public_key.public_key_to_der()?.into_boxed_slice())
     }
-}
-
-fn verify_signed_data(
-    data: &Bytes,
-    signature: &Signature,
-    public_key: &PKey<pkey::Public>,
-) -> Result<()> {
-    let mut verifier = signature
-        .signature_algorithm_id
-        .context("Unsupported algorithm")?
-        .new_verifier(public_key)?;
-    verifier.update(data)?;
-    let verified = verifier.verify(&signature.signature)?;
-    ensure!(verified, "Signature is invalid ");
-    Ok(())
 }
 
 // ReadFromBytes implementations
@@ -275,6 +268,13 @@ impl ReadFromBytes for Signature {
 impl ReadFromBytes for Digest {
     fn read_from_bytes(buf: &mut Bytes) -> Result<Self> {
         Ok(Self { signature_algorithm_id: buf.read()?, digest: buf.read()? })
+    }
+}
+
+impl ReadFromBytes for PKey<pkey::Public> {
+    fn read_from_bytes(buf: &mut Bytes) -> Result<Self> {
+        let raw_public_key = buf.read::<LengthPrefixed<Bytes>>()?;
+        Ok(PKey::public_key_from_der(raw_public_key.as_ref())?)
     }
 }
 
