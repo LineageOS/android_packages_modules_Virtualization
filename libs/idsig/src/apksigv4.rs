@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn parse_idsig_file() {
-        let idsig = Cursor::new(include_bytes!("../testdata/test.apk.idsig"));
+        let idsig = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk.idsig"));
         let parsed = V4Signature::from(idsig).unwrap();
 
         assert_eq!(Version::V2, parsed.version);
@@ -309,32 +309,32 @@ mod tests {
         assert_eq!(12, hi.log2_blocksize);
         assert_eq!("", hexstring_from(hi.salt.as_ref()));
         assert_eq!(
-            "ce1194fdb3cb2537daf0ac8cdf4926754adcbce5abeece7945fe25d204a0df6a",
+            "77f063b48b63f846690fa76450a8d3b61a295b6158f50592e873f76dbeeb0201",
             hexstring_from(hi.raw_root_hash.as_ref())
         );
 
         let si = parsed.signing_info;
         assert_eq!(
-            "b5225523a813fb84ed599dd649698c080bcfed4fb19ddb00283a662a2683bc15",
+            "c02fe2eddeb3078801828b930de546ea4f98d37fb98b40c7c7ed169b0d713583",
             hexstring_from(si.apk_digest.as_ref())
         );
         assert_eq!("", hexstring_from(si.additional_data.as_ref()));
         assert_eq!(
-            "303d021c77304d0f4732a90372bbfce095223e4ba82427ceb381f69bc6762d78021d008b99924\
-                   a8585c38d7f654835eb219ae9e176b44e86dcb23153e3d9d6",
+            "3046022100fb6383ba300dc7e1e6931a25b381398a16e5575baefd82afd12ba88660d9a6\
+            4c022100ebdcae13ab18c4e30bf6ae634462e526367e1ba26c2647a1d87a0f42843fc128",
             hexstring_from(si.signature.as_ref())
         );
-        assert_eq!(SignatureAlgorithmID::DsaWithSha256, si.signature_algorithm_id);
+        assert_eq!(SignatureAlgorithmID::EcdsaWithSha256, si.signature_algorithm_id);
 
-        assert_eq!(36864, parsed.merkle_tree_size);
-        assert_eq!(2251, parsed.merkle_tree_offset);
+        assert_eq!(4096, parsed.merkle_tree_size);
+        assert_eq!(648, parsed.merkle_tree_offset);
     }
 
     /// Parse an idsig file into V4Signature and write it. The written date must be the same as
     /// the input file.
     #[test]
     fn parse_and_compose() {
-        let input = Cursor::new(include_bytes!("../testdata/test.apk.idsig"));
+        let input = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk.idsig"));
         let mut parsed = V4Signature::from(input.clone()).unwrap();
 
         let mut output = Cursor::new(Vec::new());
@@ -347,11 +347,11 @@ mod tests {
     /// as those in the idsig file created by the signapk tool.
     #[test]
     fn digest_from_apk() {
-        let mut input = Cursor::new(include_bytes!("../testdata/test.apk"));
+        let mut input = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk"));
         let mut created =
             V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256).unwrap();
 
-        let golden = Cursor::new(include_bytes!("../testdata/test.apk.idsig"));
+        let golden = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk.idsig"));
         let mut golden = V4Signature::from(golden).unwrap();
 
         // Compare the root hash
