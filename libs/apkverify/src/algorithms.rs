@@ -77,7 +77,7 @@ pub enum SignatureAlgorithmID {
 
 impl Default for SignatureAlgorithmID {
     fn default() -> Self {
-        SignatureAlgorithmID::DsaWithSha256
+        SignatureAlgorithmID::RsaPssWithSha256
     }
 }
 
