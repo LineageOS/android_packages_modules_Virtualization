@@ -28,7 +28,7 @@ use compos_common::odrefresh::{
 };
 use compos_common::{
     COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE,
-    INSTANCE_IMAGE_FILE, TEST_INSTANCE_DIR,
+    IDSIG_MANIFEST_EXT_APK_FILE, INSTANCE_IMAGE_FILE, TEST_INSTANCE_DIR,
 };
 use log::error;
 use std::fs::File;
@@ -93,6 +93,7 @@ fn try_main() -> Result<()> {
     let instance_image = instance_dir.join(INSTANCE_IMAGE_FILE);
     let idsig = instance_dir.join(IDSIG_FILE);
     let idsig_manifest_apk = instance_dir.join(IDSIG_MANIFEST_APK_FILE);
+    let idsig_manifest_ext_apk = instance_dir.join(IDSIG_MANIFEST_EXT_APK_FILE);
 
     let instance_image = File::open(instance_image).context("Failed to open instance image")?;
 
@@ -111,6 +112,7 @@ fn try_main() -> Result<()> {
         instance_image,
         &idsig,
         &idsig_manifest_apk,
+        &idsig_manifest_ext_apk,
         &VmParameters { debug_mode: args.debug, ..Default::default() },
     )?;
 
