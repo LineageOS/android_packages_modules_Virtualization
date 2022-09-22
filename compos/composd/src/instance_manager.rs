@@ -22,10 +22,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use anyhow::{bail, Result};
 use binder::Strong;
 use compos_common::compos_client::VmParameters;
-use compos_common::{
-    CURRENT_INSTANCE_DIR, DEX2OAT_THREADS_PROP_NAME, PREFER_STAGED_VM_CONFIG_PATH,
-    TEST_INSTANCE_DIR,
-};
+use compos_common::{CURRENT_INSTANCE_DIR, DEX2OAT_THREADS_PROP_NAME, TEST_INSTANCE_DIR};
 use rustutils::system_properties;
 use std::num::NonZeroU32;
 use std::str::FromStr;
@@ -47,16 +44,14 @@ impl InstanceManager {
 
     pub fn start_current_instance(&self) -> Result<CompOsInstance> {
         let mut vm_parameters = new_vm_parameters()?;
-        vm_parameters.config_path = Some(PREFER_STAGED_VM_CONFIG_PATH.to_owned());
+        vm_parameters.prefer_staged = true;
         self.start_instance(CURRENT_INSTANCE_DIR, vm_parameters)
     }
 
     pub fn start_test_instance(&self, prefer_staged: bool) -> Result<CompOsInstance> {
         let mut vm_parameters = new_vm_parameters()?;
         vm_parameters.debug_mode = true;
-        if prefer_staged {
-            vm_parameters.config_path = Some(PREFER_STAGED_VM_CONFIG_PATH.to_owned());
-        }
+        vm_parameters.prefer_staged = prefer_staged;
         self.start_instance(TEST_INSTANCE_DIR, vm_parameters)
     }
 
