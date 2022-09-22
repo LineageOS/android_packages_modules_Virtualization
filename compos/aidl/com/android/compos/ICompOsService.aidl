@@ -44,12 +44,14 @@ interface ICompOsService {
     /**
      * Run odrefresh in the VM context.
      *
-     * The execution is based on the VM's APEX mounts, files on Android's /system (by accessing
-     * through systemDirFd over AuthFS), and *CLASSPATH derived in the VM, to generate the same
-     * odrefresh output artifacts to the output directory (through outputDirFd).
+     * The execution is based on the VM's APEX mounts, files on Android's /system and optionally
+     * /system_ext (by accessing through systemDirFd and systemExtDirFd over AuthFS), and
+     * *CLASSPATH derived in the VM, to generate the same odrefresh output artifacts to the output
+     * directory (through outputDirFd).
      *
      * @param compilationMode The type of compilation to be performed
      * @param systemDirFd An fd referring to /system
+     * @param systemExtDirFd An optional fd referring to /system_ext. Negative number means none.
      * @param outputDirFd An fd referring to the output directory, ART_APEX_DATA
      * @param stagingDirFd An fd referring to the staging directory, e.g. ART_APEX_DATA/staging
      * @param targetDirName The sub-directory of the output directory to which artifacts are to be
@@ -58,8 +60,8 @@ interface ICompOsService {
      * @param systemServerCompilerFilter The compiler filter used to compile system server
      * @return odrefresh exit code
      */
-    byte odrefresh(CompilationMode compilation_mode, int systemDirFd, int outputDirFd,
-            int stagingDirFd, String targetDirName, String zygoteArch,
+    byte odrefresh(CompilationMode compilation_mode, int systemDirFd, int systemExtDirFd,
+            int outputDirFd, int stagingDirFd, String targetDirName, String zygoteArch,
             String systemServerCompilerFilter);
 
     /**
