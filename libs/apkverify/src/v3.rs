@@ -65,6 +65,14 @@ impl SignedData {
     fn sdk_range(&self) -> Range<u32> {
         self.min_sdk..self.max_sdk
     }
+
+    fn find_digest_by_algorithm(&self, algorithm_id: SignatureAlgorithmID) -> Result<&Digest> {
+        Ok(self
+            .digests
+            .iter()
+            .find(|&dig| dig.signature_algorithm_id == Some(algorithm_id))
+            .context(format!("Digest not found for algorithm: {:?}", algorithm_id))?)
+    }
 }
 
 #[derive(Debug)]
@@ -147,17 +155,13 @@ impl Signer {
     }
 
     fn pick_v4_apk_digest(&self) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
-        let strongest = self.strongest_signature()?;
+        let strongest_algorithm_id = self
+            .strongest_signature()?
+            .signature_algorithm_id
+            .context("Strongest signature should contain a valid signature algorithm.")?;
         let signed_data: SignedData = self.signed_data.slice(..).read()?;
-        let digest = signed_data
-            .digests
-            .iter()
-            .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
-            .context("Digest not found")?;
-        Ok((
-            digest.signature_algorithm_id.context("Unsupported algorithm")?,
-            digest.digest.as_ref().to_vec().into_boxed_slice(),
-        ))
+        let digest = signed_data.find_digest_by_algorithm(strongest_algorithm_id)?;
+        Ok((strongest_algorithm_id, digest.digest.as_ref().to_vec().into_boxed_slice()))
     }
 
     /// Verifies the strongest signature from signatures against signed data using public key.
@@ -200,13 +204,10 @@ impl Signer {
 
         // 5. Compute the digest of APK contents using the same digest algorithm as the digest
         //    algorithm used by the signature algorithm.
-        let digest = verified_signed_data
-            .digests
-            .iter()
-            .find(|&dig| dig.signature_algorithm_id == strongest.signature_algorithm_id)
-            .unwrap(); // ok to unwrap since we check if two lists are the same above
-        let computed = sections
-            .compute_digest(digest.signature_algorithm_id.context("Unsupported algorithm")?)?;
+        let digest = verified_signed_data.find_digest_by_algorithm(
+            strongest.signature_algorithm_id.context("Unsupported algorithm")?,
+        )?;
+        let computed = sections.compute_digest(digest.signature_algorithm_id.unwrap())?;
 
         // 6. Verify that the computed digest is identical to the corresponding digest from digests.
         ensure!(
