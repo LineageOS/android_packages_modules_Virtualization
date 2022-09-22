@@ -17,7 +17,10 @@
 //! Support for starting CompOS in a VM and connecting to the service
 
 use crate::timeouts::TIMEOUTS;
-use crate::{COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT, DEFAULT_VM_CONFIG_PATH};
+use crate::{
+    get_vm_config_path, BUILD_MANIFEST_APK_PATH, BUILD_MANIFEST_SYSTEM_EXT_APK_PATH,
+    COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT,
+};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     IVirtualizationService::IVirtualizationService,
     VirtualMachineAppConfig::{DebugLevel::DebugLevel, VirtualMachineAppConfig},
@@ -47,10 +50,10 @@ pub struct VmParameters {
     pub cpus: Option<NonZeroU32>,
     /// List of task profiles to apply to the VM
     pub task_profiles: Vec<String>,
-    /// If present, overrides the path to the VM config JSON file
-    pub config_path: Option<String>,
     /// If present, overrides the amount of RAM to give the VM
     pub memory_mib: Option<i32>,
+    /// Whether the VM prefers staged APEXes or activated ones (false; default)
+    pub prefer_staged: bool,
 }
 
 impl ComposClient {
@@ -60,6 +63,7 @@ impl ComposClient {
         instance_image: File,
         idsig: &Path,
         idsig_manifest_apk: &Path,
+        idsig_manifest_ext_apk: &Path,
         parameters: &VmParameters,
     ) -> Result<Self> {
         let protected_vm = want_protected_vm()?;
@@ -74,10 +78,26 @@ impl ComposClient {
         let apk_fd = ParcelFileDescriptor::new(apk_fd);
         let idsig_fd = prepare_idsig(service, &apk_fd, idsig)?;
 
-        let manifest_apk_fd = File::open("/system/etc/security/fsverity/BuildManifest.apk")
+        let manifest_apk_fd = File::open(BUILD_MANIFEST_APK_PATH)
             .context("Failed to open build manifest APK file")?;
         let manifest_apk_fd = ParcelFileDescriptor::new(manifest_apk_fd);
         let idsig_manifest_apk_fd = prepare_idsig(service, &manifest_apk_fd, idsig_manifest_apk)?;
+
+        // Prepare a few things based on whether /system_ext exists, including:
+        // 1. generate the additional idsig FD for the APK from /system_ext, then pass to VS
+        // 2. select the correct VM config json
+        let (extra_idsigs, has_system_ext) =
+            if let Ok(manifest_ext_apk_fd) = File::open(BUILD_MANIFEST_SYSTEM_EXT_APK_PATH) {
+                // Optional idsig in /system_ext is found, so prepare additionally.
+                let manifest_ext_apk_fd = ParcelFileDescriptor::new(manifest_ext_apk_fd);
+                let idsig_manifest_ext_apk_fd =
+                    prepare_idsig(service, &manifest_ext_apk_fd, idsig_manifest_ext_apk)?;
+
+                (vec![idsig_manifest_apk_fd, idsig_manifest_ext_apk_fd], true)
+            } else {
+                (vec![idsig_manifest_apk_fd], false)
+            };
+        let config_path = get_vm_config_path(has_system_ext, parameters.prefer_staged);
 
         let debug_level = match (protected_vm, parameters.debug_mode) {
             (_, true) => DebugLevel::FULL,
@@ -97,15 +117,14 @@ impl ComposClient {
             (Some(console_fd), Some(log_fd))
         };
 
-        let config_path = parameters.config_path.as_deref().unwrap_or(DEFAULT_VM_CONFIG_PATH);
         let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
             name: String::from("Compos"),
             apk: Some(apk_fd),
             idsig: Some(idsig_fd),
             instanceImage: Some(instance_fd),
-            configPath: config_path.to_owned(),
+            configPath: config_path,
             debugLevel: debug_level,
-            extraIdsigs: vec![idsig_manifest_apk_fd],
+            extraIdsigs: extra_idsigs,
             protectedVm: protected_vm,
             memoryMib: parameters.memory_mib.unwrap_or(0), // 0 means use the default
             numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
