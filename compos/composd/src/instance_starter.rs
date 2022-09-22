@@ -24,7 +24,10 @@ use anyhow::{Context, Result};
 use binder::{LazyServiceGuard, ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_common::compos_client::{ComposClient, VmParameters};
-use compos_common::{COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, INSTANCE_IMAGE_FILE};
+use compos_common::{
+    COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, IDSIG_MANIFEST_EXT_APK_FILE,
+    INSTANCE_IMAGE_FILE,
+};
 use log::info;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -66,6 +69,7 @@ pub struct InstanceStarter {
     instance_image: PathBuf,
     idsig: PathBuf,
     idsig_manifest_apk: PathBuf,
+    idsig_manifest_ext_apk: PathBuf,
     vm_parameters: VmParameters,
 }
 
@@ -76,12 +80,14 @@ impl InstanceStarter {
         let instance_image = instance_root_path.join(INSTANCE_IMAGE_FILE);
         let idsig = instance_root_path.join(IDSIG_FILE);
         let idsig_manifest_apk = instance_root_path.join(IDSIG_MANIFEST_APK_FILE);
+        let idsig_manifest_ext_apk = instance_root_path.join(IDSIG_MANIFEST_EXT_APK_FILE);
         Self {
             instance_name: instance_name.to_owned(),
             instance_root,
             instance_image,
             idsig,
             idsig_manifest_apk,
+            idsig_manifest_ext_apk,
             vm_parameters,
         }
     }
@@ -102,6 +108,7 @@ impl InstanceStarter {
         // Delete existing idsig files. Ignore error in case idsig doesn't exist.
         let _ = fs::remove_file(&self.idsig);
         let _ = fs::remove_file(&self.idsig_manifest_apk);
+        let _ = fs::remove_file(&self.idsig_manifest_ext_apk);
 
         let instance = self.start_vm(virtualization_service)?;
 
@@ -126,6 +133,7 @@ impl InstanceStarter {
             instance_image,
             &self.idsig,
             &self.idsig_manifest_apk,
+            &self.idsig_manifest_ext_apk,
             &self.vm_parameters,
         )
         .context("Starting VM")?;
