@@ -269,13 +269,22 @@ fn make_payload_disk(
     for (i, (extra_apk, extra_idsig)) in extra_apks.iter().zip(extra_idsigs.iter()).enumerate() {
         partitions.push(Partition {
             label: format!("extra-apk-{}", i),
-            image: Some(ParcelFileDescriptor::new(File::open(PathBuf::from(&extra_apk.path))?)),
+            image: Some(ParcelFileDescriptor::new(
+                File::open(PathBuf::from(&extra_apk.path)).with_context(|| {
+                    format!("Failed to open the extra apk #{} {}", i, extra_apk.path)
+                })?,
+            )),
             writable: false,
         });
 
         partitions.push(Partition {
             label: format!("extra-idsig-{}", i),
-            image: Some(ParcelFileDescriptor::new(extra_idsig.as_ref().try_clone()?)),
+            image: Some(ParcelFileDescriptor::new(
+                extra_idsig
+                    .as_ref()
+                    .try_clone()
+                    .with_context(|| format!("Failed to clone the extra idsig #{}", i))?,
+            )),
             writable: false,
         });
     }
