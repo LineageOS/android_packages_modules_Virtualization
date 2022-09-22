@@ -139,7 +139,7 @@ impl Signer {
         Ok(self
             .signatures
             .iter()
-            .filter(|sig| sig.signature_algorithm_id.map_or(false, |algo| algo.is_supported()))
+            .filter(|sig| sig.signature_algorithm_id.is_some())
             .max_by_key(|sig| sig.signature_algorithm_id.unwrap().content_digest_algorithm())
             .context("No supported signatures found")?)
     }
