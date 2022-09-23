@@ -41,6 +41,7 @@ const FD_SERVER_PORT: i32 = 3264; // TODO: support dynamic port
 pub struct OdrefreshContext<'a> {
     compilation_mode: CompilationMode,
     system_dir_fd: i32,
+    system_ext_dir_fd: Option<i32>,
     output_dir_fd: i32,
     staging_dir_fd: i32,
     target_dir_name: &'a str,
@@ -49,9 +50,11 @@ pub struct OdrefreshContext<'a> {
 }
 
 impl<'a> OdrefreshContext<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         compilation_mode: CompilationMode,
         system_dir_fd: i32,
+        system_ext_dir_fd: Option<i32>,
         output_dir_fd: i32,
         staging_dir_fd: i32,
         target_dir_name: &'a str,
@@ -88,6 +91,7 @@ impl<'a> OdrefreshContext<'a> {
         Ok(Self {
             compilation_mode,
             system_dir_fd,
+            system_ext_dir_fd,
             output_dir_fd,
             staging_dir_fd,
             target_dir_name,
@@ -108,14 +112,25 @@ where
 {
     // Mount authfs (via authfs_service). The authfs instance unmounts once the `authfs` variable
     // is out of scope.
+
+    let mut input_dir_fd_annotations = vec![InputDirFdAnnotation {
+        fd: context.system_dir_fd,
+        // Use the 0th APK of the extra_apks in compos/apk/assets/vm_config*.json
+        manifestPath: "/mnt/extra-apk/0/assets/build_manifest.pb".to_string(),
+        prefix: "system/".to_string(),
+    }];
+    if let Some(fd) = context.system_ext_dir_fd {
+        input_dir_fd_annotations.push(InputDirFdAnnotation {
+            fd,
+            // Use the 1st APK of the extra_apks in compos/apk/assets/vm_config_system_ext_*.json
+            manifestPath: "/mnt/extra-apk/1/assets/build_manifest.pb".to_string(),
+            prefix: "system_ext/".to_string(),
+        });
+    }
+
     let authfs_config = AuthFsConfig {
         port: FD_SERVER_PORT,
-        inputDirFdAnnotations: vec![InputDirFdAnnotation {
-            fd: context.system_dir_fd,
-            // 0 is the index of extra_apks in vm_config_extra_apk.json
-            manifestPath: "/mnt/extra-apk/0/assets/build_manifest.pb".to_string(),
-            prefix: "system/".to_string(),
-        }],
+        inputDirFdAnnotations: input_dir_fd_annotations,
         outputDirFdAnnotations: vec![
             OutputDirFdAnnotation { fd: context.output_dir_fd },
             OutputDirFdAnnotation { fd: context.staging_dir_fd },
@@ -133,6 +148,14 @@ where
     android_root.push("system");
     odrefresh_vars.set("ANDROID_ROOT", path_to_str(&android_root)?);
     debug!("ANDROID_ROOT={:?}", &android_root);
+
+    if let Some(fd) = context.system_ext_dir_fd {
+        let mut system_ext_root = mountpoint.clone();
+        system_ext_root.push(fd.to_string());
+        system_ext_root.push("system_ext");
+        odrefresh_vars.set("SYSTEM_EXT_ROOT", path_to_str(&system_ext_root)?);
+        debug!("SYSTEM_EXT_ROOT={:?}", &system_ext_root);
+    }
 
     let art_apex_data = mountpoint.join(context.output_dir_fd.to_string());
     odrefresh_vars.set("ART_APEX_DATA", path_to_str(&art_apex_data)?);
