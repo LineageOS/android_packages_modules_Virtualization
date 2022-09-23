@@ -102,7 +102,7 @@ impl SignatureAlgorithmID {
                 self,
                 SignatureAlgorithmID::DsaWithSha256 | SignatureAlgorithmID::VerityDsaWithSha256
             ),
-            "TODO(b/197052981): Algorithm '{:?}' is not implemented.",
+            "Algorithm '{:?}' is not supported in openssl to build this verifier (b/197052981).",
             self
         );
         ensure!(public_key.id() == self.pkey_id(), "Public key has the wrong ID");
@@ -128,6 +128,14 @@ impl SignatureAlgorithmID {
             | SignatureAlgorithmID::RsaPkcs1V15WithSha512
             | SignatureAlgorithmID::EcdsaWithSha512 => MessageDigest::sha512(),
         }
+    }
+
+    /// DSA is not directly supported in openssl today. See b/197052981.
+    pub(crate) fn is_supported(&self) -> bool {
+        !matches!(
+            self,
+            SignatureAlgorithmID::DsaWithSha256 | SignatureAlgorithmID::VerityDsaWithSha256,
+        )
     }
 
     fn pkey_id(&self) -> pkey::Id {
