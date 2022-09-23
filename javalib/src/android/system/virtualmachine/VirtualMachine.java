@@ -273,7 +273,7 @@ public class VirtualMachine {
             throw new VirtualMachineException(e);
         }
 
-        VirtualMachine vm;
+        VirtualMachine vm = null;
         synchronized (sInstancesLock) {
             Map<String, WeakReference<VirtualMachine>> instancesMap;
             if (sInstances.containsKey(context)) {
@@ -285,7 +285,8 @@ public class VirtualMachine {
 
             if (instancesMap.containsKey(name)) {
                 vm = instancesMap.get(name).get();
-            } else {
+            }
+            if (vm == null) {
                 vm = new VirtualMachine(context, name, config);
                 instancesMap.put(name, new WeakReference<>(vm));
             }
