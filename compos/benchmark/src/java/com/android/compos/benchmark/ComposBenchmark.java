@@ -23,7 +23,6 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Instrumentation;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import com.android.microdroid.test.common.MetricsProcessor;
@@ -36,9 +35,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.ParseException;
@@ -198,37 +195,8 @@ public class ComposBenchmark extends MicrodroidDeviceTestBase {
         processMemory.forEach((k, v) -> reportMetric(prefix + k, unit, v));
     }
 
-    private byte[] executeCommandBlocking(String command) {
-        try (InputStream is =
-                        new ParcelFileDescriptor.AutoCloseInputStream(
-                                mInstrumentation.getUiAutomation().executeShellCommand(command));
-                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            byte[] buf = new byte[BUFFER_SIZE];
-            int length;
-            while ((length = is.read(buf)) >= 0) {
-                out.write(buf, 0, length);
-            }
-            return out.toByteArray();
-        } catch (IOException e) {
-            Log.e(TAG, "Error executing: " + command, e);
-            return null;
-        }
-    }
-
     private String executeCommand(String command) {
-        try {
-            byte[] output = executeCommandBlocking(command);
-
-            if (output == null) {
-                throw new RuntimeException("Failed to run the command.");
-            } else {
-                String stdout = new String(output, "UTF-8");
-                Log.i(TAG, "Get stdout : " + stdout);
-                return stdout;
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Error executing: " + command + " , Exception: " + e);
-        }
+        return runInShell(TAG, mInstrumentation.getUiAutomation(), command);
     }
 
     private class GetMetricsRunnable implements Runnable {
