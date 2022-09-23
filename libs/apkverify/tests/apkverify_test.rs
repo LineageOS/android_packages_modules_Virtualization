@@ -40,22 +40,11 @@ fn apex_signed_with_v3_rsa_pkcs1_sha512_is_valid() {
 }
 
 #[test]
-fn test_verify_v3_dsa_sha256() {
+fn apks_signed_with_v3_dsa_sha256_are_not_supported() {
     for key_name in KEY_NAMES_DSA.iter() {
         let res = verify(format!("tests/data/v3-only-with-dsa-sha256-{}.apk", key_name));
-        assert!(res.is_err());
-        assert_contains(&res.unwrap_err().to_string(), "not implemented");
-    }
-}
-
-/// TODO(b/197052981): DSA algorithm is not yet supported.
-#[test]
-fn apks_signed_with_v3_dsa_sha256_have_valid_apk_digest() {
-    for key_name in KEY_NAMES_DSA.iter() {
-        validate_apk_digest(
-            format!("tests/data/v3-only-with-dsa-sha256-{}.apk", key_name),
-            SignatureAlgorithmID::DsaWithSha256,
-        );
+        assert!(res.is_err(), "DSA algorithm is not supported for verification. See b/197052981.");
+        assert_contains(&res.unwrap_err().to_string(), "No supported signatures found");
     }
 }
 
@@ -102,32 +91,21 @@ fn apks_signed_with_v3_rsa_pkcs1_sha512_are_valid() {
 #[test]
 fn test_verify_v3_sig_does_not_verify() {
     let path_list = [
-        "tests/data/v3-only-with-dsa-sha256-2048-sig-does-not-verify.apk",
         "tests/data/v3-only-with-ecdsa-sha512-p521-sig-does-not-verify.apk",
         "tests/data/v3-only-with-rsa-pkcs1-sha256-3072-sig-does-not-verify.apk",
     ];
     for path in path_list.iter() {
         let res = verify(path);
         assert!(res.is_err());
-        let error_msg = &res.unwrap_err().to_string();
-        assert!(
-            error_msg.contains("Signature is invalid") || error_msg.contains("not implemented")
-        );
+        assert_contains(&res.unwrap_err().to_string(), "Signature is invalid");
     }
 }
 
 #[test]
 fn test_verify_v3_digest_mismatch() {
-    let path_list = [
-        "tests/data/v3-only-with-dsa-sha256-3072-digest-mismatch.apk",
-        "tests/data/v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk",
-    ];
-    for path in path_list.iter() {
-        let res = verify(path);
-        assert!(res.is_err());
-        let error_msg = &res.unwrap_err().to_string();
-        assert!(error_msg.contains("Digest mismatch") || error_msg.contains("not implemented"));
-    }
+    let res = verify("tests/data/v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk");
+    assert!(res.is_err());
+    assert_contains(&res.unwrap_err().to_string(), "Digest mismatch");
 }
 
 #[test]
