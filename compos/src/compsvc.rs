@@ -102,6 +102,7 @@ impl ICompOsService for CompOsService {
         &self,
         compilation_mode: CompilationMode,
         system_dir_fd: i32,
+        system_ext_dir_fd: i32,
         output_dir_fd: i32,
         staging_dir_fd: i32,
         target_dir_name: &str,
@@ -119,6 +120,7 @@ impl ICompOsService for CompOsService {
         let context = to_binder_result(OdrefreshContext::new(
             compilation_mode,
             system_dir_fd,
+            if system_ext_dir_fd >= 0 { Some(system_ext_dir_fd) } else { None },
             output_dir_fd,
             staging_dir_fd,
             target_dir_name,
