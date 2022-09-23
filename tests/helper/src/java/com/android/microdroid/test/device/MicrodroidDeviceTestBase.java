@@ -19,6 +19,7 @@ import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assume.assumeNoException;
 
+import android.app.UiAutomation;
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemProperties;
@@ -35,6 +36,8 @@ import androidx.test.core.app.ApplicationProvider;
 import com.android.virt.VirtualizationTestHelper;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.OptionalLong;
@@ -333,5 +336,21 @@ public abstract class MicrodroidDeviceTestBase {
                 listener.getKernelStartedNanoTime(),
                 listener.getInitStartedNanoTime(),
                 listener.getPayloadStartedNanoTime());
+    }
+
+    /** Execute a command. Returns stdout. */
+    protected String runInShell(String tag, UiAutomation uiAutomation, String command) {
+        try (InputStream is =
+                        new ParcelFileDescriptor.AutoCloseInputStream(
+                                uiAutomation.executeShellCommand(command));
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            is.transferTo(out);
+            String stdout = out.toString("UTF-8");
+            Log.i(tag, "Got stdout : " + stdout);
+            return stdout;
+        } catch (IOException e) {
+            Log.e(tag, "Error executing: " + command, e);
+            throw new RuntimeException("Failed to run the command.");
+        }
     }
 }
