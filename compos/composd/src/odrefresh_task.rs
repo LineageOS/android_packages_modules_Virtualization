@@ -162,8 +162,7 @@ fn run_in_vm(
     let staging_dir_raw_fd = staging_dir_fd.as_raw_fd();
 
     // Get the /system_ext FD differently because it may not exist.
-    // TODO(245761690): pass system_ext_dir_raw_fd to service.odrefresh(...)
-    let (_system_ext_dir_raw_fd, ro_dir_fds) =
+    let (system_ext_dir_raw_fd, ro_dir_fds) =
         if let Ok(system_ext_dir_fd) = open_dir(Path::new("/system_ext")) {
             (system_ext_dir_fd.as_raw_fd(), vec![system_dir_fd, system_ext_dir_fd])
         } else {
@@ -184,6 +183,7 @@ fn run_in_vm(
     let exit_code = service.odrefresh(
         compilation_mode,
         system_dir_raw_fd,
+        system_ext_dir_raw_fd,
         output_dir_raw_fd,
         staging_dir_raw_fd,
         target_dir_name,
