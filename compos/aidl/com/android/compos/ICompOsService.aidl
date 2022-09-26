@@ -17,6 +17,7 @@
 package com.android.compos;
 
 /** {@hide} */
+@SuppressWarnings(value={"mixed-oneway"})
 interface ICompOsService {
     /**
      * Initializes system properties. ART expects interesting properties that have to be passed from
