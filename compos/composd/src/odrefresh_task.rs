@@ -25,7 +25,7 @@ use android_system_composd::aidl::android::system::composd::{
 use anyhow::{Context, Result};
 use binder::{Interface, Result as BinderResult, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
-    CompilationMode::CompilationMode, ICompOsService,
+    CompilationMode::CompilationMode, ICompOsService, OdrefreshArgs::OdrefreshArgs,
 };
 use compos_common::odrefresh::{
     is_system_property_interesting, ExitCode, ODREFRESH_OUTPUT_ROOT_DIR,
@@ -180,16 +180,18 @@ fn run_in_vm(
     let zygote_arch = system_properties::read("ro.zygote")?.context("ro.zygote not set")?;
     let system_server_compiler_filter =
         system_properties::read("dalvik.vm.systemservercompilerfilter")?.unwrap_or_default();
-    let exit_code = service.odrefresh(
-        compilation_mode,
-        system_dir_raw_fd,
-        system_ext_dir_raw_fd,
-        output_dir_raw_fd,
-        staging_dir_raw_fd,
-        target_dir_name,
-        &zygote_arch,
-        &system_server_compiler_filter,
-    )?;
+
+    let args = OdrefreshArgs {
+        compilationMode: compilation_mode,
+        systemDirFd: system_dir_raw_fd,
+        systemExtDirFd: system_ext_dir_raw_fd,
+        outputDirFd: output_dir_raw_fd,
+        stagingDirFd: staging_dir_raw_fd,
+        targetDirName: target_dir_name.to_string(),
+        zygoteArch: zygote_arch,
+        systemServerCompilerFilter: system_server_compiler_filter,
+    };
+    let exit_code = service.odrefresh(&args)?;
 
     drop(fd_server_raii);
     ExitCode::from_i32(exit_code.into())
