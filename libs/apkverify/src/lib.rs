@@ -22,7 +22,9 @@ mod sigutil;
 #[allow(dead_code)]
 pub mod testing;
 mod v3;
+mod v4;
 mod ziputil;
 
 pub use algorithms::SignatureAlgorithmID;
-pub use v3::{get_public_key_der, pick_v4_apk_digest, verify};
+pub use v3::{get_public_key_der, verify};
+pub use v4::get_apk_digest;

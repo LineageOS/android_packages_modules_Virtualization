@@ -38,7 +38,7 @@ const SDK_INT: u32 = 31;
 
 type Signers = LengthPrefixed<Vec<LengthPrefixed<Signer>>>;
 
-struct Signer {
+pub(crate) struct Signer {
     signed_data: LengthPrefixed<Bytes>, // not verified yet
     min_sdk: u32,
     max_sdk: u32,
@@ -105,15 +105,9 @@ pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
     Ok(signer.public_key.public_key_to_der()?.into_boxed_slice())
 }
 
-/// Gets the v4 [apk_digest].
-///
-/// [apk_digest]: https://source.android.com/docs/security/apksigning/v4#apk-digest
-pub fn pick_v4_apk_digest<R: Read + Seek>(apk: R) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
-    let (signer, _) = extract_signer_and_apk_sections(apk)?;
-    signer.pick_v4_apk_digest()
-}
-
-fn extract_signer_and_apk_sections<R: Read + Seek>(apk: R) -> Result<(Signer, ApkSections<R>)> {
+pub(crate) fn extract_signer_and_apk_sections<R: Read + Seek>(
+    apk: R,
+) -> Result<(Signer, ApkSections<R>)> {
     let mut sections = ApkSections::new(apk)?;
     let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID).context(
         "Fallback to v2 when v3 block not found is not yet implemented. See b/197052981.",
@@ -144,7 +138,7 @@ impl Signer {
             .context("No supported signatures found")?)
     }
 
-    fn pick_v4_apk_digest(&self) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
+    pub(crate) fn pick_v4_apk_digest(&self) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
         let strongest_algorithm_id = self
             .strongest_signature()?
             .signature_algorithm_id
