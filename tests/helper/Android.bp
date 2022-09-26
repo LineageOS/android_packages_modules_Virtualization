@@ -20,6 +20,7 @@ java_library_static {
     static_libs: [
         "androidx.test.runner",
         "androidx.test.ext.junit",
+        "MicrodroidTestHelper",
         "VirtualizationTestHelper",
         "truth-prebuilt",
     ],

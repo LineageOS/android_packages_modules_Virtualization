@@ -27,6 +27,7 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
+import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
@@ -95,6 +96,11 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
 
     protected boolean isCuttlefish() throws Exception {
         return VirtualizationTestHelper.isCuttlefish(getDevice().getProperty("ro.product.name"));
+    }
+
+    protected String getMetricPrefix() throws Exception {
+        return MetricsProcessor.getMetricPrefix(
+                getDevice().getProperty("debug.hypervisor.metrics_tag"));
     }
 
     public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
