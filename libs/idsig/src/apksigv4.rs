@@ -19,7 +19,9 @@ use apkverify::{get_apk_digest, SignatureAlgorithmID};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
+use std::fs;
 use std::io::{copy, Cursor, Read, Seek, SeekFrom, Write};
+use std::path::Path;
 
 use crate::hashtree::*;
 
@@ -114,9 +116,17 @@ impl Default for HashAlgorithm {
     }
 }
 
+impl V4Signature<fs::File> {
+    /// Creates a `V4Signature` struct from the given idsig path.
+    pub fn from_idsig_path<P: AsRef<Path>>(idsig_path: P) -> Result<Self> {
+        let idsig = fs::File::open(idsig_path).context("Cannot find idsig file")?;
+        Self::from_idsig(idsig)
+    }
+}
+
 impl<R: Read + Seek> V4Signature<R> {
     /// Consumes a stream for an idsig file into a `V4Signature` struct.
-    pub fn from(mut r: R) -> Result<V4Signature<R>> {
+    pub fn from_idsig(mut r: R) -> Result<V4Signature<R>> {
         Ok(V4Signature {
             version: Version::from(r.read_u32::<LittleEndian>()?)?,
             hashing_info: HashingInfo::from(&mut r)?,
@@ -293,14 +303,15 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
+    const TEST_APK_PATH: &str = "testdata/v4-digest-v3-Sha256withEC.apk";
+
     fn hexstring_from(s: &[u8]) -> String {
         s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
     }
 
     #[test]
     fn parse_idsig_file() {
-        let idsig = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk.idsig"));
-        let parsed = V4Signature::from(idsig).unwrap();
+        let parsed = V4Signature::from_idsig_path(format!("{}.idsig", TEST_APK_PATH)).unwrap();
 
         assert_eq!(Version::V2, parsed.version);
 
@@ -334,13 +345,13 @@ mod tests {
     /// the input file.
     #[test]
     fn parse_and_compose() {
-        let input = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk.idsig"));
-        let mut parsed = V4Signature::from(input.clone()).unwrap();
+        let idsig_path = format!("{}.idsig", TEST_APK_PATH);
+        let mut v4_signature = V4Signature::from_idsig_path(&idsig_path).unwrap();
 
         let mut output = Cursor::new(Vec::new());
-        parsed.write_into(&mut output).unwrap();
+        v4_signature.write_into(&mut output).unwrap();
 
-        assert_eq!(input.get_ref().as_ref(), output.get_ref().as_slice());
+        assert_eq!(fs::read(&idsig_path).unwrap(), output.get_ref().as_slice());
     }
 
     /// Create V4Signature by hashing an APK. Merkle tree and the root hash should be the same
@@ -351,8 +362,7 @@ mod tests {
         let mut created =
             V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256).unwrap();
 
-        let golden = Cursor::new(include_bytes!("../testdata/v4-digest-v3-Sha256withEC.apk.idsig"));
-        let mut golden = V4Signature::from(golden).unwrap();
+        let mut golden = V4Signature::from_idsig_path(format!("{}.idsig", TEST_APK_PATH)).unwrap();
 
         // Compare the root hash
         assert_eq!(

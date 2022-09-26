@@ -31,7 +31,6 @@ use idsig::{HashAlgorithm, V4Signature};
 use itertools::Itertools;
 use std::fmt::Debug;
 use std::fs;
-use std::fs::File;
 use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 
@@ -104,9 +103,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(
     // Parse the idsig file to locate the merkle tree in it, then attach the file to a loop device
     // with the offset so that the start of the merkle tree becomes the beginning of the loop
     // device.
-    let sig = V4Signature::from(
-        File::open(&idsig).context(format!("Failed to open idsig file {:?}", &idsig))?,
-    )?;
+    let sig = V4Signature::from_idsig_path(&idsig)?;
     let offset = sig.merkle_tree_offset;
     let size = sig.merkle_tree_size as u64;
     // Due to unknown reason(b/191344832), we can't enable "direct IO" for the IDSIG file (backing
@@ -143,8 +140,8 @@ fn enable_verity<P: AsRef<Path> + Debug>(
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use std::fs::OpenOptions;
-    use std::io::{Cursor, Write};
+    use std::fs::{File, OpenOptions};
+    use std::io::Write;
     use std::os::unix::fs::FileExt;
 
     struct TestContext<'a> {
@@ -251,7 +248,9 @@ mod tests {
         let idsig = include_bytes!("../testdata/test.apk.idsig");
 
         // Make a single-byte change to the merkle tree
-        let offset = V4Signature::from(Cursor::new(&idsig)).unwrap().merkle_tree_offset as usize;
+        let offset = V4Signature::from_idsig_path("testdata/test.apk.idsig")
+            .unwrap()
+            .merkle_tree_offset as usize;
 
         let mut modified_idsig = Vec::new();
         modified_idsig.extend_from_slice(idsig);
@@ -354,7 +353,10 @@ mod tests {
     fn correct_custom_roothash() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
-        let roothash = V4Signature::from(Cursor::new(&idsig)).unwrap().hashing_info.raw_root_hash;
+        let roothash = V4Signature::from_idsig_path("testdata/test.apk.idsig")
+            .unwrap()
+            .hashing_info
+            .raw_root_hash;
         run_test_with_hash(
             apk.as_ref(),
             idsig.as_ref(),
