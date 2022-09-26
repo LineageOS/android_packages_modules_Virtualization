@@ -51,10 +51,6 @@ public abstract class MicrodroidDeviceTestBase {
         return VirtualizationTestHelper.isCuttlefish(SystemProperties.get("ro.product.name"));
     }
 
-    public static boolean shouldSkipBenchmarks() {
-        return SystemProperties.getBoolean("debug.avf.benchmark.skip", false);
-    }
-
     // TODO(b/220920264): remove Inner class; this is a hack to hide virt APEX types
     protected static class Inner {
         private final boolean mProtectedVm;
