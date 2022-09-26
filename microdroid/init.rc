@@ -149,7 +149,6 @@ on post-fs
     restorecon /data/misc
 
     mkdir /data/misc/authfs 0700 root root
-    start authfs_service
 
 on late-fs && property:ro.debuggable=1
     # Ensure that tracefs has the correct permissions.

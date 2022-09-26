@@ -29,5 +29,6 @@
       "name": "{CLASSPATH}"
     }
   ],
-  "export_tombstones": true
+  "export_tombstones": true,
+  "enable_authfs": true
 }
