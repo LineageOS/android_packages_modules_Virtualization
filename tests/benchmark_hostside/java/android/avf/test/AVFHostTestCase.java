@@ -70,14 +70,14 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 10 * 60 * 1000;
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
     private static final int ROUND_COUNT = 5;
-    private static final String METRIC_PREFIX = "avf_perf/hostside/";
 
-    private final MetricsProcessor mMetricsProcessor = new MetricsProcessor(METRIC_PREFIX);
+    private MetricsProcessor mMetricsProcessor;
     @Rule public TestMetrics mMetrics = new TestMetrics();
 
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
+        mMetricsProcessor = new MetricsProcessor(getMetricPrefix() + "hostside/");
     }
 
     @After

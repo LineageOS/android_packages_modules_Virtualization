@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(Parameterized.class)
 public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidBenchmarks";
-    private static final String METRIC_NAME_PREFIX = "avf_perf/microdroid/";
+    private static final String METRIC_NAME_PREFIX = getMetricPrefix() + "microdroid/";
     private static final int IO_TEST_TRIAL_COUNT = 5;
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
