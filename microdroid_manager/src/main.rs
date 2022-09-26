@@ -481,7 +481,7 @@ fn verify_payload(
         .map(|(i, extra_idsig)| {
             (
                 format!("extra-apk-{}", i),
-                get_apk_root_hash_from_idsig(extra_idsig.to_str().unwrap())
+                get_apk_root_hash_from_idsig(extra_idsig)
                     .expect("Can't find root hash from extra idsig"),
             )
         })
@@ -601,10 +601,8 @@ fn wait_for_apex_config_done() -> Result<()> {
     Ok(())
 }
 
-fn get_apk_root_hash_from_idsig(path: &str) -> Result<Box<RootHash>> {
-    let mut idsig = File::open(path)?;
-    let idsig = V4Signature::from(&mut idsig)?;
-    Ok(idsig.hashing_info.raw_root_hash)
+fn get_apk_root_hash_from_idsig<P: AsRef<Path>>(idsig_path: P) -> Result<Box<RootHash>> {
+    Ok(V4Signature::from_idsig_path(idsig_path)?.hashing_info.raw_root_hash)
 }
 
 fn get_public_key_from_apk(apk: &str, root_hash_trustful: bool) -> Result<Box<[u8]>> {
