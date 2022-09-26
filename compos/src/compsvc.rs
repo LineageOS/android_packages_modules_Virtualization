@@ -28,11 +28,11 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use crate::artifact_signer::ArtifactSigner;
-use crate::compilation::{odrefresh, OdrefreshContext};
+use crate::compilation::odrefresh;
 use crate::compos_key;
 use binder::{BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
-    BnCompOsService, CompilationMode::CompilationMode, ICompOsService,
+    BnCompOsService, ICompOsService, OdrefreshArgs::OdrefreshArgs,
 };
 use compos_common::binder::to_binder_result;
 use compos_common::odrefresh::{is_system_property_interesting, ODREFRESH_PATH};
@@ -98,17 +98,7 @@ impl ICompOsService for CompOsService {
         Ok(())
     }
 
-    fn odrefresh(
-        &self,
-        compilation_mode: CompilationMode,
-        system_dir_fd: i32,
-        system_ext_dir_fd: i32,
-        output_dir_fd: i32,
-        staging_dir_fd: i32,
-        target_dir_name: &str,
-        zygote_arch: &str,
-        system_server_compiler_filter: &str,
-    ) -> BinderResult<i8> {
+    fn odrefresh(&self, args: &OdrefreshArgs) -> BinderResult<i8> {
         let initialized = *self.initialized.read().unwrap();
         if !initialized.unwrap_or(false) {
             return Err(Status::new_exception_str(
@@ -117,18 +107,7 @@ impl ICompOsService for CompOsService {
             ));
         }
 
-        let context = OdrefreshContext::new(
-            compilation_mode,
-            system_dir_fd,
-            if system_ext_dir_fd >= 0 { Some(system_ext_dir_fd) } else { None },
-            output_dir_fd,
-            staging_dir_fd,
-            target_dir_name,
-            zygote_arch,
-            system_server_compiler_filter,
-        );
-
-        to_binder_result(context.and_then(|c| self.do_odrefresh(c)))
+        to_binder_result(self.do_odrefresh(args))
     }
 
     fn getPublicKey(&self) -> BinderResult<Vec<u8>> {
@@ -147,10 +126,10 @@ impl ICompOsService for CompOsService {
 }
 
 impl CompOsService {
-    fn do_odrefresh(&self, context: OdrefreshContext) -> Result<i8> {
+    fn do_odrefresh(&self, args: &OdrefreshArgs) -> Result<i8> {
         let authfs_service = binder::get_interface(AUTHFS_SERVICE_NAME)
             .context("Unable to connect to AuthFS service")?;
-        let exit_code = odrefresh(&self.odrefresh_path, context, authfs_service, |output_dir| {
+        let exit_code = odrefresh(&self.odrefresh_path, args, authfs_service, |output_dir| {
             // authfs only shows us the files we created, so it's ok to just sign everything
             // under the output directory.
             let mut artifact_signer = ArtifactSigner::new(&output_dir);
