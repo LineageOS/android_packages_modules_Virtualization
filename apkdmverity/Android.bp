@@ -43,4 +43,8 @@ rust_test {
     rustlibs: [
         "libtempfile",
     ],
+    data: [
+        "testdata/*.apk",
+        "testdata/*.idsig",
+    ],
 }
