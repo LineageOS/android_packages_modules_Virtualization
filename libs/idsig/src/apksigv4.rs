@@ -15,7 +15,7 @@
  */
 
 use anyhow::{anyhow, bail, Context, Result};
-use apkverify::{pick_v4_apk_digest, SignatureAlgorithmID};
+use apkverify::{get_apk_digest, SignatureAlgorithmID};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -158,7 +158,7 @@ impl<R: Read + Seek> V4Signature<R> {
         ret.hashing_info.log2_blocksize = log2(block_size);
 
         apk.seek(SeekFrom::Start(start))?;
-        let (signature_algorithm_id, apk_digest) = pick_v4_apk_digest(apk)?;
+        let (signature_algorithm_id, apk_digest) = get_apk_digest(apk, /*verify=*/ false)?;
         ret.signing_info.signature_algorithm_id = signature_algorithm_id;
         ret.signing_info.apk_digest = apk_digest;
         // TODO(jiyong): add a signature to the signing_info struct
