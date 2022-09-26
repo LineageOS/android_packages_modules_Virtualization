@@ -74,7 +74,7 @@ fn create(args: &ArgMatches) -> Result<()> {
     }
     for (i, namespace, name, file) in NamespaceNameFileIterator::new(args, "apk") {
         let file = File::open(file)?;
-        let (signature_algorithm_id, apk_digest) = get_apk_digest(file, /*verify=*/ false)?;
+        let (signature_algorithm_id, apk_digest) = get_apk_digest(file, /*verify=*/ true)?;
         descriptors.insert(
             i,
             Descriptor::Apk(ApkDescriptor {
