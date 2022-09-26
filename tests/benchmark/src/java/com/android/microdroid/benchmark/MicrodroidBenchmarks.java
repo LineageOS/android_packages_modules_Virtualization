@@ -76,6 +76,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     @Before
     public void setup() {
+        assume().that(shouldSkipBenchmarks()).isFalse();
         prepareTestSetup(mProtectedVm);
         mInstrumentation = getInstrumentation();
     }
