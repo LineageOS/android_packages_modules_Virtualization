@@ -24,6 +24,12 @@ import java.util.Map;
 public final class MetricsProcessor {
     private final String mPrefix;
 
+    public static String getMetricPrefix(String debugTag) {
+        return "avf_perf"
+            + ((debugTag != null && !debugTag.isEmpty()) ? "[" + debugTag + "]" : "")
+            + "/";
+    }
+
     public MetricsProcessor(String prefix) {
         mPrefix = prefix;
     }

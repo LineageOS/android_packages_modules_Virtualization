@@ -93,6 +93,8 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     @Rule public TestName mTestName = new TestName();
     @Rule public TestMetrics mMetrics = new TestMetrics();
 
+    private String mMetricPrefix;
+
     private int minMemorySize() throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(getDevice());
         String abi = android.run("getprop", "ro.product.cpu.abi");
@@ -792,7 +794,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
 
         for (Map.Entry<String, Long> stat : getProcMemInfo().entrySet()) {
             mMetrics.addTestMetric(
-                    "avf_perf/microdroid/meminfo/" + stat.getKey().toLowerCase(),
+                    mMetricPrefix + "meminfo/" + stat.getKey().toLowerCase(),
                     stat.getValue().toString());
         }
 
@@ -800,7 +802,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
             for (Map.Entry<String, Long> stat : getProcSmapsRollup(proc.mPid).entrySet()) {
                 String name = stat.getKey().toLowerCase();
                 mMetrics.addTestMetric(
-                        "avf_perf/microdroid/smaps/" + name + "/" + proc.mName,
+                        mMetricPrefix + "smaps/" + name + "/" + proc.mName,
                         stat.getValue().toString());
             }
         }
@@ -845,6 +847,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
+        mMetricPrefix = getMetricPrefix() + "microdroid/";
 
         prepareVirtualizationTestSetup(getDevice());
 
