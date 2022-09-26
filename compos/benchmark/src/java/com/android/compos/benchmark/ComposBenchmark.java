@@ -58,7 +58,7 @@ public class ComposBenchmark extends MicrodroidDeviceTestBase {
     private static final int BUFFER_SIZE = 1024;
     private static final int ROUND_COUNT = 5;
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
-    private static final String METRIC_PREFIX = "avf_perf/compos/";
+    private static final String METRIC_PREFIX = getMetricPrefix() + "compos/";
 
     private final MetricsProcessor mMetricsProcessor = new MetricsProcessor(METRIC_PREFIX);
 
