@@ -16,7 +16,7 @@
 
 use anyhow::{anyhow, bail, Result};
 use apexutil::get_payload_vbmeta_image_hash;
-use apkverify::pick_v4_apk_digest;
+use apkverify::get_apk_digest;
 use avmd::{ApkDescriptor, Avmd, Descriptor, ResourceIdentifier, VbMetaDescriptor};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use serde::ser::Serialize;
@@ -74,7 +74,7 @@ fn create(args: &ArgMatches) -> Result<()> {
     }
     for (i, namespace, name, file) in NamespaceNameFileIterator::new(args, "apk") {
         let file = File::open(file)?;
-        let (signature_algorithm_id, apk_digest) = pick_v4_apk_digest(file)?;
+        let (signature_algorithm_id, apk_digest) = get_apk_digest(file, /*verify=*/ false)?;
         descriptors.insert(
             i,
             Descriptor::Apk(ApkDescriptor {
