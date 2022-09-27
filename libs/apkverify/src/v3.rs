@@ -76,9 +76,9 @@ impl SignedData {
 }
 
 #[derive(Debug)]
-struct Signature {
+pub(crate) struct Signature {
     /// Option is used here to allow us to ignore unsupported algorithm.
-    signature_algorithm_id: Option<SignatureAlgorithmID>,
+    pub(crate) signature_algorithm_id: Option<SignatureAlgorithmID>,
     signature: LengthPrefixed<Bytes>,
 }
 
@@ -127,9 +127,9 @@ pub(crate) fn extract_signer_and_apk_sections<R: Read + Seek>(
 }
 
 impl Signer {
-    /// Select the signature that uses the strongest algorithm according to the preferences of the
-    /// v4 signing scheme.
-    fn strongest_signature(&self) -> Result<&Signature> {
+    /// Selects the signature that has the strongest supported `SignatureAlgorithmID`.
+    /// The strongest signature is used in both v3 verification and v4 apk digest computation.
+    pub(crate) fn strongest_signature(&self) -> Result<&Signature> {
         Ok(self
             .signatures
             .iter()
@@ -138,14 +138,13 @@ impl Signer {
             .context("No supported signatures found")?)
     }
 
-    pub(crate) fn pick_v4_apk_digest(&self) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
-        let strongest_algorithm_id = self
-            .strongest_signature()?
-            .signature_algorithm_id
-            .context("Strongest signature should contain a valid signature algorithm.")?;
+    pub(crate) fn find_digest_by_algorithm(
+        &self,
+        algorithm_id: SignatureAlgorithmID,
+    ) -> Result<Box<[u8]>> {
         let signed_data: SignedData = self.signed_data.slice(..).read()?;
-        let digest = signed_data.find_digest_by_algorithm(strongest_algorithm_id)?;
-        Ok((strongest_algorithm_id, digest.digest.as_ref().to_vec().into_boxed_slice()))
+        let digest = signed_data.find_digest_by_algorithm(algorithm_id)?;
+        Ok(digest.digest.as_ref().to_vec().into_boxed_slice())
     }
 
     /// Verifies the strongest signature from signatures against signed data using public key.
