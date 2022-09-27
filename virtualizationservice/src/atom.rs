@@ -16,23 +16,47 @@
 
 use crate::aidl::clone_file;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    DeathReason::DeathReason, IVirtualMachine::IVirtualMachine,
-    VirtualMachineAppConfig::VirtualMachineAppConfig, VirtualMachineConfig::VirtualMachineConfig,
+    DeathReason::DeathReason,
+    IVirtualMachine::IVirtualMachine,
+    VirtualMachineAppConfig::{Payload::Payload, VirtualMachineAppConfig},
+    VirtualMachineConfig::VirtualMachineConfig,
 };
 use android_system_virtualizationservice::binder::{Status, Strong};
 use anyhow::{anyhow, Result};
-use binder::ThreadState;
+use binder::{ParcelFileDescriptor, ThreadState};
 use log::{trace, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use statslog_virtualization_rust::{vm_booted, vm_creation_requested, vm_exited};
 use std::time::{Duration, SystemTime};
 use zip::ZipArchive;
 
-fn get_vm_payload_config(config: &VirtualMachineAppConfig) -> Result<VmPayloadConfig> {
-    let apk = config.apk.as_ref().ok_or_else(|| anyhow!("APK is none"))?;
+fn get_apex_list(config: &VirtualMachineAppConfig) -> String {
+    match &config.payload {
+        Payload::PayloadConfig(_) => String::new(),
+        Payload::ConfigPath(config_path) => {
+            let vm_payload_config = get_vm_payload_config(&config.apk, config_path);
+            if let Ok(vm_payload_config) = vm_payload_config {
+                vm_payload_config
+                    .apexes
+                    .iter()
+                    .map(|x| x.name.clone())
+                    .collect::<Vec<String>>()
+                    .join(":")
+            } else {
+                "INFO: Can't get VmPayloadConfig".to_owned()
+            }
+        }
+    }
+}
+
+fn get_vm_payload_config(
+    apk_fd: &Option<ParcelFileDescriptor>,
+    config_path: &str,
+) -> Result<VmPayloadConfig> {
+    let apk = apk_fd.as_ref().ok_or_else(|| anyhow!("APK is none"))?;
     let apk_file = clone_file(apk)?;
     let mut apk_zip = ZipArchive::new(&apk_file)?;
-    let config_file = apk_zip.by_name(&config.configPath)?;
+    let config_file = apk_zip.by_name(config_path)?;
     let vm_payload_config: VmPayloadConfig = serde_json::from_reader(config_file)?;
     Ok(vm_payload_config)
 }
@@ -63,38 +87,22 @@ pub fn write_vm_creation_stats(
         }
     }
 
-    let vm_identifier;
-    let config_type;
-    let num_cpus;
-    let memory_mib;
-    let apexes;
-    match config {
-        VirtualMachineConfig::AppConfig(config) => {
-            vm_identifier = &config.name;
-            config_type = vm_creation_requested::ConfigType::VirtualMachineAppConfig;
-            num_cpus = config.numCpus;
-            memory_mib = config.memoryMib;
-
-            let vm_payload_config = get_vm_payload_config(config);
-            if let Ok(vm_payload_config) = vm_payload_config {
-                apexes = vm_payload_config
-                    .apexes
-                    .iter()
-                    .map(|x| x.name.clone())
-                    .collect::<Vec<String>>()
-                    .join(":");
-            } else {
-                apexes = "INFO: Can't get VmPayloadConfig".into();
-            }
-        }
-        VirtualMachineConfig::RawConfig(config) => {
-            vm_identifier = &config.name;
-            config_type = vm_creation_requested::ConfigType::VirtualMachineRawConfig;
-            num_cpus = config.numCpus;
-            memory_mib = config.memoryMib;
-            apexes = String::new();
-        }
-    }
+    let (vm_identifier, config_type, num_cpus, memory_mib, apexes) = match config {
+        VirtualMachineConfig::AppConfig(config) => (
+            &config.name,
+            vm_creation_requested::ConfigType::VirtualMachineAppConfig,
+            config.numCpus,
+            config.memoryMib,
+            get_apex_list(config),
+        ),
+        VirtualMachineConfig::RawConfig(config) => (
+            &config.name,
+            vm_creation_requested::ConfigType::VirtualMachineRawConfig,
+            config.numCpus,
+            config.memoryMib,
+            String::new(),
+        ),
+    };
 
     let vm_creation_requested = vm_creation_requested::VmCreationRequested {
         uid: ThreadState::get_calling_uid() as i32,

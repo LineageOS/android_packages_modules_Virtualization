@@ -15,6 +15,8 @@
  */
 package android.system.virtualizationservice;
 
+import android.system.virtualizationservice.VirtualMachinePayloadConfig;
+
 /** Configuration for running an App in a VM */
 parcelable VirtualMachineAppConfig {
     /** Name of VM */
@@ -32,8 +34,20 @@ parcelable VirtualMachineAppConfig {
     /** instance.img that has per-instance data */
     ParcelFileDescriptor instanceImage;
 
-    /** Path to a configuration in an APK. This is the actual configuration for a VM. */
-    @utf8InCpp String configPath;
+    union Payload {
+        /**
+         * Path to a JSON file in an APK containing the configuration.
+         */
+        @utf8InCpp String configPath;
+
+        /**
+         * Configuration provided explicitly.
+         */
+        VirtualMachinePayloadConfig payloadConfig;
+    }
+
+    /** Detailed configuration for the VM, specifying how the payload will be run. */
+    Payload payload;
 
     enum DebugLevel {
         /** Not debuggable at all */
