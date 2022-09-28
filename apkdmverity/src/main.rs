@@ -26,8 +26,8 @@ mod loopdevice;
 mod util;
 
 use anyhow::{bail, Context, Result};
+use apkverify::{HashAlgorithm, V4Signature};
 use clap::{App, Arg};
-use idsig::{HashAlgorithm, V4Signature};
 use itertools::Itertools;
 use std::fmt::Debug;
 use std::fs;
