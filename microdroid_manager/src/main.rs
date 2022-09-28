@@ -28,11 +28,10 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
     VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
 };
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
-use apkverify::{get_public_key_der, verify};
+use apkverify::{get_public_key_der, verify, V4Signature};
 use binder::{wait_for_interface, Strong};
 use diced_utils::cbor::encode_header;
 use glob::glob;
-use idsig::V4Signature;
 use itertools::sorted;
 use log::{error, info};
 use microdroid_metadata::{write_metadata, Metadata};
