@@ -573,32 +573,3 @@ filegroup {
     name: "microdroid_bootconfig_normal_src",
     srcs: ["bootconfig.normal"],
 }
-
-prebuilt_etc {
-    name: "microdroid_kernel_unsigned",
-    src: "empty_kernel",
-    filename: "microdroid_kernel_unsigned",
-    arch: {
-        arm64: {
-            src: ":microdroid_kernel_prebuilts-5.15-arm64",
-        },
-        x86_64: {
-            src: ":microdroid_kernel_prebuilts-5.15-x86_64",
-        },
-    },
-}
-
-avb_add_hash_footer {
-    name: "microdroid_kernel_signed",
-    src: ":microdroid_kernel_unsigned",
-    filename: "microdroid_kernel",
-    partition_name: "bootloader",
-    private_key: ":microdroid_sign_key",
-    salt: bootloader_salt,
-}
-
-prebuilt_etc {
-    name: "microdroid_kernel",
-    src: ":microdroid_kernel_signed",
-    relative_install_path: "fs",
-}

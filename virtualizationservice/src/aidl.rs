@@ -632,7 +632,7 @@ fn load_app_config(
     vm_config.numCpus = config.numCpus;
     vm_config.taskProfiles = config.taskProfiles.clone();
 
-    // Microdroid requires an additional init ramdisk & payload disk image
+    // Microdroid requires an additional payload disk image and the bootconfig partition.
     if os_name == "microdroid" {
         add_microdroid_images(
             config,
