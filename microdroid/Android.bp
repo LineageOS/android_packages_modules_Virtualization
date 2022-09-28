@@ -70,7 +70,7 @@ android_system_image {
         "apexd",
         "atrace",
         "debuggerd",
-        "diced.microdroid",
+        "dice-service.microdroid",
         "linker",
         "linkerconfig",
         "servicemanager.microdroid",
@@ -195,7 +195,6 @@ android_filesystem {
     partition_name: "vendor",
     use_avb: true,
     deps: [
-        "android.hardware.security.dice-service.microdroid",
         "microdroid_fstab",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
         "microdroid_vendor_manifest",
