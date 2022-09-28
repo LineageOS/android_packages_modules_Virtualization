@@ -69,6 +69,7 @@ apex {
         "microdroid.json",
         "microdroid_bootloader",
         "microdroid_bootloader.avbpubkey",
+        "microdroid_kernel",
     ],
     file_contexts: ":com.android.virt-file_contexts",
     canned_fs_config: "canned_fs_config",
