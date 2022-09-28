@@ -47,7 +47,7 @@ use android_system_virtualizationcommon::aidl::android::system::virtualizationco
 use anyhow::{anyhow, bail, Context, Result};
 use rpcbinder::run_rpc_server_with_factory;
 use disk::QcowFile;
-use idsig::{HashAlgorithm, V4Signature};
+use apkverify::{HashAlgorithm, V4Signature};
 use log::{debug, error, info, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
