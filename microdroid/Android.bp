@@ -508,7 +508,10 @@ vbmeta {
     private_key: ":microdroid_sign_key",
     partitions: [
         "microdroid_vendor",
+        "microdroid_vendor_boot",
         "microdroid",
+        "microdroid_boot",
+        "microdroid_init_boot",
     ],
 }
 
