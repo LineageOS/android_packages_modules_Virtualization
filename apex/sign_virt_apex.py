@@ -378,9 +378,9 @@ def SignVirtApex(args):
 
     # re-sign bootloader, boot.img, vendor_boot.img, and init_boot.img
     Async(AddHashFooter, args, key, files['bootloader'], wait=[replace_f])
-    Async(AddHashFooter, args, key, files['boot.img'])
-    Async(AddHashFooter, args, key, files['vendor_boot.img'])
-    Async(AddHashFooter, args, key, files['init_boot.img'])
+    boot_img_f = Async(AddHashFooter, args, key, files['boot.img'])
+    vendor_boot_img_f = Async(AddHashFooter, args, key, files['vendor_boot.img'])
+    init_boot_img_f = Async(AddHashFooter, args, key, files['init_boot.img'])
 
     # re-sign super.img
     # 1. unpack super.img
@@ -392,10 +392,11 @@ def SignVirtApex(args):
     partitions = {"system_a": system_a_img, "vendor_a": vendor_a_img}
     Async(MakeSuperImage, args, partitions, files['super.img'], wait=[system_a_f, vendor_a_f])
 
-    # re-generate vbmeta from re-signed {system_a, vendor_a}.img
+    # re-generate vbmeta from re-signed {boot, vendor_boot, init_boot, system_a, vendor_a}.img
     Async(MakeVbmetaImage, args, key, files['vbmeta.img'],
-          images=[system_a_img, vendor_a_img],
-          wait=[system_a_f, vendor_a_f])
+          images=[files['boot.img'], files['vendor_boot.img'],
+                  files['init_boot.img'], system_a_img, vendor_a_img],
+          wait=[boot_img_f, vendor_boot_img_f, init_boot_img_f, system_a_f, vendor_a_f])
 
     # Re-sign bootconfigs and the uboot_env with the same key
     bootconfig_sign_key = key
