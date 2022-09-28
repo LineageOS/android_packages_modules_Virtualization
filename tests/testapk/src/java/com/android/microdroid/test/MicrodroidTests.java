@@ -451,6 +451,36 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
+    public void bootFailsWhenUBootAvbDataIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        if (mProtectedVm) {
+            assertThatBootFailsAfterCompromisingPartition(U_BOOT_AVB_PARTITION_UUID);
+        } else {
+            // non-protected VM shouldn't have u-boot avb data
+            assertThatPartitionIsMissing(U_BOOT_AVB_PARTITION_UUID);
+        }
+    }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-2-7"
+    })
+    public void bootFailsWhenUBootEnvDataIsCompromised()
+            throws VirtualMachineException, InterruptedException, IOException {
+        if (mProtectedVm) {
+            assertThatBootFailsAfterCompromisingPartition(U_BOOT_ENV_PARTITION_UUID);
+        } else {
+            // non-protected VM shouldn't have u-boot env data
+            assertThatPartitionIsMissing(U_BOOT_ENV_PARTITION_UUID);
+        }
+    }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-2-7"
+    })
     public void bootFailsWhenPvmFwDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
         if (mProtectedVm) {
