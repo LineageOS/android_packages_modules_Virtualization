@@ -360,21 +360,6 @@ pub fn add_microdroid_images(
     vm_payload_config: &VmPayloadConfig,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
-    let debug_suffix = match config.debugLevel {
-        DebugLevel::NONE => "normal",
-        DebugLevel::APP_ONLY => "app_debuggable",
-        DebugLevel::FULL => "full_debuggable",
-        _ => return Err(anyhow!("unsupported debug level: {:?}", config.debugLevel)),
-    };
-    let initrd = format!("/apex/com.android.virt/etc/microdroid_initrd_{}.img", debug_suffix);
-    vm_config.initrd = Some(open_parcel_file(Path::new(&initrd), false)?);
-
-    let instance_img = Partition {
-        label: "vm-instance".to_owned(),
-        image: Some(ParcelFileDescriptor::new(instance_file)),
-        writable: true,
-    };
-    vm_config.disks.push(DiskImage { image: None, partitions: vec![instance_img], writable: true });
     vm_config.disks.push(make_payload_disk(
         config,
         apk_file,
@@ -382,6 +367,34 @@ pub fn add_microdroid_images(
         vm_payload_config,
         temporary_directory,
     )?);
+
+    vm_config.disks[1].partitions.push(Partition {
+        label: "vbmeta".to_owned(),
+        image: Some(open_parcel_file(
+            Path::new("/apex/com.android.virt/etc/fs/microdroid_vbmeta_bootconfig.img"),
+            false,
+        )?),
+        writable: false,
+    });
+    let bootconfig_image = "/apex/com.android.virt/etc/fs/microdroid_bootconfig.".to_owned()
+        + match config.debugLevel {
+            DebugLevel::NONE => "normal",
+            DebugLevel::APP_ONLY => "app_debuggable",
+            DebugLevel::FULL => "full_debuggable",
+            _ => return Err(anyhow!("unsupported debug level: {:?}", config.debugLevel)),
+        };
+    vm_config.disks[1].partitions.push(Partition {
+        label: "bootconfig".to_owned(),
+        image: Some(open_parcel_file(Path::new(&bootconfig_image), false)?),
+        writable: false,
+    });
+
+    // instance image is at the second partition in the second disk.
+    vm_config.disks[1].partitions.push(Partition {
+        label: "vm-instance".to_owned(),
+        image: Some(ParcelFileDescriptor::new(instance_file)),
+        writable: true,
+    });
 
     Ok(())
 }
