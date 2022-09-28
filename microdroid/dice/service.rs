@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Main entry point for the microdroid IDiceDevice HAL implementation.
+//! Main entry point for the microdroid DICE service implementation.
 
-use anyhow::{bail, Error, Result};
-use byteorder::{NativeEndian, ReadBytesExt};
-use diced::{
-    dice,
-    hal_node::{DiceArtifacts, DiceDevice, ResidentHal, UpdatableDiceArtifacts},
+use android_hardware_security_dice::aidl::android::hardware::security::dice::{
+    Bcc::Bcc, BccHandover::BccHandover, InputValues::InputValues as BinderInputValues,
+    Signature::Signature,
 };
+use anyhow::{bail, ensure, Context, Error, Result};
+use byteorder::{NativeEndian, ReadBytesExt};
+use dice::{ContextImpl, OpenDiceCborContext};
+use diced::{dice, DiceMaintenance, DiceNode, DiceNodeImpl};
+use diced_utils::make_bcc_handover;
 use libc::{c_void, mmap, munmap, MAP_FAILED, MAP_PRIVATE, PROT_READ};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -28,10 +31,11 @@ use std::panic;
 use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::slice;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 const AVF_STRICT_BOOT: &str = "/sys/firmware/devicetree/base/chosen/avf,strict-boot";
-const DICE_HAL_SERVICE_NAME: &str = "android.hardware.security.dice.IDiceDevice/default";
+const DICE_NODE_SERVICE_NAME: &str = "android.security.dice.IDiceNode";
+const DICE_MAINTENANCE_SERVICE_NAME: &str = "android.security.dice.IDiceMaintenance";
 
 /// Artifacts that are mapped into the process address space from the driver.
 struct MappedDriverArtifacts<'a> {
@@ -99,19 +103,6 @@ impl Drop for MappedDriverArtifacts<'_> {
     }
 }
 
-impl DiceArtifacts for MappedDriverArtifacts<'_> {
-    fn cdi_attest(&self) -> &[u8; dice::CDI_SIZE] {
-        self.cdi_attest
-    }
-    fn cdi_seal(&self) -> &[u8; dice::CDI_SIZE] {
-        self.cdi_seal
-    }
-    fn bcc(&self) -> Vec<u8> {
-        // The BCC only contains public information so it's fine to copy.
-        self.bcc.to_vec()
-    }
-}
-
 /// Artifacts that are kept in the process address space after the artifacts
 /// from the driver have been consumed.
 #[derive(Clone, Serialize, Deserialize)]
@@ -121,81 +112,169 @@ struct RawArtifacts {
     bcc: Vec<u8>,
 }
 
-impl DiceArtifacts for RawArtifacts {
-    fn cdi_attest(&self) -> &[u8; dice::CDI_SIZE] {
-        &self.cdi_attest
-    }
-    fn cdi_seal(&self) -> &[u8; dice::CDI_SIZE] {
-        &self.cdi_seal
-    }
-    fn bcc(&self) -> Vec<u8> {
-        // The BCC only contains public information so it's fine to copy.
-        self.bcc.clone()
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize)]
-enum DriverArtifactManager {
+enum UpdatableArtifacts {
     Invalid,
     Driver(PathBuf),
     Updated(RawArtifacts),
 }
 
-impl DriverArtifactManager {
-    fn new(driver_path: &Path) -> Self {
-        if driver_path.exists() {
-            log::info!("Using DICE values from driver");
-            Self::Driver(driver_path.to_path_buf())
-        } else if Path::new(AVF_STRICT_BOOT).exists() {
-            log::error!("Strict boot requires DICE value from driver but none were found");
-            Self::Invalid
-        } else {
-            log::warn!("Using sample DICE values");
-            let (cdi_attest, cdi_seal, bcc) = diced_sample_inputs::make_sample_bcc_and_cdis()
-                .expect("Failed to create sample dice artifacts.");
-            Self::Updated(RawArtifacts {
-                cdi_attest: cdi_attest[..].try_into().unwrap(),
-                cdi_seal: cdi_seal[..].try_into().unwrap(),
-                bcc,
-            })
-        }
-    }
-}
-
-impl UpdatableDiceArtifacts for DriverArtifactManager {
-    fn with_artifacts<F, T>(&self, f: F) -> Result<T>
-    where
-        F: FnOnce(&dyn DiceArtifacts) -> Result<T>,
-    {
+impl UpdatableArtifacts {
+    fn get(
+        &self,
+        input_values: &BinderInputValues,
+    ) -> Result<(dice::CdiAttest, dice::CdiSeal, Vec<u8>)> {
+        let input_values: diced_utils::InputValues = input_values.into();
         match self {
             Self::Invalid => bail!("No DICE artifacts available."),
-            Self::Driver(driver_path) => f(&MappedDriverArtifacts::new(driver_path.as_path())?),
-            Self::Updated(raw_artifacts) => f(raw_artifacts),
+            Self::Driver(driver_path) => {
+                let artifacts = MappedDriverArtifacts::new(driver_path.as_path())?;
+                dice::OpenDiceCborContext::new().bcc_main_flow(
+                    artifacts.cdi_attest,
+                    artifacts.cdi_seal,
+                    artifacts.bcc,
+                    &input_values,
+                )
+            }
+            Self::Updated(artifacts) => dice::OpenDiceCborContext::new().bcc_main_flow(
+                &artifacts.cdi_attest,
+                &artifacts.cdi_seal,
+                &artifacts.bcc,
+                &input_values,
+            ),
         }
+        .context("Deriving artifacts")
     }
-    fn update(self, new_artifacts: &impl DiceArtifacts) -> Result<Self> {
+
+    fn update(self, inputs: &BinderInputValues) -> Result<Self> {
         if let Self::Invalid = self {
             bail!("Cannot update invalid DICE artifacts.");
         }
-        if let Self::Driver(driver_path) = self {
-            // Writing to the device wipes the artifcates. The string is ignored
+        let (cdi_attest, cdi_seal, bcc) =
+            self.get(inputs).context("Failed to get update artifacts.")?;
+        if let Self::Driver(ref driver_path) = self {
+            // Writing to the device wipes the artifacts. The string is ignored
             // by the driver but included for documentation.
             fs::write(driver_path, "wipe")
                 .map_err(|error| Error::new(error).context("Wiping driver"))?;
         }
         Ok(Self::Updated(RawArtifacts {
-            cdi_attest: *new_artifacts.cdi_attest(),
-            cdi_seal: *new_artifacts.cdi_seal(),
-            bcc: new_artifacts.bcc(),
+            cdi_attest: cdi_attest[..].try_into().unwrap(),
+            cdi_seal: cdi_seal[..].try_into().unwrap(),
+            bcc,
         }))
+    }
+}
+
+struct ArtifactManager {
+    artifacts: RwLock<UpdatableArtifacts>,
+}
+
+impl ArtifactManager {
+    fn new(driver_path: &Path) -> Self {
+        Self {
+            artifacts: RwLock::new(if driver_path.exists() {
+                log::info!("Using DICE values from driver");
+                UpdatableArtifacts::Driver(driver_path.to_path_buf())
+            } else if Path::new(AVF_STRICT_BOOT).exists() {
+                log::error!("Strict boot requires DICE value from driver but none were found");
+                UpdatableArtifacts::Invalid
+            } else {
+                log::warn!("Using sample DICE values");
+                let (cdi_attest, cdi_seal, bcc) = diced_sample_inputs::make_sample_bcc_and_cdis()
+                    .expect("Failed to create sample dice artifacts.");
+                UpdatableArtifacts::Updated(RawArtifacts {
+                    cdi_attest: cdi_attest[..].try_into().unwrap(),
+                    cdi_seal: cdi_seal[..].try_into().unwrap(),
+                    bcc,
+                })
+            }),
+        }
+    }
+}
+
+impl DiceNodeImpl for ArtifactManager {
+    fn sign(
+        &self,
+        client: BinderInputValues,
+        input_values: &[BinderInputValues],
+        message: &[u8],
+    ) -> Result<Signature> {
+        ensure!(input_values.is_empty(), "Extra input values not supported");
+        let artifacts = self.artifacts.read().unwrap().clone();
+        let (cdi_attest, _, _) =
+            artifacts.get(&client).context("Failed to get signing artifacts.")?;
+        let mut dice = OpenDiceCborContext::new();
+        let seed = dice
+            .derive_cdi_private_key_seed(
+                cdi_attest[..].try_into().context("Failed to convert cdi_attest.")?,
+            )
+            .context("Failed to derive seed from cdi_attest.")?;
+        let (_public_key, private_key) = dice
+            .keypair_from_seed(seed[..].try_into().context("Failed to convert seed.")?)
+            .context("Failed to derive keypair from seed.")?;
+        let signature = dice
+            .sign(message, private_key[..].try_into().context("Failed to convert private_key.")?)
+            .context("Failed to sign.")?;
+        Ok(Signature { data: signature })
+    }
+
+    fn get_attestation_chain(
+        &self,
+        client: BinderInputValues,
+        input_values: &[BinderInputValues],
+    ) -> Result<Bcc> {
+        ensure!(input_values.is_empty(), "Extra input values not supported");
+        let artifacts = self.artifacts.read().unwrap().clone();
+        let (_, _, bcc) =
+            artifacts.get(&client).context("Failed to get attestation chain artifacts.")?;
+        Ok(Bcc { data: bcc })
+    }
+
+    fn derive(
+        &self,
+        client: BinderInputValues,
+        input_values: &[BinderInputValues],
+    ) -> Result<BccHandover> {
+        ensure!(input_values.is_empty(), "Extra input values not supported");
+        let artifacts = self.artifacts.read().unwrap().clone();
+        let (cdi_attest, cdi_seal, bcc) =
+            artifacts.get(&client).context("Failed to get attestation chain artifacts.")?;
+        make_bcc_handover(
+            &cdi_attest
+                .to_vec()
+                .as_slice()
+                .try_into()
+                .context("Trying to convert cdi_attest to sized array.")?,
+            &cdi_seal
+                .to_vec()
+                .as_slice()
+                .try_into()
+                .context("Trying to convert cdi_seal to sized array.")?,
+            &bcc,
+        )
+        .context("Trying to construct BccHandover.")
+    }
+
+    fn demote(
+        &self,
+        _client: BinderInputValues,
+        _input_values: &[BinderInputValues],
+    ) -> Result<()> {
+        bail!("Demote not supported.");
+    }
+
+    fn demote_self(&self, input_values: &[BinderInputValues]) -> Result<()> {
+        ensure!(input_values.len() == 1, "Can only demote_self one level.");
+        let mut artifacts = self.artifacts.write().unwrap();
+        *artifacts = (*artifacts).clone().update(&input_values[0])?;
+        Ok(())
     }
 }
 
 fn main() {
     android_logger::init_once(
-        android_logger::Config::default()
-            .with_tag("android.hardware.security.dice")
-            .with_min_level(log::Level::Debug),
+        android_logger::Config::default().with_tag("dice").with_min_level(log::Level::Debug),
     );
     // Redirect panic messages to logcat.
     panic::set_hook(Box::new(|panic_info| {
@@ -203,22 +282,21 @@ fn main() {
     }));
 
     // Saying hi.
-    log::info!("android.hardware.security.dice is starting.");
+    log::info!("DICE service is starting.");
 
-    let hal_impl = Arc::new(
-        unsafe {
-            // Safety: ResidentHal cannot be used in multi threaded processes.
-            // This service does not start a thread pool. The main thread is the only thread
-            // joining the thread pool, thereby keeping the process single threaded.
-            ResidentHal::new(DriverArtifactManager::new(Path::new("/dev/open-dice0")))
-        }
-        .expect("Failed to create ResidentHal implementation."),
-    );
+    let node_impl = Arc::new(ArtifactManager::new(Path::new("/dev/open-dice0")));
 
-    let hal = DiceDevice::new_as_binder(hal_impl).expect("Failed to construct hal service.");
+    let node = DiceNode::new_as_binder(node_impl.clone())
+        .expect("Failed to create IDiceNode service instance.");
 
-    binder::add_service(DICE_HAL_SERVICE_NAME, hal.as_binder())
-        .expect("Failed to register IDiceDevice Service");
+    let maintenance = DiceMaintenance::new_as_binder(node_impl)
+        .expect("Failed to create IDiceMaintenance service instance.");
+
+    binder::add_service(DICE_NODE_SERVICE_NAME, node.as_binder())
+        .expect("Failed to register IDiceNode Service");
+
+    binder::add_service(DICE_MAINTENANCE_SERVICE_NAME, maintenance.as_binder())
+        .expect("Failed to register IDiceMaintenance Service");
 
     log::info!("Joining thread pool now.");
     binder::ProcessState::join_thread_pool();
