@@ -18,7 +18,7 @@
 //!
 //! [v4]: https://source.android.com/security/apksigning/v4
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
 use std::io::{Read, Seek};
 
 use crate::algorithms::SignatureAlgorithmID;
@@ -34,13 +34,17 @@ pub fn get_apk_digest<R: Read + Seek>(
     verify: bool,
 ) -> Result<(SignatureAlgorithmID, Box<[u8]>)> {
     let (signer, mut sections) = extract_signer_and_apk_sections(apk)?;
-    let (signature_algorithm_id, extracted_digest) = signer.pick_v4_apk_digest()?;
+    let strongest_algorithm_id = signer
+        .strongest_signature()?
+        .signature_algorithm_id
+        .context("Strongest signature should contain a valid signature algorithm.")?;
+    let extracted_digest = signer.find_digest_by_algorithm(strongest_algorithm_id)?;
     if verify {
-        let computed_digest = sections.compute_digest(signature_algorithm_id)?;
+        let computed_digest = sections.compute_digest(strongest_algorithm_id)?;
         ensure!(
             computed_digest == extracted_digest.as_ref(),
             "Computed digest does not match the extracted digest."
         );
     }
-    Ok((signature_algorithm_id, extracted_digest))
+    Ok((strongest_algorithm_id, extracted_digest))
 }
