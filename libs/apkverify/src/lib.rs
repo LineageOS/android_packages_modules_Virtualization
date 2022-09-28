@@ -18,6 +18,7 @@
 
 mod algorithms;
 mod bytes_ext;
+mod hashtree;
 mod sigutil;
 #[allow(dead_code)]
 pub mod testing;
@@ -27,4 +28,4 @@ mod ziputil;
 
 pub use algorithms::SignatureAlgorithmID;
 pub use v3::{get_public_key_der, verify};
-pub use v4::get_apk_digest;
+pub use v4::{get_apk_digest, HashAlgorithm, V4Signature};
