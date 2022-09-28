@@ -58,7 +58,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -359,7 +358,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         JSONObject config = new JSONObject(FileUtil.readStringFromFile(microdroidConfigFile));
 
         // Replace paths so that the config uses re-signed images from TEST_ROOT
-        config.put("kernel", config.getString("kernel").replace(VIRT_APEX, TEST_ROOT));
+        config.put("bootloader", config.getString("bootloader").replace(VIRT_APEX, TEST_ROOT));
         JSONArray disks = config.getJSONArray("disks");
         for (int diskIndex = 0; diskIndex < disks.length(); diskIndex++) {
             JSONObject disk = disks.getJSONObject(diskIndex);
@@ -371,16 +370,14 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         }
 
         // Add partitions to the second disk
-        final String initrdPath = TEST_ROOT + "etc/microdroid_initrd_full_debuggable.img";
-        config.put("initrd", initrdPath);
-        // Add instance image as a partition in disks[1]
-        disks.put(
-            new JSONObject()
-                .put("writable", true)
-                .put(
-                    "partitions",
-                    new JSONArray()
-                        .put(newPartition("vm-instance", instanceImgPath))));
+        final String vbmetaPath = TEST_ROOT + "etc/fs/microdroid_vbmeta_bootconfig.img";
+        final String bootconfigPath = TEST_ROOT + "etc/fs/microdroid_bootconfig.full_debuggable";
+        disks.getJSONObject(1)
+                .getJSONArray("partitions")
+                .put(newPartition("vbmeta", vbmetaPath))
+                .put(newPartition("bootconfig", bootconfigPath))
+                .put(newPartition("vm-instance", instanceImgPath));
+
         // Add payload image disk with partitions:
         // - payload-metadata
         // - apexes: com.android.os.statsd, com.android.adbd, [sharedlib apex](optional)
@@ -440,10 +437,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         assertThat(getDevice().pullFileContents(consolePath), containsString("pvmfw boot failed"));
     }
 
-    // TODO(b/245277660): Resigning the system/vendor image changes the vbmeta hash.
-    // So, unless vbmeta related bootconfigs are updated the following test will fail
     @Test
-    @Ignore("b/245277660")
     @CddTest(requirements = {"9.17/C-2-2", "9.17/C-2-6"})
     public void testBootSucceedsWhenNonProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
@@ -462,7 +456,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-2-2", "9.17/C-2-6"})
-    public void testBootFailsWhenVbMetaDigestDoesNotMatchBootconfig() throws Exception {
+    public void testBootFailsWhenBootloaderAndVbMetaAreSignedWithDifferentKeys() throws Exception {
         // Sign everything with key1 except vbmeta
         File key = findTestFile("test.com.android.virt.pem");
         File key2 = findTestFile("test2.com.android.virt.pem");
@@ -474,11 +468,34 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         String cid =
                 runMicrodroidWithResignedImages(
                         key, keyOverrides, isProtected, daemonize, consolePath);
-        // Wait so that init can print errors to console (time in cuttlefish >> in real device)
+        // Wail for a while so that bootloader prints errors to console
         assertThatEventually(
-                100000,
+                10000,
                 () -> getDevice().pullFileContents(consolePath),
-                containsString("init: [libfs_avb]Failed to verify vbmeta digest"));
+                containsString("Public key was rejected"));
+        shutdownMicrodroid(getDevice(), cid);
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-2-2", "9.17/C-2-6"})
+    public void testBootSucceedsWhenBootloaderAndVbmetaHaveSameSigningKeys() throws Exception {
+        // Sign everything with key1 except bootloader and vbmeta
+        File key = findTestFile("test.com.android.virt.pem");
+        File key2 = findTestFile("test2.com.android.virt.pem");
+        Map<String, File> keyOverrides =
+                Map.of(
+                        "microdroid_bootloader", key2,
+                        "microdroid_vbmeta.img", key2,
+                        "microdroid_vbmeta_bootconfig.img", key2);
+        boolean isProtected = false; // Not interested in pvwfw
+        boolean daemonize = true; // Bootloader should succeed.
+        // To be able to stop it, it should be a daemon.
+        String consolePath = TEST_ROOT + "console";
+        String cid =
+                runMicrodroidWithResignedImages(
+                        key, keyOverrides, isProtected, daemonize, consolePath);
+        // Adb connection to the microdroid means that boot succeeded.
+        adbConnectToMicrodroid(getDevice(), cid);
         shutdownMicrodroid(getDevice(), cid);
     }
 
