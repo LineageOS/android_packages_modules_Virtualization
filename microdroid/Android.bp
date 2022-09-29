@@ -507,10 +507,7 @@ vbmeta {
     private_key: ":microdroid_sign_key",
     partitions: [
         "microdroid_vendor",
-        "microdroid_vendor_boot",
         "microdroid",
-        "microdroid_boot",
-        "microdroid_init_boot",
     ],
 }
 
@@ -571,4 +568,38 @@ filegroup {
 filegroup {
     name: "microdroid_bootconfig_normal_src",
     srcs: ["bootconfig.normal"],
+}
+
+avb_add_hash_footer {
+    name: "microdroid_kernel_signed",
+    src: "empty_kernel",
+    filename: "microdroid_kernel",
+    partition_name: "bootloader",
+    private_key: ":microdroid_sign_key",
+    salt: bootloader_salt,
+    enabled: false,
+    arch: {
+        arm64: {
+            src: ":microdroid_kernel_prebuilts-5.15-arm64",
+            enabled: true,
+        },
+        x86_64: {
+            src: ":microdroid_kernel_prebuilts-5.15-x86_64",
+            enabled: true,
+        },
+    },
+}
+
+prebuilt_etc {
+    name: "microdroid_kernel",
+    src: "empty_kernel",
+    relative_install_path: "fs",
+    arch: {
+        arm64: {
+            src: ":microdroid_kernel_signed",
+        },
+        x86_64: {
+            src: ":microdroid_kernel_signed",
+        },
+    },
 }
