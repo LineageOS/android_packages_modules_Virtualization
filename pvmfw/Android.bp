@@ -42,3 +42,17 @@ raw_binary {
         },
     },
 }
+
+bootimg {
+    name: "pvmfw_img",
+    stem: "pvmfw.img",
+    kernel_prebuilt: ":pvmfw_bin",
+    header_version: "3",
+    partition_name: "pvmfw",
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+}
