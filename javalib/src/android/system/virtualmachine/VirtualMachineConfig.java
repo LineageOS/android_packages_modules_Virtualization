@@ -222,7 +222,7 @@ public final class VirtualMachineConfig {
     /* package */ VirtualMachineAppConfig toParcel() throws FileNotFoundException {
         VirtualMachineAppConfig parcel = new VirtualMachineAppConfig();
         parcel.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
-        parcel.configPath = mPayloadConfigPath;
+        parcel.payload = VirtualMachineAppConfig.Payload.configPath(mPayloadConfigPath);
         switch (mDebugLevel) {
             case NONE:
                 parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.NONE;

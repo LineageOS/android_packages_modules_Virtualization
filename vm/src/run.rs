@@ -16,9 +16,10 @@
 
 use crate::create_partition::command_create_partition;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
-    VirtualMachineAppConfig::DebugLevel::DebugLevel,
-    VirtualMachineAppConfig::VirtualMachineAppConfig, VirtualMachineConfig::VirtualMachineConfig,
+    IVirtualizationService::IVirtualizationService,
+    PartitionType::PartitionType,
+    VirtualMachineAppConfig::{DebugLevel::DebugLevel, Payload::Payload, VirtualMachineAppConfig},
+    VirtualMachineConfig::VirtualMachineConfig,
     VirtualMachineState::VirtualMachineState,
 };
 use anyhow::{bail, Context, Error};
@@ -96,7 +97,7 @@ pub fn command_run_app(
         idsig: idsig_fd.into(),
         extraIdsigs: extra_idsig_fds,
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
-        configPath: config_path.to_owned(),
+        payload: Payload::ConfigPath(config_path.to_owned()),
         debugLevel: debug_level,
         protectedVm: protected,
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
