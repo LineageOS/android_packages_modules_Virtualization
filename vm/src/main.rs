@@ -48,7 +48,7 @@ enum Opt {
         instance: PathBuf,
 
         /// Path to VM config JSON within APK (e.g. assets/vm_config.json)
-        config_path: String,
+        config_path: Option<String>,
 
         /// Name of VM
         #[clap(long)]
@@ -205,7 +205,7 @@ fn main() -> Result<(), Error> {
             &apk,
             &idsig,
             &instance,
-            &config_path,
+            config_path.as_deref().unwrap_or(""),
             daemonize,
             console.as_deref(),
             log.as_deref(),

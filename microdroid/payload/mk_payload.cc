@@ -181,7 +181,7 @@ Result<void> MakeMetadata(const Config& config, const std::string& filename) {
     }
 
     if (config.payload_config_path.has_value()) {
-        *metadata.mutable_payload_config_path() = config.payload_config_path.value();
+        *metadata.mutable_config_path() = config.payload_config_path.value();
     }
 
     std::ofstream out(filename);
