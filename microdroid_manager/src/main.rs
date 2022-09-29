@@ -34,7 +34,7 @@ use diced_utils::cbor::encode_header;
 use glob::glob;
 use itertools::sorted;
 use log::{error, info};
-use microdroid_metadata::{write_metadata, Metadata};
+use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
 use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
 use openssl::sha::Sha512;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
@@ -301,9 +301,14 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         verified_data
     };
 
+    let payload_config_path = match metadata.payload {
+        Some(PayloadMetadata::config_path(p)) => p,
+        _ => bail!("Unsupported payload config"),
+    };
+
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
-    dice_derivation(&verified_data, &metadata.payload_config_path)?;
+    dice_derivation(&verified_data, &payload_config_path)?;
 
     // Before reading a file from the APK, start zipfuse
     let noexec = false;
@@ -316,11 +321,11 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     .context("Failed to run zipfuse")?;
 
     ensure!(
-        !metadata.payload_config_path.is_empty(),
+        !payload_config_path.is_empty(),
         MicrodroidError::InvalidConfig("No payload_config_path in metadata".to_string())
     );
 
-    let config = load_config(Path::new(&metadata.payload_config_path))?;
+    let config = load_config(Path::new(&payload_config_path))?;
 
     let task = config
         .task

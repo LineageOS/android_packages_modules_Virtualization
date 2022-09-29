@@ -26,7 +26,11 @@ message Metadata {
 
   ApkPayload apk = 3;
 
-  string payload_config_path = 4;
+  oneof payload {
+    // Path to JSON config file inside the APK.
+    string config_path = 4;
+    PayloadConfig config = 5;
+  }
 }
 
 message ApexPayload {
@@ -57,4 +61,19 @@ message ApkPayload {
   string payload_partition_name = 2;
 
   string idsig_partition_name = 3;
+}
+
+message PayloadConfig {
+  // Required.
+  // Path to the payload binary file inside the APK.
+  string payload_binary_path = 1;
+
+  // Required.
+  // Whether tombstones from crashes inside the VM should be exported to the host.
+  bool export_tombstones = 2;
+
+  // Optional.
+  // Arguments to be passed to the payload.
+  // TODO(b/249064104): Remove this
+  repeated string args = 3;
 }

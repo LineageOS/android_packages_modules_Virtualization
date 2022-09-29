@@ -29,9 +29,10 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::IVirtualizationService,
     Partition::Partition,
     PartitionType::PartitionType,
-    VirtualMachineAppConfig::VirtualMachineAppConfig,
+    VirtualMachineAppConfig::{VirtualMachineAppConfig, Payload::Payload},
     VirtualMachineConfig::VirtualMachineConfig,
     VirtualMachineDebugInfo::VirtualMachineDebugInfo,
+    VirtualMachinePayloadConfig::VirtualMachinePayloadConfig,
     VirtualMachineRawConfig::VirtualMachineRawConfig,
     VirtualMachineState::VirtualMachineState,
 };
@@ -49,7 +50,7 @@ use rpcbinder::run_rpc_server_with_factory;
 use disk::QcowFile;
 use apkverify::{HashAlgorithm, V4Signature};
 use log::{debug, error, info, warn};
-use microdroid_payload_config::VmPayloadConfig;
+use microdroid_payload_config::{VmPayloadConfig, OsConfig, Task, TaskType};
 use rustutils::system_properties;
 use semver::VersionReq;
 use std::convert::TryInto;
@@ -84,6 +85,8 @@ const ANDROID_VM_INSTANCE_MAGIC: &str = "Android-VM-instance";
 const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
 
 const CHUNK_RECV_MAX_LEN: usize = 1024;
+
+const MICRODROID_OS_NAME: &str = "microdroid";
 
 /// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
 #[derive(Debug, Default)]
@@ -376,15 +379,10 @@ impl VirtualizationService {
         let config = match config {
             VirtualMachineConfig::AppConfig(config) => BorrowedOrOwned::Owned(
                 load_app_config(config, &temporary_directory).map_err(|e| {
-                    error!("Failed to load app config from {}: {:?}", &config.configPath, e);
                     *is_protected = config.protectedVm;
-                    Status::new_service_specific_error_str(
-                        -1,
-                        Some(format!(
-                            "Failed to load app config from {}: {:?}",
-                            &config.configPath, e
-                        )),
-                    )
+                    let message = format!("Failed to load app config: {:?}", e);
+                    error!("{}", message);
+                    Status::new_service_specific_error_str(-1, Some(message))
                 })?,
             ),
             VirtualMachineConfig::RawConfig(config) => BorrowedOrOwned::Borrowed(config),
@@ -604,16 +602,18 @@ fn load_app_config(
     let apk_file = clone_file(config.apk.as_ref().unwrap())?;
     let idsig_file = clone_file(config.idsig.as_ref().unwrap())?;
     let instance_file = clone_file(config.instanceImage.as_ref().unwrap())?;
-    let config_path = &config.configPath;
 
-    let mut apk_zip = ZipArchive::new(&apk_file)?;
-    let config_file = apk_zip.by_name(config_path)?;
-    let vm_payload_config: VmPayloadConfig = serde_json::from_reader(config_file)?;
+    let vm_payload_config = match &config.payload {
+        Payload::ConfigPath(config_path) => {
+            load_vm_payload_config_from_file(&apk_file, config_path.as_str())
+                .with_context(|| format!("Couldn't read config from {}", config_path))?
+        }
+        Payload::PayloadConfig(payload_config) => create_vm_payload_config(payload_config),
+    };
 
-    let os_name = &vm_payload_config.os.name;
-
-    // For now, the only supported "os" value is "microdroid"
-    if os_name != "microdroid" {
+    // For now, the only supported OS is Microdroid
+    let os_name = vm_payload_config.os.name.as_str();
+    if os_name != MICRODROID_OS_NAME {
         bail!("Unknown OS \"{}\"", os_name);
     }
 
@@ -633,19 +633,43 @@ fn load_app_config(
     vm_config.taskProfiles = config.taskProfiles.clone();
 
     // Microdroid requires an additional init ramdisk & payload disk image
-    if os_name == "microdroid" {
-        add_microdroid_images(
-            config,
-            temporary_directory,
-            apk_file,
-            idsig_file,
-            instance_file,
-            &vm_payload_config,
-            &mut vm_config,
-        )?;
-    }
+    add_microdroid_images(
+        config,
+        temporary_directory,
+        apk_file,
+        idsig_file,
+        instance_file,
+        &vm_payload_config,
+        &mut vm_config,
+    )?;
 
     Ok(vm_config)
+}
+
+fn load_vm_payload_config_from_file(apk_file: &File, config_path: &str) -> Result<VmPayloadConfig> {
+    let mut apk_zip = ZipArchive::new(apk_file)?;
+    let config_file = apk_zip.by_name(config_path)?;
+    Ok(serde_json::from_reader(config_file)?)
+}
+
+fn create_vm_payload_config(payload_config: &VirtualMachinePayloadConfig) -> VmPayloadConfig {
+    // There isn't an actual config file. Construct a synthetic VmPayloadConfig from the explicit
+    // parameters we've been given. Microdroid will do something equivalent inside the VM using the
+    // payload config that we send it via the metadata file.
+    let task = Task {
+        type_: TaskType::MicrodroidLauncher,
+        command: payload_config.payloadPath.clone(),
+        args: payload_config.args.clone(),
+    };
+    VmPayloadConfig {
+        os: OsConfig { name: MICRODROID_OS_NAME.to_owned() },
+        task: Some(task),
+        apexes: vec![],
+        extra_apks: vec![],
+        prefer_staged: false,
+        export_tombstones: payload_config.exportTombstones,
+        enable_authfs: false,
+    }
 }
 
 /// Generates a unique filename to use for a composite disk image.
