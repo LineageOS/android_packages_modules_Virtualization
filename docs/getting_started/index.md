@@ -118,7 +118,7 @@ for details.
 on pVM. You can manually run the demo app on top of Microdroid as follows:
 
 ```shell
-TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
+UNBUNDLED_BUILD_SDKS_FROM_SOURCE=true TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
 adb shell mkdir -p /data/local/tmp/virt
 adb push out/dist/MicrodroidDemoApp.apk /data/local/tmp/virt/
 adb shell /apex/com.android.virt/bin/vm run-app \
