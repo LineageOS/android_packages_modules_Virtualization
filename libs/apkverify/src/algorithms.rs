@@ -16,7 +16,8 @@
 
 //! Algorithms used for APK Signature Scheme.
 
-use anyhow::{ensure, Result};
+use anyhow::{ensure, Context, Result};
+use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -25,6 +26,7 @@ use openssl::pkey::{self, PKey};
 use openssl::rsa::Padding;
 use openssl::sign::Verifier;
 use serde::{Deserialize, Serialize};
+use std::io::Read;
 
 use crate::bytes_ext::ReadFromBytes;
 
@@ -202,4 +204,25 @@ pub(crate) enum ContentDigestAlgorithm {
     ChunkedSha256 = 1,
     VerityChunkedSha256,
     ChunkedSha512,
+}
+
+/// Hash algorithms.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(u32)]
+pub enum HashAlgorithm {
+    /// SHA-256
+    SHA256 = 1,
+}
+
+impl HashAlgorithm {
+    pub(crate) fn from_read<R: Read>(read: &mut R) -> Result<Self> {
+        let val = read.read_u32::<LittleEndian>()?;
+        Self::from_u32(val).context(format!("Unsupported hash algorithm: {}", val))
+    }
+}
+
+impl Default for HashAlgorithm {
+    fn default() -> Self {
+        HashAlgorithm::SHA256
+    }
 }
