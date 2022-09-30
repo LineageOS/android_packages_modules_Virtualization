@@ -68,12 +68,8 @@ message PayloadConfig {
   // Path to the payload binary file inside the APK.
   string payload_binary_path = 1;
 
-  // Required.
-  // Whether tombstones from crashes inside the VM should be exported to the host.
-  bool export_tombstones = 2;
-
   // Optional.
   // Arguments to be passed to the payload.
   // TODO(b/249064104): Remove this
-  repeated string args = 3;
+  repeated string args = 2;
 }
