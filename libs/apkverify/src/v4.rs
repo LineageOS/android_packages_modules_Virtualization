@@ -26,7 +26,7 @@ use std::fs;
 use std::io::{copy, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-use crate::algorithms::SignatureAlgorithmID;
+use crate::algorithms::{HashAlgorithm, SignatureAlgorithmID};
 use crate::hashtree::*;
 use crate::v3::extract_signer_and_apk_sections;
 
@@ -120,26 +120,6 @@ impl Version {
 impl Default for Version {
     fn default() -> Self {
         Version::V2
-    }
-}
-
-/// Hash algorithm that can be used for idsig file.
-#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
-#[repr(u32)]
-pub enum HashAlgorithm {
-    /// SHA2-256
-    SHA256 = 1,
-}
-
-impl HashAlgorithm {
-    fn from(val: u32) -> Result<HashAlgorithm> {
-        Self::from_u32(val).ok_or_else(|| anyhow!("{} is an unsupported hash algorithm", val))
-    }
-}
-
-impl Default for HashAlgorithm {
-    fn default() -> Self {
-        HashAlgorithm::SHA256
     }
 }
 
@@ -239,7 +219,7 @@ impl HashingInfo {
         // fields in the struct are also length encoded.
         r.read_u32::<LittleEndian>()?;
         Ok(HashingInfo {
-            hash_algorithm: HashAlgorithm::from(r.read_u32::<LittleEndian>()?)?,
+            hash_algorithm: HashAlgorithm::from_read(&mut r)?,
             log2_blocksize: r.read_u8()?,
             salt: read_sized_array(&mut r)?,
             raw_root_hash: read_sized_array(&mut r)?,
