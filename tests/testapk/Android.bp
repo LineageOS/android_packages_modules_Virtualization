@@ -33,7 +33,6 @@ cc_library_shared {
     srcs: ["src/native/testbinary.cpp"],
     shared_libs: [
         "android.security.dice-ndk",
-        "android.system.virtualmachineservice-ndk",
         "com.android.microdroid.testservice-ndk",
         "libbase",
         "libbinder_ndk",
@@ -44,6 +43,7 @@ cc_library_shared {
         "libfsverity_digests_proto_cc",
         "liblog",
         "libprotobuf-cpp-lite-ndk",
+        "libvm_payload",
     ],
 }
 

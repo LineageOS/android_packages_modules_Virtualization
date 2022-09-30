@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 #include <aidl/android/security/dice/IDiceNode.h>
-#include <aidl/android/system/virtualmachineservice/IVirtualMachineService.h>
 #include <aidl/com/android/microdroid/testservice/BnTestService.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
@@ -33,10 +32,10 @@
 #include <binder_rpc_unstable.hpp>
 #include <string>
 
+#include "vm_payload.h"
+
 using aidl::android::hardware::security::dice::BccHandover;
 using aidl::android::security::dice::IDiceNode;
-
-using aidl::android::system::virtualmachineservice::IVirtualMachineService;
 
 using android::base::ErrnoError;
 using android::base::Error;
@@ -133,23 +132,11 @@ Result<void> start_test_service() {
     auto testService = ndk::SharedRefBase::make<TestService>();
 
     auto callback = []([[maybe_unused]] void* param) {
-        // Tell microdroid_manager that we're ready.
-        // If we can't, abort in order to fail fast - the host won't proceed without
-        // receiving the onReady signal.
-        ndk::SpAIBinder binder(
-                RpcClient(VMADDR_CID_HOST, IVirtualMachineService::VM_BINDER_SERVICE_PORT));
-        auto virtualMachineService = IVirtualMachineService::fromBinder(binder);
-        if (virtualMachineService == nullptr) {
-            std::cerr << "failed to connect VirtualMachineService\n";
-            abort();
-        }
-        if (auto status = virtualMachineService->notifyPayloadReady(); !status.isOk()) {
-            std::cerr << "failed to notify payload ready to virtualizationservice: "
-                      << status.getDescription() << std::endl;
+        if (!notify_payload_ready()) {
+            std::cerr << "failed to notify payload ready to virtualizationservice" << std::endl;
             abort();
         }
     };
-
     if (!RunRpcServerCallback(testService->asBinder().get(), testService->SERVICE_PORT, callback,
                               nullptr)) {
         return Error() << "RPC Server failed to run";
