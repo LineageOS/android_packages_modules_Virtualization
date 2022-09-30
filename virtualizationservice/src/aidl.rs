@@ -667,7 +667,7 @@ fn create_vm_payload_config(payload_config: &VirtualMachinePayloadConfig) -> VmP
         apexes: vec![],
         extra_apks: vec![],
         prefer_staged: false,
-        export_tombstones: payload_config.exportTombstones,
+        export_tombstones: false,
         enable_authfs: false,
     }
 }

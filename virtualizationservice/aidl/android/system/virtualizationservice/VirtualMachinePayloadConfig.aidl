@@ -24,11 +24,6 @@ parcelable VirtualMachinePayloadConfig {
     @utf8InCpp String payloadPath;
 
     /**
-     * Whether to export tombstones (VM crash details) from the VM to the host.
-     */
-    boolean exportTombstones;
-
-    /**
      * Command-line style arguments to be passed to the payload when it is executed.
      * TODO(b/249064104): Remove this
      */

@@ -30,12 +30,12 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify, V4Signature};
 use binder::{wait_for_interface, Strong};
-use diced_utils::cbor::encode_header;
+use diced_utils::cbor::{encode_header, encode_number};
 use glob::glob;
 use itertools::sorted;
 use log::{error, info};
 use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
-use microdroid_payload_config::{Task, TaskType, VmPayloadConfig};
+use microdroid_payload_config::{Task, TaskType, VmPayloadConfig, OsConfig};
 use openssl::sha::Sha512;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
 use rand::Fill;
@@ -191,7 +191,10 @@ fn try_main() -> Result<()> {
     }
 }
 
-fn dice_derivation(verified_data: &MicrodroidData, payload_config_path: &str) -> Result<()> {
+fn dice_derivation(
+    verified_data: &MicrodroidData,
+    payload_metadata: &PayloadMetadata,
+) -> Result<()> {
     // Calculate compound digests of code and authorities
     let mut code_hash_ctx = Sha512::new();
     let mut authority_hash_ctx = Sha512::new();
@@ -210,15 +213,33 @@ fn dice_derivation(verified_data: &MicrodroidData, payload_config_path: &str) ->
 
     // {
     //   -70002: "Microdroid payload",
-    //   -71000: payload_config_path
+    //   ? -71000: tstr // payload_config_path
+    //   ? -71001: PayloadConfig
     // }
+    // PayloadConfig = {
+    //   1: tstr // payload_binary_path
+    //   // TODO(b/249064104 Either include args, or deprecate them
+    // }
+
     let mut config_desc = vec![
-        0xa2, 0x3a, 0x00, 0x01, 0x11, 0x71, 0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72, 0x6f,
-        0x69, 0x64, 0x20, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x3a, 0x00, 0x01, 0x15, 0x57,
+        0xa2, // map(2)
+        0x3a, 0x00, 0x01, 0x11, 0x71, // -70002
+        0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72, 0x6f, 0x69, 0x64, 0x20, 0x70, 0x61, 0x79,
+        0x6c, 0x6f, 0x61, 0x64, // "Microdroid payload"
     ];
-    let config_path_bytes = payload_config_path.as_bytes();
-    encode_header(3, config_path_bytes.len().try_into().unwrap(), &mut config_desc)?;
-    config_desc.extend_from_slice(config_path_bytes);
+
+    match payload_metadata {
+        PayloadMetadata::config_path(payload_config_path) => {
+            encode_negative_number(-71000, &mut config_desc)?;
+            encode_tstr(payload_config_path, &mut config_desc)?;
+        }
+        PayloadMetadata::config(payload_config) => {
+            encode_negative_number(-71001, &mut config_desc)?;
+            encode_header(5, 1, &mut config_desc)?; // map(1)
+            encode_number(1, &mut config_desc)?;
+            encode_tstr(&payload_config.payload_binary_path, &mut config_desc)?;
+        }
+    }
 
     // Check app debuggability, conervatively assuming it is debuggable
     let app_debuggable = system_properties::read_bool(APP_DEBUGGABLE_PROP, true)?;
@@ -238,6 +259,19 @@ fn dice_derivation(verified_data: &MicrodroidData, payload_config_path: &str) ->
         }])
         .context("IDiceMaintenance::demoteSelf failed")?;
     Ok(())
+}
+
+fn encode_tstr(tstr: &str, buffer: &mut Vec<u8>) -> Result<()> {
+    let bytes = tstr.as_bytes();
+    encode_header(3, bytes.len().try_into().unwrap(), buffer)?;
+    buffer.extend_from_slice(bytes);
+    Ok(())
+}
+
+fn encode_negative_number(n: i64, buffer: &mut dyn Write) -> Result<()> {
+    ensure!(n < 0);
+    let n = -1 - n;
+    encode_header(1, n.try_into().unwrap(), buffer)
 }
 
 fn is_strict_boot() -> bool {
@@ -301,14 +335,13 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         verified_data
     };
 
-    let payload_config_path = match metadata.payload {
-        Some(PayloadMetadata::config_path(p)) => p,
-        _ => bail!("Unsupported payload config"),
-    };
+    let payload_metadata = metadata.payload.ok_or_else(|| {
+        MicrodroidError::InvalidConfig("No payload config in metadata".to_string())
+    })?;
 
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
-    dice_derivation(&verified_data, &payload_config_path)?;
+    dice_derivation(&verified_data, &payload_metadata)?;
 
     // Before reading a file from the APK, start zipfuse
     let noexec = false;
@@ -320,12 +353,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     )
     .context("Failed to run zipfuse")?;
 
-    ensure!(
-        !payload_config_path.is_empty(),
-        MicrodroidError::InvalidConfig("No payload_config_path in metadata".to_string())
-    );
-
-    let config = load_config(Path::new(&payload_config_path))?;
+    let config = load_config(payload_metadata)?;
 
     let task = config
         .task
@@ -334,7 +362,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     if config.extra_apks.len() != verified_data.extra_apks_data.len() {
         return Err(anyhow!(
-            "config expects {} extra apks, but found only {}",
+            "config expects {} extra apks, but found {}",
             config.extra_apks.len(),
             verified_data.extra_apks_data.len()
         ));
@@ -620,10 +648,31 @@ fn get_public_key_from_apk(apk: &str, root_hash_trustful: bool) -> Result<Box<[u
     }
 }
 
-fn load_config(path: &Path) -> Result<VmPayloadConfig> {
-    info!("loading config from {:?}...", path);
-    let file = ioutil::wait_for_file(path, WAIT_TIMEOUT)?;
-    Ok(serde_json::from_reader(file)?)
+fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
+    match payload_metadata {
+        PayloadMetadata::config_path(path) => {
+            let path = Path::new(&path);
+            info!("loading config from {:?}...", path);
+            let file = ioutil::wait_for_file(path, WAIT_TIMEOUT)?;
+            Ok(serde_json::from_reader(file)?)
+        }
+        PayloadMetadata::config(payload_config) => {
+            let task = Task {
+                type_: TaskType::MicrodroidLauncher,
+                command: payload_config.payload_binary_path,
+                args: payload_config.args.into_vec(),
+            };
+            Ok(VmPayloadConfig {
+                os: OsConfig { name: "microdroid".to_owned() },
+                task: Some(task),
+                apexes: vec![],
+                extra_apks: vec![],
+                prefer_staged: false,
+                export_tombstones: false,
+                enable_authfs: false,
+            })
+        }
+    }
 }
 
 /// Loads the crashkernel into memory using kexec if the VM is loaded with `crashkernel=' parameter
