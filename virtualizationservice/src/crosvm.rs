@@ -434,6 +434,7 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
         .arg("--extended-status")
         .arg("run")
         .arg("--disable-sandbox")
+        .arg("--no-balloon")
         .arg("--cid")
         .arg(config.cid.to_string());
 
