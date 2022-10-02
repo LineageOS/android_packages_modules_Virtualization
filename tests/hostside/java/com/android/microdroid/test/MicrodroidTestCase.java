@@ -71,7 +71,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -684,34 +683,6 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         shutdownMicrodroid(getDevice(), cid);
     }
 
-    /**
-     * TODO(b/249409434): to be replaced by ProcessUtil
-     *
-     * @deprecated use ProcessUtil instead.
-     */
-    @Deprecated
-    private Map<String, Long> parseMemInfo(String file) {
-        Map<String, Long> stats = new HashMap<>();
-        file.lines().forEach(line -> {
-            if (line.endsWith(" kB")) line = line.substring(0, line.length() - 3);
-
-            String[] elems = line.split(":");
-            assertThat(elems.length).isEqualTo(2);
-            stats.put(elems[0].trim(), Long.parseLong(elems[1].trim()));
-        });
-        return stats;
-    }
-
-    /**
-     * TODO(b/249409434): to be replaced by ProcessUtil
-     *
-     * @deprecated use ProcessUtil instead.
-     */
-    @Deprecated
-    private Map<String, Long> getProcMemInfo() {
-        return parseMemInfo(runOnMicrodroid("cat", "/proc/meminfo"));
-    }
-
     @Test
     public void testMicrodroidRamUsage() throws Exception {
         final String configPath = "assets/vm_config.json";
@@ -729,7 +700,8 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         waitForBootComplete();
         rootMicrodroid();
 
-        for (Map.Entry<String, Long> stat : getProcMemInfo().entrySet()) {
+        for (Map.Entry<String, Long> stat :
+                ProcessUtil.getProcessMemoryMap(cmd -> runOnMicrodroid(cmd)).entrySet()) {
             mMetrics.addTestMetric(
                     mMetricPrefix + "meminfo/" + stat.getKey().toLowerCase(),
                     stat.getValue().toString());
