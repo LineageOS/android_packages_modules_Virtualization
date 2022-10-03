@@ -90,11 +90,3 @@ android_filesystem {
     ],
     type: "cpio",
 }
-
-genrule {
-    name: "test-payload-metadata",
-    tools: ["mk_payload"],
-    cmd: "$(location mk_payload) --metadata-only $(in) $(out)",
-    srcs: ["test-payload-metadata-config.json"],
-    out: ["test-payload-metadata.img"],
-}

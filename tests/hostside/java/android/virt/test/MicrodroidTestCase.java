@@ -28,6 +28,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
+import static java.util.stream.Collectors.toList;
+
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.result.TestDescription;
 import com.android.tradefed.result.TestResult;
@@ -37,9 +39,9 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
+import com.android.tradefed.util.xml.AbstractXmlParser;
 
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -47,9 +49,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
+import org.xml.sax.Attributes;
+import org.xml.sax.helpers.DefaultHandler;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -133,6 +137,47 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         return new JSONObject(Map.of("label", label, "path", path));
     }
 
+    private void createPayloadMetadata(List<ActiveApexInfo> apexes, File payloadMetadata)
+            throws Exception {
+        // mk_payload's config
+        File configFile = new File(payloadMetadata.getParentFile(), "payload_config.json");
+        JSONObject config = new JSONObject();
+        config.put("apk",
+                new JSONObject(Map.of("name", "microdroid-apk", "path", "", "idsig_path", "")));
+        config.put("payload_config_path", "/mnt/apk/assets/vm_config.json");
+        config.put("apexes",
+                new JSONArray(
+                        apexes.stream()
+                            .map(apex -> new JSONObject(Map.of("name", apex.name, "path", "")))
+                            .collect(toList())));
+        FileUtil.writeToFile(config.toString(), configFile);
+
+        File mkPayload = findTestFile("mk_payload");
+        RunUtil runUtil = new RunUtil();
+        // Set the parent dir on the PATH (e.g. <workdir>/bin)
+        String separator = System.getProperty("path.separator");
+        String path = mkPayload.getParentFile().getPath() + separator + System.getenv("PATH");
+        runUtil.setEnvVariable("PATH", path);
+
+        List<String> command = new ArrayList<String>();
+        command.add("mk_payload");
+        command.add("--metadata-only");
+        command.add(configFile.toString());
+        command.add(payloadMetadata.toString());
+
+        CommandResult result = runUtil.runTimedCmd(
+                                    // mk_payload should run fast enough
+                                    5 * 1000,
+                                    "/bin/bash",
+                                    "-c",
+                                    String.join(" ", command));
+        String out = result.getStdout();
+        String err = result.getStderr();
+        assertEquals(
+                "creating payload metadata failed:\n\tout: " + out + "\n\terr: " + err + "\n",
+                CommandStatus.SUCCESS, result.getStatus());
+    }
+
     private void resignVirtApex(File virtApexDir, File signingKey, Map<String, File> keyOverrides) {
         File signVirtApex = findTestFile("sign_virt_apex");
 
@@ -183,9 +228,62 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         }
     }
 
+    static class ActiveApexInfo {
+        public String name;
+        public String path;
+        public boolean provideSharedApexLibs;
+        ActiveApexInfo(String name, String path, boolean provideSharedApexLibs) {
+            this.name = name;
+            this.path = path;
+            this.provideSharedApexLibs = provideSharedApexLibs;
+        }
+    }
+
+    static class ActiveApexInfoList {
+        private List<ActiveApexInfo> mList;
+        ActiveApexInfoList(List<ActiveApexInfo> list) {
+            this.mList = list;
+        }
+        ActiveApexInfo get(String apexName) {
+            for (ActiveApexInfo info: mList) {
+                if (info.name.equals(apexName)) {
+                    return info;
+                }
+            }
+            return null;
+        }
+        List<ActiveApexInfo> getSharedLibApexes() {
+            return mList.stream().filter(info -> info.provideSharedApexLibs).collect(toList());
+        }
+    }
+
+    private ActiveApexInfoList getActiveApexInfoList() throws Exception {
+        String apexInfoListXml = getDevice().pullFileContents("/apex/apex-info-list.xml");
+        List<ActiveApexInfo> list = new ArrayList<>();
+        new AbstractXmlParser() {
+            @Override
+            protected DefaultHandler createXmlHandler() {
+                return new DefaultHandler() {
+                    @Override
+                    public void startElement(String uri, String localName, String qName,
+                            Attributes attributes) {
+                        if (localName.equals("apex-info")
+                                && attributes.getValue("isActive").equals("true")) {
+                            String name = attributes.getValue("moduleName");
+                            String path = attributes.getValue("modulePath");
+                            String sharedApex = attributes.getValue("provideSharedApexLibs");
+                            list.add(new ActiveApexInfo(name, path, "true".equals(sharedApex)));
+                        }
+                    }
+                };
+            }
+        }.parse(new ByteArrayInputStream(apexInfoListXml.getBytes()));
+        return new ActiveApexInfoList(list);
+    }
+
     private String runMicrodroidWithResignedImages(File key, Map<String, File> keyOverrides,
             boolean isProtected, boolean daemonize, String consolePath)
-            throws DeviceNotAvailableException, IOException, JSONException {
+            throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
 
         File virtApexDir = FileUtil.createTempDir("virt_apex");
@@ -211,15 +309,11 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
         android.run(VIRT_APEX + "bin/vm", "create-partition", "--type instance",
                 instanceImgPath, Integer.toString(10 * 1024 * 1024));
 
-        // payload-metadata is prepared on host with the two APEXes and APK
+        // payload-metadata is created on device
         final String payloadMetadataPath = TEST_ROOT + "payload-metadata.img";
-        getDevice().pushFile(findTestFile("test-payload-metadata.img"), payloadMetadataPath);
 
-        // push APEXes required for the VM.
-        final String statsdApexPath = TEST_ROOT + "com.android.os.statsd.apex";
-        final String adbdApexPath = TEST_ROOT + "com.android.adbd.apex";
-        getDevice().pushFile(findTestFile("com.android.os.statsd.apex"), statsdApexPath);
-        getDevice().pushFile(findTestFile("com.android.adbd.apex"), adbdApexPath);
+        // Load /apex/apex-info-list.xml to get paths to APEXes required for the VM.
+        ActiveApexInfoList list = getActiveApexInfoList();
 
         // Since Java APP can't start a VM with a custom image, here, we start a VM using `vm run`
         // command with a VM Raw config which is equiv. to what virtualizationservice creates with
@@ -259,14 +353,28 @@ public class MicrodroidTestCase extends VirtualizationTestCaseBase {
 
         // Add payload image disk with partitions:
         // - payload-metadata
-        // - apexes: com.android.os.statsd, com.android.adbd
+        // - apexes: com.android.os.statsd, com.android.adbd, [sharedlib apex](optional)
         // - apk and idsig
-        disks.put(new JSONObject().put("writable", false).put("partitions", new JSONArray()
-                .put(newPartition("payload-metadata", payloadMetadataPath))
-                .put(newPartition("microdroid-apex-0", statsdApexPath))
-                .put(newPartition("microdroid-apex-1", adbdApexPath))
+        List<ActiveApexInfo> apexesForVm = new ArrayList<>();
+        apexesForVm.add(list.get("com.android.os.statsd"));
+        apexesForVm.add(list.get("com.android.adbd"));
+        apexesForVm.addAll(list.getSharedLibApexes());
+
+        final JSONArray partitions = new JSONArray();
+        partitions.put(newPartition("payload-metadata", payloadMetadataPath));
+        int apexIndex = 0;
+        for (ActiveApexInfo apex : apexesForVm) {
+            partitions.put(
+                    newPartition(String.format("microdroid-apex-%d", apexIndex++), apex.path));
+        }
+        partitions
                 .put(newPartition("microdroid-apk", apkPath))
-                .put(newPartition("microdroid-apk-idsig", idSigPath))));
+                .put(newPartition("microdroid-apk-idsig", idSigPath));
+        disks.put(new JSONObject().put("writable", false).put("partitions", partitions));
+
+        final File localPayloadMetadata = new File(virtApexDir, "payload-metadata.img");
+        createPayloadMetadata(apexesForVm, localPayloadMetadata);
+        getDevice().pushFile(localPayloadMetadata, payloadMetadataPath);
 
         config.put("protected", isProtected);
 
