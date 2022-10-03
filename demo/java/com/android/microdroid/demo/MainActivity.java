@@ -259,7 +259,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 VirtualMachineConfig.Builder builder =
                         new VirtualMachineConfig.Builder(getApplication());
-                builder.setPayloadConfigPath("assets/vm_config.json");
+                builder.setPayloadBinaryPath("MicrodroidTestNativeLib.so");
                 builder.setProtectedVm(true);
                 if (debug) {
                     builder.setDebugLevel(VirtualMachineConfig.DEBUG_LEVEL_FULL);

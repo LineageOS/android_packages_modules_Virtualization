@@ -181,11 +181,6 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     setvbuf(stdout, nullptr, _IONBF, 0);
     setvbuf(stderr, nullptr, _IONBF, 0);
 
-    if (argc >= 2 && strcmp(argv[1], "crash") == 0) {
-        printf("test crash!!!!\n");
-        abort();
-    }
-
     printf("Hello Microdroid ");
     for (int i = 0; i < argc; i++) {
         printf("%s", argv[i]);

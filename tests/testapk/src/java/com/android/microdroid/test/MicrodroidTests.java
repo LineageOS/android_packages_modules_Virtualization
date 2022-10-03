@@ -122,7 +122,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void bootFailsWhenLowMem() throws Exception {
         for (int memMib : new int[]{ 10, 20, 40 }) {
-            VirtualMachineConfig lowMemConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
+            VirtualMachineConfig lowMemConfig = mInner.newVmConfigBuilder()
+                    .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                     .setMemoryMib(memMib)
                     .setDebugLevel(DEBUG_LEVEL_NONE)
                     .build();
@@ -157,8 +158,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void changingDebugLevelInvalidatesVmIdentity() throws Exception {
         assumeSupportedKernel();
 
-        VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder("assets/vm_config.json");
-        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_NONE).build();
+        VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setDebugLevel(DEBUG_LEVEL_NONE);
+        VirtualMachineConfig normalConfig = builder.build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
 
@@ -219,7 +222,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void instancesOfSameVmHaveDifferentCdis() throws Exception {
         assumeSupportedKernel();
 
-        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
+        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm_a", normalConfig);
@@ -243,7 +247,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void sameInstanceKeepsSameCdis() throws Exception {
         assumeSupportedKernel();
 
-        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
+        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
@@ -264,7 +269,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void bccIsSuperficiallyWellFormed() throws Exception {
         assumeSupportedKernel();
 
-        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
+        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("bcc_vm", normalConfig);
@@ -338,7 +344,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     private RandomAccessFile prepareInstanceImage(String vmName) throws Exception {
-        VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config.json")
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
 
@@ -411,14 +418,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void sameInstancesShareTheSameVmObject() throws Exception {
-        VirtualMachineConfig.Builder builder =
-                mInner.newVmConfigBuilder("assets/vm_config.json");
-        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_NONE).build();
-        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setDebugLevel(DEBUG_LEVEL_NONE)
+                .build();
+
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm", config);
         VirtualMachine vm2 = mInner.getVirtualMachineManager().get("test_vm");
         assertThat(vm).isEqualTo(vm2);
 
-        VirtualMachine newVm = mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
+        VirtualMachine newVm = mInner.forceCreateNewVirtualMachine("test_vm", config);
         VirtualMachine newVm2 = mInner.getVirtualMachineManager().get("test_vm");
         assertThat(newVm).isEqualTo(newVm2);
 
