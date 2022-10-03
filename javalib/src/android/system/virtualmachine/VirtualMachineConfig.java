@@ -18,11 +18,14 @@ package android.system.virtualmachine;
 
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 
+import static java.util.Objects.requireNonNull;
+
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.PackageInfoFlags;
-import android.content.pm.Signature; // This actually is certificate!
+import android.content.pm.Signature;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.sysprop.HypervisorProperties;
@@ -33,10 +36,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Represents a configuration of a virtual machine. A configuration consists of hardware
@@ -61,32 +65,40 @@ public final class VirtualMachineConfig {
     @NonNull private final String mApkPath;
     @NonNull private final Signature[] mCerts;
 
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({
+            DEBUG_LEVEL_NONE,
+            DEBUG_LEVEL_APP_ONLY,
+            DEBUG_LEVEL_FULL
+    })
+    public @interface DebugLevel {}
+
     /**
-     * A debug level defines the set of debug features that the VM can be configured to.
+     * Not debuggable at all. No log is exported from the VM. Debugger can't be attached to the
+     * app process running in the VM. This is the default level.
      *
      * @hide
      */
-    public enum DebugLevel {
-        /**
-         * Not debuggable at all. No log is exported from the VM. Debugger can't be attached to the
-         * app process running in the VM. This is the default level.
-         */
-        NONE,
+    public static final int DEBUG_LEVEL_NONE = 0;
 
-        /**
-         * Only the app is debuggable. Log from the app is exported from the VM. Debugger can be
-         * attached to the app process. Rest of the VM is not debuggable.
-         */
-        APP_ONLY,
+    /**
+     * Only the app is debuggable. Log from the app is exported from the VM. Debugger can be
+     * attached to the app process. Rest of the VM is not debuggable.
+     *
+     * @hide
+     */
+    public static final int DEBUG_LEVEL_APP_ONLY = 1;
 
-        /**
-         * Fully debuggable. All logs (both logcat and kernel message) are exported. All processes
-         * running in the VM can be attached to the debugger. Rooting is possible.
-         */
-        FULL,
-    }
+    /**
+     * Fully debuggable. All logs (both logcat and kernel message) are exported. All processes
+     * running in the VM can be attached to the debugger. Rooting is possible.
+     *
+     * @hide
+     */
+    public static final int DEBUG_LEVEL_FULL = 2;
 
-    private final DebugLevel mDebugLevel;
+    @DebugLevel private final int mDebugLevel;
 
     /**
      * Whether to run the VM in protected mode, so the host can't access its memory.
@@ -112,7 +124,7 @@ public final class VirtualMachineConfig {
             @NonNull String apkPath,
             @NonNull Signature[] certs,
             @NonNull String payloadConfigPath,
-            DebugLevel debugLevel,
+            @DebugLevel int debugLevel,
             boolean protectedVm,
             int memoryMib,
             int numCpus) {
@@ -151,7 +163,11 @@ public final class VirtualMachineConfig {
         if (payloadConfigPath == null) {
             throw new VirtualMachineException("No payloadConfigPath");
         }
-        final DebugLevel debugLevel = DebugLevel.values()[b.getInt(KEY_DEBUGLEVEL)];
+        @DebugLevel final int debugLevel = b.getInt(KEY_DEBUGLEVEL);
+        if (debugLevel != DEBUG_LEVEL_NONE && debugLevel != DEBUG_LEVEL_APP_ONLY
+                && debugLevel != DEBUG_LEVEL_FULL) {
+            throw new VirtualMachineException("Invalid debugLevel: " + debugLevel);
+        }
         final boolean protectedVm = b.getBoolean(KEY_PROTECTED_VM);
         final int memoryMib = b.getInt(KEY_MEMORY_MIB);
         final int numCpus = b.getInt(KEY_NUM_CPUS);
@@ -171,7 +187,7 @@ public final class VirtualMachineConfig {
         String[] certs = certList.toArray(new String[0]);
         b.putStringArray(KEY_CERTS, certs);
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
-        b.putInt(KEY_DEBUGLEVEL, mDebugLevel.ordinal());
+        b.putInt(KEY_DEBUGLEVEL, mDebugLevel);
         b.putBoolean(KEY_PROTECTED_VM, mProtectedVm);
         b.putInt(KEY_NUM_CPUS, mNumCpus);
         if (mMemoryMib > 0) {
@@ -188,6 +204,44 @@ public final class VirtualMachineConfig {
     @NonNull
     public String getPayloadConfigPath() {
         return mPayloadConfigPath;
+    }
+
+    /**
+     * Returns the debug level for the VM.
+     *
+     * @hide
+     */
+    @NonNull
+    @DebugLevel
+    public int getDebugLevel() {
+        return mDebugLevel;
+    }
+
+    /**
+     * Returns whether the VM's memory will be protected from the host.
+     *
+     * @hide
+     */
+    public boolean isProtectedVm() {
+        return mProtectedVm;
+    }
+
+    /**
+     * Returns the amount of RAM that will be made available to the VM.
+     *
+     * @hide
+     */
+    public int getMemoryMib() {
+        return mMemoryMib;
+    }
+
+    /**
+     * Returns the number of vCPUs that the VM will have.
+     *
+     * @hide
+     */
+    public int getNumCpus() {
+        return mNumCpus;
     }
 
     /**
@@ -224,14 +278,14 @@ public final class VirtualMachineConfig {
         parcel.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
         parcel.payload = VirtualMachineAppConfig.Payload.configPath(mPayloadConfigPath);
         switch (mDebugLevel) {
-            case NONE:
-                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.NONE;
-                break;
-            case APP_ONLY:
+            case DEBUG_LEVEL_APP_ONLY:
                 parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.APP_ONLY;
                 break;
-            case FULL:
+            case DEBUG_LEVEL_FULL:
                 parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.FULL;
+                break;
+            default:
+                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.NONE;
                 break;
         }
         parcel.protectedVm = mProtectedVm;
@@ -248,10 +302,10 @@ public final class VirtualMachineConfig {
      *
      * @hide
      */
-    public static class Builder {
+    public static final class Builder {
         private final Context mContext;
         private final String mPayloadConfigPath;
-        private DebugLevel mDebugLevel;
+        @DebugLevel private int mDebugLevel;
         private boolean mProtectedVm;
         private int mMemoryMib;
         private int mNumCpus;
@@ -262,9 +316,10 @@ public final class VirtualMachineConfig {
          * @hide
          */
         public Builder(@NonNull Context context, @NonNull String payloadConfigPath) {
-            mContext = Objects.requireNonNull(context);
-            mPayloadConfigPath = Objects.requireNonNull(payloadConfigPath);
-            mDebugLevel = DebugLevel.NONE;
+            mContext = requireNonNull(context, "context must not be null");
+            mPayloadConfigPath = requireNonNull(payloadConfigPath,
+                    "payloadConfigPath must not be null");
+            mDebugLevel = DEBUG_LEVEL_NONE;
             mProtectedVm = false;
             mNumCpus = 1;
         }
@@ -274,7 +329,8 @@ public final class VirtualMachineConfig {
          *
          * @hide
          */
-        public Builder debugLevel(DebugLevel debugLevel) {
+        @NonNull
+        public Builder setDebugLevel(@DebugLevel int debugLevel) {
             mDebugLevel = debugLevel;
             return this;
         }
@@ -284,7 +340,8 @@ public final class VirtualMachineConfig {
          *
          * @hide
          */
-        public Builder protectedVm(boolean protectedVm) {
+        @NonNull
+        public Builder setProtectedVm(boolean protectedVm) {
             mProtectedVm = protectedVm;
             return this;
         }
@@ -295,7 +352,8 @@ public final class VirtualMachineConfig {
          *
          * @hide
          */
-        public Builder memoryMib(int memoryMib) {
+        @NonNull
+        public Builder setMemoryMib(int memoryMib) {
             mMemoryMib = memoryMib;
             return this;
         }
@@ -305,7 +363,8 @@ public final class VirtualMachineConfig {
          *
          * @hide
          */
-        public Builder numCpus(int num) {
+        @NonNull
+        public Builder setNumCpus(int num) {
             mNumCpus = num;
             return this;
         }

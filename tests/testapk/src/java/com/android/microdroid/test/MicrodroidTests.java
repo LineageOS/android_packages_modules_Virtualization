@@ -15,6 +15,9 @@
  */
 package com.android.microdroid.test;
 
+import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_FULL;
+import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_NONE;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.TruthJUnit.assume;
 
@@ -26,8 +29,6 @@ import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
-import android.system.virtualmachine.VirtualMachineConfig.DebugLevel;
-import android.system.virtualmachine.VirtualMachineException;
 import android.util.Log;
 
 import com.android.compatibility.common.util.CddTest;
@@ -53,7 +54,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
@@ -86,7 +86,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-1"
     })
-    public void connectToVmService() throws VirtualMachineException, InterruptedException {
+    public void connectToVmService() throws Exception {
         assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
@@ -98,10 +98,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             String primaryAbi = Build.SUPPORTED_ABIS[0];
             switch(primaryAbi) {
                 case "x86_64":
-                    builder.memoryMib(MIN_MEM_X86_64);
+                    builder.setMemoryMib(MIN_MEM_X86_64);
                     break;
                 case "arm64-v8a":
-                    builder.memoryMib(MIN_MEM_ARM64);
+                    builder.setMemoryMib(MIN_MEM_ARM64);
                     break;
             }
         }
@@ -123,7 +123,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     private void testVMService(VirtualMachine vm) {
                         try {
                             ITestService testService = ITestService.Stub.asInterface(
-                                    vm.connectToVsockServer(ITestService.SERVICE_PORT).get());
+                                    vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             testResults.mAddInteger = testService.addInteger(123, 456);
                             testResults.mAppRunProp =
                                     testService.readProperty("debug.microdroid.app.run");
@@ -163,15 +163,15 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    public void bootFailsWhenLowMem() throws VirtualMachineException, InterruptedException {
+    public void bootFailsWhenLowMem() throws Exception {
         for (int memMib : new int[]{ 10, 20, 40 }) {
             VirtualMachineConfig lowMemConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                    .memoryMib(memMib)
-                    .debugLevel(DebugLevel.NONE)
+                    .setMemoryMib(memMib)
+                    .setDebugLevel(DEBUG_LEVEL_NONE)
                     .build();
             VirtualMachine vm = mInner.forceCreateNewVirtualMachine("low_mem", lowMemConfig);
             final CompletableFuture<Boolean> onPayloadReadyExecuted = new CompletableFuture<>();
-            final CompletableFuture<Boolean> onDiedExecuted = new CompletableFuture<>();
+            final CompletableFuture<Boolean> onStoppedExecuted = new CompletableFuture<>();
             VmEventListener listener =
                     new VmEventListener() {
                         @Override
@@ -180,14 +180,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                             super.onPayloadReady(vm);
                         }
                         @Override
-                        public void onDied(VirtualMachine vm,  int reason) {
-                            onDiedExecuted.complete(true);
-                            super.onDied(vm, reason);
+                        public void onStopped(VirtualMachine vm,  int reason) {
+                            onStoppedExecuted.complete(true);
+                            super.onStopped(vm, reason);
                         }
                     };
             listener.runToFinish(TAG, vm);
-            // Assert that onDied() was executed but onPayloadReady() was never run
-            assertThat(onDiedExecuted.getNow(false)).isTrue();
+            // Assert that onStopped() was executed but onPayloadReady() was never run
+            assertThat(onStoppedExecuted.getNow(false)).isTrue();
             assertThat(onPayloadReadyExecuted.getNow(false)).isFalse();
         }
     }
@@ -197,15 +197,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
-    public void changingDebugLevelInvalidatesVmIdentity()
-            throws VirtualMachineException, InterruptedException, IOException {
+    public void changingDebugLevelInvalidatesVmIdentity() throws Exception {
         assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder("assets/vm_config.json");
-        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_NONE).build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
 
@@ -223,19 +222,18 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // Launch the same VM with different debug level. The Java API prohibits this (thankfully).
         // For testing, we do that by creating a new VM with debug level, and copy the old instance
         // image to the new VM instance image.
-        VirtualMachineConfig debugConfig = builder.debugLevel(DebugLevel.FULL).build();
+        VirtualMachineConfig debugConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
         mInner.forceCreateNewVirtualMachine("test_vm", debugConfig);
         Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isFalse();
     }
 
-    private class VmCdis {
+    private static class VmCdis {
         public byte[] cdiAttest;
         public byte[] cdiSeal;
     }
 
-    private VmCdis launchVmAndGetCdis(String instanceName)
-            throws VirtualMachineException, InterruptedException {
+    private VmCdis launchVmAndGetCdis(String instanceName) throws Exception {
         VirtualMachine vm = mInner.getVirtualMachineManager().get(instanceName);
         final VmCdis vmCdis = new VmCdis();
         final CompletableFuture<Exception> exception = new CompletableFuture<>();
@@ -245,7 +243,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     public void onPayloadReady(VirtualMachine vm) {
                         try {
                             ITestService testService = ITestService.Stub.asInterface(
-                                    vm.connectToVsockServer(ITestService.SERVICE_PORT).get());
+                                    vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             vmCdis.cdiAttest = testService.insecurelyExposeAttestationCdi();
                             vmCdis.cdiSeal = testService.insecurelyExposeSealingCdi();
                             forceStop(vm);
@@ -264,15 +262,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
-    public void instancesOfSameVmHaveDifferentCdis()
-            throws VirtualMachineException, InterruptedException {
+    public void instancesOfSameVmHaveDifferentCdis() throws Exception {
         assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.FULL)
+                .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm_a", normalConfig);
         mInner.forceCreateNewVirtualMachine("test_vm_b", normalConfig);
@@ -292,15 +289,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
-    public void sameInstanceKeepsSameCdis()
-            throws VirtualMachineException, InterruptedException {
+    public void sameInstanceKeepsSameCdis() throws Exception {
         assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.FULL)
+                .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
 
@@ -317,18 +313,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
-    public void bccIsSuperficiallyWellFormed()
-            throws VirtualMachineException, InterruptedException, CborException {
+    public void bccIsSuperficiallyWellFormed() throws Exception {
         assume()
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.FULL)
+                .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("bcc_vm", normalConfig);
-        final VmCdis vmCdis = new VmCdis();
         final CompletableFuture<byte[]> bcc = new CompletableFuture<>();
         final CompletableFuture<Exception> exception = new CompletableFuture<>();
         VmEventListener listener =
@@ -337,7 +331,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     public void onPayloadReady(VirtualMachine vm) {
                         try {
                             ITestService testService = ITestService.Stub.asInterface(
-                                    vm.connectToVsockServer(ITestService.SERVICE_PORT).get());
+                                    vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             bcc.complete(testService.getBcc());
                             forceStop(vm);
                         } catch (Exception e) {
@@ -398,10 +392,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         file.writeByte(b ^ 1);
     }
 
-    private RandomAccessFile prepareInstanceImage(String vmName)
-            throws VirtualMachineException, InterruptedException, IOException {
+    private RandomAccessFile prepareInstanceImage(String vmName) throws Exception {
         VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config.json")
-                .debugLevel(DebugLevel.FULL)
+                .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
 
         mInner.forceCreateNewVirtualMachine(vmName, config);
@@ -413,8 +406,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         return new RandomAccessFile(instanceImgPath, "rw");
     }
 
-    private void assertThatPartitionIsMissing(UUID partitionUuid)
-            throws VirtualMachineException, InterruptedException, IOException {
+    private void assertThatPartitionIsMissing(UUID partitionUuid) throws Exception {
         RandomAccessFile instanceFile = prepareInstanceImage("test_vm_integrity");
         assertThat(findPartitionDataOffset(instanceFile, partitionUuid).isPresent())
                 .isFalse();
@@ -422,7 +414,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     // Flips a bit of given partition, and then see if boot fails.
     private void assertThatBootFailsAfterCompromisingPartition(UUID partitionUuid)
-            throws VirtualMachineException, InterruptedException, IOException {
+            throws Exception {
         RandomAccessFile instanceFile = prepareInstanceImage("test_vm_integrity");
         OptionalLong offset = findPartitionDataOffset(instanceFile, partitionUuid);
         assertThat(offset.isPresent()).isTrue();
@@ -433,7 +425,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(result.payloadStarted).isFalse();
 
         // This failure should shut the VM down immediately and shouldn't trigger a hangup.
-        assertThat(result.deathReason).isNotEqualTo(VirtualMachineCallback.DEATH_REASON_HANGUP);
+        assertThat(result.deathReason).isNotEqualTo(VirtualMachineCallback.STOP_REASON_HANGUP);
     }
 
     @Test
@@ -441,8 +433,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
-    public void bootFailsWhenMicrodroidDataIsCompromised()
-            throws VirtualMachineException, InterruptedException, IOException {
+    public void bootFailsWhenMicrodroidDataIsCompromised() throws Exception {
         assertThatBootFailsAfterCompromisingPartition(MICRODROID_PARTITION_UUID);
     }
 
@@ -451,8 +442,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
             "9.17/C-2-7"
     })
-    public void bootFailsWhenPvmFwDataIsCompromised()
-            throws VirtualMachineException, InterruptedException, IOException {
+    public void bootFailsWhenPvmFwDataIsCompromised() throws Exception {
         if (mProtectedVm) {
             assertThatBootFailsAfterCompromisingPartition(PVM_FW_PARTITION_UUID);
         } else {
@@ -462,25 +452,23 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    public void bootFailsWhenConfigIsInvalid()
-            throws VirtualMachineException, InterruptedException, IOException {
+    public void bootFailsWhenConfigIsInvalid() throws Exception {
         VirtualMachineConfig.Builder builder =
                 mInner.newVmConfigBuilder("assets/vm_config_no_task.json");
-        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.FULL).build();
+        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
         mInner.forceCreateNewVirtualMachine("test_vm_invalid_config", normalConfig);
 
         BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_config");
         assertThat(bootResult.payloadStarted).isFalse();
         assertThat(bootResult.deathReason).isEqualTo(
-                VirtualMachineCallback.DEATH_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG);
+                VirtualMachineCallback.STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG);
     }
 
     @Test
-    public void sameInstancesShareTheSameVmObject()
-            throws VirtualMachineException, InterruptedException, IOException {
+    public void sameInstancesShareTheSameVmObject() throws Exception {
         VirtualMachineConfig.Builder builder =
                 mInner.newVmConfigBuilder("assets/vm_config.json");
-        VirtualMachineConfig normalConfig = builder.debugLevel(DebugLevel.NONE).build();
+        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_NONE).build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
         VirtualMachine vm2 = mInner.getVirtualMachineManager().get("test_vm");
         assertThat(vm).isEqualTo(vm2);

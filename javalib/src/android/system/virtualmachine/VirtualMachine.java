@@ -18,16 +18,43 @@ package android.system.virtualmachine;
 
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 import static android.os.ParcelFileDescriptor.MODE_READ_WRITE;
+import static android.system.virtualmachine.VirtualMachineCallback.ERROR_PAYLOAD_CHANGED;
+import static android.system.virtualmachine.VirtualMachineCallback.ERROR_PAYLOAD_INVALID_CONFIG;
+import static android.system.virtualmachine.VirtualMachineCallback.ERROR_PAYLOAD_VERIFICATION_FAILED;
+import static android.system.virtualmachine.VirtualMachineCallback.ERROR_UNKNOWN;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_CRASH;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_ERROR;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_HANGUP;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_INFRASTRUCTURE_ERROR;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_KILLED;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_REBOOT;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_SHUTDOWN;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_UNKNOWN;
+
+import static java.util.Objects.requireNonNull;
 
 import android.annotation.CallbackExecutor;
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresPermission;
 import android.content.Context;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.system.virtualizationcommon.ErrorCode;
+import android.system.virtualizationservice.DeathReason;
 import android.system.virtualizationservice.IVirtualMachine;
 import android.system.virtualizationservice.IVirtualMachineCallback;
 import android.system.virtualizationservice.IVirtualizationService;
@@ -45,6 +72,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
@@ -55,9 +84,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.WeakHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.zip.ZipFile;
@@ -68,7 +94,7 @@ import java.util.zip.ZipFile;
  *
  * @hide
  */
-public class VirtualMachine {
+public class VirtualMachine implements AutoCloseable {
     private static final Map<Context, Map<String, WeakReference<VirtualMachine>>> sInstances =
             new WeakHashMap<>();
 
@@ -92,18 +118,35 @@ public class VirtualMachine {
     /** Name of the virtualization service. */
     private static final String SERVICE_NAME = "android.system.virtualizationservice";
 
-    /** Status of a virtual machine */
-    public enum Status {
-        /** The virtual machine has just been created, or {@link #stop()} was called on it. */
-        STOPPED,
-        /** The virtual machine is running. */
-        RUNNING,
-        /**
-         * The virtual machine is deleted. This is a irreversable state. Once a virtual machine is
-         * deleted, it can never be undone, which means all its secrets are permanently lost.
-         */
-        DELETED,
-    }
+    /** The permission needed to create or run a virtual machine. */
+    public static final String MANAGE_VIRTUAL_MACHINE_PERMISSION =
+            "android.permission.MANAGE_VIRTUAL_MACHINE";
+
+    /**
+     * Status of a virtual machine
+     *
+     * @hide
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({
+            STATUS_STOPPED,
+            STATUS_RUNNING,
+            STATUS_DELETED
+    })
+    public @interface Status {}
+
+     /** The virtual machine has just been created, or {@link #stop()} was called on it. */
+    public static final int STATUS_STOPPED = 0;
+
+    /** The virtual machine is running. */
+    public static final int STATUS_RUNNING = 1;
+
+    /**
+     * The virtual machine has been deleted. This is an irreversible state. Once a virtual machine
+     * is deleted all its secrets are permanently lost, and it cannot be run. A new virtual machine
+     * with the same name and config may be created, with new and different secrets.
+     */
+    public static final int STATUS_DELETED = 2;
 
     /** Lock for internal synchronization. */
     private final Object mLock = new Object();
@@ -166,8 +209,6 @@ public class VirtualMachine {
     @Nullable private ParcelFileDescriptor mLogReader;
     @Nullable private ParcelFileDescriptor mLogWriter;
 
-    private final ExecutorService mExecutorService = Executors.newCachedThreadPool();
-
     @NonNull private final Context mContext;
 
     static {
@@ -179,8 +220,8 @@ public class VirtualMachine {
             throws VirtualMachineException {
         mContext = context;
         mPackageName = context.getPackageName();
-        mName = name;
-        mConfig = config;
+        mName = requireNonNull(name, "Name must not be null");
+        mConfig = requireNonNull(config, "Config must not be null");
         mConfigFilePath = getConfigFilePath(context, name);
 
         final File vmRoot = new File(context.getFilesDir(), VM_DIR);
@@ -193,15 +234,12 @@ public class VirtualMachine {
     /**
      * Creates a virtual machine with the given name and config. Once a virtual machine is created
      * it is persisted until it is deleted by calling {@link #delete()}. The created virtual machine
-     * is in {@link Status#STOPPED} state. To run the VM, call {@link #run()}.
+     * is in {@link #STATUS_STOPPED} state. To run the VM, call {@link #run()}.
      */
     @NonNull
     static VirtualMachine create(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        if (config == null) {
-            throw new VirtualMachineException("null config");
-        }
         VirtualMachine vm = new VirtualMachine(context, name, config);
 
         try {
@@ -332,29 +370,29 @@ public class VirtualMachine {
      *
      * @hide
      */
-    @NonNull
-    public Status getStatus() throws VirtualMachineException {
+    @Status
+    public int getStatus() throws VirtualMachineException {
         try {
             if (mVirtualMachine != null) {
                 switch (mVirtualMachine.getState()) {
                     case VirtualMachineState.NOT_STARTED:
-                        return Status.STOPPED;
+                        return STATUS_STOPPED;
                     case VirtualMachineState.STARTING:
                     case VirtualMachineState.STARTED:
                     case VirtualMachineState.READY:
                     case VirtualMachineState.FINISHED:
-                        return Status.RUNNING;
+                        return STATUS_RUNNING;
                     case VirtualMachineState.DEAD:
-                        return Status.STOPPED;
+                        return STATUS_STOPPED;
                 }
             }
         } catch (RemoteException e) {
             throw new VirtualMachineException(e);
         }
         if (!mConfigFilePath.exists()) {
-            return Status.DELETED;
+            return STATUS_DELETED;
         }
-        return Status.STOPPED;
+        return STATUS_STOPPED;
     }
 
     /**
@@ -363,8 +401,7 @@ public class VirtualMachine {
      *
      * @hide
      */
-    public void setCallback(
-            @NonNull @CallbackExecutor Executor executor,
+    public void setCallback(@NonNull @CallbackExecutor Executor executor,
             @NonNull VirtualMachineCallback callback) {
         synchronized (mLock) {
             mCallback = callback;
@@ -406,12 +443,13 @@ public class VirtualMachine {
     /**
      * Runs this virtual machine. The returning of this method however doesn't mean that the VM has
      * actually started running or the OS has booted there. Such events can be notified by
-     * registering a callback object (not implemented currently).
+     * registering a callback using {@link #setCallback(Executor, VirtualMachineCallback)}.
      *
      * @hide
      */
+    @RequiresPermission(MANAGE_VIRTUAL_MACHINE_PERMISSION)
     public void run() throws VirtualMachineException {
-        if (getStatus() != Status.STOPPED) {
+        if (getStatus() != STATUS_STOPPED) {
             throw new VirtualMachineException(this + " is not in stopped state");
         }
 
@@ -472,8 +510,8 @@ public class VirtualMachine {
 
             IBinder.DeathRecipient deathRecipient = () -> {
                 if (onDiedCalled.compareAndSet(false, true)) {
-                    executeCallback((cb) -> cb.onDied(VirtualMachine.this,
-                            VirtualMachineCallback.DEATH_REASON_VIRTUALIZATIONSERVICE_DIED));
+                    executeCallback((cb) -> cb.onStopped(VirtualMachine.this,
+                            VirtualMachineCallback.STOP_REASON_VIRTUALIZATION_SERVICE_DIED));
                 }
             };
 
@@ -485,28 +523,37 @@ public class VirtualMachine {
                             executeCallback(
                                     (cb) -> cb.onPayloadStarted(VirtualMachine.this, stream));
                         }
+
                         @Override
                         public void onPayloadReady(int cid) {
                             executeCallback((cb) -> cb.onPayloadReady(VirtualMachine.this));
                         }
+
                         @Override
                         public void onPayloadFinished(int cid, int exitCode) {
                             executeCallback(
                                     (cb) -> cb.onPayloadFinished(VirtualMachine.this, exitCode));
                         }
+
                         @Override
                         public void onError(int cid, int errorCode, String message) {
+                            int translatedError = getTranslatedError(errorCode);
                             executeCallback(
-                                    (cb) -> cb.onError(VirtualMachine.this, errorCode, message));
+                                    (cb) -> cb.onError(VirtualMachine.this, translatedError,
+                                            message));
                         }
+
                         @Override
                         public void onDied(int cid, int reason) {
-                            // TODO(b/236811123) translate `reason` into a stable reason numbers
                             service.asBinder().unlinkToDeath(deathRecipient, 0);
+                            int translatedReason = getTranslatedReason(reason);
                             if (onDiedCalled.compareAndSet(false, true)) {
-                                executeCallback((cb) -> cb.onDied(VirtualMachine.this, reason));
+                                executeCallback(
+                                        (cb) -> cb.onStopped(VirtualMachine.this,
+                                                translatedReason));
                             }
                         }
+
                         @Override
                         public void onRamdump(int cid, ParcelFileDescriptor ramdump) {
                             executeCallback(
@@ -518,6 +565,60 @@ public class VirtualMachine {
             mVirtualMachine.start();
         } catch (IOException | RemoteException e) {
             throw new VirtualMachineException(e);
+        }
+    }
+
+    @VirtualMachineCallback.ErrorCode
+    private int getTranslatedError(int reason) {
+        switch (reason) {
+            case ErrorCode.PAYLOAD_VERIFICATION_FAILED:
+                return ERROR_PAYLOAD_VERIFICATION_FAILED;
+            case ErrorCode.PAYLOAD_CHANGED:
+                return ERROR_PAYLOAD_CHANGED;
+            case ErrorCode.PAYLOAD_CONFIG_INVALID:
+                return ERROR_PAYLOAD_INVALID_CONFIG;
+            default:
+                return ERROR_UNKNOWN;
+        }
+    }
+
+    @VirtualMachineCallback.StopReason
+    private int getTranslatedReason(int reason) {
+        switch (reason) {
+            case DeathReason.INFRASTRUCTURE_ERROR:
+                return STOP_REASON_INFRASTRUCTURE_ERROR;
+            case DeathReason.KILLED:
+                return STOP_REASON_KILLED;
+            case DeathReason.SHUTDOWN:
+                return STOP_REASON_SHUTDOWN;
+            case DeathReason.ERROR:
+                return STOP_REASON_ERROR;
+            case DeathReason.REBOOT:
+                return STOP_REASON_REBOOT;
+            case DeathReason.CRASH:
+                return STOP_REASON_CRASH;
+            case DeathReason.PVM_FIRMWARE_PUBLIC_KEY_MISMATCH:
+                return STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH;
+            case DeathReason.PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED:
+                return STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED;
+            case DeathReason.BOOTLOADER_PUBLIC_KEY_MISMATCH:
+                return STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH;
+            case DeathReason.BOOTLOADER_INSTANCE_IMAGE_CHANGED:
+                return STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED;
+            case DeathReason.MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE:
+                return STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE;
+            case DeathReason.MICRODROID_PAYLOAD_HAS_CHANGED:
+                return STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED;
+            case DeathReason.MICRODROID_PAYLOAD_VERIFICATION_FAILED:
+                return STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED;
+            case DeathReason.MICRODROID_INVALID_PAYLOAD_CONFIG:
+                return STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG;
+            case DeathReason.MICRODROID_UNKNOWN_RUNTIME_ERROR:
+                return STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR;
+            case DeathReason.HANGUP:
+                return STOP_REASON_HANGUP;
+            default:
+                return STOP_REASON_UNKNOWN;
         }
     }
 
@@ -550,7 +651,7 @@ public class VirtualMachine {
     /**
      * Stops this virtual machine. Stopping a virtual machine is like pulling the plug on a real
      * computer; the machine halts immediately. Software running on the virtual machine is not
-     * notified with the event. A stopped virtual machine can be re-started by calling {@link
+     * notified of the event. A stopped virtual machine can be re-started by calling {@link
      * #run()}.
      *
      * @hide
@@ -566,15 +667,25 @@ public class VirtualMachine {
     }
 
     /**
+     * Stops this virtual machine. See {@link #stop()}.
+     *
+     * @hide
+     */
+    @Override
+    public void close() throws VirtualMachineException {
+        stop();
+    }
+
+    /**
      * Deletes this virtual machine. Deleting a virtual machine means deleting any persisted data
-     * associated with it including the per-VM secret. This is an irreversable action. A virtual
+     * associated with it including the per-VM secret. This is an irreversible action. A virtual
      * machine once deleted can never be restored. A new virtual machine created with the same name
      * and the same config is different from an already deleted virtual machine.
      *
      * @hide
      */
     public void delete() throws VirtualMachineException {
-        if (getStatus() != Status.STOPPED) {
+        if (getStatus() != STATUS_STOPPED) {
             throw new VirtualMachineException("Virtual machine is not stopped");
         }
         final File vmRootDir = mConfigFilePath.getParentFile();
@@ -599,7 +710,7 @@ public class VirtualMachine {
      */
     @NonNull
     public Optional<Integer> getCid() throws VirtualMachineException {
-        if (getStatus() != Status.RUNNING) {
+        if (getStatus() != STATUS_RUNNING) {
             return Optional.empty();
         }
         try {
@@ -629,7 +740,7 @@ public class VirtualMachine {
         if (!oldConfig.isCompatibleWith(newConfig)) {
             throw new VirtualMachineException("incompatible config");
         }
-        if (getStatus() != Status.STOPPED) {
+        if (getStatus() != STATUS_STOPPED) {
             throw new VirtualMachineException(
                     "can't change config while virtual machine is not stopped");
         }
@@ -649,19 +760,19 @@ public class VirtualMachine {
     private static native IBinder nativeConnectToVsockServer(IBinder vmBinder, int port);
 
     /**
-     * Connects to a VM's RPC server via vsock, and returns a root IBinder object. Guest VMs are
+     * Connect to a VM's binder service via vsock and return the root IBinder object. Guest VMs are
      * expected to set up vsock servers in their payload. After the host app receives the {@link
      * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to
-     * establish an RPC session to the guest VMs.
+     * establish a connection to the guest VM.
      *
      * @hide
      */
-    public Future<IBinder> connectToVsockServer(int port) throws VirtualMachineException {
-        if (getStatus() != Status.RUNNING) {
+    @NonNull
+    public IBinder connectToVsockServer(int port) throws VirtualMachineException {
+        if (getStatus() != STATUS_RUNNING) {
             throw new VirtualMachineException("VM is not running");
         }
-        return mExecutorService.submit(
-                () -> nativeConnectToVsockServer(mVirtualMachine.asBinder(), port));
+        return nativeConnectToVsockServer(mVirtualMachine.asBinder(), port);
     }
 
     /**
@@ -669,11 +780,12 @@ public class VirtualMachine {
      *
      * @hide
      */
+    @NonNull
     public ParcelFileDescriptor connectVsock(int port) throws VirtualMachineException {
         try {
             return mVirtualMachine.connectVsock(port);
         } catch (RemoteException e) {
-            throw new VirtualMachineException("failed to connect Vsock", e);
+            throw new VirtualMachineException("failed to connect vsock", e);
         }
     }
 
@@ -731,7 +843,6 @@ public class VirtualMachine {
             throws VirtualMachineException {
         try {
             ZipFile zipFile = new ZipFile(context.getPackageCodePath());
-            String payloadPath = config.getPayloadConfigPath();
             InputStream inputStream =
                     zipFile.getInputStream(zipFile.getEntry(config.getPayloadConfigPath()));
             List<String> apkList =
