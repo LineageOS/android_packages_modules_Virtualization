@@ -181,7 +181,7 @@ extern "C" int android_native_main(int argc, char* argv[]) {
     setvbuf(stdout, nullptr, _IONBF, 0);
     setvbuf(stderr, nullptr, _IONBF, 0);
 
-    if (strcmp(argv[1], "crash") == 0) {
+    if (argc >= 2 && strcmp(argv[1], "crash") == 0) {
         printf("test crash!!!!\n");
         abort();
     }

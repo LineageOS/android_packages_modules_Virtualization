@@ -87,78 +87,35 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-1"
     })
     public void connectToVmService() throws Exception {
-        assume()
-            .withMessage("SKip on 5.4 kernel. b/218303240")
-            .that(KERNEL_VERSION)
-            .isNotEqualTo("5.4");
+        assumeSupportedKernel();
 
-        VirtualMachineConfig.Builder builder =
-                mInner.newVmConfigBuilder("assets/vm_config_extra_apk.json");
-        if (Build.SUPPORTED_ABIS.length > 0) {
-            String primaryAbi = Build.SUPPORTED_ABIS[0];
-            switch(primaryAbi) {
-                case "x86_64":
-                    builder.setMemoryMib(MIN_MEM_X86_64);
-                    break;
-                case "arm64-v8a":
-                    builder.setMemoryMib(MIN_MEM_ARM64);
-                    break;
-            }
-        }
-        VirtualMachineConfig config = builder.build();
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setMemoryMib(minMemoryRequired())
+                .build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm_extra_apk", config);
 
-        class TestResults {
-            Exception mException;
-            Integer mAddInteger;
-            String mAppRunProp;
-            String mSublibRunProp;
-            String mExtraApkTestProp;
-        }
-        final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        final CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
-        final TestResults testResults = new TestResults();
-        VmEventListener listener =
-                new VmEventListener() {
-                    private void testVMService(VirtualMachine vm) {
-                        try {
-                            ITestService testService = ITestService.Stub.asInterface(
-                                    vm.connectToVsockServer(ITestService.SERVICE_PORT));
-                            testResults.mAddInteger = testService.addInteger(123, 456);
-                            testResults.mAppRunProp =
-                                    testService.readProperty("debug.microdroid.app.run");
-                            testResults.mSublibRunProp =
-                                    testService.readProperty("debug.microdroid.app.sublib.run");
-                            testResults.mExtraApkTestProp =
-                                    testService.readProperty("debug.microdroid.test.extra_apk");
-                        } catch (Exception e) {
-                            testResults.mException = e;
-                        }
-                    }
-
-                    @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        Log.i(TAG, "onPayloadReady");
-                        payloadReady.complete(true);
-                        testVMService(vm);
-                        forceStop(vm);
-                    }
-
-                    @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        Log.i(TAG, "onPayloadStarted");
-                        payloadStarted.complete(true);
-                        logVmOutput(TAG, new FileInputStream(stream.getFileDescriptor()),
-                                "Payload");
-                    }
-                };
-        listener.runToFinish(TAG, vm);
-        assertThat(payloadStarted.getNow(false)).isTrue();
-        assertThat(payloadReady.getNow(false)).isTrue();
+        TestResults testResults = runVmTestService(vm);
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mAddInteger).isEqualTo(123 + 456);
         assertThat(testResults.mAppRunProp).isEqualTo("true");
         assertThat(testResults.mSublibRunProp).isEqualTo("true");
+    }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-2-1"
+    })
+    public void extraApk() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config_extra_apk.json")
+                .setMemoryMib(minMemoryRequired())
+                .build();
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm_extra_apk", config);
+
+        TestResults testResults = runVmTestService(vm);
         assertThat(testResults.mExtraApkTestProp).isEqualTo("PASS");
     }
 
@@ -198,10 +155,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void changingDebugLevelInvalidatesVmIdentity() throws Exception {
-        assume()
-            .withMessage("SKip on 5.4 kernel. b/218303240")
-            .that(KERNEL_VERSION)
-            .isNotEqualTo("5.4");
+        assumeSupportedKernel();
 
         VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder("assets/vm_config.json");
         VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_NONE).build();
@@ -263,10 +217,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void instancesOfSameVmHaveDifferentCdis() throws Exception {
-        assume()
-            .withMessage("SKip on 5.4 kernel. b/218303240")
-            .that(KERNEL_VERSION)
-            .isNotEqualTo("5.4");
+        assumeSupportedKernel();
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
@@ -290,10 +241,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void sameInstanceKeepsSameCdis() throws Exception {
-        assume()
-            .withMessage("SKip on 5.4 kernel. b/218303240")
-            .that(KERNEL_VERSION)
-            .isNotEqualTo("5.4");
+        assumeSupportedKernel();
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
@@ -314,10 +262,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void bccIsSuperficiallyWellFormed() throws Exception {
-        assume()
-            .withMessage("SKip on 5.4 kernel. b/218303240")
-            .that(KERNEL_VERSION)
-            .isNotEqualTo("5.4");
+        assumeSupportedKernel();
 
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder("assets/vm_config.json")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
@@ -478,5 +423,77 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(newVm).isEqualTo(newVm2);
 
         assertThat(vm).isNotEqualTo(newVm);
+    }
+
+    private int minMemoryRequired() {
+        if (Build.SUPPORTED_ABIS.length > 0) {
+            String primaryAbi = Build.SUPPORTED_ABIS[0];
+            switch (primaryAbi) {
+                case "x86_64":
+                    return MIN_MEM_X86_64;
+                case "arm64-v8a":
+                    return MIN_MEM_ARM64;
+            }
+        }
+        return 0;
+    }
+
+    private void assumeSupportedKernel() {
+        assume()
+                .withMessage("Skip on 5.4 kernel. b/218303240")
+                .that(KERNEL_VERSION)
+                .isNotEqualTo("5.4");
+    }
+
+    static class TestResults {
+        Exception mException;
+        Integer mAddInteger;
+        String mAppRunProp;
+        String mSublibRunProp;
+        String mExtraApkTestProp;
+    }
+
+    private TestResults runVmTestService(VirtualMachine vm) throws Exception {
+        CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
+        CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
+        TestResults testResults = new TestResults();
+        VmEventListener listener =
+                new VmEventListener() {
+                    private void testVMService(VirtualMachine vm) {
+                        try {
+                            ITestService testService = ITestService.Stub.asInterface(
+                                    vm.connectToVsockServer(ITestService.SERVICE_PORT));
+                            testResults.mAddInteger = testService.addInteger(123, 456);
+                            testResults.mAppRunProp =
+                                    testService.readProperty("debug.microdroid.app.run");
+                            testResults.mSublibRunProp =
+                                    testService.readProperty("debug.microdroid.app.sublib.run");
+                            testResults.mExtraApkTestProp =
+                                    testService.readProperty("debug.microdroid.test.extra_apk");
+                        } catch (Exception e) {
+                            testResults.mException = e;
+                        }
+                    }
+
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        Log.i(TAG, "onPayloadReady");
+                        payloadReady.complete(true);
+                        testVMService(vm);
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        Log.i(TAG, "onPayloadStarted");
+                        payloadStarted.complete(true);
+                        logVmOutput(TAG, new FileInputStream(stream.getFileDescriptor()),
+                                "Payload");
+                    }
+                };
+        listener.runToFinish(TAG, vm);
+        assertThat(payloadStarted.getNow(false)).isTrue();
+        assertThat(payloadReady.getNow(false)).isTrue();
+        return testResults;
     }
 }

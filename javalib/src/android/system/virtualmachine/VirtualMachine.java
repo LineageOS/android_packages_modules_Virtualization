@@ -78,6 +78,7 @@ import java.lang.ref.WeakReference;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -791,11 +792,29 @@ public class VirtualMachine implements AutoCloseable {
 
     @Override
     public String toString() {
-        return "VirtualMachine("
-                + "name:" + getName() + ", "
-                + "config:" + getConfig().getPayloadConfigPath() + ", "
-                + "package: " + mPackageName
-                + ")";
+        VirtualMachineConfig config = getConfig();
+        String payloadConfigPath = config.getPayloadConfigPath();
+        String payloadBinaryPath = config.getPayloadBinaryPath();
+
+        StringBuilder result = new StringBuilder();
+        result.append("VirtualMachine(")
+                .append("name:")
+                .append(getName())
+                .append(", ");
+        if (payloadBinaryPath != null) {
+            result.append("payload:")
+                    .append(payloadBinaryPath)
+                    .append(", ");
+        }
+        if (payloadConfigPath != null) {
+            result.append("config:")
+                    .append(payloadConfigPath)
+                    .append(", ");
+        }
+        result.append("package: ")
+                .append(mPackageName)
+                .append(")");
+        return result.toString();
     }
 
     private static List<String> parseExtraApkListFromPayloadConfig(JsonReader reader)
@@ -841,10 +860,14 @@ public class VirtualMachine implements AutoCloseable {
     private static List<ExtraApkSpec> setupExtraApks(
             @NonNull Context context, @NonNull VirtualMachineConfig config, @NonNull File vmDir)
             throws VirtualMachineException {
+        String configPath = config.getPayloadConfigPath();
+        if (configPath == null) {
+            return Collections.emptyList();
+        }
         try {
             ZipFile zipFile = new ZipFile(context.getPackageCodePath());
             InputStream inputStream =
-                    zipFile.getInputStream(zipFile.getEntry(config.getPayloadConfigPath()));
+                    zipFile.getInputStream(zipFile.getEntry(configPath));
             List<String> apkList =
                     parseExtraApkListFromPayloadConfig(
                             new JsonReader(new InputStreamReader(inputStream)));
