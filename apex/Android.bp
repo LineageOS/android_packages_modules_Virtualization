@@ -73,6 +73,7 @@ apex_defaults {
         arm64: {
             binaries: [
                 "crosvm",
+                "virtmgr",
                 "virtualizationservice",
             ],
             filesystems: microdroid_filesystem_images,
@@ -80,6 +81,7 @@ apex_defaults {
         x86_64: {
             binaries: [
                 "crosvm",
+                "virtmgr",
                 "virtualizationservice",
             ],
             filesystems: microdroid_filesystem_images,
