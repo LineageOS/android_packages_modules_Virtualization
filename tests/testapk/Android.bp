@@ -51,6 +51,7 @@ cc_library_shared {
 
 cc_library_shared {
     name: "MicrodroidTestNativeCrashLib",
+    header_libs: ["vm_payload_headers"],
     srcs: ["src/native/crashbinary.cpp"],
 }
 

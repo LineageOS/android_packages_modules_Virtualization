@@ -661,11 +661,8 @@ fn create_vm_payload_config(payload_config: &VirtualMachinePayloadConfig) -> VmP
     // There isn't an actual config file. Construct a synthetic VmPayloadConfig from the explicit
     // parameters we've been given. Microdroid will do something equivalent inside the VM using the
     // payload config that we send it via the metadata file.
-    let task = Task {
-        type_: TaskType::MicrodroidLauncher,
-        command: payload_config.payloadPath.clone(),
-        args: payload_config.args.clone(),
-    };
+    let task =
+        Task { type_: TaskType::MicrodroidLauncher, command: payload_config.payloadPath.clone() };
     VmPayloadConfig {
         os: OsConfig { name: MICRODROID_OS_NAME.to_owned() },
         task: Some(task),

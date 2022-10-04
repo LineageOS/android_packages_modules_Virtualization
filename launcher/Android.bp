@@ -9,4 +9,5 @@ cc_binary {
         "libdl",
         "libdl_android",
     ],
+    header_libs: ["vm_payload_headers"],
 }
