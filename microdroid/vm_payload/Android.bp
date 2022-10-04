@@ -1,0 +1,19 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_ffi_static {
+    name: "libvm_payload",
+    crate_name: "vm_payload",
+    srcs: ["src/*.rs"],
+    include_dirs: ["include"],
+    prefer_rlib: true,
+    rustlibs: [
+        "android.system.virtualmachineservice-rust",
+        "libandroid_logger",
+        "libanyhow",
+        "libbinder_rs",
+        "liblog_rust",
+        "librpcbinder_rs",
+    ],
+}
