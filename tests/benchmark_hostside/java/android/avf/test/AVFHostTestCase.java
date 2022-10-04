@@ -20,6 +20,7 @@ import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -28,6 +29,7 @@ import android.platform.test.annotations.RootPermissionTest;
 import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.microdroid.test.host.CommandRunner;
 import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
+import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
@@ -42,6 +44,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,6 +73,10 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 10 * 60 * 1000;
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
     private static final int ROUND_COUNT = 5;
+    private static final String APK_NAME = "MicrodroidTestApp.apk";
+    private static final String PACKAGE_NAME = "com.android.microdroid.test";
+    private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
+    private static final int NUM_VCPUS = 3;
 
     private MetricsProcessor mMetricsProcessor;
     @Rule public TestMetrics mMetrics = new TestMetrics();
@@ -112,6 +119,197 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     @Test
     public void testBootWithoutCompOS() throws Exception {
         composTestHelper(false);
+    }
+
+    @Test
+    public void testAppStartupTime() throws Exception {
+        assumeTrue("Skip on non-protected VMs", isProtectedVmSupported());
+
+        StartupTimeMetricCollection mCollection =
+                new StartupTimeMetricCollection(SETTINGS_PACKAGE_NAME, ROUND_COUNT);
+        for (int round = 0; round < ROUND_COUNT; ++round) {
+            getAppStartupTime(mCollection);
+        }
+
+        reportMetric(mCollection.mAppBeforeVmRunTotalTime,
+                "app_startup/" + mCollection.getPkgName() + "/total_time/before_vm",
+                "ms");
+        reportMetric(mCollection.mAppBeforeVmRunWaitTime,
+                "app_startup/" + mCollection.getPkgName() + "/wait_time/before_vm",
+                "ms");
+        reportMetric(mCollection.mAppDuringVmRunTotalTime,
+                "app_startup/" + mCollection.getPkgName() + "/total_time/during_vm",
+                "ms");
+        reportMetric(mCollection.mAppDuringVmRunWaitTime,
+                "app_startup/" + mCollection.getPkgName() + "/wait_time/during_vm",
+                "ms");
+        reportMetric(mCollection.mAppAfterVmRunTotalTime,
+                "app_startup/" + mCollection.getPkgName() + "/total_time/after_vm",
+                "ms");
+        reportMetric(mCollection.mAppAfterVmRunWaitTime,
+                "app_startup/" + mCollection.getPkgName() + "/wait_time/after_vm",
+                "ms");
+    }
+
+    private void microdroidWaitForBootComplete() {
+        runOnMicrodroidForResult("watch -e \"getprop dev.bootcomplete | grep '^0$'\"");
+    }
+
+    private AmStartupTimeCmdParser getColdRunStartupTimes(String pkgName)
+            throws DeviceNotAvailableException, InterruptedException {
+        CommandRunner android = new CommandRunner(getDevice());
+        unlockScreen(android);
+        android.run("echo 3 > /proc/sys/vm/drop_caches");
+        String vmStartAppLog = android.run("am", "start -W -S " + pkgName);
+        assertNotNull(vmStartAppLog);
+        assumeFalse(vmStartAppLog.isEmpty());
+        return new AmStartupTimeCmdParser(vmStartAppLog);
+    }
+
+    // Returns an array of two elements containing the delta between the initial app startup time
+    // and the time measured after running the VM.
+    private void getAppStartupTime(StartupTimeMetricCollection metricColector)
+            throws Exception {
+        final String configPath = "assets/vm_config.json";
+        final String cid;
+        final int vm_mem_mb;
+
+        // Reboot the device to run the test without stage2 fragmentation
+        getDevice().rebootUntilOnline();
+        waitForBootCompleted();
+
+        // Run the app before the VM run and collect app startup time statistics
+        CommandRunner android = new CommandRunner(getDevice());
+        AmStartupTimeCmdParser beforeVmStartApp = getColdRunStartupTimes(SETTINGS_PACKAGE_NAME);
+        metricColector.addStartupTimeMetricBeforeVmRun(beforeVmStartApp);
+
+        // Clear up any test dir
+        android.tryRun("rm", "-rf", MicrodroidHostTestCaseBase.TEST_ROOT);
+
+        // Donate 80% of the available device memory to the VM
+        vm_mem_mb = getFreeMemoryInfoMb(android) * 80 / 100;
+        cid = startMicrodroid(
+                            getDevice(),
+                            getBuild(),
+                            APK_NAME,
+                            PACKAGE_NAME,
+                            configPath,
+                            true,
+                            vm_mem_mb,
+                            Optional.of(NUM_VCPUS));
+        adbConnectToMicrodroid(getDevice(), cid);
+        microdroidWaitForBootComplete();
+
+        rootMicrodroid();
+
+        runOnMicrodroid("mkdir -p /mnt/ramdisk && chmod 777 /mnt/ramdisk");
+        runOnMicrodroid("mount -t tmpfs -o size=32G tmpfs /mnt/ramdisk");
+
+        // Allocate memory for the VM until it fails and make sure that we touch
+        // the allocated memory in the guest to be able to create stage2 fragmentation.
+        try {
+            runOnMicrodroidForResult(String.format("cd /mnt/ramdisk && truncate -s %dM sprayMemory"
+                    + " && dd if=/dev/zero of=sprayMemory bs=1MB count=%d",
+                    vm_mem_mb , vm_mem_mb));
+        } catch (Exception ex) {
+        }
+
+        AmStartupTimeCmdParser duringVmStartApp = getColdRunStartupTimes(SETTINGS_PACKAGE_NAME);
+        metricColector.addStartupTimeMetricDuringVmRun(duringVmStartApp);
+        shutdownMicrodroid(getDevice(), cid);
+
+        AmStartupTimeCmdParser afterVmStartApp = getColdRunStartupTimes(SETTINGS_PACKAGE_NAME);
+        metricColector.addStartupTimerMetricAfterVmRun(afterVmStartApp);
+    }
+
+    static class AmStartupTimeCmdParser {
+        private int mTotalTime;
+        private int mWaitTime;
+
+        AmStartupTimeCmdParser(String startAppLog) {
+            String[] lines = startAppLog.split("[\r\n]+");
+            mTotalTime = mWaitTime = 0;
+
+            for (int i = 0; i < lines.length; i++) {
+                if (lines[i].contains("TotalTime:")) {
+                    mTotalTime = Integer.parseInt(lines[i].replaceAll("\\D+", ""));
+                }
+                if (lines[i].contains("WaitTime:")) {
+                    mWaitTime = Integer.parseInt(lines[i].replaceAll("\\D+", ""));
+                }
+            }
+        }
+    }
+
+    static class StartupTimeMetricCollection {
+        List<Double> mAppBeforeVmRunTotalTime;
+        List<Double> mAppBeforeVmRunWaitTime;
+
+        List<Double> mAppDuringVmRunTotalTime;
+        List<Double> mAppDuringVmRunWaitTime;
+
+        List<Double> mAppAfterVmRunTotalTime;
+        List<Double> mAppAfterVmRunWaitTime;
+
+        private final String mPkgName;
+
+        StartupTimeMetricCollection(String pkgName, int size) {
+            mAppBeforeVmRunTotalTime = new ArrayList<>(size);
+            mAppBeforeVmRunWaitTime = new ArrayList<>(size);
+
+            mAppDuringVmRunTotalTime = new ArrayList<>(size);
+            mAppDuringVmRunWaitTime = new ArrayList<>(size);
+
+            mAppAfterVmRunTotalTime = new ArrayList<>(size);
+            mAppAfterVmRunWaitTime = new ArrayList<>(size);
+            mPkgName = pkgName;
+        }
+
+        public void addStartupTimeMetricBeforeVmRun(AmStartupTimeCmdParser m) {
+            mAppBeforeVmRunTotalTime.add((double) m.mTotalTime);
+            mAppBeforeVmRunWaitTime.add((double) m.mWaitTime);
+        }
+
+        public void addStartupTimeMetricDuringVmRun(AmStartupTimeCmdParser m) {
+            mAppDuringVmRunTotalTime.add((double) m.mTotalTime);
+            mAppDuringVmRunWaitTime.add((double) m.mWaitTime);
+        }
+
+        public void addStartupTimerMetricAfterVmRun(AmStartupTimeCmdParser m) {
+            mAppAfterVmRunTotalTime.add((double) m.mTotalTime);
+            mAppAfterVmRunWaitTime.add((double) m.mWaitTime);
+        }
+
+        public String getPkgName() {
+            return this.mPkgName;
+        }
+    }
+
+    private int getFreeMemoryInfoMb(CommandRunner android) throws DeviceNotAvailableException,
+            IllegalArgumentException {
+        int freeMemory = 0;
+        String content = android.runForResult("cat /proc/meminfo").getStdout().trim();
+        String[] lines = content.split("[\r\n]+");
+
+        for (int i = 0; i < lines.length; i++) {
+            if (lines[i].contains("MemFree:")) {
+                freeMemory = Integer.parseInt(lines[i].replaceAll("\\D+", "")) / 1024;
+                return freeMemory;
+            }
+        }
+
+        throw new IllegalArgumentException();
+    }
+
+    private void unlockScreen(CommandRunner android)
+            throws DeviceNotAvailableException, InterruptedException {
+        android.run("input keyevent", "KEYCODE_WAKEUP");
+        Thread.sleep(500);
+        final String ret = android.runForResult("dumpsys nfc | grep 'mScreenState='")
+                .getStdout().trim();
+        if (ret != null && ret.contains("ON_LOCKED")) {
+            android.run("input keyevent", "KEYCODE_MENU");
+        }
     }
 
     private void updateBootloaderTimeInfo(Map<String, List<Double>> bootloaderTime)
