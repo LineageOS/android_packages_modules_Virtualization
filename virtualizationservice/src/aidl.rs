@@ -22,7 +22,6 @@ use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
 use crate::selinux::{getfilecon, SeContext};
-use crate::{Cid, FIRST_GUEST_CID, SYSPROP_LAST_CID};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
@@ -74,10 +73,19 @@ use vmconfig::VmConfig;
 use vsock::{VsockListener, VsockStream};
 use zip::ZipArchive;
 
+/// The unique ID of a VM used (together with a port number) for vsock communication.
+pub type Cid = u32;
+
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 /// Directory in which to write disk image files used while running VMs.
 pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
+
+/// The first CID to assign to a guest VM managed by the VirtualizationService. CIDs lower than this
+/// are reserved for the host or other usage.
+const FIRST_GUEST_CID: Cid = 10;
+
+const SYSPROP_LAST_CID: &str = "virtualizationservice.state.last_cid";
 
 /// The size of zero.img.
 /// Gaps in composite disk images are filled with a shared zero.img.
