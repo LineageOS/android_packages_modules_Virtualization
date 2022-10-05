@@ -351,7 +351,7 @@ impl VirtualizationService {
         let log_fd = log_fd.map(clone_file).transpose()?;
         let requester_uid = ThreadState::get_calling_uid();
         let requester_debug_pid = ThreadState::get_calling_pid();
-        let cid = next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
+        let cid = state.next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
 
         // Counter to generate unique IDs for temporary image files.
         let mut next_temporary_image_id = 0;
@@ -969,27 +969,27 @@ impl State {
         let vm = self.debug_held_vms.swap_remove(pos);
         Some(vm)
     }
-}
 
-/// Get the next available CID, or an error if we have run out. The last CID used is stored in
-/// a system property so that restart of virtualizationservice doesn't reuse CID while the host
-/// Android is up.
-fn next_cid() -> Result<Cid> {
-    let next = if let Some(val) = system_properties::read(SYSPROP_LAST_CID)? {
-        if let Ok(num) = val.parse::<u32>() {
-            num.checked_add(1).ok_or_else(|| anyhow!("run out of CID"))?
+    /// Get the next available CID, or an error if we have run out. The last CID used is stored in
+    /// a system property so that restart of virtualizationservice doesn't reuse CID while the host
+    /// Android is up.
+    fn next_cid(&mut self) -> Result<Cid> {
+        let next = if let Some(val) = system_properties::read(SYSPROP_LAST_CID)? {
+            if let Ok(num) = val.parse::<u32>() {
+                num.checked_add(1).ok_or_else(|| anyhow!("run out of CID"))?
+            } else {
+                error!("Invalid last CID {}. Using {}", &val, FIRST_GUEST_CID);
+                FIRST_GUEST_CID
+            }
         } else {
-            error!("Invalid last CID {}. Using {}", &val, FIRST_GUEST_CID);
+            // First VM since the boot
             FIRST_GUEST_CID
-        }
-    } else {
-        // First VM since the boot
-        FIRST_GUEST_CID
-    };
-    // Persist the last value for next use
-    let str_val = format!("{}", next);
-    system_properties::write(SYSPROP_LAST_CID, &str_val)?;
-    Ok(next)
+        };
+        // Persist the last value for next use
+        let str_val = format!("{}", next);
+        system_properties::write(SYSPROP_LAST_CID, &str_val)?;
+        Ok(next)
+    }
 }
 
 /// Gets the `VirtualMachineState` of the given `VmInstance`.
