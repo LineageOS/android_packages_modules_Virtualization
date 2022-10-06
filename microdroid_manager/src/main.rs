@@ -49,6 +49,7 @@ use rand::Fill;
 use rpcbinder::get_vsock_rpc_interface;
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
+use std::borrow::Cow::{Borrowed, Owned};
 use std::convert::TryInto;
 use std::fs::{self, create_dir, File, OpenOptions};
 use std::io::Write;
@@ -155,7 +156,7 @@ fn translate_error(err: &Error) -> (ErrorCode, String) {
 
 fn write_death_reason_to_serial(err: &Error) -> Result<()> {
     let death_reason = if let Some(e) = err.downcast_ref::<MicrodroidError>() {
-        match e {
+        Borrowed(match e {
             MicrodroidError::FailedToConnectToVirtualizationService(_) => {
                 "MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE"
             }
@@ -164,9 +165,12 @@ fn write_death_reason_to_serial(err: &Error) -> Result<()> {
                 "MICRODROID_PAYLOAD_VERIFICATION_FAILED"
             }
             MicrodroidError::InvalidConfig(_) => "MICRODROID_INVALID_PAYLOAD_CONFIG",
-        }
+        })
     } else {
-        "MICRODROID_UNKNOWN_RUNTIME_ERROR"
+        // Send context information back after a separator, to ease diagnosis.
+        // These errors occur before the payload runs, so this should not leak sensitive
+        // information.
+        Owned(format!("MICRODROID_UNKNOWN_RUNTIME_ERROR|{:?}", err))
     };
 
     let death_reason_bytes = death_reason.as_bytes();
@@ -401,7 +405,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     )
     .context("Failed to run zipfuse")?;
 
-    let config = load_config(payload_metadata)?;
+    let config = load_config(payload_metadata).context("Failed to load payload metadata")?;
 
     let task = config
         .task
@@ -436,10 +440,12 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     // Wait until zipfuse has mounted the APK so we can access the payload
     wait_for_property_true(APK_MOUNT_DONE_PROP).context("Failed waiting for APK mount done")?;
 
-    system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
     register_vm_payload_service(service.clone(), dice)?;
     ProcessState::start_thread_pool();
-    exec_task(task, service)
+
+    system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
+
+    exec_task(task, service).context("Failed to run payload")
 }
 
 fn control_service(action: &str, service: &str) -> Result<()> {
@@ -724,7 +730,8 @@ fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
         PayloadMetadata::config_path(path) => {
             let path = Path::new(&path);
             info!("loading config from {:?}...", path);
-            let file = ioutil::wait_for_file(path, WAIT_TIMEOUT)?;
+            let file = ioutil::wait_for_file(path, WAIT_TIMEOUT)
+                .with_context(|| format!("Failed to read {:?}", path))?;
             Ok(serde_json::from_reader(file)?)
         }
         PayloadMetadata::config(payload_config) => {
@@ -819,7 +826,7 @@ fn find_library_path(name: &str) -> Result<String> {
     let abi = value.split(',').next().ok_or_else(|| anyhow!("no abilist"))?;
     let path = format!("/mnt/apk/lib/{}/{}", abi, name);
 
-    let metadata = fs::metadata(&path)?;
+    let metadata = fs::metadata(&path).with_context(|| format!("Unable to access {}", path))?;
     if !metadata.is_file() {
         bail!("{} is not a file", &path);
     }
