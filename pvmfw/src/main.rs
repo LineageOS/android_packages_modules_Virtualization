@@ -19,12 +19,24 @@
 
 mod exceptions;
 
-use vmbase::{main, println};
+use core::fmt;
 
-main!(main);
+use vmbase::{main, power::reboot, println};
 
-/// Entry point for pVM firmware.
-pub fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) {
+#[derive(Debug, Clone)]
+enum Error {}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        #[allow(clippy::match_single_binding)]
+        let msg = match self {
+            _ => "",
+        };
+        write!(f, "{}", msg)
+    }
+}
+
+fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) -> Result<(), Error> {
     println!("pVM firmware");
     println!(
         "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}, x3={:#018x}",
@@ -32,6 +44,24 @@ pub fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) 
     );
 
     println!("Starting payload...");
+
+    Ok(())
+}
+
+main!(main_wrapper);
+
+/// Entry point for pVM firmware.
+pub fn main_wrapper(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) {
+    match main(fdt_address, payload_start, payload_size, arg3) {
+        Ok(()) => jump_to_payload(fdt_address, payload_start),
+        Err(e) => {
+            println!("Boot rejected: {}", e);
+        }
+    }
+    reboot()
+}
+
+fn jump_to_payload(fdt_address: u64, payload_start: u64) {
     // Safe because this is a function we have implemented in assembly that matches its signature
     // here.
     unsafe {
