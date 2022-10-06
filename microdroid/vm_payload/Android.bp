@@ -19,3 +19,15 @@ rust_ffi_shared {
         "com.android.compos",
     ],
 }
+
+rust_bindgen {
+    name: "libvm_payload_bindgen",
+    wrapper_src: "include/vm_payload.h",
+    crate_name: "vm_payload_bindgen",
+    source_stem: "bindings",
+    apex_available: ["com.android.compos"],
+    visibility: ["//packages/modules/Virtualization/compos"],
+    shared_libs: [
+        "libvm_payload",
+    ],
+}

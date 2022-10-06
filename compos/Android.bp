@@ -7,7 +7,6 @@ rust_defaults {
     edition: "2021",
     srcs: ["src/compsvc_main.rs"],
     rustlibs: [
-        "android.system.virtualmachineservice-rust",
         "authfs_aidl_interface-rust",
         "compos_aidl_interface-rust",
         "libandroid_logger",
@@ -24,6 +23,7 @@ rust_defaults {
         "librpcbinder_rs",
         "librustutils",
         "libscopeguard",
+        "libvm_payload_bindgen",
     ],
     prefer_rlib: true,
     shared_libs: [
