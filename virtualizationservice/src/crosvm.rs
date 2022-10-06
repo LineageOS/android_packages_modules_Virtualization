@@ -41,6 +41,9 @@ use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 use tombstoned_client::{TombstonedConnection, DebuggerdDumpType};
 
+/// external/crosvm
+use base::UnixSeqpacketListener;
+
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
 /// Version of the platform that crosvm currently implements. The format follows SemVer. This
@@ -139,7 +142,8 @@ impl VmState {
             let (failure_pipe_read, failure_pipe_write) = create_pipe()?;
 
             // If this fails and returns an error, `self` will be left in the `Failed` state.
-            let child = Arc::new(run_vm(config, failure_pipe_write)?);
+            let child =
+                Arc::new(run_vm(config, &instance.temporary_directory, failure_pipe_write)?);
 
             let child_clone = child.clone();
             let instance_clone = instance.clone();
@@ -425,7 +429,11 @@ fn death_reason(result: &Result<ExitStatus, io::Error>, failure_reason: &str) ->
 }
 
 /// Starts an instance of `crosvm` to manage a new VM.
-fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild, Error> {
+fn run_vm(
+    config: CrosvmConfig,
+    temporary_directory: &Path,
+    failure_pipe_write: File,
+) -> Result<SharedChild, Error> {
     validate_config(&config)?;
 
     let mut command = Command::new(CROSVM_PATH);
@@ -515,6 +523,11 @@ fn run_vm(config: CrosvmConfig, failure_pipe_write: File) -> Result<SharedChild,
         command.arg(add_preserved_fd(&mut preserved_fds, kernel));
     }
 
+    let control_server_socket =
+        UnixSeqpacketListener::bind(temporary_directory.join("crosvm.sock"))
+            .context("failed to create control server")?;
+    command.arg("--socket").arg(add_preserved_fd(&mut preserved_fds, &control_server_socket));
+
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);
 
@@ -547,7 +560,7 @@ fn validate_config(config: &CrosvmConfig) -> Result<(), Error> {
 
 /// Adds the file descriptor for `file` to `preserved_fds`, and returns a string of the form
 /// "/proc/self/fd/N" where N is the file descriptor.
-fn add_preserved_fd(preserved_fds: &mut Vec<RawFd>, file: &File) -> String {
+fn add_preserved_fd(preserved_fds: &mut Vec<RawFd>, file: &dyn AsRawFd) -> String {
     let fd = file.as_raw_fd();
     preserved_fds.push(fd);
     format!("/proc/self/fd/{}", fd)
