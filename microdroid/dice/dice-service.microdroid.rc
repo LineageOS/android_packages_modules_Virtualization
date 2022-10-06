@@ -1,3 +1,0 @@
-service dice-microdroid /system/bin/dice-service.microdroid
-    user diced
-    group diced
