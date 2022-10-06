@@ -18,7 +18,8 @@ use crate::uart::Uart;
 use core::fmt::{write, Arguments, Write};
 use spin::mutex::SpinMutex;
 
-const BASE_ADDRESS: usize = 0x3f8;
+/// Base memory-mapped address of the primary UART device.
+pub const BASE_ADDRESS: usize = 0x3f8;
 
 static CONSOLE: SpinMutex<Option<Uart>> = SpinMutex::new(None);
 
