@@ -17,8 +17,10 @@
 mod instance;
 mod ioutil;
 mod payload;
+mod vm_payload_service;
 
 use crate::instance::{ApexData, ApkData, InstanceDisk, MicrodroidData, RootHash};
+use crate::vm_payload_service::register_vm_payload_service;
 use android_hardware_security_dice::aidl::android::hardware::security::dice::{
     Config::Config, InputValues::InputValues, Mode::Mode,
 };
@@ -29,7 +31,7 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
 };
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify, V4Signature};
-use binder::{wait_for_interface, Strong};
+use binder::{ProcessState, wait_for_interface, Strong};
 use diced_utils::cbor::{encode_header, encode_number};
 use glob::glob;
 use itertools::sorted;
@@ -386,6 +388,8 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     }
 
     system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
+    register_vm_payload_service(service.clone())?;
+    ProcessState::start_thread_pool();
     exec_task(task, service)
 }
 
