@@ -13,9 +13,10 @@ rust_defaults {
         "libclap",
         "libfuse_rust",
         "liblibc",
-        "libzip",
-        "libscopeguard",
         "liblog_rust",
+        "librustutils",
+        "libscopeguard",
+        "libzip",
     ],
     // libfuse_rust, etc don't support 32-bit targets
     multilib: {
