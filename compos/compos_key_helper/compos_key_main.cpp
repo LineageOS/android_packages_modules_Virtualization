@@ -31,16 +31,16 @@ using namespace std::literals;
 using compos_key::Ed25519KeyPair;
 
 namespace {
-Result<Ed25519KeyPair> deriveKeyFromDice() {
-    uint8_t cdi_seal[64];
-    size_t cdi_size = get_dice_sealing_cdi(cdi_seal, sizeof(cdi_seal));
-    if (cdi_size == 0) {
-        return Error() << "Failed to get sealing CDI";
-    }
 
-    // We use the sealing CDI because we want stability - the key needs to be the same
-    // for any instance of the "same" VM.
-    return compos_key::deriveKeyFromSecret(cdi_seal, cdi_size);
+constexpr const char* kSigningKeySecretIdentifier = "CompOS signing key secret";
+
+Result<Ed25519KeyPair> deriveKeyFromDice() {
+    uint8_t secret[32];
+    if (!get_vm_instance_secret(kSigningKeySecretIdentifier, strlen(kSigningKeySecretIdentifier),
+                                secret, sizeof(secret))) {
+        return Error() << "Failed to get signing key secret";
+    }
+    return compos_key::deriveKeyFromSecret(secret, sizeof(secret));
 }
 
 int write_public_key() {
