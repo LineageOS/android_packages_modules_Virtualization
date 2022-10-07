@@ -21,6 +21,9 @@ package android.system.virtualization.payload;
  * Microdroid Manager for execution.
  */
 interface IVmPayloadService {
+    /** Name of the service IVmPayloadService. */
+    const String VM_PAYLOAD_SERVICE_NAME = "virtual_machine_payload_service";
+
     /** Notifies that the payload is ready to serve. */
     void notifyPayloadReady();
 }
