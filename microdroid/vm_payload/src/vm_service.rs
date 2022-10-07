@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module handles the interaction with virtual machine service.
+//! This module handles the interaction with virtual machine payload service.
 
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-    VM_BINDER_SERVICE_PORT, IVirtualMachineService};
+use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::IVmPayloadService;
 use anyhow::{Context, Result};
-use binder::Strong;
+use binder::{wait_for_interface, Strong};
 use log::{error, info, Level};
-use rpcbinder::get_vsock_rpc_interface;
 
 /// The CID representing the host VM
-const VMADDR_CID_HOST: u32 = 2;
+const VM_PAYLOAD_SERVICE_NAME: &str = "virtual_machine_payload_service";
 
 /// Notifies the host that the payload is ready.
 /// Returns true if the notification succeeds else false.
@@ -43,10 +41,10 @@ pub extern "C" fn notify_payload_ready() -> bool {
 /// Notifies the host that the payload is ready.
 /// Returns a `Result` containing error information if failed.
 fn try_notify_payload_ready() -> Result<()> {
-    get_vm_service()?.notifyPayloadReady().context("Cannot notify payload ready")
+    get_vm_payload_service()?.notifyPayloadReady().context("Cannot notify payload ready")
 }
 
-fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
-    get_vsock_rpc_interface(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
-        .context("Connecting to IVirtualMachineService")
+fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
+    wait_for_interface(VM_PAYLOAD_SERVICE_NAME)
+        .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_NAME))
 }

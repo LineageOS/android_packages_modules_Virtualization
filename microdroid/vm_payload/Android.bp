@@ -9,11 +9,10 @@ rust_ffi_static {
     include_dirs: ["include"],
     prefer_rlib: true,
     rustlibs: [
-        "android.system.virtualmachineservice-rust",
+        "android.system.virtualization.payload-rust",
         "libandroid_logger",
         "libanyhow",
         "libbinder_rs",
         "liblog_rust",
-        "librpcbinder_rs",
     ],
 }
