@@ -14,6 +14,7 @@ rust_defaults {
         "android.system.virtualizationcommon-rust",
         "android.system.virtualizationservice-rust",
         "android.system.virtualmachineservice-rust",
+        "android.system.virtualization.payload-rust",
         "libanyhow",
         "libapexutil_rust",
         "libapkverify",
