@@ -14,13 +14,11 @@
 
 //! This module handles the interaction with virtual machine payload service.
 
-use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::IVmPayloadService;
+use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
+    IVmPayloadService, VM_PAYLOAD_SERVICE_NAME};
 use anyhow::{Context, Result};
 use binder::{wait_for_interface, Strong};
 use log::{error, info, Level};
-
-/// The CID representing the host VM
-const VM_PAYLOAD_SERVICE_NAME: &str = "virtual_machine_payload_service";
 
 /// Notifies the host that the payload is ready.
 /// Returns true if the notification succeeds else false.
