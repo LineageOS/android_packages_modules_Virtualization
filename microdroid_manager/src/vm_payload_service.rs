@@ -14,12 +14,11 @@
 
 //! Implementation of the AIDL interface `IVmPayloadService`.
 
-use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{BnVmPayloadService, IVmPayloadService};
+use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
+    BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 use anyhow::{Context, Result};
 use binder::{Interface, BinderFeatures, Strong, add_service};
-
-const VM_PAYLOAD_SERVICE_NAME: &str = "virtual_machine_payload_service";
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
