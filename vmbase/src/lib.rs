@@ -18,6 +18,8 @@
 
 pub mod console;
 mod entry;
+pub mod layout;
+mod linker;
 pub mod logger;
 pub mod power;
 pub mod uart;
@@ -30,6 +32,9 @@ fn panic(info: &PanicInfo) -> ! {
     eprintln!("{}", info);
     reboot()
 }
+
+/// Reference to __stack_chk_guard.
+pub static STACK_CHK_GUARD: &u64 = unsafe { &linker::__stack_chk_guard };
 
 #[no_mangle]
 extern "C" fn __stack_chk_fail() -> ! {
