@@ -2,7 +2,7 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_ffi_static {
+rust_ffi_shared {
     name: "libvm_payload",
     crate_name: "vm_payload",
     srcs: ["src/*.rs"],
