@@ -15,4 +15,7 @@ rust_ffi_static {
         "libbinder_rs",
         "liblog_rust",
     ],
+    apex_available: [
+        "com.android.compos",
+    ],
 }

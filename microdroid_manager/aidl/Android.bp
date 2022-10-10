@@ -11,6 +11,7 @@ aidl_interface {
             enabled: true,
             apex_available: [
                 "com.android.virt",
+                "com.android.compos",
             ],
         },
     },
