@@ -19,11 +19,20 @@ android_test {
     libs: ["android.system.virtualmachine"],
     jni_libs: [
         "MicrodroidBenchmarkNativeLib",
+        "MicrodroidIdleNativeLib",
         "libiovsock_host_jni",
     ],
     platform_apis: true,
     use_embedded_native_libs: true,
     compile_multilib: "64",
+}
+
+cc_library_shared {
+    name: "MicrodroidIdleNativeLib",
+    srcs: ["src/native/idlebinary.cpp"],
+    shared_libs: [
+        "libbase",
+    ],
 }
 
 cc_library_shared {
