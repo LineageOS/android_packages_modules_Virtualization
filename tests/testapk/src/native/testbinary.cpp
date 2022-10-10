@@ -73,14 +73,14 @@ Result<void> start_test_service() {
             return ndk::ScopedAStatus::ok();
         }
 
-        ndk::ScopedAStatus insecurelyExposeSealingCdi(std::vector<uint8_t>* out) override {
-            uint8_t cdi[64];
-            size_t cdi_size = get_dice_sealing_cdi(cdi, sizeof(cdi));
-            if (cdi_size == 0) {
+        ndk::ScopedAStatus insecurelyExposeVmInstanceSecret(std::vector<uint8_t>* out) override {
+            const uint8_t identifier[] = {1, 2, 3, 4};
+            uint8_t secret[32];
+            if (!get_vm_instance_secret(identifier, sizeof(identifier), secret, sizeof(secret))) {
                 return ndk::ScopedAStatus::
-                        fromServiceSpecificErrorWithMessage(0, "Failed to get sealing cdi");
+                        fromServiceSpecificErrorWithMessage(0, "Failed to VM instance secret");
             }
-            *out = {cdi, cdi + cdi_size};
+            *out = {secret, secret + sizeof(secret)};
             return ndk::ScopedAStatus::ok();
         }
 
