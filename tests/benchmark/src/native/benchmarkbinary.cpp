@@ -182,17 +182,10 @@ Result<void> run_io_benchmark_tests() {
 }
 } // Anonymous namespace
 
-extern "C" int android_native_main([[maybe_unused]] int argc, char* argv[]) {
-    if (strcmp(argv[1], "no_io") == 0) {
-        // do nothing for now; just leave it alive. good night.
-        for (;;) {
-            sleep(1000);
-        }
-    } else if (strcmp(argv[1], "io") == 0) {
-        if (auto res = run_io_benchmark_tests(); !res.ok()) {
-            LOG(ERROR) << "IO benchmark test failed: " << res.error() << "\n";
-            return EXIT_FAILURE;
-        }
+extern "C" int android_native_main(int /* argc */, char* /* argv */[]) {
+    if (auto res = run_io_benchmark_tests(); !res.ok()) {
+        LOG(ERROR) << "IO benchmark test failed: " << res.error() << "\n";
+        return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }

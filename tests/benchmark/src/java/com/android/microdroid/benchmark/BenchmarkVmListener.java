@@ -49,7 +49,7 @@ class BenchmarkVmListener extends VmEventListener {
         try {
             IBenchmarkService benchmarkService =
                     IBenchmarkService.Stub.asInterface(
-                            vm.connectToVsockServer(IBenchmarkService.SERVICE_PORT).get());
+                            vm.connectToVsockServer(IBenchmarkService.SERVICE_PORT));
             assertThat(benchmarkService).isNotNull();
 
             mListener.onPayloadReady(vm, benchmarkService);
