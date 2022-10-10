@@ -33,15 +33,11 @@
 //! The payload of a partition is encrypted/signed by a key that is unique to the loader and to the
 //! VM as well. Failing to decrypt/authenticate a partition by a loader stops the boot process.
 
+use crate::dice::DiceDriver;
 use crate::ioutil;
 
-use android_security_dice::aidl::android::security::dice::IDiceNode::IDiceNode;
 use anyhow::{anyhow, bail, Context, Result};
-use binder::wait_for_interface;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use keystore2_crypto::ZVec;
-use openssl::hkdf::hkdf;
-use openssl::md::Md;
 use openssl::symm::{decrypt_aead, encrypt_aead, Cipher};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
@@ -50,6 +46,9 @@ use uuid::Uuid;
 
 /// Path to the instance disk inside the VM
 const INSTANCE_IMAGE_PATH: &str = "/dev/block/by-name/vm-instance";
+
+/// Identifier for the key used to seal the instance data.
+const INSTANCE_KEY_IDENTIFIER: &[u8] = b"microdroid_manager_key";
 
 /// Magic string in the instance disk header
 const DISK_HEADER_MAGIC: &str = "Android-VM-instance";
@@ -114,7 +113,7 @@ impl InstanceDisk {
     /// Reads the identity data that was written by microdroid manager. The returned data is
     /// plaintext, although it is stored encrypted. In case when the partition for microdroid
     /// manager doesn't exist, which can happen if it's the first boot, `Ok(None)` is returned.
-    pub fn read_microdroid_data(&mut self) -> Result<Option<MicrodroidData>> {
+    pub fn read_microdroid_data(&mut self, dice: &DiceDriver) -> Result<Option<MicrodroidData>> {
         let (header, offset) = self.locate_microdroid_header()?;
         if header.is_none() {
             return Ok(None);
@@ -143,7 +142,7 @@ impl InstanceDisk {
         self.file.read_exact(&mut header)?;
 
         // Decrypt and authenticate the data (along with the header).
-        let key = get_key()?;
+        let key = dice.get_sealing_key(INSTANCE_KEY_IDENTIFIER)?;
         let plaintext =
             decrypt_aead(Cipher::aes_256_gcm(), &key, Some(&nonce), &header, &data, &tag)?;
 
@@ -153,7 +152,11 @@ impl InstanceDisk {
 
     /// Writes identity data to the partition for microdroid manager. The partition is appended
     /// if it doesn't exist. The data is stored encrypted.
-    pub fn write_microdroid_data(&mut self, microdroid_data: &MicrodroidData) -> Result<()> {
+    pub fn write_microdroid_data(
+        &mut self,
+        microdroid_data: &MicrodroidData,
+        dice: &DiceDriver,
+    ) -> Result<()> {
         let (header, offset) = self.locate_microdroid_header()?;
 
         let data = serde_cbor::to_vec(microdroid_data)?;
@@ -185,7 +188,7 @@ impl InstanceDisk {
         self.file.write_all(nonce.as_ref())?;
 
         // Then encrypt and sign the data.
-        let key = get_key()?;
+        let key = dice.get_sealing_key(INSTANCE_KEY_IDENTIFIER)?;
         let mut tag = [0; AES_256_GCM_TAG_LENGTH];
         let ciphertext =
             encrypt_aead(Cipher::aes_256_gcm(), &key, Some(&nonce), &header, &data, &mut tag)?;
@@ -266,23 +269,6 @@ fn round_to_multiple(n: u64, unit: u64) -> Result<u64> {
         bail!("overflow")
     }
     Ok(ret)
-}
-
-/// Returns the key that is used to encrypt the microdroid manager partition. It is derived from
-/// the sealing CDI of the previous stage, which is Android Boot Loader (ABL).
-fn get_key() -> Result<ZVec> {
-    // Sealing CDI from the previous stage.
-    let diced = wait_for_interface::<dyn IDiceNode>("android.security.dice.IDiceNode")
-        .context("IDiceNode service not found")?;
-    let bcc_handover = diced.derive(&[]).context("Failed to get BccHandover")?;
-    // Deterministically derive another key to use for encrypting the data, rather than using the
-    // CDI directly, so we have the chance to rotate the key if needed. A salt isn't needed as the
-    // input key material is already cryptographically strong.
-    let salt = &[];
-    let info = b"microdroid_manager_key".as_ref();
-    let mut key = ZVec::new(32)?;
-    hkdf(&mut key, Md::sha256(), &bcc_handover.cdiSeal, salt, info)?;
-    Ok(key)
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
