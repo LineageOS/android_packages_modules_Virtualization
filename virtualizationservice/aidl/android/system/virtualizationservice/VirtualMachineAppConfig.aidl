@@ -34,6 +34,13 @@ parcelable VirtualMachineAppConfig {
     /** instance.img that has per-instance data */
     ParcelFileDescriptor instanceImage;
 
+    /**
+     * This backs the persistent, encrypted storage in vm.
+     * It also comes with some integrity guarantees.
+     * Note: Storage is an optional feature
+     */
+    @nullable ParcelFileDescriptor encryptedStorageImage;
+
     union Payload {
         /**
          * Path to a JSON file in an APK containing the configuration.
