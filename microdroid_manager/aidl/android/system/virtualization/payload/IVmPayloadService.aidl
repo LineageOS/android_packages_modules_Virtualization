@@ -28,6 +28,15 @@ interface IVmPayloadService {
     void notifyPayloadReady();
 
     /**
+     * Gets a secret that is uniquely bound to this VM instance.
+     *
+     * @param identifier the identifier of the secret to return.
+     * @param size the number of bytes of the secret to return.
+     * @return size bytes of the identified secret.
+     */
+    byte[] getVmInstanceSecret(in byte[] identifier, int size);
+
+    /**
      * Gets the DICE attestation chain for the VM.
      *
      * STOPSHIP:
@@ -44,13 +53,4 @@ interface IVmPayloadService {
      * of it leaking.
      */
     byte[] getDiceAttestationCdi();
-
-    /**
-     * Gets the DICE sealing CDI for the VM.
-     *
-     * TODO: A better API would handle key derivation on behalf of the payload so they can't forget
-     * to do it themselves. It also means the payload doesn't get the raw CDI so there's less chance
-     * of it leaking.
-     */
-    byte[] getDiceSealingCdi();
 }
