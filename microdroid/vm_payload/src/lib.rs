@@ -17,6 +17,6 @@
 mod vm_service;
 
 pub use vm_service::{
-    get_dice_attestation_cdi, get_dice_attestation_chain, get_dice_sealing_cdi,
+    get_dice_attestation_cdi, get_dice_attestation_chain, get_vm_instance_secret,
     notify_payload_ready,
 };

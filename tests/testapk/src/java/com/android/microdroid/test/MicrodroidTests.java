@@ -188,7 +188,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     private static class VmCdis {
         public byte[] cdiAttest;
-        public byte[] cdiSeal;
+        public byte[] instanceSecret;
     }
 
     private VmCdis launchVmAndGetCdis(String instanceName) throws Exception {
@@ -203,7 +203,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                             ITestService testService = ITestService.Stub.asInterface(
                                     vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             vmCdis.cdiAttest = testService.insecurelyExposeAttestationCdi();
-                            vmCdis.cdiSeal = testService.insecurelyExposeSealingCdi();
+                            vmCdis.instanceSecret = testService.insecurelyExposeVmInstanceSecret();
                             forceStop(vm);
                         } catch (Exception e) {
                             exception.complete(e);
@@ -234,10 +234,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(vm_a_cdis.cdiAttest).isNotNull();
         assertThat(vm_b_cdis.cdiAttest).isNotNull();
         assertThat(vm_a_cdis.cdiAttest).isNotEqualTo(vm_b_cdis.cdiAttest);
-        assertThat(vm_a_cdis.cdiSeal).isNotNull();
-        assertThat(vm_b_cdis.cdiSeal).isNotNull();
-        assertThat(vm_a_cdis.cdiSeal).isNotEqualTo(vm_b_cdis.cdiSeal);
-        assertThat(vm_a_cdis.cdiAttest).isNotEqualTo(vm_b_cdis.cdiSeal);
+        assertThat(vm_a_cdis.instanceSecret).isNotNull();
+        assertThat(vm_b_cdis.instanceSecret).isNotNull();
+        assertThat(vm_a_cdis.instanceSecret).isNotEqualTo(vm_b_cdis.instanceSecret);
     }
 
     @Test
@@ -257,9 +256,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VmCdis first_boot_cdis = launchVmAndGetCdis("test_vm");
         VmCdis second_boot_cdis = launchVmAndGetCdis("test_vm");
         // The attestation CDI isn't specified to be stable, though it might be
-        assertThat(first_boot_cdis.cdiSeal).isNotNull();
-        assertThat(second_boot_cdis.cdiSeal).isNotNull();
-        assertThat(first_boot_cdis.cdiSeal).isEqualTo(second_boot_cdis.cdiSeal);
+        assertThat(first_boot_cdis.instanceSecret).isNotNull();
+        assertThat(second_boot_cdis.instanceSecret).isNotNull();
+        assertThat(first_boot_cdis.instanceSecret).isEqualTo(second_boot_cdis.instanceSecret);
     }
 
     @Test
