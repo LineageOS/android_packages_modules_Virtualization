@@ -22,6 +22,7 @@ rust_defaults {
     rustlibs: [
         "android.system.virtualizationcommon-rust",
         "android.system.virtualizationservice-rust",
+        "android.system.virtualizationservice_internal-rust",
         "android.system.virtualmachineservice-rust",
         "android.os.permissions_aidl-rust",
         "libandroid_logger",
