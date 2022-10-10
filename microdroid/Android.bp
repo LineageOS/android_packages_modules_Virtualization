@@ -70,7 +70,6 @@ android_system_image {
         "apexd",
         "atrace",
         "debuggerd",
-        "dice-service.microdroid",
         "linker",
         "linkerconfig",
         "servicemanager.microdroid",
@@ -80,7 +79,6 @@ android_system_image {
         "task_profiles.json",
         "public.libraries.android.txt",
 
-        "microdroid_compatibility_matrix",
         "microdroid_event-log-tags",
         "microdroid_file_contexts",
         "microdroid_manifest",
@@ -528,14 +526,6 @@ prebuilt_etc {
     name: "microdroid_vendor_compatibility_matrix",
     src: "microdroid_vendor_compatibility_matrix.xml",
     filename: "compatibility_matrix.xml",
-    relative_install_path: "vintf",
-    installable: false,
-}
-
-prebuilt_etc {
-    name: "microdroid_compatibility_matrix",
-    src: "microdroid_compatibility_matrix.xml",
-    filename: "compatibility_matrix.current.xml",
     relative_install_path: "vintf",
     installable: false,
 }
