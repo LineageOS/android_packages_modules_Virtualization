@@ -57,7 +57,7 @@ int write_public_key() {
 }
 
 int write_bcc() {
-    uint8_t bcc[2048];
+    uint8_t bcc[4096];
     size_t bcc_size = get_dice_attestation_chain(bcc, sizeof(bcc));
     if (bcc_size == 0) {
         LOG(ERROR) << "Failed to get attestation chain";
