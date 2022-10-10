@@ -9,8 +9,6 @@ rust_defaults {
     edition: "2021",
     prefer_rlib: true,
     rustlibs: [
-        "android.hardware.security.dice-V1-rust",
-        "android.security.dice-rust",
         "android.system.virtualizationcommon-rust",
         "android.system.virtualizationservice-rust",
         "android.system.virtualmachineservice-rust",
@@ -20,6 +18,9 @@ rust_defaults {
         "libapkverify",
         "libbinder_rs",
         "libbyteorder",
+        "libdiced",
+        "libdiced_open_dice_cbor",
+        "libdiced_sample_inputs",
         "libdiced_utils",
         "libglob",
         "libitertools",

@@ -26,4 +26,31 @@ interface IVmPayloadService {
 
     /** Notifies that the payload is ready to serve. */
     void notifyPayloadReady();
+
+    /**
+     * Gets the DICE attestation chain for the VM.
+     *
+     * STOPSHIP:
+     * TODO: don't expose this to untrusted payloads as it contains privacy breaking identifiers.
+     */
+    byte[] getDiceAttestationChain();
+
+    /**
+     * Gets the DICE attestation CDI for the VM.
+     *
+     * STOPSHIP:
+     * TODO: A better API would handle key derivation on behalf of the payload so they can't forget
+     * to do it themselves. It also means the payload doesn't get the raw CDI so there's less chance
+     * of it leaking.
+     */
+    byte[] getDiceAttestationCdi();
+
+    /**
+     * Gets the DICE sealing CDI for the VM.
+     *
+     * TODO: A better API would handle key derivation on behalf of the payload so they can't forget
+     * to do it themselves. It also means the payload doesn't get the raw CDI so there's less chance
+     * of it leaking.
+     */
+    byte[] getDiceSealingCdi();
 }

@@ -14,6 +14,7 @@
 
 //! Implementation of the AIDL interface `IVmPayloadService`.
 
+use crate::dice::DiceContext;
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
@@ -23,11 +24,24 @@ use binder::{Interface, BinderFeatures, Strong, add_service};
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
     virtual_machine_service: Strong<dyn IVirtualMachineService>,
+    dice: DiceContext,
 }
 
 impl IVmPayloadService for VmPayloadService {
     fn notifyPayloadReady(&self) -> binder::Result<()> {
         self.virtual_machine_service.notifyPayloadReady()
+    }
+
+    fn getDiceAttestationChain(&self) -> binder::Result<Vec<u8>> {
+        Ok(self.dice.bcc.clone())
+    }
+
+    fn getDiceAttestationCdi(&self) -> binder::Result<Vec<u8>> {
+        Ok(self.dice.cdi_attest.to_vec())
+    }
+
+    fn getDiceSealingCdi(&self) -> binder::Result<Vec<u8>> {
+        Ok(self.dice.cdi_seal.to_vec())
     }
 }
 
@@ -35,17 +49,18 @@ impl Interface for VmPayloadService {}
 
 impl VmPayloadService {
     /// Creates a new `VmPayloadService` instance from the `IVirtualMachineService` reference.
-    fn new(vm_service: Strong<dyn IVirtualMachineService>) -> Self {
-        Self { virtual_machine_service: vm_service }
+    fn new(vm_service: Strong<dyn IVirtualMachineService>, dice: DiceContext) -> Self {
+        Self { virtual_machine_service: vm_service, dice }
     }
 }
 
 /// Registers the `IVmPayloadService` service.
 pub(crate) fn register_vm_payload_service(
     vm_service: Strong<dyn IVirtualMachineService>,
+    dice: DiceContext,
 ) -> Result<()> {
     let vm_payload_binder = BnVmPayloadService::new_binder(
-        VmPayloadService::new(vm_service),
+        VmPayloadService::new(vm_service, dice),
         BinderFeatures::default(),
     );
     add_service(VM_PAYLOAD_SERVICE_NAME, vm_payload_binder.as_binder())
