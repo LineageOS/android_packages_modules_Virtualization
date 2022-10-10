@@ -26,9 +26,9 @@ cc_binary {
 
     static_libs: [
         "libcompos_key",
-        "libvm_payload",
     ],
     shared_libs: [
+        "libvm_payload",
         "libbinder_ndk",
     ],
 }
