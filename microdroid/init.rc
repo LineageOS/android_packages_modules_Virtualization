@@ -67,8 +67,6 @@ on init
 
     start servicemanager
 
-    start dice-microdroid
-
 on init
     mkdir /mnt/apk 0755 system system
     mkdir /mnt/extra-apk 0755 root root
