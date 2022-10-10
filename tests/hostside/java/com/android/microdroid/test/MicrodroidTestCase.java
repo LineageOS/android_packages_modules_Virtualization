@@ -426,6 +426,7 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
+    @Ignore("b/245081929")
     @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
     public void testBootFailsWhenProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
