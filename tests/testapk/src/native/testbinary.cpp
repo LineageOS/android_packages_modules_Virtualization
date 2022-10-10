@@ -96,7 +96,7 @@ Result<void> start_test_service() {
         }
 
         ndk::ScopedAStatus getBcc(std::vector<uint8_t>* out) override {
-            uint8_t bcc[2048];
+            uint8_t bcc[4096];
             size_t bcc_size = get_dice_attestation_chain(bcc, sizeof(bcc));
             if (bcc_size == 0) {
                 return ndk::ScopedAStatus::
