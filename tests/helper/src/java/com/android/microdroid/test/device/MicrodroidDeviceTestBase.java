@@ -77,10 +77,12 @@ public abstract class MicrodroidDeviceTestBase {
             return mContext;
         }
 
-        /** Create a new VirtualMachineConfig.Builder with the parameterized protection mode. */
+        public VirtualMachineConfig.Builder newVmConfigBuilder() {
+            return new VirtualMachineConfig.Builder(mContext).setProtectedVm(mProtectedVm);
+        }
+
         public VirtualMachineConfig.Builder newVmConfigBuilder(String payloadConfigPath) {
-            return new VirtualMachineConfig.Builder(mContext, payloadConfigPath)
-                        .protectedVm(mProtectedVm);
+            return newVmConfigBuilder().setPayloadConfigPath(payloadConfigPath);
         }
 
         /**
@@ -239,7 +241,7 @@ public abstract class MicrodroidDeviceTestBase {
 
         @Override
         @CallSuper
-        public void onDied(VirtualMachine vm, int reason) {
+        public void onStopped(VirtualMachine vm, int reason) {
             vm.clearCallback();
             mExecutorService.shutdown();
         }
@@ -328,16 +330,16 @@ public abstract class MicrodroidDeviceTestBase {
                     }
 
                     @Override
-                    public void onDied(VirtualMachine vm, int reason) {
+                    public void onStopped(VirtualMachine vm, int reason) {
                         deathReason.complete(reason);
-                        super.onDied(vm, reason);
+                        super.onStopped(vm, reason);
                     }
                 };
         long apiCallNanoTime = System.nanoTime();
         listener.runToFinish(logTag, vm);
         return new BootResult(
                 payloadStarted.getNow(false),
-                deathReason.getNow(VirtualMachineCallback.DEATH_REASON_INFRASTRUCTURE_ERROR),
+                deathReason.getNow(VmEventListener.STOP_REASON_INFRASTRUCTURE_ERROR),
                 apiCallNanoTime,
                 endTime.getNow(apiCallNanoTime) - apiCallNanoTime,
                 listener.getVcpuStartedNanoTime(),

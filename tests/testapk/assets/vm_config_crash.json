@@ -4,10 +4,7 @@
     },
     "task": {
       "type": "microdroid_launcher",
-      "command": "MicrodroidTestNativeLib.so",
-      "args": [
-        "crash"
-      ]
+      "command": "MicrodroidTestNativeCrashLib.so"
     },
     "export_tombstones": true
   }
