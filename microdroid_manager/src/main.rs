@@ -14,24 +14,22 @@
 
 //! Microdroid Manager
 
+mod dice;
 mod instance;
 mod ioutil;
 mod payload;
 mod vm_payload_service;
 
+use crate::dice::{DiceContext, DiceDriver};
 use crate::instance::{ApexData, ApkData, InstanceDisk, MicrodroidData, RootHash};
 use crate::vm_payload_service::register_vm_payload_service;
-use android_hardware_security_dice::aidl::android::hardware::security::dice::{
-    Config::Config, InputValues::InputValues, Mode::Mode,
-};
-use android_security_dice::aidl::android::security::dice::IDiceMaintenance::IDiceMaintenance;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
     VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
 };
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify, V4Signature};
-use binder::{ProcessState, wait_for_interface, Strong};
+use binder::{ProcessState, Strong};
 use diced_utils::cbor::{encode_header, encode_number};
 use glob::glob;
 use itertools::sorted;
@@ -194,9 +192,10 @@ fn try_main() -> Result<()> {
 }
 
 fn dice_derivation(
+    dice: DiceDriver,
     verified_data: &MicrodroidData,
     payload_metadata: &PayloadMetadata,
-) -> Result<()> {
+) -> Result<DiceContext> {
     // Calculate compound digests of code and authorities
     let mut code_hash_ctx = Sha512::new();
     let mut authority_hash_ctx = Sha512::new();
@@ -247,20 +246,8 @@ fn dice_derivation(
     let app_debuggable = system_properties::read_bool(APP_DEBUGGABLE_PROP, true)?;
 
     // Send the details to diced
-    let diced =
-        wait_for_interface::<dyn IDiceMaintenance>("android.security.dice.IDiceMaintenance")
-            .context("IDiceMaintenance service not found")?;
-    diced
-        .demoteSelf(&[InputValues {
-            codeHash: code_hash,
-            config: Config { desc: config_desc },
-            authorityHash: authority_hash,
-            authorityDescriptor: None,
-            mode: if app_debuggable { Mode::DEBUG } else { Mode::NORMAL },
-            hidden: verified_data.salt.clone().try_into().unwrap(),
-        }])
-        .context("IDiceMaintenance::demoteSelf failed")?;
-    Ok(())
+    let hidden = verified_data.salt.clone().try_into().unwrap();
+    dice.derive(code_hash, &config_desc, authority_hash, app_debuggable, hidden)
 }
 
 fn encode_tstr(tstr: &str, buffer: &mut Vec<u8>) -> Result<()> {
@@ -290,9 +277,11 @@ fn is_verified_boot() -> bool {
 
 fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     let metadata = load_metadata().context("Failed to load payload metadata")?;
+    let dice = DiceDriver::new(Path::new("/dev/open-dice0")).context("Failed to load DICE")?;
 
     let mut instance = InstanceDisk::new().context("Failed to load instance.img")?;
-    let saved_data = instance.read_microdroid_data().context("Failed to read identity data")?;
+    let saved_data =
+        instance.read_microdroid_data(&dice).context("Failed to read identity data")?;
 
     if is_strict_boot() {
         // Provisioning must happen on the first boot and never again.
@@ -333,7 +322,9 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         saved_data
     } else {
         info!("Saving verified data.");
-        instance.write_microdroid_data(&verified_data).context("Failed to write identity data")?;
+        instance
+            .write_microdroid_data(&verified_data, &dice)
+            .context("Failed to write identity data")?;
         verified_data
     };
 
@@ -343,7 +334,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
-    dice_derivation(&verified_data, &payload_metadata)?;
+    let dice = dice_derivation(dice, &verified_data, &payload_metadata)?;
 
     // Before reading a file from the APK, start zipfuse
     let noexec = false;
@@ -388,7 +379,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     }
 
     system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
-    register_vm_payload_service(service.clone())?;
+    register_vm_payload_service(service.clone(), dice)?;
     ProcessState::start_thread_pool();
     exec_task(task, service)
 }
