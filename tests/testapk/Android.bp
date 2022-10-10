@@ -40,12 +40,12 @@ cc_library_shared {
         "libbinder_ndk",
         "libbinder_rpc_unstable",
         "MicrodroidTestNativeLibSub",
+        "libvm_payload",
     ],
     static_libs: [
         "libfsverity_digests_proto_cc",
         "liblog",
         "libprotobuf-cpp-lite-ndk",
-        "libvm_payload",
     ],
 }
 
