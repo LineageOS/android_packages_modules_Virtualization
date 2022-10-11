@@ -23,7 +23,7 @@ use log::{error, info, Level};
 /// Notifies the host that the payload is ready.
 /// Returns true if the notification succeeds else false.
 #[no_mangle]
-pub extern "C" fn notify_payload_ready() -> bool {
+pub extern "C" fn AVmPayload_notifyPayloadReady() -> bool {
     android_logger::init_once(
         android_logger::Config::default().with_tag("vm_payload").with_min_level(Level::Debug),
     );
@@ -46,9 +46,14 @@ fn try_notify_payload_ready() -> Result<()> {
 ///
 /// # Safety
 ///
-/// The identifier must be identifier_size bytes and secret must be size bytes.
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `identifier` must be [valid] for reads of `identifier_size` bytes.
+/// * `secret` must be [valid] for writes of `size` bytes.
+///
+/// [valid]: std::ptr#safety
 #[no_mangle]
-pub unsafe extern "C" fn get_vm_instance_secret(
+pub unsafe extern "C" fn AVmPayload_getVmInstanceSecret(
     identifier: *const u8,
     identifier_size: usize,
     secret: *mut u8,
@@ -77,25 +82,31 @@ fn try_get_vm_instance_secret(identifier: &[u8], size: usize) -> Result<Vec<u8>>
 }
 
 /// Get the VM's attestation chain.
-/// Returns the size of data or 0 on failure.
+/// Returns true on success, else false.
 ///
 /// # Safety
 ///
-/// The data must be size bytes big.
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `data` must be [valid] for writes of `size` bytes.
+/// * `total` must be [valid] for writes.
+///
+/// [valid]: std::ptr#safety
 #[no_mangle]
-pub unsafe extern "C" fn get_dice_attestation_chain(data: *mut u8, size: usize) -> usize {
+pub unsafe extern "C" fn AVmPayload_getDiceAttestationChain(
+    data: *mut u8,
+    size: usize,
+    total: *mut usize,
+) -> bool {
     match try_get_dice_attestation_chain() {
         Err(e) => {
             error!("{:?}", e);
-            0
+            false
         }
         Ok(chain) => {
-            if size < chain.len() {
-                0
-            } else {
-                std::ptr::copy_nonoverlapping(chain.as_ptr(), data, chain.len());
-                chain.len()
-            }
+            total.write(chain.len());
+            std::ptr::copy_nonoverlapping(chain.as_ptr(), data, std::cmp::min(chain.len(), size));
+            true
         }
     }
 }
@@ -105,25 +116,31 @@ fn try_get_dice_attestation_chain() -> Result<Vec<u8>> {
 }
 
 /// Get the VM's attestation CDI.
-/// Returns the size of data or 0 on failure.
+/// Returns true on success, else false.
 ///
 /// # Safety
 ///
-/// The data must be size bytes big.
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `data` must be [valid] for writes of `size` bytes.
+/// * `total` must be [valid] for writes.
+///
+/// [valid]: std::ptr#safety
 #[no_mangle]
-pub unsafe extern "C" fn get_dice_attestation_cdi(data: *mut u8, size: usize) -> usize {
+pub unsafe extern "C" fn AVmPayload_getDiceAttestationCdi(
+    data: *mut u8,
+    size: usize,
+    total: *mut usize,
+) -> bool {
     match try_get_dice_attestation_cdi() {
         Err(e) => {
             error!("{:?}", e);
-            0
+            false
         }
         Ok(cdi) => {
-            if size < cdi.len() {
-                0
-            } else {
-                std::ptr::copy_nonoverlapping(cdi.as_ptr(), data, cdi.len());
-                cdi.len()
-            }
+            total.write(cdi.len());
+            std::ptr::copy_nonoverlapping(cdi.as_ptr(), data, std::cmp::min(cdi.len(), size));
+            true
         }
     }
 }
