@@ -28,7 +28,7 @@ extern "C" {
  * Notifies the host that the payload is ready.
  * Returns true if the notification succeeds else false.
  */
-bool notify_payload_ready();
+bool notify_payload_ready(void);
 
 /**
  * Get a secret that is uniquely bound to this VM instance. The secrets are 32-byte values and the
