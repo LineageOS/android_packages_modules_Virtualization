@@ -75,41 +75,48 @@ Result<void> start_test_service() {
 
         ndk::ScopedAStatus insecurelyExposeVmInstanceSecret(std::vector<uint8_t>* out) override {
             const uint8_t identifier[] = {1, 2, 3, 4};
-            uint8_t secret[32];
-            if (!get_vm_instance_secret(identifier, sizeof(identifier), secret, sizeof(secret))) {
+            out->resize(32);
+            if (!AVmPayload_getVmInstanceSecret(identifier, sizeof(identifier), out->data(),
+                                                out->size())) {
                 return ndk::ScopedAStatus::
                         fromServiceSpecificErrorWithMessage(0, "Failed to VM instance secret");
             }
-            *out = {secret, secret + sizeof(secret)};
             return ndk::ScopedAStatus::ok();
         }
 
         ndk::ScopedAStatus insecurelyExposeAttestationCdi(std::vector<uint8_t>* out) override {
-            uint8_t cdi[64];
-            size_t cdi_size = get_dice_attestation_cdi(cdi, sizeof(cdi));
-            if (cdi_size == 0) {
+            size_t cdi_size;
+            if (!AVmPayload_getDiceAttestationCdi(nullptr, 0, &cdi_size)) {
+                return ndk::ScopedAStatus::
+                        fromServiceSpecificErrorWithMessage(0, "Failed to measure attestation cdi");
+            }
+            out->resize(cdi_size);
+            if (!AVmPayload_getDiceAttestationCdi(out->data(), out->size(), &cdi_size)) {
                 return ndk::ScopedAStatus::
                         fromServiceSpecificErrorWithMessage(0, "Failed to get attestation cdi");
             }
-            *out = {cdi, cdi + cdi_size};
             return ndk::ScopedAStatus::ok();
         }
 
         ndk::ScopedAStatus getBcc(std::vector<uint8_t>* out) override {
-            uint8_t bcc[4096];
-            size_t bcc_size = get_dice_attestation_chain(bcc, sizeof(bcc));
-            if (bcc_size == 0) {
+            size_t bcc_size;
+            if (!AVmPayload_getDiceAttestationChain(nullptr, 0, &bcc_size)) {
+                return ndk::ScopedAStatus::
+                        fromServiceSpecificErrorWithMessage(0,
+                                                            "Failed to measure attestation chain");
+            }
+            out->resize(bcc_size);
+            if (!AVmPayload_getDiceAttestationChain(out->data(), out->size(), &bcc_size)) {
                 return ndk::ScopedAStatus::
                         fromServiceSpecificErrorWithMessage(0, "Failed to get attestation chain");
             }
-            *out = {bcc, bcc + bcc_size};
             return ndk::ScopedAStatus::ok();
         }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
 
     auto callback = []([[maybe_unused]] void* param) {
-        if (!notify_payload_ready()) {
+        if (!AVmPayload_notifyPayloadReady()) {
             std::cerr << "failed to notify payload ready to virtualizationservice" << std::endl;
             abort();
         }
