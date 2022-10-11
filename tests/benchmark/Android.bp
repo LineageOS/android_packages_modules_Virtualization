@@ -46,6 +46,7 @@ cc_library_shared {
         "libbinder_ndk",
         "libbinder_rpc_unstable",
         "liblog",
+        "libvm_payload",
     ],
 }
 
