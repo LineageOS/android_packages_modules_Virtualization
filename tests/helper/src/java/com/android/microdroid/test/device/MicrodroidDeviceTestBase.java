@@ -150,7 +150,7 @@ public abstract class MicrodroidDeviceTestBase {
             if (!mVcpuStartedNanoTime.isPresent()) {
                 mVcpuStartedNanoTime = OptionalLong.of(System.nanoTime());
             }
-            if (log.contains("Starting kernel") && !mKernelStartedNanoTime.isPresent()) {
+            if (log.contains("Starting payload...") && !mKernelStartedNanoTime.isPresent()) {
                 mKernelStartedNanoTime = OptionalLong.of(System.nanoTime());
             }
             if (log.contains("Run /init as init process") && !mInitStartedNanoTime.isPresent()) {
