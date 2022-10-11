@@ -29,22 +29,23 @@ using android::base::Result;
 using android::base::WriteFully;
 using namespace std::literals;
 using compos_key::Ed25519KeyPair;
+using compos_key::Seed;
 
 namespace {
 
-constexpr const char* kSigningKeySecretIdentifier = "CompOS signing key secret";
+constexpr const char* kSigningKeySeedIdentifier = "CompOS signing key seed";
 
-Result<Ed25519KeyPair> deriveKeyFromDice() {
-    uint8_t secret[32];
-    if (!get_vm_instance_secret(kSigningKeySecretIdentifier, strlen(kSigningKeySecretIdentifier),
-                                secret, sizeof(secret))) {
-        return Error() << "Failed to get signing key secret";
+Result<Ed25519KeyPair> getSigningKey() {
+    Seed seed;
+    if (!get_vm_instance_secret(kSigningKeySeedIdentifier, strlen(kSigningKeySeedIdentifier),
+                                seed.data(), seed.size())) {
+        return Error() << "Failed to get signing key seed";
     }
-    return compos_key::deriveKeyFromSecret(secret, sizeof(secret));
+    return compos_key::keyFromSeed(seed);
 }
 
 int write_public_key() {
-    auto key_pair = deriveKeyFromDice();
+    auto key_pair = getSigningKey();
     if (!key_pair.ok()) {
         LOG(ERROR) << key_pair.error();
         return 1;
@@ -79,7 +80,7 @@ int sign_input() {
         return 1;
     }
 
-    auto key_pair = deriveKeyFromDice();
+    auto key_pair = getSigningKey();
     if (!key_pair.ok()) {
         LOG(ERROR) << key_pair.error();
         return 1;
