@@ -63,7 +63,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{TombstonedConnection, DebuggerdDumpType};
 use vmconfig::VmConfig;
-use vsock::{SockAddr, VsockListener, VsockStream};
+use vsock::{VsockListener, VsockStream};
 use zip::ZipArchive;
 
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
@@ -268,7 +268,7 @@ fn handle_stream_connection_tombstoned() -> Result<()> {
 }
 
 fn handle_tombstone(stream: &mut VsockStream) -> Result<()> {
-    if let Ok(SockAddr::Vsock(addr)) = stream.peer_addr() {
+    if let Ok(addr) = stream.peer_addr() {
         info!("Vsock Stream connected to cid={} for tombstones", addr.cid());
     }
     let tb_connection =
@@ -499,7 +499,7 @@ fn handle_stream_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
             }
             Ok(s) => s,
         };
-        if let Ok(SockAddr::Vsock(addr)) = stream.peer_addr() {
+        if let Ok(addr) = stream.peer_addr() {
             let cid = addr.cid();
             let port = addr.port();
             info!("payload stream connected from cid={}, port={}", cid, port);
