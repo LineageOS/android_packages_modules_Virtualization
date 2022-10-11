@@ -22,20 +22,12 @@ mod compos_key;
 mod compsvc;
 mod fsverity;
 
-use android_system_virtualmachineservice::{
-    aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-        IVirtualMachineService, VM_BINDER_SERVICE_PORT,
-    },
-    binder::Strong,
-};
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
-use rpcbinder::{get_vsock_rpc_interface, run_rpc_server};
+use rpcbinder::run_rpc_server;
 use std::panic;
-
-/// The CID representing the host VM
-const VMADDR_CID_HOST: u32 = 2;
+use vm_payload_bindgen::notify_payload_ready;
 
 fn main() {
     if let Err(e) = try_main() {
@@ -54,14 +46,10 @@ fn try_main() -> Result<()> {
     }));
 
     let service = compsvc::new_binder()?.as_binder();
-    let vm_service = get_vm_service()?;
-
     debug!("compsvc is starting as a rpc service.");
-
-    let retval = run_rpc_server(service, COMPOS_VSOCK_PORT, || {
-        if let Err(e) = vm_service.notifyPayloadReady() {
-            error!("Unable to notify ready: {}", e);
-        }
+    // SAFETY: Invokes a method from the bindgen library `vm_payload_bindgen`.
+    let retval = run_rpc_server(service, COMPOS_VSOCK_PORT, || unsafe {
+        notify_payload_ready();
     });
     if retval {
         debug!("RPC server has shut down gracefully");
@@ -69,9 +57,4 @@ fn try_main() -> Result<()> {
     } else {
         bail!("Premature termination of RPC server");
     }
-}
-
-fn get_vm_service() -> Result<Strong<dyn IVirtualMachineService>> {
-    get_vsock_rpc_interface(VMADDR_CID_HOST, VM_BINDER_SERVICE_PORT as u32)
-        .context("Connecting to IVirtualMachineService")
 }
