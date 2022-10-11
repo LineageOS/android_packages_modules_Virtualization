@@ -27,7 +27,7 @@ use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
 use rpcbinder::run_rpc_server;
 use std::panic;
-use vm_payload_bindgen::notify_payload_ready;
+use vm_payload_bindgen::AVmPayload_notifyPayloadReady;
 
 fn main() {
     if let Err(e) = try_main() {
@@ -49,7 +49,7 @@ fn try_main() -> Result<()> {
     debug!("compsvc is starting as a rpc service.");
     // SAFETY: Invokes a method from the bindgen library `vm_payload_bindgen`.
     let retval = run_rpc_server(service, COMPOS_VSOCK_PORT, || unsafe {
-        notify_payload_ready();
+        AVmPayload_notifyPayloadReady();
     });
     if retval {
         debug!("RPC server has shut down gracefully");

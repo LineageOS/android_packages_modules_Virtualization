@@ -20,6 +20,7 @@
 #include <vm_payload.h>
 
 #include <string_view>
+#include <vector>
 
 #include "compos_key.h"
 
@@ -37,8 +38,9 @@ constexpr const char* kSigningKeySeedIdentifier = "CompOS signing key seed";
 
 Result<Ed25519KeyPair> getSigningKey() {
     Seed seed;
-    if (!get_vm_instance_secret(kSigningKeySeedIdentifier, strlen(kSigningKeySeedIdentifier),
-                                seed.data(), seed.size())) {
+    if (!AVmPayload_getVmInstanceSecret(kSigningKeySeedIdentifier,
+                                        strlen(kSigningKeySeedIdentifier), seed.data(),
+                                        seed.size())) {
         return Error() << "Failed to get signing key seed";
     }
     return compos_key::keyFromSeed(seed);
@@ -58,14 +60,18 @@ int write_public_key() {
 }
 
 int write_bcc() {
-    uint8_t bcc[4096];
-    size_t bcc_size = get_dice_attestation_chain(bcc, sizeof(bcc));
-    if (bcc_size == 0) {
+    size_t bcc_size;
+    if (!AVmPayload_getDiceAttestationChain(nullptr, 0, &bcc_size)) {
+        LOG(ERROR) << "Failed to measure attestation chain";
+        return 1;
+    }
+    std::vector<uint8_t> bcc(bcc_size);
+    if (!AVmPayload_getDiceAttestationChain(bcc.data(), bcc.size(), &bcc_size)) {
         LOG(ERROR) << "Failed to get attestation chain";
         return 1;
     }
 
-    if (!WriteFully(STDOUT_FILENO, bcc, bcc_size)) {
+    if (!WriteFully(STDOUT_FILENO, bcc.data(), bcc.size())) {
         PLOG(ERROR) << "Write failed";
         return 1;
     }

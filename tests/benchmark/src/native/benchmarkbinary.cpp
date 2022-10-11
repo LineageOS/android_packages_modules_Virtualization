@@ -158,7 +158,7 @@ private:
 Result<void> run_io_benchmark_tests() {
     auto test_service = ndk::SharedRefBase::make<IOBenchmarkService>();
     auto callback = []([[maybe_unused]] void* param) {
-        if (!notify_payload_ready()) {
+        if (!AVmPayload_notifyPayloadReady()) {
             LOG(ERROR) << "failed to notify payload ready to virtualizationservice";
             abort();
         }
