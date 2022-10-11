@@ -54,4 +54,6 @@ enum DeathReason {
     MICRODROID_UNKNOWN_RUNTIME_ERROR = 15,
     /** The VM killed due to hangup */
     HANGUP = 16,
+    /** The VCPU stalled */
+    WATCHDOG_REBOOT = 17,
 }
