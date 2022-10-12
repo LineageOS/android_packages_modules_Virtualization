@@ -30,3 +30,8 @@ fn panic(info: &PanicInfo) -> ! {
     eprintln!("{}", info);
     reboot()
 }
+
+#[no_mangle]
+extern "C" fn __stack_chk_fail() -> ! {
+    panic!("stack guard check failed");
+}
