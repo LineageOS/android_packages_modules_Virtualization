@@ -9,8 +9,8 @@ rust_defaults {
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
+        "libhex",
         "libserde",
-        "libapexutil_rust", // TODO(b/239413416): Remove this after adding hex
         "libapkverify",
     ],
 }
