@@ -41,6 +41,8 @@ pub fn command_run_app(
     apk: &Path,
     idsig: &Path,
     instance: &Path,
+    storage: Option<&Path>,
+    storage_size: Option<u64>,
     config_path: &str,
     daemonize: bool,
     console_path: Option<&Path>,
@@ -88,6 +90,20 @@ pub fn command_run_app(
         )?;
     }
 
+    let storage = if let Some(path) = storage {
+        if !path.exists() {
+            command_create_partition(
+                service,
+                path,
+                storage_size.unwrap_or(10 * 1024 * 1024),
+                PartitionType::RAW,
+            )?;
+        }
+        Some(open_parcel_file(path, true)?)
+    } else {
+        None
+    };
+
     let extra_idsig_files: Result<Vec<File>, _> = extra_idsigs.iter().map(File::open).collect();
     let extra_idsig_fds = extra_idsig_files?.into_iter().map(ParcelFileDescriptor::new).collect();
 
@@ -97,6 +113,7 @@ pub fn command_run_app(
         idsig: idsig_fd.into(),
         extraIdsigs: extra_idsig_fds,
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
+        encryptedStorageImage: storage,
         payload: Payload::ConfigPath(config_path.to_owned()),
         debugLevel: debug_level,
         protectedVm: protected,
