@@ -24,7 +24,8 @@ mod layout;
 extern crate alloc;
 
 use crate::layout::{
-    dtb_range, print_addresses, rodata_range, text_range, writable_region, DEVICE_REGION,
+    bionic_tls, dtb_range, print_addresses, rodata_range, stack_chk_guard, text_range,
+    writable_region, DEVICE_REGION,
 };
 use aarch64_paging::{idmap::IdMap, paging::Attributes};
 use alloc::{vec, vec::Vec};
@@ -55,6 +56,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     print_addresses();
     assert_eq!(arg0, dtb_range().start.0 as u64);
     check_data();
+    check_stack_guard();
 
     unsafe {
         HEAP_ALLOCATOR.lock().init(&mut HEAP as *mut u8 as usize, HEAP.len());
@@ -92,6 +94,13 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     info!("Activated.");
 
     check_data();
+}
+
+fn check_stack_guard() {
+    const BIONIC_TLS_STACK_GRD_OFF: usize = 40;
+
+    info!("Testing stack guard");
+    assert_eq!(bionic_tls(BIONIC_TLS_STACK_GRD_OFF), stack_chk_guard());
 }
 
 fn check_data() {

@@ -73,6 +73,14 @@
 .set .Lsctlrval, .L_SCTLR_ELx_M | .L_SCTLR_ELx_C | .L_SCTLR_ELx_SA | .L_SCTLR_EL1_ITD | .L_SCTLR_EL1_SED
 .set .Lsctlrval, .Lsctlrval | .L_SCTLR_ELx_I | .L_SCTLR_EL1_SPAN | .L_SCTLR_EL1_RES1 | .L_SCTLR_EL1_WXN
 
+/* Bionic-compatible stack protector */
+.section .data.stack_protector, "aw"
+__bionic_tls:
+	.zero	40
+.global __stack_chk_guard
+__stack_chk_guard:
+	.quad	0x23d6d3f3c3b84098 	/* TODO: randomize */
+
 /**
  * This is a generic entry point for an image. It carries out the operations required to prepare the
  * loaded image to be run. Specifically, it zeroes the bss section using registers x25 and above,
@@ -149,6 +157,10 @@ entry:
 	/* Set up exception vector. */
 	adr x30, vector_table_el1
 	msr vbar_el1, x30
+
+	/* Set up Bionic-compatible thread-local storage. */
+	adr_l x30, __bionic_tls
+	msr tpidr_el0, x30
 
 	/* Call into Rust code. */
 	bl rust_entry
