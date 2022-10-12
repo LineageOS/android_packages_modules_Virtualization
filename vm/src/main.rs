@@ -58,6 +58,16 @@ enum Opt {
         #[clap(short, long)]
         daemonize: bool,
 
+        /// Path to the file backing the storage.
+        /// Created if the option is used but the path does not exist in the device.
+        #[clap(long)]
+        storage: Option<PathBuf>,
+
+        /// Size of the storage. Used only if --storage is supplied but path does not exist
+        /// Default size is 10*1024*1024
+        #[clap(long)]
+        storage_size: Option<u64>,
+
         /// Path to file for VM console output.
         #[clap(long)]
         console: Option<PathBuf>,
@@ -188,6 +198,8 @@ fn main() -> Result<(), Error> {
             apk,
             idsig,
             instance,
+            storage,
+            storage_size,
             config_path,
             daemonize,
             console,
@@ -205,6 +217,8 @@ fn main() -> Result<(), Error> {
             &apk,
             &idsig,
             &instance,
+            storage.as_deref(),
+            storage_size,
             config_path.as_deref().unwrap_or(""),
             daemonize,
             console.as_deref(),

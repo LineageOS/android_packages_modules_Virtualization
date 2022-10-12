@@ -122,6 +122,7 @@ impl ComposClient {
             apk: Some(apk_fd),
             idsig: Some(idsig_fd),
             instanceImage: Some(instance_fd),
+            encryptedStorageImage: None,
             payload: Payload::ConfigPath(config_path),
             debugLevel: debug_level,
             extraIdsigs: extra_idsigs,
