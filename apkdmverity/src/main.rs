@@ -21,13 +21,13 @@
 //! system managed by the host Android which is assumed to be compromisable, it is important to
 //! keep the integrity of the file "inside" Microdroid.
 
-mod dm;
 mod loopdevice;
-mod util;
 
 use anyhow::{bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
 use clap::{App, Arg};
+use dm::util;
+use dm::verity::{DmVerityHashAlgorithm, DmVerityTargetBuilder};
 use itertools::Itertools;
 use std::fmt::Debug;
 use std::fs;
@@ -114,7 +114,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(
 
     // Build a dm-verity target spec from the information from the idsig file. The apk and the
     // idsig files are used as the data device and the hash device, respectively.
-    let target = dm::DmVerityTargetBuilder::default()
+    let target = DmVerityTargetBuilder::default()
         .data_device(&data_device, apk_size)
         .hash_device(&hash_device)
         .root_digest(if let Some(roothash) = roothash {
@@ -123,7 +123,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(
             &sig.hashing_info.raw_root_hash
         })
         .hash_algorithm(match sig.hashing_info.hash_algorithm {
-            HashAlgorithm::SHA256 => dm::DmVerityHashAlgorithm::SHA256,
+            HashAlgorithm::SHA256 => DmVerityHashAlgorithm::SHA256,
         })
         .salt(&sig.hashing_info.salt)
         .build()
@@ -132,7 +132,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(
     // Actually create a dm-verity block device using the spec.
     let dm = dm::DeviceMapper::new()?;
     let mapper_device =
-        dm.create_device(name, &target).context("Failed to create dm-verity device")?;
+        dm.create_verity_device(name, &target).context("Failed to create dm-verity device")?;
 
     Ok(VerityResult { data_device, hash_device, mapper_device })
 }

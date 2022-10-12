@@ -24,21 +24,28 @@ use std::io::Write;
 use std::mem::size_of;
 use std::path::Path;
 
-use super::DmTargetSpec;
 use crate::util::*;
+use crate::DmTargetSpec;
 
 // The UAPI for the verity target is here.
 // https://www.kernel.org/doc/Documentation/device-mapper/verity.txt
 
-/// Version of the verity target spec. Only `V1` is supported.
+/// Device-Mapper’s “verity” target provides transparent integrity checking of block devices using
+/// a cryptographic digest provided by the kernel crypto API
+pub struct DmVerityTarget(Box<[u8]>);
+
+/// Version of the verity target spec.
 pub enum DmVerityVersion {
+    /// Only `1` is supported.
     V1,
 }
 
 /// The hash algorithm to use. SHA256 and SHA512 are supported.
 #[allow(dead_code)]
 pub enum DmVerityHashAlgorithm {
+    /// sha with 256 bit hash
     SHA256,
+    /// sha with 512 bit hash
     SHA512,
 }
 
@@ -53,9 +60,8 @@ pub struct DmVerityTargetBuilder<'a> {
     salt: Option<&'a [u8]>,
 }
 
-pub struct DmVerityTarget(Box<[u8]>);
-
 impl DmVerityTarget {
+    /// flatten into slice
     pub fn as_slice(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -89,7 +95,7 @@ impl<'a> DmVerityTargetBuilder<'a> {
         self
     }
 
-    /// Sets the hash algorithm that the merkel tree is using.
+    /// Sets the hash algorithm that the merkle tree is using.
     pub fn hash_algorithm(&mut self, algo: DmVerityHashAlgorithm) -> &mut Self {
         self.hash_algorithm = algo;
         self
