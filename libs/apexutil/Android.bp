@@ -27,6 +27,9 @@ rust_test {
     prefer_rlib: true,
     test_suites: ["general-tests"],
     data: ["tests/data/*"],
+    rustlibs: [
+        "libhex",
+    ],
     target: {
         host: {
             // TODO(b/204562227): remove once the build does this automatically

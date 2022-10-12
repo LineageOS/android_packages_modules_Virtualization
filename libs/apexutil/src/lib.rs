@@ -101,11 +101,6 @@ pub fn get_payload_vbmeta_image_hash(path: &str) -> Result<Vec<u8>, ApexVerifica
     Ok(vbmeta.hash().ok_or(ApexVerificationError::ApexPubkeyMistmatch)?.to_vec())
 }
 
-/// Converts the buffer to a Hex String
-pub fn to_hex_string(buf: &[u8]) -> String {
-    buf.iter().map(|b| format!("{:02x}", b)).collect()
-}
-
 fn get_public_key_and_image_info(apex_file: &File) -> Result<(Vec<u8>, u64, u64), ApexParseError> {
     let mut z = ZipArchive::new(apex_file).map_err(|err| match err {
         ZipError::Io(err) => ApexParseError::Io(err),
@@ -149,7 +144,7 @@ mod tests {
         let res = verify("tests/data/test.apex").unwrap();
         // The expected hex is generated when we ran the method the first time.
         assert_eq!(
-            to_hex_string(&res.root_digest),
+            hex::encode(&res.root_digest),
             "fe11ab17da0a3a738b54bdc3a13f6139cbdf91ec32f001f8d4bbbf8938e04e39"
         );
     }
@@ -158,7 +153,7 @@ mod tests {
     fn payload_vbmeta_has_valid_image_hash() {
         let result = get_payload_vbmeta_image_hash("tests/data/test.apex").unwrap();
         assert_eq!(
-            to_hex_string(&result),
+            hex::encode(&result),
             "296e32a76544de9da01713e471403ab4667705ad527bb4f1fac0cf61e7ce122d"
         );
     }
