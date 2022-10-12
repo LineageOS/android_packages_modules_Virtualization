@@ -363,13 +363,10 @@ fn collect_apex_infos<'a>(
         .collect()
 }
 
-pub fn add_microdroid_images(
+pub fn add_microdroid_system_images(
     config: &VirtualMachineAppConfig,
-    temporary_directory: &Path,
-    apk_file: File,
-    idsig_file: File,
     instance_file: File,
-    vm_payload_config: &VmPayloadConfig,
+    storage_image: Option<File>,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
     let debug_suffix = match config.debugLevel {
@@ -381,12 +378,37 @@ pub fn add_microdroid_images(
     let initrd = format!("/apex/com.android.virt/etc/microdroid_initrd_{}.img", debug_suffix);
     vm_config.initrd = Some(open_parcel_file(Path::new(&initrd), false)?);
 
-    let instance_img = Partition {
+    let mut writable_partitions = vec![Partition {
         label: "vm-instance".to_owned(),
         image: Some(ParcelFileDescriptor::new(instance_file)),
         writable: true,
-    };
-    vm_config.disks.push(DiskImage { image: None, partitions: vec![instance_img], writable: true });
+    }];
+
+    if let Some(file) = storage_image {
+        writable_partitions.push(Partition {
+            label: "encrypted-storage".to_owned(),
+            image: Some(ParcelFileDescriptor::new(file)),
+            writable: true,
+        });
+    }
+
+    vm_config.disks.push(DiskImage {
+        image: None,
+        partitions: writable_partitions,
+        writable: true,
+    });
+
+    Ok(())
+}
+
+pub fn add_microdroid_payload_images(
+    config: &VirtualMachineAppConfig,
+    temporary_directory: &Path,
+    apk_file: File,
+    idsig_file: File,
+    vm_payload_config: &VmPayloadConfig,
+    vm_config: &mut VirtualMachineRawConfig,
+) -> Result<()> {
     vm_config.disks.push(make_payload_disk(
         config,
         apk_file,
