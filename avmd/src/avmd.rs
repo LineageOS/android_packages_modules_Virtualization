@@ -18,7 +18,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use apexutil::to_hex_string;
 use apkverify::SignatureAlgorithmID;
 use core::fmt;
 use serde::{Deserialize, Serialize};
@@ -106,7 +105,7 @@ impl fmt::Display for VbMetaDescriptor {
         writeln!(f, "  VBMeta descriptor:")?;
         writeln!(f, "    namespace:             {}", self.resource.namespace)?;
         writeln!(f, "    name:                  {}", self.resource.name)?;
-        writeln!(f, "    vbmeta digest:         {}", to_hex_string(&self.vbmeta_digest))?;
+        writeln!(f, "    vbmeta digest:         {}", hex::encode(&self.vbmeta_digest))?;
         Ok(())
     }
 }
@@ -132,7 +131,7 @@ impl fmt::Display for ApkDescriptor {
         writeln!(f, "    namespace:             {}", self.resource.namespace)?;
         writeln!(f, "    name:                  {}", self.resource.name)?;
         writeln!(f, "    Signing algorithm ID:  {:#04x}", self.signature_algorithm_id.to_u32())?;
-        writeln!(f, "    APK digest:            {}", to_hex_string(&self.apk_digest))?;
+        writeln!(f, "    APK digest:            {}", hex::encode(&self.apk_digest))?;
         Ok(())
     }
 }
