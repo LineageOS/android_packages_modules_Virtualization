@@ -65,8 +65,6 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     private static final String DIGEST_4M =
             "sha256-f18a268d565348fb4bbf11f10480b198f98f2922eb711de149857b3cecf98a8d";
 
-    private static final int VMADDR_CID_HOST = 2;
-
     private static CommandRunner sAndroid;
     private static CommandRunner sMicrodroid;
 
@@ -91,10 +89,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         runFdServerOnAndroid(
                 "--open-ro 3:input.4m --open-ro 4:input.4m.fsv_meta --open-ro 6:input.4m",
                 "--ro-fds 3:4 --ro-fds 6");
-
-        runAuthFsOnMicrodroid(
-                "--remote-ro-file-unverified 6 --remote-ro-file 3:" + DIGEST_4M + " --cid "
-                        + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-file-unverified 6 --remote-ro-file 3:" + DIGEST_4M);
 
         // Action
         String actualHashUnverified4m = computeFileHash(sMicrodroid, MOUNT_DIR + "/6");
@@ -117,8 +112,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
                     + " 6:input.4k1 --open-ro 7:input.4k1.fsv_meta",
                 "--ro-fds 3:4 --ro-fds 6:7");
         runAuthFsOnMicrodroid(
-                "--remote-ro-file 3:" + DIGEST_4K + " --remote-ro-file 6:" + DIGEST_4K1 + " --cid "
-                + VMADDR_CID_HOST);
+                "--remote-ro-file 3:" + DIGEST_4K + " --remote-ro-file 6:" + DIGEST_4K1);
 
         // Action
         String actualHash4k = computeFileHash(sMicrodroid, MOUNT_DIR + "/3");
@@ -138,7 +132,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         runFdServerOnAndroid(
                 "--open-ro 3:input.4m --open-ro 4:input.4m.fsv_meta.bad_merkle",
                 "--ro-fds 3:4");
-        runAuthFsOnMicrodroid("--remote-ro-file 3:" + DIGEST_4M + " --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-file 3:" + DIGEST_4M);
 
         // Verify
         assertThat(copyFile(sMicrodroid, MOUNT_DIR + "/3", "/dev/null")).isFailed();
@@ -150,8 +144,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         runFdServerOnAndroid("--open-ro 3:input.apk", "--ro-fds 3");
         String expectedDigest = sAndroid.run(
                 FSVERITY_BIN + " digest --compact " + TEST_DIR + "/input.apk");
-        runAuthFsOnMicrodroid(
-                "--remote-ro-file 3:sha256-" + expectedDigest + " --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-file 3:sha256-" + expectedDigest);
 
         // Action
         String actualHash = computeFileHash(sMicrodroid, MOUNT_DIR + "/3");
@@ -165,7 +158,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testWriteThroughCorrectly() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3");
 
         // Action
         String srcPath = "/system/bin/linker64";
@@ -182,7 +175,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testWriteFailedIfDetectsTampering() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3");
 
         String srcPath = "/system/bin/linker64";
         String destPath = MOUNT_DIR + "/3";
@@ -223,7 +216,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testReadFailedIfDetectsTampering() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3");
 
         String srcPath = "/system/bin/linker64";
         String destPath = MOUNT_DIR + "/3";
@@ -251,7 +244,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testResizeFailedIfDetectsTampering() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3");
 
         String outputPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
@@ -275,7 +268,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testFileResize() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/out.file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3");
         String outputPath = MOUNT_DIR + "/3";
         String backendPath = TEST_OUTPUT_DIR + "/out.file";
 
@@ -309,7 +302,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Action & Verify
         // Can create a new file to write.
@@ -338,7 +331,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Action
         // Can create nested directories and can create a file in one.
@@ -372,7 +365,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Action & Verify
         sMicrodroid.run("echo -n foo > " + authfsOutputDir + "/file");
@@ -393,7 +386,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         sMicrodroid.run("echo -n foo > " + authfsOutputDir + "/file");
         sMicrodroid.run("test -f " + authfsOutputDir + "/file");
@@ -412,7 +405,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         sMicrodroid.run("mkdir -p " + authfsOutputDir + "/dir/dir2");
         sMicrodroid.run("echo -n foo > " + authfsOutputDir + "/dir/file");
@@ -438,7 +431,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String authfsOutputDir = MOUNT_DIR + "/3";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         sMicrodroid.run("touch " + authfsOutputDir + "/some_file");
         sMicrodroid.run("mkdir " + authfsOutputDir + "/some_dir");
@@ -462,7 +455,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         String androidOutputDir = TEST_OUTPUT_DIR + "/dir";
         sAndroid.run("mkdir " + androidOutputDir);
         runFdServerOnAndroid("--open-dir 3:" + androidOutputDir, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Create a file with some data. Test the existence.
         String outputPath = authfsOutputDir + "/out";
@@ -494,8 +487,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         // Setup
         String authfsInputDir = MOUNT_DIR + "/3";
         runFdServerOnAndroid("--open-dir 3:" + TEST_DIR, "--ro-dirs 3");
-        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + INPUT_MANIFEST_PATH + ": --cid "
-                + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + INPUT_MANIFEST_PATH + ":");
 
         // Action
         String actualHash = computeFileHash(sMicrodroid, authfsInputDir + "/input.4m");
@@ -510,8 +502,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
         // Setup
         String authfsInputDir = MOUNT_DIR + "/3";
         runFdServerOnAndroid("--open-dir 3:" + TEST_DIR, "--ro-dirs 3");
-        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + INPUT_MANIFEST_PATH + ": --cid "
-                + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-ro-dir 3:" + INPUT_MANIFEST_PATH + ":");
 
         // Verify
         sMicrodroid.run("test -f " + authfsInputDir + "/input.4k");
@@ -523,7 +514,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testReadOutputDirectory() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-dir 3:" + TEST_OUTPUT_DIR, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Action
         String authfsOutputDir = MOUNT_DIR + "/3";
@@ -564,7 +555,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testChmod_File() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-rw 3:" + TEST_OUTPUT_DIR + "/file", "--rw-fds 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-file 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-file 3");
 
         // Action & Verify
         // Change mode
@@ -579,7 +570,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testChmod_Dir() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-dir 3:" + TEST_OUTPUT_DIR, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Action & Verify
         String authfsOutputDir = MOUNT_DIR + "/3";
@@ -603,7 +594,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testChmod_FileInOutputDirectory() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-dir 3:" + TEST_OUTPUT_DIR, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Action & Verify
         String authfsOutputDir = MOUNT_DIR + "/3";
@@ -626,7 +617,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     public void testStatfs() throws Exception {
         // Setup
         runFdServerOnAndroid("--open-dir 3:" + TEST_OUTPUT_DIR, "--rw-dirs 3");
-        runAuthFsOnMicrodroid("--remote-new-rw-dir 3 --cid " + VMADDR_CID_HOST);
+        runAuthFsOnMicrodroid("--remote-new-rw-dir 3");
 
         // Verify
         // Magic matches. Has only 2 inodes (root and "/3").

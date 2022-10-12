@@ -82,6 +82,8 @@ public class AuthFsTestRule extends TestLogData {
     /** Plenty of time for authfs to get ready */
     private static final int AUTHFS_INIT_TIMEOUT_MS = 3000;
 
+    private static final int VMADDR_CID_HOST = 2;
+
     private static TestInformation sTestInfo;
     private static CommandRunner sAndroid;
     private static CommandRunner sMicrodroid;
@@ -177,7 +179,7 @@ public class AuthFsTestRule extends TestLogData {
     }
 
     void runAuthFsOnMicrodroid(String flags) {
-        String cmd = AUTHFS_BIN + " " + MOUNT_DIR + " " + flags;
+        String cmd = AUTHFS_BIN + " " + MOUNT_DIR + " " + flags + " --cid " + VMADDR_CID_HOST;
 
         AtomicBoolean starting = new AtomicBoolean(true);
         Future<?> unusedFuture =
