@@ -11,8 +11,8 @@ rust_library_rlib {
     prefer_rlib: true,
     stdlibs: ["libcore.rust_sysroot"],
     rustlibs: [
-        "libopen_dice_cbor_bindgen",
-        "libopen_dice_bcc_bindgen",
+        "libopen_dice_cbor_bindgen_nostd",
+        "libopen_dice_bcc_bindgen_nostd",
     ],
     whole_static_libs: [
         "libopen_dice_bcc",
