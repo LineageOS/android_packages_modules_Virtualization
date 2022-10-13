@@ -26,7 +26,9 @@
 // the device mapper block devices that are currently listed in the kernel. Size is an important
 // criteria for Microdroid.
 
-use crate::util::*;
+//! A library to create device mapper spec & issue ioctls.
+
+#![allow(missing_docs)]
 
 use anyhow::{Context, Result};
 use data_model::DataInit;
@@ -36,17 +38,22 @@ use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 
+/// Expose util functions
+pub mod util;
+/// Exposes the DmVerityTarget & related builder
+pub mod verity;
+
 mod sys;
-mod verity;
 use sys::*;
-pub use verity::*;
+use util::*;
+use verity::*;
 
 nix::ioctl_readwrite!(_dm_dev_create, DM_IOCTL, Cmd::DM_DEV_CREATE, DmIoctl);
 nix::ioctl_readwrite!(_dm_dev_suspend, DM_IOCTL, Cmd::DM_DEV_SUSPEND, DmIoctl);
 nix::ioctl_readwrite!(_dm_table_load, DM_IOCTL, Cmd::DM_TABLE_LOAD, DmIoctl);
-#[cfg(test)]
 nix::ioctl_readwrite!(_dm_dev_remove, DM_IOCTL, Cmd::DM_DEV_REMOVE, DmIoctl);
 
+/// Create a new (mapper) device
 fn dm_dev_create(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
     // SAFETY: `ioctl` is copied into the kernel. It modifies the state in the kernel, not the
     // state of this process in any way.
@@ -65,7 +72,6 @@ fn dm_table_load(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
     Ok(unsafe { _dm_table_load(dm.0.as_raw_fd(), ioctl) }?)
 }
 
-#[cfg(test)]
 fn dm_dev_remove(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
     // SAFETY: `ioctl` is copied into the kernel. It modifies the state in the kernel, not the
     // state of this process in any way.
@@ -145,10 +151,10 @@ impl DeviceMapper {
 
     /// Creates a device mapper device and configure it according to the `target` specification.
     /// The path to the generated device is "/dev/mapper/<name>".
-    pub fn create_device(&self, name: &str, target: &DmVerityTarget) -> Result<PathBuf> {
+    pub fn create_verity_device(&self, name: &str, target: &DmVerityTarget) -> Result<PathBuf> {
         // Step 1: create an empty device
         let mut data = DmIoctl::new(name)?;
-        data.set_uuid(&uuid()?)?;
+        data.set_uuid(&uuid("apkver".as_bytes())?)?;
         dm_dev_create(self, &mut data)
             .context(format!("failed to create an empty device with name {}", &name))?;
 
@@ -179,7 +185,6 @@ impl DeviceMapper {
     }
 
     /// Removes a mapper device
-    #[cfg(test)]
     pub fn delete_device_deferred(&self, name: &str) -> Result<()> {
         let mut data = DmIoctl::new(name)?;
         data.flags |= Flag::DM_DEFERRED_REMOVE;
@@ -190,7 +195,7 @@ impl DeviceMapper {
 }
 
 /// Used to derive a UUID that uniquely identifies a device mapper device when creating it.
-fn uuid() -> Result<String> {
+fn uuid(node_id: &[u8]) -> Result<String> {
     use std::time::{SystemTime, UNIX_EPOCH};
     use uuid::v1::{Context, Timestamp};
     use uuid::Uuid;
@@ -198,6 +203,6 @@ fn uuid() -> Result<String> {
     let context = Context::new(0);
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
     let ts = Timestamp::from_unix(&context, now.as_secs(), now.subsec_nanos());
-    let uuid = Uuid::new_v1(ts, "apkver".as_bytes())?;
+    let uuid = Uuid::new_v1(ts, node_id)?;
     Ok(String::from(uuid.to_hyphenated().encode_lower(&mut Uuid::encode_buffer())))
 }
