@@ -25,6 +25,7 @@ mod sys;
 
 use anyhow::{Context, Result};
 use data_model::DataInit;
+use dm::util::*;
 use libc::O_DIRECT;
 use std::fs::{File, OpenOptions};
 use std::mem::size_of;
@@ -35,7 +36,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::loopdevice::sys::*;
-use crate::util::*;
 
 // These are old-style ioctls, thus *_bad.
 nix::ioctl_none_bad!(_loop_ctl_get_free, LOOP_CTL_GET_FREE);
@@ -71,7 +71,7 @@ pub fn attach<P: AsRef<Path>>(
 ) -> Result<PathBuf> {
     // Attaching a file to a loop device can make a race condition; a loop device number obtained
     // from LOOP_CTL_GET_FREE might have been used by another thread or process. In that case the
-    // subsequet LOOP_CONFIGURE ioctl returns with EBUSY. Try until it succeeds.
+    // subsequent LOOP_CONFIGURE ioctl returns with EBUSY. Try until it succeeds.
     //
     // Note that the timing parameters below are chosen rather arbitrarily. In practice (i.e.
     // inside Microdroid) we can't experience the race condition because `apkverity` is the only
