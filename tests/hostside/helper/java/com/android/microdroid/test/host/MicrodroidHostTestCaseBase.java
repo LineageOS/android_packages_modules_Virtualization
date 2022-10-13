@@ -387,6 +387,9 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         long timeoutMillis = MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES * 60 * 1000;
         long elapsed = 0;
 
+        // In case there is a stale connection...
+        tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
+
         final String serial = androidDevice.getSerialNumber();
         final String from = "tcp:" + TEST_VM_ADB_PORT;
         final String to = "vsock:" + cid + ":5555";
