@@ -109,10 +109,6 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         return 0;
     }
 
-    private boolean isProtectedVmSupported() throws DeviceNotAvailableException {
-        return getDevice().getBooleanProperty("ro.boot.hypervisor.protected_vm.supported", false);
-    }
-
     private void waitForBootComplete() {
         runOnMicrodroidForResult("watch -e \"getprop dev.bootcomplete | grep '^0$'\"");
     }
