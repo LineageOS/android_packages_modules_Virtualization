@@ -91,6 +91,7 @@ apex_defaults {
     ],
     prebuilts: [
         "com.android.virt.init.rc",
+        "features_com.android.virt.xml",
         "microdroid_initrd_app_debuggable",
         "microdroid_initrd_full_debuggable",
         "microdroid_initrd_normal",
