@@ -50,10 +50,7 @@ fn main() {
     clear_temporary_files().expect("Failed to delete old temporary files");
 
     let service = VirtualizationService::init();
-    let service = BnVirtualizationService::new_binder(
-        service,
-        BinderFeatures { set_requesting_sid: true, ..BinderFeatures::default() },
-    );
+    let service = BnVirtualizationService::new_binder(service, BinderFeatures::default());
     register_lazy_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();

@@ -28,9 +28,6 @@ parcelable VirtualMachineDebugInfo {
     /** The UID of the process which requested the VM. */
     int requesterUid;
 
-    /** The SID of the process which requested the VM. */
-    @utf8InCpp String requesterSid;
-
     /**
      * The PID of the process which requested the VM. Note that this process may no longer exist and
      * the PID may have been reused for a different process, so this should not be trusted.
