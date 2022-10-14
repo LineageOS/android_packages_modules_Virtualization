@@ -80,7 +80,7 @@ SECTIONS
 	data_lma = LOADADDR(.data);
 
 	/* Everything beyond this point will not be included in the binary. */
-	bin_end = .;
+	bin_end = data_lma + SIZEOF(.data);
 
 	/* The entry point code assumes that .bss is 16-byte aligned. */
 	.bss : ALIGN(16)  {
