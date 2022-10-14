@@ -169,13 +169,11 @@ public class MainActivity extends AppCompatActivity {
                         private final ExecutorService mService = mExecutorService;
 
                         @Override
-                        public void onPayloadStarted(VirtualMachine vm,
-                                ParcelFileDescriptor stream) {
-                            if (stream == null) {
-                                mPayloadOutput.postValue("(no output available)");
-                                return;
-                            }
+                        public void onPayloadStarted(VirtualMachine vm) {}
 
+                        @Override
+                        public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {
+                            mPayloadOutput.postValue("(Payload connected standard output...)");
                             InputStream input = new FileInputStream(stream.getFileDescriptor());
                             mService.execute(new Reader("payload", mPayloadOutput, input));
                         }

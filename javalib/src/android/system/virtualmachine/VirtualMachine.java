@@ -643,9 +643,14 @@ public class VirtualMachine implements AutoCloseable {
                 mVirtualMachine.registerCallback(
                         new IVirtualMachineCallback.Stub() {
                             @Override
-                            public void onPayloadStarted(int cid, ParcelFileDescriptor stream) {
+                            public void onPayloadStarted(int cid) {
+                                executeCallback((cb) -> cb.onPayloadStarted(VirtualMachine.this));
+                            }
+
+                            @Override
+                            public void onPayloadStdio(int cid, ParcelFileDescriptor stream) {
                                 executeCallback(
-                                        (cb) -> cb.onPayloadStarted(VirtualMachine.this, stream));
+                                        (cb) -> cb.onPayloadStdio(VirtualMachine.this, stream));
                             }
 
                             @Override
@@ -656,16 +661,20 @@ public class VirtualMachine implements AutoCloseable {
                             @Override
                             public void onPayloadFinished(int cid, int exitCode) {
                                 executeCallback(
-                                        (cb) -> cb.onPayloadFinished(VirtualMachine.this,
-                                                exitCode));
+                                        (cb) ->
+                                                cb.onPayloadFinished(
+                                                        VirtualMachine.this, exitCode));
                             }
 
                             @Override
                             public void onError(int cid, int errorCode, String message) {
                                 int translatedError = getTranslatedError(errorCode);
                                 executeCallback(
-                                        (cb) -> cb.onError(VirtualMachine.this, translatedError,
-                                                message));
+                                        (cb) ->
+                                                cb.onError(
+                                                        VirtualMachine.this,
+                                                        translatedError,
+                                                        message));
                             }
 
                             @Override
@@ -674,18 +683,17 @@ public class VirtualMachine implements AutoCloseable {
                                 int translatedReason = getTranslatedReason(reason);
                                 if (onDiedCalled.compareAndSet(false, true)) {
                                     executeCallback(
-                                            (cb) -> cb.onStopped(VirtualMachine.this,
-                                                    translatedReason));
+                                            (cb) ->
+                                                    cb.onStopped(
+                                                            VirtualMachine.this, translatedReason));
                                 }
                             }
 
                             @Override
                             public void onRamdump(int cid, ParcelFileDescriptor ramdump) {
-                                executeCallback(
-                                        (cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
+                                executeCallback((cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
                             }
-                        }
-                );
+                        });
                 service.asBinder().linkToDeath(deathRecipient, 0);
                 mVirtualMachine.start();
             } catch (IOException | IllegalStateException | ServiceSpecificException e) {

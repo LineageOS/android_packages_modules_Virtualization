@@ -38,7 +38,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
         BnVirtualMachineService, IVirtualMachineService, VM_BINDER_SERVICE_PORT,
-        VM_STREAM_SERVICE_PORT, VM_TOMBSTONES_SERVICE_PORT,
+        VM_TOMBSTONES_SERVICE_PORT,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
@@ -301,12 +301,6 @@ impl VirtualizationService {
     pub fn init() -> VirtualizationService {
         let service = VirtualizationService::default();
 
-        // server for payload output
-        let state = service.state.clone(); // reference to state (not the state itself) is copied
-        std::thread::spawn(move || {
-            handle_stream_connection_from_vm(state).unwrap();
-        });
-
         std::thread::spawn(|| {
             if let Err(e) = handle_stream_connection_tombstoned() {
                 warn!("Error receiving tombstone from guest or writing them. Error: {:?}", e);
@@ -486,33 +480,6 @@ impl VirtualizationService {
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
     }
-}
-
-/// Waits for incoming connections from VM. If a new connection is made, stores the stream in the
-/// corresponding `VmInstance`.
-fn handle_stream_connection_from_vm(state: Arc<Mutex<State>>) -> Result<()> {
-    let listener =
-        VsockListener::bind_with_cid_port(VMADDR_CID_HOST, VM_STREAM_SERVICE_PORT as u32)?;
-    for stream in listener.incoming() {
-        let stream = match stream {
-            Err(e) => {
-                warn!("invalid incoming connection: {:?}", e);
-                continue;
-            }
-            Ok(s) => s,
-        };
-        if let Ok(addr) = stream.peer_addr() {
-            let cid = addr.cid();
-            let port = addr.port();
-            info!("payload stream connected from cid={}, port={}", cid, port);
-            if let Some(vm) = state.lock().unwrap().get_vm(cid) {
-                *vm.stream.lock().unwrap() = Some(stream);
-            } else {
-                error!("connection from cid={} is not from a guest VM", cid);
-            }
-        }
-    }
-    Ok(())
 }
 
 fn write_zero_filler(zero_filler_path: &Path) -> Result<()> {
@@ -854,11 +821,10 @@ pub struct VirtualMachineCallbacks(Mutex<Vec<Strong<dyn IVirtualMachineCallback>
 
 impl VirtualMachineCallbacks {
     /// Call all registered callbacks to notify that the payload has started.
-    pub fn notify_payload_started(&self, cid: Cid, stream: Option<VsockStream>) {
+    pub fn notify_payload_started(&self, cid: Cid) {
         let callbacks = &*self.0.lock().unwrap();
-        let pfd = stream.map(vsock_stream_to_pfd);
         for callback in callbacks {
-            if let Err(e) = callback.onPayloadStarted(cid as i32, pfd.as_ref()) {
+            if let Err(e) = callback.onPayloadStarted(cid as i32) {
                 error!("Error notifying payload start event from VM CID {}: {:?}", cid, e);
             }
         }
@@ -890,6 +856,16 @@ impl VirtualMachineCallbacks {
         for callback in callbacks {
             if let Err(e) = callback.onError(cid as i32, error_code, message) {
                 error!("Error notifying error event from VM CID {}: {:?}", cid, e);
+            }
+        }
+    }
+
+    /// Call all registered callbacks to notify that the payload has provided a standard I/O proxy.
+    pub fn notify_payload_stdio(&self, cid: Cid, fd: ParcelFileDescriptor) {
+        let callbacks = &*self.0.lock().unwrap();
+        for callback in callbacks {
+            if let Err(e) = callback.onPayloadStdio(cid as i32, &fd) {
+                error!("Error notifying payload stdio event from VM CID {}: {:?}", cid, e);
             }
         }
     }
@@ -1072,8 +1048,7 @@ impl IVirtualMachineService for VirtualMachineService {
             vm.update_payload_state(PayloadState::Started).map_err(|e| {
                 Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
             })?;
-            let stream = vm.stream.lock().unwrap().take();
-            vm.callbacks.notify_payload_started(cid, stream);
+            vm.callbacks.notify_payload_started(cid);
 
             let vm_start_timestamp = vm.vm_start_timestamp.lock().unwrap();
             write_vm_booted_stats(vm.requester_uid as i32, &vm.name, *vm_start_timestamp);
@@ -1134,6 +1109,27 @@ impl IVirtualMachineService for VirtualMachineService {
             Ok(())
         } else {
             error!("notifyError is called from an unknown CID {}", cid);
+            Err(Status::new_service_specific_error_str(
+                -1,
+                Some(format!("cannot find a VM with CID {}", cid)),
+            ))
+        }
+    }
+
+    fn connectPayloadStdioProxy(&self, port: i32) -> binder::Result<()> {
+        let cid = self.cid;
+        if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
+            info!("VM with CID {} started a stdio proxy", cid);
+            let stream = VsockStream::connect_with_cid_port(cid, port as u32).map_err(|e| {
+                Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to connect to guest stdio proxy: {:?}", e)),
+                )
+            })?;
+            vm.callbacks.notify_payload_stdio(cid, vsock_stream_to_pfd(stream));
+            Ok(())
+        } else {
+            error!("connectPayloadStdioProxy is called from an unknown CID {}", cid);
             Err(Status::new_service_specific_error_str(
                 -1,
                 Some(format!("cannot find a VM with CID {}", cid)),

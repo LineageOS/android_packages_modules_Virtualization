@@ -671,8 +671,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 new VmEventListener() {
                     private void testVMService(VirtualMachine vm) {
                         try {
-                            ITestService testService = ITestService.Stub.asInterface(
-                                    vm.connectToVsockServer(ITestService.SERVICE_PORT));
+                            ITestService testService =
+                                    ITestService.Stub.asInterface(
+                                            vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             testResults.mAddInteger = testService.addInteger(123, 456);
                             testResults.mAppRunProp =
                                     testService.readProperty("debug.microdroid.app.run");
@@ -695,11 +696,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     }
 
                     @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                    public void onPayloadStarted(VirtualMachine vm) {
                         Log.i(TAG, "onPayloadStarted");
                         payloadStarted.complete(true);
-                        logVmOutput(TAG, new FileInputStream(stream.getFileDescriptor()),
-                                "Payload");
+                    }
+
+                    @Override
+                    public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {
+                        Log.i(TAG, "onPayloadStdio");
+                        logVmOutput(
+                                TAG, new FileInputStream(stream.getFileDescriptor()), "Payload");
                     }
                 };
         listener.runToFinish(TAG, vm);
