@@ -33,7 +33,7 @@ acloud create --local-instance --local-image
 ### Pixel 6 and 6 Pro
 
 If the device is running Android 12, join the [Android Beta
-Program](https://www.google.com/android/beta) to uprade to Android 13 Beta.
+Program](https://www.google.com/android/beta) to upgrade to Android 13 Beta.
 
 Once upgraded to Android 13, execute the following command to enable pKVM.
 
