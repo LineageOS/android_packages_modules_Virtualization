@@ -52,7 +52,7 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     private static final String FSVERITY_BIN = "/data/local/tmp/fsverity";
 
     /** Mount point of authfs on Microdroid during the test */
-    private static final String MOUNT_DIR = "/data/local/tmp";
+    private static final String MOUNT_DIR = AuthFsTestRule.MOUNT_DIR;
 
     /** Input manifest path in the VM. */
     private static final String INPUT_MANIFEST_PATH = "/mnt/apk/assets/input_manifest.pb";
