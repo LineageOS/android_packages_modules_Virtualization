@@ -185,8 +185,6 @@ pub struct VmInstance {
     pub temporary_directory: PathBuf,
     /// The UID of the process which requested the VM.
     pub requester_uid: u32,
-    /// The SID of the process which requested the VM.
-    pub requester_sid: String,
     /// The PID of the process which requested the VM. Note that this process may no longer exist
     /// and the PID may have been reused for a different process, so this should not be trusted.
     pub requester_debug_pid: i32,
@@ -210,7 +208,6 @@ impl VmInstance {
         config: CrosvmConfig,
         temporary_directory: PathBuf,
         requester_uid: u32,
-        requester_sid: String,
         requester_debug_pid: i32,
     ) -> Result<VmInstance, Error> {
         validate_config(&config)?;
@@ -224,7 +221,6 @@ impl VmInstance {
             protected,
             temporary_directory,
             requester_uid,
-            requester_sid,
             requester_debug_pid,
             callbacks: Default::default(),
             stream: Mutex::new(None),
