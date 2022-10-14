@@ -66,7 +66,7 @@ fastboot reboot
 ```
 
 Finally, if the `pvmfw` partition has been corrupted, both slots may be flashed
-using the [`pvmfw.img` pre-built](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/pvmfw/pvmfw.img)
+using the [`pvmfw.img` pre-built](https://android.googlesource.com/platform/packages/modules/Virtualization/+/08deac98acefd62e222edfa374d5292458cf97eb%5E/pvmfw/pvmfw.img)
 as long as the bootloader remains unlocked. Otherwise, a fresh install of
 Android 13 followed by the manual steps above for flashing the `other` slot
 should be used as a last resort.
