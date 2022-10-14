@@ -111,8 +111,6 @@ impl Interface for VirtualizationService {
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
             writeln!(file, "\trequester_uid: {}", vm.requester_uid)
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\trequester_sid: {}", vm.requester_sid)
-                .or(Err(StatusCode::UNKNOWN_ERROR))?;
             writeln!(file, "\trequester_debug_pid: {}", vm.requester_debug_pid)
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
         }
@@ -217,7 +215,6 @@ impl IVirtualizationService for VirtualizationService {
                 cid: vm.cid as i32,
                 temporaryDirectory: vm.temporary_directory.to_string_lossy().to_string(),
                 requesterUid: vm.requester_uid as i32,
-                requesterSid: vm.requester_sid.clone(),
                 requesterPid: vm.requester_debug_pid,
                 state: get_state(&vm),
             })
@@ -346,7 +343,6 @@ impl VirtualizationService {
         let console_fd = console_fd.map(clone_file).transpose()?;
         let log_fd = log_fd.map(clone_file).transpose()?;
         let requester_uid = ThreadState::get_calling_uid();
-        let requester_sid = get_calling_sid()?;
         let requester_debug_pid = ThreadState::get_calling_pid();
         let cid = next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
 
@@ -466,20 +462,14 @@ impl VirtualizationService {
             detect_hangup: is_app_config,
         };
         let instance = Arc::new(
-            VmInstance::new(
-                crosvm_config,
-                temporary_directory,
-                requester_uid,
-                requester_sid,
-                requester_debug_pid,
-            )
-            .map_err(|e| {
-                error!("Failed to create VM with config {:?}: {:?}", config, e);
-                Status::new_service_specific_error_str(
-                    -1,
-                    Some(format!("Failed to create VM: {:?}", e)),
-                )
-            })?,
+            VmInstance::new(crosvm_config, temporary_directory, requester_uid, requester_debug_pid)
+                .map_err(|e| {
+                    error!("Failed to create VM with config {:?}: {:?}", config, e);
+                    Status::new_service_specific_error_str(
+                        -1,
+                        Some(format!("Failed to create VM: {:?}", e)),
+                    )
+                })?,
         );
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
@@ -703,27 +693,6 @@ struct CompositeImageFilenames {
     header: PathBuf,
     /// The footer partition image.
     footer: PathBuf,
-}
-
-/// Gets the calling SID of the current Binder thread.
-fn get_calling_sid() -> Result<String, Status> {
-    ThreadState::with_calling_sid(|sid| {
-        if let Some(sid) = sid {
-            match sid.to_str() {
-                Ok(sid) => Ok(sid.to_owned()),
-                Err(e) => {
-                    error!("SID was not valid UTF-8: {}", e);
-                    Err(Status::new_exception_str(
-                        ExceptionCode::ILLEGAL_ARGUMENT,
-                        Some(format!("SID was not valid UTF-8: {}", e)),
-                    ))
-                }
-            }
-        } else {
-            error!("Missing SID on createVm");
-            Err(Status::new_exception_str(ExceptionCode::SECURITY, Some("Missing SID on createVm")))
-        }
-    })
 }
 
 /// Checks whether the caller has a specific permission
