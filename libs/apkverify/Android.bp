@@ -33,6 +33,7 @@ rust_test {
     name: "libapkverify.test",
     defaults: ["libapkverify.defaults"],
     test_suites: ["general-tests"],
+    rustlibs: ["libhex"],
     data: ["tests/data/*"],
 }
 
