@@ -312,10 +312,6 @@ mod tests {
 
     const TEST_APK_PATH: &str = "tests/data/v4-digest-v3-Sha256withEC.apk";
 
-    fn hexstring_from(s: &[u8]) -> String {
-        s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
-    }
-
     #[test]
     fn parse_idsig_file() {
         let parsed = V4Signature::from_idsig_path(format!("{}.idsig", TEST_APK_PATH)).unwrap();
@@ -325,22 +321,22 @@ mod tests {
         let hi = parsed.hashing_info;
         assert_eq!(HashAlgorithm::SHA256, hi.hash_algorithm);
         assert_eq!(12, hi.log2_blocksize);
-        assert_eq!("", hexstring_from(hi.salt.as_ref()));
+        assert_eq!("", hex::encode(hi.salt.as_ref()));
         assert_eq!(
             "77f063b48b63f846690fa76450a8d3b61a295b6158f50592e873f76dbeeb0201",
-            hexstring_from(hi.raw_root_hash.as_ref())
+            hex::encode(hi.raw_root_hash.as_ref())
         );
 
         let si = parsed.signing_info;
         assert_eq!(
             "c02fe2eddeb3078801828b930de546ea4f98d37fb98b40c7c7ed169b0d713583",
-            hexstring_from(si.apk_digest.as_ref())
+            hex::encode(si.apk_digest.as_ref())
         );
-        assert_eq!("", hexstring_from(si.additional_data.as_ref()));
+        assert_eq!("", hex::encode(si.additional_data.as_ref()));
         assert_eq!(
             "3046022100fb6383ba300dc7e1e6931a25b381398a16e5575baefd82afd12ba88660d9a6\
             4c022100ebdcae13ab18c4e30bf6ae634462e526367e1ba26c2647a1d87a0f42843fc128",
-            hexstring_from(si.signature.as_ref())
+            hex::encode(si.signature.as_ref())
         );
         assert_eq!(SignatureAlgorithmID::EcdsaWithSha256, si.signature_algorithm_id);
 
