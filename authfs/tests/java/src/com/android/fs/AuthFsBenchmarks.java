@@ -47,7 +47,6 @@ import java.util.Map;
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     private static final int TRIAL_COUNT = 5;
-    private static final int FILE_SIZE_IN_MB = 4;
 
     /** Name of the measure_io binary on host. */
     private static final String MEASURE_IO_BIN_NAME = "measure_io";
@@ -92,6 +91,16 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
         readRemoteFile("rand");
     }
 
+    @Test
+    public void seqWriteRemoteFile() throws Exception {
+        writeRemoteFile("seq");
+    }
+
+    @Test
+    public void randWriteRemoteFile() throws Exception {
+        writeRemoteFile("rand");
+    }
+
     private void readRemoteFile(String mode) throws DeviceNotAvailableException {
         pushMeasureIoBinToMicrodroid();
         // Cache the file in memory for the host.
@@ -100,7 +109,8 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
                 .run("cat " + mAuthFsTestRule.TEST_DIR + "/input.4m > /dev/null");
 
         String filePath = mAuthFsTestRule.MOUNT_DIR + "/3";
-        String cmd = MEASURE_IO_BIN_PATH + " " + filePath + " " + FILE_SIZE_IN_MB + " " + mode;
+        int fileSizeMb = 4;
+        String cmd = MEASURE_IO_BIN_PATH + " " + filePath + " " + fileSizeMb + " " + mode + " r";
         List<Double> rates = new ArrayList<>(TRIAL_COUNT);
         for (int i = 0; i < TRIAL_COUNT + 1; ++i) {
             mAuthFsTestRule.runFdServerOnAndroid(
@@ -111,6 +121,23 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
             rates.add(Double.parseDouble(rate));
         }
         reportMetrics(rates, mode + "_read", "mb_per_sec");
+    }
+
+    private void writeRemoteFile(String mode) throws DeviceNotAvailableException {
+        pushMeasureIoBinToMicrodroid();
+        String filePath = mAuthFsTestRule.MOUNT_DIR + "/5";
+        int fileSizeMb = 8;
+        String cmd = MEASURE_IO_BIN_PATH + " " + filePath + " " + fileSizeMb + " " + mode + " w";
+        List<Double> rates = new ArrayList<>(TRIAL_COUNT);
+        for (int i = 0; i < TRIAL_COUNT + 1; ++i) {
+            mAuthFsTestRule.runFdServerOnAndroid(
+                    "--open-rw 5:" + mAuthFsTestRule.TEST_OUTPUT_DIR + "/out.file", "--rw-fds 5");
+            mAuthFsTestRule.runAuthFsOnMicrodroid("--remote-new-rw-file 5");
+
+            String rate = mAuthFsTestRule.getMicrodroid().run(cmd);
+            rates.add(Double.parseDouble(rate));
+        }
+        reportMetrics(rates, mode + "_write", "mb_per_sec");
     }
 
     private void pushMeasureIoBinToMicrodroid() throws DeviceNotAvailableException {
