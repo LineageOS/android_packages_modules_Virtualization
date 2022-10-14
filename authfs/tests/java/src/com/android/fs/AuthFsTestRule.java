@@ -56,7 +56,7 @@ public class AuthFsTestRule extends TestLogData {
     private static final String VM_CONFIG_PATH_IN_APK = "assets/vm_config.json";
 
     /** Test directory on Android where data are located */
-    private static final String TEST_DIR = "/data/local/tmp/authfs";
+    static final String TEST_DIR = "/data/local/tmp/authfs";
 
     /** File name of the test APK */
     private static final String TEST_APK_NAME = "MicrodroidTestApp.apk";
@@ -65,7 +65,7 @@ public class AuthFsTestRule extends TestLogData {
     private static final String TEST_OUTPUT_DIR = "/data/local/tmp/authfs/output_dir";
 
     /** Mount point of authfs on Microdroid during the test */
-    private static final String MOUNT_DIR = "/data/local/tmp";
+    static final String MOUNT_DIR = "/data/local/tmp";
 
     /** VM's log file */
     private static final String LOG_PATH = TEST_OUTPUT_DIR + "/log.txt";
