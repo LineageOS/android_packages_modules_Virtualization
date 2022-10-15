@@ -15,6 +15,7 @@
  */
 
 #include <android-base/unique_fd.h>
+#include <err.h>
 #include <fcntl.h>
 #include <string.h>
 #include <time.h>
@@ -32,8 +33,7 @@ constexpr int kNumBytesPerMB = 1024 * 1024;
 
 int main(int argc, const char *argv[]) {
     if (argc != 4 || !(strcmp(argv[3], "rand") == 0 || strcmp(argv[3], "seq") == 0)) {
-        std::cerr << "Usage: " << argv[0] << " <filename> <file_size_mb> <rand|seq>" << std::endl;
-        return EXIT_FAILURE;
+        errx(EXIT_FAILURE, "Usage: %s <filename> <file_size_mb> <rand|seq>", argv[0]);
     }
     int file_size_mb = std::stoi(argv[2]);
     bool is_rand = (strcmp(argv[3], "rand") == 0);
@@ -48,8 +48,7 @@ int main(int argc, const char *argv[]) {
     }
     unique_fd fd(open(argv[1], O_RDONLY | O_CLOEXEC));
     if (fd.get() == -1) {
-        std::cerr << "failed to open file: " << argv[1] << std::endl;
-        return EXIT_FAILURE;
+        errx(EXIT_FAILURE, "failed to open file: %s", argv[1]);
     }
 
     char buf[kBlockSizeBytes];
@@ -57,11 +56,9 @@ int main(int argc, const char *argv[]) {
     for (auto i = 0; i < block_count; ++i) {
         auto bytes = pread(fd, buf, kBlockSizeBytes, offsets[i]);
         if (bytes == 0) {
-            std::cerr << "unexpected end of file" << std::endl;
-            return EXIT_FAILURE;
+            errx(EXIT_FAILURE, "unexpected end of file");
         } else if (bytes == -1) {
-            std::cerr << "failed to read" << std::endl;
-            return EXIT_FAILURE;
+            errx(EXIT_FAILURE, "failed to read");
         }
     }
     double elapsed_seconds = ((double)clock() - start) / CLOCKS_PER_SEC;
