@@ -17,8 +17,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "vm_main.h"
+
 // A VM payload that crashes as soon as it starts, to allow us to exercise that error path.
-extern "C" int android_native_main(int /* argc */, char* /* argv */[]) {
+extern "C" int AVmPayload_main() {
     printf("test crash!!!!\n");
     abort();
 }
