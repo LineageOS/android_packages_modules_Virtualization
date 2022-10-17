@@ -418,6 +418,19 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void bootFailsWhenBinaryPathIsInvalid() throws Exception {
+        VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("DoesNotExist.so");
+        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
+        mInner.forceCreateNewVirtualMachine("test_vm_invalid_binary_path", normalConfig);
+
+        BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_binary_path");
+        assertThat(bootResult.payloadStarted).isFalse();
+        assertThat(bootResult.deathReason).isEqualTo(
+                VirtualMachineCallback.STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR);
+    }
+
+    @Test
     public void sameInstancesShareTheSameVmObject() throws Exception {
         VirtualMachineConfig config = mInner.newVmConfigBuilder()
                 .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
