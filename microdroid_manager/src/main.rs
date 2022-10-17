@@ -278,7 +278,6 @@ fn dice_derivation(
     // }
     // PayloadConfig = {
     //   1: tstr // payload_binary_path
-    //   // TODO(b/249064104 Either include args, or deprecate them
     // }
 
     let mut config_desc = vec![
@@ -738,7 +737,6 @@ fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
             let task = Task {
                 type_: TaskType::MicrodroidLauncher,
                 command: payload_config.payload_binary_path,
-                args: payload_config.args.into_vec(),
             };
             Ok(VmPayloadConfig {
                 os: OsConfig { name: "microdroid".to_owned() },
@@ -784,14 +782,10 @@ fn build_command(task: &Task) -> Result<Command> {
     const VMADDR_CID_HOST: u32 = 2;
 
     let mut command = match task.type_ {
-        TaskType::Executable => {
-            let mut command = Command::new(&task.command);
-            command.args(&task.args);
-            command
-        }
+        TaskType::Executable => Command::new(&task.command),
         TaskType::MicrodroidLauncher => {
             let mut command = Command::new("/system/bin/microdroid_launcher");
-            command.arg(find_library_path(&task.command)?).args(&task.args);
+            command.arg(find_library_path(&task.command)?);
             command
         }
     };

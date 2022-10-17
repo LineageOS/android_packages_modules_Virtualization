@@ -30,6 +30,7 @@ android_test {
 cc_library_shared {
     name: "MicrodroidIdleNativeLib",
     srcs: ["src/native/idlebinary.cpp"],
+    header_libs: ["vm_payload_headers"],
     shared_libs: [
         "libbase",
     ],

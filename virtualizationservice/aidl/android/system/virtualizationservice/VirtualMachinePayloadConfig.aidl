@@ -22,10 +22,4 @@ parcelable VirtualMachinePayloadConfig {
      * defined entry point; inside the VM this file is loaded and the entry function invoked.
      */
     @utf8InCpp String payloadPath;
-
-    /**
-     * Command-line style arguments to be passed to the payload when it is executed.
-     * TODO(b/249064104): Remove this
-     */
-    @utf8InCpp String[] args;
 }

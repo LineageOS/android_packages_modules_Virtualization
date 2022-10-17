@@ -273,7 +273,6 @@ public final class VirtualMachineConfig {
         if (mPayloadBinaryPath != null) {
             VirtualMachinePayloadConfig payloadConfig = new VirtualMachinePayloadConfig();
             payloadConfig.payloadPath = mPayloadBinaryPath;
-            payloadConfig.args = new String[]{};
             parcel.payload =
                     VirtualMachineAppConfig.Payload.payloadConfig(payloadConfig);
         } else {
