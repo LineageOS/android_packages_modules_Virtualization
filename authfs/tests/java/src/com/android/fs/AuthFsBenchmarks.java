@@ -33,6 +33,7 @@ import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -64,7 +65,7 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        AuthFsTestRule.setUpClass(testInfo);
+        AuthFsTestRule.setUpAndroid(testInfo);
     }
 
     @Before
@@ -73,12 +74,17 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
                 MetricsProcessor.getMetricPrefix(
                         getDevice().getProperty("debug.hypervisor.metrics_tag"));
         mMetricsProcessor = new MetricsProcessor(metricsPrefix + "authfs/");
+        AuthFsTestRule.startMicrodroid();
+    }
+
+    @After
+    public void tearDown() throws DeviceNotAvailableException {
+        AuthFsTestRule.shutdownMicrodroid();
     }
 
     @AfterClassWithInfo
-    public static void afterClassWithDevice(TestInformation testInfo)
-            throws DeviceNotAvailableException {
-        AuthFsTestRule.tearDownClass(testInfo);
+    public static void afterClassWithDevice(TestInformation testInfo) {
+        AuthFsTestRule.tearDownAndroid();
     }
 
     @Test

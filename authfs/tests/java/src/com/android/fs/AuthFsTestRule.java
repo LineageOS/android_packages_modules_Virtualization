@@ -91,7 +91,7 @@ public class AuthFsTestRule extends TestLogData {
 
     private final ExecutorService mThreadPool = Executors.newCachedThreadPool();
 
-    static void setUpClass(TestInformation testInfo) throws Exception {
+    static void setUpAndroid(TestInformation testInfo) throws Exception {
         assertNotNull(testInfo.getDevice());
         if (!(testInfo.getDevice() instanceof TestDevice)) {
             CLog.w("Unexpected type of ITestDevice. Skipping.");
@@ -108,35 +108,9 @@ public class AuthFsTestRule extends TestLogData {
             CLog.i("Microdroid not supported. Skipping.");
             return;
         }
-
-        // For each test case, boot and adb connect to a new Microdroid
-        CLog.i("Starting the shared VM");
-        sMicrodroidDevice =
-                MicrodroidBuilder.fromFile(
-                                findTestFile(testInfo.getBuildInfo(), TEST_APK_NAME),
-                                VM_CONFIG_PATH_IN_APK)
-                        .debugLevel("full")
-                        .build((TestDevice) androidDevice);
-
-        // From this point on, we need to tear down the Microdroid instance
-        sMicrodroid = new CommandRunner(sMicrodroidDevice);
-
-        sMicrodroid.runForResult("mkdir -p " + MOUNT_DIR);
-
-        // Root because authfs (started from shell in this test) currently require root to open
-        // /dev/fuse and mount the FUSE.
-        assertThat(sMicrodroidDevice.enableAdbRoot()).isTrue();
     }
 
-    static void tearDownClass(TestInformation testInfo) throws DeviceNotAvailableException {
-        assertNotNull(sAndroid);
-
-        if (sMicrodroid != null) {
-            CLog.i("Shutting down shared VM");
-            ((TestDevice) testInfo.getDevice()).shutdownMicrodroid(sMicrodroid.getDevice());
-            sMicrodroid = null;
-        }
-
+    static void tearDownAndroid() {
         sAndroid = null;
     }
 
@@ -155,6 +129,33 @@ public class AuthFsTestRule extends TestLogData {
     static ITestDevice getMicrodroidDevice() {
         assertThat(sMicrodroidDevice).isNotNull();
         return sMicrodroidDevice;
+    }
+
+    static void startMicrodroid() throws DeviceNotAvailableException {
+        CLog.i("Starting the shared VM");
+        assertThat(sMicrodroidDevice).isNull();
+        sMicrodroidDevice =
+                MicrodroidBuilder.fromFile(
+                                findTestFile(sTestInfo.getBuildInfo(), TEST_APK_NAME),
+                                VM_CONFIG_PATH_IN_APK)
+                        .debugLevel("full")
+                        .build(getDevice());
+
+        // From this point on, we need to tear down the Microdroid instance
+        sMicrodroid = new CommandRunner(sMicrodroidDevice);
+
+        sMicrodroid.runForResult("mkdir -p " + MOUNT_DIR);
+
+        // Root because authfs (started from shell in this test) currently require root to open
+        // /dev/fuse and mount the FUSE.
+        assertThat(sMicrodroidDevice.enableAdbRoot()).isTrue();
+    }
+
+    static void shutdownMicrodroid() throws DeviceNotAvailableException {
+        assertNotNull(sMicrodroidDevice);
+        getDevice().shutdownMicrodroid(sMicrodroidDevice);
+        sMicrodroidDevice = null;
+        sMicrodroid = null;
     }
 
     @Override
