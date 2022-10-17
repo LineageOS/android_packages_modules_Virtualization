@@ -49,7 +49,8 @@ import java.util.concurrent.TimeUnit;
 
 public abstract class MicrodroidDeviceTestBase {
     public static boolean isCuttlefish() {
-        return VirtualizationTestHelper.isCuttlefish(SystemProperties.get("ro.product.name"));
+        return VirtualizationTestHelper.isCuttlefish(
+                SystemProperties.get("ro.product.vendor.device"));
     }
 
     public static String getMetricPrefix() {
