@@ -16,6 +16,8 @@
 package android.system.virtualmachineservice;
 
 import android.system.virtualizationcommon.ErrorCode;
+import android.system.virtualmachineservice.VirtualMachineCpuStatus;
+import android.system.virtualmachineservice.VirtualMachineMemStatus;
 
 /** {@hide} */
 interface IVirtualMachineService {
@@ -56,4 +58,14 @@ interface IVirtualMachineService {
      * Notifies that an error has occurred inside the VM..
      */
     void notifyError(ErrorCode errorCode, in String message);
+
+    /**
+     * Notifies the current CPU status of the VM.
+     */
+    void notifyCpuStatus(in VirtualMachineCpuStatus cpuStatus);
+
+    /**
+     * Notifies the current memory status of the VM.
+     */
+    void notifyMemStatus(in VirtualMachineMemStatus memStatus);
 }

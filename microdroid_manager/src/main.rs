@@ -18,6 +18,7 @@ mod dice;
 mod instance;
 mod ioutil;
 mod payload;
+mod procutil;
 mod swap;
 mod vm_payload_service;
 
@@ -25,8 +26,12 @@ use crate::dice::{DiceContext, DiceDriver};
 use crate::instance::{ApexData, ApkData, InstanceDisk, MicrodroidData, RootHash};
 use crate::vm_payload_service::register_vm_payload_service;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-    VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT, IVirtualMachineService,
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
+    IVirtualMachineService::{
+        IVirtualMachineService, VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT,
+    },
+    VirtualMachineCpuStatus::VirtualMachineCpuStatus,
+    VirtualMachineMemStatus::VirtualMachineMemStatus,
 };
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify, V4Signature};
@@ -36,9 +41,10 @@ use glob::glob;
 use itertools::sorted;
 use log::{error, info};
 use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
-use microdroid_payload_config::{Task, TaskType, VmPayloadConfig, OsConfig};
+use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use openssl::sha::Sha512;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
+use procutil::{get_cpu_time, get_mem_info};
 use rand::Fill;
 use rpcbinder::get_vsock_rpc_interface;
 use rustutils::system_properties;
@@ -50,6 +56,7 @@ use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
+use std::thread;
 use std::time::{Duration, SystemTime};
 use vsock::VsockStream;
 
@@ -87,6 +94,42 @@ enum MicrodroidError {
     PayloadVerificationFailed(String),
     #[error("Payload config is invalid: {0}")]
     InvalidConfig(String),
+}
+
+fn send_vm_status() -> Result<()> {
+    let service = get_vms_rpc_binder()
+        .context("cannot connect to VirtualMachineService")
+        .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
+
+    let one_second = Duration::from_millis(1000);
+    loop {
+        // Collect VM CPU time information and creating VmCpuStatus atom for metrics.
+        let cpu_time = get_cpu_time()?;
+        let vm_cpu_status = VirtualMachineCpuStatus {
+            cpu_time_user: cpu_time.user,
+            cpu_time_nice: cpu_time.nice,
+            cpu_time_sys: cpu_time.sys,
+            cpu_time_idle: cpu_time.idle,
+        };
+        service
+            .notifyCpuStatus(&vm_cpu_status)
+            .expect("Can't send information about VM CPU status");
+
+        // Collect VM memory information and creating VmMemStatus atom for metrics.
+        let mem_info = get_mem_info()?;
+        let vm_mem_status = VirtualMachineMemStatus {
+            mem_total: mem_info.total,
+            mem_free: mem_info.free,
+            mem_available: mem_info.available,
+            mem_buffer: mem_info.buffer,
+            mem_cached: mem_info.cached,
+        };
+        service
+            .notifyMemStatus(&vm_mem_status)
+            .expect("Can't send information about VM memory status");
+
+        thread::sleep(one_second);
+    }
 }
 
 fn translate_error(err: &Error) -> (ErrorCode, String) {
@@ -177,6 +220,13 @@ fn try_main() -> Result<()> {
     let service = get_vms_rpc_binder()
         .context("cannot connect to VirtualMachineService")
         .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
+
+    thread::spawn(move || {
+        if let Err(e) = send_vm_status() {
+            error!("failed to get virtual machine status: {:?}", e);
+        }
+    });
+
     match try_run_payload(&service) {
         Ok(code) => {
             info!("notifying payload finished");

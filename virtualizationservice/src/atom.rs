@@ -22,11 +22,17 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineConfig::VirtualMachineConfig,
 };
 use android_system_virtualizationservice::binder::{Status, Strong};
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
+    VirtualMachineCpuStatus::VirtualMachineCpuStatus,
+    VirtualMachineMemStatus::VirtualMachineMemStatus,
+};
 use anyhow::{anyhow, Result};
 use binder::{ParcelFileDescriptor, ThreadState};
 use log::{trace, warn};
 use microdroid_payload_config::VmPayloadConfig;
-use statslog_virtualization_rust::{vm_booted, vm_creation_requested, vm_exited};
+use statslog_virtualization_rust::{
+    vm_booted, vm_cpu_status_reported, vm_creation_requested, vm_exited, vm_mem_status_reported,
+};
 use std::time::{Duration, SystemTime};
 use zip::ZipArchive;
 
@@ -200,6 +206,51 @@ pub fn write_vm_exited_stats(
         },
     };
     match vm_exited.stats_write() {
+        Err(e) => {
+            warn!("statslog_rust failed with error: {}", e);
+        }
+        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
+    }
+}
+
+/// Write the stats of VM cpu status to statsd
+pub fn write_vm_cpu_status_stats(
+    uid: i32,
+    vm_identifier: &String,
+    cpu_status: &VirtualMachineCpuStatus,
+) {
+    let vm_cpu_status_reported = vm_cpu_status_reported::VmCpuStatusReported {
+        uid,
+        vm_identifier,
+        cpu_time_user_millis: cpu_status.cpu_time_user,
+        cpu_time_nice_millis: cpu_status.cpu_time_nice,
+        cpu_time_sys_millis: cpu_status.cpu_time_sys,
+        cpu_time_idle_millis: cpu_status.cpu_time_idle,
+    };
+    match vm_cpu_status_reported.stats_write() {
+        Err(e) => {
+            warn!("statslog_rust failed with error: {}", e);
+        }
+        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
+    }
+}
+
+/// Write the stats of VM memory status to statsd
+pub fn write_vm_mem_status_stats(
+    uid: i32,
+    vm_identifier: &String,
+    mem_status: &VirtualMachineMemStatus,
+) {
+    let vm_mem_status_reported = vm_mem_status_reported::VmMemStatusReported {
+        uid,
+        vm_identifier,
+        mem_total_kb: mem_status.mem_total,
+        mem_free_kb: mem_status.mem_free,
+        mem_available_kb: mem_status.mem_available,
+        mem_buffer_kb: mem_status.mem_buffer,
+        mem_cached_kb: mem_status.mem_cached,
+    };
+    match vm_mem_status_reported.stats_write() {
         Err(e) => {
             warn!("statslog_rust failed with error: {}", e);
         }
