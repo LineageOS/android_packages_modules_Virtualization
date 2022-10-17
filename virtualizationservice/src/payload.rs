@@ -165,7 +165,6 @@ fn make_metadata_file(
     let payload_metadata = match &app_config.payload {
         Payload::PayloadConfig(payload_config) => PayloadMetadata::config(PayloadConfig {
             payload_binary_path: payload_config.payloadPath.clone(),
-            args: payload_config.args.clone().into(),
             ..Default::default()
         }),
         Payload::ConfigPath(config_path) => {
