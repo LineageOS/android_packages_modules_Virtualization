@@ -57,7 +57,7 @@ use binder::{
 use disk::QcowFile;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
-use rpcbinder::run_rpc_server_with_factory;
+use rpcbinder::run_vsock_rpc_server_with_factory;
 use rustutils::system_properties;
 use semver::VersionReq;
 use std::convert::TryInto;
@@ -320,7 +320,7 @@ impl VirtualizationService {
         let state = service.state.clone();
         std::thread::spawn(move || {
             debug!("VirtualMachineService is starting as an RPC service.");
-            if run_rpc_server_with_factory(VM_BINDER_SERVICE_PORT as u32, |cid| {
+            if run_vsock_rpc_server_with_factory(VM_BINDER_SERVICE_PORT as u32, |cid| {
                 VirtualMachineService::factory(cid, &state)
             }) {
                 debug!("RPC server has shut down gracefully");

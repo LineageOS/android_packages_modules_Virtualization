@@ -121,8 +121,8 @@ Result<void> start_test_service() {
             abort();
         }
     };
-    if (!RunRpcServerCallback(testService->asBinder().get(), testService->SERVICE_PORT, callback,
-                              nullptr)) {
+    if (!RunVsockRpcServerCallback(testService->asBinder().get(), testService->SERVICE_PORT,
+                                   callback, nullptr)) {
         return Error() << "RPC Server failed to run";
     }
 
