@@ -31,3 +31,8 @@ rust_bindgen {
         "libvm_payload",
     ],
 }
+
+cc_library_headers {
+    name: "vm_payload_headers",
+    export_include_dirs: ["include"],
+}

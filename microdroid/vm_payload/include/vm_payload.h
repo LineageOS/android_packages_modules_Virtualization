@@ -19,6 +19,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "vm_main.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

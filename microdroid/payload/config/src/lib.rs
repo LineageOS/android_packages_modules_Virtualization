@@ -85,10 +85,6 @@ pub struct Task {
     /// - For executable task, this is the path to the executable.
     /// - For microdroid_launcher task, this is the name of .so
     pub command: String,
-
-    /// Args to the command
-    #[serde(default)]
-    pub args: Vec<String>,
 }
 
 impl Default for TaskType {
