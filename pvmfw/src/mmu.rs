@@ -14,6 +14,7 @@
 
 //! Memory management.
 
+use crate::helpers;
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::Attributes;
 use aarch64_paging::paging::MemoryRegion;
@@ -35,6 +36,14 @@ pub struct PageTable {
     idmap: IdMap,
 }
 
+fn appended_payload_range() -> Range<usize> {
+    let start = helpers::align_up(layout::binary_end(), helpers::SIZE_4KB).unwrap();
+    // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
+    let end = helpers::align_up(start, helpers::SIZE_2MB).unwrap();
+
+    start..end
+}
+
 impl PageTable {
     const ASID: usize = 1;
     const ROOT_LEVEL: usize = 1;
@@ -46,6 +55,7 @@ impl PageTable {
         page_table.map_code(&layout::text_range())?;
         page_table.map_data(&layout::writable_region())?;
         page_table.map_rodata(&layout::rodata_range())?;
+        page_table.map_data(&appended_payload_range())?;
 
         Ok(page_table)
     }

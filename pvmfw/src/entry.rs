@@ -14,6 +14,7 @@
 
 //! Low-level entry and exit points of pvmfw.
 
+use crate::config;
 use crate::fdt;
 use crate::heap;
 use crate::helpers;
@@ -26,6 +27,7 @@ use core::slice;
 use log::debug;
 use log::error;
 use log::info;
+use log::warn;
 use log::LevelFilter;
 use vmbase::{console, layout, logger, main, power::reboot};
 
@@ -33,6 +35,8 @@ use vmbase::{console, layout, logger, main, power::reboot};
 enum RebootReason {
     /// A malformed BCC was received.
     InvalidBcc,
+    /// An invalid configuration was appended to pvmfw.
+    InvalidConfig,
     /// An unexpected internal error happened.
     InternalError,
     /// The provided FDT was invalid.
@@ -197,14 +201,14 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
         RebootReason::InternalError
     })?;
 
-    let appended_range = appended_data.as_ptr_range();
-    let appended_range = (appended_range.start as usize)..(appended_range.end as usize);
-    page_table.map_rodata(&appended_range).map_err(|e| {
-        error!("Failed to remap the appended payload as a dynamic page table entry: {e}");
-        RebootReason::InternalError
+    // SAFETY - We only get the appended payload from here, once. It is statically mapped and the
+    // linker script prevents it from overlapping with other objects.
+    let mut appended = unsafe { AppendedPayload::new(appended_data) }.ok_or_else(|| {
+        error!("No valid configuration found");
+        RebootReason::InvalidConfig
     })?;
 
-    let bcc = as_bcc(appended_data).ok_or_else(|| {
+    let bcc = appended.get_bcc_mut().ok_or_else(|| {
         error!("Invalid BCC");
         RebootReason::InvalidBcc
     })?;
@@ -296,13 +300,50 @@ unsafe fn get_appended_data_slice() -> &'static mut [u8] {
     slice::from_raw_parts_mut(base as *mut u8, size)
 }
 
-fn as_bcc(data: &mut [u8]) -> Option<&mut [u8]> {
-    const BCC_SIZE: usize = helpers::SIZE_4KB;
+enum AppendedPayload<'a> {
+    /// Configuration data.
+    Config(config::Config<'a>),
+    /// Deprecated raw BCC, as used in Android T.
+    LegacyBcc(&'a mut [u8]),
+}
 
-    if cfg!(feature = "legacy") {
+impl<'a> AppendedPayload<'a> {
+    /// SAFETY - 'data' should respect the alignment of config::Header.
+    unsafe fn new(data: &'a mut [u8]) -> Option<Self> {
+        if Self::is_valid_config(data) {
+            Some(Self::Config(config::Config::new(data).unwrap()))
+        } else if cfg!(feature = "legacy") {
+            const BCC_SIZE: usize = helpers::SIZE_4KB;
+            warn!("Assuming the appended data at {:?} to be a raw BCC", data.as_ptr());
+            Some(Self::LegacyBcc(&mut data[..BCC_SIZE]))
+        } else {
+            None
+        }
+    }
+
+    unsafe fn is_valid_config(data: &mut [u8]) -> bool {
+        // This function is necessary to prevent the borrow checker from getting confused
+        // about the ownership of data in new(); see https://users.rust-lang.org/t/78467.
+        let addr = data.as_ptr();
+        config::Config::new(data)
+            .map_err(|e| warn!("Invalid configuration data at {addr:?}: {e}"))
+            .is_ok()
+    }
+
+    #[allow(dead_code)] // TODO(b/232900974)
+    fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
+        match self {
+            Self::Config(ref mut cfg) => cfg.get_debug_policy(),
+            Self::LegacyBcc(_) => None,
+        }
+    }
+
+    fn get_bcc_mut(&mut self) -> Option<&mut [u8]> {
+        let bcc = match self {
+            Self::LegacyBcc(ref mut bcc) => bcc,
+            Self::Config(ref mut cfg) => cfg.get_bcc_mut(),
+        };
         // TODO(b/256148034): return None if BccHandoverParse(bcc) != kDiceResultOk.
-        Some(&mut data[..BCC_SIZE])
-    } else {
-        None
+        Some(bcc)
     }
 }

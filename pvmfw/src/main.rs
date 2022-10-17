@@ -17,8 +17,10 @@
 #![no_main]
 #![no_std]
 #![feature(default_alloc_error_handler)]
+#![feature(ptr_const_cast)] // Stabilized in 1.65.0
 
 mod avb;
+mod config;
 mod entry;
 mod exceptions;
 mod fdt;
