@@ -72,7 +72,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
     @BeforeClassWithInfo
     public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        AuthFsTestRule.setUpClass(testInfo);
+        AuthFsTestRule.setUpAndroid(testInfo);
+        AuthFsTestRule.startMicrodroid();
         sAndroid = AuthFsTestRule.getAndroid();
         sMicrodroid = AuthFsTestRule.getMicrodroid();
     }
@@ -80,7 +81,8 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
     @AfterClassWithInfo
     public static void afterClassWithDevice(TestInformation testInfo)
             throws DeviceNotAvailableException {
-        AuthFsTestRule.tearDownClass(testInfo);
+        AuthFsTestRule.shutdownMicrodroid();
+        AuthFsTestRule.tearDownAndroid();
     }
 
     @Test
