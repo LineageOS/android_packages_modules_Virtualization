@@ -16,11 +16,7 @@
 package com.android.virt;
 
 public abstract class VirtualizationTestHelper {
-    public static boolean isCuttlefish(String productName) {
-        return (null != productName)
-                && (productName.startsWith("aosp_cf_x86")
-                        || productName.startsWith("aosp_cf_arm")
-                        || productName.startsWith("cf_x86")
-                        || productName.startsWith("cf_arm"));
+    public static boolean isCuttlefish(String vendorDeviceName) {
+        return vendorDeviceName != null && vendorDeviceName.startsWith("vsoc_");
     }
 }
