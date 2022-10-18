@@ -27,3 +27,14 @@ rust_library {
     name: "libdm_rust",
     defaults: ["libdm_rust.defaults"],
 }
+
+rust_test {
+    name: "libdm_rust.test",
+    defaults: ["libdm_rust.defaults"],
+    test_suites: ["general-tests"],
+    rustlibs: [
+        "libscopeguard",
+        "libtempfile",
+    ],
+    data: ["tests/data/*"],
+}
