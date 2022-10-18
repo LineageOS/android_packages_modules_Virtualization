@@ -21,11 +21,10 @@
 //! system managed by the host Android which is assumed to be compromisable, it is important to
 //! keep the integrity of the file "inside" Microdroid.
 
-mod loopdevice;
-
 use anyhow::{bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
 use clap::{App, Arg};
+use dm::loopdevice;
 use dm::util;
 use dm::verity::{DmVerityHashAlgorithm, DmVerityTargetBuilder};
 use itertools::Itertools;
