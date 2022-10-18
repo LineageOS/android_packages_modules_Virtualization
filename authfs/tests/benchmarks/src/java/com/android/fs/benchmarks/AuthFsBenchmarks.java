@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.virt.fs;
+package com.android.virt.fs.benchmarks;
 
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.platform.test.annotations.RootPermissionTest;
 
+import com.android.fs.common.AuthFsTestRule;
 import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.invoker.TestInformation;
