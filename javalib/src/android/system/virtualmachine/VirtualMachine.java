@@ -129,7 +129,7 @@ public class VirtualMachine implements AutoCloseable {
      * @hide
      */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({
+    @IntDef(prefix = "STATUS_", value = {
             STATUS_STOPPED,
             STATUS_RUNNING,
             STATUS_DELETED

@@ -61,7 +61,7 @@ public final class VirtualMachineConfig {
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({
+    @IntDef(prefix = "DEBUG_LEVEL_", value = {
             DEBUG_LEVEL_NONE,
             DEBUG_LEVEL_APP_ONLY,
             DEBUG_LEVEL_FULL
@@ -409,6 +409,7 @@ public final class VirtualMachineConfig {
          * Sets whether to protect the VM memory from the host. No default is provided, this
          * must be set explicitly.
          *
+         * @see VirtualMachineManager#getCapabilities
          * @hide
          */
         @NonNull
