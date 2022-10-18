@@ -131,10 +131,9 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         Map<TestDescription, TestResult> results = getLastDeviceRunResults().getTestResults();
         assertThat(results).hasSize(1);
         TestResult result = results.values().toArray(new TestResult[0])[0];
-        assertTrue(
-                "The test should fail with a permission error",
-                result.getStackTrace()
-                        .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission"));
+        assertWithMessage("The test should fail with a permission error")
+                .that(result.getStackTrace())
+                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
     }
 
     private static JSONObject newPartition(String label, String path) {
@@ -601,7 +600,8 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         // Check UID and elapsed_time by comparing each other.
         assertEquals(atomVmCreationRequested.getUid(), atomVmBooted.getUid());
         assertEquals(atomVmCreationRequested.getUid(), atomVmExited.getUid());
-        assertTrue(atomVmBooted.getElapsedTimeMillis() < atomVmExited.getElapsedTimeMillis());
+        assertThat(atomVmBooted.getElapsedTimeMillis())
+                .isLessThan(atomVmExited.getElapsedTimeMillis());
     }
 
     @Test
