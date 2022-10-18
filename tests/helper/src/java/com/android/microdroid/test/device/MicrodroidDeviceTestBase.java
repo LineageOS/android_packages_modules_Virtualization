@@ -15,9 +15,9 @@
  */
 package com.android.microdroid.test.device;
 
-import static com.google.common.truth.TruthJUnit.assume;
+import static android.content.pm.PackageManager.FEATURE_VIRTUALIZATION_FRAMEWORK;
 
-import static org.junit.Assume.assumeNoException;
+import static com.google.common.truth.TruthJUnit.assume;
 
 import android.app.Instrumentation;
 import android.app.UiAutomation;
@@ -119,17 +119,12 @@ public abstract class MicrodroidDeviceTestBase {
     }
 
     public void prepareTestSetup(boolean protectedVm) {
-        // In case when the virt APEX doesn't exist on the device, classes in the
-        // android.system.virtualmachine package can't be loaded. Therefore, before using the
-        // classes, check the existence of a class in the package and skip this test if not exist.
-        try {
-            Class.forName("android.system.virtualmachine.VirtualMachineManager");
-        } catch (ClassNotFoundException e) {
-            assumeNoException(e);
-            return;
-        }
-        Context context = ApplicationProvider.getApplicationContext();
-        mInner = new Inner(context, protectedVm, VirtualMachineManager.getInstance(context));
+        Context ctx = ApplicationProvider.getApplicationContext();
+        assume().withMessage("Device doesn't support AVF")
+                .that(ctx.getPackageManager().hasSystemFeature(FEATURE_VIRTUALIZATION_FRAMEWORK))
+                .isTrue();
+
+        mInner = new Inner(ctx, protectedVm, VirtualMachineManager.getInstance(ctx));
 
         int capabilities = mInner.getVirtualMachineManager().getCapabilities();
         if (protectedVm) {
