@@ -23,9 +23,9 @@
 
 mod sys;
 
+use crate::util::*;
 use anyhow::{Context, Result};
 use data_model::DataInit;
-use dm::util::*;
 use libc::O_DIRECT;
 use std::fs::{File, OpenOptions};
 use std::mem::size_of;
@@ -40,7 +40,6 @@ use crate::loopdevice::sys::*;
 // These are old-style ioctls, thus *_bad.
 nix::ioctl_none_bad!(_loop_ctl_get_free, LOOP_CTL_GET_FREE);
 nix::ioctl_write_ptr_bad!(_loop_configure, LOOP_CONFIGURE, loop_config);
-#[cfg(test)]
 nix::ioctl_none_bad!(_loop_clr_fd, LOOP_CLR_FD);
 
 fn loop_ctl_get_free(ctrl_file: &File) -> Result<i32> {
@@ -55,8 +54,7 @@ fn loop_configure(device_file: &File, config: &loop_config) -> Result<i32> {
     Ok(unsafe { _loop_configure(device_file.as_raw_fd(), config) }?)
 }
 
-#[cfg(test)]
-fn loop_clr_fd(device_file: &File) -> Result<i32> {
+pub fn loop_clr_fd(device_file: &File) -> Result<i32> {
     // SAFETY: this ioctl disassociates the loop device with `device_file`, where the FD will
     // remain opened afterward. The association itself is kept for open FDs.
     Ok(unsafe { _loop_clr_fd(device_file.as_raw_fd()) }?)
@@ -148,7 +146,6 @@ fn try_attach<P: AsRef<Path>>(
 }
 
 /// Detaches backing file from the loop device `path`.
-#[cfg(test)]
 pub fn detach<P: AsRef<Path>>(path: P) -> Result<()> {
     let device_file = OpenOptions::new().read(true).write(true).open(&path)?;
     loop_clr_fd(&device_file)?;
