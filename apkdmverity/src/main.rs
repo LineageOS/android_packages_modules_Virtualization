@@ -93,7 +93,7 @@ fn enable_verity<P: AsRef<Path> + Debug>(
             bail!("The size of {:?} is not multiple of {}.", &apk, BLOCK_SIZE)
         }
         (
-            loopdevice::attach(&apk, 0, apk_size, /*direct_io*/ true)
+            loopdevice::attach(&apk, 0, apk_size, /*direct_io*/ true, /*writable*/ false)
                 .context("Failed to attach APK to a loop device")?,
             apk_size,
         )
@@ -108,8 +108,9 @@ fn enable_verity<P: AsRef<Path> + Debug>(
     // Due to unknown reason(b/191344832), we can't enable "direct IO" for the IDSIG file (backing
     // the hash). For now we don't use "direct IO" but it seems OK since the IDSIG file is very
     // small and the benefit of direct-IO would be negliable.
-    let hash_device = loopdevice::attach(&idsig, offset, size, /*direct_io*/ false)
-        .context("Failed to attach idsig to a loop device")?;
+    let hash_device =
+        loopdevice::attach(&idsig, offset, size, /*direct_io*/ false, /*writable*/ false)
+            .context("Failed to attach idsig to a loop device")?;
 
     // Build a dm-verity target spec from the information from the idsig file. The apk and the
     // idsig files are used as the data device and the hash device, respectively.
@@ -324,9 +325,19 @@ mod tests {
         // already a block device, `enable_verity` uses the block device as it is. The detatching
         // of the data device is done in the scopeguard for the return value of `enable_verity`
         // below. Only the idsig_loop_device needs detatching.
-        let apk_loop_device = loopdevice::attach(&apk_path, 0, apk_size, true).unwrap();
+        let apk_loop_device = loopdevice::attach(
+            &apk_path, 0, apk_size, /*direct_io*/ true, /*writable*/ false,
+        )
+        .unwrap();
         let idsig_loop_device = scopeguard::guard(
-            loopdevice::attach(&idsig_path, 0, idsig_size, false).unwrap(),
+            loopdevice::attach(
+                &idsig_path,
+                0,
+                idsig_size,
+                /*direct_io*/ false,
+                /*writable*/ false,
+            )
+            .unwrap(),
             |dev| loopdevice::detach(dev).unwrap(),
         );
 
