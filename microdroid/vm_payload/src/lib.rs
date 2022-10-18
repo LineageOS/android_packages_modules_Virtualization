@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Library for payload to communicate with the VM service.
+//! Library for payload to communicate with the Microdroid Manager.
 
-mod vm_service;
+mod vm_payload_service;
 
-pub use vm_service::{
+pub use vm_payload_service::{
     AVmPayload_getDiceAttestationCdi, AVmPayload_getDiceAttestationChain,
     AVmPayload_getVmInstanceSecret, AVmPayload_notifyPayloadReady,
 };
