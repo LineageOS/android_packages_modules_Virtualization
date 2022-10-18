@@ -81,6 +81,10 @@ fn data_load_address() -> VirtualAddress {
     unsafe { VirtualAddress(&data_lma as *const u8 as usize) }
 }
 
+fn binary_end() -> VirtualAddress {
+    unsafe { VirtualAddress(&bin_end as *const u8 as usize) }
+}
+
 pub fn print_addresses() {
     let dtb = dtb_range();
     println!("dtb:        {}..{} ({} bytes)", dtb.start, dtb.end, dtb.end - dtb.start);
@@ -88,6 +92,7 @@ pub fn print_addresses() {
     println!("text:       {}..{} ({} bytes)", text.start, text.end, text.end - text.start);
     let rodata = rodata_range();
     println!("rodata:     {}..{} ({} bytes)", rodata.start, rodata.end, rodata.end - rodata.start);
+    println!("binary end: {}", binary_end());
     let data = data_range();
     println!(
         "data:       {}..{} ({} bytes, loaded at {})",
@@ -132,6 +137,7 @@ extern "C" {
     static data_begin: u8;
     static data_end: u8;
     static data_lma: u8;
+    static bin_end: u8;
     static bss_begin: u8;
     static bss_end: u8;
     static boot_stack_begin: u8;
