@@ -16,7 +16,7 @@ android_test {
         "com.android.microdroid.testservice-java",
         "truth-prebuilt",
     ],
-    libs: ["android.system.virtualmachine"],
+    libs: ["framework-virtualization"],
     jni_libs: [
         "MicrodroidBenchmarkNativeLib",
         "MicrodroidIdleNativeLib",

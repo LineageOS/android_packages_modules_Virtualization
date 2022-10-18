@@ -53,6 +53,10 @@ apex_defaults {
 
     file_contexts: ":com.android.virt-file_contexts",
     canned_fs_config: "canned_fs_config",
+
+    bootclasspath_fragments: [
+        "com.android.virt-bootclasspath-fragment",
+    ],
 }
 
 apex_defaults {
@@ -82,9 +86,6 @@ apex_defaults {
     binaries: [
         "fd_server",
         "vm",
-    ],
-    java_libs: [
-        "android.system.virtualmachine",
     ],
     jni_libs: [
         "libvirtualmachine_jni",
@@ -205,5 +206,45 @@ python_binary_host {
         py3: {
             embedded_launcher: true,
         },
+    },
+}
+
+// Encapsulate the contributions made by the com.android.virt to the bootclasspath.
+bootclasspath_fragment {
+    name: "com.android.virt-bootclasspath-fragment",
+    contents: ["framework-virtualization"],
+    apex_available: ["com.android.virt"],
+
+    // The bootclasspath_fragments that provide APIs on which this depends.
+    fragments: [
+        {
+            apex: "com.android.art",
+            module: "art-bootclasspath-fragment",
+        },
+    ],
+
+    // Additional stubs libraries that this fragment's contents use which are
+    // not provided by another bootclasspath_fragment.
+    additional_stubs: [
+        "android-non-updatable",
+    ],
+
+    hidden_api: {
+
+        // This module does not contain any split packages.
+        split_packages: [],
+
+        // The following packages and all their subpackages currently only
+        // contain classes from this bootclasspath_fragment. Listing a package
+        // here won't prevent other bootclasspath modules from adding classes in
+        // any of those packages but it will prevent them from adding those
+        // classes into an API surface, e.g. public, system, etc.. Doing so will
+        // result in a build failure due to inconsistent flags.
+        package_prefixes: [
+            "android.system.virtualmachine",
+            "android.system.virtualizationservice",
+            // android.sysprop.*, renamed by jarjar
+            "com.android.system.virtualmachine.sysprop",
+        ],
     },
 }
