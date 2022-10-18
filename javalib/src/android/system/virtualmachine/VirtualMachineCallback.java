@@ -35,7 +35,7 @@ import java.lang.annotation.RetentionPolicy;
 public interface VirtualMachineCallback {
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({
+    @IntDef(prefix = "ERROR_", value = {
         ERROR_UNKNOWN,
         ERROR_PAYLOAD_VERIFICATION_FAILED,
         ERROR_PAYLOAD_CHANGED,
@@ -57,7 +57,7 @@ public interface VirtualMachineCallback {
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({
+    @IntDef(prefix = "STOP_REASON_", value = {
         STOP_REASON_VIRTUALIZATION_SERVICE_DIED,
         STOP_REASON_INFRASTRUCTURE_ERROR,
         STOP_REASON_KILLED,

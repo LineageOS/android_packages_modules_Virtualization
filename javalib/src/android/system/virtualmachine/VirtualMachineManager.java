@@ -18,12 +18,16 @@ package android.system.virtualmachine;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.sysprop.HypervisorProperties;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -42,6 +46,28 @@ public class VirtualMachineManager {
 
     private static final Map<Context, WeakReference<VirtualMachineManager>> sInstances =
             new WeakHashMap<>();
+
+    /**
+     * Capabilities of the virtual machine implementation.
+     *
+     * @hide
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(prefix = "CAPABILITY_", flag = true, value = {
+            CAPABILITY_PROTECTED_VM,
+            CAPABILITY_NON_PROTECTED_VM
+    })
+    public @interface Capability {}
+
+    /* The implementation supports creating protected VMs, whose memory is inaccessible to the
+     * host OS.
+     */
+    public static final int CAPABILITY_PROTECTED_VM = 1;
+
+    /* The implementation supports creating non-protected VMs, whose memory is accessible to the
+     * host OS.
+     */
+    public static final int CAPABILITY_NON_PROTECTED_VM = 2;
 
     /**
      * Returns the per-context instance.
@@ -65,6 +91,25 @@ public class VirtualMachineManager {
 
     /** A lock used to synchronize the creation of virtual machines */
     private static final Object sCreateLock = new Object();
+
+    /**
+     * Returns a set of flags indicating what this implementation of virtualization is capable of.
+     *
+     * @see #CAPABILITY_PROTECTED_VM
+     * @see #CAPABILITY_NON_PROTECTED_VM
+     * @hide
+     */
+    @Capability
+    public int getCapabilities() {
+        @Capability int result = 0;
+        if (HypervisorProperties.hypervisor_protected_vm_supported().orElse(false)) {
+            result |= CAPABILITY_PROTECTED_VM;
+        }
+        if (HypervisorProperties.hypervisor_vm_supported().orElse(false)) {
+            result |= CAPABILITY_NON_PROTECTED_VM;
+        }
+        return result;
+    }
 
     /**
      * Creates a new {@link VirtualMachine} with the given name and config. Creating a virtual
