@@ -23,8 +23,8 @@ mod smccc;
 
 use core::fmt;
 use helpers::checked_page_of;
-
-use vmbase::{console, main, power::reboot, println};
+use log::{debug, error, info, LevelFilter};
+use vmbase::{console, logger, main, power::reboot};
 
 #[derive(Debug, Clone)]
 enum Error {
@@ -48,13 +48,13 @@ fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) -> R
     let uart_page = checked_page_of(uart, mmio_granule).ok_or(Error::FailedUartSetup)?;
     smccc::mmio_guard_map(uart_page).map_err(|_| Error::FailedUartSetup)?;
 
-    println!("pVM firmware");
-    println!(
+    info!("pVM firmware");
+    debug!(
         "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}, x3={:#018x}",
         fdt_address, payload_start, payload_size, arg3,
     );
 
-    println!("Starting payload...");
+    info!("Starting payload...");
 
     Ok(())
 }
@@ -63,12 +63,13 @@ main!(main_wrapper);
 
 /// Entry point for pVM firmware.
 pub fn main_wrapper(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) {
-    match main(fdt_address, payload_start, payload_size, arg3) {
-        Ok(()) => jump_to_payload(fdt_address, payload_start),
-        Err(e) => {
-            println!("Boot rejected: {}", e);
-        }
+    if logger::init(LevelFilter::Debug).is_err() {
+    } else if let Err(e) = main(fdt_address, payload_start, payload_size, arg3) {
+        error!("Boot rejected: {e}");
+    } else {
+        jump_to_payload(fdt_address, payload_start);
     }
+
     reboot()
 }
 
