@@ -20,6 +20,8 @@ use core::{fmt, result};
 
 #[derive(Debug, Clone)]
 pub enum Error {
+    /// Failed the necessary MMIO_GUARD_ENROLL call.
+    EnrollFailed(smccc::Error),
     /// Failed to obtain the MMIO_GUARD granule size.
     InfoFailed(smccc::Error),
     /// Failed to MMIO_GUARD_MAP a page.
@@ -33,6 +35,7 @@ type Result<T> = result::Result<T, Error>;
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::EnrollFailed(e) => write!(f, "Failed to enroll into MMIO_GUARD: {e}"),
             Self::InfoFailed(e) => write!(f, "Failed to get the MMIO_GUARD granule: {e}"),
             Self::MapFailed(e) => write!(f, "Failed to MMIO_GUARD map: {e}"),
             Self::UnsupportedGranule(g) => write!(f, "Unsupported MMIO_GUARD granule: {g}"),
@@ -41,6 +44,7 @@ impl fmt::Display for Error {
 }
 
 pub fn init() -> Result<()> {
+    mmio_guard_enroll().map_err(Error::EnrollFailed)?;
     let mmio_granule = mmio_guard_info().map_err(Error::InfoFailed)? as usize;
     if mmio_granule != helpers::SIZE_4KB {
         return Err(Error::UnsupportedGranule(mmio_granule));
@@ -57,6 +61,13 @@ fn mmio_guard_info() -> smccc::Result<u64> {
     let args = [0u64; 17];
 
     smccc::checked_hvc64(VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID, args)
+}
+
+fn mmio_guard_enroll() -> smccc::Result<()> {
+    const VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID: u32 = 0xc6000006;
+    let args = [0u64; 17];
+
+    smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID, args)
 }
 
 fn mmio_guard_map(ipa: u64) -> smccc::Result<()> {
