@@ -6,5 +6,10 @@
     {
       "name": "AuthFsHostTest"
     }
+  ],
+  "avf-postsubmit": [
+    {
+      "name": "AuthFsBenchmarks"
+    }
   ]
 }
