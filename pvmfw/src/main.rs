@@ -43,10 +43,10 @@ impl fmt::Display for Error {
 
 fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) -> Result<(), Error> {
     // We need to inform the hypervisor that the MMIO page containing the UART may be shared back.
-    let uart = console::BASE_ADDRESS as u64;
     let mmio_granule = smccc::mmio_guard_info().map_err(|_| Error::FailedUartSetup)?;
-    let uart_page = checked_page_of(uart, mmio_granule).ok_or(Error::FailedUartSetup)?;
-    smccc::mmio_guard_map(uart_page).map_err(|_| Error::FailedUartSetup)?;
+    let uart_page = checked_page_of(console::BASE_ADDRESS, mmio_granule as usize)
+        .ok_or(Error::FailedUartSetup)?;
+    smccc::mmio_guard_map(uart_page as u64).map_err(|_| Error::FailedUartSetup)?;
 
     println!("pVM firmware");
     println!(
