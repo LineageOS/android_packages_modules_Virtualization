@@ -3,14 +3,13 @@ package {
 }
 
 java_test_host {
-    name: "AuthFsHostTest",
-    srcs: ["java/**/*.java"],
+    name: "AuthFsBenchmarks",
+    srcs: ["src/java/com/android/fs/benchmarks/*.java"],
     libs: [
         "tradefed",
-        "compatibility-tradefed",
-        "compatibility-host-util",
     ],
     static_libs: [
+        "AuthFsHostTestCommon",
         "MicrodroidHostTestHelper",
     ],
     test_suites: ["general-tests"],
@@ -27,27 +26,10 @@ java_test_host {
     ],
 }
 
-rust_test {
-    name: "open_then_run",
-    crate_name: "open_then_run",
-    srcs: ["open_then_run.rs"],
-    edition: "2021",
-    rustlibs: [
-        "libandroid_logger",
-        "libanyhow",
-        "libclap",
-        "libcommand_fds",
-        "liblibc",
-        "liblog_rust",
-    ],
-    test_suites: ["general-tests"],
-    test_harness: false,
-}
-
 cc_binary {
     name: "measure_io",
     srcs: [
-        "measure_io.cpp",
+        "src/measure_io.cpp",
     ],
     shared_libs: [
         "libbase",
