@@ -34,7 +34,6 @@ rust_defaults {
         "libonce_cell",
         "libopenssl",
         "libprotobuf",
-        "libregex",
         "librpcbinder_rs",
         "librustutils",
         "libscopeguard",
