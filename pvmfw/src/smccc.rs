@@ -69,8 +69,8 @@ impl fmt::Display for Error {
             Self::NotSupported => write!(f, "SMCCC call not supported"),
             Self::NotRequired => write!(f, "SMCCC call not required"),
             Self::InvalidParameter => write!(f, "SMCCC call received non-supported value"),
-            Self::Unexpected(v) => write!(f, "Unexpected SMCCC return value '{}'", v),
-            Self::Unknown(e) => write!(f, "Unknown SMCCC return value '{}'", e),
+            Self::Unexpected(v) => write!(f, "Unexpected SMCCC return value {} ({0:#x})", v),
+            Self::Unknown(e) => write!(f, "Unknown SMCCC return value {} ({0:#x})", e),
         }
     }
 }
