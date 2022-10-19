@@ -9,7 +9,6 @@
         android:label="MicrodroidDemo"
         android:theme="@style/Theme.MicrodroidDemo"
         android:testOnly="true">
-        <uses-library android:name="android.system.virtualmachine" android:required="true" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

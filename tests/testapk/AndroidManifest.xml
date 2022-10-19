@@ -20,7 +20,6 @@
     <uses-sdk android:minSdkVersion="33" android:targetSdkVersion="33" />
     <uses-feature android:name="android.software.virtualization_framework" android:required="false" />
     <application>
-        <uses-library android:name="android.system.virtualmachine" android:required="false" />
     </application>
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
         android:targetPackage="com.android.microdroid.test"
