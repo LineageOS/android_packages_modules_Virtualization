@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Result};
 use libc::{sysconf, _SC_CLK_TCK};
-use regex::Regex;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 const MILLIS_PER_SEC: i64 = 1000;
@@ -57,19 +56,20 @@ pub struct MemInfo {
 //   sys: 10771070
 //   idle: 10480973587
 pub fn get_cpu_time() -> Result<CpuTime> {
-    let re = Regex::new(r"^cpu\s+([\d]+)\s([\d]+)\s([\d]+)\s([\d]+)").unwrap();
-
     let mut proc_stat = BufReader::new(File::open("/proc/stat")?);
     let mut line = String::new();
     proc_stat.read_line(&mut line)?;
-    let data_list = re.captures(&line).context("Failed to capture values")?;
+    let data_list: Vec<_> = line.split_whitespace().filter_map(|s| s.parse::<i64>().ok()).collect();
+    if data_list.len() < 4 {
+        bail!("Failed to extract numeric values in /proc/stat :\n{}", line);
+    }
 
     let ticks_per_sec = unsafe { sysconf(_SC_CLK_TCK) } as i64;
     let cpu_time = CpuTime {
-        user: data_list.get(1).unwrap().as_str().parse::<i64>()? * MILLIS_PER_SEC / ticks_per_sec,
-        nice: data_list.get(2).unwrap().as_str().parse::<i64>()? * MILLIS_PER_SEC / ticks_per_sec,
-        sys: data_list.get(3).unwrap().as_str().parse::<i64>()? * MILLIS_PER_SEC / ticks_per_sec,
-        idle: data_list.get(4).unwrap().as_str().parse::<i64>()? * MILLIS_PER_SEC / ticks_per_sec,
+        user: data_list[0] * MILLIS_PER_SEC / ticks_per_sec,
+        nice: data_list[1] * MILLIS_PER_SEC / ticks_per_sec,
+        sys: data_list[2] * MILLIS_PER_SEC / ticks_per_sec,
+        idle: data_list[3] * MILLIS_PER_SEC / ticks_per_sec,
     };
     Ok(cpu_time)
 }
@@ -105,21 +105,23 @@ pub fn get_cpu_time() -> Result<CpuTime> {
 //   buffer: 10231296
 //   cached: 189502836
 pub fn get_mem_info() -> Result<MemInfo> {
-    let re = Regex::new(r"^.*?:\s+([0-9]+)\skB").unwrap();
-
-    let proc_mem_info = fs::read_to_string("/proc/meminfo")?;
-    let data_list: Vec<_> = proc_mem_info
-        .trim()
-        .splitn(6, '\n')
-        .map(|s| re.captures(s).context("Failed to capture values").ok()?.get(1))
-        .collect();
+    let mut proc_stat = BufReader::new(File::open("/proc/meminfo")?);
+    let mut lines = String::new();
+    for _ in 0..5 {
+        proc_stat.read_line(&mut lines)?;
+    }
+    let data_list: Vec<_> =
+        lines.split_whitespace().filter_map(|s| s.parse::<i64>().ok()).collect();
+    if data_list.len() != 5 {
+        bail!("Failed to extract numeric values in /proc/meminfo :\n{}", lines);
+    }
 
     let mem_info = MemInfo {
-        total: data_list[0].unwrap().as_str().parse::<i64>()?,
-        free: data_list[1].unwrap().as_str().parse::<i64>()?,
-        available: data_list[2].unwrap().as_str().parse::<i64>()?,
-        buffer: data_list[3].unwrap().as_str().parse::<i64>()?,
-        cached: data_list[4].unwrap().as_str().parse::<i64>()?,
+        total: data_list[0],
+        free: data_list[1],
+        available: data_list[2],
+        buffer: data_list[3],
+        cached: data_list[4],
     };
     Ok(mem_info)
 }
