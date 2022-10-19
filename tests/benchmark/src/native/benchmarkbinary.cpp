@@ -165,8 +165,8 @@ Result<void> run_io_benchmark_tests() {
         }
     };
 
-    if (!RunRpcServerCallback(test_service->asBinder().get(), test_service->SERVICE_PORT, callback,
-                              nullptr)) {
+    if (!RunVsockRpcServerCallback(test_service->asBinder().get(), test_service->SERVICE_PORT,
+                                   callback, nullptr)) {
         return Error() << "RPC Server failed to run";
     }
     return {};
