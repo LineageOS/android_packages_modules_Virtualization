@@ -14,13 +14,15 @@
 
 //! Miscellaneous helper functions.
 
+pub const SIZE_4KB: usize = 4 << 10;
+
 /// Computes the address of the page containing a given address.
-pub const fn page_of(addr: u64, page_size: u64) -> u64 {
+pub const fn page_of(addr: usize, page_size: usize) -> usize {
     addr & !(page_size - 1)
 }
 
 /// Validates a page size and computes the address of the page containing a given address.
-pub const fn checked_page_of(addr: u64, page_size: u64) -> Option<u64> {
+pub const fn checked_page_of(addr: usize, page_size: usize) -> Option<usize> {
     if page_size.is_power_of_two() {
         Some(page_of(addr, page_size))
     } else {
@@ -29,8 +31,6 @@ pub const fn checked_page_of(addr: u64, page_size: u64) -> Option<u64> {
 }
 
 /// Computes the address of the 4KiB page containing a given address.
-pub const fn page_4kb_of(addr: u64) -> u64 {
-    const PAGE_SIZE: u64 = 4 << 10;
-
-    page_of(addr, PAGE_SIZE)
+pub const fn page_4kb_of(addr: usize) -> usize {
+    page_of(addr, SIZE_4KB)
 }
