@@ -20,35 +20,12 @@
 mod entry;
 mod exceptions;
 mod helpers;
+mod mmio_guard;
 mod smccc;
 
-use core::fmt;
-use helpers::checked_page_of;
 use log::{debug, info};
-use vmbase::console;
 
-#[derive(Debug, Clone)]
-enum Error {
-    /// Failed to configure the UART; no logs available.
-    FailedUartSetup,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let msg = match self {
-            Self::FailedUartSetup => "Failed to configure the UART",
-        };
-        write!(f, "{}", msg)
-    }
-}
-
-fn main(fdt: &mut [u8], payload: &[u8]) -> Result<(), Error> {
-    // We need to inform the hypervisor that the MMIO page containing the UART may be shared back.
-    let mmio_granule = smccc::mmio_guard_info().map_err(|_| Error::FailedUartSetup)?;
-    let uart_page = checked_page_of(console::BASE_ADDRESS, mmio_granule as usize)
-        .ok_or(Error::FailedUartSetup)?;
-    smccc::mmio_guard_map(uart_page as u64).map_err(|_| Error::FailedUartSetup)?;
-
+fn main(fdt: &mut [u8], payload: &[u8]) {
     info!("pVM firmware");
     debug!(
         "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}",
@@ -58,8 +35,6 @@ fn main(fdt: &mut [u8], payload: &[u8]) -> Result<(), Error> {
     );
 
     info!("Starting payload...");
-
-    Ok(())
 }
 
 fn jump_to_payload(fdt_address: u64, payload_start: u64) {

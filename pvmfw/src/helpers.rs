@@ -22,15 +22,6 @@ pub const fn page_of(addr: usize, page_size: usize) -> usize {
     addr & !(page_size - 1)
 }
 
-/// Validates a page size and computes the address of the page containing a given address.
-pub const fn checked_page_of(addr: usize, page_size: usize) -> Option<usize> {
-    if page_size.is_power_of_two() {
-        Some(page_of(addr, page_size))
-    } else {
-        None
-    }
-}
-
 /// Computes the address of the 4KiB page containing a given address.
 pub const fn page_4kb_of(addr: usize) -> usize {
     page_of(addr, SIZE_4KB)
