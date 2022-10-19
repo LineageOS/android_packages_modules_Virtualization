@@ -14,6 +14,8 @@
 
 //! Miscellaneous helper functions.
 
+pub const SIZE_4KB: usize = 4 << 10;
+
 /// Computes the address of the page containing a given address.
 pub const fn page_of(addr: usize, page_size: usize) -> usize {
     addr & !(page_size - 1)
@@ -30,7 +32,5 @@ pub const fn checked_page_of(addr: usize, page_size: usize) -> Option<usize> {
 
 /// Computes the address of the 4KiB page containing a given address.
 pub const fn page_4kb_of(addr: usize) -> usize {
-    const PAGE_SIZE: usize = 4 << 10;
-
-    page_of(addr, PAGE_SIZE)
+    page_of(addr, SIZE_4KB)
 }
