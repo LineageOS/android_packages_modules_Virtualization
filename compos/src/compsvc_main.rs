@@ -25,7 +25,7 @@ mod fsverity;
 use anyhow::{bail, Result};
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
-use rpcbinder::run_rpc_server;
+use rpcbinder::run_vsock_rpc_server;
 use std::panic;
 use vm_payload_bindgen::AVmPayload_notifyPayloadReady;
 
@@ -48,7 +48,7 @@ fn try_main() -> Result<()> {
     let service = compsvc::new_binder()?.as_binder();
     debug!("compsvc is starting as a rpc service.");
     // SAFETY: Invokes a method from the bindgen library `vm_payload_bindgen`.
-    let retval = run_rpc_server(service, COMPOS_VSOCK_PORT, || unsafe {
+    let retval = run_vsock_rpc_server(service, COMPOS_VSOCK_PORT, || unsafe {
         AVmPayload_notifyPayloadReady();
     });
     if retval {
