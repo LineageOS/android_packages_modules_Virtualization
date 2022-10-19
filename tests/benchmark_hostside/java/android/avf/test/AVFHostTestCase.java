@@ -159,6 +159,8 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             throws DeviceNotAvailableException, InterruptedException {
         CommandRunner android = new CommandRunner(getDevice());
         unlockScreen(android);
+        // Ensure we are killing the app to get the cold app startup time
+        android.run("am force-stop " + pkgName);
         android.run("echo 3 > /proc/sys/vm/drop_caches");
         String vmStartAppLog = android.run("am", "start -W -S " + pkgName);
         assertNotNull(vmStartAppLog);
