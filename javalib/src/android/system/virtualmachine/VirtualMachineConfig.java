@@ -21,6 +21,7 @@ import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresPermission;
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
@@ -376,6 +377,7 @@ public final class VirtualMachineConfig {
          *
          * @hide
          */
+        @RequiresPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
         @NonNull
         public Builder setPayloadConfigPath(@NonNull String payloadConfigPath) {
             mPayloadConfigPath = Objects.requireNonNull(payloadConfigPath);
@@ -383,8 +385,8 @@ public final class VirtualMachineConfig {
         }
 
         /**
-         * Sets the path within the APK to the payload binary file that will be executed within
-         * the VM.
+         * Sets the path within the {@code lib/<ABI>} directory of the APK to the payload binary
+         * file that will be executed within the VM.
          *
          * @hide
          */
