@@ -9,6 +9,7 @@ rust_ffi_static {
     srcs: ["src/main.rs"],
     edition: "2021",
     rustlibs: [
+        "libbuddy_system_allocator",
         "liblog_rust_nostd",
         "libpvmfw_embedded_key",
         "libvmbase",
