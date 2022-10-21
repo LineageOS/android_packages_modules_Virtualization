@@ -20,10 +20,9 @@ import static com.android.microdroid.test.host.CommandResultSubject.assertThat;
 import static com.android.microdroid.test.host.CommandResultSubject.command_results;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
@@ -129,7 +128,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
 
     // Same as runOnHost, but with custom timeout
     private static String runOnHostWithTimeout(long timeoutMillis, String... cmd) {
-        assertTrue(timeoutMillis >= 0);
+        assertThat(timeoutMillis).isAtLeast(0);
         CommandResult result = RunUtil.getDefault().runTimedCmd(timeoutMillis, cmd);
         assertThat(result).isSuccess();
         return result.getStdout().trim();
@@ -213,8 +212,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         try {
             return (new CompatibilityBuildHelper(buildInfo)).getTestFile(name);
         } catch (FileNotFoundException e) {
-            fail("Missing test file: " + name);
-            return null;
+            throw new AssertionError("Missing test file: " + name, e);
         }
     }
 
@@ -230,7 +228,8 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
             throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(device);
         String pathLine = android.run("pm", "path", packageName);
-        assertTrue("package not found", pathLine.startsWith("package:"));
+        assertWithMessage("Package " + packageName + " not found")
+                .that(pathLine).startsWith("package:");
         return pathLine.substring("package:".length());
     }
 
@@ -358,7 +357,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         // Retrieve the CID from the vm tool output
         Pattern pattern = Pattern.compile("with CID (\\d+)");
         Matcher matcher = pattern.matcher(ret);
-        assertTrue(matcher.find());
+        assertWithMessage("Failed to find CID").that(matcher.find()).isTrue();
         return matcher.group(1);
     }
 
