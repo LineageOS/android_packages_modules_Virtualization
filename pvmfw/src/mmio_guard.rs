@@ -41,7 +41,7 @@ impl fmt::Display for Error {
 }
 
 pub fn init() -> Result<()> {
-    let mmio_granule = smccc::mmio_guard_info().map_err(Error::InfoFailed)? as usize;
+    let mmio_granule = mmio_guard_info().map_err(Error::InfoFailed)? as usize;
     if mmio_granule != helpers::SIZE_4KB {
         return Err(Error::UnsupportedGranule(mmio_granule));
     }
@@ -49,5 +49,20 @@ pub fn init() -> Result<()> {
 }
 
 pub fn map(addr: usize) -> Result<()> {
-    smccc::mmio_guard_map(helpers::page_4kb_of(addr) as u64).map_err(Error::MapFailed)
+    mmio_guard_map(helpers::page_4kb_of(addr) as u64).map_err(Error::MapFailed)
+}
+
+fn mmio_guard_info() -> smccc::Result<u64> {
+    const VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID: u32 = 0xc6000005;
+    let args = [0u64; 17];
+
+    smccc::checked_hvc64(VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID, args)
+}
+
+fn mmio_guard_map(ipa: u64) -> smccc::Result<()> {
+    const VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID: u32 = 0xc6000007;
+    let mut args = [0u64; 17];
+    args[0] = ipa;
+
+    smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID, args)
 }
