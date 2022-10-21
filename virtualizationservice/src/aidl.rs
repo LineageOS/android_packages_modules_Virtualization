@@ -1069,7 +1069,7 @@ impl IVirtualMachineService for VirtualMachineService {
     fn notifyPayloadStarted(&self) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM having CID {} started payload", cid);
+            info!("VM with CID {} started payload", cid);
             vm.update_payload_state(PayloadState::Started).map_err(|e| {
                 Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
             })?;
@@ -1091,7 +1091,7 @@ impl IVirtualMachineService for VirtualMachineService {
     fn notifyPayloadReady(&self) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM having CID {} payload is ready", cid);
+            info!("VM with CID {} reported payload is ready", cid);
             vm.update_payload_state(PayloadState::Ready).map_err(|e| {
                 Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
             })?;
@@ -1109,7 +1109,7 @@ impl IVirtualMachineService for VirtualMachineService {
     fn notifyPayloadFinished(&self, exit_code: i32) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM having CID {} finished payload", cid);
+            info!("VM with CID {} finished payload", cid);
             vm.update_payload_state(PayloadState::Finished).map_err(|e| {
                 Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
             })?;
@@ -1127,7 +1127,7 @@ impl IVirtualMachineService for VirtualMachineService {
     fn notifyError(&self, error_code: ErrorCode, message: &str) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM having CID {} encountered an error", cid);
+            info!("VM with CID {} encountered an error", cid);
             vm.update_payload_state(PayloadState::Finished).map_err(|e| {
                 Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
             })?;
@@ -1145,7 +1145,7 @@ impl IVirtualMachineService for VirtualMachineService {
     fn notifyCpuStatus(&self, status: &VirtualMachineCpuStatus) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM having CID {} encountered an error", cid);
+            info!("VM with CID {} reported its CPU status", cid);
             write_vm_cpu_status_stats(vm.requester_uid as i32, &vm.name, status);
             Ok(())
         } else {
@@ -1160,7 +1160,7 @@ impl IVirtualMachineService for VirtualMachineService {
     fn notifyMemStatus(&self, status: &VirtualMachineMemStatus) -> binder::Result<()> {
         let cid = self.cid;
         if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM having CID {} encountered an error", cid);
+            info!("VM with CID {} reported its memory status", cid);
             write_vm_mem_status_stats(vm.requester_uid as i32, &vm.name, status);
             Ok(())
         } else {
