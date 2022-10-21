@@ -19,6 +19,7 @@ package android.avf.test;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertWithMessage;
+import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeFalse;
@@ -73,9 +74,9 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 10 * 60 * 1000;
     private static final double NANOS_IN_SEC = 1_000_000_000.0;
     private static final int ROUND_COUNT = 5;
+    private static final int ROUND_IGNORE_STARTUP_TIME = 3;
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
-    private static final String SETTINGS_PACKAGE_NAME = "com.android.settings";
     private static final int NUM_VCPUS = 3;
 
     private MetricsProcessor mMetricsProcessor;
@@ -122,14 +123,32 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testAppStartupTime() throws Exception {
+    public void testCameraAppStartupTime() throws Exception {
+        String[] launchIntentPackages = {
+            "com.android.camera2",
+            "com.google.android.GoogleCamera/com.android.camera.CameraLauncher"
+        };
+        String launchIntentPackage = findSupportedPackage(launchIntentPackages);
+        assume().withMessage("No supported camera package").that(launchIntentPackage).isNotNull();
+        appStartupHelper(launchIntentPackage);
+    }
+
+    @Test
+    public void testSettingsAppStartupTime() throws Exception {
+        String[] launchIntentPackages = {
+            "com.android.settings"
+        };
+        String launchIntentPackage = findSupportedPackage(launchIntentPackages);
+        assume().withMessage("No supported settings package").that(launchIntentPackage).isNotNull();
+        appStartupHelper(launchIntentPackage);
+    }
+
+    private void appStartupHelper(String launchIntentPackage) throws Exception {
         assumeTrue("Skip on non-protected VMs", isProtectedVmSupported());
 
         StartupTimeMetricCollection mCollection =
-                new StartupTimeMetricCollection(SETTINGS_PACKAGE_NAME, ROUND_COUNT);
-        for (int round = 0; round < ROUND_COUNT; ++round) {
-            getAppStartupTime(mCollection);
-        }
+                new StartupTimeMetricCollection(getPackageName(launchIntentPackage), ROUND_COUNT);
+        getAppStartupTime(launchIntentPackage, mCollection);
 
         reportMetric(mCollection.mAppBeforeVmRunTotalTime,
                 "app_startup/" + mCollection.getPkgName() + "/total_time/before_vm",
@@ -151,13 +170,38 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
                 "ms");
     }
 
+    private String getPackageName(String launchIntentPackage) {
+        String appPkg = launchIntentPackage;
+
+        // Does the appPkgName contain the intent ?
+        if (launchIntentPackage != null && launchIntentPackage.contains("/")) {
+            appPkg = launchIntentPackage.split("/")[0];
+        }
+        return appPkg;
+    }
+
+    private String findSupportedPackage(String[] pkgNameList) throws Exception {
+        CommandRunner android = new CommandRunner(getDevice());
+
+        for (String pkgName : pkgNameList) {
+            String appPkg = getPackageName(pkgName);
+            String hasPackage = android.run("pm list package | grep -w " + appPkg + " 1> /dev/null"
+                    + "; echo $?");
+            assertNotNull(hasPackage);
+
+            if (hasPackage.equals("0")) {
+                return pkgName;
+            }
+        }
+        return null;
+    }
+
     private void microdroidWaitForBootComplete() {
         runOnMicrodroidForResult("watch -e \"getprop dev.bootcomplete | grep '^0$'\"");
     }
 
-    private AmStartupTimeCmdParser getColdRunStartupTimes(String pkgName)
+    private AmStartupTimeCmdParser getColdRunStartupTimes(CommandRunner android, String pkgName)
             throws DeviceNotAvailableException, InterruptedException {
-        CommandRunner android = new CommandRunner(getDevice());
         unlockScreen(android);
         android.run("echo 3 > /proc/sys/vm/drop_caches");
         String vmStartAppLog = android.run("am", "start -W -S " + pkgName);
@@ -168,20 +212,27 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     // Returns an array of two elements containing the delta between the initial app startup time
     // and the time measured after running the VM.
-    private void getAppStartupTime(StartupTimeMetricCollection metricColector)
+    private void getAppStartupTime(String pkgName, StartupTimeMetricCollection metricColector)
             throws Exception {
         final String configPath = "assets/vm_config.json";
         final String cid;
         final int vm_mem_mb;
 
-        // Reboot the device to run the test without stage2 fragmentation
+        // 1. Reboot the device to run the test without stage2 fragmentation
         getDevice().rebootUntilOnline();
         waitForBootCompleted();
 
-        // Run the app before the VM run and collect app startup time statistics
+        // 2. Start the app and ignore first runs to warm up caches
         CommandRunner android = new CommandRunner(getDevice());
-        AmStartupTimeCmdParser beforeVmStartApp = getColdRunStartupTimes(SETTINGS_PACKAGE_NAME);
-        metricColector.addStartupTimeMetricBeforeVmRun(beforeVmStartApp);
+        for (int i = 0; i < ROUND_IGNORE_STARTUP_TIME; i++) {
+            getColdRunStartupTimes(android, pkgName);
+        }
+
+        // 3. Run the app before the VM run and collect app startup time statistics
+        for (int i = 0; i < ROUND_COUNT; i++) {
+            AmStartupTimeCmdParser beforeVmStartApp = getColdRunStartupTimes(android, pkgName);
+            metricColector.addStartupTimeMetricBeforeVmRun(beforeVmStartApp);
+        }
 
         // Clear up any test dir
         android.tryRun("rm", "-rf", MicrodroidHostTestCaseBase.TEST_ROOT);
@@ -214,12 +265,19 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         } catch (Exception ex) {
         }
 
-        AmStartupTimeCmdParser duringVmStartApp = getColdRunStartupTimes(SETTINGS_PACKAGE_NAME);
-        metricColector.addStartupTimeMetricDuringVmRun(duringVmStartApp);
+        // Run the app during the VM run and collect cold startup time.
+        for (int i = 0; i < ROUND_COUNT; i++) {
+            AmStartupTimeCmdParser duringVmStartApp = getColdRunStartupTimes(android, pkgName);
+            metricColector.addStartupTimeMetricDuringVmRun(duringVmStartApp);
+        }
+
         shutdownMicrodroid(getDevice(), cid);
 
-        AmStartupTimeCmdParser afterVmStartApp = getColdRunStartupTimes(SETTINGS_PACKAGE_NAME);
-        metricColector.addStartupTimerMetricAfterVmRun(afterVmStartApp);
+        // Run the app after the VM run and collect cold startup time.
+        for (int i = 0; i < ROUND_COUNT; i++) {
+            AmStartupTimeCmdParser afterVmStartApp = getColdRunStartupTimes(android, pkgName);
+            metricColector.addStartupTimerMetricAfterVmRun(afterVmStartApp);
+        }
     }
 
     static class AmStartupTimeCmdParser {
