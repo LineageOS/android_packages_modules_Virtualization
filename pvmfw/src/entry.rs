@@ -51,7 +51,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     // - only access MMIO once (and while) it has been mapped and configured
     // - only perform logging once the logger has been initialized
     // - only access non-pvmfw memory once (and while) it has been mapped
-    logger::init(LevelFilter::Debug).map_err(|_| RebootReason::InternalError)?;
+    logger::init(LevelFilter::Info).map_err(|_| RebootReason::InternalError)?;
 
     // TODO: Check that the FDT is fully contained in RAM.
     // SAFETY - We trust the VMM, for now.
