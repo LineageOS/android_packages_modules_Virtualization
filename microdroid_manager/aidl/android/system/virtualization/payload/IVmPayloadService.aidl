@@ -39,18 +39,23 @@ interface IVmPayloadService {
     /**
      * Gets the DICE attestation chain for the VM.
      *
-     * STOPSHIP:
-     * TODO: don't expose this to untrusted payloads as it contains privacy breaking identifiers.
+     * The DICE chain must not be made available to all VMs as it contains privacy breaking
+     * identifiers.
+     *
+     * @return the VM's raw DICE certificate chain.
+     * @throws SecurityException if the use of test APIs is not permitted.
      */
     byte[] getDiceAttestationChain();
 
     /**
      * Gets the DICE attestation CDI for the VM.
      *
-     * STOPSHIP:
-     * TODO: A better API would handle key derivation on behalf of the payload so they can't forget
-     * to do it themselves. It also means the payload doesn't get the raw CDI so there's less chance
-     * of it leaking.
+     * The raw attestation CDI isn't very useful but is used for smoke tests. A better API would
+     * handle key derivation on behalf of the payload so they can't forget to do it themselves and
+     * would also mean the payload doesn't get the raw CDI which reduces the chance of it leaking.
+     *
+     * @return the VM's raw attestation CDI.
+     * @throws SecurityException if the use of test APIs is not permitted.
      */
     byte[] getDiceAttestationCdi();
 }

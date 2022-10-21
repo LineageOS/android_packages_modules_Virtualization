@@ -49,8 +49,7 @@ bool AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_si
 /**
  * Get the VM's DICE attestation chain.
  *
- * TODO: don't expose the contained privacy breaking identifiers to the payload
- * TODO: keep the DICE chain as an internal detail for as long as possible
+ * This function will fail if the use of restricted APIs is not permitted.
  *
  * \param data pointer to size bytes where the chain is written.
  * \param size number of bytes that can be written to data.
@@ -63,7 +62,7 @@ bool AVmPayload_getDiceAttestationChain(void *data, size_t size, size_t *total);
 /**
  * Get the VM's DICE attestation CDI.
  *
- * TODO: don't expose the raw CDI, only derived values
+ * This function will fail if the use of restricted APIs is not permitted.
  *
  * \param data pointer to size bytes where the CDI is written.
  * \param size number of bytes that can be written to data.

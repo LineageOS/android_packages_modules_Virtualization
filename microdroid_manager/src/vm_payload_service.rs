@@ -26,6 +26,7 @@ use openssl::md::Md;
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
+    allow_restricted_apis: bool,
     virtual_machine_service: Strong<dyn IVirtualMachineService>,
     dice: DiceContext,
 }
@@ -54,10 +55,12 @@ impl IVmPayloadService for VmPayloadService {
     }
 
     fn getDiceAttestationChain(&self) -> binder::Result<Vec<u8>> {
+        self.check_restricted_apis_allowed()?;
         Ok(self.dice.bcc.clone())
     }
 
     fn getDiceAttestationCdi(&self) -> binder::Result<Vec<u8>> {
+        self.check_restricted_apis_allowed()?;
         Ok(self.dice.cdi_attest.to_vec())
     }
 }
@@ -66,18 +69,32 @@ impl Interface for VmPayloadService {}
 
 impl VmPayloadService {
     /// Creates a new `VmPayloadService` instance from the `IVirtualMachineService` reference.
-    fn new(vm_service: Strong<dyn IVirtualMachineService>, dice: DiceContext) -> Self {
-        Self { virtual_machine_service: vm_service, dice }
+    fn new(
+        allow_restricted_apis: bool,
+        vm_service: Strong<dyn IVirtualMachineService>,
+        dice: DiceContext,
+    ) -> Self {
+        Self { allow_restricted_apis, virtual_machine_service: vm_service, dice }
+    }
+
+    fn check_restricted_apis_allowed(&self) -> binder::Result<()> {
+        if self.allow_restricted_apis {
+            Ok(())
+        } else {
+            error!("Use of restricted APIs is not allowed");
+            Err(Status::new_exception_str(ExceptionCode::SECURITY, Some("Use of restricted APIs")))
+        }
     }
 }
 
 /// Registers the `IVmPayloadService` service.
 pub(crate) fn register_vm_payload_service(
+    allow_restricted_apis: bool,
     vm_service: Strong<dyn IVirtualMachineService>,
     dice: DiceContext,
 ) -> Result<()> {
     let vm_payload_binder = BnVmPayloadService::new_binder(
-        VmPayloadService::new(vm_service, dice),
+        VmPayloadService::new(allow_restricted_apis, vm_service, dice),
         BinderFeatures::default(),
     );
     add_service(VM_PAYLOAD_SERVICE_NAME, vm_payload_binder.as_binder())
