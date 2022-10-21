@@ -14,6 +14,7 @@
 
 //! Miscellaneous helper functions.
 
+pub const FDT_MAX_SIZE: usize = 2 << 20;
 pub const SIZE_4KB: usize = 4 << 10;
 
 /// Computes the address of the page containing a given address.

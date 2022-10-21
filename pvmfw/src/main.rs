@@ -17,14 +17,15 @@
 #![no_main]
 #![no_std]
 
+mod entry;
 mod exceptions;
 mod helpers;
 mod smccc;
 
 use core::fmt;
 use helpers::checked_page_of;
-use log::{debug, error, info, LevelFilter};
-use vmbase::{console, logger, main, power::reboot};
+use log::{debug, info};
+use vmbase::console;
 
 #[derive(Debug, Clone)]
 enum Error {
@@ -41,7 +42,7 @@ impl fmt::Display for Error {
     }
 }
 
-fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) -> Result<(), Error> {
+fn main(fdt: &mut [u8], payload: &[u8]) -> Result<(), Error> {
     // We need to inform the hypervisor that the MMIO page containing the UART may be shared back.
     let mmio_granule = smccc::mmio_guard_info().map_err(|_| Error::FailedUartSetup)?;
     let uart_page = checked_page_of(console::BASE_ADDRESS, mmio_granule as usize)
@@ -50,27 +51,15 @@ fn main(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) -> R
 
     info!("pVM firmware");
     debug!(
-        "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}, x3={:#018x}",
-        fdt_address, payload_start, payload_size, arg3,
+        "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}",
+        fdt.as_ptr() as usize,
+        payload.as_ptr() as usize,
+        payload.len(),
     );
 
     info!("Starting payload...");
 
     Ok(())
-}
-
-main!(main_wrapper);
-
-/// Entry point for pVM firmware.
-pub fn main_wrapper(fdt_address: u64, payload_start: u64, payload_size: u64, arg3: u64) {
-    if logger::init(LevelFilter::Debug).is_err() {
-    } else if let Err(e) = main(fdt_address, payload_start, payload_size, arg3) {
-        error!("Boot rejected: {e}");
-    } else {
-        jump_to_payload(fdt_address, payload_start);
-    }
-
-    reboot()
 }
 
 fn jump_to_payload(fdt_address: u64, payload_start: u64) {
