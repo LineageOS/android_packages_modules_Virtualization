@@ -55,6 +55,8 @@ pub fn command_run_app(
     task_profiles: Vec<String>,
     extra_idsigs: &[PathBuf],
 ) -> Result<(), Error> {
+    let apk_file = File::open(apk).context("Failed to open APK file")?;
+
     let extra_apks = parse_extra_apk_list(apk, config_path)?;
     if extra_apks.len() != extra_idsigs.len() {
         bail!(
@@ -70,7 +72,6 @@ pub fn command_run_app(
         service.createOrUpdateIdsigFile(&extra_apk_fd, &extra_idsig_fd)?;
     }
 
-    let apk_file = File::open(apk).context("Failed to open APK file")?;
     let idsig_file = File::create(idsig).context("Failed to create idsig file")?;
 
     let apk_fd = ParcelFileDescriptor::new(apk_file);
