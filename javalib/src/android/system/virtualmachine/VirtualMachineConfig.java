@@ -352,7 +352,7 @@ public final class VirtualMachineConfig {
             }
 
             if (!mProtectedVmSet) {
-                throw new IllegalStateException("protectedVm must be set explicitly");
+                throw new IllegalStateException("setProtectedVm(t/f) must be called explicitly");
             }
 
             if (mProtectedVm
