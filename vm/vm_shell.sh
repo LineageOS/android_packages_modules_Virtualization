@@ -40,18 +40,18 @@ if [ -z "${available_cids}" ]; then
     exit 1
 fi
 
-if [ -n "${selected_cid}" ]; then
-    if [[ ! " ${available_cids[*]} " =~ " ${selected_cid} " ]]; then
-        echo VM of CID $selected_cid does not exist. Available CIDs: ${available_cids}
-        exit 1
-    fi
-else
+if [ ! -n "${selected_cid}" ]; then
     PS3="Select CID of VM to adb-shell into: "
     select cid in ${available_cids}
     do
         selected_cid=${cid}
         break
     done
+fi
+
+if [[ ! " ${available_cids[*]} " =~ " ${selected_cid} " ]]; then
+    echo VM of CID $selected_cid does not exist. Available CIDs: ${available_cids}
+    exit 1
 fi
 
 connect_vm ${selected_cid}
