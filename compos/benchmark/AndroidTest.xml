@@ -27,11 +27,6 @@
         <option name="force-root" value="true" />
     </target_preparer>
 
-    <target_preparer class="com.android.tradefed.targetprep.DeviceSetup">
-        <!-- Run in single thread to avoid nondeterministics. -->
-        <option name="set-property" key="dalvik.vm.boot-dex2oat-threads" value="1" />
-    </target_preparer>
-
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.compos.benchmark" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
