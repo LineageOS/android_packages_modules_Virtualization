@@ -13,7 +13,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<configuration description="Tests for microdroid">
+<configuration description="Host driven tests for Microdroid">
     <option name="test-suite-tag" value="cts" />
     <option name="config-descriptor:metadata" key="component" value="security" />
     <option name="config-descriptor:metadata" key="parameter" value="not_instant_app" />
