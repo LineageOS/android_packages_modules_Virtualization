@@ -37,34 +37,6 @@ on init
     chmod 0666 /dev/binderfs/binder
     chmod 0666 /dev/binderfs/vndbinder
 
-    # Prepare cpusets that are pre-defined by Android. Inside Microdroid, these however don't mean
-    # much because the mapping from vCPUs to physical CPUs are quite flexible; a VM can be started
-    # with any number of vCPUs and we in general can't be sure that vCPU N is a big core or a little
-    # core. These nodes are provided just to satisfy the code which puts a PID to a specific cpuset.
-    mkdir /dev/cpuset/foreground
-    copy /dev/cpuset/cpus /dev/cpuset/foreground/cpus
-    copy /dev/cpuset/mems /dev/cpuset/foreground/mems
-    mkdir /dev/cpuset/background
-    copy /dev/cpuset/cpus /dev/cpuset/background/cpus
-    copy /dev/cpuset/mems /dev/cpuset/background/mems
-    mkdir /dev/cpuset/system-background
-    copy /dev/cpuset/cpus /dev/cpuset/system-background/cpus
-    copy /dev/cpuset/mems /dev/cpuset/system-background/mems
-
-    chown system system /dev/cpuset
-    chown system system /dev/cpuset/foreground
-    chown system system /dev/cpuset/background
-    chown system system /dev/cpuset/system-background
-    chown system system /dev/cpuset/tasks
-    chown system system /dev/cpuset/foreground/tasks
-    chown system system /dev/cpuset/background/tasks
-    chown system system /dev/cpuset/system-background/tasks
-
-    chmod 0664 /dev/cpuset/tasks
-    chmod 0664 /dev/cpuset/foreground/tasks
-    chmod 0664 /dev/cpuset/background/tasks
-    chmod 0664 /dev/cpuset/system-background/tasks
-
     start servicemanager
 
 on init
