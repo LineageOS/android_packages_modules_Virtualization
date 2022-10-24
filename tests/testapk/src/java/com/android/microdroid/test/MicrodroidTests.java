@@ -21,6 +21,8 @@ import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_NON
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.TruthJUnit.assume;
 
+import static org.junit.Assert.assertThrows;
+
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.os.Build;
@@ -35,6 +37,7 @@ import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.ITestService;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -76,7 +79,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Before
     public void setup() {
+        grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         prepareTestSetup(mProtectedVm);
+    }
+
+    @After
+    public void tearDown() {
+        revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
+        revokePermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
     }
 
     private static final int MIN_MEM_ARM64 = 150;
@@ -106,12 +116,59 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {
             "9.17/C-1-1",
+            "9.17/C-1-2",
+            "9.17/C-1-4",
+    })
+    public void createVmRequiresPermission() throws Exception {
+        assumeSupportedKernel();
+
+        revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
+
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setMemoryMib(minMemoryRequired())
+                .build();
+
+        SecurityException e = assertThrows(SecurityException.class,
+                () -> mInner.forceCreateNewVirtualMachine("test_vm_requires_permission", config));
+        assertThat(e).hasMessageThat()
+                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
+    }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-1-2",
+            "9.17/C-1-4",
+    })
+    public void createVmWithConfigRequiresPermission() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadConfigPath("assets/vm_config.json")
+                .setMemoryMib(minMemoryRequired())
+                .build();
+
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine(
+                "test_vm_config_requires_permission", config);
+
+        SecurityException e = assertThrows(SecurityException.class, () -> runVmTestService(vm));
+        assertThat(e).hasMessageThat()
+                .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
+    }
+
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
             "9.17/C-2-1"
     })
     public void extraApk() throws Exception {
         assumeSupportedKernel();
 
-        VirtualMachineConfig config = mInner.newVmConfigBuilder("assets/vm_config_extra_apk.json")
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadConfigPath("assets/vm_config_extra_apk.json")
                 .setMemoryMib(minMemoryRequired())
                 .build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm_extra_apk", config);
@@ -406,9 +463,11 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void bootFailsWhenConfigIsInvalid() throws Exception {
-        VirtualMachineConfig.Builder builder =
-                mInner.newVmConfigBuilder("assets/vm_config_no_task.json");
-        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
+                .setPayloadConfigPath("assets/vm_config_no_task.json")
+                .setDebugLevel(DEBUG_LEVEL_FULL)
+                .build();
         mInner.forceCreateNewVirtualMachine("test_vm_invalid_config", normalConfig);
 
         BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_config");

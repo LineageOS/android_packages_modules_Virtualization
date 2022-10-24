@@ -124,6 +124,13 @@ public class VirtualMachine implements AutoCloseable {
             "android.permission.MANAGE_VIRTUAL_MACHINE";
 
     /**
+     * The permission needed to create a virtual machine with more advanced configuration options.
+     */
+    public static final String USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION =
+            "android.permission.USE_CUSTOM_VIRTUAL_MACHINE";
+
+
+    /**
      * Status of a virtual machine
      *
      * @hide
