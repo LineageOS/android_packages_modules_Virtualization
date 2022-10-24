@@ -253,7 +253,6 @@ impl IVirtualizationService for VirtualizationService {
 fn handle_stream_connection_tombstoned() -> Result<()> {
     let listener =
         VsockListener::bind_with_cid_port(VMADDR_CID_HOST, VM_TOMBSTONES_SERVICE_PORT as u32)?;
-    info!("Listening to tombstones from guests ...");
     for incoming_stream in listener.incoming() {
         let mut incoming_stream = match incoming_stream {
             Err(e) => {
