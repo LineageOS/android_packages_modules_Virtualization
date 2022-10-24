@@ -22,8 +22,9 @@
 
 mod authfs;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use log::*;
+use rpcbinder::run_init_unix_domain_rpc_server;
 use std::ffi::OsString;
 use std::fs::{create_dir, read_dir, remove_dir_all, remove_file};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -31,13 +32,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use authfs_aidl_interface::aidl::com::android::virt::fs::AuthFsConfig::AuthFsConfig;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFs::IAuthFs;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::{
-    BnAuthFsService, IAuthFsService,
+    BnAuthFsService, IAuthFsService, AUTHFS_SERVICE_SOCKET_NAME,
 };
-use binder::{
-    self, add_service, BinderFeatures, ExceptionCode, Interface, ProcessState, Status, Strong,
-};
+use binder::{self, BinderFeatures, ExceptionCode, Interface, Status, Strong};
 
-const SERVICE_NAME: &str = "authfs_service";
 const SERVICE_ROOT: &str = "/data/misc/authfs";
 
 /// Implementation of `IAuthFsService`.
@@ -117,15 +115,17 @@ fn try_main() -> Result<()> {
 
     clean_up_working_directory()?;
 
-    ProcessState::start_thread_pool();
-
     let service = AuthFsService::new_binder(debuggable).as_binder();
-    add_service(SERVICE_NAME, service)
-        .with_context(|| format!("Failed to register service {}", SERVICE_NAME))?;
-    debug!("{} is running", SERVICE_NAME);
-
-    ProcessState::join_thread_pool();
-    bail!("Unexpected exit after join_thread_pool")
+    debug!("{} is starting as a rpc service.", AUTHFS_SERVICE_SOCKET_NAME);
+    let retval = run_init_unix_domain_rpc_server(service, AUTHFS_SERVICE_SOCKET_NAME, || {
+        info!("The RPC server '{}' is running.", AUTHFS_SERVICE_SOCKET_NAME);
+    });
+    if retval {
+        info!("The RPC server at '{}' has shut down gracefully.", AUTHFS_SERVICE_SOCKET_NAME);
+        Ok(())
+    } else {
+        bail!("Premature termination of the RPC server '{}'.", AUTHFS_SERVICE_SOCKET_NAME)
+    }
 }
 
 fn main() {
