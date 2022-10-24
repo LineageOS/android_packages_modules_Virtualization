@@ -27,7 +27,7 @@ function connect_vm() {
     adb forward tcp:8000 vsock:${cid}:5555
     adb connect localhost:8000
     adb -s localhost:8000 root
-    sleep 2
+    adb -s localhost:8000 wait-for-device
     adb -s localhost:8000 shell
     exit 0
 }
