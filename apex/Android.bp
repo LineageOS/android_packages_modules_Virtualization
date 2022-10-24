@@ -15,20 +15,51 @@ microdroid_filesystem_images = [
     "microdroid_vendor_boot",
 ]
 
-apex {
-    name: "com.android.virt",
+soong_config_module_type {
+    name: "virt_apex",
+    module_type: "apex",
+    config_namespace: "ANDROID",
+    bool_variables: ["avf_enabled"],
+    properties: ["defaults"],
+}
 
+virt_apex {
+    name: "com.android.virt",
+    soong_config_variables: {
+        avf_enabled: {
+            defaults: ["com.android.virt_avf_enabled"],
+            conditions_default: {
+                defaults: ["com.android.virt_avf_disabled"],
+            },
+        },
+    },
+}
+
+apex_defaults {
+    name: "com.android.virt_common",
     // TODO(jiyong): make it updatable
     updatable: false,
     future_updatable: true,
     platform_apis: true,
 
-    system_ext_specific: true,
-
     manifest: "manifest.json",
 
     key: "com.android.virt.key",
     certificate: ":com.android.virt.certificate",
+
+    apps: [
+        "android.system.virtualmachine.res",
+    ],
+
+    file_contexts: ":com.android.virt-file_contexts",
+    canned_fs_config: "canned_fs_config",
+}
+
+apex_defaults {
+    name: "com.android.virt_avf_enabled",
+
+    defaults: ["com.android.virt_common"],
+
     custom_sign_tool: "sign_virt_apex",
 
     // crosvm and virtualizationservice are only enabled for 64-bit targets on device
@@ -58,9 +89,6 @@ apex {
     jni_libs: [
         "libvirtualmachine_jni",
     ],
-    apps: [
-        "android.system.virtualmachine.res",
-    ],
     prebuilts: [
         "com.android.virt.init.rc",
         "microdroid_initrd_app_debuggable",
@@ -71,11 +99,15 @@ apex {
         "microdroid_bootloader.avbpubkey",
         "microdroid_kernel",
     ],
-    file_contexts: ":com.android.virt-file_contexts",
-    canned_fs_config: "canned_fs_config",
     host_required: [
         "vm_shell",
     ],
+}
+
+apex_defaults {
+    name: "com.android.virt_avf_disabled",
+
+    defaults: ["com.android.virt_common"],
 }
 
 apex_key {
