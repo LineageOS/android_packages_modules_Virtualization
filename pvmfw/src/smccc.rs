@@ -75,43 +75,21 @@ impl fmt::Display for Error {
     }
 }
 
-type Result<T> = result::Result<T, Error>;
+pub type Result<T> = result::Result<T, Error>;
 
-fn check_smccc_err(ret: i64) -> Result<()> {
-    match check_smccc_value(ret)? {
+pub fn checked_hvc64_expect_zero(function: u32, args: [u64; 17]) -> Result<()> {
+    match checked_hvc64(function, args)? {
         0 => Ok(()),
         v => Err(Error::Unexpected(v)),
     }
 }
 
-fn check_smccc_value(ret: i64) -> Result<u64> {
-    match ret {
-        x if x >= 0 => Ok(ret as u64),
+pub fn checked_hvc64(function: u32, args: [u64; 17]) -> Result<u64> {
+    match hvc64(function, args)[0] as i64 {
+        ret if ret >= 0 => Ok(ret as u64),
         -1 => Err(Error::NotSupported),
         -2 => Err(Error::NotRequired),
         -3 => Err(Error::InvalidParameter),
-        _ => Err(Error::Unknown(ret)),
+        ret => Err(Error::Unknown(ret)),
     }
-}
-
-const VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID: u32 = 0xc6000005;
-const VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID: u32 = 0xc6000007;
-
-/// Issue pKVM-specific MMIO_GUARD_INFO HVC64.
-pub fn mmio_guard_info() -> Result<u64> {
-    let args = [0u64; 17];
-
-    let res = hvc64(VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID, args);
-
-    check_smccc_value(res[0] as i64)
-}
-
-/// Issue pKVM-specific MMIO_GUARD_MAP HVC64.
-pub fn mmio_guard_map(ipa: u64) -> Result<()> {
-    let mut args = [0u64; 17];
-    args[0] = ipa;
-
-    let res = hvc64(VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID, args);
-
-    check_smccc_err(res[0] as i64)
 }
