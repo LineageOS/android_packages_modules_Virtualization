@@ -261,9 +261,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                                     vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             vmCdis.cdiAttest = testService.insecurelyExposeAttestationCdi();
                             vmCdis.instanceSecret = testService.insecurelyExposeVmInstanceSecret();
-                            forceStop(vm);
                         } catch (Exception e) {
                             exception.complete(e);
+                        } finally {
+                            forceStop(vm);
                         }
                     }
                 };
@@ -280,8 +281,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void instancesOfSameVmHaveDifferentCdis() throws Exception {
         assumeSupportedKernel();
 
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
-                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setPayloadConfigPath("assets/vm_config.json")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm_a", normalConfig);
@@ -304,8 +306,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void sameInstanceKeepsSameCdis() throws Exception {
         assumeSupportedKernel();
 
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
-                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setPayloadConfigPath("assets/vm_config.json")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
@@ -326,8 +329,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void bccIsSuperficiallyWellFormed() throws Exception {
         assumeSupportedKernel();
 
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
-                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setPayloadConfigPath("assets/vm_config.json")
                 .setDebugLevel(DEBUG_LEVEL_FULL)
                 .build();
         VirtualMachine vm = mInner.forceCreateNewVirtualMachine("bcc_vm", normalConfig);
@@ -341,9 +345,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                             ITestService testService = ITestService.Stub.asInterface(
                                     vm.connectToVsockServer(ITestService.SERVICE_PORT));
                             bcc.complete(testService.getBcc());
-                            forceStop(vm);
                         } catch (Exception e) {
                             exception.complete(e);
+                        } finally {
+                            forceStop(vm);
                         }
                     }
                 };
