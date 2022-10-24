@@ -23,6 +23,7 @@ use lazy_static::lazy_static;
 use log::{debug, error, info};
 use semver::{Version, VersionReq};
 use nix::{fcntl::OFlag, unistd::pipe2};
+use regex::{Captures, Regex};
 use shared_child::SharedChild;
 use std::borrow::Cow;
 use std::fs::{remove_dir_all, File};
@@ -546,7 +547,8 @@ fn run_vm(
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);
 
-    info!("Running {:?}", command);
+    print_crosvm_args(&command);
+
     let result = SharedChild::spawn(&mut command)?;
     debug!("Spawned crosvm({}).", result.id());
     Ok(result)
@@ -571,6 +573,31 @@ fn validate_config(config: &CrosvmConfig) -> Result<(), Error> {
     }
 
     Ok(())
+}
+
+/// Print arguments of the crosvm command. In doing so, /proc/self/fd/XX is annotated with the
+/// actual file path if the FD is backed by a regular file. If not, the /proc path is printed
+/// unmodified.
+fn print_crosvm_args(command: &Command) {
+    let re = Regex::new(r"/proc/self/fd/[\d]+").unwrap();
+    info!(
+        "Running crosvm with args: {:?}",
+        command
+            .get_args()
+            .map(|s| s.to_string_lossy())
+            .map(|s| {
+                re.replace_all(&s, |caps: &Captures| {
+                    let path = &caps[0];
+                    if let Ok(realpath) = std::fs::canonicalize(path) {
+                        format!("{} ({})", path, realpath.to_string_lossy())
+                    } else {
+                        path.to_owned()
+                    }
+                })
+                .into_owned()
+            })
+            .collect::<Vec<_>>()
+    );
 }
 
 /// Adds the file descriptor for `file` to `preserved_fds`, and returns a string of the form
