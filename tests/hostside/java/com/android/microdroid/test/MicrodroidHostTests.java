@@ -38,11 +38,8 @@ import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
 import com.android.os.AtomsProto;
 import com.android.os.StatsLog;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.result.TestDescription;
-import com.android.tradefed.result.TestResult;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
-import com.android.tradefed.testtype.junit4.DeviceTestRunOptions;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
@@ -73,7 +70,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
+public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
     private static final String SHELL_PACKAGE_NAME = "com.android.shell";
@@ -104,29 +101,6 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
 
     private void waitForBootComplete() {
         runOnMicrodroidForResult("watch -e \"getprop dev.bootcomplete | grep '^0$'\"");
-    }
-
-    @Test
-    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-1-2", "9.17/C-1-4"})
-    public void testCreateVmRequiresPermission() throws Exception {
-        // Revoke the MANAGE_VIRTUAL_MACHINE permission for the test app
-        CommandRunner android = new CommandRunner(getDevice());
-        android.run("pm", "revoke", PACKAGE_NAME, "android.permission.MANAGE_VIRTUAL_MACHINE");
-
-        // Run MicrodroidTests#connectToVmService test, which should fail
-        final DeviceTestRunOptions options =
-                new DeviceTestRunOptions(PACKAGE_NAME)
-                        .setTestClassName(PACKAGE_NAME + ".MicrodroidTests")
-                        .setTestMethodName("connectToVmService[protectedVm=false]")
-                        .setCheckResults(false);
-        assertThat(runDeviceTests(options)).isFalse();
-
-        Map<TestDescription, TestResult> results = getLastDeviceRunResults().getTestResults();
-        assertThat(results).hasSize(1);
-        TestResult result = results.values().toArray(new TestResult[0])[0];
-        assertWithMessage("The test should fail with a permission error")
-                .that(result.getStackTrace())
-                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
     }
 
     private static JSONObject newPartition(String label, String path) {
@@ -364,13 +338,10 @@ public class MicrodroidTestCase extends MicrodroidHostTestCaseBase {
         final String initrdPath = TEST_ROOT + "etc/microdroid_initrd_full_debuggable.img";
         config.put("initrd", initrdPath);
         // Add instance image as a partition in disks[1]
-        disks.put(
-            new JSONObject()
+        disks.put(new JSONObject()
                 .put("writable", true)
-                .put(
-                    "partitions",
-                    new JSONArray()
-                        .put(newPartition("vm-instance", instanceImgPath))));
+                .put("partitions",
+                        new JSONArray().put(newPartition("vm-instance", instanceImgPath))));
         // Add payload image disk with partitions:
         // - payload-metadata
         // - apexes: com.android.os.statsd, com.android.adbd, [sharedlib apex](optional)
