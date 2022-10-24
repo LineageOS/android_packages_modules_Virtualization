@@ -19,6 +19,7 @@ import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assume.assumeNoException;
 
+import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
@@ -32,6 +33,7 @@ import android.util.Log;
 
 import androidx.annotation.CallSuper;
 import androidx.test.core.app.ApplicationProvider;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.virt.VirtualizationTestHelper;
@@ -58,6 +60,20 @@ public abstract class MicrodroidDeviceTestBase {
                 SystemProperties.get("debug.hypervisor.metrics_tag"));
     }
 
+    protected final void grantPermission(String permission) {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        UiAutomation uiAutomation = instrumentation.getUiAutomation();
+        uiAutomation.grantRuntimePermission(instrumentation.getContext().getPackageName(),
+                permission);
+    }
+
+    protected final void revokePermission(String permission) {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        UiAutomation uiAutomation = instrumentation.getUiAutomation();
+        uiAutomation.revokeRuntimePermission(instrumentation.getContext().getPackageName(),
+                permission);
+    }
+
     // TODO(b/220920264): remove Inner class; this is a hack to hide virt APEX types
     protected static class Inner {
         private final boolean mProtectedVm;
@@ -80,10 +96,6 @@ public abstract class MicrodroidDeviceTestBase {
 
         public VirtualMachineConfig.Builder newVmConfigBuilder() {
             return new VirtualMachineConfig.Builder(mContext).setProtectedVm(mProtectedVm);
-        }
-
-        public VirtualMachineConfig.Builder newVmConfigBuilder(String payloadConfigPath) {
-            return newVmConfigBuilder().setPayloadConfigPath(payloadConfigPath);
         }
 
         /**
