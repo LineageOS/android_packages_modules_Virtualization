@@ -22,7 +22,6 @@ use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
 use crate::selinux::{getfilecon, SeContext};
-use crate::{Cid, FIRST_GUEST_CID, SYSPROP_LAST_CID};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
@@ -55,6 +54,7 @@ use binder::{
     SpIBinder, Status, StatusCode, Strong, ThreadState,
 };
 use disk::QcowFile;
+use libc::VMADDR_CID_HOST;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use rpcbinder::run_vsock_rpc_server_with_factory;
@@ -73,13 +73,19 @@ use vmconfig::VmConfig;
 use vsock::{VsockListener, VsockStream};
 use zip::ZipArchive;
 
+/// The unique ID of a VM used (together with a port number) for vsock communication.
+pub type Cid = u32;
+
 pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 /// Directory in which to write disk image files used while running VMs.
 pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
 
-/// The CID representing the host VM
-const VMADDR_CID_HOST: u32 = 2;
+/// The first CID to assign to a guest VM managed by the VirtualizationService. CIDs lower than this
+/// are reserved for the host or other usage.
+const FIRST_GUEST_CID: Cid = 10;
+
+const SYSPROP_LAST_CID: &str = "virtualizationservice.state.last_cid";
 
 /// The size of zero.img.
 /// Gaps in composite disk images are filled with a shared zero.img.
@@ -358,7 +364,7 @@ impl VirtualizationService {
         let log_fd = log_fd.map(clone_file).transpose()?;
         let requester_uid = ThreadState::get_calling_uid();
         let requester_debug_pid = ThreadState::get_calling_pid();
-        let cid = next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
+        let cid = state.next_cid().or(Err(ExceptionCode::ILLEGAL_STATE))?;
 
         // Counter to generate unique IDs for temporary image files.
         let mut next_temporary_image_id = 0;
@@ -969,27 +975,27 @@ impl State {
         let vm = self.debug_held_vms.swap_remove(pos);
         Some(vm)
     }
-}
 
-/// Get the next available CID, or an error if we have run out. The last CID used is stored in
-/// a system property so that restart of virtualizationservice doesn't reuse CID while the host
-/// Android is up.
-fn next_cid() -> Result<Cid> {
-    let next = if let Some(val) = system_properties::read(SYSPROP_LAST_CID)? {
-        if let Ok(num) = val.parse::<u32>() {
-            num.checked_add(1).ok_or_else(|| anyhow!("run out of CID"))?
+    /// Get the next available CID, or an error if we have run out. The last CID used is stored in
+    /// a system property so that restart of virtualizationservice doesn't reuse CID while the host
+    /// Android is up.
+    fn next_cid(&mut self) -> Result<Cid> {
+        let next = if let Some(val) = system_properties::read(SYSPROP_LAST_CID)? {
+            if let Ok(num) = val.parse::<u32>() {
+                num.checked_add(1).ok_or_else(|| anyhow!("run out of CID"))?
+            } else {
+                error!("Invalid last CID {}. Using {}", &val, FIRST_GUEST_CID);
+                FIRST_GUEST_CID
+            }
         } else {
-            error!("Invalid last CID {}. Using {}", &val, FIRST_GUEST_CID);
+            // First VM since the boot
             FIRST_GUEST_CID
-        }
-    } else {
-        // First VM since the boot
-        FIRST_GUEST_CID
-    };
-    // Persist the last value for next use
-    let str_val = format!("{}", next);
-    system_properties::write(SYSPROP_LAST_CID, &str_val)?;
-    Ok(next)
+        };
+        // Persist the last value for next use
+        let str_val = format!("{}", next);
+        system_properties::write(SYSPROP_LAST_CID, &str_val)?;
+        Ok(next)
+    }
 }
 
 /// Gets the `VirtualMachineState` of the given `VmInstance`.
