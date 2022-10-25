@@ -14,9 +14,8 @@
 
 //! Functions for running instances of `crosvm`.
 
-use crate::aidl::VirtualMachineCallbacks;
+use crate::aidl::{Cid, VirtualMachineCallbacks};
 use crate::atom::write_vm_exited_stats;
-use crate::Cid;
 use anyhow::{anyhow, bail, Context, Error};
 use command_fds::CommandFdExt;
 use lazy_static::lazy_static;
