@@ -73,7 +73,7 @@ android_system_image {
         "linker",
         "linkerconfig",
         "servicemanager.microdroid",
-        "tombstoned",
+        "tombstoned.microdroid",
         "tombstone_transmit.microdroid",
         "cgroups.json",
         "task_profiles.json",
