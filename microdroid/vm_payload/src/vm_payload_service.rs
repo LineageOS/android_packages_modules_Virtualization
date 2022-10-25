@@ -17,8 +17,10 @@
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     IVmPayloadService, VM_PAYLOAD_SERVICE_NAME};
 use anyhow::{Context, Result};
-use binder::{wait_for_interface, Strong};
+use binder::{wait_for_interface, Strong, unstable_api::{AIBinder, new_spibinder}};
 use log::{error, info, Level};
+use rpcbinder::run_vsock_rpc_server;
+use std::os::raw::c_void;
 
 /// Notifies the host that the payload is ready.
 /// Returns true if the notification succeeds else false.
@@ -40,6 +42,44 @@ pub extern "C" fn AVmPayload_notifyPayloadReady() -> bool {
 /// Returns a `Result` containing error information if failed.
 fn try_notify_payload_ready() -> Result<()> {
     get_vm_payload_service()?.notifyPayloadReady().context("Cannot notify payload ready")
+}
+
+/// Runs a binder RPC server, serving the supplied binder service implementation on the given vsock
+/// port.
+///
+/// If and when the server is ready for connections (it is listening on the port), `on_ready` is
+/// called to allow appropriate action to be taken - e.g. to notify clients that they may now
+/// attempt to connect.
+///
+/// The current thread is joined to the binder thread pool to handle incoming messages.
+///
+/// Returns true if the server has shutdown normally, false if it failed in some way.
+///
+/// # Safety
+///
+/// The `on_ready` callback is only called inside `run_vsock_rpc_server`, within the lifetime of
+/// `ReadyNotifier` (the last parameter of `run_vsock_rpc_server`). If `on_ready` is called with
+/// wrong param, the callback execution could go wrong.
+#[no_mangle]
+pub unsafe extern "C" fn AVmPayload_runVsockRpcServer(
+    service: *mut AIBinder,
+    port: u32,
+    on_ready: Option<unsafe extern "C" fn(param: *mut c_void)>,
+    param: *mut c_void,
+) -> bool {
+    // SAFETY: AIBinder returned has correct reference count, and the ownership can
+    // safely be taken by new_spibinder.
+    let service = new_spibinder(service);
+    if let Some(service) = service {
+        run_vsock_rpc_server(service, port, || {
+            if let Some(on_ready) = on_ready {
+                on_ready(param);
+            }
+        })
+    } else {
+        error!("Failed to convert the given service from AIBinder to SpIBinder.");
+        false
+    }
 }
 
 /// Get a secret that is uniquely bound to this VM instance.
