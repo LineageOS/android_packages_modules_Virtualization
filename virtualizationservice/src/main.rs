@@ -22,6 +22,7 @@ mod payload;
 mod selinux;
 
 use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY};
+use android_logger::{Config, FilterBuilder};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
 use binder::{register_lazy_service, BinderFeatures, ProcessState};
 use anyhow::Error;
@@ -41,10 +42,15 @@ type Cid = u32;
 
 fn main() {
     android_logger::init_once(
-        android_logger::Config::default()
+        Config::default()
             .with_tag(LOG_TAG)
             .with_min_level(Level::Info)
-            .with_log_id(android_logger::LogId::System),
+            .with_log_id(android_logger::LogId::System)
+            .with_filter(
+                // Reduce logspam by silencing logs from the disk crate which don't provide much
+                // information to us.
+                FilterBuilder::new().parse("info,disk=off").build(),
+            ),
     );
 
     clear_temporary_files().expect("Failed to delete old temporary files");
