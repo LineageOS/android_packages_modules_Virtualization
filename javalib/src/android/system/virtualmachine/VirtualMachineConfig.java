@@ -21,6 +21,7 @@ import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.IntDef;
+import android.annotation.IntRange;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
@@ -39,15 +40,16 @@ import java.io.OutputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Objects;
+
 /**
  * Represents a configuration of a virtual machine. A configuration consists of hardware
  * configurations like the number of CPUs and the size of RAM, and software configurations like the
- * OS and application to run on the virtual machine.
+ * payload to run on the virtual machine.
  *
  * @hide
  */
 public final class VirtualMachineConfig {
-    // These defines the schema of the config file persisted on disk.
+    // These define the schema of the config file persisted on disk.
     private static final int VERSION = 2;
     private static final String KEY_VERSION = "version";
     private static final String KEY_APKPATH = "apkPath";
@@ -133,6 +135,43 @@ public final class VirtualMachineConfig {
         if (!apkPath.startsWith("/")) {
             throw new IllegalArgumentException("APK path must be an absolute path");
         }
+
+        if (memoryMib < 0) {
+            throw new IllegalArgumentException("Memory size cannot be negative");
+        }
+
+        int availableCpus = Runtime.getRuntime().availableProcessors();
+        if (numCpus < 1 || numCpus > availableCpus) {
+            throw new IllegalArgumentException("Number of vCPUs (" + numCpus + ") is out of "
+                    + "range [1, " + availableCpus + "]");
+        }
+
+        if (debugLevel != DEBUG_LEVEL_NONE && debugLevel != DEBUG_LEVEL_APP_ONLY
+                && debugLevel != DEBUG_LEVEL_FULL) {
+            throw new IllegalArgumentException("Invalid debugLevel: " + debugLevel);
+        }
+
+        if (payloadBinaryPath == null) {
+            if (payloadConfigPath == null) {
+                throw new IllegalStateException("setPayloadBinaryPath must be called");
+            }
+        } else {
+            if (payloadConfigPath != null) {
+                throw new IllegalStateException(
+                        "setPayloadBinaryPath and setPayloadConfigPath may not both be called");
+            }
+        }
+
+        if (protectedVm
+                && !HypervisorProperties.hypervisor_protected_vm_supported().orElse(false)) {
+            throw new UnsupportedOperationException(
+                    "Protected VMs are not supported on this device.");
+        }
+        if (!protectedVm && !HypervisorProperties.hypervisor_vm_supported().orElse(false)) {
+            throw new UnsupportedOperationException(
+                    "Unprotected VMs are not supported on this device.");
+        }
+
         mApkPath = apkPath;
         mPayloadConfigPath = payloadConfigPath;
         mPayloadBinaryPath = payloadBinaryPath;
@@ -177,7 +216,7 @@ public final class VirtualMachineConfig {
     }
 
     /** Persists this config to a stream, for example a file. */
-    /* package */ void serialize(@NonNull OutputStream output) throws IOException {
+    void serialize(@NonNull OutputStream output) throws IOException {
         PersistableBundle b = new PersistableBundle();
         b.putInt(KEY_VERSION, VERSION);
         b.putString(KEY_APKPATH, mApkPath);
@@ -204,7 +243,8 @@ public final class VirtualMachineConfig {
     }
 
     /**
-     * Returns the path to the payload config within the owning application.
+     * Returns the path within the APK to the payload config file that defines software aspects
+     * of the VM.
      *
      * @hide
      */
@@ -214,8 +254,8 @@ public final class VirtualMachineConfig {
     }
 
     /**
-     * Returns the path within the APK to the payload binary file that will be executed within the
-     * VM.
+     * Returns the path within the {@code lib/<ABI>} directory of the APK to the payload binary
+     * file that will be executed within the VM.
      *
      * @hide
      */
@@ -249,6 +289,7 @@ public final class VirtualMachineConfig {
      *
      * @hide
      */
+    @IntRange(from = 0)
     public int getMemoryMib() {
         return mMemoryMib;
     }
@@ -258,6 +299,7 @@ public final class VirtualMachineConfig {
      *
      * @hide
      */
+    @IntRange(from = 1)
     public int getNumCpus() {
         return mNumCpus;
     }
@@ -279,41 +321,42 @@ public final class VirtualMachineConfig {
     }
 
     /**
-     * Converts this config object into a parcel. Used when creating a VM via the virtualization
-     * service. Notice that the files are not passed as paths, but as file descriptors because the
-     * service doesn't accept paths as it might not have permission to open app-owned files and that
-     * could be abused to run a VM with software that the calling application doesn't own.
+     * Converts this config object into the parcelable type used when creating a VM via the
+     * virtualization service. Notice that the files are not passed as paths, but as file
+     * descriptors because the service doesn't accept paths as it might not have permission to open
+     * app-owned files and that could be abused to run a VM with software that the calling
+     * application doesn't own.
      */
-    VirtualMachineAppConfig toParcel() throws FileNotFoundException {
-        VirtualMachineAppConfig parcel = new VirtualMachineAppConfig();
-        parcel.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
+    VirtualMachineAppConfig toVsConfig() throws FileNotFoundException {
+        VirtualMachineAppConfig vsConfig = new VirtualMachineAppConfig();
+        vsConfig.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
         if (mPayloadBinaryPath != null) {
             VirtualMachinePayloadConfig payloadConfig = new VirtualMachinePayloadConfig();
             payloadConfig.payloadPath = mPayloadBinaryPath;
-            parcel.payload =
+            vsConfig.payload =
                     VirtualMachineAppConfig.Payload.payloadConfig(payloadConfig);
         } else {
-            parcel.payload =
+            vsConfig.payload =
                     VirtualMachineAppConfig.Payload.configPath(mPayloadConfigPath);
         }
         switch (mDebugLevel) {
             case DEBUG_LEVEL_APP_ONLY:
-                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.APP_ONLY;
+                vsConfig.debugLevel = VirtualMachineAppConfig.DebugLevel.APP_ONLY;
                 break;
             case DEBUG_LEVEL_FULL:
-                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.FULL;
+                vsConfig.debugLevel = VirtualMachineAppConfig.DebugLevel.FULL;
                 break;
             default:
-                parcel.debugLevel = VirtualMachineAppConfig.DebugLevel.NONE;
+                vsConfig.debugLevel = VirtualMachineAppConfig.DebugLevel.NONE;
                 break;
         }
-        parcel.protectedVm = mProtectedVm;
-        parcel.memoryMib = mMemoryMib;
-        parcel.numCpus = mNumCpus;
+        vsConfig.protectedVm = mProtectedVm;
+        vsConfig.memoryMib = mMemoryMib;
+        vsConfig.numCpus = mNumCpus;
         // Don't allow apps to set task profiles ... at last for now. Also, don't forget to
         // validate the string because these are appended to the cmdline argument.
-        parcel.taskProfiles = new String[0];
-        return parcel;
+        vsConfig.taskProfiles = new String[0];
+        return vsConfig;
     }
 
     /**
@@ -333,7 +376,7 @@ public final class VirtualMachineConfig {
         private int mNumCpus;
 
         /**
-         * Creates a builder for the given context (APK).
+         * Creates a builder for the given context.
          *
          * @hide
          */
@@ -352,35 +395,8 @@ public final class VirtualMachineConfig {
         public VirtualMachineConfig build() {
             String apkPath = (mApkPath == null) ? mContext.getPackageCodePath() : mApkPath;
 
-            int availableCpus = Runtime.getRuntime().availableProcessors();
-            if (mNumCpus < 1 || mNumCpus > availableCpus) {
-                throw new IllegalArgumentException("Number of vCPUs (" + mNumCpus + ") is out of "
-                        + "range [1, " + availableCpus + "]");
-            }
-
-            if (mPayloadBinaryPath == null) {
-                if (mPayloadConfigPath == null) {
-                    throw new IllegalStateException("payloadBinaryPath must be set");
-                }
-            } else {
-                if (mPayloadConfigPath != null) {
-                    throw new IllegalStateException(
-                            "payloadBinaryPath and payloadConfigPath may not both be set");
-                }
-            }
-
             if (!mProtectedVmSet) {
                 throw new IllegalStateException("setProtectedVm must be called explicitly");
-            }
-
-            if (mProtectedVm
-                    && !HypervisorProperties.hypervisor_protected_vm_supported().orElse(false)) {
-                throw new UnsupportedOperationException(
-                        "Protected VMs are not supported on this device.");
-            }
-            if (!mProtectedVm && !HypervisorProperties.hypervisor_vm_supported().orElse(false)) {
-                throw new UnsupportedOperationException(
-                        "Unprotected VMs are not supported on this device.");
             }
 
             return new VirtualMachineConfig(
@@ -402,7 +418,8 @@ public final class VirtualMachineConfig {
 
         /**
          * Sets the path within the APK to the payload config file that defines software aspects
-         * of the VM.
+         * of the VM. The file is a JSON file; see
+         * packages/modules/Virtualization/microdroid/payload/config/src/lib.rs for the format.
          *
          * @hide
          */
@@ -426,7 +443,7 @@ public final class VirtualMachineConfig {
         }
 
         /**
-         * Sets the debug level
+         * Sets the debug level. Defaults to {@link #DEBUG_LEVEL_NONE}.
          *
          * @hide
          */
@@ -451,24 +468,25 @@ public final class VirtualMachineConfig {
         }
 
         /**
-         * Sets the amount of RAM to give the VM. If this is zero or negative then the default will
-         * be used.
+         * Sets the amount of RAM to give the VM, in mebibytes. If zero or not explicitly set
+         * than a default size will be used.
          *
          * @hide
          */
         @NonNull
-        public Builder setMemoryMib(int memoryMib) {
+        public Builder setMemoryMib(@IntRange(from = 0) int memoryMib) {
             mMemoryMib = memoryMib;
             return this;
         }
 
         /**
-         * Sets the number of vCPUs in the VM. Defaults to 1.
+         * Sets the number of vCPUs in the VM. Defaults to 1. Cannot be more than the number of
+         * real CPUs (as returned by {@link Runtime#availableProcessors()}).
          *
          * @hide
          */
         @NonNull
-        public Builder setNumCpus(int num) {
+        public Builder setNumCpus(@IntRange(from = 1) int num) {
             mNumCpus = num;
             return this;
         }
