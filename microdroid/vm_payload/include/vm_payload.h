@@ -25,12 +25,36 @@
 extern "C" {
 #endif
 
+struct AIBinder;
+typedef struct AIBinder AIBinder;
+
 /**
  * Notifies the host that the payload is ready.
  *
  * \return true if the notification succeeds else false.
  */
 bool AVmPayload_notifyPayloadReady(void);
+
+/**
+ * Runs a binder RPC server, serving the supplied binder service implementation on the given vsock
+ * port.
+ *
+ * If and when the server is ready for connections (it is listening on the port), `on_ready` is
+ * called to allow appropriate action to be taken - e.g. to notify clients that they may now
+ * attempt to connect with `AVmPayload_notifyPayloadReady`.
+ *
+ * The current thread is joined to the binder thread pool to handle incoming messages.
+ *
+ * \param service the service to bind to the given port.
+ * \param port vsock port.
+ * \param on_ready the callback to execute once the server is ready for connections. The callback
+ *                 will be called at most once.
+ * \param param param for the `on_ready` callback.
+ *
+ * \return true if the server has shutdown normally, false if it failed in some way.
+ */
+bool AVmPayload_runVsockRpcServer(AIBinder *service, unsigned int port,
+                                  void (*on_ready)(void *param), void *param);
 
 /**
  * Get a secret that is uniquely bound to this VM instance. The secrets are 32-byte values and the
