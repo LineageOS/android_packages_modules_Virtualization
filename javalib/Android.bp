@@ -7,7 +7,7 @@ android_app {
     name: "android.system.virtualmachine.res",
     installable: true,
     apex_available: ["com.android.virt"],
-    sdk_version: "current",
+    platform_apis: true,
 }
 
 java_sdk_library {
