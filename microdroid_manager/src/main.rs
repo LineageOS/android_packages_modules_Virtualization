@@ -39,6 +39,7 @@ use binder::{ProcessState, Strong};
 use diced_utils::cbor::{encode_header, encode_number};
 use glob::glob;
 use itertools::sorted;
+use libc::VMADDR_CID_HOST;
 use log::{error, info};
 use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
@@ -74,9 +75,6 @@ const AVF_STRICT_BOOT: &str = "/sys/firmware/devicetree/base/chosen/avf,strict-b
 const AVF_NEW_INSTANCE: &str = "/sys/firmware/devicetree/base/chosen/avf,new-instance";
 const DEBUG_MICRODROID_NO_VERIFIED_BOOT: &str =
     "/sys/firmware/devicetree/base/virtualization/guest/debug-microdroid,no-verified-boot";
-
-/// The CID representing the host VM
-const VMADDR_CID_HOST: u32 = 2;
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
 const APP_DEBUGGABLE_PROP: &str = "ro.boot.microdroid.app_debuggable";
@@ -779,8 +777,6 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
 }
 
 fn build_command(task: &Task) -> Result<Command> {
-    const VMADDR_CID_HOST: u32 = 2;
-
     let mut command = match task.type_ {
         TaskType::Executable => Command::new(&task.command),
         TaskType::MicrodroidLauncher => {

@@ -55,6 +55,7 @@ use binder::{
     SpIBinder, Status, StatusCode, Strong, ThreadState,
 };
 use disk::QcowFile;
+use libc::VMADDR_CID_HOST;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use rpcbinder::run_vsock_rpc_server_with_factory;
@@ -77,9 +78,6 @@ pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservic
 
 /// Directory in which to write disk image files used while running VMs.
 pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
-
-/// The CID representing the host VM
-const VMADDR_CID_HOST: u32 = 2;
 
 /// The size of zero.img.
 /// Gaps in composite disk images are filled with a shared zero.img.
