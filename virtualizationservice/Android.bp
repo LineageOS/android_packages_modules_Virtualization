@@ -32,6 +32,7 @@ rust_defaults {
         "libcommand_fds",
         "libdisk",
         "liblazy_static",
+        "liblibc",
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
