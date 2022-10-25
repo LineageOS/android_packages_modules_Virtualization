@@ -451,6 +451,10 @@ fn run_vm(
     // TODO(qwandor): Remove --disable-sandbox.
     command
         .arg("--extended-status")
+        // Configure the logger for the crosvm process to silence logs from the disk crate which
+        // don't provide much information to us (but do spamming us).
+        .arg("--log-level")
+        .arg("info,disk=off")
         .arg("run")
         .arg("--disable-sandbox")
         .arg("--no-balloon")
