@@ -63,6 +63,7 @@ use std::time::{Duration, SystemTime};
 use vsock::VsockStream;
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
+const SENDING_VM_STATUS_CYCLE_PERIOD: Duration = Duration::from_secs(60);
 const MAIN_APK_PATH: &str = "/dev/block/by-name/microdroid-apk";
 const MAIN_APK_IDSIG_PATH: &str = "/dev/block/by-name/microdroid-apk-idsig";
 const MAIN_APK_DEVICE_NAME: &str = "microdroid-apk";
@@ -95,39 +96,39 @@ enum MicrodroidError {
     InvalidConfig(String),
 }
 
-fn send_vm_status() -> Result<()> {
+fn send_vm_status(service: &Strong<dyn IVirtualMachineService>) -> Result<()> {
+    // Collect VM CPU time information and creating VmCpuStatus atom for metrics.
+    let cpu_time = get_cpu_time()?;
+    let vm_cpu_status = VirtualMachineCpuStatus {
+        cpu_time_user: cpu_time.user,
+        cpu_time_nice: cpu_time.nice,
+        cpu_time_sys: cpu_time.sys,
+        cpu_time_idle: cpu_time.idle,
+    };
+    service.notifyCpuStatus(&vm_cpu_status).expect("Can't send information about VM CPU status");
+
+    // Collect VM memory information and creating VmMemStatus atom for metrics.
+    let mem_info = get_mem_info()?;
+    let vm_mem_status = VirtualMachineMemStatus {
+        mem_total: mem_info.total,
+        mem_free: mem_info.free,
+        mem_available: mem_info.available,
+        mem_buffer: mem_info.buffer,
+        mem_cached: mem_info.cached,
+    };
+    service.notifyMemStatus(&vm_mem_status).expect("Can't send information about VM memory status");
+
+    Ok(())
+}
+
+fn send_vm_status_periodically() -> Result<()> {
     let service = get_vms_rpc_binder()
         .context("cannot connect to VirtualMachineService")
         .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
 
-    let one_second = Duration::from_millis(1000);
     loop {
-        // Collect VM CPU time information and creating VmCpuStatus atom for metrics.
-        let cpu_time = get_cpu_time()?;
-        let vm_cpu_status = VirtualMachineCpuStatus {
-            cpu_time_user: cpu_time.user,
-            cpu_time_nice: cpu_time.nice,
-            cpu_time_sys: cpu_time.sys,
-            cpu_time_idle: cpu_time.idle,
-        };
-        service
-            .notifyCpuStatus(&vm_cpu_status)
-            .expect("Can't send information about VM CPU status");
-
-        // Collect VM memory information and creating VmMemStatus atom for metrics.
-        let mem_info = get_mem_info()?;
-        let vm_mem_status = VirtualMachineMemStatus {
-            mem_total: mem_info.total,
-            mem_free: mem_info.free,
-            mem_available: mem_info.available,
-            mem_buffer: mem_info.buffer,
-            mem_cached: mem_info.cached,
-        };
-        service
-            .notifyMemStatus(&vm_mem_status)
-            .expect("Can't send information about VM memory status");
-
-        thread::sleep(one_second);
+        send_vm_status(&service)?;
+        thread::sleep(SENDING_VM_STATUS_CYCLE_PERIOD);
     }
 }
 
@@ -224,7 +225,7 @@ fn try_main() -> Result<()> {
         .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
 
     thread::spawn(move || {
-        if let Err(e) = send_vm_status() {
+        if let Err(e) = send_vm_status_periodically() {
             error!("failed to get virtual machine status: {:?}", e);
         }
     });
@@ -448,6 +449,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     ProcessState::start_thread_pool();
 
     system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
+    send_vm_status(service)?;
 
     exec_task(task, service).context("Failed to run payload")
 }
@@ -780,6 +782,7 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
     service.notifyPayloadStarted()?;
 
     let exit_status = command.spawn()?.wait()?;
+    send_vm_status(service)?;
     exit_status.code().ok_or_else(|| anyhow!("Failed to get exit_code from the paylaod."))
 }
 
