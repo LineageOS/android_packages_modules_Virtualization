@@ -29,7 +29,6 @@
 #include <vm_main.h>
 #include <vm_payload.h>
 
-#include <binder_rpc_unstable.hpp>
 #include <fstream>
 #include <random>
 #include <string>
@@ -164,9 +163,8 @@ Result<void> run_io_benchmark_tests() {
             abort();
         }
     };
-
-    if (!RunVsockRpcServerCallback(test_service->asBinder().get(), test_service->SERVICE_PORT,
-                                   callback, nullptr)) {
+    if (!AVmPayload_runVsockRpcServer(test_service->asBinder().get(), test_service->SERVICE_PORT,
+                                      callback, nullptr)) {
         return Error() << "RPC Server failed to run";
     }
     return {};
