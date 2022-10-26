@@ -15,12 +15,19 @@
 //! This module handles the interaction with virtual machine payload service.
 
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
-    IVmPayloadService, VM_PAYLOAD_SERVICE_NAME};
+    IVmPayloadService, VM_PAYLOAD_SERVICE_NAME, VM_APK_CONTENTS_PATH};
 use anyhow::{Context, Result};
 use binder::{wait_for_interface, Strong, unstable_api::{AIBinder, new_spibinder}};
+use lazy_static::lazy_static;
 use log::{error, info, Level};
 use rpcbinder::run_vsock_rpc_server;
-use std::os::raw::c_void;
+use std::ffi::CString;
+use std::os::raw::{c_char, c_void};
+
+lazy_static! {
+    static ref VM_APK_CONTENTS_PATH_C: CString =
+        CString::new(VM_APK_CONTENTS_PATH).expect("CString::new failed");
+}
 
 /// Notifies the host that the payload is ready.
 /// Returns true if the notification succeeds else false.
@@ -183,6 +190,12 @@ pub unsafe extern "C" fn AVmPayload_getDiceAttestationCdi(
             true
         }
     }
+}
+
+/// Gets the path to the APK contents.
+#[no_mangle]
+pub extern "C" fn AVmPayload_getApkContentsPath() -> *const c_char {
+    (*VM_APK_CONTENTS_PATH_C).as_ptr()
 }
 
 fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {

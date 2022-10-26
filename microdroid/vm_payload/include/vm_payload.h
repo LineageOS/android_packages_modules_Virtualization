@@ -96,6 +96,17 @@ bool AVmPayload_getDiceAttestationChain(void *data, size_t size, size_t *total);
  */
 bool AVmPayload_getDiceAttestationCdi(void *data, size_t size, size_t *total);
 
+/**
+ * Gets the path to the APK contents. It is a directory, under which are
+ * the unzipped contents of the APK containing the payload, all read-only
+ * but accessible to the payload.
+ *
+ * \return the path to the APK contents. The returned string should not be
+ * deleted or freed by the application. The string remains valid for the
+ * lifetime of the VM.
+ */
+const char *AVmPayload_getApkContentsPath(void);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

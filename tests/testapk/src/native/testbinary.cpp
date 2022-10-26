@@ -112,6 +112,17 @@ Result<void> start_test_service() {
             }
             return ndk::ScopedAStatus::ok();
         }
+
+        ndk::ScopedAStatus getApkContentsPath(std::string* out) override {
+            const char* path_c = AVmPayload_getApkContentsPath();
+            if (path_c == nullptr) {
+                return ndk::ScopedAStatus::
+                        fromServiceSpecificErrorWithMessage(0, "Failed to get APK contents path");
+            }
+            std::string path(path_c);
+            *out = path;
+            return ndk::ScopedAStatus::ok();
+        }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
 
