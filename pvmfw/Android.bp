@@ -44,6 +44,12 @@ raw_binary {
 }
 
 prebuilt_etc {
+    name: "pvmfw_embedded_key",
+    src: ":avb_testkey_rsa4096_pub_bin",
+    installable: false,
+}
+
+prebuilt_etc {
     name: "pvmfw_sign_key",
     src: ":avb_testkey_rsa4096",
     installable: false,
