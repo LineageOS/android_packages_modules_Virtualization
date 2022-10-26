@@ -85,6 +85,16 @@ entry:
 	adr x30, vector_table_panic
 	msr vbar_el1, x30
 
+	/*
+	 * Our load address is set by the host so validate it before proceeding.
+	 */
+	adr x30, entry
+	mov_i x29, entry
+	cmp x29, x30
+	b.eq 1f
+	reset_or_hang
+1:
+
 	adrp x30, idmap
 	msr ttbr0_el1, x30
 
