@@ -53,6 +53,7 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.ServiceSpecificException;
 import android.system.virtualizationcommon.ErrorCode;
 import android.system.virtualizationservice.DeathReason;
 import android.system.virtualizationservice.IVirtualMachine;
@@ -82,7 +83,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.WeakHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -286,6 +286,8 @@ public class VirtualMachine implements AutoCloseable {
         } catch (FileNotFoundException e) {
             throw new VirtualMachineException("instance image missing", e);
         } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        } catch (ServiceSpecificException | IllegalArgumentException e) {
             throw new VirtualMachineException("failed to create instance partition", e);
         }
 
@@ -379,7 +381,7 @@ public class VirtualMachine implements AutoCloseable {
      * @hide
      */
     @Status
-    public int getStatus() throws VirtualMachineException {
+    public int getStatus() {
         try {
             if (mVirtualMachine != null) {
                 switch (mVirtualMachine.getState()) {
@@ -395,7 +397,7 @@ public class VirtualMachine implements AutoCloseable {
                 }
             }
         } catch (RemoteException e) {
-            throw new VirtualMachineException(e);
+            throw e.rethrowAsRuntimeException();
         }
         if (!mConfigFilePath.exists()) {
             return STATUS_DELETED;
@@ -451,8 +453,11 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Runs this virtual machine. The returning of this method however doesn't mean that the VM has
      * actually started running or the OS has booted there. Such events can be notified by
-     * registering a callback using {@link #setCallback(Executor, VirtualMachineCallback)}.
+     * registering a callback using {@link #setCallback(Executor, VirtualMachineCallback)} before
+     * calling {@code run()}.
      *
+     * @throws VirtualMachineException if the virtual machine is not stopped or could not be
+     *         started.
      * @hide
      */
     @RequiresPermission(MANAGE_VIRTUAL_MACHINE_PERMISSION)
@@ -476,17 +481,7 @@ public class VirtualMachine implements AutoCloseable {
                         ServiceManager.waitForService(SERVICE_NAME));
 
         try {
-            if (mConsoleReader == null && mConsoleWriter == null) {
-                ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
-                mConsoleReader = pipe[0];
-                mConsoleWriter = pipe[1];
-            }
-
-            if (mLogReader == null && mLogWriter == null) {
-                ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
-                mLogReader = pipe[0];
-                mLogWriter = pipe[1];
-            }
+            createVmPipes();
 
             VirtualMachineAppConfig appConfig = getConfig().toParcel();
             appConfig.name = mName;
@@ -571,7 +566,27 @@ public class VirtualMachine implements AutoCloseable {
             );
             service.asBinder().linkToDeath(deathRecipient, 0);
             mVirtualMachine.start();
-        } catch (IOException | RemoteException e) {
+        } catch (IOException | IllegalStateException | ServiceSpecificException e) {
+            throw new VirtualMachineException(e);
+        } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        }
+    }
+
+    private void createVmPipes() throws VirtualMachineException {
+        try {
+            if (mConsoleReader == null || mConsoleWriter == null) {
+                ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+                mConsoleReader = pipe[0];
+                mConsoleWriter = pipe[1];
+            }
+
+            if (mLogReader == null || mLogWriter == null) {
+                ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+                mLogReader = pipe[0];
+                mLogWriter = pipe[1];
+            }
+        } catch (IOException e) {
             throw new VirtualMachineException(e);
         }
     }
@@ -633,26 +648,24 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the stream object representing the console output from the virtual machine.
      *
+     * @throws VirtualMachineException if the stream could not be created.
      * @hide
      */
     @NonNull
     public InputStream getConsoleOutputStream() throws VirtualMachineException {
-        if (mConsoleReader == null) {
-            throw new VirtualMachineException("Console output not available");
-        }
+        createVmPipes();
         return new FileInputStream(mConsoleReader.getFileDescriptor());
     }
 
     /**
      * Returns the stream object representing the log output from the virtual machine.
      *
+     * @throws VirtualMachineException if the stream could not be created.
      * @hide
      */
     @NonNull
     public InputStream getLogOutputStream() throws VirtualMachineException {
-        if (mLogReader == null) {
-            throw new VirtualMachineException("Log output not available");
-        }
+        createVmPipes();
         return new FileInputStream(mLogReader.getFileDescriptor());
     }
 
@@ -662,6 +675,7 @@ public class VirtualMachine implements AutoCloseable {
      * notified of the event. A stopped virtual machine can be re-started by calling {@link
      * #run()}.
      *
+     * @throws VirtualMachineException if the virtual machine could not be stopped.
      * @hide
      */
     public void stop() throws VirtualMachineException {
@@ -670,6 +684,8 @@ public class VirtualMachine implements AutoCloseable {
             mVirtualMachine.stop();
             mVirtualMachine = null;
         } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        } catch (ServiceSpecificException e) {
             throw new VirtualMachineException(e);
         }
     }
@@ -677,6 +693,7 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Stops this virtual machine. See {@link #stop()}.
      *
+     * @throws VirtualMachineException if the virtual machine could not be stopped.
      * @hide
      */
     @Override
@@ -690,6 +707,7 @@ public class VirtualMachine implements AutoCloseable {
      * machine once deleted can never be restored. A new virtual machine created with the same name
      * and the same config is different from an already deleted virtual machine.
      *
+     * @throws VirtualMachineException if the virtual machine is not stopped.
      * @hide
      */
     public void delete() throws VirtualMachineException {
@@ -714,31 +732,32 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the CID of this virtual machine, if it is running.
      *
+     * @throws VirtualMachineException if the virtual machine is not running.
      * @hide
      */
     @NonNull
-    public Optional<Integer> getCid() throws VirtualMachineException {
+    public int getCid() throws VirtualMachineException {
         if (getStatus() != STATUS_RUNNING) {
-            return Optional.empty();
+            throw new VirtualMachineException("VM is not running");
         }
         try {
-            return Optional.of(mVirtualMachine.getCid());
+            return mVirtualMachine.getCid();
         } catch (RemoteException e) {
-            throw new VirtualMachineException(e);
+            throw e.rethrowAsRuntimeException();
         }
     }
 
     /**
      * Changes the config of this virtual machine to a new one. This can be used to adjust things
      * like the number of CPU and size of the RAM, depending on the situation (e.g. the size of the
-     * application to run on the virtual machine, etc.) However, changing a config might make the
-     * virtual machine un-bootable if the new config is not compatible with the existing one. For
-     * example, if the signer of the app payload in the new config is different from that of the old
-     * config, the virtual machine won't boot. To prevent such cases, this method returns exception
-     * when an incompatible config is attempted.
+     * application to run on the virtual machine, etc.)
+     *
+     * The new config must be {@link VirtualMachineConfig#isCompatibleWith compatible with} the
+     * existing config.
      *
      * @return the old config
-     *
+     * @throws VirtualMachineException if the virtual machine is not stopped, or the new config is
+     *         incompatible.
      * @hide
      */
     @NonNull
@@ -765,6 +784,7 @@ public class VirtualMachine implements AutoCloseable {
         return oldConfig;
     }
 
+    @Nullable
     private static native IBinder nativeConnectToVsockServer(IBinder vmBinder, int port);
 
     /**
@@ -773,6 +793,8 @@ public class VirtualMachine implements AutoCloseable {
      * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to
      * establish a connection to the guest VM.
      *
+     * @throws VirtualMachineException if the virtual machine is not running or the connection
+     *         failed.
      * @hide
      */
     @NonNull
@@ -780,12 +802,17 @@ public class VirtualMachine implements AutoCloseable {
         if (getStatus() != STATUS_RUNNING) {
             throw new VirtualMachineException("VM is not running");
         }
-        return nativeConnectToVsockServer(mVirtualMachine.asBinder(), port);
+        IBinder iBinder = nativeConnectToVsockServer(mVirtualMachine.asBinder(), port);
+        if (iBinder == null) {
+            throw new VirtualMachineException("Failed to connect to vsock server");
+        }
+        return iBinder;
     }
 
     /**
      * Opens a vsock connection to the VM on the given port.
      *
+     * @throws VirtualMachineException if connecting fails.
      * @hide
      */
     @NonNull
@@ -793,7 +820,9 @@ public class VirtualMachine implements AutoCloseable {
         try {
             return mVirtualMachine.connectVsock(port);
         } catch (RemoteException e) {
-            throw new VirtualMachineException("failed to connect vsock", e);
+            throw e.rethrowAsRuntimeException();
+        } catch (ServiceSpecificException e) {
+            throw new VirtualMachineException(e);
         }
     }
 
