@@ -485,7 +485,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testTelemetryPushedAtoms() throws Exception {
+    public void testTelemetryPushedAtomsOfEventMetrics() throws Exception {
         // Reset statsd config and report before the test
         ConfigUtils.removeConfig(getDevice());
         ReportUtils.clearReports(getDevice());
@@ -563,6 +563,49 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertThat(atomVmExited.getUid()).isEqualTo(atomVmCreationRequested.getUid());
         assertThat(atomVmBooted.getElapsedTimeMillis())
                 .isLessThan(atomVmExited.getElapsedTimeMillis());
+    }
+
+    @Test
+    public void testTelemetryPushedAtomsOfValueMetrics() throws Exception {
+        // Reset statsd config and report before the test
+        ConfigUtils.removeConfig(getDevice());
+        ReportUtils.clearReports(getDevice());
+
+        // Setup statsd config
+        int[] atomIds = {
+            AtomsProto.Atom.VM_CPU_STATUS_REPORTED_FIELD_NUMBER,
+            AtomsProto.Atom.VM_MEM_STATUS_REPORTED_FIELD_NUMBER,
+        };
+        ConfigUtils.uploadConfigForPushedAtoms(getDevice(), PACKAGE_NAME, atomIds);
+
+        // Create VM with microdroid
+        final String configPath = "assets/vm_config_apex.json"; // path inside the APK
+        final String cid =
+                startMicrodroid(
+                        getDevice(),
+                        getBuild(),
+                        APK_NAME,
+                        PACKAGE_NAME,
+                        configPath,
+                        /* debug */ true,
+                        minMemorySize(),
+                        Optional.of(NUM_VCPUS));
+
+        // Boot VM with microdroid
+        adbConnectToMicrodroid(getDevice(), cid);
+        waitForBootComplete();
+
+        // Check VmCpuStatusReported and VmMemStatusReported atoms and clear the statsd report
+        List<StatsLog.EventMetricData> data;
+        data = ReportUtils.getEventMetricDataList(getDevice());
+        assertThat(data.size() >= 2).isTrue();
+        assertThat(data.get(0).getAtom().getPushedCase().getNumber())
+                .isEqualTo(AtomsProto.Atom.VM_CPU_STATUS_REPORTED_FIELD_NUMBER);
+        assertThat(data.get(1).getAtom().getPushedCase().getNumber())
+                .isEqualTo(AtomsProto.Atom.VM_MEM_STATUS_REPORTED_FIELD_NUMBER);
+
+        // Shutdown VM with microdroid
+        shutdownMicrodroid(getDevice(), cid);
     }
 
     @Test
