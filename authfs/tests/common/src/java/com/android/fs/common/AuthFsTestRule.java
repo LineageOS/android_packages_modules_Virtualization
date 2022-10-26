@@ -24,7 +24,6 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
 import com.android.compatibility.common.util.PollingCheck;
@@ -131,7 +130,7 @@ public class AuthFsTestRule extends TestLogData {
         return sMicrodroidDevice;
     }
 
-    public static void startMicrodroid() throws DeviceNotAvailableException {
+    public static void startMicrodroid(boolean protectedVm) throws DeviceNotAvailableException {
         CLog.i("Starting the shared VM");
         assertThat(sMicrodroidDevice).isNull();
         sMicrodroidDevice =
@@ -139,6 +138,7 @@ public class AuthFsTestRule extends TestLogData {
                                 findTestFile(sTestInfo.getBuildInfo(), TEST_APK_NAME),
                                 VM_CONFIG_PATH_IN_APK)
                         .debugLevel("full")
+                        .protectedVm(protectedVm)
                         .build(getDevice());
 
         // From this point on, we need to tear down the Microdroid instance
@@ -152,10 +152,11 @@ public class AuthFsTestRule extends TestLogData {
     }
 
     public static void shutdownMicrodroid() throws DeviceNotAvailableException {
-        assertNotNull(sMicrodroidDevice);
-        getDevice().shutdownMicrodroid(sMicrodroidDevice);
-        sMicrodroidDevice = null;
-        sMicrodroid = null;
+        if (sMicrodroidDevice != null) {
+            getDevice().shutdownMicrodroid(sMicrodroidDevice);
+            sMicrodroidDevice = null;
+            sMicrodroid = null;
+        }
     }
 
     @Override
@@ -224,7 +225,7 @@ public class AuthFsTestRule extends TestLogData {
         }
     }
 
-    private static TestDevice getDevice() {
+    public static TestDevice getDevice() {
         return (TestDevice) sTestInfo.getDevice();
     }
 
@@ -245,7 +246,6 @@ public class AuthFsTestRule extends TestLogData {
     }
 
     private void setUpTest() throws Exception {
-        assumeTrue(getDevice().supportsMicrodroid());
         sAndroid.run("mkdir -p " + TEST_OUTPUT_DIR);
     }
 
