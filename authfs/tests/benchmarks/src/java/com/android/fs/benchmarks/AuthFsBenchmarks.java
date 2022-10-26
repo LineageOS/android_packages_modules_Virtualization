@@ -20,6 +20,8 @@ import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assume.assumeTrue;
+
 import android.platform.test.annotations.RootPermissionTest;
 
 import com.android.fs.common.AuthFsTestRule;
@@ -71,11 +73,13 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
 
     @Before
     public void setUp() throws Exception {
+        assumeTrue(AuthFsTestRule.getDevice().supportsMicrodroid(/*protectedVm=*/ true));
         String metricsPrefix =
                 MetricsProcessor.getMetricPrefix(
                         getDevice().getProperty("debug.hypervisor.metrics_tag"));
         mMetricsProcessor = new MetricsProcessor(metricsPrefix + "authfs/");
-        AuthFsTestRule.startMicrodroid();
+        // TODO(b/236123069): Run benchmark tests in both protected and unprotected VMs.
+        AuthFsTestRule.startMicrodroid(/*protectedVm=*/ true);
     }
 
     @After
