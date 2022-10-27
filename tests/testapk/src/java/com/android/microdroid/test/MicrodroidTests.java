@@ -111,6 +111,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mAddInteger).isEqualTo(123 + 456);
         assertThat(testResults.mAppRunProp).isEqualTo("true");
         assertThat(testResults.mSublibRunProp).isEqualTo("true");
+        assertThat(testResults.mApkContentsPath).isEqualTo("/mnt/apk");
     }
 
     @Test
@@ -538,6 +539,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         String mAppRunProp;
         String mSublibRunProp;
         String mExtraApkTestProp;
+        String mApkContentsPath;
     }
 
     private TestResults runVmTestService(VirtualMachine vm) throws Exception {
@@ -557,6 +559,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                                     testService.readProperty("debug.microdroid.app.sublib.run");
                             testResults.mExtraApkTestProp =
                                     testService.readProperty("debug.microdroid.test.extra_apk");
+                            testResults.mApkContentsPath = testService.getApkContentsPath();
                         } catch (Exception e) {
                             testResults.mException = e;
                         }
