@@ -12,29 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! pVM firmware.
+//! Image verification.
 
-#![no_main]
-#![no_std]
-
-mod avb;
-mod entry;
-mod exceptions;
-mod helpers;
-mod mmio_guard;
-mod smccc;
-
-use avb::PUBLIC_KEY;
-use log::{debug, info};
-
-fn main(fdt: &mut [u8], payload: &[u8]) {
-    info!("pVM firmware");
-    debug!(
-        "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}",
-        fdt.as_ptr() as usize,
-        payload.as_ptr() as usize,
-        payload.len(),
-    );
-    debug!("AVB public key: addr={:?}, size={:#x} ({1})", PUBLIC_KEY.as_ptr(), PUBLIC_KEY.len());
-    info!("Starting payload...");
-}
+pub use pvmfw_embedded_key::PUBLIC_KEY;
