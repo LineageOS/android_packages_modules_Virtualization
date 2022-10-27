@@ -16,6 +16,8 @@
 
 #pragma once
 
+#define PSCI_SYSTEM_RESET (0x84000009)
+
 .macro adr_l, reg:req, sym:req
 	adrp \reg, \sym
 	add \reg, \reg, :lo12:\sym
@@ -26,4 +28,11 @@
 	movk \reg, :abs_g2_nc:\imm
 	movk \reg, :abs_g1_nc:\imm
 	movk \reg, :abs_g0_nc:\imm
+.endm
+
+.macro reset_or_hang
+	mov_i x0, PSCI_SYSTEM_RESET
+	hvc 0
+999:	wfi
+	b 999b
 .endm
