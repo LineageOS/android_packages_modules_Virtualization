@@ -10,6 +10,7 @@ rust_ffi_static {
     edition: "2021",
     rustlibs: [
         "liblog_rust_nostd",
+        "libpvmfw_embedded_key",
         "libvmbase",
     ],
     apex_available: ["com.android.virt"],
@@ -41,6 +42,34 @@ raw_binary {
             enabled: true,
         },
     },
+}
+
+prebuilt_etc {
+    name: "pvmfw_embedded_key",
+    src: ":avb_testkey_rsa4096_pub_bin",
+    installable: false,
+}
+
+genrule {
+    name: "pvmfw_embedded_key_rs",
+    srcs: [":pvmfw_embedded_key"],
+    out: ["lib.rs"],
+    cmd: "(" +
+        "    echo '#![no_std]';" +
+        "    echo '#![allow(missing_docs)]';" +
+        "    echo 'pub const PUBLIC_KEY: &[u8] = &[';" +
+        "    xxd -i < $(in);" +
+        "    echo '];';" +
+        ") > $(out)",
+}
+
+rust_library_rlib {
+    name: "libpvmfw_embedded_key",
+    defaults: ["vmbase_ffi_defaults"],
+    prefer_rlib: true,
+    srcs: [":pvmfw_embedded_key_rs"],
+    crate_name: "pvmfw_embedded_key",
+    apex_available: ["com.android.virt"],
 }
 
 prebuilt_etc {
