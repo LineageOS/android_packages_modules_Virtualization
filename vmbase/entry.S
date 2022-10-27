@@ -14,17 +14,7 @@
  * limitations under the License.
  */
 
-.macro adr_l, reg:req, sym:req
-	adrp \reg, \sym
-	add \reg, \reg, :lo12:\sym
-.endm
-
-.macro mov_i, reg:req, imm:req
-	movz \reg, :abs_g3:\imm
-	movk \reg, :abs_g2_nc:\imm
-	movk \reg, :abs_g1_nc:\imm
-	movk \reg, :abs_g0_nc:\imm
-.endm
+#include <common.h>
 
 .set .L_MAIR_DEV_nGnRE,	0x04
 .set .L_MAIR_MEM_WBWA,	0xff
@@ -94,6 +84,16 @@ entry:
 
 	adr x30, vector_table_panic
 	msr vbar_el1, x30
+
+	/*
+	 * Our load address is set by the host so validate it before proceeding.
+	 */
+	adr x30, entry
+	mov_i x29, entry
+	cmp x29, x30
+	b.eq 1f
+	reset_or_hang
+1:
 
 	adrp x30, idmap
 	msr ttbr0_el1, x30
