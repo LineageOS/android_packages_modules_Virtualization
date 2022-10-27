@@ -14,17 +14,7 @@
  * limitations under the License.
  */
 
-.macro adr_l, reg:req, sym:req
-	adrp \reg, \sym
-	add \reg, \reg, :lo12:\sym
-.endm
-
-.macro mov_i, reg:req, imm:req
-	movz \reg, :abs_g3:\imm
-	movk \reg, :abs_g2_nc:\imm
-	movk \reg, :abs_g1_nc:\imm
-	movk \reg, :abs_g0_nc:\imm
-.endm
+#include <common.h>
 
 .set .L_MAIR_DEV_nGnRE,	0x04
 .set .L_MAIR_MEM_WBWA,	0xff
