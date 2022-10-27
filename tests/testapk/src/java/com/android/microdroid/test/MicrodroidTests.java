@@ -157,6 +157,39 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
     }
 
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+    })
+    public void validApkPathIsAccepted() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setApkPath(getContext().getPackageCodePath())
+                .setMemoryMib(minMemoryRequired())
+                .build();
+
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine(
+                "test_vm_explicit_apk_path", config);
+
+        TestResults testResults = runVmTestService(vm);
+        assertThat(testResults.mException).isNull();
+    }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+    })
+    public void invalidApkPathIsRejected() {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setApkPath("relative/path/to.apk")
+                .setMemoryMib(minMemoryRequired());
+        assertThrows(IllegalArgumentException.class, () -> builder.build());
+    }
 
     @Test
     @CddTest(requirements = {
