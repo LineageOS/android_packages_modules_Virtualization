@@ -13,6 +13,7 @@ rust_ffi_shared {
         "libandroid_logger",
         "libanyhow",
         "libbinder_rs",
+        "liblazy_static",
         "liblog_rust",
         "librpcbinder_rs",
     ],
