@@ -22,33 +22,36 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeTrue;
 
+import android.cts.host.utils.DeviceJUnit4ClassRunnerWithParameters;
+import android.cts.host.utils.DeviceJUnit4Parameterized;
 import android.platform.test.annotations.RootPermissionTest;
 
 import com.android.fs.common.AuthFsTestRule;
 import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.invoker.TestInformation;
 import com.android.tradefed.metrics.proto.MetricMeasurement.DataType;
 import com.android.tradefed.metrics.proto.MetricMeasurement.Measurements;
 import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
-import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
-import com.android.tradefed.testtype.junit4.AfterClassWithInfo;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
-import com.android.tradefed.testtype.junit4.BeforeClassWithInfo;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 @RootPermissionTest
-@RunWith(DeviceJUnit4ClassRunner.class)
+@RunWith(DeviceJUnit4Parameterized.class)
+@UseParametersRunnerFactory(DeviceJUnit4ClassRunnerWithParameters.RunnerFactory.class)
 public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     private static final int TRIAL_COUNT = 5;
 
@@ -62,24 +65,28 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     private static final String DIGEST_4M =
             "sha256-f18a268d565348fb4bbf11f10480b198f98f2922eb711de149857b3cecf98a8d";
 
+    @Parameterized.Parameter(0)
+    public boolean mProtectedVm;
+
     @Rule public final AuthFsTestRule mAuthFsTestRule = new AuthFsTestRule();
     @Rule public final TestMetrics mTestMetrics = new TestMetrics();
     private MetricsProcessor mMetricsProcessor;
 
-    @BeforeClassWithInfo
-    public static void beforeClassWithDevice(TestInformation testInfo) throws Exception {
-        AuthFsTestRule.setUpAndroid(testInfo);
+    @Parameterized.Parameters(name = "protectedVm={0}")
+    public static Collection<Object[]> params() {
+        return List.of(new Object[] {true}, new Object[] {false});
     }
 
     @Before
     public void setUp() throws Exception {
-        assumeTrue(AuthFsTestRule.getDevice().supportsMicrodroid(/*protectedVm=*/ true));
+        AuthFsTestRule.setUpAndroid(getTestInformation());
+        mAuthFsTestRule.setUpTest();
+        assumeTrue(AuthFsTestRule.getDevice().supportsMicrodroid(mProtectedVm));
         String metricsPrefix =
                 MetricsProcessor.getMetricPrefix(
                         getDevice().getProperty("debug.hypervisor.metrics_tag"));
         mMetricsProcessor = new MetricsProcessor(metricsPrefix + "authfs/");
-        // TODO(b/236123069): Run benchmark tests in both protected and unprotected VMs.
-        AuthFsTestRule.startMicrodroid(/*protectedVm=*/ true);
+        AuthFsTestRule.startMicrodroid(mProtectedVm);
     }
 
     @After
@@ -87,8 +94,8 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
         AuthFsTestRule.shutdownMicrodroid();
     }
 
-    @AfterClassWithInfo
-    public static void afterClassWithDevice(TestInformation testInfo) {
+    @AfterClass
+    public static void tearDownClass() {
         AuthFsTestRule.tearDownAndroid();
     }
 
