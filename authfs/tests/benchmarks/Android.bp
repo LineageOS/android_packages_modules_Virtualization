@@ -11,6 +11,7 @@ java_test_host {
     static_libs: [
         "AuthFsHostTestCommon",
         "MicrodroidHostTestHelper",
+        "cts-host-utils",
     ],
     test_suites: ["general-tests"],
     data_device_bins_first: [

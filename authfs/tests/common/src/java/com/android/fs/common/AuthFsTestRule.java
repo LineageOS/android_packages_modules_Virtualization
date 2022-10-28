@@ -245,8 +245,10 @@ public class AuthFsTestRule extends TestLogData {
         return FUSE_SUPER_MAGIC_HEX.equals(fs_type);
     }
 
-    private void setUpTest() throws Exception {
-        sAndroid.run("mkdir -p " + TEST_OUTPUT_DIR);
+    public void setUpTest() throws Exception {
+        if (sAndroid != null) {
+            sAndroid.run("mkdir -p " + TEST_OUTPUT_DIR);
+        }
     }
 
     private void tearDownTest(String testName) throws Exception {
