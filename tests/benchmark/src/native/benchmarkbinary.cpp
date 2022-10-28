@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <aidl/android/system/virtualmachineservice/IVirtualMachineService.h>
 #include <aidl/com/android/microdroid/testservice/BnBenchmarkService.h>
 #include <android-base/logging.h>
 #include <android-base/parseint.h>
@@ -35,7 +34,6 @@
 
 #include "io_vsock.h"
 
-using aidl::android::system::virtualmachineservice::IVirtualMachineService;
 using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Result;
