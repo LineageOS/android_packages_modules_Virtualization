@@ -39,10 +39,11 @@ cc_library_shared {
 cc_library_shared {
     name: "MicrodroidBenchmarkNativeLib",
     srcs: ["src/native/benchmarkbinary.cpp"],
-    static_libs: ["libiobenchmark"],
-    shared_libs: [
-        "android.system.virtualmachineservice-ndk",
+    static_libs: [
         "com.android.microdroid.testservice-ndk",
+        "libiobenchmark",
+    ],
+    shared_libs: [
         "libbase",
         "libbinder_ndk",
         "liblog",
