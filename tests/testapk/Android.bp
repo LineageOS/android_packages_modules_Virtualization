@@ -35,13 +35,13 @@ cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/testbinary.cpp"],
     shared_libs: [
-        "com.android.microdroid.testservice-ndk",
         "libbase",
         "libbinder_ndk",
         "MicrodroidTestNativeLibSub",
         "libvm_payload",
     ],
     static_libs: [
+        "com.android.microdroid.testservice-ndk",
         "libfsverity_digests_proto_cc",
         "liblog",
         "libprotobuf-cpp-lite-ndk",
