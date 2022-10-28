@@ -305,21 +305,6 @@ bootimg {
     avb_private_key: ":microdroid_sign_key",
 }
 
-// TODO(b/231117670) remove this when VirtualizationTestCases moves to the
-// microdroid kernel
-prebuilt_kernel_modules {
-    name: "microdroid_kernel_modules",
-    arch: {
-        arm64: {
-            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.15-arm64"],
-        },
-        x86_64: {
-            srcs: [":virt_device_prebuilts_kernel_modules_microdroid-5.15-x86_64"],
-        },
-    },
-    kernel_version: "5.15",
-}
-
 android_filesystem {
     name: "microdroid_vendor_ramdisk",
     deps: [
