@@ -99,14 +99,6 @@ public class AuthFsTestRule extends TestLogData {
         sTestInfo = testInfo;
         TestDevice androidDevice = getDevice();
         sAndroid = new CommandRunner(androidDevice);
-
-        // NB: We can't use assumeTrue because the assumption exception is NOT handled by the test
-        // infra when it is thrown from a class method (see b/37502066). We need to skip both here
-        // and in setUp.
-        if (!androidDevice.supportsMicrodroid()) {
-            CLog.i("Microdroid not supported. Skipping.");
-            return;
-        }
     }
 
     public static void tearDownAndroid() {
