@@ -130,14 +130,17 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     private static String runOnHostWithTimeout(long timeoutMillis, String... cmd) {
         assertThat(timeoutMillis).isAtLeast(0);
         CommandResult result = RunUtil.getDefault().runTimedCmd(timeoutMillis, cmd);
-        assertThat(result).isSuccess();
+        assertWithMessage("Host command `" + join(cmd) + "` did not succeed")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
         return result.getStdout().trim();
     }
 
     // Run a shell command on Microdroid
     public static String runOnMicrodroid(String... cmd) {
         CommandResult result = runOnMicrodroidForResult(cmd);
-        assertWithMessage("microdroid shell cmd `" + join(cmd) + "`")
+        assertWithMessage("Microdroid command `" + join(cmd) + "` did not succeed")
                 .about(command_results())
                 .that(result)
                 .isSuccess();
@@ -197,7 +200,11 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
 
     // Asserts the command will fail on Microdroid.
     public static void assertFailedOnMicrodroid(String... cmd) {
-        assertThat(runOnMicrodroidForResult(cmd)).isFailed();
+        CommandResult result = runOnMicrodroidForResult(cmd);
+        assertWithMessage("Microdroid command `" + join(cmd) + "` did not fail expectedly")
+                .about(command_results())
+                .that(result)
+                .isFailed();
     }
 
     private static String join(String... strs) {
