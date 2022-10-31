@@ -38,6 +38,8 @@ use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 
+/// Exposes DmCryptTarget & related builder
+pub mod crypt;
 /// Expose util functions
 pub mod util;
 /// Exposes the DmVerityTarget & related builder
@@ -46,9 +48,10 @@ pub mod verity;
 pub mod loopdevice;
 
 mod sys;
+use crypt::DmCryptTarget;
 use sys::*;
 use util::*;
-use verity::*;
+use verity::DmVerityTarget;
 
 nix::ioctl_readwrite!(_dm_dev_create, DM_IOCTL, Cmd::DM_DEV_CREATE, DmIoctl);
 nix::ioctl_readwrite!(_dm_dev_suspend, DM_IOCTL, Cmd::DM_DEV_SUSPEND, DmIoctl);
@@ -151,27 +154,55 @@ impl DeviceMapper {
         Ok(DeviceMapper(f))
     }
 
-    /// Creates a device mapper device and configure it according to the `target` specification.
+    /// Creates a (crypt) device and configure it according to the `target` specification.
+    /// The path to the generated device is "/dev/mapper/<name>".
+    pub fn create_crypt_device(&self, name: &str, target: &DmCryptTarget) -> Result<PathBuf> {
+        self.create_device(name, target.as_slice(), uuid("crypto".as_bytes())?, true)
+    }
+
+    /// Creates a (verity) device and configure it according to the `target` specification.
     /// The path to the generated device is "/dev/mapper/<name>".
     pub fn create_verity_device(&self, name: &str, target: &DmVerityTarget) -> Result<PathBuf> {
+        self.create_device(name, target.as_slice(), uuid("apkver".as_bytes())?, false)
+    }
+
+    /// Removes a mapper device.
+    pub fn delete_device_deferred(&self, name: &str) -> Result<()> {
+        let mut data = DmIoctl::new(name)?;
+        data.flags |= Flag::DM_DEFERRED_REMOVE;
+        dm_dev_remove(self, &mut data)
+            .context(format!("failed to remove device with name {}", &name))?;
+        Ok(())
+    }
+
+    fn create_device(
+        &self,
+        name: &str,
+        target: &[u8],
+        uid: String,
+        writable: bool,
+    ) -> Result<PathBuf> {
         // Step 1: create an empty device
         let mut data = DmIoctl::new(name)?;
-        data.set_uuid(&uuid("apkver".as_bytes())?)?;
+        data.set_uuid(&uid)?;
         dm_dev_create(self, &mut data)
             .context(format!("failed to create an empty device with name {}", &name))?;
 
         // Step 2: load table onto the device
-        let payload_size = size_of::<DmIoctl>() + target.as_slice().len();
+        let payload_size = size_of::<DmIoctl>() + target.len();
 
         let mut data = DmIoctl::new(name)?;
         data.data_size = payload_size as u32;
         data.data_start = size_of::<DmIoctl>() as u32;
         data.target_count = 1;
-        data.flags |= Flag::DM_READONLY_FLAG;
+
+        if !writable {
+            data.flags |= Flag::DM_READONLY_FLAG;
+        }
 
         let mut payload = Vec::with_capacity(payload_size);
         payload.extend_from_slice(data.as_slice());
-        payload.extend_from_slice(target.as_slice());
+        payload.extend_from_slice(target);
         dm_table_load(self, payload.as_mut_ptr() as *mut DmIoctl)
             .context("failed to load table")?;
 
@@ -184,15 +215,6 @@ impl DeviceMapper {
         let path = Path::new(MAPPER_DEV_ROOT).join(&name);
         wait_for_path(&path)?;
         Ok(path)
-    }
-
-    /// Removes a mapper device
-    pub fn delete_device_deferred(&self, name: &str) -> Result<()> {
-        let mut data = DmIoctl::new(name)?;
-        data.flags |= Flag::DM_DEFERRED_REMOVE;
-        dm_dev_remove(self, &mut data)
-            .context(format!("failed to remove device with name {}", &name))?;
-        Ok(())
     }
 }
 
@@ -207,4 +229,114 @@ fn uuid(node_id: &[u8]) -> Result<String> {
     let ts = Timestamp::from_unix(&context, now.as_secs(), now.subsec_nanos());
     let uuid = Uuid::new_v1(ts, node_id)?;
     Ok(String::from(uuid.to_hyphenated().encode_lower(&mut Uuid::encode_buffer())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypt::DmCryptTargetBuilder;
+    use std::fs::{read, File, OpenOptions};
+    use std::io::Write;
+
+    const KEY: &[u8; 32] = b"thirtytwobyteslongreallylongword";
+    const DIFFERENT_KEY: &[u8; 32] = b"drowgnolyllaergnolsetybowtytriht";
+
+    // Create a file in given temp directory with given size
+    fn prepare_tmpfile(test_dir: &Path, filename: &str, sz: u64) -> PathBuf {
+        let filepath = test_dir.join(filename);
+        let f = File::create(&filepath).unwrap();
+        f.set_len(sz).unwrap();
+        filepath
+    }
+
+    fn write_to_dev(path: &Path, data: &[u8]) {
+        let mut f = OpenOptions::new().read(true).write(true).open(&path).unwrap();
+        f.write_all(data).unwrap();
+    }
+
+    fn delete_device(dm: &DeviceMapper, name: &str) -> Result<()> {
+        dm.delete_device_deferred(name)?;
+        wait_for_path_disappears(Path::new(MAPPER_DEV_ROOT).join(&name))?;
+        Ok(())
+    }
+
+    #[test]
+    fn mapping_again_keeps_data() {
+        // This test creates 2 different crypt devices using same key backed by same data_device
+        // -> Write data on dev1 -> Check the data is visible & same on dev2
+        let dm = DeviceMapper::new().unwrap();
+        let inputimg = include_bytes!("../testdata/rand8k");
+        let sz = inputimg.len() as u64;
+
+        let test_dir = tempfile::TempDir::new().unwrap();
+        let backing_file = prepare_tmpfile(test_dir.path(), "storage", sz);
+        let data_device = loopdevice::attach(
+            backing_file,
+            0,
+            sz,
+            /*direct_io*/ true,
+            /*writable*/ true,
+        )
+        .unwrap();
+        scopeguard::defer! {
+            loopdevice::detach(&data_device).unwrap();
+            _ = delete_device(&dm, "crypt1");
+            _ = delete_device(&dm, "crypt2");
+        }
+
+        let target =
+            DmCryptTargetBuilder::default().data_device(&data_device, sz).key(KEY).build().unwrap();
+
+        let mut crypt_device = dm.create_crypt_device("crypt1", &target).unwrap();
+        write_to_dev(&crypt_device, inputimg);
+
+        // Recreate another device using same target spec & check if the content is the same
+        crypt_device = dm.create_crypt_device("crypt2", &target).unwrap();
+
+        let crypt = read(crypt_device).unwrap();
+        assert_eq!(inputimg.len(), crypt.len()); // fail early if the size doesn't match
+        assert_eq!(inputimg, crypt.as_slice());
+    }
+
+    #[test]
+    fn data_inaccessible_with_diff_key() {
+        // This test creates 2 different crypt devices using different keys backed
+        // by same data_device -> Write data on dev1 -> Check the data is visible but not the same on dev2
+        let dm = DeviceMapper::new().unwrap();
+        let inputimg = include_bytes!("../testdata/rand8k");
+        let sz = inputimg.len() as u64;
+
+        let test_dir = tempfile::TempDir::new().unwrap();
+        let backing_file = prepare_tmpfile(test_dir.path(), "storage", sz);
+        let data_device = loopdevice::attach(
+            backing_file,
+            0,
+            sz,
+            /*direct_io*/ true,
+            /*writable*/ true,
+        )
+        .unwrap();
+        scopeguard::defer! {
+            loopdevice::detach(&data_device).unwrap();
+            _ = delete_device(&dm, "crypt3");
+            _ = delete_device(&dm, "crypt4");
+        }
+
+        let target =
+            DmCryptTargetBuilder::default().data_device(&data_device, sz).key(KEY).build().unwrap();
+        let target2 = DmCryptTargetBuilder::default()
+            .data_device(&data_device, sz)
+            .key(DIFFERENT_KEY)
+            .build()
+            .unwrap();
+
+        let mut crypt_device = dm.create_crypt_device("crypt3", &target).unwrap();
+
+        write_to_dev(&crypt_device, inputimg);
+
+        // Recreate the crypt device again diff key & check if the content is changed
+        crypt_device = dm.create_crypt_device("crypt4", &target2).unwrap();
+        let crypt = read(crypt_device).unwrap();
+        assert_ne!(inputimg, crypt.as_slice());
+    }
 }

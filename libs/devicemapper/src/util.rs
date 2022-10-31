@@ -37,6 +37,21 @@ pub fn wait_for_path<P: AsRef<Path>>(path: P) -> Result<()> {
     Ok(())
 }
 
+/// Wait for the path to disappear
+#[cfg(test)]
+pub fn wait_for_path_disappears<P: AsRef<Path>>(path: P) -> Result<()> {
+    const TIMEOUT: Duration = Duration::from_secs(1);
+    const INTERVAL: Duration = Duration::from_millis(10);
+    let begin = Instant::now();
+    while !path.as_ref().exists() {
+        if begin.elapsed() > TIMEOUT {
+            bail!("{:?} not disappearing. TIMEOUT.", path.as_ref());
+        }
+        thread::sleep(INTERVAL);
+    }
+    Ok(())
+}
+
 /// Returns hexadecimal reprentation of a given byte array.
 pub fn hexstring_from(s: &[u8]) -> String {
     s.iter().map(|byte| format!("{:02x}", byte)).reduce(|i, j| i + &j).unwrap_or_default()
