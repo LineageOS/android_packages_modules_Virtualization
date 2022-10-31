@@ -39,7 +39,7 @@ cc_library_shared {
     shared_libs: [
         "libbinder_ndk",
         "MicrodroidTestNativeLibSub",
-        "libvm_payload",
+        "libvm_payload#current",
     ],
     static_libs: [
         "com.android.microdroid.testservice-ndk",
