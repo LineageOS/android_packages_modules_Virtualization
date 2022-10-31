@@ -34,14 +34,15 @@ android_test {
 cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/testbinary.cpp"],
+    stl: "libc++_static",
     shared_libs: [
-        "libbase",
         "libbinder_ndk",
         "MicrodroidTestNativeLibSub",
         "libvm_payload",
     ],
     static_libs: [
         "com.android.microdroid.testservice-ndk",
+        "libbase",
         "libfsverity_digests_proto_cc",
         "liblog",
         "libprotobuf-cpp-lite-ndk",
@@ -52,9 +53,11 @@ cc_library_shared {
     name: "MicrodroidTestNativeCrashLib",
     header_libs: ["vm_payload_headers"],
     srcs: ["src/native/crashbinary.cpp"],
+    stl: "libc++_static",
 }
 
 cc_library_shared {
     name: "MicrodroidTestNativeLibSub",
     srcs: ["src/native/testlib.cpp"],
+    stl: "libc++_static",
 }
