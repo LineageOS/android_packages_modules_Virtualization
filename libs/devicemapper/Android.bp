@@ -36,5 +36,5 @@ rust_test {
         "libscopeguard",
         "libtempfile",
     ],
-    data: ["tests/data/*"],
+    data: ["testdata/*"],
 }
