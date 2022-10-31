@@ -67,7 +67,10 @@ impl IIsolatedCompilationService for IsolatedCompilationService {
             ApexSource::PreferStaged => true,
             _ => unreachable!("Invalid ApexSource {:?}", apex_source),
         };
-        to_binder_result(self.do_start_test_compile(prefer_staged, callback))
+        // b/250929504 failure here intentionally crashes composd to trigger a bugreport
+        Ok(self
+            .do_start_test_compile(prefer_staged, callback)
+            .expect("Failed to start the test compile"))
     }
 }
 
