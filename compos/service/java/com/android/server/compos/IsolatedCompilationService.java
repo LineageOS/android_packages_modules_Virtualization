@@ -67,6 +67,7 @@ public class IsolatedCompilationService extends SystemService {
             return;
         }
 
+        IsolatedCompilationJobService.scheduleDailyJob(scheduler);
         StagedApexObserver.registerForStagedApexUpdates(scheduler);
     }
 
