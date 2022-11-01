@@ -59,7 +59,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     check_stack_guard();
 
     unsafe {
-        HEAP_ALLOCATOR.lock().init(&mut HEAP as *mut u8 as usize, HEAP.len());
+        HEAP_ALLOCATOR.lock().init(HEAP.as_mut_ptr() as usize, HEAP.len());
     }
 
     check_alloc();
@@ -105,11 +105,11 @@ fn check_stack_guard() {
 }
 
 fn check_data() {
-    info!("INITIALISED_DATA: {:#010x}", &INITIALISED_DATA as *const u32 as usize);
+    info!("INITIALISED_DATA: {:?}", INITIALISED_DATA.as_ptr());
     unsafe {
-        info!("ZEROED_DATA: {:#010x}", &ZEROED_DATA as *const u32 as usize);
-        info!("MUTABLE_DATA: {:#010x}", &MUTABLE_DATA as *const u32 as usize);
-        info!("HEAP: {:#010x}", &HEAP as *const u8 as usize);
+        info!("ZEROED_DATA: {:?}", ZEROED_DATA.as_ptr());
+        info!("MUTABLE_DATA: {:?}", MUTABLE_DATA.as_ptr());
+        info!("HEAP: {:?}", HEAP.as_ptr());
     }
 
     assert_eq!(INITIALISED_DATA[0], 1);
