@@ -14,7 +14,7 @@
 
 //! Low-level entry and exit points of pvmfw.
 
-use crate::helpers::FDT_MAX_SIZE;
+use crate::helpers;
 use crate::mmio_guard;
 use core::arch::asm;
 use core::slice;
@@ -54,6 +54,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     // - only access non-pvmfw memory once (and while) it has been mapped
     logger::init(LevelFilter::Info).map_err(|_| RebootReason::InternalError)?;
 
+    const FDT_MAX_SIZE: usize = helpers::SIZE_2MB;
     // TODO: Check that the FDT is fully contained in RAM.
     // SAFETY - We trust the VMM, for now.
     let fdt = unsafe { slice::from_raw_parts_mut(fdt as *mut u8, FDT_MAX_SIZE) };
