@@ -14,8 +14,8 @@
 
 //! Miscellaneous helper functions.
 
-pub const FDT_MAX_SIZE: usize = 2 << 20;
 pub const SIZE_4KB: usize = 4 << 10;
+pub const SIZE_2MB: usize = 2 << 20;
 
 /// Computes the address of the page containing a given address.
 pub const fn page_of(addr: usize, page_size: usize) -> usize {
