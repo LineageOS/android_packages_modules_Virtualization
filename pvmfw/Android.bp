@@ -21,6 +21,7 @@ rust_ffi_static {
         "libpvmfw_embedded_key",
         "libtinyvec_nostd",
         "libvmbase",
+        "libzeroize_nostd",
     ],
     apex_available: ["com.android.virt"],
 }

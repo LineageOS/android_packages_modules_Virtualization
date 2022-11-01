@@ -247,7 +247,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     // This wrapper allows main() to be blissfully ignorant of platform details.
     crate::main(slices.fdt, slices.kernel, slices.ramdisk, &bcc, &mut memory)?;
 
-    // TODO: Overwrite BCC before jumping to payload to avoid leaking our sealing key.
+    helpers::flushed_zeroize(bcc_slice);
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     memory.mmio_unmap_all().map_err(|e| {
