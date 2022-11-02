@@ -20,6 +20,9 @@ rust_ffi_shared {
     apex_available: [
         "com.android.compos",
     ],
+    sanitize: {
+        address: false,
+    },
 }
 
 rust_bindgen {
