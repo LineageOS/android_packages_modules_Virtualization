@@ -17,6 +17,7 @@
 use crate::heap;
 use crate::helpers;
 use crate::mmio_guard;
+use crate::mmu;
 use core::arch::asm;
 use core::slice;
 use log::debug;
@@ -86,10 +87,39 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
 
     // SAFETY - We only get the appended payload from here, once. It is mapped and the linker
     // script prevents it from overlapping with other objects.
-    let bcc = as_bcc(unsafe { get_appended_data_slice() }).ok_or_else(|| {
+    let appended_data = unsafe { get_appended_data_slice() };
+
+    // Up to this point, we were using the built-in static (from .rodata) page tables.
+
+    let mut page_table = mmu::PageTable::from_static_layout().map_err(|e| {
+        error!("Failed to set up the dynamic page tables: {e}");
+        RebootReason::InternalError
+    })?;
+
+    const CONSOLE_LEN: usize = 1; // vmbase::uart::Uart only uses one u8 register.
+    let uart_range = console::BASE_ADDRESS..(console::BASE_ADDRESS + CONSOLE_LEN);
+    page_table.map_device(&uart_range).map_err(|e| {
+        error!("Failed to remap the UART as a dynamic page table entry: {e}");
+        RebootReason::InternalError
+    })?;
+
+    let appended_range = appended_data.as_ptr_range();
+    let appended_range = (appended_range.start as usize)..(appended_range.end as usize);
+    page_table.map_rodata(&appended_range).map_err(|e| {
+        error!("Failed to remap the appended payload as a dynamic page table entry: {e}");
+        RebootReason::InternalError
+    })?;
+
+    let bcc = as_bcc(appended_data).ok_or_else(|| {
         error!("Invalid BCC");
         RebootReason::InvalidBcc
     })?;
+
+    debug!("Activating dynamic page table...");
+    // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
+    // aware of so activating it shouldn't have any visible effect.
+    unsafe { page_table.activate() };
+    debug!("... Success!");
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
     crate::main(fdt, payload, bcc);

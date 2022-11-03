@@ -24,6 +24,7 @@ mod exceptions;
 mod heap;
 mod helpers;
 mod mmio_guard;
+mod mmu;
 mod smccc;
 
 use avb::PUBLIC_KEY;

@@ -12,6 +12,7 @@ rust_ffi_static {
         "legacy",
     ],
     rustlibs: [
+        "libaarch64_paging",
         "libbuddy_system_allocator",
         "liblog_rust_nostd",
         "libpvmfw_embedded_key",
