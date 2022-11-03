@@ -20,6 +20,8 @@ rust_ffi_shared {
     apex_available: [
         "com.android.compos",
     ],
+    // The sanitize section below fixes the fuzzer build in b/256166339.
+    // TODO(b/250854486): Remove the sanitize section once the bug is fixed.
     sanitize: {
         address: false,
     },
