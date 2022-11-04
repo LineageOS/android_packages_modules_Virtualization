@@ -120,7 +120,8 @@ public class VirtualMachineManager {
      * name and the config are the same as a deleted one. The new virtual machine will initially
      * be stopped.
      *
-     * @throws VirtualMachineException If there is an existing virtual machine with the given name
+     * @throws VirtualMachineException if the VM cannot be created, or there is an existing VM with
+     *         the given name.
      * @hide
      */
     @NonNull
@@ -137,6 +138,7 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
      * such virtual machine.
      *
+     * @throws VirtualMachineException if the virtual machine could not be successfully retrieved.
      * @hide
      */
     @Nullable
@@ -148,6 +150,7 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} if it exists, or create a new one. The config
      * parameter is used only when a new virtual machine is created.
      *
+     * @throws VirtualMachineException if the virtual machine could not be created or retrieved.
      * @hide
      */
     @NonNull
