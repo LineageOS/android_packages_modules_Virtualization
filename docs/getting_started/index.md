@@ -150,25 +150,4 @@ adb reboot
 
 ## Building and updating kernel inside Microdroid
 
-Checkout the Android common kernel and build it following the [official
-guideline](https://source.android.com/setup/build/building-kernels).
-
-```shell
-mkdir android-kernel && cd android-kernel
-repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-5.15
-repo sync
-FAST_BUILD=1 BUILD_CONFIG=common-modules/virtual-device/build.config.microdroid.aarch64 build/build.sh
-```
-
-Replace `build.config.microdroid.aarch64` with `build.config.microdroid.x86_64` if building
-for x86.
-
-Then copy the built kernel to the Android source tree.
-
-```
-cp out/dist/Image <android_root>/packages/modules/Virtualization/microdroid/kernel/arm64/kernel-5.15
-```
-
-Finally rebuild the `com.android.virt` APEX and install it by following the
-steps shown in [Building and updating Crosvm and
-Virtualization](#building-and-updating).
+The instruction is [here](../../microdroid/kernel/README.md).
