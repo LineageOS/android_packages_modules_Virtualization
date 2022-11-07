@@ -157,7 +157,7 @@ guideline](https://source.android.com/setup/build/building-kernels).
 mkdir android-kernel && cd android-kernel
 repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-5.15
 repo sync
-FAST_BUILD=1 DIST_DIR=out/dist BUILD_CONFIG=common/build.config.microdroid.aarch64 build/build.sh -j80
+FAST_BUILD=1 BUILD_CONFIG=common-modules/virtual-device/build.config.microdroid.aarch64 build/build.sh
 ```
 
 Replace `build.config.microdroid.aarch64` with `build.config.microdroid.x86_64` if building
