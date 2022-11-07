@@ -31,6 +31,8 @@ import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
+import android.system.virtualmachine.VirtualMachineException;
+import android.system.virtualmachine.VirtualMachineManager;
 import android.util.Log;
 
 import com.android.compatibility.common.util.CddTest;
@@ -104,7 +106,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                 .setMemoryMib(minMemoryRequired())
                 .build();
-        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm_extra_apk", config);
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm", config);
 
         TestResults testResults = runVmTestService(vm);
         assertThat(testResults.mException).isNull();
@@ -156,6 +158,33 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         SecurityException e = assertThrows(SecurityException.class, () -> runVmTestService(vm));
         assertThat(e).hasMessageThat()
                 .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
+    }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+    })
+    public void deleteVm() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setMemoryMib(minMemoryRequired())
+                .build();
+
+        VirtualMachine vm = mInner.forceCreateNewVirtualMachine("test_vm_delete",
+                config);
+        VirtualMachineManager vmm = mInner.getVirtualMachineManager();
+        vmm.delete("test_vm_delete");
+
+        // VM should no longer exist
+        assertThat(vmm.get("test_vm_delete")).isNull();
+
+        // Can't start the VM even with an existing reference
+        assertThrows(VirtualMachineException.class, vm::run);
+
+        // Can't delete the VM since it no longer exists
+        assertThrows(VirtualMachineException.class, () -> vmm.delete("test_vm_delete"));
     }
 
     @Test
@@ -260,7 +289,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // Try to run the VM again with the previous instance.img
         // We need to make sure that no changes on config don't invalidate the identity, to compare
         // the result with the below "different debug level" test.
-        File vmRoot = new File(getContext().getFilesDir(), "vm");
+        File vmRoot = new File(getContext().getDataDir(), "vm");
         File vmInstance = new File(new File(vmRoot, "test_vm"), "instance.img");
         File vmInstanceBackup = File.createTempFile("instance", ".img");
         Files.copy(vmInstance.toPath(), vmInstanceBackup.toPath(), REPLACE_EXISTING);
@@ -448,7 +477,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         mInner.forceCreateNewVirtualMachine(vmName, config);
         assertThat(tryBootVm(TAG, vmName).payloadStarted).isTrue();
 
-        File vmRoot = new File(getContext().getFilesDir(), "vm");
+        File vmRoot = new File(getContext().getDataDir(), "vm");
         File vmDir = new File(vmRoot, vmName);
         File instanceImgPath = new File(vmDir, "instance.img");
         return new RandomAccessFile(instanceImgPath, "rw");
