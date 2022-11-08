@@ -26,6 +26,8 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.sysprop.HypervisorProperties;
 
+import com.android.internal.annotations.GuardedBy;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
@@ -51,6 +53,7 @@ public class VirtualMachineManager {
         mContext = context;
     }
 
+    @GuardedBy("sInstances")
     private static final Map<Context, WeakReference<VirtualMachineManager>> sInstances =
             new WeakHashMap<>();
 
@@ -96,9 +99,6 @@ public class VirtualMachineManager {
         }
     }
 
-    /** A lock used to synchronize the creation of virtual machines */
-    private static final Object sCreateLock = new Object();
-
     /**
      * Returns a set of flags indicating what this implementation of virtualization is capable of.
      *
@@ -136,7 +136,7 @@ public class VirtualMachineManager {
     public VirtualMachine create(
             @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        synchronized (sCreateLock) {
+        synchronized (VirtualMachine.sCreateLock) {
             return VirtualMachine.create(mContext, name, config);
         }
     }
@@ -151,7 +151,9 @@ public class VirtualMachineManager {
      */
     @Nullable
     public VirtualMachine get(@NonNull String name) throws VirtualMachineException {
-        return VirtualMachine.load(mContext, name);
+        synchronized (VirtualMachine.sCreateLock) {
+            return VirtualMachine.load(mContext, name);
+        }
     }
 
     /**
@@ -166,7 +168,7 @@ public class VirtualMachineManager {
             @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         VirtualMachine vm;
-        synchronized (sCreateLock) {
+        synchronized (VirtualMachine.sCreateLock) {
             vm = get(name);
             if (vm == null) {
                 vm = create(name, config);
@@ -188,6 +190,8 @@ public class VirtualMachineManager {
      */
     public void delete(@NonNull String name) throws VirtualMachineException {
         requireNonNull(name);
-        VirtualMachine.delete(mContext, name);
+        synchronized (VirtualMachine.sCreateLock) {
+            VirtualMachine.delete(mContext, name);
+        }
     }
 }

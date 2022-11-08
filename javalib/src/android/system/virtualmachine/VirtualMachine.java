@@ -105,10 +105,10 @@ import java.util.zip.ZipFile;
  * @hide
  */
 public class VirtualMachine implements AutoCloseable {
+    /** Map from context to a map of all that context's VMs by name. */
+    @GuardedBy("sCreateLock")
     private static final Map<Context, Map<String, WeakReference<VirtualMachine>>> sInstances =
             new WeakHashMap<>();
-
-    private static final Object sInstancesLock = new Object();
 
     /** Name of the directory under the files directory where all VMs created for the app exist. */
     private static final String VM_DIR = "vm";
@@ -138,7 +138,6 @@ public class VirtualMachine implements AutoCloseable {
     public static final String USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION =
             "android.permission.USE_CUSTOM_VIRTUAL_MACHINE";
 
-
     /**
      * Status of a virtual machine
      *
@@ -165,14 +164,16 @@ public class VirtualMachine implements AutoCloseable {
      */
     public static final int STATUS_DELETED = 2;
 
-    /** Lock for internal synchronization. */
-    private final Object mLock = new Object();
-
     /** The package which owns this VM. */
     @NonNull private final String mPackageName;
 
     /** Name of this VM within the package. The name should be unique in the package. */
     @NonNull private final String mName;
+
+    /**
+     * Path to the directory containing all the files related to this VM.
+     */
+    @NonNull private final File mVmRootPath;
 
     /**
      * Path to the config file for this VM. The config file is where the configuration is persisted.
@@ -196,37 +197,68 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     /**
-     * List of extra apks. Apks are specified by the vm config, and corresponding idsigs are to be
-     * generated.
+     * Unmodifiable list of extra apks. Apks are specified by the vm config, and corresponding
+     * idsigs are to be generated.
      */
     @NonNull private final List<ExtraApkSpec> mExtraApks;
 
     /** Size of the instance image. 10 MB. */
     private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 
+    // A note on lock ordering:
+    // You can take mLock while holding sCreateLock, but not vice versa.
+    // We never take any other lock while holding mCallbackLock; therefore you can
+    // take mCallbackLock while holding any other lock.
+
+    /**
+     * A lock used to synchronize the creation of virtual machines. It protects
+     * {@link #sInstances}, but is also held throughout VM creation / retrieval / deletion, to
+     * prevent these actions racing with each other.
+     */
+    static final Object sCreateLock = new Object();
+
+    /** Lock protecting our mutable state (other than callbacks). */
+    private final Object mLock = new Object();
+
+    /** Lock protecting callbacks. */
+    private final Object mCallbackLock = new Object();
+
+
     /** The configuration that is currently associated with this VM. */
-    @NonNull private VirtualMachineConfig mConfig;
+    @GuardedBy("mLock")
+    @NonNull
+    private VirtualMachineConfig mConfig;
 
     /** Handle to the "running" VM. */
-    @Nullable private IVirtualMachine mVirtualMachine;
+    @GuardedBy("mLock")
+    @Nullable
+    private IVirtualMachine mVirtualMachine;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ParcelFileDescriptor mConsoleReader;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ParcelFileDescriptor mConsoleWriter;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ParcelFileDescriptor mLogReader;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ParcelFileDescriptor mLogWriter;
 
     /** The registered callback */
-    @GuardedBy("mLock")
+    @GuardedBy("mCallbackLock")
     @Nullable
     private VirtualMachineCallback mCallback;
 
     /** The executor on which the callback will be executed */
-    @GuardedBy("mLock")
+    @GuardedBy("mCallbackLock")
     @Nullable
     private Executor mCallbackExecutor;
-
-    @Nullable private ParcelFileDescriptor mConsoleReader;
-    @Nullable private ParcelFileDescriptor mConsoleWriter;
-
-    @Nullable private ParcelFileDescriptor mLogReader;
-    @Nullable private ParcelFileDescriptor mLogWriter;
-
-    @NonNull private final Context mContext;
 
     static {
         System.loadLibrary("virtualmachine_jni");
@@ -235,86 +267,111 @@ public class VirtualMachine implements AutoCloseable {
     private VirtualMachine(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        mContext = context;
         mPackageName = context.getPackageName();
         mName = requireNonNull(name, "Name must not be null");
         mConfig = requireNonNull(config, "Config must not be null");
 
         File thisVmDir = getVmDir(context, mName);
+        mVmRootPath = thisVmDir;
         mConfigFilePath = new File(thisVmDir, CONFIG_FILE);
         mInstanceFilePath = new File(thisVmDir, INSTANCE_IMAGE_FILE);
         mIdsigFilePath = new File(thisVmDir, IDSIG_FILE);
         mExtraApks = setupExtraApks(context, config, thisVmDir);
     }
 
+    @GuardedBy("sCreateLock")
+    @NonNull
+    private static Map<String, WeakReference<VirtualMachine>> getInstancesMap(Context context) {
+        Map<String, WeakReference<VirtualMachine>> instancesMap;
+        if (sInstances.containsKey(context)) {
+            instancesMap = sInstances.get(context);
+        } else {
+            instancesMap = new HashMap<>();
+            sInstances.put(context, instancesMap);
+        }
+        return instancesMap;
+    }
+
+    @NonNull
+    private static File getVmDir(Context context, String name) {
+        File vmRoot = new File(context.getDataDir(), VM_DIR);
+        return new File(vmRoot, name);
+    }
+
     /**
      * Creates a virtual machine with the given name and config. Once a virtual machine is created
-     * it is persisted until it is deleted by calling {@link #delete()}. The created virtual machine
-     * is in {@link #STATUS_STOPPED} state. To run the VM, call {@link #run()}.
+     * it is persisted until it is deleted by calling {@link #delete}. The created virtual machine
+     * is in {@link #STATUS_STOPPED} state. To run the VM, call {@link #run}.
      */
+    @GuardedBy("sCreateLock")
     @NonNull
     static VirtualMachine create(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        VirtualMachine vm = new VirtualMachine(context, name, config);
+        File vmDir = getVmDir(context, name);
 
         try {
-            final File thisVmDir = vm.mConfigFilePath.getParentFile();
-            Files.createDirectories(thisVmDir.getParentFile().toPath());
+            // We don't need to undo this even if VM creation fails.
+            Files.createDirectories(vmDir.getParentFile().toPath());
 
             // The checking of the existence of this directory and the creation of it is done
             // atomically. If the directory already exists (i.e. the VM with the same name was
-            // already created), FileAlreadyExistsException is thrown
-            Files.createDirectory(thisVmDir.toPath());
-
-            try (FileOutputStream output = new FileOutputStream(vm.mConfigFilePath)) {
-                vm.mConfig.serialize(output);
-            }
+            // already created), FileAlreadyExistsException is thrown.
+            Files.createDirectory(vmDir.toPath());
         } catch (FileAlreadyExistsException e) {
             throw new VirtualMachineException("virtual machine already exists", e);
         } catch (IOException e) {
-            throw new VirtualMachineException(e);
+            throw new VirtualMachineException("failed to create directory for VM", e);
         }
 
         try {
-            vm.mInstanceFilePath.createNewFile();
-        } catch (IOException e) {
-            throw new VirtualMachineException("failed to create instance image", e);
-        }
+            VirtualMachine vm = new VirtualMachine(context, name, config);
 
-        IVirtualizationService service =
-                IVirtualizationService.Stub.asInterface(
-                        ServiceManager.waitForService(SERVICE_NAME));
-
-        try {
-            service.initializeWritablePartition(
-                    ParcelFileDescriptor.open(vm.mInstanceFilePath, MODE_READ_WRITE),
-                    INSTANCE_FILE_SIZE,
-                    PartitionType.ANDROID_VM_INSTANCE);
-        } catch (FileNotFoundException e) {
-            throw new VirtualMachineException("instance image missing", e);
-        } catch (RemoteException e) {
-            throw e.rethrowAsRuntimeException();
-        } catch (ServiceSpecificException | IllegalArgumentException e) {
-            throw new VirtualMachineException("failed to create instance partition", e);
-        }
-
-        synchronized (sInstancesLock) {
-            Map<String, WeakReference<VirtualMachine>> instancesMap;
-            if (sInstances.containsKey(context)) {
-                instancesMap = sInstances.get(context);
-            } else {
-                instancesMap = new HashMap<>();
-                sInstances.put(context, instancesMap);
+            try (FileOutputStream output = new FileOutputStream(vm.mConfigFilePath)) {
+                config.serialize(output);
+            } catch (IOException e) {
+                throw new VirtualMachineException("failed to write VM config", e);
             }
 
-            instancesMap.put(name, new WeakReference<>(vm));
-        }
+            try {
+                vm.mInstanceFilePath.createNewFile();
+            } catch (IOException e) {
+                throw new VirtualMachineException("failed to create instance image", e);
+            }
 
-        return vm;
+            IVirtualizationService service =
+                    IVirtualizationService.Stub.asInterface(
+                            ServiceManager.waitForService(SERVICE_NAME));
+
+            try {
+                service.initializeWritablePartition(
+                        ParcelFileDescriptor.open(vm.mInstanceFilePath, MODE_READ_WRITE),
+                        INSTANCE_FILE_SIZE,
+                        PartitionType.ANDROID_VM_INSTANCE);
+            } catch (FileNotFoundException e) {
+                throw new VirtualMachineException("instance image missing", e);
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            } catch (ServiceSpecificException | IllegalArgumentException e) {
+                throw new VirtualMachineException("failed to create instance partition", e);
+            }
+
+            getInstancesMap(context).put(name, new WeakReference<>(vm));
+
+            return vm;
+        } catch (VirtualMachineException | RuntimeException e) {
+            // If anything goes wrong, delete any files created so far and the VM's directory
+            try {
+                deleteRecursively(vmDir);
+            } catch (IOException innerException) {
+                e.addSuppressed(innerException);
+            }
+            throw e;
+        }
     }
 
     /** Loads a virtual machine that is already created before. */
+    @GuardedBy("sCreateLock")
     @Nullable
     static VirtualMachine load(
             @NonNull Context context, @NonNull String name) throws VirtualMachineException {
@@ -331,30 +388,48 @@ public class VirtualMachine implements AutoCloseable {
             throw new VirtualMachineException("Failed to read config file", e);
         }
 
-        VirtualMachine vm = null;
-        synchronized (sInstancesLock) {
-            Map<String, WeakReference<VirtualMachine>> instancesMap;
-            if (sInstances.containsKey(context)) {
-                instancesMap = sInstances.get(context);
-            } else {
-                instancesMap = new HashMap<>();
-                sInstances.put(context, instancesMap);
-            }
+        Map<String, WeakReference<VirtualMachine>> instancesMap = getInstancesMap(context);
 
-            if (instancesMap.containsKey(name)) {
-                vm = instancesMap.get(name).get();
-            }
-            if (vm == null) {
-                vm = new VirtualMachine(context, name, config);
-                instancesMap.put(name, new WeakReference<>(vm));
-            }
+        VirtualMachine vm = null;
+        if (instancesMap.containsKey(name)) {
+            vm = instancesMap.get(name).get();
+        }
+        if (vm == null) {
+            vm = new VirtualMachine(context, name, config);
         }
 
         if (!vm.mInstanceFilePath.exists()) {
             throw new VirtualMachineException("instance image missing");
         }
 
+        instancesMap.put(name, new WeakReference<>(vm));
+
         return vm;
+    }
+
+    @GuardedBy("sCreateLock")
+    static void delete(Context context, String name) throws VirtualMachineException {
+        Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(context);
+        VirtualMachine vm;
+        if (instancesMap != null && instancesMap.containsKey(name)) {
+            vm = instancesMap.get(name).get();
+        } else {
+            vm = null;
+        }
+
+        if (vm != null) {
+            synchronized (vm.mLock) {
+                vm.checkStopped();
+            }
+        }
+
+        try {
+            deleteRecursively(getVmDir(context, name));
+        } catch (IOException e) {
+            throw new VirtualMachineException(e);
+        }
+
+        if (instancesMap != null) instancesMap.remove(name);
     }
 
     /**
@@ -379,7 +454,9 @@ public class VirtualMachine implements AutoCloseable {
      */
     @NonNull
     public VirtualMachineConfig getConfig() {
-        return mConfig;
+        synchronized (mLock) {
+            return mConfig;
+        }
     }
 
     /**
@@ -389,27 +466,70 @@ public class VirtualMachine implements AutoCloseable {
      */
     @Status
     public int getStatus() {
+        IVirtualMachine virtualMachine;
+        synchronized (mLock) {
+            virtualMachine = mVirtualMachine;
+        }
+        if (virtualMachine == null) {
+            return mVmRootPath.exists() ? STATUS_STOPPED : STATUS_DELETED;
+        } else {
+            try {
+                return stateToStatus(virtualMachine.getState());
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            }
+        }
+    }
+
+    private int stateToStatus(@VirtualMachineState int state) {
+        switch (state) {
+            case VirtualMachineState.STARTING:
+            case VirtualMachineState.STARTED:
+            case VirtualMachineState.READY:
+            case VirtualMachineState.FINISHED:
+                return STATUS_RUNNING;
+            case VirtualMachineState.NOT_STARTED:
+            case VirtualMachineState.DEAD:
+            default:
+                return STATUS_STOPPED;
+        }
+    }
+
+    // Throw an appropriate exception if we have a running VM, or the VM has been deleted.
+    @GuardedBy("mLock")
+    private void checkStopped() throws VirtualMachineException {
+        if (!mVmRootPath.exists()) {
+            throw new VirtualMachineException("VM has been deleted");
+        }
+        if (mVirtualMachine == null) {
+            return;
+        }
         try {
-            if (mVirtualMachine != null) {
-                switch (mVirtualMachine.getState()) {
-                    case VirtualMachineState.NOT_STARTED:
-                        return STATUS_STOPPED;
-                    case VirtualMachineState.STARTING:
-                    case VirtualMachineState.STARTED:
-                    case VirtualMachineState.READY:
-                    case VirtualMachineState.FINISHED:
-                        return STATUS_RUNNING;
-                    case VirtualMachineState.DEAD:
-                        return STATUS_STOPPED;
+            if (stateToStatus(mVirtualMachine.getState()) != STATUS_STOPPED) {
+                throw new VirtualMachineException("VM is not in stopped state");
+            }
+        } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        }
+    }
+
+    // If we have an IVirtualMachine in the running state return it, otherwise throw.
+    @GuardedBy("mLock")
+    private IVirtualMachine getRunningVm() throws VirtualMachineException {
+        try {
+            if (mVirtualMachine != null
+                    && stateToStatus(mVirtualMachine.getState()) == STATUS_RUNNING) {
+                return mVirtualMachine;
+            } else {
+                if (!mVmRootPath.exists()) {
+                    throw new VirtualMachineException("VM has been deleted");
+                } else {
+                    throw new VirtualMachineException("VM is not in running state");
                 }
             }
         } catch (RemoteException e) {
             throw e.rethrowAsRuntimeException();
         }
-        if (!mConfigFilePath.exists()) {
-            return STATUS_DELETED;
-        }
-        return STATUS_STOPPED;
     }
 
     /**
@@ -420,7 +540,7 @@ public class VirtualMachine implements AutoCloseable {
      */
     public void setCallback(@NonNull @CallbackExecutor Executor executor,
             @NonNull VirtualMachineCallback callback) {
-        synchronized (mLock) {
+        synchronized (mCallbackLock) {
             mCallback = callback;
             mCallbackExecutor = executor;
         }
@@ -432,7 +552,7 @@ public class VirtualMachine implements AutoCloseable {
      * @hide
      */
     public void clearCallback() {
-        synchronized (mLock) {
+        synchronized (mCallbackLock) {
             mCallback = null;
             mCallbackExecutor = null;
         }
@@ -442,7 +562,7 @@ public class VirtualMachine implements AutoCloseable {
     private void executeCallback(Consumer<VirtualMachineCallback> fn) {
         final VirtualMachineCallback callback;
         final Executor executor;
-        synchronized (mLock) {
+        synchronized (mCallbackLock) {
             callback = mCallback;
             executor = mCallbackExecutor;
         }
@@ -469,117 +589,121 @@ public class VirtualMachine implements AutoCloseable {
      */
     @RequiresPermission(MANAGE_VIRTUAL_MACHINE_PERMISSION)
     public void run() throws VirtualMachineException {
-        if (getStatus() != STATUS_STOPPED) {
-            throw new VirtualMachineException(this + " is not in stopped state");
-        }
+        synchronized (mLock) {
+            checkStopped();
 
-        try {
-            mIdsigFilePath.createNewFile();
-            for (ExtraApkSpec extraApk : mExtraApks) {
-                extraApk.idsig.createNewFile();
-            }
-        } catch (IOException e) {
-            // If the file already exists, exception is not thrown.
-            throw new VirtualMachineException("failed to create idsig file", e);
-        }
-
-        IVirtualizationService service =
-                IVirtualizationService.Stub.asInterface(
-                        ServiceManager.waitForService(SERVICE_NAME));
-
-        try {
-            createVmPipes();
-
-            VirtualMachineAppConfig appConfig = getConfig().toVsConfig();
-            appConfig.name = mName;
-
-            // Fill the idsig file by hashing the apk
-            service.createOrUpdateIdsigFile(
-                    appConfig.apk, ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_WRITE));
-
-            for (ExtraApkSpec extraApk : mExtraApks) {
-                service.createOrUpdateIdsigFile(
-                        ParcelFileDescriptor.open(extraApk.apk, MODE_READ_ONLY),
-                        ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_WRITE));
-            }
-
-            // Re-open idsig file in read-only mode
-            appConfig.idsig = ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_ONLY);
-            appConfig.instanceImage = ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_WRITE);
-            List<ParcelFileDescriptor> extraIdsigs = new ArrayList<>();
-            for (ExtraApkSpec extraApk : mExtraApks) {
-                extraIdsigs.add(ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_ONLY));
-            }
-            appConfig.extraIdsigs = extraIdsigs;
-
-            android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
-                    android.system.virtualizationservice.VirtualMachineConfig.appConfig(appConfig);
-
-            // The VM should only be observed to die once
-            AtomicBoolean onDiedCalled = new AtomicBoolean(false);
-
-            IBinder.DeathRecipient deathRecipient = () -> {
-                if (onDiedCalled.compareAndSet(false, true)) {
-                    executeCallback((cb) -> cb.onStopped(VirtualMachine.this,
-                            VirtualMachineCallback.STOP_REASON_VIRTUALIZATION_SERVICE_DIED));
+            try {
+                mIdsigFilePath.createNewFile();
+                for (ExtraApkSpec extraApk : mExtraApks) {
+                    extraApk.idsig.createNewFile();
                 }
-            };
+            } catch (IOException e) {
+                // If the file already exists, exception is not thrown.
+                throw new VirtualMachineException("failed to create idsig file", e);
+            }
 
-            mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, mLogWriter);
-            mVirtualMachine.registerCallback(
-                    new IVirtualMachineCallback.Stub() {
-                        @Override
-                        public void onPayloadStarted(int cid, ParcelFileDescriptor stream) {
-                            executeCallback(
-                                    (cb) -> cb.onPayloadStarted(VirtualMachine.this, stream));
-                        }
+            IVirtualizationService service =
+                    IVirtualizationService.Stub.asInterface(
+                            ServiceManager.waitForService(SERVICE_NAME));
 
-                        @Override
-                        public void onPayloadReady(int cid) {
-                            executeCallback((cb) -> cb.onPayloadReady(VirtualMachine.this));
-                        }
+            try {
+                createVmPipes();
 
-                        @Override
-                        public void onPayloadFinished(int cid, int exitCode) {
-                            executeCallback(
-                                    (cb) -> cb.onPayloadFinished(VirtualMachine.this, exitCode));
-                        }
+                VirtualMachineAppConfig appConfig = getConfig().toVsConfig();
+                appConfig.name = mName;
 
-                        @Override
-                        public void onError(int cid, int errorCode, String message) {
-                            int translatedError = getTranslatedError(errorCode);
-                            executeCallback(
-                                    (cb) -> cb.onError(VirtualMachine.this, translatedError,
-                                            message));
-                        }
+                // Fill the idsig file by hashing the apk
+                service.createOrUpdateIdsigFile(
+                        appConfig.apk, ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_WRITE));
 
-                        @Override
-                        public void onDied(int cid, int reason) {
-                            service.asBinder().unlinkToDeath(deathRecipient, 0);
-                            int translatedReason = getTranslatedReason(reason);
-                            if (onDiedCalled.compareAndSet(false, true)) {
+                for (ExtraApkSpec extraApk : mExtraApks) {
+                    service.createOrUpdateIdsigFile(
+                            ParcelFileDescriptor.open(extraApk.apk, MODE_READ_ONLY),
+                            ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_WRITE));
+                }
+
+                // Re-open idsig file in read-only mode
+                appConfig.idsig = ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_ONLY);
+                appConfig.instanceImage = ParcelFileDescriptor.open(mInstanceFilePath,
+                        MODE_READ_WRITE);
+                List<ParcelFileDescriptor> extraIdsigs = new ArrayList<>();
+                for (ExtraApkSpec extraApk : mExtraApks) {
+                    extraIdsigs.add(ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_ONLY));
+                }
+                appConfig.extraIdsigs = extraIdsigs;
+
+                android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
+                        android.system.virtualizationservice.VirtualMachineConfig.appConfig(
+                                appConfig);
+
+                // The VM should only be observed to die once
+                AtomicBoolean onDiedCalled = new AtomicBoolean(false);
+
+                IBinder.DeathRecipient deathRecipient = () -> {
+                    if (onDiedCalled.compareAndSet(false, true)) {
+                        executeCallback((cb) -> cb.onStopped(VirtualMachine.this,
+                                VirtualMachineCallback.STOP_REASON_VIRTUALIZATION_SERVICE_DIED));
+                    }
+                };
+
+                mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, mLogWriter);
+                mVirtualMachine.registerCallback(
+                        new IVirtualMachineCallback.Stub() {
+                            @Override
+                            public void onPayloadStarted(int cid, ParcelFileDescriptor stream) {
                                 executeCallback(
-                                        (cb) -> cb.onStopped(VirtualMachine.this,
-                                                translatedReason));
+                                        (cb) -> cb.onPayloadStarted(VirtualMachine.this, stream));
+                            }
+
+                            @Override
+                            public void onPayloadReady(int cid) {
+                                executeCallback((cb) -> cb.onPayloadReady(VirtualMachine.this));
+                            }
+
+                            @Override
+                            public void onPayloadFinished(int cid, int exitCode) {
+                                executeCallback(
+                                        (cb) -> cb.onPayloadFinished(VirtualMachine.this,
+                                                exitCode));
+                            }
+
+                            @Override
+                            public void onError(int cid, int errorCode, String message) {
+                                int translatedError = getTranslatedError(errorCode);
+                                executeCallback(
+                                        (cb) -> cb.onError(VirtualMachine.this, translatedError,
+                                                message));
+                            }
+
+                            @Override
+                            public void onDied(int cid, int reason) {
+                                service.asBinder().unlinkToDeath(deathRecipient, 0);
+                                int translatedReason = getTranslatedReason(reason);
+                                if (onDiedCalled.compareAndSet(false, true)) {
+                                    executeCallback(
+                                            (cb) -> cb.onStopped(VirtualMachine.this,
+                                                    translatedReason));
+                                }
+                            }
+
+                            @Override
+                            public void onRamdump(int cid, ParcelFileDescriptor ramdump) {
+                                executeCallback(
+                                        (cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
                             }
                         }
-
-                        @Override
-                        public void onRamdump(int cid, ParcelFileDescriptor ramdump) {
-                            executeCallback(
-                                    (cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
-                        }
-                    }
-            );
-            service.asBinder().linkToDeath(deathRecipient, 0);
-            mVirtualMachine.start();
-        } catch (IOException | IllegalStateException | ServiceSpecificException e) {
-            throw new VirtualMachineException(e);
-        } catch (RemoteException e) {
-            throw e.rethrowAsRuntimeException();
+                );
+                service.asBinder().linkToDeath(deathRecipient, 0);
+                mVirtualMachine.start();
+            } catch (IOException | IllegalStateException | ServiceSpecificException e) {
+                throw new VirtualMachineException(e);
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            }
         }
     }
 
+    @GuardedBy("mLock")
     private void createVmPipes() throws VirtualMachineException {
         try {
             if (mConsoleReader == null || mConsoleWriter == null) {
@@ -595,6 +719,185 @@ public class VirtualMachine implements AutoCloseable {
             }
         } catch (IOException e) {
             throw new VirtualMachineException("Failed to create stream for VM", e);
+        }
+    }
+
+    /**
+     * Returns the stream object representing the console output from the virtual machine.
+     *
+     * @throws VirtualMachineException if the stream could not be created.
+     * @hide
+     */
+    @NonNull
+    public InputStream getConsoleOutputStream() throws VirtualMachineException {
+        synchronized (mLock) {
+            createVmPipes();
+            return new FileInputStream(mConsoleReader.getFileDescriptor());
+        }
+    }
+
+    /**
+     * Returns the stream object representing the log output from the virtual machine.
+     *
+     * @throws VirtualMachineException if the stream could not be created.
+     * @hide
+     */
+    @NonNull
+    public InputStream getLogOutputStream() throws VirtualMachineException {
+        synchronized (mLock) {
+            createVmPipes();
+            return new FileInputStream(mLogReader.getFileDescriptor());
+        }
+    }
+
+    /**
+     * Stops this virtual machine. Stopping a virtual machine is like pulling the plug on a real
+     * computer; the machine halts immediately. Software running on the virtual machine is not
+     * notified of the event. A stopped virtual machine can be re-started by calling {@link
+     * #run()}.
+     *
+     * @throws VirtualMachineException if the virtual machine could not be stopped.
+     * @hide
+     */
+    public void stop() throws VirtualMachineException {
+        synchronized (mLock) {
+            if (mVirtualMachine == null) {
+                throw new VirtualMachineException("VM is not running");
+            }
+            try {
+                mVirtualMachine.stop();
+                mVirtualMachine = null;
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            } catch (ServiceSpecificException e) {
+                throw new VirtualMachineException(e);
+            }
+        }
+    }
+
+    /**
+     * Stops this virtual machine. See {@link #stop()}.
+     *
+     * @throws VirtualMachineException if the virtual machine could not be stopped.
+     * @hide
+     */
+    @Override
+    public void close() throws VirtualMachineException {
+        stop();
+    }
+
+    private static void deleteRecursively(File dir) throws IOException {
+        // Note: This doesn't follow symlinks, which is important. Instead they are just deleted
+        // (and Files.delete deletes the link not the target).
+        Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                    throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException e) throws IOException {
+                // Directory is deleted after we've visited (deleted) all its contents, so it
+                // should be empty by now.
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    /**
+     * Returns the CID of this virtual machine, if it is running.
+     *
+     * @throws VirtualMachineException if the virtual machine is not running.
+     * @hide
+     */
+    public int getCid() throws VirtualMachineException {
+        synchronized (mLock) {
+            try {
+                return getRunningVm().getCid();
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            }
+        }
+    }
+
+    /**
+     * Changes the config of this virtual machine to a new one. This can be used to adjust things
+     * like the number of CPU and size of the RAM, depending on the situation (e.g. the size of the
+     * application to run on the virtual machine, etc.)
+     *
+     * The new config must be {@link VirtualMachineConfig#isCompatibleWith compatible with} the
+     * existing config.
+     *
+     * @return the old config
+     * @throws VirtualMachineException if the virtual machine is not stopped, or the new config is
+     *         incompatible.
+     * @hide
+     */
+    @NonNull
+    public VirtualMachineConfig setConfig(@NonNull VirtualMachineConfig newConfig)
+            throws VirtualMachineException {
+        synchronized (mLock) {
+            VirtualMachineConfig oldConfig = mConfig;
+            if (!oldConfig.isCompatibleWith(newConfig)) {
+                throw new VirtualMachineException("incompatible config");
+            }
+            checkStopped();
+
+            try {
+                FileOutputStream output = new FileOutputStream(mConfigFilePath);
+                newConfig.serialize(output);
+                output.close();
+            } catch (IOException e) {
+                throw new VirtualMachineException("Failed to persist config", e);
+            }
+            mConfig = newConfig;
+            return oldConfig;
+        }
+    }
+
+    @Nullable
+    private static native IBinder nativeConnectToVsockServer(IBinder vmBinder, int port);
+
+    /**
+     * Connect to a VM's binder service via vsock and return the root IBinder object. Guest VMs are
+     * expected to set up vsock servers in their payload. After the host app receives the {@link
+     * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to
+     * establish a connection to the guest VM.
+     *
+     * @throws VirtualMachineException if the virtual machine is not running or the connection
+     *         failed.
+     * @hide
+     */
+    @NonNull
+    public IBinder connectToVsockServer(int port) throws VirtualMachineException {
+        synchronized (mLock) {
+            IBinder iBinder = nativeConnectToVsockServer(getRunningVm().asBinder(), port);
+            if (iBinder == null) {
+                throw new VirtualMachineException("Failed to connect to vsock server");
+            }
+            return iBinder;
+        }
+    }
+
+    /**
+     * Opens a vsock connection to the VM on the given port.
+     *
+     * @throws VirtualMachineException if connecting fails.
+     * @hide
+     */
+    @NonNull
+    public ParcelFileDescriptor connectVsock(int port) throws VirtualMachineException {
+        synchronized (mLock) {
+            try {
+                return getRunningVm().connectVsock(port);
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            } catch (ServiceSpecificException e) {
+                throw new VirtualMachineException(e);
+            }
         }
     }
 
@@ -649,206 +952,6 @@ public class VirtualMachine implements AutoCloseable {
                 return STOP_REASON_HANGUP;
             default:
                 return STOP_REASON_UNKNOWN;
-        }
-    }
-
-    /**
-     * Returns the stream object representing the console output from the virtual machine.
-     *
-     * @throws VirtualMachineException if the stream could not be created.
-     * @hide
-     */
-    @NonNull
-    public InputStream getConsoleOutputStream() throws VirtualMachineException {
-        createVmPipes();
-        return new FileInputStream(mConsoleReader.getFileDescriptor());
-    }
-
-    /**
-     * Returns the stream object representing the log output from the virtual machine.
-     *
-     * @throws VirtualMachineException if the stream could not be created.
-     * @hide
-     */
-    @NonNull
-    public InputStream getLogOutputStream() throws VirtualMachineException {
-        createVmPipes();
-        return new FileInputStream(mLogReader.getFileDescriptor());
-    }
-
-    /**
-     * Stops this virtual machine. Stopping a virtual machine is like pulling the plug on a real
-     * computer; the machine halts immediately. Software running on the virtual machine is not
-     * notified of the event. A stopped virtual machine can be re-started by calling {@link
-     * #run()}.
-     *
-     * @throws VirtualMachineException if the virtual machine could not be stopped.
-     * @hide
-     */
-    public void stop() throws VirtualMachineException {
-        if (mVirtualMachine == null) return;
-        try {
-            mVirtualMachine.stop();
-            mVirtualMachine = null;
-        } catch (RemoteException e) {
-            throw e.rethrowAsRuntimeException();
-        } catch (ServiceSpecificException e) {
-            throw new VirtualMachineException(e);
-        }
-    }
-
-    /**
-     * Stops this virtual machine. See {@link #stop()}.
-     *
-     * @throws VirtualMachineException if the virtual machine could not be stopped.
-     * @hide
-     */
-    @Override
-    public void close() throws VirtualMachineException {
-        stop();
-    }
-
-    static void delete(Context context, String name) throws VirtualMachineException {
-        VirtualMachine vm;
-        synchronized (sInstancesLock) {
-            Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(context);
-            if (instancesMap != null && instancesMap.containsKey(name)) {
-                vm = instancesMap.get(name).get();
-            } else {
-                vm = null;
-            }
-        }
-
-        if (vm != null && vm.getStatus() != STATUS_STOPPED) {
-            throw new VirtualMachineException("Virtual machine is not stopped");
-        }
-
-        try {
-            deleteRecursively(getVmDir(context, name));
-        } catch (IOException e) {
-            throw new VirtualMachineException(e);
-        }
-
-        synchronized (sInstancesLock) {
-            Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(context);
-            if (instancesMap != null) instancesMap.remove(name);
-        }
-    }
-
-    private static void deleteRecursively(File dir) throws IOException {
-        // Note: This doesn't follow symlinks, which is important. Instead they are just deleted
-        // (and Files.delete deletes the link not the target).
-        Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException {
-                Files.delete(file);
-                return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException e) throws IOException {
-                // Directory is deleted after we've visited (deleted) all its contents, so it
-                // should be empty by now.
-                Files.delete(dir);
-                return FileVisitResult.CONTINUE;
-            }
-        });
-    }
-
-    /**
-     * Returns the CID of this virtual machine, if it is running.
-     *
-     * @throws VirtualMachineException if the virtual machine is not running.
-     * @hide
-     */
-    public int getCid() throws VirtualMachineException {
-        if (getStatus() != STATUS_RUNNING) {
-            throw new VirtualMachineException("VM is not running");
-        }
-        try {
-            return mVirtualMachine.getCid();
-        } catch (RemoteException e) {
-            throw e.rethrowAsRuntimeException();
-        }
-    }
-
-    /**
-     * Changes the config of this virtual machine to a new one. This can be used to adjust things
-     * like the number of CPU and size of the RAM, depending on the situation (e.g. the size of the
-     * application to run on the virtual machine, etc.)
-     *
-     * The new config must be {@link VirtualMachineConfig#isCompatibleWith compatible with} the
-     * existing config.
-     *
-     * @return the old config
-     * @throws VirtualMachineException if the virtual machine is not stopped, or the new config is
-     *         incompatible.
-     * @hide
-     */
-    @NonNull
-    public VirtualMachineConfig setConfig(@NonNull VirtualMachineConfig newConfig)
-            throws VirtualMachineException {
-        final VirtualMachineConfig oldConfig = getConfig();
-        if (!oldConfig.isCompatibleWith(newConfig)) {
-            throw new VirtualMachineException("incompatible config");
-        }
-        if (getStatus() != STATUS_STOPPED) {
-            throw new VirtualMachineException(
-                    "can't change config while virtual machine is not stopped");
-        }
-
-        try {
-            FileOutputStream output = new FileOutputStream(mConfigFilePath);
-            newConfig.serialize(output);
-            output.close();
-        } catch (IOException e) {
-            throw new VirtualMachineException("Failed to persist config", e);
-        }
-        mConfig = newConfig;
-
-        return oldConfig;
-    }
-
-    @Nullable
-    private static native IBinder nativeConnectToVsockServer(IBinder vmBinder, int port);
-
-    /**
-     * Connect to a VM's binder service via vsock and return the root IBinder object. Guest VMs are
-     * expected to set up vsock servers in their payload. After the host app receives the {@link
-     * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to
-     * establish a connection to the guest VM.
-     *
-     * @throws VirtualMachineException if the virtual machine is not running or the connection
-     *         failed.
-     * @hide
-     */
-    @NonNull
-    public IBinder connectToVsockServer(int port) throws VirtualMachineException {
-        if (getStatus() != STATUS_RUNNING) {
-            throw new VirtualMachineException("VM is not running");
-        }
-        IBinder iBinder = nativeConnectToVsockServer(mVirtualMachine.asBinder(), port);
-        if (iBinder == null) {
-            throw new VirtualMachineException("Failed to connect to vsock server");
-        }
-        return iBinder;
-    }
-
-    /**
-     * Opens a vsock connection to the VM on the given port.
-     *
-     * @throws VirtualMachineException if connecting fails.
-     * @hide
-     */
-    @NonNull
-    public ParcelFileDescriptor connectVsock(int port) throws VirtualMachineException {
-        try {
-            return mVirtualMachine.connectVsock(port);
-        } catch (RemoteException e) {
-            throw e.rethrowAsRuntimeException();
-        } catch (ServiceSpecificException e) {
-            throw new VirtualMachineException(e);
         }
     }
 
@@ -942,15 +1045,9 @@ public class VirtualMachine implements AutoCloseable {
                                 new File(vmDir, EXTRA_IDSIG_FILE_PREFIX + i)));
             }
 
-            return extraApks;
+            return Collections.unmodifiableList(extraApks);
         } catch (IOException e) {
             throw new VirtualMachineException("Couldn't parse extra apks from the vm config", e);
         }
-    }
-
-    @NonNull
-    private static File getVmDir(Context context, String name) {
-        File vmRoot = new File(context.getDataDir(), VM_DIR);
-        return new File(vmRoot, name);
     }
 }
