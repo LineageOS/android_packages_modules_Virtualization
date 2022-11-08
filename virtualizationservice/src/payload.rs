@@ -60,6 +60,8 @@ struct ApexInfoList {
 struct ApexInfo {
     #[serde(rename = "moduleName")]
     name: String,
+    #[serde(rename = "versionCode")]
+    version: u64,
     #[serde(rename = "modulePath")]
     path: PathBuf,
 
@@ -120,6 +122,7 @@ impl ApexInfoList {
                 }
                 // Active one is overridden with the staged one.
                 if apex_info.is_active {
+                    apex_info.version = staged_apex_info.versionCode as u64;
                     apex_info.path = PathBuf::from(&staged_apex_info.diskImagePath);
                     apex_info.has_classpath_jar = staged_apex_info.hasClassPathJars;
                     apex_info.last_update_seconds = last_updated(&apex_info.path)?;
@@ -270,8 +273,13 @@ fn make_payload_disk(
     let apex_list = pm.get_apex_list(vm_payload_config.prefer_staged)?;
 
     // collect APEXes from config
-    let apex_infos =
+    let mut apex_infos =
         collect_apex_infos(&apex_list, &vm_payload_config.apexes, app_config.debugLevel);
+
+    // Pass sorted list of apexes. Sorting key shouldn't use `path` because it will change after
+    // reboot with prefer_staged. `last_update_seconds` is added to distinguish "samegrade"
+    // update.
+    apex_infos.sort_by_key(|info| (&info.name, &info.version, &info.last_update_seconds));
     info!("Microdroid payload APEXes: {:?}", apex_infos.iter().map(|ai| &ai.name));
 
     let metadata_file = make_metadata_file(app_config, &apex_infos, temporary_directory)?;
@@ -593,6 +601,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
     fn test_prefer_staged_apex_with_factory_active_apex() {
         let single_apex = ApexInfo {
             name: "foo".to_string(),
+            version: 1,
             path: PathBuf::from("foo.apex"),
             is_factory: true,
             is_active: true,
@@ -604,6 +613,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
         apex_info_list
             .override_staged_apex(&StagedApexInfo {
                 moduleName: "foo".to_string(),
+                versionCode: 2,
                 diskImagePath: staged.path().to_string_lossy().to_string(),
                 ..Default::default()
             })
@@ -614,6 +624,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
             ApexInfoList {
                 list: vec![
                     ApexInfo {
+                        version: 2,
                         is_factory: false,
                         path: staged.path().to_owned(),
                         last_update_seconds: last_updated(staged.path()).unwrap(),
@@ -629,12 +640,14 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
     fn test_prefer_staged_apex_with_factory_and_inactive_apex() {
         let factory_apex = ApexInfo {
             name: "foo".to_string(),
+            version: 1,
             path: PathBuf::from("foo.apex"),
             is_factory: true,
             ..Default::default()
         };
         let active_apex = ApexInfo {
             name: "foo".to_string(),
+            version: 2,
             path: PathBuf::from("foo.downloaded.apex"),
             is_active: true,
             ..Default::default()
@@ -646,6 +659,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
         apex_info_list
             .override_staged_apex(&StagedApexInfo {
                 moduleName: "foo".to_string(),
+                versionCode: 3,
                 diskImagePath: staged.path().to_string_lossy().to_string(),
                 ..Default::default()
             })
@@ -659,6 +673,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     factory_apex,
                     // update active one
                     ApexInfo {
+                        version: 3,
                         path: staged.path().to_owned(),
                         last_update_seconds: last_updated(staged.path()).unwrap(),
                         ..active_apex
