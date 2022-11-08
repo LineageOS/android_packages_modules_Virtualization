@@ -90,8 +90,13 @@ import java.util.function.Consumer;
 import java.util.zip.ZipFile;
 
 /**
- * A handle to the virtual machine. The virtual machine is local to the app which created the
- * virtual machine.
+ * Represents an VM instance, with its own configuration and state. Instances are persistent and are
+ * created or retrieved via {@link VirtualMachineManager}.
+ * <p>
+ * The {@link #run} method actually starts up the VM and allows the payload code to execute. It
+ * will continue until it exits or {@link #stop} is called. Updates on the state of the VM can
+ * be received using {@link #setCallback}. The app can communicate with the VM using
+ * {@link #connectToVsockServer} or {@link #connectVsock}.
  *
  * @hide
  */
@@ -483,7 +488,7 @@ public class VirtualMachine implements AutoCloseable {
         try {
             createVmPipes();
 
-            VirtualMachineAppConfig appConfig = getConfig().toParcel();
+            VirtualMachineAppConfig appConfig = getConfig().toVsConfig();
             appConfig.name = mName;
 
             // Fill the idsig file by hashing the apk
@@ -587,7 +592,7 @@ public class VirtualMachine implements AutoCloseable {
                 mLogWriter = pipe[1];
             }
         } catch (IOException e) {
-            throw new VirtualMachineException(e);
+            throw new VirtualMachineException("Failed to create stream for VM", e);
         }
     }
 
@@ -735,7 +740,6 @@ public class VirtualMachine implements AutoCloseable {
      * @throws VirtualMachineException if the virtual machine is not running.
      * @hide
      */
-    @NonNull
     public int getCid() throws VirtualMachineException {
         if (getStatus() != STATUS_RUNNING) {
             throw new VirtualMachineException("VM is not running");
@@ -777,7 +781,7 @@ public class VirtualMachine implements AutoCloseable {
             newConfig.serialize(output);
             output.close();
         } catch (IOException e) {
-            throw new VirtualMachineException(e);
+            throw new VirtualMachineException("Failed to persist config", e);
         }
         mConfig = newConfig;
 

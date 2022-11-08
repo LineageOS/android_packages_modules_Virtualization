@@ -33,7 +33,14 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Manages {@link VirtualMachine} objects created for an application.
+ * Manages {@link VirtualMachine virtual machine} instances created by an app. Each instance is
+ * created from a {@link VirtualMachineConfig configuration} that defines the shape of the VM
+ * (RAM, CPUs), the code to execute within it, etc.
+ * <p>
+ * Each virtual machine instance is named; the configuration and related state of each is
+ * persisted in the app's private data directory and an instance can be retrieved given the name.
+ * <p>
+ * The app can then start, stop and otherwise interact with the VM.
  *
  * @hide
  */
