@@ -120,6 +120,8 @@ sh_test_host {
         // deapexer
         "deapexer",
         "debugfs_static",
+        "blkid",
+        "fsck.erofs",
 
         // sign_virt_apex
         "avbtool",
