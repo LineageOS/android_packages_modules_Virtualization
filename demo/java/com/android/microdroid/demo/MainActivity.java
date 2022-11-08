@@ -145,6 +145,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** Models a virtual machine and outputs from it. */
     public static class VirtualMachineModel extends AndroidViewModel {
+        private static final String VM_NAME = "demo_vm";
         private VirtualMachine mVirtualMachine;
         private final MutableLiveData<String> mConsoleOutput = new MutableLiveData<>();
         private final MutableLiveData<String> mLogOutput = new MutableLiveData<>();
@@ -266,12 +267,12 @@ public class MainActivity extends AppCompatActivity {
                 }
                 VirtualMachineConfig config = builder.build();
                 VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
-                mVirtualMachine = vmm.getOrCreate("demo_vm", config);
+                mVirtualMachine = vmm.getOrCreate(VM_NAME, config);
                 try {
                     mVirtualMachine.setConfig(config);
                 } catch (VirtualMachineException e) {
-                    mVirtualMachine.delete();
-                    mVirtualMachine = vmm.create("demo_vm", config);
+                    vmm.delete(VM_NAME);
+                    mVirtualMachine = vmm.create(VM_NAME, config);
                 }
                 mVirtualMachine.run();
                 mVirtualMachine.setCallback(Executors.newSingleThreadExecutor(), callback);
