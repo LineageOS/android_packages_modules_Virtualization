@@ -106,7 +106,7 @@ public abstract class MicrodroidDeviceTestBase {
                 throws VirtualMachineException {
             VirtualMachine existingVm = mVmm.get(name);
             if (existingVm != null) {
-                existingVm.delete();
+                mVmm.delete(name);
             }
             return mVmm.create(name, config);
         }
