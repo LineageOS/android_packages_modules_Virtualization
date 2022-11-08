@@ -22,7 +22,7 @@ android_test {
     libs: ["android.system.virtualmachine"],
     jni_libs: [
         "MicrodroidTestNativeLib",
-        "MicrodroidTestNativeCrashLib",
+        "MicrodroidIdleNativeLib",
     ],
     platform_apis: true,
     use_embedded_native_libs: true,
@@ -47,13 +47,6 @@ cc_library_shared {
         "liblog",
         "libprotobuf-cpp-lite-ndk",
     ],
-}
-
-cc_library_shared {
-    name: "MicrodroidTestNativeCrashLib",
-    header_libs: ["vm_payload_headers"],
-    srcs: ["src/native/crashbinary.cpp"],
-    stl: "libc++_static",
 }
 
 cc_library_shared {
