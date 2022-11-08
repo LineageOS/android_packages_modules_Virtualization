@@ -77,7 +77,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -235,10 +239,9 @@ public class VirtualMachine implements AutoCloseable {
         mPackageName = context.getPackageName();
         mName = requireNonNull(name, "Name must not be null");
         mConfig = requireNonNull(config, "Config must not be null");
-        mConfigFilePath = getConfigFilePath(context, name);
 
-        final File vmRoot = new File(context.getFilesDir(), VM_DIR);
-        final File thisVmDir = new File(vmRoot, mName);
+        File thisVmDir = getVmDir(context, mName);
+        mConfigFilePath = new File(thisVmDir, CONFIG_FILE);
         mInstanceFilePath = new File(thisVmDir, INSTANCE_IMAGE_FILE);
         mIdsigFilePath = new File(thisVmDir, IDSIG_FILE);
         mExtraApks = setupExtraApks(context, config, thisVmDir);
@@ -315,15 +318,17 @@ public class VirtualMachine implements AutoCloseable {
     @Nullable
     static VirtualMachine load(
             @NonNull Context context, @NonNull String name) throws VirtualMachineException {
-        File configFilePath = getConfigFilePath(context, name);
+        File thisVmDir = getVmDir(context, name);
+        if (!thisVmDir.exists()) {
+            // The VM doesn't exist.
+            return null;
+        }
+        File configFilePath = new File(thisVmDir, CONFIG_FILE);
         VirtualMachineConfig config;
         try (FileInputStream input = new FileInputStream(configFilePath)) {
             config = VirtualMachineConfig.from(input);
-        } catch (FileNotFoundException e) {
-            // The VM doesn't exist.
-            return null;
         } catch (IOException e) {
-            throw new VirtualMachineException(e);
+            throw new VirtualMachineException("Failed to read config file", e);
         }
 
         VirtualMachine vm = null;
@@ -345,9 +350,6 @@ public class VirtualMachine implements AutoCloseable {
             }
         }
 
-        // If config file exists, but the instance image file doesn't, it means that the VM is
-        // corrupted. That's different from the case that the VM doesn't exist. Throw an exception
-        // instead of returning null.
         if (!vm.mInstanceFilePath.exists()) {
             throw new VirtualMachineException("instance image missing");
         }
@@ -706,32 +708,52 @@ public class VirtualMachine implements AutoCloseable {
         stop();
     }
 
-    /**
-     * Deletes this virtual machine. Deleting a virtual machine means deleting any persisted data
-     * associated with it including the per-VM secret. This is an irreversible action. A virtual
-     * machine once deleted can never be restored. A new virtual machine created with the same name
-     * and the same config is different from an already deleted virtual machine.
-     *
-     * @throws VirtualMachineException if the virtual machine is not stopped.
-     * @hide
-     */
-    public void delete() throws VirtualMachineException {
-        if (getStatus() != STATUS_STOPPED) {
+    static void delete(Context context, String name) throws VirtualMachineException {
+        VirtualMachine vm;
+        synchronized (sInstancesLock) {
+            Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(context);
+            if (instancesMap != null && instancesMap.containsKey(name)) {
+                vm = instancesMap.get(name).get();
+            } else {
+                vm = null;
+            }
+        }
+
+        if (vm != null && vm.getStatus() != STATUS_STOPPED) {
             throw new VirtualMachineException("Virtual machine is not stopped");
         }
-        final File vmRootDir = mConfigFilePath.getParentFile();
-        for (ExtraApkSpec extraApks : mExtraApks) {
-            extraApks.idsig.delete();
+
+        try {
+            deleteRecursively(getVmDir(context, name));
+        } catch (IOException e) {
+            throw new VirtualMachineException(e);
         }
-        mConfigFilePath.delete();
-        mInstanceFilePath.delete();
-        mIdsigFilePath.delete();
-        vmRootDir.delete();
 
         synchronized (sInstancesLock) {
-            Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(mContext);
-            if (instancesMap != null) instancesMap.remove(mName);
+            Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(context);
+            if (instancesMap != null) instancesMap.remove(name);
         }
+    }
+
+    private static void deleteRecursively(File dir) throws IOException {
+        // Note: This doesn't follow symlinks, which is important. Instead they are just deleted
+        // (and Files.delete deletes the link not the target).
+        Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                    throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException e) throws IOException {
+                // Directory is deleted after we've visited (deleted) all its contents, so it
+                // should be empty by now.
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     /**
@@ -926,9 +948,9 @@ public class VirtualMachine implements AutoCloseable {
         }
     }
 
-    private static File getConfigFilePath(@NonNull Context context, @NonNull String name) {
-        final File vmRoot = new File(context.getFilesDir(), VM_DIR);
-        final File thisVmDir = new File(vmRoot, name);
-        return new File(thisVmDir, CONFIG_FILE);
+    @NonNull
+    private static File getVmDir(Context context, String name) {
+        File vmRoot = new File(context.getDataDir(), VM_DIR);
+        return new File(vmRoot, name);
     }
 }

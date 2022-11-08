@@ -145,7 +145,8 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
      * such virtual machine.
      *
-     * @throws VirtualMachineException if the virtual machine could not be successfully retrieved.
+     * @throws VirtualMachineException if the virtual machine exists but could not be successfully
+     *                                 retrieved.
      * @hide
      */
     @Nullable
@@ -172,5 +173,21 @@ public class VirtualMachineManager {
             }
         }
         return vm;
+    }
+
+    /**
+     * Deletes an existing {@link VirtualMachine}. Deleting a virtual machine means deleting any
+     * persisted data associated with it including the per-VM secret. This is an irreversible
+     * action. A virtual machine once deleted can never be restored. A new virtual machine created
+     * with the same name is different from an already deleted virtual machine even if it has the
+     * same config.
+     *
+     * @throws VirtualMachineException if the virtual machine does not exist, is not stopped,
+     *                                 or cannot be deleted.
+     * @hide
+     */
+    public void delete(@NonNull String name) throws VirtualMachineException {
+        requireNonNull(name);
+        VirtualMachine.delete(mContext, name);
     }
 }
