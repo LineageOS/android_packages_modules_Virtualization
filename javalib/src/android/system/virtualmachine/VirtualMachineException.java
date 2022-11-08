@@ -24,10 +24,6 @@ import android.annotation.Nullable;
  * @hide
  */
 public class VirtualMachineException extends Exception {
-    public VirtualMachineException() {
-        super();
-    }
-
     public VirtualMachineException(@Nullable String message) {
         super(message);
     }
