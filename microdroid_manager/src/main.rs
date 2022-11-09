@@ -18,7 +18,6 @@ mod dice;
 mod instance;
 mod ioutil;
 mod payload;
-mod procutil;
 mod swap;
 mod vm_payload_service;
 
@@ -26,12 +25,8 @@ use crate::dice::{DiceContext, DiceDriver};
 use crate::instance::{ApexData, ApkData, InstanceDisk, MicrodroidData, RootHash};
 use crate::vm_payload_service::register_vm_payload_service;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
-    IVirtualMachineService::{
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
         IVirtualMachineService, VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT,
-    },
-    VirtualMachineCpuStatus::VirtualMachineCpuStatus,
-    VirtualMachineMemStatus::VirtualMachineMemStatus,
 };
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::VM_APK_CONTENTS_PATH;
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
@@ -46,7 +41,6 @@ use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use openssl::sha::Sha512;
 use payload::{get_apex_data_from_payload, load_metadata, to_metadata};
-use procutil::{get_cpu_time, get_mem_info};
 use rand::Fill;
 use rpcbinder::get_vsock_rpc_interface;
 use rustutils::system_properties;
@@ -59,12 +53,10 @@ use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
-use std::thread;
 use std::time::{Duration, SystemTime};
 use vsock::VsockStream;
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
-const SENDING_VM_STATUS_CYCLE_PERIOD: Duration = Duration::from_secs(60);
 const MAIN_APK_PATH: &str = "/dev/block/by-name/microdroid-apk";
 const MAIN_APK_IDSIG_PATH: &str = "/dev/block/by-name/microdroid-apk-idsig";
 const MAIN_APK_DEVICE_NAME: &str = "microdroid-apk";
@@ -95,42 +87,6 @@ enum MicrodroidError {
     PayloadVerificationFailed(String),
     #[error("Payload config is invalid: {0}")]
     InvalidConfig(String),
-}
-
-fn send_vm_status(service: &Strong<dyn IVirtualMachineService>) -> Result<()> {
-    // Collect VM CPU time information and creating VmCpuStatus atom for metrics.
-    let cpu_time = get_cpu_time()?;
-    let vm_cpu_status = VirtualMachineCpuStatus {
-        cpu_time_user: cpu_time.user,
-        cpu_time_nice: cpu_time.nice,
-        cpu_time_sys: cpu_time.sys,
-        cpu_time_idle: cpu_time.idle,
-    };
-    service.notifyCpuStatus(&vm_cpu_status).expect("Can't send information about VM CPU status");
-
-    // Collect VM memory information and creating VmMemStatus atom for metrics.
-    let mem_info = get_mem_info()?;
-    let vm_mem_status = VirtualMachineMemStatus {
-        mem_total: mem_info.total,
-        mem_free: mem_info.free,
-        mem_available: mem_info.available,
-        mem_buffer: mem_info.buffer,
-        mem_cached: mem_info.cached,
-    };
-    service.notifyMemStatus(&vm_mem_status).expect("Can't send information about VM memory status");
-
-    Ok(())
-}
-
-fn send_vm_status_periodically() -> Result<()> {
-    let service = get_vms_rpc_binder()
-        .context("cannot connect to VirtualMachineService")
-        .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
-
-    loop {
-        send_vm_status(&service)?;
-        thread::sleep(SENDING_VM_STATUS_CYCLE_PERIOD);
-    }
 }
 
 fn translate_error(err: &Error) -> (ErrorCode, String) {
@@ -224,12 +180,6 @@ fn try_main() -> Result<()> {
     let service = get_vms_rpc_binder()
         .context("cannot connect to VirtualMachineService")
         .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
-
-    thread::spawn(move || {
-        if let Err(e) = send_vm_status_periodically() {
-            error!("failed to get virtual machine status: {:?}", e);
-        }
-    });
 
     match try_run_payload(&service) {
         Ok(code) => {
@@ -450,8 +400,6 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     ProcessState::start_thread_pool();
 
     system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
-    send_vm_status(service)?;
-
     exec_task(task, service).context("Failed to run payload")
 }
 
@@ -783,7 +731,6 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
     service.notifyPayloadStarted()?;
 
     let exit_status = command.spawn()?.wait()?;
-    send_vm_status(service)?;
     exit_status.code().ok_or_else(|| anyhow!("Failed to get exit_code from the paylaod."))
 }
 
