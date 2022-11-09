@@ -31,6 +31,13 @@ java_sdk_library {
         // android.sysprop.*, renamed by jarjar
         "com.android.system.virtualmachine.sysprop",
     ],
+    errorprone: {
+        // We use @GuardedBy and we want a test failure if our locking isn't consistent with it.
+        enabled: true,
+        javacflags: [
+            "-Xep:GuardedBy:ERROR",
+        ],
+    },
 }
 
 prebuilt_apis {
