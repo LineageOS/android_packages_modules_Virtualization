@@ -14,10 +14,7 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
-use crate::atom::{
-    write_vm_booted_stats, write_vm_cpu_status_stats, write_vm_creation_stats,
-    write_vm_mem_status_stats,
-};
+use crate::atom::{write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
@@ -39,13 +36,9 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineRawConfig::VirtualMachineRawConfig,
     VirtualMachineState::VirtualMachineState,
 };
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::{
-    IVirtualMachineService::{
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
         BnVirtualMachineService, IVirtualMachineService, VM_BINDER_SERVICE_PORT,
         VM_STREAM_SERVICE_PORT, VM_TOMBSTONES_SERVICE_PORT,
-    },
-    VirtualMachineCpuStatus::VirtualMachineCpuStatus,
-    VirtualMachineMemStatus::VirtualMachineMemStatus,
 };
 use anyhow::{anyhow, bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
@@ -1141,36 +1134,6 @@ impl IVirtualMachineService for VirtualMachineService {
             Ok(())
         } else {
             error!("notifyError is called from an unknown CID {}", cid);
-            Err(Status::new_service_specific_error_str(
-                -1,
-                Some(format!("cannot find a VM with CID {}", cid)),
-            ))
-        }
-    }
-
-    fn notifyCpuStatus(&self, status: &VirtualMachineCpuStatus) -> binder::Result<()> {
-        let cid = self.cid;
-        if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM with CID {} reported its CPU status", cid);
-            write_vm_cpu_status_stats(vm.requester_uid as i32, &vm.name, status);
-            Ok(())
-        } else {
-            error!("notifyCurrentStatus is called from an unknown CID {}", cid);
-            Err(Status::new_service_specific_error_str(
-                -1,
-                Some(format!("cannot find a VM with CID {}", cid)),
-            ))
-        }
-    }
-
-    fn notifyMemStatus(&self, status: &VirtualMachineMemStatus) -> binder::Result<()> {
-        let cid = self.cid;
-        if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM with CID {} reported its memory status", cid);
-            write_vm_mem_status_stats(vm.requester_uid as i32, &vm.name, status);
-            Ok(())
-        } else {
-            error!("notifyCurrentStatus is called from an unknown CID {}", cid);
             Err(Status::new_service_specific_error_str(
                 -1,
                 Some(format!("cannot find a VM with CID {}", cid)),
