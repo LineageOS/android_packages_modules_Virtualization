@@ -18,12 +18,11 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <sys/cdefs.h>
 
 #include "vm_main.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 
 struct AIBinder;
 typedef struct AIBinder AIBinder;
@@ -71,32 +70,6 @@ bool AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_si
                                     size_t size);
 
 /**
- * Get the VM's DICE attestation chain.
- *
- * This function will fail if the use of restricted APIs is not permitted.
- *
- * \param data pointer to size bytes where the chain is written.
- * \param size number of bytes that can be written to data.
- * \param total outputs the total size of the chain if the function succeeds
- *
- * \return true on success and false on failure.
- */
-bool AVmPayload_getDiceAttestationChain(void *data, size_t size, size_t *total);
-
-/**
- * Get the VM's DICE attestation CDI.
- *
- * This function will fail if the use of restricted APIs is not permitted.
- *
- * \param data pointer to size bytes where the CDI is written.
- * \param size number of bytes that can be written to data.
- * \param total outputs the total size of the CDI if the function succeeds
- *
- * \return true on success and false on failure.
- */
-bool AVmPayload_getDiceAttestationCdi(void *data, size_t size, size_t *total);
-
-/**
  * Gets the path to the APK contents. It is a directory, under which are
  * the unzipped contents of the APK containing the payload, all read-only
  * but accessible to the payload.
@@ -107,6 +80,4 @@ bool AVmPayload_getDiceAttestationCdi(void *data, size_t size, size_t *total);
  */
 const char *AVmPayload_getApkContentsPath(void);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+__END_DECLS

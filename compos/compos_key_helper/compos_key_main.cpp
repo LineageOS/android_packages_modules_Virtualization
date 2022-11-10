@@ -17,7 +17,7 @@
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <unistd.h>
-#include <vm_payload.h>
+#include <vm_payload_restricted.h>
 
 #include <string_view>
 #include <vector>
