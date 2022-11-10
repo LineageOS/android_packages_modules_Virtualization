@@ -16,6 +16,7 @@
 
 package android.system.virtualmachine;
 
+import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 import static android.os.ParcelFileDescriptor.MODE_READ_WRITE;
 import static android.system.virtualmachine.VirtualMachineCallback.ERROR_PAYLOAD_CHANGED;
@@ -69,12 +70,14 @@ import com.android.internal.annotations.GuardedBy;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
+import java.nio.channels.FileChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -284,10 +287,45 @@ public class VirtualMachine implements AutoCloseable {
         return sInstances.computeIfAbsent(context, unused -> new HashMap<>());
     }
 
+    /**
+     * Builds a virtual machine from an {@link VirtualMachineDescriptor} object and associates it
+     * with the given name.
+     *
+     * <p>The new virtual machine will be in the same state as the descriptor indicates.
+     *
+     * <p>Once a virtual machine is imported it is persisted until it is deleted by calling {@link
+     * #delete}. The imported virtual machine is in {@link #STATUS_STOPPED} state. To run the VM,
+     * call {@link #run}.
+     */
+    @GuardedBy("sCreateLock")
     @NonNull
-    private static File getVmDir(Context context, String name) {
-        File vmRoot = new File(context.getDataDir(), VM_DIR);
-        return new File(vmRoot, name);
+    static VirtualMachine fromDescriptor(
+            @NonNull Context context,
+            @NonNull String name,
+            @NonNull VirtualMachineDescriptor vmDescriptor)
+            throws VirtualMachineException {
+        VirtualMachineConfig config = VirtualMachineConfig.from(vmDescriptor.getConfigFd());
+        File vmDir = createVmDir(context, name);
+        try {
+            VirtualMachine vm = new VirtualMachine(context, name, config);
+            config.serialize(vm.mConfigFilePath);
+            try {
+                vm.mInstanceFilePath.createNewFile();
+            } catch (IOException e) {
+                throw new VirtualMachineException("failed to create instance image", e);
+            }
+            vm.importInstanceFrom(vmDescriptor.getInstanceImgFd());
+            getInstancesMap(context).put(name, new WeakReference<>(vm));
+            return vm;
+        } catch (VirtualMachineException | RuntimeException e) {
+            // If anything goes wrong, delete any files created so far and the VM's directory
+            try {
+                deleteRecursively(vmDir);
+            } catch (IOException innerException) {
+                e.addSuppressed(innerException);
+            }
+            throw e;
+        }
     }
 
     /**
@@ -300,21 +338,7 @@ public class VirtualMachine implements AutoCloseable {
     static VirtualMachine create(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        File vmDir = getVmDir(context, name);
-
-        try {
-            // We don't need to undo this even if VM creation fails.
-            Files.createDirectories(vmDir.getParentFile().toPath());
-
-            // The checking of the existence of this directory and the creation of it is done
-            // atomically. If the directory already exists (i.e. the VM with the same name was
-            // already created), FileAlreadyExistsException is thrown.
-            Files.createDirectory(vmDir.toPath());
-        } catch (FileAlreadyExistsException e) {
-            throw new VirtualMachineException("virtual machine already exists", e);
-        } catch (IOException e) {
-            throw new VirtualMachineException("failed to create directory for VM", e);
-        }
+        File vmDir = createVmDir(context, name);
 
         try {
             VirtualMachine vm = new VirtualMachine(context, name, config);
@@ -410,6 +434,33 @@ public class VirtualMachine implements AutoCloseable {
         }
 
         if (instancesMap != null) instancesMap.remove(name);
+    }
+
+    @GuardedBy("sCreateLock")
+    @NonNull
+    private static File createVmDir(@NonNull Context context, @NonNull String name)
+            throws VirtualMachineException {
+        File vmDir = getVmDir(context, name);
+        try {
+            // We don't need to undo this even if VM creation fails.
+            Files.createDirectories(vmDir.getParentFile().toPath());
+
+            // The checking of the existence of this directory and the creation of it is done
+            // atomically. If the directory already exists (i.e. the VM with the same name was
+            // already created), FileAlreadyExistsException is thrown.
+            Files.createDirectory(vmDir.toPath());
+        } catch (FileAlreadyExistsException e) {
+            throw new VirtualMachineException("virtual machine already exists", e);
+        } catch (IOException e) {
+            throw new VirtualMachineException("failed to create directory for VM", e);
+        }
+        return vmDir;
+    }
+
+    @NonNull
+    private static File getVmDir(Context context, String name) {
+        File vmRoot = new File(context.getDataDir(), VM_DIR);
+        return new File(vmRoot, name);
     }
 
     /**
@@ -1051,6 +1102,16 @@ public class VirtualMachine implements AutoCloseable {
             return Collections.unmodifiableList(extraApks);
         } catch (IOException e) {
             throw new VirtualMachineException("Couldn't parse extra apks from the vm config", e);
+        }
+    }
+
+    private void importInstanceFrom(@NonNull ParcelFileDescriptor instanceFd)
+            throws VirtualMachineException {
+        try (FileChannel instance = new FileOutputStream(mInstanceFilePath).getChannel();
+                FileChannel instanceInput = new AutoCloseInputStream(instanceFd).getChannel()) {
+            instance.transferFrom(instanceInput, /*position=*/ 0, instanceInput.size());
+        } catch (IOException e) {
+            throw new VirtualMachineException("failed to transfer instance image", e);
         }
     }
 }
