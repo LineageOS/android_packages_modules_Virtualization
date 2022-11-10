@@ -24,8 +24,8 @@ mod selinux;
 use crate::aidl::{VirtualizationService, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY};
 use android_logger::{Config, FilterBuilder};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
+use anyhow::{bail, Context, Error};
 use binder::{register_lazy_service, BinderFeatures, ProcessState};
-use anyhow::Error;
 use log::{info, Level};
 use std::fs::{remove_dir_all, remove_file, read_dir};
 
@@ -44,6 +44,7 @@ fn main() {
             ),
     );
 
+    remove_memlock_rlimit().expect("Failed to remove memlock rlimit");
     clear_temporary_files().expect("Failed to delete old temporary files");
 
     let service = VirtualizationService::init();
@@ -51,6 +52,18 @@ fn main() {
     register_lazy_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();
+}
+
+/// Set this PID's RLIMIT_MEMLOCK to RLIM_INFINITY to allow crosvm (a child process) to mlock()
+/// arbitrary amounts of memory. This is necessary for spawning protected VMs.
+fn remove_memlock_rlimit() -> Result<(), Error> {
+    let lim = libc::rlimit { rlim_cur: libc::RLIM_INFINITY, rlim_max: libc::RLIM_INFINITY };
+    // SAFETY - borrowing the new limit struct only
+    match unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &lim) } {
+        0 => Ok(()),
+        -1 => Err(std::io::Error::last_os_error()).context("setrlimit failed"),
+        n => bail!("Unexpected return value from setrlimit(): {}", n),
+    }
 }
 
 /// Remove any files under `TEMPORARY_DIRECTORY`.
