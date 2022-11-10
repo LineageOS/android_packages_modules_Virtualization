@@ -901,6 +901,28 @@ public class VirtualMachine implements AutoCloseable {
         }
     }
 
+    /**
+     * Captures the current state of the VM in a {@link ParcelVirtualMachine} instance.
+     * The VM needs to be stopped to avoid inconsistency in its state representation.
+     *
+     * @return a {@link ParcelVirtualMachine} instance that represents the VM's state.
+     * @throws VirtualMachineException if the virtual machine is not stopped, or the state could not
+     *     be captured.
+     */
+    @NonNull
+    public ParcelVirtualMachine toParcelVirtualMachine() throws VirtualMachineException {
+        synchronized (mLock) {
+            checkStopped();
+        }
+        try {
+            return new ParcelVirtualMachine(
+                ParcelFileDescriptor.open(mConfigFilePath, MODE_READ_ONLY),
+                ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_ONLY));
+        } catch (IOException e) {
+            throw new VirtualMachineException(e);
+        }
+    }
+
     @VirtualMachineCallback.ErrorCode
     private int getTranslatedError(int reason) {
         switch (reason) {
