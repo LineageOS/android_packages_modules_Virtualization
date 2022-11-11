@@ -459,7 +459,9 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         Optional.of(NUM_VCPUS));
         // check until microdroid is shut down
         CommandRunner android = new CommandRunner(getDevice());
-        android.runWithTimeout(15000, "logcat", "-m", "1", "-e", "'crosvm has exited normally'");
+        // TODO: improve crosvm exit check. b/258848245
+        android.runWithTimeout(15000, "logcat", "-m", "1", "-e",
+                              "'virtualizationservice::crosvm.*exited with status exit status: 0'");
         // Check that tombstone is received (from host logcat)
         String result =
                 runOnHost(
