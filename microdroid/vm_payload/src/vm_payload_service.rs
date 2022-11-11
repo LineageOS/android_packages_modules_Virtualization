@@ -15,12 +15,12 @@
 //! This module handles the interaction with virtual machine payload service.
 
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
-    IVmPayloadService, VM_PAYLOAD_SERVICE_NAME, VM_APK_CONTENTS_PATH};
+    IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME, VM_APK_CONTENTS_PATH};
 use anyhow::{Context, Result};
-use binder::{wait_for_interface, Strong, unstable_api::{AIBinder, new_spibinder}};
+use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
 use lazy_static::lazy_static;
 use log::{error, info, Level};
-use rpcbinder::run_vsock_rpc_server;
+use rpcbinder::{get_unix_domain_rpc_interface, run_vsock_rpc_server};
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 
@@ -203,6 +203,6 @@ fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
 }
 
 fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
-    wait_for_interface(VM_PAYLOAD_SERVICE_NAME)
-        .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_NAME))
+    get_unix_domain_rpc_interface(VM_PAYLOAD_SERVICE_SOCKET_NAME)
+        .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_SOCKET_NAME))
 }
