@@ -43,20 +43,21 @@ fn mkswap(dev: &str) -> Result<()> {
     let sysfs_size = format!("/sys/{}/size", dev);
     let len = read_to_string(&sysfs_size)?
         .trim()
-        .parse::<u32>()
-        .context(format!("No u32 in {}", &sysfs_size))?
-        * 512;
+        .parse::<u64>()
+        .context(format!("No u64 in {}", &sysfs_size))?
+        .checked_mul(512)
+        .ok_or_else(|| anyhow!("sysfs_size too large"))?;
 
-    let pagesize: libc::c_uint;
     // safe because we give a constant and known-valid sysconf parameter
-    unsafe {
-        pagesize = libc::sysconf(libc::_SC_PAGE_SIZE) as libc::c_uint;
-    }
+    let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) as u64 };
 
     let mut f = OpenOptions::new().read(false).write(true).open(format!("/dev/{}", dev))?;
 
+    let last_page = len / pagesize - 1;
+
     // Write the info fields: [ version, last_page ]
-    let info: [u32; 2] = [1, (len / pagesize) - 1];
+    let info: [u32; 2] = [1, last_page.try_into().context("Number of pages out of range")?];
+
     f.seek(SeekFrom::Start(1024))?;
     f.write_all(&info.iter().flat_map(|v| v.to_ne_bytes()).collect::<Vec<u8>>())?;
 
