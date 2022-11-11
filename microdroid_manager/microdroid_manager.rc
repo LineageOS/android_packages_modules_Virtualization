@@ -6,3 +6,4 @@ service microdroid_manager /system/bin/microdroid_manager
     oneshot
     # SYS_BOOT is required to exec kexecload from microdroid_manager
     capabilities AUDIT_CONTROL SYS_ADMIN SYS_BOOT
+    socket vm_payload_service stream 0666 system system
