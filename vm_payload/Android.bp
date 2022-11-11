@@ -17,6 +17,7 @@ rust_ffi_shared {
         "liblibc",
         "liblog_rust",
         "librpcbinder_rs",
+        "libvsock",
     ],
     apex_available: [
         "com.android.compos",
