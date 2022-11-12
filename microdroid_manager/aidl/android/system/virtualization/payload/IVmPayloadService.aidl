@@ -21,8 +21,8 @@ package android.system.virtualization.payload;
  * Microdroid Manager for execution.
  */
 interface IVmPayloadService {
-    /** Name of the service IVmPayloadService. */
-    const String VM_PAYLOAD_SERVICE_NAME = "virtual_machine_payload_service";
+    /** Socket name of the service IVmPayloadService. */
+    const String VM_PAYLOAD_SERVICE_SOCKET_NAME = "vm_payload_service";
 
     /** Path to the APK contents path. */
     const String VM_APK_CONTENTS_PATH = "/mnt/apk";
