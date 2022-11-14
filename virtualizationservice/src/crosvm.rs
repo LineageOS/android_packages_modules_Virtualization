@@ -546,6 +546,7 @@ fn run_vm(
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);
 
+    command.arg("--params").arg("crashkernel=17M");
     print_crosvm_args(&command);
 
     let result = SharedChild::spawn(&mut command)?;
