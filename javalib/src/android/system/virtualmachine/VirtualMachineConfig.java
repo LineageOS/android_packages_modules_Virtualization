@@ -381,7 +381,7 @@ public final class VirtualMachineConfig {
          * @hide
          */
         public Builder(@NonNull Context context) {
-            mContext = requireNonNull(context);
+            mContext = requireNonNull(context, "context must not be null");
             mDebugLevel = DEBUG_LEVEL_NONE;
             mNumCpus = 1;
         }

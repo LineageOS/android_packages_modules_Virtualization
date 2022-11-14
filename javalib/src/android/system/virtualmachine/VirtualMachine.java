@@ -722,7 +722,7 @@ public class VirtualMachine implements AutoCloseable {
      * @hide
      */
     @NonNull
-    public InputStream getConsoleOutputStream() throws VirtualMachineException {
+    public InputStream getConsoleOutput() throws VirtualMachineException {
         synchronized (mLock) {
             createVmPipes();
             return new FileInputStream(mConsoleReader.getFileDescriptor());
@@ -736,7 +736,7 @@ public class VirtualMachine implements AutoCloseable {
      * @hide
      */
     @NonNull
-    public InputStream getLogOutputStream() throws VirtualMachineException {
+    public InputStream getLogOutput() throws VirtualMachineException {
         synchronized (mLock) {
             createVmPipes();
             return new FileInputStream(mLogReader.getFileDescriptor());
