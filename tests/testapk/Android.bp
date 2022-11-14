@@ -35,6 +35,7 @@ cc_library_shared {
     name: "MicrodroidTestNativeLib",
     srcs: ["src/native/testbinary.cpp"],
     stl: "libc++_static",
+    header_libs: ["vm_payload_restricted_headers"],
     shared_libs: [
         "libbinder_ndk",
         "MicrodroidTestNativeLibSub",
