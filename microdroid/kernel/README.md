@@ -39,12 +39,12 @@ is fixed, do the clean build by invoking `tools/bazel clean` before the build co
 
 For ARM64
 ```bash
-tools/bazel run //common-modules/virtual-device:microdroid_aarch64_config menuconfig
+tools/bazel run //common-modules/virtual-device:microdroid_aarch64_config -- menuconfig
 ```
 
 For x86\_64
 ```bash
-tools/bazel run //common-modules/virtual-device:microdroid_x86_64_config menuconfig
+tools/bazel run //common-modules/virtual-device:microdroid_x86_64_config -- menuconfig
 ```
 
 ## How to update Microdroid kernel prebuilts
