@@ -14,6 +14,7 @@
 
 //! Low-level entry and exit points of pvmfw.
 
+use crate::heap;
 use crate::helpers;
 use crate::mmio_guard;
 use core::arch::asm;
@@ -52,6 +53,10 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     // - only access MMIO once (and while) it has been mapped and configured
     // - only perform logging once the logger has been initialized
     // - only access non-pvmfw memory once (and while) it has been mapped
+
+    // SAFETY - This function should and will only be called once, here.
+    unsafe { heap::init() };
+
     logger::init(LevelFilter::Info).map_err(|_| RebootReason::InternalError)?;
 
     const FDT_MAX_SIZE: usize = helpers::SIZE_2MB;
