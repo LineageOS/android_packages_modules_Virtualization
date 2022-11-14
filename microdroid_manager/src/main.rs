@@ -47,6 +47,7 @@ use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::convert::TryInto;
+use std::env;
 use std::fs::{self, create_dir, File, OpenOptions};
 use std::io::Write;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -152,6 +153,11 @@ fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
 }
 
 fn main() -> Result<()> {
+    // If debuggable, print full backtrace to console log with stdio_to_kmsg
+    if system_properties::read_bool(APP_DEBUGGABLE_PROP, true)? {
+        env::set_var("RUST_BACKTRACE", "full");
+    }
+
     scopeguard::defer! {
         info!("Shutting down...");
         if let Err(e) = system_properties::write("sys.powerctl", "shutdown") {
