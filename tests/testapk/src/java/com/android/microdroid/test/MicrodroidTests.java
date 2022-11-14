@@ -28,6 +28,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import android.content.Context;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
+import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.system.virtualmachine.ParcelVirtualMachine;
 import android.system.virtualmachine.VirtualMachine;
@@ -337,7 +338,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     }
                 };
         listener.runToFinish(TAG, vm);
-        assertThat(exception.getNow(null)).isNull();
+        Exception e = exception.getNow(null);
+        if (e != null) {
+            throw e;
+        }
         return vmCdis;
     }
 
@@ -437,6 +441,24 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             assertThat(rootArrayItems.size()).isAtLeast(5);
         }
     }
+
+    @Test
+    @CddTest(requirements = {
+            "9.17/C-1-1",
+            "9.17/C-1-2"
+    })
+    public void accessToCdisIsRestricted() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config = mInner.newVmConfigBuilder()
+                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                .setDebugLevel(DEBUG_LEVEL_FULL)
+                .build();
+        mInner.forceCreateNewVirtualMachine("test_vm", config);
+
+        assertThrows(ServiceSpecificException.class, () -> launchVmAndGetCdis("test_vm"));
+    }
+
 
     private static final UUID MICRODROID_PARTITION_UUID =
             UUID.fromString("cf9afe9a-0662-11ec-a329-c32663a09d75");
