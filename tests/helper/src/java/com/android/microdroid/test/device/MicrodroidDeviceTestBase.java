@@ -202,8 +202,8 @@ public abstract class MicrodroidDeviceTestBase {
                 throws VirtualMachineException, InterruptedException {
             vm.setCallback(mExecutorService, this);
             vm.run();
-            logVmOutputAndMonitorBootEvents(logTag, vm.getConsoleOutputStream(), "Console");
-            logVmOutput(logTag, vm.getLogOutputStream(), "Log");
+            logVmOutputAndMonitorBootEvents(logTag, vm.getConsoleOutput(), "Console");
+            logVmOutput(logTag, vm.getLogOutput(), "Log");
             mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
         }
 
