@@ -28,7 +28,7 @@
 #include <sys/system_properties.h>
 #include <unistd.h>
 #include <vm_main.h>
-#include <vm_payload.h>
+#include <vm_payload_restricted.h>
 
 #include <string>
 
@@ -79,7 +79,7 @@ Result<void> start_test_service() {
             if (!AVmPayload_getVmInstanceSecret(identifier, sizeof(identifier), out->data(),
                                                 out->size())) {
                 return ndk::ScopedAStatus::
-                        fromServiceSpecificErrorWithMessage(0, "Failed to VM instance secret");
+                        fromServiceSpecificErrorWithMessage(0, "Failed to get VM instance secret");
             }
             return ndk::ScopedAStatus::ok();
         }
