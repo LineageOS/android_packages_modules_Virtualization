@@ -26,15 +26,15 @@ import android.os.Parcelable;
 import com.android.internal.annotations.VisibleForTesting;
 
 /**
- * A parcelable that captures the state of a Virtual Machine.
+ * A VM descriptor that captures the state of a Virtual Machine.
  *
  * <p>You can capture the current state of VM by creating an instance of this class with {@link
- * VirtualMachine#toParcelVirtualMachine()}, optionally pass it to another App, and then build an
- * identical VM with the parcel received.
+ * VirtualMachine#toDescriptor()}, optionally pass it to another App, and then build an identical VM
+ * with the descriptor received.
  *
  * @hide
  */
-public final class ParcelVirtualMachine implements Parcelable {
+public final class VirtualMachineDescriptor implements Parcelable {
     private final @NonNull ParcelFileDescriptor mConfigFd;
     private final @NonNull ParcelFileDescriptor mInstanceImgFd;
     // TODO(b/243129654): Add trusted storage fd once it is available.
@@ -50,14 +50,14 @@ public final class ParcelVirtualMachine implements Parcelable {
         mInstanceImgFd.writeToParcel(out, flags);
     }
 
-    public static final Parcelable.Creator<ParcelVirtualMachine> CREATOR =
-            new Parcelable.Creator<ParcelVirtualMachine>() {
-                public ParcelVirtualMachine createFromParcel(Parcel in) {
-                    return new ParcelVirtualMachine(in);
+    public static final Parcelable.Creator<VirtualMachineDescriptor> CREATOR =
+            new Parcelable.Creator<VirtualMachineDescriptor>() {
+                public VirtualMachineDescriptor createFromParcel(Parcel in) {
+                    return new VirtualMachineDescriptor(in);
                 }
 
-                public ParcelVirtualMachine[] newArray(int size) {
-                    return new ParcelVirtualMachine[size];
+                public VirtualMachineDescriptor[] newArray(int size) {
+                    return new VirtualMachineDescriptor[size];
                 }
             };
 
@@ -79,13 +79,13 @@ public final class ParcelVirtualMachine implements Parcelable {
         return mInstanceImgFd;
     }
 
-    ParcelVirtualMachine(
+    VirtualMachineDescriptor(
             @NonNull ParcelFileDescriptor configFd, @NonNull ParcelFileDescriptor instanceImgFd) {
         mConfigFd = configFd;
         mInstanceImgFd = instanceImgFd;
     }
 
-    private ParcelVirtualMachine(Parcel in) {
+    private VirtualMachineDescriptor(Parcel in) {
         mConfigFd = requireNonNull(in.readFileDescriptor());
         mInstanceImgFd = requireNonNull(in.readFileDescriptor());
     }
