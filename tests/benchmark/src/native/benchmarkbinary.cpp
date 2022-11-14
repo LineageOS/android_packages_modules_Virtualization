@@ -94,11 +94,12 @@ private:
     Result<double> measure_read_rate(const std::string& filename, int64_t fileSizeBytes,
                                      bool is_rand) {
         const int64_t block_count = fileSizeBytes / kBlockSizeBytes;
-        std::vector<uint64_t> offsets;
+        std::vector<uint64_t> offsets(block_count);
+        for (auto i = 0; i < block_count; ++i) {
+            offsets.push_back(i * kBlockSizeBytes);
+        }
         if (is_rand) {
             std::mt19937 rd{std::random_device{}()};
-            offsets.reserve(block_count);
-            for (auto i = 0; i < block_count; ++i) offsets.push_back(i * kBlockSizeBytes);
             std::shuffle(offsets.begin(), offsets.end(), rd);
         }
         char buf[kBlockSizeBytes];
@@ -109,12 +110,7 @@ private:
             return ErrnoError() << "Read: opening " << filename << " failed";
         }
         for (auto i = 0; i < block_count; ++i) {
-            if (is_rand) {
-                if (lseek(fd.get(), offsets[i], SEEK_SET) == -1) {
-                    return ErrnoError() << "failed to lseek";
-                }
-            }
-            auto bytes = read(fd.get(), buf, kBlockSizeBytes);
+            auto bytes = pread(fd, buf, kBlockSizeBytes, offsets[i]);
             if (bytes == 0) {
                 return Error() << "unexpected end of file";
             } else if (bytes == -1) {
