@@ -29,7 +29,7 @@ rust_ffi_shared {
 
 rust_bindgen {
     name: "libvm_payload_bindgen",
-    wrapper_src: "include/vm_payload.h",
+    wrapper_src: "include-restricted/vm_payload_restricted.h",
     crate_name: "vm_payload_bindgen",
     source_stem: "bindings",
     apex_available: ["com.android.compos"],
@@ -41,5 +41,15 @@ rust_bindgen {
 
 cc_library_headers {
     name: "vm_payload_headers",
+    apex_available: ["com.android.compos"],
     export_include_dirs: ["include"],
+}
+
+cc_library_headers {
+    name: "vm_payload_restricted_headers",
+    header_libs: ["vm_payload_headers"],
+    export_header_lib_headers: ["vm_payload_headers"],
+    export_include_dirs: ["include-restricted"],
+    apex_available: ["com.android.compos"],
+    visibility: ["//packages/modules/Virtualization:__subpackages__"],
 }
