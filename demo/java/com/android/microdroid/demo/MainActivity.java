@@ -278,8 +278,8 @@ public class MainActivity extends AppCompatActivity {
                 mVirtualMachine.setCallback(Executors.newSingleThreadExecutor(), callback);
                 mStatus.postValue(mVirtualMachine.getStatus());
 
-                InputStream console = mVirtualMachine.getConsoleOutputStream();
-                InputStream log = mVirtualMachine.getLogOutputStream();
+                InputStream console = mVirtualMachine.getConsoleOutput();
+                InputStream log = mVirtualMachine.getLogOutput();
                 mExecutorService.execute(new Reader("console", mConsoleOutput, console));
                 mExecutorService.execute(new Reader("log", mLogOutput, log));
             } catch (VirtualMachineException e) {
