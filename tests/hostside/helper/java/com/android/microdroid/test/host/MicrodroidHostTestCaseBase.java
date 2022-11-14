@@ -38,13 +38,7 @@ import com.android.virt.VirtualizationTestHelper;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
@@ -160,51 +154,10 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         return result.getStdout().trim();
     }
 
-    // Same as runOnMicrodroid, but keeps retrying on error for maximum attempts times
-    // Each attempt with timeoutMs
-    public static String runOnMicrodroidRetryingOnFailure(
-            long timeoutMs, int attempts, String... cmd) {
-        CommandResult result = RunUtil.getDefault()
-                .runTimedCmdRetry(timeoutMs, MICRODROID_COMMAND_RETRY_INTERVAL_MILLIS, attempts,
-                        "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
-        assertWithMessage("Command `" + Arrays.toString(cmd) + "` has failed")
-                .about(command_results())
-                .that(result)
-                .isSuccess();
-        return result.getStdout().trim();
-    }
-
     public static CommandResult runOnMicrodroidForResult(String... cmd) {
         final long timeoutMs = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
         return RunUtil.getDefault()
                 .runTimedCmd(timeoutMs, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
-    }
-
-    public static void pullMicrodroidFile(String path, File target) {
-        final long timeoutMs = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
-        CommandResult result =
-                RunUtil.getDefault()
-                        .runTimedCmd(
-                                timeoutMs,
-                                "adb",
-                                "-s",
-                                MICRODROID_SERIAL,
-                                "pull",
-                                path,
-                                target.getPath());
-        assertWithMessage("pulling " + path + " from microdroid")
-                .about(command_results())
-                .that(result)
-                .isSuccess();
-    }
-
-    // Asserts the command will fail on Microdroid.
-    public static void assertFailedOnMicrodroid(String... cmd) {
-        CommandResult result = runOnMicrodroidForResult(cmd);
-        assertWithMessage("Microdroid command `" + join(cmd) + "` did not fail expectedly")
-                .about(command_results())
-                .that(result)
-                .isFailed();
     }
 
     private static String join(String... strs) {
@@ -240,36 +193,6 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         return pathLine.substring("package:".length());
     }
 
-    public static String startMicrodroid(
-            ITestDevice androidDevice,
-            IBuildInfo buildInfo,
-            String apkName,
-            String packageName,
-            String configPath,
-            boolean debug,
-            int memoryMib,
-            Optional<Integer> numCpus)
-            throws DeviceNotAvailableException {
-        return startMicrodroid(androidDevice, buildInfo, apkName, packageName, null, configPath,
-                debug, memoryMib, numCpus);
-    }
-
-    public static String startMicrodroid(
-            ITestDevice androidDevice,
-            IBuildInfo buildInfo,
-            String apkName,
-            String packageName,
-            String[] extraIdsigPaths,
-            String configPath,
-            boolean debug,
-            int memoryMib,
-            Optional<Integer> numCpus)
-            throws DeviceNotAvailableException {
-        return startMicrodroid(androidDevice, buildInfo, apkName, null, packageName,
-                extraIdsigPaths, configPath, debug,
-                memoryMib, numCpus);
-    }
-
     private static void forwardFileToLog(CommandRunner android, String path, String tag)
             throws DeviceNotAvailableException {
         android.runWithTimeout(
@@ -281,110 +204,12 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
                         + " | sed \\'s/^/" + tag + ": /g\\''\""); // add tags in front of lines
     }
 
-    public static String startMicrodroid(
-            ITestDevice androidDevice,
-            IBuildInfo buildInfo,
-            String apkName,
-            String apkPath,
-            String packageName,
-            String[] extraIdsigPaths,
-            String configPath,
-            boolean debug,
-            int memoryMib,
-            Optional<Integer> numCpus)
-            throws DeviceNotAvailableException {
-        CommandRunner android = new CommandRunner(androidDevice);
-
-        // Install APK if necessary
-        if (apkName != null) {
-            File apkFile = findTestFile(buildInfo, apkName);
-            androidDevice.installPackage(apkFile, /* reinstall */ true);
-        }
-
-        if (apkPath == null) {
-            apkPath = getPathForPackage(androidDevice, packageName);
-        }
-
-        android.run("mkdir", "-p", TEST_ROOT);
-
-        // This file is not what we provide. It will be created by the vm tool.
-        final String outApkIdsigPath = TEST_ROOT + apkName + ".idsig";
-
-        final String instanceImg = TEST_ROOT + INSTANCE_IMG;
-        final String logPath = LOG_PATH;
-        final String consolePath = CONSOLE_PATH;
-        final String debugFlag = debug ? "--debug full" : "";
-
-        // Run the VM
-        ArrayList<String> args = new ArrayList<>(Arrays.asList(
-                VIRT_APEX + "bin/vm",
-                "run-app",
-                "--daemonize",
-                "--log " + logPath,
-                "--console " + consolePath,
-                "--mem " + memoryMib,
-                numCpus.isPresent() ? "--cpus " + numCpus.get() : "",
-                debugFlag,
-                apkPath,
-                outApkIdsigPath,
-                instanceImg,
-                configPath));
-        if (extraIdsigPaths != null) {
-            for (String path : extraIdsigPaths) {
-                args.add("--extra-idsig");
-                args.add(path);
-            }
-        }
-        String ret = android.run(args.toArray(new String[0]));
-
-        // Redirect log.txt and console.txt to logd using logwrapper
-        // Keep redirecting as long as the expecting maximum test time. When an adb
-        // command times out, it may trigger the device recovery process, which
-        // disconnect adb, which terminates any live adb commands. See an example at
-        // b/194974010#comment25.
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        executor.execute(
-                () -> {
-                    try {
-                        forwardFileToLog(android, logPath, "MicrodroidLog");
-                    } catch (Exception e) {
-                        // Consume
-                    }
-                });
-
-        executor.execute(
-                () -> {
-                    try {
-                        forwardFileToLog(android, consolePath, "MicrodroidConsole");
-                    } catch (Exception e) {
-                        // Consume
-                    }
-                });
-
-        // Retrieve the CID from the vm tool output
-        Pattern pattern = Pattern.compile("with CID (\\d+)");
-        Matcher matcher = pattern.matcher(ret);
-        assertWithMessage("Failed to find CID").that(matcher.find()).isTrue();
-        return matcher.group(1);
-    }
-
     public static void shutdownMicrodroid(ITestDevice androidDevice, String cid)
             throws DeviceNotAvailableException {
         CommandRunner android = new CommandRunner(androidDevice);
 
         // Shutdown the VM
         android.run(VIRT_APEX + "bin/vm", "stop", cid);
-    }
-
-    public static void rootMicrodroid() throws InterruptedException {
-        runOnHostRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
-                MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "adb", "-s", MICRODROID_SERIAL, "root");
-        // adbd reboots after root. Some commands (including wait-for-device) following this fails
-        // with error: closed. Hence, we disconnect and re-connect to the device before returning.
-        runOnHostRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
-                MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "adb", "disconnect", MICRODROID_SERIAL);
-        runOnHostRetryingOnFailure(MICRODROID_COMMAND_TIMEOUT_MILLIS,
-                MICRODROID_ADB_CONNECT_MAX_ATTEMPTS, "adb", "connect", MICRODROID_SERIAL);
     }
 
     // Establish an adb connection to microdroid by letting Android forward the connection to

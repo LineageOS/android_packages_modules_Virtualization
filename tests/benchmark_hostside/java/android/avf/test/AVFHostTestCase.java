@@ -16,6 +16,7 @@
 
 package android.avf.test;
 
+import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -31,6 +32,8 @@ import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.microdroid.test.host.CommandRunner;
 import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
 import com.android.tradefed.device.DeviceNotAvailableException;
+import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandResult;
@@ -45,7 +48,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,6 +87,9 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
+
+        getDevice().installPackage(findTestFile(APK_NAME), /* reinstall */ false);
+
         mMetricsProcessor = new MetricsProcessor(getMetricPrefix() + "hostside/");
     }
 
@@ -196,10 +201,6 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         return null;
     }
 
-    private void microdroidWaitForBootComplete() {
-        runOnMicrodroidForResult("watch -e \"getprop dev.bootcomplete | grep '^0$'\"");
-    }
-
     private AmStartupTimeCmdParser getColdRunStartupTimes(CommandRunner android, String pkgName)
             throws DeviceNotAvailableException, InterruptedException {
         unlockScreen(android);
@@ -216,9 +217,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     // and the time measured after running the VM.
     private void getAppStartupTime(String pkgName, StartupTimeMetricCollection metricColector)
             throws Exception {
-        final String configPath = "assets/vm_config.json";
-        final String cid;
-        final int vm_mem_mb;
+        TestDevice device = (TestDevice) getDevice();
 
         // 1. Reboot the device to run the test without stage2 fragmentation
         getDevice().rebootUntilOnline();
@@ -240,30 +239,30 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         android.tryRun("rm", "-rf", MicrodroidHostTestCaseBase.TEST_ROOT);
 
         // Donate 80% of the available device memory to the VM
-        vm_mem_mb = getFreeMemoryInfoMb(android) * 80 / 100;
-        cid = startMicrodroid(
-                            getDevice(),
-                            getBuild(),
-                            APK_NAME,
-                            PACKAGE_NAME,
-                            configPath,
-                            true,
-                            vm_mem_mb,
-                            Optional.of(NUM_VCPUS));
-        adbConnectToMicrodroid(getDevice(), cid);
-        microdroidWaitForBootComplete();
+        final String configPath = "assets/vm_config.json";
+        final int vm_mem_mb = getFreeMemoryInfoMb(android) * 80 / 100;
+        ITestDevice microdroidDevice =
+                MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
+                        .debugLevel("full")
+                        .memoryMib(vm_mem_mb)
+                        .numCpus(NUM_VCPUS)
+                        .build(device);
+        microdroidDevice.waitForBootComplete(30000);
+        microdroidDevice.enableAdbRoot();
 
-        rootMicrodroid();
+        CommandRunner microdroid = new CommandRunner(microdroidDevice);
 
-        runOnMicrodroid("mkdir -p /mnt/ramdisk && chmod 777 /mnt/ramdisk");
-        runOnMicrodroid("mount -t tmpfs -o size=32G tmpfs /mnt/ramdisk");
+        microdroid.run("mkdir -p /mnt/ramdisk && chmod 777 /mnt/ramdisk");
+        microdroid.run("mount -t tmpfs -o size=32G tmpfs /mnt/ramdisk");
 
         // Allocate memory for the VM until it fails and make sure that we touch
         // the allocated memory in the guest to be able to create stage2 fragmentation.
         try {
-            runOnMicrodroidForResult(String.format("cd /mnt/ramdisk && truncate -s %dM sprayMemory"
-                    + " && dd if=/dev/zero of=sprayMemory bs=1MB count=%d",
-                    vm_mem_mb , vm_mem_mb));
+            microdroid.tryRun(
+                    String.format(
+                            "cd /mnt/ramdisk && truncate -s %dM sprayMemory"
+                                    + " && dd if=/dev/zero of=sprayMemory bs=1MB count=%d",
+                            vm_mem_mb, vm_mem_mb));
         } catch (Exception ex) {
         }
 
@@ -273,7 +272,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             metricColector.addStartupTimeMetricDuringVmRun(duringVmStartApp);
         }
 
-        shutdownMicrodroid(getDevice(), cid);
+        device.shutdownMicrodroid(microdroidDevice);
 
         // Run the app after the VM run and collect cold startup time.
         for (int i = 0; i < ROUND_COUNT; i++) {
