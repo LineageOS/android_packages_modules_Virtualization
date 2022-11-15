@@ -35,7 +35,6 @@ use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
 use std::thread;
-use vsock::VsockStream;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DeathReason::DeathReason;
 use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
@@ -190,8 +189,6 @@ pub struct VmInstance {
     pub requester_debug_pid: i32,
     /// Callbacks to clients of the VM.
     pub callbacks: VirtualMachineCallbacks,
-    /// Input/output stream of the payload run in the VM.
-    pub stream: Mutex<Option<VsockStream>>,
     /// VirtualMachineService binder object for the VM.
     pub vm_service: Mutex<Option<Strong<dyn IVirtualMachineService>>>,
     /// Recorded timestamp when the VM is started.
@@ -223,7 +220,6 @@ impl VmInstance {
             requester_uid,
             requester_debug_pid,
             callbacks: Default::default(),
-            stream: Mutex::new(None),
             vm_service: Mutex::new(None),
             vm_start_timestamp: Mutex::new(None),
             payload_state: Mutex::new(PayloadState::Starting),

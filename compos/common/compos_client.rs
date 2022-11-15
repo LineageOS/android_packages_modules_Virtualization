@@ -240,13 +240,15 @@ fn want_protected_vm() -> Result<bool> {
 
 struct Callback {}
 impl vmclient::VmCallback for Callback {
-    fn on_payload_started(&self, cid: i32, stream: Option<&File>) {
-        if let Some(file) = stream {
-            if let Err(e) = start_logging(file) {
-                warn!("Can't log vm output: {}", e);
-            };
-        }
+    fn on_payload_started(&self, cid: i32) {
         log::info!("VM payload started, cid = {}", cid);
+    }
+
+    fn on_payload_stdio(&self, cid: i32, stream: &File) {
+        if let Err(e) = start_logging(stream) {
+            log::warn!("Can't log vm output: {}", e);
+        };
+        log::info!("VM payload forwarded its stdio, cid = {}", cid);
     }
 
     fn on_payload_ready(&self, cid: i32) {

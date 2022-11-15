@@ -18,15 +18,18 @@ use crate::dice::DiceContext;
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
-use anyhow::{bail, Result};
-use binder::{Interface, BinderFeatures, ExceptionCode, Status, Strong};
+use anyhow::{bail, Context, Result};
+use binder::{Interface, BinderFeatures, ExceptionCode, ParcelFileDescriptor, Status, Strong};
 use log::{error, info};
 use openssl::hkdf::hkdf;
 use openssl::md::Md;
 use rpcbinder::run_init_unix_domain_rpc_server;
+use std::fs::File;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use std::os::unix::io::{FromRawFd, IntoRawFd};
+use vsock::VsockListener;
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
@@ -67,6 +70,16 @@ impl IVmPayloadService for VmPayloadService {
         self.check_restricted_apis_allowed()?;
         Ok(self.dice.cdi_attest.to_vec())
     }
+
+    fn setupStdioProxy(&self) -> binder::Result<ParcelFileDescriptor> {
+        let f = self.setup_payload_stdio_proxy().map_err(|e| {
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Failed to create stdio proxy: {:?}", e)),
+            )
+        })?;
+        Ok(ParcelFileDescriptor::new(f))
+    }
 }
 
 impl Interface for VmPayloadService {}
@@ -88,6 +101,22 @@ impl VmPayloadService {
             error!("Use of restricted APIs is not allowed");
             Err(Status::new_exception_str(ExceptionCode::SECURITY, Some("Use of restricted APIs")))
         }
+    }
+
+    fn setup_payload_stdio_proxy(&self) -> Result<File> {
+        // Instead of a predefined port in the host, we open up a port in the guest and have
+        // the host connect to it. This makes it possible to have per-app instances of VS.
+        const ANY_PORT: u32 = 0;
+        let listener = VsockListener::bind_with_cid_port(libc::VMADDR_CID_HOST, ANY_PORT)
+            .context("Failed to create vsock listener")?;
+        let addr = listener.local_addr().context("Failed to resolve listener port")?;
+        self.virtual_machine_service
+            .connectPayloadStdioProxy(addr.port() as i32)
+            .context("Failed to connect to the host")?;
+        let (stream, _) =
+            listener.accept().context("Failed to accept vsock connection from the host")?;
+        // SAFETY: ownership is transferred from stream to the new File
+        Ok(unsafe { File::from_raw_fd(stream.into_raw_fd()) })
     }
 }
 

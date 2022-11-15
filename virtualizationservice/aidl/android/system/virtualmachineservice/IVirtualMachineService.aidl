@@ -21,12 +21,6 @@ import android.system.virtualizationcommon.ErrorCode;
 interface IVirtualMachineService {
     /**
      * Port number that VirtualMachineService listens on connections from the guest VMs for the
-     * payload input and output.
-     */
-    const int VM_STREAM_SERVICE_PORT = 3000;
-
-    /**
-     * Port number that VirtualMachineService listens on connections from the guest VMs for the
      * VirtualMachineService binder service.
      */
     const int VM_BINDER_SERVICE_PORT = 5000;
@@ -53,7 +47,12 @@ interface IVirtualMachineService {
     void notifyPayloadFinished(int exitCode);
 
     /**
-     * Notifies that an error has occurred inside the VM..
+     * Notifies that an error has occurred inside the VM.
      */
     void notifyError(ErrorCode errorCode, in String message);
+
+    /**
+     * Notifies that the guest has started a stdio proxy on the given port.
+     */
+    void connectPayloadStdioProxy(int port);
 }
