@@ -141,7 +141,7 @@ adb shell /apex/com.android.virt/bin/vm run-app \
 PATH_TO_YOUR_APP \
 $TEST_ROOT/MyApp.apk.idsig \
 $TEST_ROOT/instance.img \
-assets/VM_CONFIG_FILE
+--config-path assets/VM_CONFIG_FILE
 ```
 
 The last command lets you know the CID assigned to the VM. The console output
