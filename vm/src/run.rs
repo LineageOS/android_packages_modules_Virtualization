@@ -20,6 +20,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     PartitionType::PartitionType,
     VirtualMachineAppConfig::{DebugLevel::DebugLevel, Payload::Payload, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
+    VirtualMachinePayloadConfig::VirtualMachinePayloadConfig,
     VirtualMachineState::VirtualMachineState,
 };
 use anyhow::{bail, Context, Error};
@@ -43,7 +44,8 @@ pub fn command_run_app(
     instance: &Path,
     storage: Option<&Path>,
     storage_size: Option<u64>,
-    config_path: &str,
+    config_path: Option<String>,
+    payload_path: Option<String>,
     daemonize: bool,
     console_path: Option<&Path>,
     log_path: Option<&Path>,
@@ -57,7 +59,11 @@ pub fn command_run_app(
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
 
-    let extra_apks = parse_extra_apk_list(apk, config_path)?;
+    let extra_apks = match config_path.as_deref() {
+        Some(path) => parse_extra_apk_list(apk, path)?,
+        None => vec![],
+    };
+
     if extra_apks.len() != extra_idsigs.len() {
         bail!(
             "Found {} extra apks, but there are {} extra idsigs",
@@ -108,6 +114,19 @@ pub fn command_run_app(
     let extra_idsig_files: Result<Vec<File>, _> = extra_idsigs.iter().map(File::open).collect();
     let extra_idsig_fds = extra_idsig_files?.into_iter().map(ParcelFileDescriptor::new).collect();
 
+    let payload = if let Some(config_path) = config_path {
+        if payload_path.is_some() {
+            bail!("Only one of --config-path or --payload-path can be defined")
+        }
+        Payload::ConfigPath(config_path)
+    } else if let Some(payload_path) = payload_path {
+        Payload::PayloadConfig(VirtualMachinePayloadConfig { payloadPath: payload_path })
+    } else {
+        bail!("Either --config-path or --payload-path must be defined")
+    };
+
+    let payload_config_str = format!("{:?}!{:?}", apk, payload);
+
     let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
         name: name.unwrap_or_else(|| String::from("VmRunApp")),
         apk: apk_fd.into(),
@@ -115,22 +134,14 @@ pub fn command_run_app(
         extraIdsigs: extra_idsig_fds,
         instanceImage: open_parcel_file(instance, true /* writable */)?.into(),
         encryptedStorageImage: storage,
-        payload: Payload::ConfigPath(config_path.to_owned()),
+        payload,
         debugLevel: debug_level,
         protectedVm: protected,
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
         numCpus: cpus.unwrap_or(1) as i32,
         taskProfiles: task_profiles,
     });
-    run(
-        service,
-        &config,
-        &format!("{:?}!{:?}", apk, config_path),
-        daemonize,
-        console_path,
-        log_path,
-        ramdump_path,
-    )
+    run(service, &config, &payload_config_str, daemonize, console_path, log_path, ramdump_path)
 }
 
 /// Run a VM from the given configuration file.
@@ -187,7 +198,7 @@ fn state_to_str(vm_state: VirtualMachineState) -> &'static str {
 fn run(
     service: &dyn IVirtualizationService,
     config: &VirtualMachineConfig,
-    config_path: &str,
+    payload_config: &str,
     daemonize: bool,
     console_path: Option<&Path>,
     log_path: Option<&Path>,
@@ -221,7 +232,7 @@ fn run(
 
     println!(
         "Created VM from {} with CID {}, state is {}.",
-        config_path,
+        payload_config,
         vm.cid(),
         state_to_str(vm.state()?)
     );

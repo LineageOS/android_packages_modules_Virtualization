@@ -48,7 +48,12 @@ enum Opt {
         instance: PathBuf,
 
         /// Path to VM config JSON within APK (e.g. assets/vm_config.json)
+        #[clap(long)]
         config_path: Option<String>,
+
+        /// Path to VM payload binary within APK (e.g. MicrodroidTestNativeLib.so)
+        #[clap(long)]
+        payload_path: Option<String>,
 
         /// Name of VM
         #[clap(long)]
@@ -201,6 +206,7 @@ fn main() -> Result<(), Error> {
             storage,
             storage_size,
             config_path,
+            payload_path,
             daemonize,
             console,
             log,
@@ -219,7 +225,8 @@ fn main() -> Result<(), Error> {
             &instance,
             storage.as_deref(),
             storage_size,
-            config_path.as_deref().unwrap_or(""),
+            config_path,
+            payload_path,
             daemonize,
             console.as_deref(),
             log.as_deref(),
