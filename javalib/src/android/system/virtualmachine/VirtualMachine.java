@@ -367,13 +367,7 @@ public class VirtualMachine implements AutoCloseable {
             return null;
         }
         File configFilePath = new File(thisVmDir, CONFIG_FILE);
-        VirtualMachineConfig config;
-        try (FileInputStream input = new FileInputStream(configFilePath)) {
-            config = VirtualMachineConfig.from(input);
-        } catch (IOException e) {
-            throw new VirtualMachineException("Failed to read config file", e);
-        }
-
+        VirtualMachineConfig config = VirtualMachineConfig.from(configFilePath);
         Map<String, WeakReference<VirtualMachine>> instancesMap = getInstancesMap(context);
 
         VirtualMachine vm = null;
