@@ -38,6 +38,16 @@ pub struct DiceContext {
     pub bcc: Vec<u8>,
 }
 
+impl DiceContext {
+    pub fn get_sealing_key(&self, salt: &[u8], identifier: &[u8], keysize: u32) -> Result<ZVec> {
+        // Deterministically derive a key to use for sealing data based on salt. Use different salt
+        // for different keys.
+        let mut key = ZVec::new(keysize as usize)?;
+        hkdf(&mut key, Md::sha256(), &self.cdi_seal, salt, identifier)?;
+        Ok(key)
+    }
+}
+
 /// Artifacts that are mapped into the process address space from the driver.
 pub enum DiceDriver<'a> {
     Real {

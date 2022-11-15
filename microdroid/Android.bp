@@ -108,6 +108,7 @@ android_system_image {
                 "apkdmverity",
                 "authfs",
                 "authfs_service",
+                "encryptedstore",
                 "microdroid_crashdump_kernel",
                 "microdroid_kexec",
                 "microdroid_manager",

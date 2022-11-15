@@ -80,6 +80,12 @@ const APK_MOUNT_DONE_PROP: &str = "microdroid_manager.apk.mounted";
 // SYNC WITH virtualizationservice/src/crosvm.rs
 const FAILURE_SERIAL_DEVICE: &str = "/dev/ttyS1";
 
+/// Identifier for the key used for encrypted store.
+const ENCRYPTEDSTORE_BACKING_DEVICE: &str = "/dev/block/by-name/encryptedstore";
+const ENCRYPTEDSTORE_BIN: &str = "/system/bin/encryptedstore";
+const ENCRYPTEDSTORE_KEY_IDENTIFIER: &str = "encryptedstore_key";
+const ENCRYPTEDSTORE_KEYSIZE: u32 = 64;
+
 #[derive(thiserror::Error, Debug)]
 enum MicrodroidError {
     #[error("Cannot connect to virtualization service: {0}")]
@@ -350,7 +356,15 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
-    let dice = dice_derivation(dice, &verified_data, &payload_metadata)?;
+    let dice_context = dice_derivation(dice, &verified_data, &payload_metadata)?;
+
+    // Run encryptedstore binary to prepare the storage
+    let encryptedstore_child = if Path::new(ENCRYPTEDSTORE_BACKING_DEVICE).exists() {
+        info!("Preparing encryptedstore ...");
+        Some(prepare_encryptedstore(&dice_context).context("encryptedstore run")?)
+    } else {
+        None
+    };
 
     // Before reading a file from the APK, start zipfuse
     run_zipfuse(
@@ -404,7 +418,12 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     // Wait until zipfuse has mounted the APK so we can access the payload
     wait_for_property_true(APK_MOUNT_DONE_PROP).context("Failed waiting for APK mount done")?;
 
-    register_vm_payload_service(allow_restricted_apis, service.clone(), dice)?;
+    register_vm_payload_service(allow_restricted_apis, service.clone(), dice_context)?;
+
+    if let Some(mut child) = encryptedstore_child {
+        let exitcode = child.wait().context("Wait for encryptedstore child")?;
+        ensure!(exitcode.success(), "Unable to prepare encrypted storage. Exitcode={}", exitcode);
+    }
 
     system_properties::write("dev.bootcomplete", "1").context("set dev.bootcomplete")?;
     exec_task(task, service).context("Failed to run payload")
@@ -801,4 +820,28 @@ fn find_library_path(name: &str) -> Result<String> {
 
 fn to_hex_string(buf: &[u8]) -> String {
     buf.iter().map(|b| format!("{:02X}", b)).collect()
+}
+
+fn prepare_encryptedstore(dice: &DiceContext) -> Result<Child> {
+    // Use a fixed salt to scope the derivation to this API.
+    // Generated using hexdump -vn32 -e'14/1 "0x%02X, " 1 "\n"' /dev/urandom
+    // TODO(b/241541860) : Move this (& other salts) to a salt container, i.e. a global enum
+    let salt = [
+        0xFC, 0x1D, 0x35, 0x7B, 0x96, 0xF3, 0xEF, 0x17, 0x78, 0x7D, 0x70, 0xED, 0xEA, 0xFE, 0x1D,
+        0x6F, 0xB3, 0xF9, 0x40, 0xCE, 0xDD, 0x99, 0x40, 0xAA, 0xA7, 0x0E, 0x92, 0x73, 0x90, 0x86,
+        0x4A, 0x75,
+    ];
+    let key = dice.get_sealing_key(
+        &salt,
+        ENCRYPTEDSTORE_KEY_IDENTIFIER.as_bytes(),
+        ENCRYPTEDSTORE_KEYSIZE,
+    )?;
+
+    let mut cmd = Command::new(ENCRYPTEDSTORE_BIN);
+    cmd.arg("--blkdevice")
+        .arg(ENCRYPTEDSTORE_BACKING_DEVICE)
+        .arg("--key")
+        .arg(hex::encode(&*key))
+        .spawn()
+        .context("encryptedstore failed")
 }

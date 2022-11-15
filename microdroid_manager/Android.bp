@@ -23,6 +23,7 @@ rust_defaults {
         "libdiced_sample_inputs",
         "libdiced_utils",
         "libglob",
+        "libhex",
         "libitertools",
         "libkernlog",
         "libkeystore2_crypto_rust",
