@@ -28,34 +28,16 @@ android_test {
 }
 
 cc_library_shared {
-    name: "MicrodroidIdleNativeLib",
-    srcs: ["src/native/idlebinary.cpp"],
-    header_libs: ["vm_payload_headers"],
-    shared_libs: [
-        "libbase",
-    ],
-}
-
-cc_library_shared {
     name: "MicrodroidBenchmarkNativeLib",
-    srcs: ["src/native/benchmarkbinary.cpp"],
+    srcs: ["src/native/*.cpp"],
+    local_include_dirs: ["src/native/include"],
     static_libs: [
         "com.android.microdroid.testservice-ndk",
-        "libiobenchmark",
     ],
     shared_libs: [
         "libbase",
         "libbinder_ndk",
         "liblog",
         "libvm_payload",
-    ],
-}
-
-cc_library {
-    name: "libiobenchmark",
-    srcs: ["src/native/io_vsock.cpp"],
-    export_include_dirs: ["src/native/include"],
-    shared_libs: [
-        "libbase",
     ],
 }
