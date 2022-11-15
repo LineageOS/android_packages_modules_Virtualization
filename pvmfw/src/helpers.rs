@@ -17,12 +17,25 @@
 pub const SIZE_4KB: usize = 4 << 10;
 pub const SIZE_2MB: usize = 2 << 20;
 
-/// Computes the address of the page containing a given address.
-pub const fn page_of(addr: usize, page_size: usize) -> usize {
-    addr & !(page_size - 1)
+/// Computes the largest multiple of the provided alignment smaller or equal to the address.
+///
+/// Note: the result is undefined if alignment isn't a power of two.
+pub const fn unchecked_align_down(addr: usize, alignment: usize) -> usize {
+    addr & !(alignment - 1)
+}
+
+/// Safe wrapper around unchecked_align_up() that validates its assumptions and doesn't wrap.
+pub const fn align_up(addr: usize, alignment: usize) -> Option<usize> {
+    if !alignment.is_power_of_two() {
+        None
+    } else if let Some(s) = addr.checked_add(alignment - 1) {
+        Some(unchecked_align_down(s, alignment))
+    } else {
+        None
+    }
 }
 
 /// Computes the address of the 4KiB page containing a given address.
 pub const fn page_4kb_of(addr: usize) -> usize {
-    page_of(addr, SIZE_4KB)
+    unchecked_align_down(addr, SIZE_4KB)
 }
