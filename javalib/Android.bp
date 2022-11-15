@@ -15,9 +15,13 @@ java_sdk_library {
     installable: false,
     compile_dex: true,
 
+    // TODO(b/243512044): introduce non-updatable-framework-module-defaults
+
+    defaults: ["framework-module-defaults"],
+
     shared_library: false,
 
-    // TODO(b/243512044): use framework-module-defaults
+    default_to_stubs: false,
 
     dist_group: "android",
 
@@ -45,6 +49,35 @@ java_sdk_library {
             "-Xep:GuardedBy:ERROR",
         ],
     },
+
+    public: {
+        enabled: true,
+        sdk_version: "module_current",
+    },
+
+    system: {
+        enabled: true,
+        sdk_version: "module_current",
+    },
+
+    module_lib: {
+        enabled: true,
+        sdk_version: "module_current",
+    },
+
+    test: {
+        enabled: true,
+        sdk_version: "module_current",
+    },
+
+    sdk_version: "core_platform",
+    platform_apis: true,
+    impl_only_libs: [
+        "framework",
+    ],
+    impl_library_visibility: [
+        "//frameworks/base",
+    ],
 
     // Temporary workaround, will be removed in a follow-up child cl.
     unsafe_ignore_missing_latest_api: true,
