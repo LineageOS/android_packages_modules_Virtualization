@@ -16,16 +16,18 @@
 
 use crate::aidl::{Cid, VirtualMachineCallbacks};
 use crate::atom::write_vm_exited_stats;
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use command_fds::CommandFdExt;
 use lazy_static::lazy_static;
+use libc::{sysconf, _SC_CLK_TCK};
 use log::{debug, error, info};
 use semver::{Version, VersionReq};
 use nix::{fcntl::OFlag, unistd::pipe2};
 use regex::{Captures, Regex};
 use shared_child::SharedChild;
 use std::borrow::Cow;
-use std::fs::{remove_dir_all, File};
+use std::cmp::max;
+use std::fs::{read_to_string, remove_dir_all, File};
 use std::io::{self, Read};
 use std::mem;
 use std::num::NonZeroU32;
@@ -60,6 +62,8 @@ const CROSVM_REBOOT_STATUS: i32 = 32;
 const CROSVM_CRASH_STATUS: i32 = 33;
 /// The exit status which crosvm returns when vcpu is stalled.
 const CROSVM_WATCHDOG_REBOOT_STATUS: i32 = 36;
+
+const MILLIS_PER_SEC: i64 = 1000;
 
 lazy_static! {
     /// If the VM doesn't move to the Started state within this amount time, a hang-up error is
@@ -133,6 +137,24 @@ pub enum VmState {
     Failed,
 }
 
+/// RSS values of VM and CrosVM process itself.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Rss {
+    pub vm: i64,
+    pub crosvm: i64,
+}
+
+/// Metrics regarding the VM.
+#[derive(Debug, Default)]
+pub struct VmMetric {
+    /// Recorded timestamp when the VM is started.
+    pub start_timestamp: Option<SystemTime>,
+    /// Update most recent guest_time periodically from /proc/[crosvm pid]/stat while VM is running.
+    pub cpu_guest_time: Option<i64>,
+    /// Update maximum RSS values periodically from /proc/[crosvm pid]/smaps while VM is running.
+    pub rss: Option<Rss>,
+}
+
 impl VmState {
     /// Tries to start the VM, if it is in the `NotStarted` state.
     ///
@@ -146,6 +168,12 @@ impl VmState {
             // If this fails and returns an error, `self` will be left in the `Failed` state.
             let child =
                 Arc::new(run_vm(config, &instance.temporary_directory, failure_pipe_write)?);
+
+            let instance_monitor_status = instance.clone();
+            let child_monitor_status = child.clone();
+            thread::spawn(move || {
+                instance_monitor_status.clone().monitor_vm_status(child_monitor_status);
+            });
 
             let child_clone = child.clone();
             let instance_clone = instance.clone();
@@ -194,8 +222,8 @@ pub struct VmInstance {
     pub stream: Mutex<Option<VsockStream>>,
     /// VirtualMachineService binder object for the VM.
     pub vm_service: Mutex<Option<Strong<dyn IVirtualMachineService>>>,
-    /// Recorded timestamp when the VM is started.
-    pub vm_start_timestamp: Mutex<Option<SystemTime>>,
+    /// Recorded metrics of VM such as timestamp or cpu / memory usage.
+    pub vm_metric: Mutex<VmMetric>,
     /// The latest lifecycle state which the payload reported itself to be in.
     payload_state: Mutex<PayloadState>,
     /// Represents the condition that payload_state was updated
@@ -225,7 +253,7 @@ impl VmInstance {
             callbacks: Default::default(),
             stream: Mutex::new(None),
             vm_service: Mutex::new(None),
-            vm_start_timestamp: Mutex::new(None),
+            vm_metric: Mutex::new(Default::default()),
             payload_state: Mutex::new(PayloadState::Starting),
             payload_state_updated: Condvar::new(),
         })
@@ -234,7 +262,8 @@ impl VmInstance {
     /// Starts an instance of `crosvm` to manage the VM. The `crosvm` instance will be killed when
     /// the `VmInstance` is dropped.
     pub fn start(self: &Arc<Self>) -> Result<(), Error> {
-        *self.vm_start_timestamp.lock().unwrap() = Some(SystemTime::now());
+        let mut vm_metric = self.vm_metric.lock().unwrap();
+        vm_metric.start_timestamp = Some(SystemTime::now());
         self.vm_state.lock().unwrap().start(self.clone())
     }
 
@@ -283,13 +312,8 @@ impl VmInstance {
         let death_reason = death_reason(&result, &failure_reason);
         self.callbacks.callback_on_died(self.cid, death_reason);
 
-        let vm_start_timestamp = self.vm_start_timestamp.lock().unwrap();
-        write_vm_exited_stats(
-            self.requester_uid as i32,
-            &self.name,
-            death_reason,
-            *vm_start_timestamp,
-        );
+        let vm_metric = self.vm_metric.lock().unwrap();
+        write_vm_exited_stats(self.requester_uid as i32, &self.name, death_reason, &*vm_metric);
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
@@ -318,6 +342,42 @@ impl VmInstance {
             if let Err(e) = self.kill() {
                 error!("Error stopping timed-out VM with CID {}: {:?}", child.id(), e);
             }
+        }
+    }
+
+    fn monitor_vm_status(&self, child: Arc<SharedChild>) {
+        let pid = child.id();
+
+        loop {
+            {
+                // Check VM state
+                let vm_state = &*self.vm_state.lock().unwrap();
+                if let VmState::Dead = vm_state {
+                    break;
+                }
+
+                let mut vm_metric = self.vm_metric.lock().unwrap();
+
+                // Get CPU Information
+                // TODO: Collect it once right before VM dies using SIGCHLD
+                if let Ok(guest_time) = get_guest_time(pid) {
+                    vm_metric.cpu_guest_time = Some(guest_time);
+                } else {
+                    error!("Failed to parse /proc/[pid]/stat");
+                }
+
+                // Get Memory Information
+                if let Ok(rss) = get_rss(pid) {
+                    vm_metric.rss = match &vm_metric.rss {
+                        Some(x) => Some(Rss::extract_max(x, &rss)),
+                        None => Some(rss),
+                    }
+                } else {
+                    error!("Failed to parse /proc/[pid]/smaps");
+                }
+            }
+
+            thread::sleep(Duration::from_secs(1));
         }
     }
 
@@ -389,6 +449,60 @@ impl VmInstance {
         conn.notify_completion()?;
         Ok(())
     }
+}
+
+impl Rss {
+    fn extract_max(x: &Rss, y: &Rss) -> Rss {
+        Rss { vm: max(x.vm, y.vm), crosvm: max(x.crosvm, y.crosvm) }
+    }
+}
+
+// Get guest time from /proc/[crosvm pid]/stat
+fn get_guest_time(pid: u32) -> Result<i64> {
+    let file = read_to_string(format!("/proc/{}/stat", pid))?;
+    let data_list: Vec<_> = file.split_whitespace().collect();
+
+    // Information about guest_time is at 43th place of the file split with the whitespace.
+    // Example of /proc/[pid]/stat :
+    // 6603 (kworker/104:1H-kblockd) I 2 0 0 0 -1 69238880 0 0 0 0 0 88 0 0 0 -20 1 0 1845 0 0
+    // 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 0 0 0 17 104 0 0 0 0 0 0 0 0 0 0 0 0 0
+    if data_list.len() < 43 {
+        bail!("Failed to parse command result for getting guest time : {}", file);
+    }
+
+    let guest_time_ticks = data_list[42].parse::<i64>()?;
+    // SAFETY : It just returns an integer about CPU tick information.
+    let ticks_per_sec = unsafe { sysconf(_SC_CLK_TCK) } as i64;
+    Ok(guest_time_ticks * MILLIS_PER_SEC / ticks_per_sec)
+}
+
+// Get rss from /proc/[crosvm pid]/smaps
+fn get_rss(pid: u32) -> Result<Rss> {
+    let file = read_to_string(format!("/proc/{}/smaps", pid))?;
+    let lines: Vec<_> = file.split('\n').collect();
+
+    let mut rss_vm_total = 0i64;
+    let mut rss_crosvm_total = 0i64;
+    let mut is_vm = false;
+    for line in lines {
+        if line.contains("crosvm_guest") {
+            is_vm = true;
+        } else if line.contains("Rss:") {
+            let data_list: Vec<_> = line.split_whitespace().collect();
+            if data_list.len() < 2 {
+                bail!("Failed to parse command result for getting rss :\n{}", line);
+            }
+            let rss = data_list[1].parse::<i64>()?;
+
+            if is_vm {
+                rss_vm_total += rss;
+                is_vm = false;
+            }
+            rss_crosvm_total += rss;
+        }
+    }
+
+    Ok(Rss { vm: rss_vm_total, crosvm: rss_crosvm_total })
 }
 
 fn death_reason(result: &Result<ExitStatus, io::Error>, mut failure_reason: &str) -> DeathReason {
