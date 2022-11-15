@@ -96,7 +96,7 @@ private:
         const int64_t block_count = fileSizeBytes / kBlockSizeBytes;
         std::vector<uint64_t> offsets(block_count);
         for (auto i = 0; i < block_count; ++i) {
-            offsets.push_back(i * kBlockSizeBytes);
+            offsets[i] = i * kBlockSizeBytes;
         }
         if (is_rand) {
             std::mt19937 rd{std::random_device{}()};
