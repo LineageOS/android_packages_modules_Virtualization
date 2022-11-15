@@ -34,6 +34,7 @@ import android.system.virtualizationservice.VirtualMachinePayloadConfig;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -215,8 +216,17 @@ public final class VirtualMachineConfig {
                 protectedVm, memoryMib, numCpus);
     }
 
+    /** Persists this config to a file. */
+    void serialize(@NonNull File file) throws VirtualMachineException {
+        try (FileOutputStream output = new FileOutputStream(file)) {
+            serializeOutputStream(output);
+        } catch (IOException e) {
+            throw new VirtualMachineException("failed to write VM config", e);
+        }
+    }
+
     /** Persists this config to a stream, for example a file. */
-    void serialize(@NonNull OutputStream output) throws IOException {
+    private void serializeOutputStream(@NonNull OutputStream output) throws IOException {
         PersistableBundle b = new PersistableBundle();
         b.putInt(KEY_VERSION, VERSION);
         b.putString(KEY_APKPATH, mApkPath);
