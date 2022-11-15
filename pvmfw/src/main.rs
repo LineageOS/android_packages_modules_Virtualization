@@ -29,7 +29,7 @@ mod smccc;
 use avb::PUBLIC_KEY;
 use log::{debug, info};
 
-fn main(fdt: &mut [u8], payload: &[u8]) {
+fn main(fdt: &mut [u8], payload: &[u8], bcc: &[u8]) {
     info!("pVM firmware");
     debug!(
         "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}",
@@ -37,6 +37,7 @@ fn main(fdt: &mut [u8], payload: &[u8]) {
         payload.as_ptr() as usize,
         payload.len(),
     );
+    debug!("BCC: {:?} ({:#x} bytes)", bcc.as_ptr(), bcc.len());
     debug!("AVB public key: addr={:?}, size={:#x} ({1})", PUBLIC_KEY.as_ptr(), PUBLIC_KEY.len());
     info!("Starting payload...");
 }

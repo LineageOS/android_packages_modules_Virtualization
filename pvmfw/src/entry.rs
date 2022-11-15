@@ -19,11 +19,15 @@ use crate::helpers;
 use crate::mmio_guard;
 use core::arch::asm;
 use core::slice;
-use log::{debug, error, LevelFilter};
-use vmbase::{console, logger, main, power::reboot};
+use log::debug;
+use log::error;
+use log::LevelFilter;
+use vmbase::{console, layout, logger, main, power::reboot};
 
 #[derive(Debug, Clone)]
 enum RebootReason {
+    /// A malformed BCC was received.
+    InvalidBcc,
     /// An unexpected internal error happened.
     InternalError,
 }
@@ -80,8 +84,17 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
         RebootReason::InternalError
     })?;
 
+    // SAFETY - We only get the appended payload from here, once. It is mapped and the linker
+    // script prevents it from overlapping with other objects.
+    let bcc = as_bcc(unsafe { get_appended_data_slice() }).ok_or_else(|| {
+        error!("Invalid BCC");
+        RebootReason::InvalidBcc
+    })?;
+
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(fdt, payload);
+    crate::main(fdt, payload, bcc);
+
+    // TODO: Overwrite BCC before jumping to payload to avoid leaking our sealing key.
 
     mmio_guard::unmap(console::BASE_ADDRESS).map_err(|e| {
         error!("Failed to unshare the UART: {e}");
@@ -146,4 +159,23 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64) -> ! {
             options(nomem, noreturn, nostack),
         );
     };
+}
+
+unsafe fn get_appended_data_slice() -> &'static mut [u8] {
+    let base = helpers::align_up(layout::binary_end(), helpers::SIZE_4KB).unwrap();
+    // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
+    let size = helpers::align_up(base, helpers::SIZE_2MB).unwrap() - base;
+
+    slice::from_raw_parts_mut(base as *mut u8, size)
+}
+
+fn as_bcc(data: &mut [u8]) -> Option<&mut [u8]> {
+    const BCC_SIZE: usize = helpers::SIZE_4KB;
+
+    if cfg!(feature = "legacy") {
+        // TODO(b/256148034): return None if BccHandoverParse(bcc) != kDiceResultOk.
+        Some(&mut data[..BCC_SIZE])
+    } else {
+        None
+    }
 }
