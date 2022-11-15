@@ -14,6 +14,7 @@ rust_ffi_shared {
         "libanyhow",
         "libbinder_rs",
         "liblazy_static",
+        "liblibc",
         "liblog_rust",
         "librpcbinder_rs",
     ],
