@@ -69,7 +69,6 @@ import com.android.internal.annotations.GuardedBy;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -319,13 +318,7 @@ public class VirtualMachine implements AutoCloseable {
 
         try {
             VirtualMachine vm = new VirtualMachine(context, name, config);
-
-            try (FileOutputStream output = new FileOutputStream(vm.mConfigFilePath)) {
-                config.serialize(output);
-            } catch (IOException e) {
-                throw new VirtualMachineException("failed to write VM config", e);
-            }
-
+            config.serialize(vm.mConfigFilePath);
             try {
                 vm.mInstanceFilePath.createNewFile();
             } catch (IOException e) {
@@ -846,14 +839,7 @@ public class VirtualMachine implements AutoCloseable {
                 throw new VirtualMachineException("incompatible config");
             }
             checkStopped();
-
-            try {
-                FileOutputStream output = new FileOutputStream(mConfigFilePath);
-                newConfig.serialize(output);
-                output.close();
-            } catch (IOException e) {
-                throw new VirtualMachineException("Failed to persist config", e);
-            }
+            newConfig.serialize(mConfigFilePath);
             mConfig = newConfig;
             return oldConfig;
         }
