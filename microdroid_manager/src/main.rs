@@ -26,7 +26,7 @@ use crate::instance::{ApexData, ApkData, InstanceDisk, MicrodroidData, RootHash}
 use crate::vm_payload_service::register_vm_payload_service;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
-        IVirtualMachineService, VM_BINDER_SERVICE_PORT, VM_STREAM_SERVICE_PORT,
+        IVirtualMachineService, VM_BINDER_SERVICE_PORT,
 };
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::VM_APK_CONTENTS_PATH;
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
@@ -49,15 +49,13 @@ use rustutils::system_properties::PropertyWatcher;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::convert::TryInto;
 use std::env;
-use std::fs::{self, create_dir, File, OpenOptions};
+use std::fs::{self, create_dir, OpenOptions};
 use std::io::Write;
-use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
 use std::time::{Duration, SystemTime};
-use vsock::VsockStream;
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const MAIN_APK_PATH: &str = "/dev/block/by-name/microdroid-apk";
@@ -732,7 +730,14 @@ fn load_crashkernel_if_supported() -> Result<()> {
 /// virtualizationservice in the host side.
 fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     info!("executing main task {:?}...", task);
-    let mut command = build_command(task)?;
+    let mut command = match task.type_ {
+        TaskType::Executable => Command::new(&task.command),
+        TaskType::MicrodroidLauncher => {
+            let mut command = Command::new("/system/bin/microdroid_launcher");
+            command.arg(find_library_path(&task.command)?);
+            command
+        }
+    };
 
     info!("notifying payload started");
     service.notifyPayloadStarted()?;
@@ -749,40 +754,6 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
             None => anyhow!("Payload has neither exit code nor signal"),
         }),
     }
-}
-
-fn build_command(task: &Task) -> Result<Command> {
-    let mut command = match task.type_ {
-        TaskType::Executable => Command::new(&task.command),
-        TaskType::MicrodroidLauncher => {
-            let mut command = Command::new("/system/bin/microdroid_launcher");
-            command.arg(find_library_path(&task.command)?);
-            command
-        }
-    };
-
-    match VsockStream::connect_with_cid_port(VMADDR_CID_HOST, VM_STREAM_SERVICE_PORT as u32) {
-        Ok(stream) => {
-            // SAFETY: the ownership of the underlying file descriptor is transferred from stream
-            // to the file object, and then into the Command object. When the command is finished,
-            // the file descriptor is closed.
-            let file = unsafe { File::from_raw_fd(stream.into_raw_fd()) };
-            command
-                .stdin(Stdio::from(file.try_clone()?))
-                .stdout(Stdio::from(file.try_clone()?))
-                .stderr(Stdio::from(file));
-        }
-        Err(e) => {
-            error!("failed to connect to virtualization service: {}", e);
-            // Don't fail hard here. Even if we failed to connect to the virtualizationservice,
-            // we keep executing the task. This can happen if the owner of the VM doesn't register
-            // callback to accept the stream. Use /dev/null as the stream so that the task can
-            // make progress without waiting for someone to consume the output.
-            command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        }
-    }
-
-    Ok(command)
 }
 
 fn find_library_path(name: &str) -> Result<String> {

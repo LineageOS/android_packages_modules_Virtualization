@@ -21,8 +21,11 @@ use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
 use lazy_static::lazy_static;
 use log::{error, info, Level};
 use rpcbinder::{get_unix_domain_rpc_interface, run_vsock_rpc_server};
+use std::io;
 use std::ffi::CString;
+use std::fs::File;
 use std::os::raw::{c_char, c_void};
+use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd};
 
 lazy_static! {
     static ref VM_APK_CONTENTS_PATH_C: CString =
@@ -200,6 +203,36 @@ pub extern "C" fn AVmPayload_getApkContentsPath() -> *const c_char {
 
 fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
     get_vm_payload_service()?.getDiceAttestationCdi().context("Cannot get attestation CDI")
+}
+
+/// Creates a socket connection with the host and duplicates standard I/O
+/// file descriptors of the payload to that socket. Then notifies the host.
+#[no_mangle]
+pub extern "C" fn AVmPayload_setupStdioProxy() -> bool {
+    if let Err(e) = try_setup_stdio_proxy() {
+        error!("{:?}", e);
+        false
+    } else {
+        info!("Successfully set up stdio proxy to the host");
+        true
+    }
+}
+
+fn dup2(old_fd: &File, new_fd: BorrowedFd) -> Result<(), io::Error> {
+    // SAFETY - ownership does not change, only modifies the underlying raw FDs.
+    match unsafe { libc::dup2(old_fd.as_raw_fd(), new_fd.as_raw_fd()) } {
+        -1 => Err(io::Error::last_os_error()),
+        _ => Ok(()),
+    }
+}
+
+fn try_setup_stdio_proxy() -> Result<()> {
+    let fd =
+        get_vm_payload_service()?.setupStdioProxy().context("Could not connect a host socket")?;
+    dup2(fd.as_ref(), io::stdin().as_fd()).context("Failed to dup stdin")?;
+    dup2(fd.as_ref(), io::stdout().as_fd()).context("Failed to dup stdout")?;
+    dup2(fd.as_ref(), io::stderr().as_fd()).context("Failed to dup stderr")?;
+    Ok(())
 }
 
 fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
