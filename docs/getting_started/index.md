@@ -133,7 +133,8 @@ adb shell /apex/com.android.virt/bin/vm run-app \
   --debug full \
   /data/local/tmp/virt/MicrodroidDemoApp.apk \
   /data/local/tmp/virt/MicrodroidDemoApp.apk.idsig \
-  /data/local/tmp/virt/instance.img assets/vm_config.json
+  /data/local/tmp/virt/instance.img \
+  --payload-path MicrodroidTestNativeLib.so
 ```
 
 ## Building and updating CrosVM and VirtualizationService {#building-and-updating}
