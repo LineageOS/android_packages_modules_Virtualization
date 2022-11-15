@@ -232,7 +232,10 @@ public abstract class MicrodroidDeviceTestBase {
         }
 
         @Override
-        public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {}
+        public void onPayloadStarted(VirtualMachine vm) {}
+
+        @Override
+        public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {}
 
         @Override
         public void onPayloadReady(VirtualMachine vm) {}
@@ -327,7 +330,7 @@ public abstract class MicrodroidDeviceTestBase {
         VmEventListener listener =
                 new VmEventListener() {
                     @Override
-                    public void onPayloadStarted(VirtualMachine vm, ParcelFileDescriptor stream) {
+                    public void onPayloadStarted(VirtualMachine vm) {
                         endTime.complete(System.nanoTime());
                         payloadStarted.complete(true);
                         forceStop(vm);
