@@ -940,6 +940,7 @@ public class VirtualMachine implements AutoCloseable {
      * @return a {@link VirtualMachineDescriptor} instance that represents the VM's state.
      * @throws VirtualMachineException if the virtual machine is not stopped, or the state could not
      *     be captured.
+     * @hide
      */
     @NonNull
     public VirtualMachineDescriptor toDescriptor() throws VirtualMachineException {
