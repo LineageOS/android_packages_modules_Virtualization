@@ -11,9 +11,15 @@ android_app {
 }
 
 java_sdk_library {
-    name: "android.system.virtualmachine",
-    installable: true,
+    name: "framework-virtualization",
+    installable: false,
     compile_dex: true,
+
+    shared_library: false,
+
+    // TODO(b/243512044): use framework-module-defaults
+
+    dist_group: "android",
 
     jarjar_rules: "jarjar-rules.txt",
 
@@ -25,6 +31,7 @@ java_sdk_library {
     ],
 
     apex_available: ["com.android.virt"],
+
     permitted_packages: [
         "android.system.virtualmachine",
         "android.system.virtualizationservice",
@@ -38,6 +45,9 @@ java_sdk_library {
             "-Xep:GuardedBy:ERROR",
         ],
     },
+
+    // Temporary workaround, will be removed in a follow-up child cl.
+    unsafe_ignore_missing_latest_api: true,
 }
 
 prebuilt_apis {
