@@ -25,7 +25,7 @@ interface IBenchmarkService {
      *
      * @return The read rate in MB/s.
      */
-    double measureReadRate(String filename, long fileSizeBytes, boolean isRand);
+    double measureReadRate(String filename, boolean isRand);
 
     /** Returns an entry from /proc/meminfo. */
     long getMemInfoEntry(String name);
