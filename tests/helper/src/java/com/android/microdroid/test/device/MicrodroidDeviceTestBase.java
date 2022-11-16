@@ -123,7 +123,7 @@ public abstract class MicrodroidDeviceTestBase {
                 .that(ctx.getPackageManager().hasSystemFeature(FEATURE_VIRTUALIZATION_FRAMEWORK))
                 .isTrue();
 
-        mInner = new Inner(ctx, protectedVm, VirtualMachineManager.getInstance(ctx));
+        mInner = new Inner(ctx, protectedVm, ctx.getSystemService(VirtualMachineManager.class));
 
         int capabilities = mInner.getVirtualMachineManager().getCapabilities();
         if (protectedVm) {

@@ -30,6 +30,11 @@
       "name": "AVFHostTestCases"
     }
   ],
+  "postsubmit": [
+    {
+      "name": "CtsMicrodroidDisabledTestCases"
+    }
+  ],
   "imports": [
     {
       "path": "packages/modules/Virtualization/apkdmverity"
