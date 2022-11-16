@@ -23,6 +23,8 @@
 #include <fcntl.h>
 #include <linux/vm_sockets.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 #include <vm_main.h>
@@ -56,9 +58,9 @@ static ndk::ScopedAStatus resultStatus(const T& result) {
 
 class IOBenchmarkService : public aidl::com::android::microdroid::testservice::BnBenchmarkService {
 public:
-    ndk::ScopedAStatus measureReadRate(const std::string& filename, int64_t fileSizeBytes,
-                                       bool isRand, double* out) override {
-        auto res = measure_read_rate(filename, fileSizeBytes, isRand);
+    ndk::ScopedAStatus measureReadRate(const std::string& filename, bool isRand,
+                                       double* out) override {
+        auto res = measure_read_rate(filename, isRand);
         if (res.ok()) {
             *out = res.value();
         }
@@ -90,10 +92,17 @@ public:
     }
 
 private:
-    /** Measures the read rate for reading the given file. */
-    Result<double> measure_read_rate(const std::string& filename, int64_t fileSizeBytes,
-                                     bool is_rand) {
-        const int64_t block_count = fileSizeBytes / kBlockSizeBytes;
+    /**
+     * Measures the read rate for reading the given file.
+     * @return The read rate in MB/s.
+     */
+    Result<double> measure_read_rate(const std::string& filename, bool is_rand) {
+        struct stat file_stats;
+        if (stat(filename.c_str(), &file_stats) == -1) {
+            return Error() << "failed to get file stats";
+        }
+        const int64_t file_size_bytes = file_stats.st_size;
+        const int64_t block_count = file_size_bytes / kBlockSizeBytes;
         std::vector<uint64_t> offsets(block_count);
         for (auto i = 0; i < block_count; ++i) {
             offsets[i] = i * kBlockSizeBytes;
@@ -118,8 +127,8 @@ private:
             }
         }
         double elapsed_seconds = ((double)clock() - start) / CLOCKS_PER_SEC;
-        double read_rate = (double)fileSizeBytes / kNumBytesPerMB / elapsed_seconds;
-        return {read_rate};
+        double file_size_mb = (double)file_size_bytes / kNumBytesPerMB;
+        return {file_size_mb / elapsed_seconds};
     }
 
     Result<size_t> read_meminfo_entry(const std::string& stat) {
