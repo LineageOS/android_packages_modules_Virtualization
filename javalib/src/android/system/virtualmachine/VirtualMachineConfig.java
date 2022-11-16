@@ -16,6 +16,7 @@
 
 package android.system.virtualmachine;
 
+import static android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 
 import static java.util.Objects.requireNonNull;
@@ -190,6 +191,17 @@ public final class VirtualMachineConfig {
             return fromInputStream(input);
         } catch (IOException e) {
             throw new VirtualMachineException("Failed to read VM config from file", e);
+        }
+    }
+
+    /** Loads a config from a {@link ParcelFileDescriptor}. */
+    @NonNull
+    static VirtualMachineConfig from(@NonNull ParcelFileDescriptor fd)
+            throws VirtualMachineException {
+        try (AutoCloseInputStream input = new AutoCloseInputStream(fd)) {
+            return fromInputStream(input);
+        } catch (IOException e) {
+            throw new VirtualMachineException("failed to read VM config from file descriptor", e);
         }
     }
 
