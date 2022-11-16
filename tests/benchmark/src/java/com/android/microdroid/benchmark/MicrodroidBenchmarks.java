@@ -257,18 +257,10 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static class VirtioBlkListener implements BenchmarkVmListener.InnerListener {
         private static final String FILENAME = APEX_ETC_FS + "microdroid_super.img";
 
-        private final long mFileSizeBytes;
         private final List<Double> mReadRates;
         private final boolean mIsRand;
 
         VirtioBlkListener(List<Double> readRates, boolean isRand) {
-            File file = new File(FILENAME);
-            try {
-                mFileSizeBytes = Files.size(file.toPath());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            assertThat(mFileSizeBytes).isGreaterThan((long) SIZE_MB);
             mReadRates = readRates;
             mIsRand = isRand;
         }
@@ -276,7 +268,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         @Override
         public void onPayloadReady(VirtualMachine vm, IBenchmarkService benchmarkService)
                 throws RemoteException {
-            double readRate = benchmarkService.measureReadRate(FILENAME, mFileSizeBytes, mIsRand);
+            double readRate = benchmarkService.measureReadRate(FILENAME, mIsRand);
             mReadRates.add(readRate);
         }
     }
