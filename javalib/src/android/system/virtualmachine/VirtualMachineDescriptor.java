@@ -23,8 +23,6 @@ import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 
-import com.android.internal.annotations.VisibleForTesting;
-
 /**
  * A VM descriptor that captures the state of a Virtual Machine.
  *
@@ -65,8 +63,8 @@ public final class VirtualMachineDescriptor implements Parcelable {
      * @return File descriptor of the VM configuration file config.xml.
      * @hide
      */
-    @VisibleForTesting
-    public @NonNull ParcelFileDescriptor getConfigFd() {
+    @NonNull
+    ParcelFileDescriptor getConfigFd() {
         return mConfigFd;
     }
 
@@ -74,8 +72,8 @@ public final class VirtualMachineDescriptor implements Parcelable {
      * @return File descriptor of the instance.img of the VM.
      * @hide
      */
-    @VisibleForTesting
-    public @NonNull ParcelFileDescriptor getInstanceImgFd() {
+    @NonNull
+    ParcelFileDescriptor getInstanceImgFd() {
         return mInstanceImgFd;
     }
 

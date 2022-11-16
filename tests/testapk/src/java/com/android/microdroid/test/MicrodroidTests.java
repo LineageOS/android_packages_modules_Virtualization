@@ -61,6 +61,7 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.UUID;
@@ -600,31 +601,46 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    public void vmConvertsToValidDescriptor() throws Exception {
+    public void importedVmIsEqualToTheOriginalVm() throws Exception {
         // Arrange
         VirtualMachineConfig config =
                 mInner.newVmConfigBuilder()
                         .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
-        String vmName = "test_vm";
-        VirtualMachine vm = mInner.forceCreateNewVirtualMachine(vmName, config);
+        String vmNameOrig = "test_vm_orig", vmNameImport = "test_vm_import";
+        VirtualMachine vmOrig = mInner.forceCreateNewVirtualMachine(vmNameOrig, config);
+        // Run something to make the instance.img different with the initialized one.
+        TestResults origTestResults = runVmTestService(vmOrig);
+        assertThat(origTestResults.mException).isNull();
+        assertThat(origTestResults.mAddInteger).isEqualTo(123 + 456);
+        VirtualMachineDescriptor descriptor = vmOrig.toDescriptor();
+        VirtualMachineManager vmm = mInner.getVirtualMachineManager();
+        if (vmm.get(vmNameImport) != null) {
+            vmm.delete(vmNameImport);
+        }
 
         // Action
-        VirtualMachineDescriptor descriptor = vm.toDescriptor();
+        VirtualMachine vmImport = vmm.importFromDescriptor(vmNameImport, descriptor);
 
         // Asserts
-        assertFileContentsAreEqual(descriptor.getConfigFd(), vmName, "config.xml");
-        assertFileContentsAreEqual(descriptor.getInstanceImgFd(), vmName, "instance.img");
+        assertFileContentsAreEqualInTwoVms("config.xml", vmNameOrig, vmNameImport);
+        assertFileContentsAreEqualInTwoVms("instance.img", vmNameOrig, vmNameImport);
+        assertThat(vmImport).isNotEqualTo(vmOrig);
+        vmm.delete(vmNameOrig);
+        assertThat(vmImport).isEqualTo(vmm.get(vmNameImport));
+        TestResults testResults = runVmTestService(vmImport);
+        assertThat(testResults.mException).isNull();
+        assertThat(testResults.mAddInteger).isEqualTo(123 + 456);
     }
 
-    private void assertFileContentsAreEqual(
-            ParcelFileDescriptor parcelFd, String vmName, String fileName) throws IOException {
-        File file = getVmFile(vmName, fileName);
-        // Use try-with-resources to close the files automatically after assert.
-        try (FileInputStream input1 = new FileInputStream(parcelFd.getFileDescriptor());
-                FileInputStream input2 = new FileInputStream(file)) {
-            assertThat(input1.readAllBytes()).isEqualTo(input2.readAllBytes());
+    private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
+            throws IOException {
+        File file1 = getVmFile(vmName1, fileName);
+        File file2 = getVmFile(vmName2, fileName);
+        try (FileInputStream input1 = new FileInputStream(file1);
+                FileInputStream input2 = new FileInputStream(file2)) {
+            assertThat(Arrays.equals(input1.readAllBytes(), input2.readAllBytes())).isTrue();
         }
     }
 
