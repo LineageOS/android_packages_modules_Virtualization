@@ -55,3 +55,10 @@ cc_library_shared {
     srcs: ["src/native/testlib.cpp"],
     stl: "libc++_static",
 }
+
+cc_library_shared {
+    name: "MicrodroidIdleNativeLib",
+    srcs: ["src/native/idlebinary.cpp"],
+    header_libs: ["vm_payload_headers"],
+    stl: "libc++_static",
+}
