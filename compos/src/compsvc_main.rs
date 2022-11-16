@@ -22,10 +22,10 @@ mod compos_key;
 mod compsvc;
 mod fsverity;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
-use rpcbinder::run_vsock_rpc_server;
+use rpcbinder::RpcServer;
 use std::panic;
 use vm_payload_bindgen::AVmPayload_notifyPayloadReady;
 
@@ -45,16 +45,11 @@ fn try_main() -> Result<()> {
         error!("{}", panic_info);
     }));
 
-    let service = compsvc::new_binder()?.as_binder();
     debug!("compsvc is starting as a rpc service.");
+    let service = compsvc::new_binder()?.as_binder();
+    let server = RpcServer::new_vsock(service, COMPOS_VSOCK_PORT)?;
     // SAFETY: Invokes a method from the bindgen library `vm_payload_bindgen`.
-    let retval = run_vsock_rpc_server(service, COMPOS_VSOCK_PORT, || unsafe {
-        AVmPayload_notifyPayloadReady();
-    });
-    if retval {
-        debug!("RPC server has shut down gracefully");
-        Ok(())
-    } else {
-        bail!("Premature termination of RPC server");
-    }
+    unsafe { AVmPayload_notifyPayloadReady() };
+    server.join();
+    Ok(())
 }
