@@ -13,7 +13,7 @@ android_app {
         "com.google.android.material_material",
     ],
     libs: [
-        "android.system.virtualmachine",
+        "framework-virtualization",
     ],
     jni_libs: ["MicrodroidTestNativeLib"],
     platform_apis: true,
