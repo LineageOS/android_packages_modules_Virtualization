@@ -12,6 +12,5 @@ java_library_host {
     ],
     static_libs: [
         "MicrodroidTestHelper",
-        "VirtualizationTestHelper",
     ],
 }
