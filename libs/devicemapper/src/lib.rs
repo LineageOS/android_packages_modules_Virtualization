@@ -212,7 +212,7 @@ impl DeviceMapper {
         dm_dev_suspend(self, &mut data).context("failed to activate")?;
 
         // Step 4: wait unti the device is created and return the device path
-        let path = Path::new(MAPPER_DEV_ROOT).join(&name);
+        let path = Path::new(MAPPER_DEV_ROOT).join(name);
         wait_for_path(&path)?;
         Ok(path)
     }
@@ -250,13 +250,13 @@ mod tests {
     }
 
     fn write_to_dev(path: &Path, data: &[u8]) {
-        let mut f = OpenOptions::new().read(true).write(true).open(&path).unwrap();
+        let mut f = OpenOptions::new().read(true).write(true).open(path).unwrap();
         f.write_all(data).unwrap();
     }
 
     fn delete_device(dm: &DeviceMapper, name: &str) -> Result<()> {
         dm.delete_device_deferred(name)?;
-        wait_for_path_disappears(Path::new(MAPPER_DEV_ROOT).join(&name))?;
+        wait_for_path_disappears(Path::new(MAPPER_DEV_ROOT).join(name))?;
         Ok(())
     }
 
