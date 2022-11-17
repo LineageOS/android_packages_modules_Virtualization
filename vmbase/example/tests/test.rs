@@ -25,8 +25,9 @@ use anyhow::{Context, Error};
 use log::info;
 use std::{
     fs::File,
-    io,
-    os::unix::io::{AsRawFd, FromRawFd},
+    io::{self, BufRead, BufReader},
+    os::unix::io::FromRawFd,
+    panic, thread,
 };
 use vmclient::{DeathReason, VmInstance};
 
@@ -36,7 +37,14 @@ const VMBASE_EXAMPLE_PATH: &str =
 /// Runs the vmbase_example VM as an unprotected VM via VirtualizationService.
 #[test]
 fn test_run_example_vm() -> Result<(), Error> {
-    env_logger::init();
+    android_logger::init_once(
+        android_logger::Config::default().with_tag("vmbase").with_min_level(log::Level::Debug),
+    );
+
+    // Redirect panic messages to logcat.
+    panic::set_hook(Box::new(|panic_info| {
+        log::error!("{}", panic_info);
+    }));
 
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
@@ -62,8 +70,8 @@ fn test_run_example_vm() -> Result<(), Error> {
         platformVersion: "~1.0".to_string(),
         taskProfiles: vec![],
     });
-    let console = duplicate_stdout()?;
-    let log = duplicate_stdout()?;
+    let console = android_log_fd()?;
+    let log = android_log_fd()?;
     let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log), None)
         .context("Failed to create VM")?;
     vm.start().context("Failed to start VM")?;
@@ -76,17 +84,17 @@ fn test_run_example_vm() -> Result<(), Error> {
     Ok(())
 }
 
-/// Safely duplicate the standard output file descriptor.
-fn duplicate_stdout() -> io::Result<File> {
-    let stdout_fd = io::stdout().as_raw_fd();
-    // Safe because this just duplicates a file descriptor which we know to be valid, and we check
-    // for an error.
-    let dup_fd = unsafe { libc::dup(stdout_fd) };
-    if dup_fd < 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        // Safe because we have just duplicated the file descriptor so we own it, and `from_raw_fd`
-        // takes ownership of it.
-        Ok(unsafe { File::from_raw_fd(dup_fd) })
-    }
+fn android_log_fd() -> io::Result<File> {
+    let (reader_fd, writer_fd) = nix::unistd::pipe()?;
+
+    // SAFETY: These are new FDs with no previous owner.
+    let reader = unsafe { File::from_raw_fd(reader_fd) };
+    let writer = unsafe { File::from_raw_fd(writer_fd) };
+
+    thread::spawn(|| {
+        for line in BufReader::new(reader).lines() {
+            info!("{}", line.unwrap());
+        }
+    });
+    Ok(writer)
 }

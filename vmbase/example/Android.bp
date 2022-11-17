@@ -54,10 +54,11 @@ rust_test {
     edition: "2021",
     rustlibs: [
         "android.system.virtualizationservice-rust",
+        "libandroid_logger",
         "libanyhow",
-        "libenv_logger",
         "liblibc",
         "liblog_rust",
+        "libnix",
         "libvmclient",
     ],
     data: [
