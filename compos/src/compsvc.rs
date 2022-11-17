@@ -144,7 +144,7 @@ impl CompOsService {
 
 fn add_artifacts(target_dir: &Path, artifact_signer: &mut ArtifactSigner) -> Result<()> {
     for entry in
-        read_dir(&target_dir).with_context(|| format!("Traversing {}", target_dir.display()))?
+        read_dir(target_dir).with_context(|| format!("Traversing {}", target_dir.display()))?
     {
         let entry = entry?;
         let file_type = entry.file_type()?;

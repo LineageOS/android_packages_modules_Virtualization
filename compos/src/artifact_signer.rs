@@ -46,7 +46,7 @@ impl<'a> ArtifactSigner<'a> {
     pub fn add_artifact(&mut self, path: &Path) -> Result<()> {
         // The path we store is where the file will be when it is verified, not where it is now.
         let suffix = path
-            .strip_prefix(&self.base_directory)
+            .strip_prefix(self.base_directory)
             .context("Artifacts must be under base directory")?;
         let target_path = Path::new(TARGET_DIRECTORY).join(suffix);
         let target_path = target_path.to_str().ok_or_else(|| anyhow!("Invalid path"))?;

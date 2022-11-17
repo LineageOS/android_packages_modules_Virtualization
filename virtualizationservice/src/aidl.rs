@@ -500,8 +500,7 @@ fn format_as_android_vm_instance(part: &mut dyn Write) -> std::io::Result<()> {
 }
 
 fn prepare_ramdump_file(ramdump_path: &Path) -> Result<File> {
-    File::create(&ramdump_path)
-        .context(format!("Failed to create ramdump file {:?}", &ramdump_path))
+    File::create(ramdump_path).context(format!("Failed to create ramdump file {:?}", &ramdump_path))
 }
 
 /// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
