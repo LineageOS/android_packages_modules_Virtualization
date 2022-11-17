@@ -162,7 +162,7 @@ mod tests {
     }
 
     fn create_block_aligned_file(path: &Path, data: &[u8]) {
-        let mut f = File::create(&path).unwrap();
+        let mut f = File::create(path).unwrap();
         f.write_all(data).unwrap();
 
         // Add padding so that the size of the file is multiple of 4096.
