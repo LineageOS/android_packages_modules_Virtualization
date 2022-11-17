@@ -39,6 +39,9 @@ aidl_interface {
     imports: ["android.system.virtualizationcommon"],
     unstable: true,
     backend: {
+        java: {
+            sdk_version: "module_current",
+        },
         rust: {
             enabled: true,
             apex_available: [
@@ -55,6 +58,7 @@ aidl_interface {
     unstable: true,
     backend: {
         java: {
+            sdk_version: "module_current",
             apex_available: ["com.android.virt"],
         },
         ndk: {
