@@ -12,18 +12,9 @@ android_app {
 
 java_sdk_library {
     name: "framework-virtualization",
-    installable: false,
-    compile_dex: true,
 
     // TODO(b/243512044): introduce non-updatable-framework-module-defaults
-
     defaults: ["framework-module-defaults"],
-
-    shared_library: false,
-
-    default_to_stubs: false,
-
-    dist_group: "android",
 
     jarjar_rules: "jarjar-rules.txt",
 
@@ -43,26 +34,14 @@ java_sdk_library {
         "com.android.system.virtualmachine.sysprop",
     ],
     errorprone: {
-        // We use @GuardedBy and we want a test failure if our locking isn't consistent with it.
         enabled: true,
         javacflags: [
+            // We use @GuardedBy and we want a test failure if our locking isn't consistent with it.
             "-Xep:GuardedBy:ERROR",
+            // JavaApiUsedByMainlineModule is quite spammy, and since we com.android.virt is not
+            // an updatable module we don't need it.
+            "-Xep:JavaApiUsedByMainlineModule:OFF",
         ],
-    },
-
-    public: {
-        enabled: true,
-        sdk_version: "module_current",
-    },
-
-    system: {
-        enabled: true,
-        sdk_version: "module_current",
-    },
-
-    module_lib: {
-        enabled: true,
-        sdk_version: "module_current",
     },
 
     test: {
@@ -71,15 +50,14 @@ java_sdk_library {
     },
 
     sdk_version: "core_platform",
-    platform_apis: true,
     impl_only_libs: [
         "framework",
     ],
     impl_library_visibility: [
-        "//frameworks/base",
+        "//packages/modules/Virtualization:__subpackages__",
     ],
 
-    // Temporary workaround, will be removed in a follow-up child cl.
+    // TODO(b/243512044): remove once we have API tracking files in prebuilts/sdk
     unsafe_ignore_missing_latest_api: true,
 }
 
