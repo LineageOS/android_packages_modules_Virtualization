@@ -1,2 +1,3 @@
 service authfs_service /system/bin/authfs_service
     disabled
+    socket authfs_service stream 0666 root system
