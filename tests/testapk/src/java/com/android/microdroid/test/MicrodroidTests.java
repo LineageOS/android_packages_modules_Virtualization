@@ -27,7 +27,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.content.Context;
 import android.os.Build;
-import android.os.ParcelFileDescriptor;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachine;
@@ -746,13 +745,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     public void onPayloadStarted(VirtualMachine vm) {
                         Log.i(TAG, "onPayloadStarted");
                         payloadStarted.complete(true);
-                    }
-
-                    @Override
-                    public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        Log.i(TAG, "onPayloadStdio");
-                        logVmOutput(
-                                TAG, new FileInputStream(stream.getFileDescriptor()), "Payload");
                     }
                 };
         listener.runToFinish(TAG, vm);

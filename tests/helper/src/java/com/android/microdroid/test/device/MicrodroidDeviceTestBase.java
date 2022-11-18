@@ -230,9 +230,6 @@ public abstract class MicrodroidDeviceTestBase {
         public void onPayloadStarted(VirtualMachine vm) {}
 
         @Override
-        public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {}
-
-        @Override
         public void onPayloadReady(VirtualMachine vm) {}
 
         @Override

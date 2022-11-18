@@ -80,13 +80,4 @@ bool AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_si
  */
 const char *AVmPayload_getApkContentsPath(void);
 
-/**
- * Initiates a socket connection with the host and duplicates stdin, stdout and
- * stderr file descriptors to the socket.
- *
- * \return true on success and false on failure. If unsuccessful, the stdio FDs
- * may be in an inconsistent state.
- */
-bool AVmPayload_setupStdioProxy();
-
 __END_DECLS
