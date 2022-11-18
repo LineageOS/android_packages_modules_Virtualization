@@ -76,7 +76,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.lang.ref.WeakReference;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
@@ -86,10 +85,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -107,11 +103,6 @@ import java.util.zip.ZipFile;
  * @hide
  */
 public class VirtualMachine implements AutoCloseable {
-    /** Map from context to a map of all that context's VMs by name. */
-    @GuardedBy("sCreateLock")
-    private static final Map<Context, Map<String, WeakReference<VirtualMachine>>> sInstances =
-            new WeakHashMap<>();
-
     /** Name of the directory under the files directory where all VMs created for the app exist. */
     private static final String VM_DIR = "vm";
 
@@ -208,16 +199,9 @@ public class VirtualMachine implements AutoCloseable {
     private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 
     // A note on lock ordering:
-    // You can take mLock while holding sCreateLock, but not vice versa.
+    // You can take mLock while holding VirtualMachineManager.sCreateLock, but not vice versa.
     // We never take any other lock while holding mCallbackLock; therefore you can
     // take mCallbackLock while holding any other lock.
-
-    /**
-     * A lock used to synchronize the creation of virtual machines. It protects
-     * {@link #sInstances}, but is also held throughout VM creation / retrieval / deletion, to
-     * prevent these actions racing with each other.
-     */
-    static final Object sCreateLock = new Object();
 
     /** Lock protecting our mutable state (other than callbacks). */
     private final Object mLock = new Object();
@@ -281,12 +265,6 @@ public class VirtualMachine implements AutoCloseable {
         mExtraApks = setupExtraApks(context, config, thisVmDir);
     }
 
-    @GuardedBy("sCreateLock")
-    @NonNull
-    private static Map<String, WeakReference<VirtualMachine>> getInstancesMap(Context context) {
-        return sInstances.computeIfAbsent(context, unused -> new HashMap<>());
-    }
-
     /**
      * Builds a virtual machine from an {@link VirtualMachineDescriptor} object and associates it
      * with the given name.
@@ -297,7 +275,7 @@ public class VirtualMachine implements AutoCloseable {
      * #delete}. The imported virtual machine is in {@link #STATUS_STOPPED} state. To run the VM,
      * call {@link #run}.
      */
-    @GuardedBy("sCreateLock")
+    @GuardedBy("VirtualMachineManager.sCreateLock")
     @NonNull
     static VirtualMachine fromDescriptor(
             @NonNull Context context,
@@ -315,7 +293,6 @@ public class VirtualMachine implements AutoCloseable {
                 throw new VirtualMachineException("failed to create instance image", e);
             }
             vm.importInstanceFrom(vmDescriptor.getInstanceImgFd());
-            getInstancesMap(context).put(name, new WeakReference<>(vm));
             return vm;
         } catch (VirtualMachineException | RuntimeException e) {
             // If anything goes wrong, delete any files created so far and the VM's directory
@@ -333,7 +310,7 @@ public class VirtualMachine implements AutoCloseable {
      * it is persisted until it is deleted by calling {@link #delete}. The created virtual machine
      * is in {@link #STATUS_STOPPED} state. To run the VM, call {@link #run}.
      */
-    @GuardedBy("sCreateLock")
+    @GuardedBy("VirtualMachineManager.sCreateLock")
     @NonNull
     static VirtualMachine create(
             @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
@@ -365,9 +342,6 @@ public class VirtualMachine implements AutoCloseable {
             } catch (ServiceSpecificException | IllegalArgumentException e) {
                 throw new VirtualMachineException("failed to create instance partition", e);
             }
-
-            getInstancesMap(context).put(name, new WeakReference<>(vm));
-
             return vm;
         } catch (VirtualMachineException | RuntimeException e) {
             // If anything goes wrong, delete any files created so far and the VM's directory
@@ -381,10 +355,10 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     /** Loads a virtual machine that is already created before. */
-    @GuardedBy("sCreateLock")
+    @GuardedBy("VirtualMachineManager.sCreateLock")
     @Nullable
-    static VirtualMachine load(
-            @NonNull Context context, @NonNull String name) throws VirtualMachineException {
+    static VirtualMachine load(@NonNull Context context, @NonNull String name)
+            throws VirtualMachineException {
         File thisVmDir = getVmDir(context, name);
         if (!thisVmDir.exists()) {
             // The VM doesn't exist.
@@ -392,51 +366,33 @@ public class VirtualMachine implements AutoCloseable {
         }
         File configFilePath = new File(thisVmDir, CONFIG_FILE);
         VirtualMachineConfig config = VirtualMachineConfig.from(configFilePath);
-        Map<String, WeakReference<VirtualMachine>> instancesMap = getInstancesMap(context);
-
-        VirtualMachine vm = null;
-        if (instancesMap.containsKey(name)) {
-            vm = instancesMap.get(name).get();
-        }
-        if (vm == null) {
-            vm = new VirtualMachine(context, name, config);
-        }
+        VirtualMachine vm = new VirtualMachine(context, name, config);
 
         if (!vm.mInstanceFilePath.exists()) {
             throw new VirtualMachineException("instance image missing");
         }
 
-        instancesMap.put(name, new WeakReference<>(vm));
-
         return vm;
     }
 
-    @GuardedBy("sCreateLock")
-    static void delete(Context context, String name) throws VirtualMachineException {
-        Map<String, WeakReference<VirtualMachine>> instancesMap = sInstances.get(context);
-        VirtualMachine vm;
-        if (instancesMap != null && instancesMap.containsKey(name)) {
-            vm = instancesMap.get(name).get();
-        } else {
-            vm = null;
+    @GuardedBy("VirtualMachineManager.sCreateLock")
+    void delete(Context context, String name) throws VirtualMachineException {
+        synchronized (mLock) {
+            checkStopped();
         }
 
-        if (vm != null) {
-            synchronized (vm.mLock) {
-                vm.checkStopped();
-            }
-        }
+        deleteVmDirectory(context, name);
+    }
 
+    static void deleteVmDirectory(Context context, String name) throws VirtualMachineException {
         try {
             deleteRecursively(getVmDir(context, name));
         } catch (IOException e) {
             throw new VirtualMachineException(e);
         }
-
-        if (instancesMap != null) instancesMap.remove(name);
     }
 
-    @GuardedBy("sCreateLock")
+    @GuardedBy("VirtualMachineManager.sCreateLock")
     @NonNull
     private static File createVmDir(@NonNull Context context, @NonNull String name)
             throws VirtualMachineException {
