@@ -57,6 +57,9 @@ apex_defaults {
     bootclasspath_fragments: [
         "com.android.virt-bootclasspath-fragment",
     ],
+    jni_libs: [
+        "libvirtualmachine_jni",
+    ],
 }
 
 apex_defaults {
@@ -86,9 +89,6 @@ apex_defaults {
     binaries: [
         "fd_server",
         "vm",
-    ],
-    jni_libs: [
-        "libvirtualmachine_jni",
     ],
     prebuilts: [
         "com.android.virt.init.rc",
