@@ -601,6 +601,36 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void importedVmAndOriginalVmHaveTheSameCdi() throws Exception {
+        assumeSupportedKernel();
+        // Arrange
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+        VirtualMachineConfig config =
+                mInner.newVmConfigBuilder()
+                        .setPayloadConfigPath("assets/vm_config.json")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        String vmNameOrig = "test_vm_orig";
+        String vmNameImport = "test_vm_import";
+        VirtualMachine vmOrig = mInner.forceCreateNewVirtualMachine(vmNameOrig, config);
+        VmCdis origCdis = launchVmAndGetCdis(vmNameOrig);
+        assertThat(origCdis.instanceSecret).isNotNull();
+        VirtualMachineDescriptor descriptor = vmOrig.toDescriptor();
+        VirtualMachineManager vmm = mInner.getVirtualMachineManager();
+        if (vmm.get(vmNameImport) != null) {
+            vmm.delete(vmNameImport);
+        }
+
+        // Action
+        // The imported VM will be fetched by name later.
+        VirtualMachine unusedVmImport = vmm.importFromDescriptor(vmNameImport, descriptor);
+
+        // Asserts
+        VmCdis importCdis = launchVmAndGetCdis(vmNameImport);
+        assertThat(origCdis.instanceSecret).isEqualTo(importCdis.instanceSecret);
+    }
+
+    @Test
     public void importedVmIsEqualToTheOriginalVm() throws Exception {
         // Arrange
         VirtualMachineConfig config =
@@ -608,7 +638,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
-        String vmNameOrig = "test_vm_orig", vmNameImport = "test_vm_import";
+        String vmNameOrig = "test_vm_orig";
+        String vmNameImport = "test_vm_import";
         VirtualMachine vmOrig = mInner.forceCreateNewVirtualMachine(vmNameOrig, config);
         // Run something to make the instance.img different with the initialized one.
         TestResults origTestResults = runVmTestService(vmOrig);
