@@ -463,9 +463,8 @@ impl VirtualizationService {
             let service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
 
             // Start VM service listening for connections from the new CID on port=CID.
-            // TODO(b/245727626): Only accept connections from the new VM.
             let port = cid;
-            match RpcServer::new_vsock(service, port) {
+            match RpcServer::new_vsock(service, cid, port) {
                 Ok(vm_server) => {
                     vm_server.start();
                     return Ok((VmContext::new(global_context, vm_server), cid));

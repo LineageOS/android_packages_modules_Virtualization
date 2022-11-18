@@ -37,7 +37,8 @@ use std::os::unix::io::{FromRawFd, OwnedFd};
 use aidl::{FdConfig, FdService};
 use authfs_fsverity_metadata::parse_fsverity_metadata;
 
-const RPC_SERVICE_PORT: u32 = 3264; // TODO: support dynamic port for multiple fd_server instances
+// TODO(b/259920193): support dynamic port for multiple fd_server instances
+const RPC_SERVICE_PORT: u32 = 3264;
 
 fn is_fd_valid(fd: i32) -> bool {
     // SAFETY: a query-only syscall
@@ -137,7 +138,8 @@ fn main() -> Result<()> {
 
     debug!("fd_server is starting as a rpc service.");
     let service = FdService::new_binder(fd_pool).as_binder();
-    let server = RpcServer::new_vsock(service, RPC_SERVICE_PORT)?;
+    // TODO(b/259920193): Only accept connections from the intended guest VM.
+    let server = RpcServer::new_vsock(service, libc::VMADDR_CID_ANY, RPC_SERVICE_PORT)?;
     debug!("fd_server is ready");
 
     // Close the ready-fd if we were given one to signal our readiness.
