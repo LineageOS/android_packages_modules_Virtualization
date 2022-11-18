@@ -602,6 +602,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         // Check that no denials have happened so far
         CommandRunner android = new CommandRunner(getDevice());
         assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", LOG_PATH)).isNull();
+        assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", CONSOLE_PATH)).isNull();
 
         assertThat(microdroid.run("cat /proc/cpuinfo | grep processor | wc -l"))
                 .isEqualTo(Integer.toString(NUM_VCPUS));
