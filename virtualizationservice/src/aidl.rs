@@ -1049,8 +1049,8 @@ impl IVirtualMachineService for VirtualMachineService {
             })?;
             vm.callbacks.notify_payload_started(cid);
 
-            let vm_start_timestamp = vm.vm_start_timestamp.lock().unwrap();
-            write_vm_booted_stats(vm.requester_uid as i32, &vm.name, *vm_start_timestamp);
+            let vm_start_timestamp = vm.vm_metric.lock().unwrap().start_timestamp;
+            write_vm_booted_stats(vm.requester_uid as i32, &vm.name, vm_start_timestamp);
             Ok(())
         } else {
             error!("notifyPayloadStarted is called from an unknown CID {}", cid);
