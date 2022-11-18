@@ -100,6 +100,9 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
         assumeTrue("Need an actual TestDevice", androidDevice instanceof TestDevice);
         TestDevice testDevice = (TestDevice) androidDevice;
+        assumeTrue(
+                "Requires VM support",
+                testDevice.hasFeature("android.software.virtualization_framework"));
         assumeTrue("Requires VM support", testDevice.supportsMicrodroid());
     }
 
