@@ -24,5 +24,8 @@ java_library_static {
         "VirtualizationTestHelper",
         "truth-prebuilt",
     ],
-    libs: ["framework-virtualization"],
+    // We need to compile against the .impl library which includes the hidden
+    // APIs. Once the APIs are promoted to @SystemApi we can switch to
+    // framework-virtualization, which contains API stubs.
+    libs: ["framework-virtualization.impl"],
 }

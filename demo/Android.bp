@@ -13,7 +13,10 @@ android_app {
         "com.google.android.material_material",
     ],
     libs: [
-        "framework-virtualization",
+        // We need to compile against the .impl library which includes the hidden
+        // APIs. Once the APIs are promoted to @SystemApi we can switch to
+        // framework-virtualization, which contains API stubs.
+        "framework-virtualization.impl",
     ],
     jni_libs: ["MicrodroidTestNativeLib"],
     platform_apis: true,
