@@ -106,8 +106,8 @@ impl VmPayloadService {
     fn setup_payload_stdio_proxy(&self) -> Result<File> {
         // Instead of a predefined port in the host, we open up a port in the guest and have
         // the host connect to it. This makes it possible to have per-app instances of VS.
-        const ANY_PORT: u32 = 0;
-        let listener = VsockListener::bind_with_cid_port(libc::VMADDR_CID_HOST, ANY_PORT)
+        const ANY_PORT: u32 = u32::MAX; // (u32)-1
+        let listener = VsockListener::bind_with_cid_port(libc::VMADDR_CID_ANY, ANY_PORT)
             .context("Failed to create vsock listener")?;
         let addr = listener.local_addr().context("Failed to resolve listener port")?;
         self.virtual_machine_service
