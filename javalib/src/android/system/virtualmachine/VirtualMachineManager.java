@@ -25,6 +25,7 @@ import android.annotation.RequiresPermission;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.sysprop.HypervisorProperties;
+import android.util.ArrayMap;
 
 import com.android.internal.annotations.GuardedBy;
 
@@ -47,6 +48,13 @@ import java.util.WeakHashMap;
  * @hide
  */
 public class VirtualMachineManager {
+    /**
+     * A lock used to synchronize the creation of virtual machines. It protects {@link #sInstances},
+     * but is also held throughout VM creation / retrieval / deletion, to prevent these actions
+     * racing with each other.
+     */
+    private static final Object sCreateLock = new Object();
+
     @NonNull private final Context mContext;
 
     private VirtualMachineManager(@NonNull Context context) {
@@ -56,6 +64,10 @@ public class VirtualMachineManager {
     @GuardedBy("sInstances")
     private static final Map<Context, WeakReference<VirtualMachineManager>> sInstances =
             new WeakHashMap<>();
+
+    @NonNull
+    @GuardedBy("sCreateLock")
+    private final Map<String, WeakReference<VirtualMachine>> mVmsByName = new ArrayMap<>();
 
     /**
      * Capabilities of the virtual machine implementation.
@@ -136,9 +148,46 @@ public class VirtualMachineManager {
     public VirtualMachine create(
             @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        synchronized (VirtualMachine.sCreateLock) {
-            return VirtualMachine.create(mContext, name, config);
+        synchronized (sCreateLock) {
+            return createLocked(name, config);
         }
+    }
+
+    @NonNull
+    @GuardedBy("sCreateLock")
+    private VirtualMachine createLocked(String name, VirtualMachineConfig config)
+            throws VirtualMachineException {
+        VirtualMachine vm = VirtualMachine.create(mContext, name, config);
+        mVmsByName.put(name, new WeakReference<>(vm));
+        return vm;
+    }
+
+    /**
+     * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
+     * such virtual machine.
+     *
+     * @throws VirtualMachineException if the virtual machine exists but could not be successfully
+     *     retrieved.
+     * @hide
+     */
+    @Nullable
+    public VirtualMachine get(@NonNull String name) throws VirtualMachineException {
+        synchronized (sCreateLock) {
+            return getLocked(name);
+        }
+    }
+
+    @Nullable
+    @GuardedBy("sCreateLock")
+    private VirtualMachine getLocked(String name) throws VirtualMachineException {
+        VirtualMachine vm = getVmByName(name);
+        if (vm != null) return vm;
+
+        vm = VirtualMachine.load(mContext, name);
+        if (vm != null) {
+            mVmsByName.put(name, new WeakReference<>(vm));
+        }
+        return vm;
     }
 
     /**
@@ -154,23 +203,10 @@ public class VirtualMachineManager {
     public VirtualMachine importFromDescriptor(
             @NonNull String name, @NonNull VirtualMachineDescriptor vmDescriptor)
             throws VirtualMachineException {
-        synchronized (VirtualMachine.sCreateLock) {
-            return VirtualMachine.fromDescriptor(mContext, name, vmDescriptor);
-        }
-    }
-
-    /**
-     * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
-     * such virtual machine.
-     *
-     * @throws VirtualMachineException if the virtual machine exists but could not be successfully
-     *                                 retrieved.
-     * @hide
-     */
-    @Nullable
-    public VirtualMachine get(@NonNull String name) throws VirtualMachineException {
-        synchronized (VirtualMachine.sCreateLock) {
-            return VirtualMachine.load(mContext, name);
+        synchronized (sCreateLock) {
+            VirtualMachine vm = VirtualMachine.fromDescriptor(mContext, name, vmDescriptor);
+            mVmsByName.put(name, new WeakReference<>(vm));
+            return vm;
         }
     }
 
@@ -185,14 +221,14 @@ public class VirtualMachineManager {
     public VirtualMachine getOrCreate(
             @NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
-        VirtualMachine vm;
-        synchronized (VirtualMachine.sCreateLock) {
-            vm = get(name);
-            if (vm == null) {
-                vm = create(name, config);
+        synchronized (sCreateLock) {
+            VirtualMachine vm = getLocked(name);
+            if (vm != null) {
+                return vm;
+            } else {
+                return createLocked(name, config);
             }
         }
-        return vm;
     }
 
     /**
@@ -208,8 +244,26 @@ public class VirtualMachineManager {
      */
     public void delete(@NonNull String name) throws VirtualMachineException {
         requireNonNull(name);
-        synchronized (VirtualMachine.sCreateLock) {
-            VirtualMachine.delete(mContext, name);
+        synchronized (sCreateLock) {
+            VirtualMachine vm = getVmByName(name);
+            if (vm == null) {
+                VirtualMachine.deleteVmDirectory(mContext, name);
+            } else {
+                vm.delete(mContext, name);
+            }
+            mVmsByName.remove(name);
         }
+    }
+
+    @GuardedBy("sCreateLock")
+    private VirtualMachine getVmByName(String name) {
+        WeakReference<VirtualMachine> weakReference = mVmsByName.get(name);
+        if (weakReference != null) {
+            VirtualMachine vm = weakReference.get();
+            if (vm != null && vm.getStatus() != VirtualMachine.STATUS_DELETED) {
+                return vm;
+            }
+        }
+        return null;
     }
 }
