@@ -42,6 +42,7 @@ import com.android.os.StatsLog;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.device.TestDevice;
+import com.android.tradefed.log.LogUtil.CLog;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 import com.android.tradefed.util.CommandResult;
@@ -62,13 +63,19 @@ import org.junit.runner.RunWith;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -266,11 +273,11 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         return new ActiveApexInfoList(list);
     }
 
-    private String runMicrodroidWithResignedImages(
+    private Process runMicrodroidWithResignedImages(
             File key,
             Map<String, File> keyOverrides,
             boolean isProtected,
-            boolean daemonize,
+            boolean waitForOnline,
             String consolePath)
             throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
@@ -375,19 +382,49 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         final String configPath = TEST_ROOT + "raw_config.json";
         getDevice().pushString(config.toString(), configPath);
 
-        final String logPath = LOG_PATH;
-        final String ret =
-                android.runWithTimeout(
-                        60 * 1000,
+        List<String> args =
+                Arrays.asList(
+                        "adb",
+                        "-s",
+                        getDevice().getSerialNumber(),
+                        "shell",
                         VIRT_APEX + "bin/vm run",
-                        daemonize ? "--daemonize" : "",
                         (consolePath != null) ? "--console " + consolePath : "",
-                        "--log " + logPath,
+                        "--log " + LOG_PATH,
                         configPath);
+
+        PipedInputStream pis = new PipedInputStream();
+        Process process = RunUtil.getDefault().runCmdInBackground(args, new PipedOutputStream(pis));
+        BufferedReader stdout = new BufferedReader(new InputStreamReader(pis));
+
+        // Retrieve the CID from the vm tool output
+        String cid = null;
         Pattern pattern = Pattern.compile("with CID (\\d+)");
-        Matcher matcher = pattern.matcher(ret);
-        assertWithMessage("Failed to find CID").that(matcher.find()).isTrue();
-        return matcher.group(1);
+        try {
+            String line;
+            while ((line = stdout.readLine()) != null) {
+                CLog.i("VM output: " + line);
+                Matcher matcher = pattern.matcher(line);
+                if (matcher.find()) {
+                    cid = matcher.group(1);
+                    break;
+                }
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException(
+                    "Could not find the CID of the VM. The process probably died.", ex);
+        }
+        if (cid == null) {
+            throw new IllegalStateException(
+                    "Could not find the CID of the VM. Output does not contain the expected"
+                            + " pattern.");
+        }
+
+        if (waitForOnline) {
+            adbConnectToMicrodroid(getDevice(), cid);
+        }
+
+        return process;
     }
 
     @Test
@@ -400,9 +437,12 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         File key = findTestFile("test.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of();
         boolean isProtected = true;
-        boolean daemonize = false; // VM should shut down due to boot failure.
+        boolean waitForOnline = false; // VM should shut down due to boot failure.
         String consolePath = TEST_ROOT + "console";
-        runMicrodroidWithResignedImages(key, keyOverrides, isProtected, daemonize, consolePath);
+        Process process =
+                runMicrodroidWithResignedImages(
+                        key, keyOverrides, isProtected, waitForOnline, consolePath);
+        process.waitFor(5L, TimeUnit.SECONDS);
         assertThat(getDevice().pullFileContents(consolePath), containsString("pvmfw boot failed"));
     }
 
@@ -416,14 +456,12 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         File key = findTestFile("test.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of();
         boolean isProtected = false;
-        boolean daemonize = true;
+        boolean waitForOnline = true; // Device online means that boot must have succeeded.
         String consolePath = TEST_ROOT + "console";
-        String cid =
+        Process process =
                 runMicrodroidWithResignedImages(
-                        key, keyOverrides, isProtected, daemonize, consolePath);
-        // Adb connection to the microdroid means that boot succeeded.
-        adbConnectToMicrodroid(getDevice(), cid);
-        shutdownMicrodroid(getDevice(), cid);
+                        key, keyOverrides, isProtected, waitForOnline, consolePath);
+        process.destroy();
     }
 
     @Test
@@ -434,18 +472,18 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         File key2 = findTestFile("test2.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of("microdroid_vbmeta.img", key2);
         boolean isProtected = false; // Not interested in pvwfw
-        boolean daemonize = true; // Bootloader fails and enters prompts.
+        boolean waitForOnline = false; // Bootloader fails and enters prompts.
         // To be able to stop it, it should be a daemon.
         String consolePath = TEST_ROOT + "console";
-        String cid =
+        Process process =
                 runMicrodroidWithResignedImages(
-                        key, keyOverrides, isProtected, daemonize, consolePath);
+                        key, keyOverrides, isProtected, waitForOnline, consolePath);
         // Wait so that init can print errors to console (time in cuttlefish >> in real device)
         assertThatEventually(
                 100000,
                 () -> getDevice().pullFileContents(consolePath),
                 containsString("init: [libfs_avb]Failed to verify vbmeta digest"));
-        shutdownMicrodroid(getDevice(), cid);
+        process.destroy();
     }
 
     private boolean isTombstoneGeneratedWithConfig(String configPath) throws Exception {
