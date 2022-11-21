@@ -28,12 +28,13 @@ import android.cts.host.utils.DeviceJUnit4Parameterized;
 import android.platform.test.annotations.RootPermissionTest;
 
 import com.android.fs.common.AuthFsTestRule;
+import com.android.microdroid.test.common.DeviceProperties;
 import com.android.microdroid.test.common.MetricsProcessor;
-import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.metrics.proto.MetricMeasurement.DataType;
 import com.android.tradefed.metrics.proto.MetricMeasurement.Measurements;
 import com.android.tradefed.metrics.proto.MetricMeasurement.Metric;
+import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -53,7 +54,7 @@ import java.util.Map;
 @RootPermissionTest
 @RunWith(DeviceJUnit4Parameterized.class)
 @UseParametersRunnerFactory(DeviceJUnit4ClassRunnerWithParameters.RunnerFactory.class)
-public class AuthFsBenchmarks extends MicrodroidHostTestCaseBase {
+public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     private static final int TRIAL_COUNT = 5;
 
     /** Name of the measure_io binary on host. */
@@ -83,10 +84,10 @@ public class AuthFsBenchmarks extends MicrodroidHostTestCaseBase {
         AuthFsTestRule.setUpAndroid(getTestInformation());
         mAuthFsTestRule.setUpTest();
         assumeTrue(AuthFsTestRule.getDevice().supportsMicrodroid(mProtectedVm));
-        assumeFalse("Skip on CF; protected VM not supported", isCuttlefish());
-        String metricsPrefix =
-                MetricsProcessor.getMetricPrefix(
-                        getDevice().getProperty("debug.hypervisor.metrics_tag"));
+        DeviceProperties deviceProperties = DeviceProperties.create(getDevice()::getProperty);
+        assumeFalse(
+                "Skip on CF; no need to collect metrics on CF", deviceProperties.isCuttlefish());
+        String metricsPrefix = MetricsProcessor.getMetricPrefix(deviceProperties.getMetricsTag());
         mMetricsProcessor = new MetricsProcessor(metricsPrefix + "authfs/");
         AuthFsTestRule.startMicrodroid(mProtectedVm);
     }
