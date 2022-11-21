@@ -440,8 +440,6 @@ struct ApkDmverityArgument<'a> {
 fn run_apkdmverity(args: &[ApkDmverityArgument]) -> Result<Child> {
     let mut cmd = Command::new(APKDMVERITY_BIN);
 
-    cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-
     for argument in args {
         cmd.arg("--apk").arg(argument.apk).arg(argument.idsig).arg(argument.name);
         if let Some(root_hash) = argument.saved_root_hash {
@@ -473,15 +471,7 @@ fn run_zipfuse(
     if let Some(property_name) = ready_prop {
         cmd.args(["-p", property_name]);
     }
-    cmd.arg("-o")
-        .arg(option)
-        .arg(zip_path)
-        .arg(mount_dir)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("Spawn zipfuse")
+    cmd.arg("-o").arg(option).arg(zip_path).arg(mount_dir).spawn().context("Spawn zipfuse")
 }
 
 fn write_apex_payload_data(
