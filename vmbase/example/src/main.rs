@@ -33,6 +33,7 @@ use aarch64_paging::{
 };
 use alloc::{vec, vec::Vec};
 use buddy_system_allocator::LockedHeap;
+use core::ffi::CStr;
 use libfdt::Fdt;
 use log::{info, LevelFilter};
 use vmbase::{logger, main, println};
@@ -152,6 +153,13 @@ fn check_fdt() {
     info!("FDT passed verification.");
     for reg in reader.memory().unwrap() {
         info!("memory @ {reg:#x?}");
+    }
+
+    let compatible = CStr::from_bytes_with_nul(b"ns16550a\0").unwrap();
+
+    for c in reader.compatible_nodes(compatible).unwrap() {
+        let reg = c.reg().unwrap().next().unwrap();
+        info!("node compatible with '{}' at {reg:?}", compatible.to_str().unwrap());
     }
 
     info!("FDT checks done.");

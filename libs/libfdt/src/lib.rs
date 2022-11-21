@@ -269,6 +269,7 @@ impl<'a> Iterator for MemRegIterator<'a> {
 }
 
 /// DT node.
+#[derive(Clone, Copy)]
 pub struct FdtNode<'a> {
     fdt: &'a Fdt,
     offset: c_int,
@@ -351,6 +352,23 @@ impl<'a> FdtNode<'a> {
         self.fdt
     }
 
+    fn next_compatible(self, compatible: &CStr) -> Result<Option<Self>> {
+        // SAFETY - Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_node_offset_by_compatible(
+                self.fdt.as_ptr(),
+                self.offset,
+                compatible.as_ptr(),
+            )
+        };
+
+        match fdt_err(ret) {
+            Ok(offset) => Ok(Some(Self { fdt: self.fdt, offset })),
+            Err(FdtError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     fn address_cells(&self) -> Result<AddrCells> {
         // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor).
         unsafe { libfdt_bindgen::fdt_address_cells(self.fdt.as_ptr(), self.offset) }
@@ -363,6 +381,33 @@ impl<'a> FdtNode<'a> {
         unsafe { libfdt_bindgen::fdt_size_cells(self.fdt.as_ptr(), self.offset) }
             .try_into()
             .map_err(|_| FdtError::Internal)
+    }
+}
+
+/// Iterator over nodes sharing a same compatible string.
+pub struct CompatibleIterator<'a> {
+    node: FdtNode<'a>,
+    compatible: &'a CStr,
+}
+
+impl<'a> CompatibleIterator<'a> {
+    fn new(fdt: &'a Fdt, compatible: &'a CStr) -> Result<Self> {
+        let node = fdt.root()?;
+        Ok(Self { node, compatible })
+    }
+}
+
+impl<'a> Iterator for CompatibleIterator<'a> {
+    type Item = FdtNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.node.next_compatible(self.compatible).ok()?;
+
+        if let Some(node) = next {
+            self.node = node;
+        }
+
+        next
     }
 }
 
@@ -412,10 +457,20 @@ impl Fdt {
         self.node(CStr::from_bytes_with_nul(b"/chosen\0").unwrap())
     }
 
+    /// Get the root node of the tree.
+    pub fn root(&self) -> Result<FdtNode> {
+        self.node(CStr::from_bytes_with_nul(b"/\0").unwrap())
+    }
+
     /// Find a tree node by its full path.
     pub fn node(&self, path: &CStr) -> Result<FdtNode> {
         let offset = self.path_offset(path)?;
         Ok(FdtNode { fdt: self, offset })
+    }
+
+    /// Iterate over nodes with a given compatible string.
+    pub fn compatible_nodes<'a>(&'a self, compatible: &'a CStr) -> Result<CompatibleIterator<'a>> {
+        CompatibleIterator::new(self, compatible)
     }
 
     fn path_offset(&self, path: &CStr) -> Result<c_int> {
