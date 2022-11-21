@@ -50,6 +50,9 @@ java_sdk_library {
     },
 
     sdk_version: "core_platform",
+    stub_only_libs: [
+        "android_module_lib_stubs_current",
+    ],
     impl_only_libs: [
         "framework",
     ],
