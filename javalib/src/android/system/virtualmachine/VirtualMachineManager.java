@@ -49,7 +49,7 @@ import java.util.WeakHashMap;
  */
 public class VirtualMachineManager {
     /**
-     * A lock used to synchronize the creation of virtual machines. It protects {@link #sInstances},
+     * A lock used to synchronize the creation of virtual machines. It protects {@link #mVmsByName},
      * but is also held throughout VM creation / retrieval / deletion, to prevent these actions
      * racing with each other.
      */
@@ -65,7 +65,6 @@ public class VirtualMachineManager {
     private static final Map<Context, WeakReference<VirtualMachineManager>> sInstances =
             new WeakHashMap<>();
 
-    @NonNull
     @GuardedBy("sCreateLock")
     private final Map<String, WeakReference<VirtualMachine>> mVmsByName = new ArrayMap<>();
 
@@ -155,7 +154,7 @@ public class VirtualMachineManager {
 
     @NonNull
     @GuardedBy("sCreateLock")
-    private VirtualMachine createLocked(String name, VirtualMachineConfig config)
+    private VirtualMachine createLocked(@NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         VirtualMachine vm = VirtualMachine.create(mContext, name, config);
         mVmsByName.put(name, new WeakReference<>(vm));
@@ -179,7 +178,7 @@ public class VirtualMachineManager {
 
     @Nullable
     @GuardedBy("sCreateLock")
-    private VirtualMachine getLocked(String name) throws VirtualMachineException {
+    private VirtualMachine getLocked(@NonNull String name) throws VirtualMachineException {
         VirtualMachine vm = getVmByName(name);
         if (vm != null) return vm;
 
@@ -243,7 +242,6 @@ public class VirtualMachineManager {
      * @hide
      */
     public void delete(@NonNull String name) throws VirtualMachineException {
-        requireNonNull(name);
         synchronized (sCreateLock) {
             VirtualMachine vm = getVmByName(name);
             if (vm == null) {
@@ -255,8 +253,10 @@ public class VirtualMachineManager {
         }
     }
 
+    @Nullable
     @GuardedBy("sCreateLock")
-    private VirtualMachine getVmByName(String name) {
+    private VirtualMachine getVmByName(@NonNull String name) {
+        requireNonNull(name);
         WeakReference<VirtualMachine> weakReference = mVmsByName.get(name);
         if (weakReference != null) {
             VirtualMachine vm = weakReference.get();
