@@ -26,6 +26,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assume.assumeTrue;
 
 import com.android.compatibility.common.tradefed.build.CompatibilityBuildHelper;
+import com.android.microdroid.test.common.DeviceProperties;
 import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.tradefed.build.IBuildInfo;
 import com.android.tradefed.device.DeviceNotAvailableException;
@@ -34,7 +35,6 @@ import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.RunUtil;
-import com.android.virt.VirtualizationTestHelper;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -83,14 +83,13 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         android.tryRun("rm", "-rf", "/data/misc/virtualizationservice/*");
     }
 
-    protected boolean isCuttlefish() throws Exception {
-        return VirtualizationTestHelper.isCuttlefish(
-            getDevice().getProperty("ro.product.vendor.device"));
+    protected boolean isCuttlefish() {
+        return DeviceProperties.create(getDevice()::getProperty).isCuttlefish();
     }
 
-    protected String getMetricPrefix() throws Exception {
+    protected String getMetricPrefix() {
         return MetricsProcessor.getMetricPrefix(
-                getDevice().getProperty("debug.hypervisor.metrics_tag"));
+                DeviceProperties.create(getDevice()::getProperty).getMetricsTag());
     }
 
     public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
