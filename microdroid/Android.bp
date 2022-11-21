@@ -72,7 +72,6 @@ android_system_image {
         "debuggerd",
         "linker",
         "linkerconfig",
-        "servicemanager.microdroid",
         "tombstoned.microdroid",
         "tombstone_transmit.microdroid",
         "cgroups.json",
