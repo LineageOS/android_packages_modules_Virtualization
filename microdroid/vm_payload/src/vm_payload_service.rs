@@ -23,13 +23,31 @@ use log::{error, info, Level};
 use rpcbinder::{get_unix_domain_rpc_interface, run_vsock_rpc_server};
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
+use std::sync::Mutex;
 
 lazy_static! {
     static ref VM_APK_CONTENTS_PATH_C: CString =
         CString::new(VM_APK_CONTENTS_PATH).expect("CString::new failed");
+    static ref PAYLOAD_CONNECTION: Mutex<Option<Strong<dyn IVmPayloadService>>> = Mutex::default();
 }
 
-// Make sure our logging goes to logcat. It is harmless to call this more than once.
+/// Return a connection to the payload service in Microdroid Manager. Uses the existing connection
+/// if there is one, otherwise attempts to create a new one.
+fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
+    let mut connection = PAYLOAD_CONNECTION.lock().unwrap();
+    if let Some(strong) = &*connection {
+        Ok(strong.clone())
+    } else {
+        let new_connection: Strong<dyn IVmPayloadService> = get_unix_domain_rpc_interface(
+            VM_PAYLOAD_SERVICE_SOCKET_NAME,
+        )
+        .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_SOCKET_NAME))?;
+        *connection = Some(new_connection.clone());
+        Ok(new_connection)
+    }
+}
+
+/// Make sure our logging goes to logcat. It is harmless to call this more than once.
 fn initialize_logging() {
     android_logger::init_once(
         android_logger::Config::default().with_tag("vm_payload").with_min_level(Level::Debug),
@@ -214,9 +232,4 @@ pub extern "C" fn AVmPayload_getApkContentsPath() -> *const c_char {
 
 fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
     get_vm_payload_service()?.getDiceAttestationCdi().context("Cannot get attestation CDI")
-}
-
-fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
-    get_unix_domain_rpc_interface(VM_PAYLOAD_SERVICE_SOCKET_NAME)
-        .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_SOCKET_NAME))
 }

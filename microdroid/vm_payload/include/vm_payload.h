@@ -56,8 +56,9 @@ bool AVmPayload_runVsockRpcServer(AIBinder *service, unsigned int port,
                                   void (*on_ready)(void *param), void *param);
 
 /**
- * Get a secret that is uniquely bound to this VM instance. The secrets are 32-byte values and the
- * value associated with an identifier will not change over the lifetime of the VM instance.
+ * Get a secret that is uniquely bound to this VM instance. The secrets are
+ * values up to 32 bytes long and the value associated with an identifier will
+ * not change over the lifetime of the VM instance.
  *
  * \param identifier identifier of the secret to return.
  * \param identifier_size size of the secret identifier.
