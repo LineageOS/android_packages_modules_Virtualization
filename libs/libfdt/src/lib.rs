@@ -384,6 +384,69 @@ impl<'a> FdtNode<'a> {
     }
 }
 
+/// Mutable FDT node.
+pub struct FdtNodeMut<'a> {
+    fdt: &'a mut Fdt,
+    offset: c_int,
+}
+
+impl<'a> FdtNodeMut<'a> {
+    /// Append a property name-value (possibly empty) pair to the given node.
+    pub fn appendprop<T: AsRef<[u8]>>(&mut self, name: &CStr, value: &T) -> Result<()> {
+        // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor).
+        let ret = unsafe {
+            libfdt_bindgen::fdt_appendprop(
+                self.fdt.as_mut_ptr(),
+                self.offset,
+                name.as_ptr(),
+                value.as_ref().as_ptr().cast::<c_void>(),
+                value.as_ref().len().try_into().map_err(|_| FdtError::BadValue)?,
+            )
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
+    /// Append a (address, size) pair property to the given node.
+    pub fn appendprop_addrrange(&mut self, name: &CStr, addr: u64, size: u64) -> Result<()> {
+        // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor).
+        let ret = unsafe {
+            libfdt_bindgen::fdt_appendprop_addrrange(
+                self.fdt.as_mut_ptr(),
+                self.parent()?.offset,
+                self.offset,
+                name.as_ptr(),
+                addr,
+                size,
+            )
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
+    /// Get reference to the containing device tree.
+    pub fn fdt(&mut self) -> &mut Fdt {
+        self.fdt
+    }
+
+    /// Add a new subnode to the given node and return it as a FdtNodeMut on success.
+    pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
+        // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor).
+        let ret = unsafe {
+            libfdt_bindgen::fdt_add_subnode(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
+        };
+
+        Ok(Self { fdt: self.fdt, offset: fdt_err(ret)? })
+    }
+
+    fn parent(&'a self) -> Result<FdtNode<'a>> {
+        // SAFETY - Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
+
+        Ok(FdtNode { fdt: &*self.fdt, offset: fdt_err(ret)? })
+    }
+}
+
 /// Iterator over nodes sharing a same compatible string.
 pub struct CompatibleIterator<'a> {
     node: FdtNode<'a>,
@@ -411,7 +474,7 @@ impl<'a> Iterator for CompatibleIterator<'a> {
     }
 }
 
-/// Wrapper around low-level read-only libfdt functions.
+/// Wrapper around low-level libfdt functions.
 #[repr(transparent)]
 pub struct Fdt {
     bytes: [u8],
@@ -428,6 +491,16 @@ impl Fdt {
         Ok(fdt)
     }
 
+    /// Wraps a mutable slice containing a Flattened Device Tree.
+    ///
+    /// Fails if the FDT does not pass validation.
+    pub fn from_mut_slice(fdt: &mut [u8]) -> Result<&mut Self> {
+        // SAFETY - The FDT will be validated before it is returned.
+        let fdt = unsafe { Self::unchecked_from_mut_slice(fdt) };
+        fdt.check_full()?;
+        Ok(fdt)
+    }
+
     /// Wraps a slice containing a Flattened Device Tree.
     ///
     /// # Safety
@@ -435,6 +508,39 @@ impl Fdt {
     /// The returned FDT might be invalid, only use on slices containing a valid DT.
     pub unsafe fn unchecked_from_slice(fdt: &[u8]) -> &Self {
         mem::transmute::<&[u8], &Self>(fdt)
+    }
+
+    /// Wraps a mutable slice containing a Flattened Device Tree.
+    ///
+    /// # Safety
+    ///
+    /// The returned FDT might be invalid, only use on slices containing a valid DT.
+    pub unsafe fn unchecked_from_mut_slice(fdt: &mut [u8]) -> &mut Self {
+        mem::transmute::<&mut [u8], &mut Self>(fdt)
+    }
+
+    /// Make the whole slice containing the DT available to libfdt.
+    pub fn unpack(&mut self) -> Result<()> {
+        // SAFETY - "Opens" the DT in-place (supported use-case) by updating its header and
+        // internal structures to make use of the whole self.fdt slice but performs no accesses
+        // outside of it and leaves the DT in a state that will be detected by other functions.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_open_into(
+                self.as_ptr(),
+                self.as_mut_ptr(),
+                self.capacity().try_into().map_err(|_| FdtError::Internal)?,
+            )
+        };
+        fdt_err_expect_zero(ret)
+    }
+
+    /// Pack the DT to take a minimum amount of memory.
+    ///
+    /// Doesn't shrink the underlying memory slice.
+    pub fn pack(&mut self) -> Result<()> {
+        // SAFETY - "Closes" the DT in-place by updating its header and relocating its structs.
+        let ret = unsafe { libfdt_bindgen::fdt_pack(self.as_mut_ptr()) };
+        fdt_err_expect_zero(ret)
     }
 
     /// Return an iterator of memory banks specified the "/memory" node.
@@ -473,6 +579,17 @@ impl Fdt {
         CompatibleIterator::new(self, compatible)
     }
 
+    /// Get the mutable root node of the tree.
+    pub fn root_mut(&mut self) -> Result<FdtNodeMut> {
+        self.node_mut(CStr::from_bytes_with_nul(b"/\0").unwrap())?.ok_or(FdtError::Internal)
+    }
+
+    /// Find a mutable tree node by its full path.
+    pub fn node_mut(&mut self, path: &CStr) -> Result<FdtNodeMut> {
+        let offset = self.path_offset(path)?;
+        Ok(FdtNodeMut { fdt: self, offset })
+    }
+
     fn path_offset(&self, path: &CStr) -> Result<c_int> {
         let len = path.to_bytes().len().try_into().map_err(|_| FdtError::BadPath)?;
         // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) and the
@@ -498,5 +615,13 @@ impl Fdt {
 
     fn as_ptr(&self) -> *const c_void {
         self as *const _ as *const c_void
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut c_void {
+        self as *mut _ as *mut c_void
+    }
+
+    fn capacity(&self) -> usize {
+        self.bytes.len()
     }
 }

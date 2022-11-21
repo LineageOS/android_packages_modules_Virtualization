@@ -162,6 +162,30 @@ fn check_fdt() {
         info!("node compatible with '{}' at {reg:?}", compatible.to_str().unwrap());
     }
 
+    let writer = Fdt::from_mut_slice(fdt).unwrap();
+    writer.unpack().unwrap();
+    info!("FDT successfully unpacked.");
+
+    let path = CStr::from_bytes_with_nul(b"/memory\0").unwrap();
+    let mut node = writer.node_mut(path).unwrap();
+    let name = CStr::from_bytes_with_nul(b"child\0").unwrap();
+    let mut child = node.add_subnode(name).unwrap();
+    info!("Created subnode '{}/{}'.", path.to_str().unwrap(), name.to_str().unwrap());
+
+    let name = CStr::from_bytes_with_nul(b"str-property\0").unwrap();
+    child.appendprop(name, b"property-value\0").unwrap();
+    info!("Appended property '{}'.", name.to_str().unwrap());
+
+    let name = CStr::from_bytes_with_nul(b"pair-property\0").unwrap();
+    let addr = 0x0123_4567u64;
+    let size = 0x89ab_cdefu64;
+    child.appendprop_addrrange(name, addr, size).unwrap();
+    info!("Appended property '{}'.", name.to_str().unwrap());
+
+    let writer = child.fdt();
+    writer.pack().unwrap();
+    info!("FDT successfully packed.");
+
     info!("FDT checks done.");
 }
 
