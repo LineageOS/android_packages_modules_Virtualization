@@ -37,8 +37,6 @@ on init
     chmod 0666 /dev/binderfs/binder
     chmod 0666 /dev/binderfs/vndbinder
 
-    start servicemanager
-
 on init
     mkdir /mnt/apk 0755 system system
     mkdir /mnt/extra-apk 0755 root root
