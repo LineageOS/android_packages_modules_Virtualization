@@ -23,6 +23,7 @@ use log::{error, info, Level};
 use rpcbinder::{get_unix_domain_rpc_interface, run_vsock_rpc_server};
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
+use std::ptr;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -228,6 +229,13 @@ pub unsafe extern "C" fn AVmPayload_getDiceAttestationCdi(
 #[no_mangle]
 pub extern "C" fn AVmPayload_getApkContentsPath() -> *const c_char {
     (*VM_APK_CONTENTS_PATH_C).as_ptr()
+}
+
+/// Gets the path to the VM's encrypted storage.
+#[no_mangle]
+pub extern "C" fn AVmPayload_getEncryptedStoragePath() -> *const c_char {
+    // TODO(b/254454578): Return a real path if storage is present
+    ptr::null()
 }
 
 fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {

@@ -81,4 +81,17 @@ bool AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_si
  */
 const char *AVmPayload_getApkContentsPath(void);
 
+/**
+ * Gets the path to the encrypted persistent storage for the VM, if any. This is
+ * a directory under which any files or directories created will be stored on
+ * behalf of the VM by the host app. All data is encrypted using a key known
+ * only to the VM, so the host cannot decrypt it, but may delete it.
+ *
+ * \return the path to the APK contents, or NULL if no encrypted storage was
+ * requested in the VM configuration. If non-null the returned string should not
+ * be deleted or freed by the application and remains valid for the lifetime of
+ * the VM.
+ */
+const char *AVmPayload_getEncryptedStoragePath(void);
+
 __END_DECLS

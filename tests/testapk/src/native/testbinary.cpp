@@ -123,6 +123,16 @@ Result<void> start_test_service() {
             *out = path;
             return ndk::ScopedAStatus::ok();
         }
+
+        ndk::ScopedAStatus getEncryptedStoragePath(std::string* out) override {
+            const char* path_c = AVmPayload_getEncryptedStoragePath();
+            if (path_c == nullptr) {
+                out->clear();
+            } else {
+                *out = path_c;
+            }
+            return ndk::ScopedAStatus::ok();
+        }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
 
