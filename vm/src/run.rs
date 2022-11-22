@@ -103,7 +103,7 @@ pub fn command_run_app(
                 service,
                 path,
                 storage_size.unwrap_or(10 * 1024 * 1024),
-                PartitionType::RAW,
+                PartitionType::ENCRYPTEDSTORE,
             )?;
         }
         Some(open_parcel_file(path, true)?)

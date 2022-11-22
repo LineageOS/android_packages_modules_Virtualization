@@ -88,6 +88,7 @@ const ENCRYPTEDSTORE_BACKING_DEVICE: &str = "/dev/block/by-name/encryptedstore";
 const ENCRYPTEDSTORE_BIN: &str = "/system/bin/encryptedstore";
 const ENCRYPTEDSTORE_KEY_IDENTIFIER: &str = "encryptedstore_key";
 const ENCRYPTEDSTORE_KEYSIZE: u32 = 64;
+const ENCRYPTEDSTORE_MOUNTPOINT: &str = "/mnt/encryptedstore";
 
 #[derive(thiserror::Error, Debug)]
 enum MicrodroidError {
@@ -820,6 +821,7 @@ fn prepare_encryptedstore(dice: &DiceContext) -> Result<Child> {
         .arg(ENCRYPTEDSTORE_BACKING_DEVICE)
         .arg("--key")
         .arg(hex::encode(&*key))
+        .args(["--mountpoint", ENCRYPTEDSTORE_MOUNTPOINT])
         .spawn()
         .context("encryptedstore failed")
 }
