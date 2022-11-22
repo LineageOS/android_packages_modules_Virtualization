@@ -36,4 +36,7 @@ interface ITestService {
 
     /* get the APK contents path. */
     String getApkContentsPath();
+
+    /* get the encrypted storage path. */
+    String getEncryptedStoragePath();
 }

@@ -642,12 +642,6 @@ public class VirtualMachine implements AutoCloseable {
                             }
 
                             @Override
-                            public void onPayloadStdio(int cid, ParcelFileDescriptor stream) {
-                                executeCallback(
-                                        (cb) -> cb.onPayloadStdio(VirtualMachine.this, stream));
-                            }
-
-                            @Override
                             public void onPayloadReady(int cid) {
                                 executeCallback((cb) -> cb.onPayloadReady(VirtualMachine.this));
                             }

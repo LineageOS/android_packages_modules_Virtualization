@@ -32,10 +32,8 @@ use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsSe
 use log::{info, warn};
 use rustutils::system_properties;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
-use std::thread;
 use vmclient::{DeathReason, ErrorCode, VmInstance, VmWaitError};
 
 /// This owns an instance of the CompOS VM.
@@ -244,13 +242,6 @@ impl vmclient::VmCallback for Callback {
         log::info!("VM payload started, cid = {}", cid);
     }
 
-    fn on_payload_stdio(&self, cid: i32, stream: &File) {
-        if let Err(e) = start_logging(stream) {
-            log::warn!("Can't log vm output: {}", e);
-        };
-        log::info!("VM payload forwarded its stdio, cid = {}", cid);
-    }
-
     fn on_payload_ready(&self, cid: i32) {
         log::info!("VM payload ready, cid = {}", cid);
     }
@@ -266,20 +257,4 @@ impl vmclient::VmCallback for Callback {
     fn on_died(&self, cid: i32, death_reason: DeathReason) {
         log::warn!("VM died, cid = {}, reason = {:?}", cid, death_reason);
     }
-}
-
-fn start_logging(file: &File) -> Result<()> {
-    let reader = BufReader::new(file.try_clone().context("Cloning file failed")?);
-    thread::spawn(move || {
-        for line in reader.lines() {
-            match line {
-                Ok(line) => info!("VM: {}", line),
-                Err(e) => {
-                    warn!("Reading VM output failed: {}", e);
-                    break;
-                }
-            }
-        }
-    });
-    Ok(())
 }

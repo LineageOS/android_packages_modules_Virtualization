@@ -27,7 +27,7 @@ use anyhow::{bail, Context, Error};
 use binder::ParcelFileDescriptor;
 use microdroid_payload_config::VmPayloadConfig;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::{Path, PathBuf};
 use vmclient::{ErrorCode, VmInstance};
@@ -278,20 +278,6 @@ struct Callback {}
 impl vmclient::VmCallback for Callback {
     fn on_payload_started(&self, _cid: i32) {
         eprintln!("payload started");
-    }
-
-    fn on_payload_stdio(&self, _cid: i32, stream: &File) {
-        eprintln!("connecting payload stdio...");
-        // Show the output of the payload
-        let mut reader = BufReader::new(stream.try_clone().unwrap());
-        std::thread::spawn(move || loop {
-            let mut s = String::new();
-            match reader.read_line(&mut s) {
-                Ok(0) => break,
-                Ok(_) => print!("{}", s),
-                Err(e) => eprintln!("error reading from virtual machine: {}", e),
-            };
-        });
     }
 
     fn on_payload_ready(&self, _cid: i32) {

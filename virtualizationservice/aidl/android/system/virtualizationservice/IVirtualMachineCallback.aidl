@@ -29,11 +29,6 @@ oneway interface IVirtualMachineCallback {
     void onPayloadStarted(int cid);
 
     /**
-     * Called when the payload provides access to its standard input/output via a socket.
-     */
-    void onPayloadStdio(int cid, in ParcelFileDescriptor fd);
-
-    /**
      * Called when the payload in the VM is ready to serve.
      */
     void onPayloadReady(int cid);

@@ -50,9 +50,4 @@ interface IVirtualMachineService {
      * Notifies that an error has occurred inside the VM.
      */
     void notifyError(ErrorCode errorCode, in String message);
-
-    /**
-     * Notifies that the guest has started a stdio proxy on the given port.
-     */
-    void connectPayloadStdioProxy(int port);
 }

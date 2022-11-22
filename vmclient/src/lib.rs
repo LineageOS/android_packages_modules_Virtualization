@@ -80,9 +80,6 @@ pub trait VmCallback {
     /// clients.
     fn on_payload_ready(&self, cid: i32) {}
 
-    /// Called by the payload to forward its standard I/O streams to the host.
-    fn on_payload_stdio(&self, cid: i32, fd: &File);
-
     /// Called when the payload has exited in the VM. `exit_code` is the exit code of the payload
     /// process.
     fn on_payload_finished(&self, cid: i32, exit_code: i32) {}
@@ -276,13 +273,6 @@ impl IVirtualMachineCallback for VirtualMachineCallback {
         self.state.notify_state(VirtualMachineState::STARTED);
         if let Some(ref callback) = self.client_callback {
             callback.on_payload_started(cid);
-        }
-        Ok(())
-    }
-
-    fn onPayloadStdio(&self, cid: i32, stream: &ParcelFileDescriptor) -> BinderResult<()> {
-        if let Some(ref callback) = self.client_callback {
-            callback.on_payload_stdio(cid, stream.as_ref());
         }
         Ok(())
     }

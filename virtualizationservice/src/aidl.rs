@@ -953,16 +953,6 @@ impl VirtualMachineCallbacks {
         }
     }
 
-    /// Call all registered callbacks to notify that the payload has provided a standard I/O proxy.
-    pub fn notify_payload_stdio(&self, cid: Cid, fd: ParcelFileDescriptor) {
-        let callbacks = &*self.0.lock().unwrap();
-        for callback in callbacks {
-            if let Err(e) = callback.onPayloadStdio(cid as i32, &fd) {
-                error!("Error notifying payload stdio event from VM CID {}: {:?}", cid, e);
-            }
-        }
-    }
-
     /// Call all registered callbacks to say that the VM has died.
     pub fn callback_on_died(&self, cid: Cid, reason: DeathReason) {
         let callbacks = &*self.0.lock().unwrap();
@@ -1181,27 +1171,6 @@ impl IVirtualMachineService for VirtualMachineService {
             Ok(())
         } else {
             error!("notifyError is called from an unknown CID {}", cid);
-            Err(Status::new_service_specific_error_str(
-                -1,
-                Some(format!("cannot find a VM with CID {}", cid)),
-            ))
-        }
-    }
-
-    fn connectPayloadStdioProxy(&self, port: i32) -> binder::Result<()> {
-        let cid = self.cid;
-        if let Some(vm) = self.state.lock().unwrap().get_vm(cid) {
-            info!("VM with CID {} started a stdio proxy", cid);
-            let stream = VsockStream::connect_with_cid_port(cid, port as u32).map_err(|e| {
-                Status::new_service_specific_error_str(
-                    -1,
-                    Some(format!("Failed to connect to guest stdio proxy: {:?}", e)),
-                )
-            })?;
-            vm.callbacks.notify_payload_stdio(cid, vsock_stream_to_pfd(stream));
-            Ok(())
-        } else {
-            error!("connectPayloadStdioProxy is called from an unknown CID {}", cid);
             Err(Status::new_service_specific_error_str(
                 -1,
                 Some(format!("cannot find a VM with CID {}", cid)),
