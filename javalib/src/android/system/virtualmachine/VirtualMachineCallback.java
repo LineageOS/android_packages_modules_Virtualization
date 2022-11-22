@@ -137,9 +137,6 @@ public interface VirtualMachineCallback {
     /** Called when the payload starts in the VM. */
     void onPayloadStarted(@NonNull VirtualMachine vm);
 
-    /** Called when the payload creates a standard input/output stream. */
-    void onPayloadStdio(@NonNull VirtualMachine vm, @NonNull ParcelFileDescriptor stream);
-
     /**
      * Called when the payload in the VM is ready to serve. See
      * {@link VirtualMachine#connectToVsockServer(int)}.

@@ -42,7 +42,6 @@ import androidx.lifecycle.ViewModelProvider;
 import com.android.microdroid.testservice.ITestService;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -170,13 +169,6 @@ public class MainActivity extends AppCompatActivity {
 
                         @Override
                         public void onPayloadStarted(VirtualMachine vm) {}
-
-                        @Override
-                        public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {
-                            mPayloadOutput.postValue("(Payload connected standard output...)");
-                            InputStream input = new FileInputStream(stream.getFileDescriptor());
-                            mService.execute(new Reader("payload", mPayloadOutput, input));
-                        }
 
                         @Override
                         public void onPayloadReady(VirtualMachine vm) {

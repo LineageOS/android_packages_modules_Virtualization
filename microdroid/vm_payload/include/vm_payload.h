@@ -56,8 +56,9 @@ bool AVmPayload_runVsockRpcServer(AIBinder *service, unsigned int port,
                                   void (*on_ready)(void *param), void *param);
 
 /**
- * Get a secret that is uniquely bound to this VM instance. The secrets are 32-byte values and the
- * value associated with an identifier will not change over the lifetime of the VM instance.
+ * Get a secret that is uniquely bound to this VM instance. The secrets are
+ * values up to 32 bytes long and the value associated with an identifier will
+ * not change over the lifetime of the VM instance.
  *
  * \param identifier identifier of the secret to return.
  * \param identifier_size size of the secret identifier.
@@ -81,12 +82,16 @@ bool AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_si
 const char *AVmPayload_getApkContentsPath(void);
 
 /**
- * Initiates a socket connection with the host and duplicates stdin, stdout and
- * stderr file descriptors to the socket.
+ * Gets the path to the encrypted persistent storage for the VM, if any. This is
+ * a directory under which any files or directories created will be stored on
+ * behalf of the VM by the host app. All data is encrypted using a key known
+ * only to the VM, so the host cannot decrypt it, but may delete it.
  *
- * \return true on success and false on failure. If unsuccessful, the stdio FDs
- * may be in an inconsistent state.
+ * \return the path to the APK contents, or NULL if no encrypted storage was
+ * requested in the VM configuration. If non-null the returned string should not
+ * be deleted or freed by the application and remains valid for the lifetime of
+ * the VM.
  */
-bool AVmPayload_setupStdioProxy();
+const char *AVmPayload_getEncryptedStoragePath(void);
 
 __END_DECLS
