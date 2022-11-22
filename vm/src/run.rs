@@ -23,13 +23,16 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachinePayloadConfig::VirtualMachinePayloadConfig,
     VirtualMachineState::VirtualMachineState,
 };
-use anyhow::{bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use binder::ParcelFileDescriptor;
 use microdroid_payload_config::VmPayloadConfig;
+use rand::{distributions::Alphanumeric, Rng};
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use vmclient::{ErrorCode, VmInstance};
 use vmconfig::{open_parcel_file, VmConfig};
 use zip::ZipArchive;
@@ -142,6 +145,83 @@ pub fn command_run_app(
         taskProfiles: task_profiles,
     });
     run(service, &config, &payload_config_str, daemonize, console_path, log_path, ramdump_path)
+}
+
+const EMPTY_PAYLOAD_APK: &str = "com.android.microdroid.empty_payload";
+
+fn find_empty_payload_apk_path() -> Result<PathBuf, Error> {
+    let output = Command::new("/system/bin/pm")
+        .arg("path")
+        .arg(EMPTY_PAYLOAD_APK)
+        .output()
+        .context("failed to execute pm path")?;
+    let output_str = String::from_utf8(output.stdout).context("failed to parse output")?;
+    match output_str.strip_prefix("package:") {
+        None => Err(anyhow!("Unexpected output {}", output_str)),
+        Some(apk_path) => Ok(PathBuf::from(apk_path.trim())),
+    }
+}
+
+fn create_work_dir() -> Result<PathBuf, Error> {
+    let s: String =
+        rand::thread_rng().sample_iter(&Alphanumeric).take(17).map(char::from).collect();
+    let work_dir = PathBuf::from("/data/local/tmp/microdroid").join(s);
+    println!("creating work dir {}", work_dir.display());
+    fs::create_dir_all(&work_dir).context("failed to mkdir")?;
+    Ok(work_dir)
+}
+
+/// Run a VM with Microdroid
+#[allow(clippy::too_many_arguments)]
+pub fn command_run_microdroid(
+    name: Option<String>,
+    service: &dyn IVirtualizationService,
+    work_dir: Option<PathBuf>,
+    storage: Option<&Path>,
+    storage_size: Option<u64>,
+    daemonize: bool,
+    console_path: Option<&Path>,
+    log_path: Option<&Path>,
+    ramdump_path: Option<&Path>,
+    debug_level: DebugLevel,
+    protected: bool,
+    mem: Option<u32>,
+    cpus: Option<u32>,
+    task_profiles: Vec<String>,
+) -> Result<(), Error> {
+    let apk = find_empty_payload_apk_path()
+        .context(anyhow!("failed to find path for {} apk", EMPTY_PAYLOAD_APK))?;
+    println!("found path for {} apk: {}", EMPTY_PAYLOAD_APK, apk.display());
+
+    let work_dir = work_dir.unwrap_or(create_work_dir()?);
+    let idsig = work_dir.join("apk.idsig");
+    println!("apk.idsig path: {}", idsig.display());
+    let instance_img = work_dir.join("instance.img");
+    println!("instance.img path: {}", instance_img.display());
+
+    let payload_path = "MicrodroidEmptyPayloadJniLib.so";
+    let extra_sig = [];
+    command_run_app(
+        name,
+        service,
+        &apk,
+        &idsig,
+        &instance_img,
+        storage,
+        storage_size,
+        /* config_path= */ None,
+        Some(payload_path.to_owned()),
+        daemonize,
+        console_path,
+        log_path,
+        ramdump_path,
+        debug_level,
+        protected,
+        mem,
+        cpus,
+        task_profiles,
+        &extra_sig,
+    )
 }
 
 /// Run a VM from the given configuration file.
