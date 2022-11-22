@@ -85,6 +85,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     private static final String APK_NAME = "MicrodroidTestApp.apk";
     private static final String PACKAGE_NAME = "com.android.microdroid.test";
     private static final String SHELL_PACKAGE_NAME = "com.android.shell";
+    private static final String VIRT_APEX = "/apex/com.android.virt/";
 
     private static final int MIN_MEM_ARM64 = 145;
     private static final int MIN_MEM_X86_64 = 196;
