@@ -18,15 +18,12 @@ use crate::dice::DiceContext;
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use binder::{Interface, BinderFeatures, ExceptionCode, Status, Strong};
 use log::{error, info};
 use openssl::hkdf::hkdf;
 use openssl::md::Md;
-use rpcbinder::run_init_unix_domain_rpc_server;
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
+use rpcbinder::RpcServer;
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
@@ -101,29 +98,16 @@ pub(crate) fn register_vm_payload_service(
         VmPayloadService::new(allow_restricted_apis, vm_service, dice),
         BinderFeatures::default(),
     );
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || {
-        let retval = run_init_unix_domain_rpc_server(
-            vm_payload_binder.as_binder(),
-            VM_PAYLOAD_SERVICE_SOCKET_NAME,
-            || {
-                sender.send(()).unwrap();
-            },
-        );
-        if retval {
-            info!(
-                "The RPC server at '{}' has shut down gracefully.",
-                VM_PAYLOAD_SERVICE_SOCKET_NAME
-            );
-        } else {
-            error!("Premature termination of the RPC server '{}'.", VM_PAYLOAD_SERVICE_SOCKET_NAME);
-        }
+
+    let server = RpcServer::new_init_unix_domain(
+        vm_payload_binder.as_binder(),
+        VM_PAYLOAD_SERVICE_SOCKET_NAME,
+    )?;
+    info!("The RPC server '{}' is running.", VM_PAYLOAD_SERVICE_SOCKET_NAME);
+
+    // Move server reference into a background thread and run it forever.
+    std::thread::spawn(move || {
+        server.join();
     });
-    match receiver.recv_timeout(Duration::from_millis(200)) {
-        Ok(()) => {
-            info!("The RPC server '{}' is running.", VM_PAYLOAD_SERVICE_SOCKET_NAME);
-            Ok(())
-        }
-        _ => bail!("Failed to register service '{}'", VM_PAYLOAD_SERVICE_SOCKET_NAME),
-    }
+    Ok(())
 }

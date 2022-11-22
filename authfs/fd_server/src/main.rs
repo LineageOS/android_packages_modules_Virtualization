@@ -29,7 +29,7 @@ use anyhow::{bail, Result};
 use clap::Parser;
 use log::debug;
 use nix::sys::stat::{umask, Mode};
-use rpcbinder::run_vsock_rpc_server;
+use rpcbinder::RpcServer;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::os::unix::io::{FromRawFd, OwnedFd};
@@ -135,18 +135,14 @@ fn main() -> Result<()> {
     let old_umask = umask(Mode::empty());
     debug!("Setting umask to 0 (old: {:03o})", old_umask.bits());
 
-    let service = FdService::new_binder(fd_pool).as_binder();
     debug!("fd_server is starting as a rpc service.");
-    let retval = run_vsock_rpc_server(service, RPC_SERVICE_PORT, || {
-        debug!("fd_server is ready");
-        // Close the ready-fd if we were given one to signal our readiness.
-        drop(ready_fd.take());
-    });
+    let service = FdService::new_binder(fd_pool).as_binder();
+    let server = RpcServer::new_vsock(service, RPC_SERVICE_PORT)?;
+    debug!("fd_server is ready");
 
-    if retval {
-        debug!("RPC server has shut down gracefully");
-        Ok(())
-    } else {
-        bail!("Premature termination of RPC server");
-    }
+    // Close the ready-fd if we were given one to signal our readiness.
+    drop(ready_fd.take());
+
+    server.join();
+    Ok(())
 }
