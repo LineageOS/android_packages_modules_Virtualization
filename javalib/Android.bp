@@ -59,9 +59,6 @@ java_sdk_library {
     impl_library_visibility: [
         "//packages/modules/Virtualization:__subpackages__",
     ],
-
-    // TODO(b/243512044): remove once we have API tracking files in prebuilts/sdk
-    unsafe_ignore_missing_latest_api: true,
 }
 
 prebuilt_apis {
