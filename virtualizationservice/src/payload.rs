@@ -420,7 +420,7 @@ pub fn add_microdroid_system_images(
 
     if let Some(file) = storage_image {
         writable_partitions.push(Partition {
-            label: "encrypted-storage".to_owned(),
+            label: "encryptedstore".to_owned(),
             image: Some(ParcelFileDescriptor::new(file)),
             writable: true,
         });
