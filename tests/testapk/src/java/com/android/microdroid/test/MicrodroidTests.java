@@ -15,6 +15,7 @@
  */
 package com.android.microdroid.test;
 
+import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_APP_ONLY;
 import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_FULL;
 import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_NONE;
 
@@ -280,16 +281,27 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    @CddTest(requirements = {
-            "9.17/C-1-1",
-            "9.17/C-2-7"
-    })
-    public void changingDebugLevelInvalidatesVmIdentity() throws Exception {
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-7"})
+    public void changingNonDebuggableVmDebuggableInvalidatesVmIdentity() throws Exception {
+        changeDebugLevel(DEBUG_LEVEL_NONE, DEBUG_LEVEL_FULL);
+        changeDebugLevel(DEBUG_LEVEL_NONE, DEBUG_LEVEL_APP_ONLY);
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-7"})
+    @Ignore("b/260067026")
+    public void changingAppDebuggableVmFullyDebuggableInvalidatesVmIdentity() throws Exception {
+        assume().withMessage("Skip for non-protected VM. b/239158757").that(mProtectedVm).isTrue();
+        changeDebugLevel(DEBUG_LEVEL_APP_ONLY, DEBUG_LEVEL_FULL);
+    }
+
+    private void changeDebugLevel(int fromLevel, int toLevel) throws Exception {
         assumeSupportedKernel();
 
-        VirtualMachineConfig.Builder builder = mInner.newVmConfigBuilder()
-                .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
-                .setDebugLevel(DEBUG_LEVEL_NONE);
+        VirtualMachineConfig.Builder builder =
+                mInner.newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(fromLevel);
         VirtualMachineConfig normalConfig = builder.build();
         mInner.forceCreateNewVirtualMachine("test_vm", normalConfig);
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
@@ -304,10 +316,11 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
 
-        // Launch the same VM with different debug level. The Java API prohibits this (thankfully).
+        // Launch the same VM with a different debug level. The Java API prohibits this
+        // (thankfully).
         // For testing, we do that by creating a new VM with debug level, and copy the old instance
         // image to the new VM instance image.
-        VirtualMachineConfig debugConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
+        VirtualMachineConfig debugConfig = builder.setDebugLevel(toLevel).build();
         mInner.forceCreateNewVirtualMachine("test_vm", debugConfig);
         Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isFalse();
