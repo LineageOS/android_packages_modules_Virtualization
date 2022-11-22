@@ -27,7 +27,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.content.Context;
 import android.os.Build;
-import android.os.ParcelFileDescriptor;
 import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachine;
@@ -122,6 +121,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mAppRunProp).isEqualTo("true");
         assertThat(testResults.mSublibRunProp).isEqualTo("true");
         assertThat(testResults.mApkContentsPath).isEqualTo("/mnt/apk");
+        assertThat(testResults.mEncryptedStoragePath).isEqualTo("");
     }
 
     @Test
@@ -708,6 +708,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         String mSublibRunProp;
         String mExtraApkTestProp;
         String mApkContentsPath;
+        String mEncryptedStoragePath;
     }
 
     private TestResults runVmTestService(VirtualMachine vm) throws Exception {
@@ -729,6 +730,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                             testResults.mExtraApkTestProp =
                                     testService.readProperty("debug.microdroid.test.extra_apk");
                             testResults.mApkContentsPath = testService.getApkContentsPath();
+                            testResults.mEncryptedStoragePath =
+                                    testService.getEncryptedStoragePath();
                         } catch (Exception e) {
                             testResults.mException = e;
                         }
@@ -746,13 +749,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     public void onPayloadStarted(VirtualMachine vm) {
                         Log.i(TAG, "onPayloadStarted");
                         payloadStarted.complete(true);
-                    }
-
-                    @Override
-                    public void onPayloadStdio(VirtualMachine vm, ParcelFileDescriptor stream) {
-                        Log.i(TAG, "onPayloadStdio");
-                        logVmOutput(
-                                TAG, new FileInputStream(stream.getFileDescriptor()), "Payload");
                     }
                 };
         listener.runToFinish(TAG, vm);
