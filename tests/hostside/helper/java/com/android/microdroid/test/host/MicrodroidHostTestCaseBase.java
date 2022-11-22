@@ -42,7 +42,6 @@ import java.util.Arrays;
 
 public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
-    protected static final String VIRT_APEX = "/apex/com.android.virt/";
     protected static final String LOG_PATH = TEST_ROOT + "log.txt";
     protected static final String CONSOLE_PATH = TEST_ROOT + "console.txt";
     private static final int TEST_VM_ADB_PORT = 8000;
@@ -189,14 +188,6 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         assertWithMessage("Package " + packageName + " not found")
                 .that(pathLine).startsWith("package:");
         return pathLine.substring("package:".length());
-    }
-
-    public static void shutdownMicrodroid(ITestDevice androidDevice, String cid)
-            throws DeviceNotAvailableException {
-        CommandRunner android = new CommandRunner(androidDevice);
-
-        // Shutdown the VM
-        android.run(VIRT_APEX + "bin/vm", "stop", cid);
     }
 
     // Establish an adb connection to microdroid by letting Android forward the connection to
