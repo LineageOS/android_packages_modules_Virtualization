@@ -20,7 +20,7 @@ use anyhow::{Context, Result};
 use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
 use lazy_static::lazy_static;
 use log::{error, info, Level};
-use rpcbinder::{get_unix_domain_rpc_interface, run_vsock_rpc_server};
+use rpcbinder::{get_unix_domain_rpc_interface, RpcServer};
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
@@ -105,11 +105,19 @@ pub unsafe extern "C" fn AVmPayload_runVsockRpcServer(
     // safely be taken by new_spibinder.
     let service = new_spibinder(service);
     if let Some(service) = service {
-        run_vsock_rpc_server(service, port, || {
-            if let Some(on_ready) = on_ready {
-                on_ready(param);
+        match RpcServer::new_vsock(service, port) {
+            Ok(server) => {
+                if let Some(on_ready) = on_ready {
+                    on_ready(param);
+                }
+                server.join();
+                true
             }
-        })
+            Err(err) => {
+                error!("Failed to start RpcServer: {:?}", err);
+                false
+            }
+        }
     } else {
         error!("Failed to convert the given service from AIBinder to SpIBinder.");
         false
