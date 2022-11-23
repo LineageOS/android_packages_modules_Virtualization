@@ -199,17 +199,30 @@ impl VmState {
     }
 }
 
+/// Internal struct that holds the handles to globally unique resources of a VM.
+#[derive(Debug)]
+pub struct VmContext {
+    #[allow(dead_code)] // Keeps the global context alive
+    global_context: Strong<dyn IGlobalVmContext>,
+    #[allow(dead_code)] // Keeps the server alive
+    vm_server: RpcServer,
+}
+
+impl VmContext {
+    /// Construct new VmContext.
+    pub fn new(global_context: Strong<dyn IGlobalVmContext>, vm_server: RpcServer) -> VmContext {
+        VmContext { global_context, vm_server }
+    }
+}
+
 /// Information about a particular instance of a VM which may be running.
 #[derive(Debug)]
 pub struct VmInstance {
     /// The current state of the VM.
     pub vm_state: Mutex<VmState>,
-    /// Handle to global resources allocated for this VM.
-    #[allow(dead_code)] // The handle is never read, we only need to hold it.
-    vm_context: Strong<dyn IGlobalVmContext>,
-    /// Handle to global resources allocated for this VM.
-    #[allow(dead_code)] // The handle is never read, we only need to hold it.
-    vm_server: RpcServer,
+    /// Global resources allocated for this VM.
+    #[allow(dead_code)] // Keeps the context alive
+    vm_context: VmContext,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
     /// The name of the VM.
@@ -242,8 +255,7 @@ impl VmInstance {
         temporary_directory: PathBuf,
         requester_uid: u32,
         requester_debug_pid: i32,
-        vm_context: Strong<dyn IGlobalVmContext>,
-        vm_server: RpcServer,
+        vm_context: VmContext,
     ) -> Result<VmInstance, Error> {
         validate_config(&config)?;
         let cid = config.cid;
@@ -252,7 +264,6 @@ impl VmInstance {
         Ok(VmInstance {
             vm_state: Mutex::new(VmState::NotStarted { config }),
             vm_context,
-            vm_server,
             cid,
             name,
             protected,
