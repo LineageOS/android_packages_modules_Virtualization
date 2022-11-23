@@ -10,6 +10,7 @@ rust_defaults {
     rustlibs: [
         "libandroid_logger",
         "libanyhow",
+        "liblibc",
         "libclap",
         "libhex",
         "liblog_rust",
