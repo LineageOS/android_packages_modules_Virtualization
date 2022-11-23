@@ -24,7 +24,7 @@ mod authfs;
 
 use anyhow::{bail, Result};
 use log::*;
-use rpcbinder::run_init_unix_domain_rpc_server;
+use rpcbinder::RpcServer;
 use std::ffi::OsString;
 use std::fs::{create_dir, read_dir, remove_dir_all, remove_file};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -117,15 +117,11 @@ fn try_main() -> Result<()> {
 
     let service = AuthFsService::new_binder(debuggable).as_binder();
     debug!("{} is starting as a rpc service.", AUTHFS_SERVICE_SOCKET_NAME);
-    let retval = run_init_unix_domain_rpc_server(service, AUTHFS_SERVICE_SOCKET_NAME, || {
-        info!("The RPC server '{}' is running.", AUTHFS_SERVICE_SOCKET_NAME);
-    });
-    if retval {
-        info!("The RPC server at '{}' has shut down gracefully.", AUTHFS_SERVICE_SOCKET_NAME);
-        Ok(())
-    } else {
-        bail!("Premature termination of the RPC server '{}'.", AUTHFS_SERVICE_SOCKET_NAME)
-    }
+    let server = RpcServer::new_init_unix_domain(service, AUTHFS_SERVICE_SOCKET_NAME)?;
+    info!("The RPC server '{}' is running.", AUTHFS_SERVICE_SOCKET_NAME);
+    server.join();
+    info!("The RPC server at '{}' has shut down gracefully.", AUTHFS_SERVICE_SOCKET_NAME);
+    Ok(())
 }
 
 fn main() {
