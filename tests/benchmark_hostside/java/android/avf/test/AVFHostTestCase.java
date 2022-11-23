@@ -149,7 +149,9 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     private void appStartupHelper(String launchIntentPackage) throws Exception {
-        assumeTrue("Skip on non-protected VMs", isProtectedVmSupported());
+        assumeTrue(
+                "Skip on non-protected VMs",
+                ((TestDevice) getDevice()).supportsMicrodroid(/*protectedVm=*/ true));
 
         StartupTimeMetricCollection mCollection =
                 new StartupTimeMetricCollection(getPackageName(launchIntentPackage), ROUND_COUNT);
