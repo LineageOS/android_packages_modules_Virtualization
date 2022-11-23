@@ -33,8 +33,20 @@ const SECTOR_SIZE: u64 = 512;
 
 /// Supported ciphers
 pub enum CipherType {
-    // TODO(b/253394457) Include ciphers with authenticated modes as well
+    // AES-256-HCTR2 takes a 32-byte key
+    AES256HCTR2,
+    // XTS requires key of twice the length of the underlying block cipher i.e., 64B for AES256
     AES256XTS,
+}
+impl CipherType {
+    fn get_kernel_crypto_name(&self) -> &str {
+        match *self {
+            // We use "plain64" as the IV/nonce generation algorithm -
+            // which basically is the sector number.
+            CipherType::AES256HCTR2 => "aes-hctr2-plain64",
+            CipherType::AES256XTS => "aes-xts-plain64",
+        }
+    }
 }
 
 pub struct DmCryptTarget(Box<[u8]>);
@@ -59,7 +71,7 @@ pub struct DmCryptTargetBuilder<'a> {
 impl<'a> Default for DmCryptTargetBuilder<'a> {
     fn default() -> Self {
         DmCryptTargetBuilder {
-            cipher: CipherType::AES256XTS,
+            cipher: CipherType::AES256HCTR2,
             key: None,
             iv_offset: 0,
             device_path: None,
@@ -121,7 +133,7 @@ impl<'a> DmCryptTargetBuilder<'a> {
         // <offset> [<#opt_params> <opt_params>]
         let mut body = String::new();
         use std::fmt::Write;
-        write!(&mut body, "{} ", get_kernel_crypto_name(&self.cipher))?;
+        write!(&mut body, "{} ", self.cipher.get_kernel_crypto_name())?;
         write!(&mut body, "{} ", key)?;
         write!(&mut body, "{} ", self.iv_offset)?;
         write!(&mut body, "{} ", device_path)?;
@@ -143,11 +155,5 @@ impl<'a> DmCryptTargetBuilder<'a> {
         buf.write_all(vec![0; padding].as_slice())?;
 
         Ok(DmCryptTarget(buf.into_boxed_slice()))
-    }
-}
-
-fn get_kernel_crypto_name(cipher: &CipherType) -> &str {
-    match cipher {
-        CipherType::AES256XTS => "aes-xts-plain64",
     }
 }
