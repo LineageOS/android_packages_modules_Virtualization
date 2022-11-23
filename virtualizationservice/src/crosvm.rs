@@ -24,6 +24,7 @@ use log::{debug, error, info};
 use semver::{Version, VersionReq};
 use nix::{fcntl::OFlag, unistd::pipe2};
 use regex::{Captures, Regex};
+use rustutils::system_properties;
 use shared_child::SharedChild;
 use std::borrow::Cow;
 use std::cmp::max;
@@ -573,9 +574,14 @@ fn run_vm(
         .arg("info,disk=off")
         .arg("run")
         .arg("--disable-sandbox")
-        .arg("--no-balloon")
         .arg("--cid")
         .arg(config.cid.to_string());
+
+    if system_properties::read_bool("hypervisor.memory_reclaim.supported", false)? {
+        command.arg("--balloon-page-reporting");
+    } else {
+        command.arg("--no-balloon");
+    }
 
     if config.protected {
         command.arg("--protected-vm");
