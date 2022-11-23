@@ -16,7 +16,7 @@
 
 use crate::atom::{write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
-use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmInstance, VmState};
+use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
 use crate::selinux::{getfilecon, SeContext};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
@@ -165,7 +165,9 @@ impl GlobalState {
         self.held_cids.retain(|_, cid| cid.strong_count() > 0);
 
         // Start trying to find a CID from the last used CID + 1. This ensures
-        // that we do not eagerly recycle CIDs, which makes debugging easier.
+        // that we do not eagerly recycle CIDs. It makes debugging easier but
+        // also means that retrying to allocate a CID, eg. because it is
+        // erroneously occupied by a process, will not recycle the same CID.
         let last_cid_prop =
             system_properties::read(SYSPROP_LAST_CID)?.and_then(|val| match val.parse::<Cid>() {
                 Ok(num) => {
@@ -451,6 +453,30 @@ impl VirtualizationService {
         VirtualizationService { global_service, state: Default::default() }
     }
 
+    fn create_vm_context(&self) -> Result<(VmContext, Cid)> {
+        const NUM_ATTEMPTS: usize = 5;
+
+        for _ in 0..NUM_ATTEMPTS {
+            let global_context = self.global_service.allocateGlobalVmContext()?;
+            let cid = global_context.getCid()? as Cid;
+            let service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
+
+            // Start VM service listening for connections from the new CID on port=CID.
+            // TODO(b/245727626): Only accept connections from the new VM.
+            let port = cid;
+            match RpcServer::new_vsock(service, port) {
+                Ok(vm_server) => {
+                    vm_server.start();
+                    return Ok((VmContext::new(global_context, vm_server), cid));
+                }
+                Err(err) => {
+                    warn!("Could not start RpcServer on port {}: {}", port, err);
+                }
+            }
+        }
+        bail!("Too many attempts to create VM context failed.");
+    }
+
     fn create_vm_internal(
         &self,
         config: &VirtualMachineConfig,
@@ -474,8 +500,13 @@ impl VirtualizationService {
             check_use_custom_virtual_machine()?;
         }
 
-        let vm_context = self.global_service.allocateGlobalVmContext()?;
-        let cid = vm_context.getCid()? as Cid;
+        let (vm_context, cid) = self.create_vm_context().map_err(|e| {
+            error!("Failed to create VmContext: {:?}", e);
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Failed to create VmContext: {:?}", e)),
+            )
+        })?;
 
         let state = &mut *self.state.lock().unwrap();
         let console_fd = console_fd.map(clone_file).transpose()?;
@@ -577,18 +608,6 @@ impl VirtualizationService {
             )
         })?;
 
-        // Start VM service listening for connections from the new CID on port=CID.
-        // TODO(b/245727626): Only accept connections from the new VM.
-        let vm_service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
-        let vm_server = RpcServer::new_vsock(vm_service, cid).map_err(|e| {
-            error!("Failed to start VirtualMachineService: {:?}", e);
-            Status::new_service_specific_error_str(
-                -1,
-                Some(format!("Failed to start VirtualMachineService: {:?}", e)),
-            )
-        })?;
-        vm_server.start();
-
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
             cid,
@@ -616,7 +635,6 @@ impl VirtualizationService {
                 requester_uid,
                 requester_debug_pid,
                 vm_context,
-                vm_server,
             )
             .map_err(|e| {
                 error!("Failed to create VM with config {:?}: {:?}", config, e);
