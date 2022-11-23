@@ -237,8 +237,4 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
                 .stdoutTrimmed()
                 .isEqualTo("microdroid");
     }
-
-    public boolean isProtectedVmSupported() throws DeviceNotAvailableException {
-        return getDevice().getBooleanProperty("ro.boot.hypervisor.protected_vm.supported", false);
-    }
 }
