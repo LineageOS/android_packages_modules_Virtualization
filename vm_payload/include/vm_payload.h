@@ -30,9 +30,13 @@ typedef struct AIBinder AIBinder;
 /**
  * Notifies the host that the payload is ready.
  *
- * \return true if the notification succeeds else false.
+ * If the host app has set a `VirtualMachineCallback` for the VM, its
+ * `onPayloadReady` method will be called.
+ *
+ * Note that subsequent calls to this function after the first have no effect;
+ * `onPayloadReady` is never called more than once.
  */
-bool AVmPayload_notifyPayloadReady(void);
+void AVmPayload_notifyPayloadReady(void);
 
 /**
  * Runs a binder RPC server, serving the supplied binder service implementation on the given vsock
@@ -57,17 +61,15 @@ bool AVmPayload_runVsockRpcServer(AIBinder *service, unsigned int port,
 
 /**
  * Get a secret that is uniquely bound to this VM instance. The secrets are
- * values up to 32 bytes long and the value associated with an identifier will
- * not change over the lifetime of the VM instance.
+ * 32-byte values and the value associated with an identifier will not change
+ * over the lifetime of the VM instance.
  *
  * \param identifier identifier of the secret to return.
  * \param identifier_size size of the secret identifier.
  * \param secret pointer to size bytes where the secret is written.
- * \param size number of bytes of the secret to get, up to the secret size.
- *
- * \return true on success and false on failure.
+ * \param size number of bytes of the secret to get, <= 32.
  */
-bool AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_size, void *secret,
+void AVmPayload_getVmInstanceSecret(const void *identifier, size_t identifier_size, void *secret,
                                     size_t size);
 
 /**

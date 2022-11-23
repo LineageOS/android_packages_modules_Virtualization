@@ -38,11 +38,8 @@ constexpr const char* kSigningKeySeedIdentifier = "CompOS signing key seed";
 
 Result<Ed25519KeyPair> getSigningKey() {
     Seed seed;
-    if (!AVmPayload_getVmInstanceSecret(kSigningKeySeedIdentifier,
-                                        strlen(kSigningKeySeedIdentifier), seed.data(),
-                                        seed.size())) {
-        return Error() << "Failed to get signing key seed";
-    }
+    AVmPayload_getVmInstanceSecret(kSigningKeySeedIdentifier, strlen(kSigningKeySeedIdentifier),
+                                   seed.data(), seed.size());
     return compos_key::keyFromSeed(seed);
 }
 
@@ -60,16 +57,9 @@ int write_public_key() {
 }
 
 int write_bcc() {
-    size_t bcc_size;
-    if (!AVmPayload_getDiceAttestationChain(nullptr, 0, &bcc_size)) {
-        LOG(ERROR) << "Failed to measure attestation chain";
-        return 1;
-    }
+    size_t bcc_size = AVmPayload_getDiceAttestationChain(nullptr, 0);
     std::vector<uint8_t> bcc(bcc_size);
-    if (!AVmPayload_getDiceAttestationChain(bcc.data(), bcc.size(), &bcc_size)) {
-        LOG(ERROR) << "Failed to get attestation chain";
-        return 1;
-    }
+    AVmPayload_getDiceAttestationChain(bcc.data(), bcc.size());
 
     if (!WriteFully(STDOUT_FILENO, bcc.data(), bcc.size())) {
         PLOG(ERROR) << "Write failed";

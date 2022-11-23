@@ -28,7 +28,6 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.content.Context;
 import android.os.Build;
-import android.os.ServiceSpecificException;
 import android.os.SystemProperties;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
@@ -354,7 +353,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         listener.runToFinish(TAG, vm);
         Exception e = exception.getNow(null);
         if (e != null) {
-            throw e;
+            throw new RuntimeException(e);
         }
         return vmCdis;
     }
@@ -470,7 +469,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .build();
         mInner.forceCreateNewVirtualMachine("test_vm", config);
 
-        assertThrows(ServiceSpecificException.class, () -> launchVmAndGetCdis("test_vm"));
+        assertThrows(Exception.class, () -> launchVmAndGetCdis("test_vm"));
     }
 
 

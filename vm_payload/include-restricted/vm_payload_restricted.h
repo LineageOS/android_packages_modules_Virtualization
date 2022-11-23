@@ -36,21 +36,19 @@ __BEGIN_DECLS
  *
  * \param data pointer to size bytes where the chain is written.
  * \param size number of bytes that can be written to data.
- * \param total outputs the total size of the chain if the function succeeds
  *
- * \return true on success and false on failure.
+ * \return the total size of the chain
  */
-bool AVmPayload_getDiceAttestationChain(void *data, size_t size, size_t *total);
+size_t AVmPayload_getDiceAttestationChain(void *data, size_t size);
 
 /**
  * Get the VM's DICE attestation CDI.
  *
  * \param data pointer to size bytes where the CDI is written.
  * \param size number of bytes that can be written to data.
- * \param total outputs the total size of the CDI if the function succeeds
  *
- * \return true on success and false on failure.
+ * \return the total size of the CDI
  */
-bool AVmPayload_getDiceAttestationCdi(void *data, size_t size, size_t *total);
+size_t AVmPayload_getDiceAttestationCdi(void *data, size_t size);
 
 __END_DECLS
