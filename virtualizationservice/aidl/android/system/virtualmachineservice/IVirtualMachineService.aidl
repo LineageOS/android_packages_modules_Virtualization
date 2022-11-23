@@ -21,12 +21,6 @@ import android.system.virtualizationcommon.ErrorCode;
 interface IVirtualMachineService {
     /**
      * Port number that VirtualMachineService listens on connections from the guest VMs for the
-     * VirtualMachineService binder service.
-     */
-    const int VM_BINDER_SERVICE_PORT = 5000;
-
-    /**
-     * Port number that VirtualMachineService listens on connections from the guest VMs for the
      * tombtones
      */
     const int VM_TOMBSTONES_SERVICE_PORT = 2000;
