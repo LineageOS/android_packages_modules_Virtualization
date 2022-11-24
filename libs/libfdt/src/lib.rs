@@ -16,6 +16,7 @@
 //! to a bare-metal environment.
 
 #![no_std]
+#![feature(let_else)] // Stabilized in 1.65.0
 
 use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
@@ -136,6 +137,14 @@ fn fdt_err_expect_zero(val: c_int) -> Result<()> {
     }
 }
 
+fn fdt_err_or_option(val: c_int) -> Result<Option<c_int>> {
+    match fdt_err(val) {
+        Ok(val) => Ok(Some(val)),
+        Err(FdtError::NotFound) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// Value of a #address-cells property.
 #[derive(Copy, Clone, Debug)]
 enum AddrCells {
@@ -251,8 +260,8 @@ pub struct MemRegIterator<'a> {
 }
 
 impl<'a> MemRegIterator<'a> {
-    fn new(reg: RegIterator<'a>) -> Result<Self> {
-        Ok(Self { reg })
+    fn new(reg: RegIterator<'a>) -> Self {
+        Self { reg }
     }
 }
 
@@ -285,45 +294,67 @@ impl<'a> FdtNode<'a> {
     }
 
     /// Retrieve the standard (deprecated) device_type <string> property.
-    pub fn device_type(&self) -> Result<&CStr> {
+    pub fn device_type(&self) -> Result<Option<&CStr>> {
         self.getprop_str(CStr::from_bytes_with_nul(b"device_type\0").unwrap())
     }
 
     /// Retrieve the standard reg <prop-encoded-array> property.
-    pub fn reg(&self) -> Result<RegIterator<'a>> {
-        let parent = self.parent()?;
+    pub fn reg(&self) -> Result<Option<RegIterator<'a>>> {
+        let reg = CStr::from_bytes_with_nul(b"reg\0").unwrap();
 
-        let addr_cells = parent.address_cells()?;
-        let size_cells = parent.size_cells()?;
-        let cells = self.getprop_cells(CStr::from_bytes_with_nul(b"reg\0").unwrap())?;
+        if let Some(cells) = self.getprop_cells(reg)? {
+            let parent = self.parent()?;
 
-        Ok(RegIterator::new(cells, addr_cells, size_cells))
+            let addr_cells = parent.address_cells()?;
+            let size_cells = parent.size_cells()?;
+
+            Ok(Some(RegIterator::new(cells, addr_cells, size_cells)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Retrieve the value of a given <string> property.
-    pub fn getprop_str(&self, name: &CStr) -> Result<&CStr> {
-        CStr::from_bytes_with_nul(self.getprop(name)?).map_err(|_| FdtError::BadValue)
+    pub fn getprop_str(&self, name: &CStr) -> Result<Option<&CStr>> {
+        let value = if let Some(bytes) = self.getprop(name)? {
+            Some(CStr::from_bytes_with_nul(bytes).map_err(|_| FdtError::BadValue)?)
+        } else {
+            None
+        };
+        Ok(value)
     }
 
     /// Retrieve the value of a given property as an array of cells.
-    pub fn getprop_cells(&self, name: &CStr) -> Result<CellIterator<'a>> {
-        Ok(CellIterator::new(self.getprop(name)?))
+    pub fn getprop_cells(&self, name: &CStr) -> Result<Option<CellIterator<'a>>> {
+        if let Some(cells) = self.getprop(name)? {
+            Ok(Some(CellIterator::new(cells)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Retrieve the value of a given <u32> property.
-    pub fn getprop_u32(&self, name: &CStr) -> Result<u32> {
-        let prop = self.getprop(name)?.try_into().map_err(|_| FdtError::BadValue)?;
-        Ok(u32::from_be_bytes(prop))
+    pub fn getprop_u32(&self, name: &CStr) -> Result<Option<u32>> {
+        let value = if let Some(bytes) = self.getprop(name)? {
+            Some(u32::from_be_bytes(bytes.try_into().map_err(|_| FdtError::BadValue)?))
+        } else {
+            None
+        };
+        Ok(value)
     }
 
     /// Retrieve the value of a given <u64> property.
-    pub fn getprop_u64(&self, name: &CStr) -> Result<u64> {
-        let prop = self.getprop(name)?.try_into().map_err(|_| FdtError::BadValue)?;
-        Ok(u64::from_be_bytes(prop))
+    pub fn getprop_u64(&self, name: &CStr) -> Result<Option<u64>> {
+        let value = if let Some(bytes) = self.getprop(name)? {
+            Some(u64::from_be_bytes(bytes.try_into().map_err(|_| FdtError::BadValue)?))
+        } else {
+            None
+        };
+        Ok(value)
     }
 
     /// Retrieve the value of a given property.
-    pub fn getprop(&self, name: &CStr) -> Result<&'a [u8]> {
+    pub fn getprop(&self, name: &CStr) -> Result<Option<&'a [u8]>> {
         let mut len: i32 = 0;
         // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) and the
         // function respects the passed number of characters.
@@ -337,14 +368,21 @@ impl<'a> FdtNode<'a> {
                 &mut len as *mut i32,
             )
         } as *const u8;
+
+        let Some(len) = fdt_err_or_option(len)? else {
+            return Ok(None); // Property was not found.
+        };
+        let len = usize::try_from(len).map_err(|_| FdtError::Internal)?;
+
         if prop.is_null() {
-            return fdt_err(len).and(Err(FdtError::Internal));
+            // We expected an error code in len but still received a valid value?!
+            return Err(FdtError::Internal);
         }
-        let len = usize::try_from(fdt_err(len)?).map_err(|_| FdtError::Internal)?;
-        let base =
+
+        let offset =
             (prop as usize).checked_sub(self.fdt.as_ptr() as usize).ok_or(FdtError::Internal)?;
 
-        self.fdt.bytes.get(base..(base + len)).ok_or(FdtError::Internal)
+        Ok(Some(self.fdt.bytes.get(offset..(offset + len)).ok_or(FdtError::Internal)?))
     }
 
     /// Get reference to the containing device tree.
@@ -362,11 +400,7 @@ impl<'a> FdtNode<'a> {
             )
         };
 
-        match fdt_err(ret) {
-            Ok(offset) => Ok(Some(Self { fdt: self.fdt, offset })),
-            Err(FdtError::NotFound) => Ok(None),
-            Err(e) => Err(e),
-        }
+        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     fn address_cells(&self) -> Result<AddrCells> {
@@ -546,32 +580,35 @@ impl Fdt {
     /// Return an iterator of memory banks specified the "/memory" node.
     ///
     /// NOTE: This does not support individual "/memory@XXXX" banks.
-    pub fn memory(&self) -> Result<MemRegIterator> {
+    pub fn memory(&self) -> Result<Option<MemRegIterator>> {
         let memory = CStr::from_bytes_with_nul(b"/memory\0").unwrap();
         let device_type = CStr::from_bytes_with_nul(b"memory\0").unwrap();
 
-        let node = self.node(memory)?;
-        if node.device_type()? != device_type {
-            return Err(FdtError::BadValue);
-        }
+        if let Some(node) = self.node(memory)? {
+            if node.device_type()? != Some(device_type) {
+                return Err(FdtError::BadValue);
+            }
+            let reg = node.reg()?.ok_or(FdtError::BadValue)?;
 
-        MemRegIterator::new(node.reg()?)
+            Ok(Some(MemRegIterator::new(reg)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Retrieve the standard /chosen node.
-    pub fn chosen(&self) -> Result<FdtNode> {
+    pub fn chosen(&self) -> Result<Option<FdtNode>> {
         self.node(CStr::from_bytes_with_nul(b"/chosen\0").unwrap())
     }
 
     /// Get the root node of the tree.
     pub fn root(&self) -> Result<FdtNode> {
-        self.node(CStr::from_bytes_with_nul(b"/\0").unwrap())
+        self.node(CStr::from_bytes_with_nul(b"/\0").unwrap())?.ok_or(FdtError::Internal)
     }
 
     /// Find a tree node by its full path.
-    pub fn node(&self, path: &CStr) -> Result<FdtNode> {
-        let offset = self.path_offset(path)?;
-        Ok(FdtNode { fdt: self, offset })
+    pub fn node(&self, path: &CStr) -> Result<Option<FdtNode>> {
+        Ok(self.path_offset(path)?.map(|offset| FdtNode { fdt: self, offset }))
     }
 
     /// Iterate over nodes with a given compatible string.
@@ -585,12 +622,11 @@ impl Fdt {
     }
 
     /// Find a mutable tree node by its full path.
-    pub fn node_mut(&mut self, path: &CStr) -> Result<FdtNodeMut> {
-        let offset = self.path_offset(path)?;
-        Ok(FdtNodeMut { fdt: self, offset })
+    pub fn node_mut(&mut self, path: &CStr) -> Result<Option<FdtNodeMut>> {
+        Ok(self.path_offset(path)?.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
-    fn path_offset(&self, path: &CStr) -> Result<c_int> {
+    fn path_offset(&self, path: &CStr) -> Result<Option<c_int>> {
         let len = path.to_bytes().len().try_into().map_err(|_| FdtError::BadPath)?;
         // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) and the
         // function respects the passed number of characters.
@@ -599,7 +635,7 @@ impl Fdt {
             libfdt_bindgen::fdt_path_offset_namelen(self.as_ptr(), path.as_ptr(), len)
         };
 
-        fdt_err(ret)
+        fdt_err_or_option(ret)
     }
 
     fn check_full(&self) -> Result<()> {
