@@ -146,23 +146,16 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                                 .collect(toList())));
         FileUtil.writeToFile(config.toString(), configFile);
 
-        File mkPayload = findTestFile("mk_payload");
         RunUtil runUtil = new RunUtil();
-        // Set the parent dir on the PATH (e.g. <workdir>/bin)
-        String separator = System.getProperty("path.separator");
-        String path = mkPayload.getParentFile().getPath() + separator + System.getenv("PATH");
-        runUtil.setEnvVariable("PATH", path);
-
-        List<String> command = new ArrayList<>();
-        command.add("mk_payload");
-        command.add("--metadata-only");
-        command.add(configFile.toString());
-        command.add(payloadMetadata.toString());
-
-        CommandResult result =
-                runUtil.runTimedCmd(
-                        // mk_payload should run fast enough
-                        5 * 1000, "/bin/bash", "-c", String.join(" ", command));
+        String command =
+                String.join(
+                        " ",
+                        findTestFile("mk_payload").getAbsolutePath(),
+                        "--metadata-only",
+                        configFile.getAbsolutePath(),
+                        payloadMetadata.getAbsolutePath());
+        // mk_payload should run fast enough
+        CommandResult result = runUtil.runTimedCmd(5000, "/bin/bash", "-c", command);
         String out = result.getStdout();
         String err = result.getStderr();
         assertWithMessage(
@@ -186,7 +179,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         runUtil.setEnvVariable("PATH", path);
 
         List<String> command = new ArrayList<>();
-        command.add("sign_virt_apex");
+        command.add(signVirtApex.getAbsolutePath());
         keyOverrides.forEach(
                 (filename, keyFile) ->
                         command.add("--key_override " + filename + "=" + keyFile.getPath()));
@@ -211,18 +204,11 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
             long timeoutMillis, Callable<T> callable, org.hamcrest.Matcher<T> matcher)
             throws Exception {
         long start = System.currentTimeMillis();
-        while (true) {
-            try {
-                assertThat(callable.call(), matcher);
-                return;
-            } catch (Throwable e) {
-                if (System.currentTimeMillis() - start < timeoutMillis) {
-                    Thread.sleep(500);
-                } else {
-                    throw e;
-                }
-            }
+        while ((System.currentTimeMillis() - start < timeoutMillis)
+                && !matcher.matches(callable.call())) {
+            Thread.sleep(500);
         }
+        assertThat(callable.call(), matcher);
     }
 
     static class ActiveApexInfo {
