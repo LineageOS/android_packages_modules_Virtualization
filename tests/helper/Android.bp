@@ -6,9 +6,7 @@ java_library_static {
     name: "MicrodroidTestHelper",
     srcs: ["src/java/com/android/microdroid/test/common/*.java"],
     host_supported: true,
-    libs: [
-        "framework-annotations-lib",
-    ],
+    sdk_version: "system_current",
 }
 
 java_library_static {
@@ -20,8 +18,5 @@ java_library_static {
         "MicrodroidTestHelper",
         "truth-prebuilt",
     ],
-    // We need to compile against the .impl library which includes the hidden
-    // APIs. Once the APIs are promoted to @SystemApi we can switch to
-    // framework-virtualization, which contains API stubs.
-    libs: ["framework-virtualization.impl"],
+    sdk_version: "system_current",
 }

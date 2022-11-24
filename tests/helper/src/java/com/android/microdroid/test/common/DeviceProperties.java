@@ -18,15 +18,11 @@ package com.android.microdroid.test.common;
 
 import static java.util.Objects.requireNonNull;
 
-import android.annotation.NonNull;
-import android.annotation.Nullable;
-
 /** This class can be used in both host tests and device tests to get the device properties. */
 public final class DeviceProperties {
     /** PropertyGetter is used to get the property associated to a given key. */
     public interface PropertyGetter {
-        @Nullable
-        String getProperty(@NonNull String key) throws Exception;
+        String getProperty(String key) throws Exception;
     }
 
     private static final String KEY_VENDOR_DEVICE = "ro.product.vendor.device";
@@ -34,15 +30,14 @@ public final class DeviceProperties {
 
     private static final String CUTTLEFISH_DEVICE_PREFIX = "vsoc_";
 
-    @NonNull private final PropertyGetter mPropertyGetter;
+    private final PropertyGetter mPropertyGetter;
 
-    private DeviceProperties(@NonNull PropertyGetter propertyGetter) {
+    private DeviceProperties(PropertyGetter propertyGetter) {
         mPropertyGetter = requireNonNull(propertyGetter);
     }
 
     /** Creates a new instance of {@link DeviceProperties}. */
-    @NonNull
-    public static DeviceProperties create(@NonNull PropertyGetter propertyGetter) {
+    public static DeviceProperties create(PropertyGetter propertyGetter) {
         return new DeviceProperties(propertyGetter);
     }
 
@@ -54,7 +49,6 @@ public final class DeviceProperties {
         return vendorDeviceName != null && vendorDeviceName.startsWith(CUTTLEFISH_DEVICE_PREFIX);
     }
 
-    @Nullable
     public String getMetricsTag() {
         return getProperty(KEY_METRICS_TAG);
     }
