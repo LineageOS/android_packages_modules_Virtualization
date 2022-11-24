@@ -12,14 +12,9 @@ android_app {
         "com.android.microdroid.testservice-java",
         "com.google.android.material_material",
     ],
-    libs: [
-        // We need to compile against the .impl library which includes the hidden
-        // APIs. Once the APIs are promoted to @SystemApi we can switch to
-        // framework-virtualization, which contains API stubs.
-        "framework-virtualization.impl",
-    ],
+    sdk_version: "system_current",
     jni_libs: ["MicrodroidTestNativeLib"],
-    platform_apis: true,
+    jni_uses_platform_apis: true,
     use_embedded_native_libs: true,
     v4_signature: true,
     min_sdk_version: "33",

@@ -17,12 +17,14 @@
 package android.system.virtualmachine;
 
 import android.annotation.Nullable;
+import android.annotation.SystemApi;
 
 /**
  * Exception thrown when operations on virtual machines fail.
  *
  * @hide
  */
+@SystemApi
 public class VirtualMachineException extends Exception {
     public VirtualMachineException(@Nullable String message) {
         super(message);

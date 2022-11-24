@@ -23,6 +23,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SuppressLint;
+import android.annotation.SystemApi;
 import android.content.Context;
 import android.sysprop.HypervisorProperties;
 import android.util.ArrayMap;
@@ -37,16 +38,17 @@ import java.util.WeakHashMap;
 
 /**
  * Manages {@link VirtualMachine virtual machine} instances created by an app. Each instance is
- * created from a {@link VirtualMachineConfig configuration} that defines the shape of the VM
- * (RAM, CPUs), the code to execute within it, etc.
- * <p>
- * Each virtual machine instance is named; the configuration and related state of each is
+ * created from a {@link VirtualMachineConfig configuration} that defines the shape of the VM (RAM,
+ * CPUs), the code to execute within it, etc.
+ *
+ * <p>Each virtual machine instance is named; the configuration and related state of each is
  * persisted in the app's private data directory and an instance can be retrieved given the name.
- * <p>
- * The app can then start, stop and otherwise interact with the VM.
+ *
+ * <p>The app can then start, stop and otherwise interact with the VM.
  *
  * @hide
  */
+@SystemApi
 public class VirtualMachineManager {
     /**
      * A lock used to synchronize the creation of virtual machines. It protects {@link #mVmsByName},
@@ -95,8 +97,9 @@ public class VirtualMachineManager {
      *
      * @hide
      */
+    @SystemApi
     @NonNull
-    @SuppressLint("ManagerLookup") // Optional API
+    @SuppressLint("ManagerLookup") // TODO(b/249093790): remove
     public static VirtualMachineManager getInstance(@NonNull Context context) {
         requireNonNull(context, "context must not be null");
         synchronized (sInstances) {
@@ -117,6 +120,7 @@ public class VirtualMachineManager {
      * @see #CAPABILITY_NON_PROTECTED_VM
      * @hide
      */
+    @SystemApi
     @Capability
     public int getCapabilities() {
         @Capability int result = 0;
@@ -134,18 +138,18 @@ public class VirtualMachineManager {
      * machine with the same name as an existing virtual machine is an error. The existing virtual
      * machine has to be deleted before its name can be reused.
      *
-     * Each successful call to this method creates a new (and different) virtual machine even if the
-     * name and the config are the same as a deleted one. The new virtual machine will initially
+     * <p>Each successful call to this method creates a new (and different) virtual machine even if
+     * the name and the config are the same as a deleted one. The new virtual machine will initially
      * be stopped.
      *
      * @throws VirtualMachineException if the VM cannot be created, or there is an existing VM with
-     *         the given name.
+     *     the given name.
      * @hide
      */
+    @SystemApi
     @NonNull
     @RequiresPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION)
-    public VirtualMachine create(
-            @NonNull String name, @NonNull VirtualMachineConfig config)
+    public VirtualMachine create(@NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         synchronized (sCreateLock) {
             return createLocked(name, config);
@@ -169,6 +173,7 @@ public class VirtualMachineManager {
      *     retrieved.
      * @hide
      */
+    @SystemApi
     @Nullable
     public VirtualMachine get(@NonNull String name) throws VirtualMachineException {
         synchronized (sCreateLock) {
@@ -199,6 +204,7 @@ public class VirtualMachineManager {
      * @hide
      */
     @NonNull
+    @SystemApi
     public VirtualMachine importFromDescriptor(
             @NonNull String name, @NonNull VirtualMachineDescriptor vmDescriptor)
             throws VirtualMachineException {
@@ -216,9 +222,9 @@ public class VirtualMachineManager {
      * @throws VirtualMachineException if the virtual machine could not be created or retrieved.
      * @hide
      */
+    @SystemApi
     @NonNull
-    public VirtualMachine getOrCreate(
-            @NonNull String name, @NonNull VirtualMachineConfig config)
+    public VirtualMachine getOrCreate(@NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
         synchronized (sCreateLock) {
             VirtualMachine vm = getLocked(name);
@@ -237,10 +243,11 @@ public class VirtualMachineManager {
      * with the same name is different from an already deleted virtual machine even if it has the
      * same config.
      *
-     * @throws VirtualMachineException if the virtual machine does not exist, is not stopped,
-     *                                 or cannot be deleted.
+     * @throws VirtualMachineException if the virtual machine does not exist, is not stopped, or
+     *     cannot be deleted.
      * @hide
      */
+    @SystemApi
     public void delete(@NonNull String name) throws VirtualMachineException {
         synchronized (sCreateLock) {
             VirtualMachine vm = getVmByName(name);
