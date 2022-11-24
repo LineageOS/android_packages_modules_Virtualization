@@ -1,1 +1,109 @@
 // Signature format: 2.0
+package android.system.virtualmachine {
+
+  public class VirtualMachine implements java.lang.AutoCloseable {
+    method public void clearCallback();
+    method public void close() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.os.IBinder connectToVsockServer(int) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.os.ParcelFileDescriptor connectVsock(int) throws android.system.virtualmachine.VirtualMachineException;
+    method public int getCid() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig getConfig();
+    method @NonNull public java.io.InputStream getConsoleOutput() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public java.io.InputStream getLogOutput() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public String getName();
+    method public int getStatus();
+    method @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) public void run() throws android.system.virtualmachine.VirtualMachineException;
+    method public void setCallback(@NonNull java.util.concurrent.Executor, @NonNull android.system.virtualmachine.VirtualMachineCallback);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig setConfig(@NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
+    method public void stop() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.system.virtualmachine.VirtualMachineDescriptor toDescriptor() throws android.system.virtualmachine.VirtualMachineException;
+    field public static final String MANAGE_VIRTUAL_MACHINE_PERMISSION = "android.permission.MANAGE_VIRTUAL_MACHINE";
+    field public static final int STATUS_DELETED = 2; // 0x2
+    field public static final int STATUS_RUNNING = 1; // 0x1
+    field public static final int STATUS_STOPPED = 0; // 0x0
+    field public static final String USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION = "android.permission.USE_CUSTOM_VIRTUAL_MACHINE";
+  }
+
+  public interface VirtualMachineCallback {
+    method public void onError(@NonNull android.system.virtualmachine.VirtualMachine, int, @NonNull String);
+    method public void onPayloadFinished(@NonNull android.system.virtualmachine.VirtualMachine, int);
+    method public void onPayloadReady(@NonNull android.system.virtualmachine.VirtualMachine);
+    method public void onPayloadStarted(@NonNull android.system.virtualmachine.VirtualMachine);
+    method public void onRamdump(@NonNull android.system.virtualmachine.VirtualMachine, @NonNull android.os.ParcelFileDescriptor);
+    method public void onStopped(@NonNull android.system.virtualmachine.VirtualMachine, int);
+    field public static final int ERROR_PAYLOAD_CHANGED = 2; // 0x2
+    field public static final int ERROR_PAYLOAD_INVALID_CONFIG = 3; // 0x3
+    field public static final int ERROR_PAYLOAD_VERIFICATION_FAILED = 1; // 0x1
+    field public static final int ERROR_UNKNOWN = 0; // 0x0
+    field public static final int STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED = 10; // 0xa
+    field public static final int STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH = 9; // 0x9
+    field public static final int STOP_REASON_CRASH = 6; // 0x6
+    field public static final int STOP_REASON_ERROR = 4; // 0x4
+    field public static final int STOP_REASON_HANGUP = 16; // 0x10
+    field public static final int STOP_REASON_INFRASTRUCTURE_ERROR = 0; // 0x0
+    field public static final int STOP_REASON_KILLED = 1; // 0x1
+    field public static final int STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE = 11; // 0xb
+    field public static final int STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG = 14; // 0xe
+    field public static final int STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED = 12; // 0xc
+    field public static final int STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED = 13; // 0xd
+    field public static final int STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR = 15; // 0xf
+    field public static final int STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED = 8; // 0x8
+    field public static final int STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH = 7; // 0x7
+    field public static final int STOP_REASON_REBOOT = 5; // 0x5
+    field public static final int STOP_REASON_SHUTDOWN = 3; // 0x3
+    field public static final int STOP_REASON_UNKNOWN = 2; // 0x2
+    field public static final int STOP_REASON_VIRTUALIZATION_SERVICE_DIED = -1; // 0xffffffff
+  }
+
+  public final class VirtualMachineConfig {
+    method @NonNull public String getApkPath();
+    method @NonNull public int getDebugLevel();
+    method @IntRange(from=0) public int getMemoryMib();
+    method @IntRange(from=1) public int getNumCpus();
+    method @Nullable public String getPayloadBinaryPath();
+    method @Nullable public String getPayloadConfigPath();
+    method public boolean isCompatibleWith(@NonNull android.system.virtualmachine.VirtualMachineConfig);
+    method public boolean isProtectedVm();
+    field public static final int DEBUG_LEVEL_APP_ONLY = 1; // 0x1
+    field public static final int DEBUG_LEVEL_FULL = 2; // 0x2
+    field public static final int DEBUG_LEVEL_NONE = 0; // 0x0
+  }
+
+  public static final class VirtualMachineConfig.Builder {
+    ctor public VirtualMachineConfig.Builder(@NonNull android.content.Context);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig build();
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setApkPath(@NonNull String);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setDebugLevel(int);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryMib(@IntRange(from=0) int);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setNumCpus(@IntRange(from=1) int);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadBinaryPath(@NonNull String);
+    method @NonNull @RequiresPermission(android.system.virtualmachine.VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION) public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadConfigPath(@NonNull String);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setProtectedVm(boolean);
+  }
+
+  public final class VirtualMachineDescriptor implements android.os.Parcelable {
+    method public int describeContents();
+    method public void writeToParcel(@NonNull android.os.Parcel, int);
+    field @NonNull public static final android.os.Parcelable.Creator<android.system.virtualmachine.VirtualMachineDescriptor> CREATOR;
+  }
+
+  public class VirtualMachineException extends java.lang.Exception {
+    ctor public VirtualMachineException(@Nullable String);
+    ctor public VirtualMachineException(@Nullable String, @Nullable Throwable);
+    ctor public VirtualMachineException(@Nullable Throwable);
+  }
+
+  public class VirtualMachineManager {
+    method @NonNull @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) public android.system.virtualmachine.VirtualMachine create(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
+    method public void delete(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
+    method @Nullable public android.system.virtualmachine.VirtualMachine get(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
+    method public int getCapabilities();
+    method @NonNull public static android.system.virtualmachine.VirtualMachineManager getInstance(@NonNull android.content.Context);
+    method @NonNull public android.system.virtualmachine.VirtualMachine getOrCreate(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.system.virtualmachine.VirtualMachine importFromDescriptor(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineDescriptor) throws android.system.virtualmachine.VirtualMachineException;
+    field public static final int CAPABILITY_NON_PROTECTED_VM = 2; // 0x2
+    field public static final int CAPABILITY_PROTECTED_VM = 1; // 0x1
+  }
+
+}
+
