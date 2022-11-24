@@ -51,6 +51,7 @@ rust_defaults {
         "libshared_child",
         "libstatslog_virtualization_rust",
         "libtombstoned_client_rust",
+        "libvm_control",
         "libvmconfig",
         "libzip",
         "libvsock",

@@ -38,7 +38,10 @@ use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
 use std::thread;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::DeathReason::DeathReason;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    DeathReason::DeathReason,
+    MemoryTrimLevel::MemoryTrimLevel,
+};
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IGlobalVmContext::IGlobalVmContext;
 use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
@@ -47,6 +50,7 @@ use rpcbinder::RpcServer;
 
 /// external/crosvm
 use base::UnixSeqpacketListener;
+use vm_control::{BalloonControlCommand, VmRequest, VmResponse};
 
 const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 
@@ -171,7 +175,7 @@ impl VmState {
 
             // If this fails and returns an error, `self` will be left in the `Failed` state.
             let child =
-                Arc::new(run_vm(config, &instance.temporary_directory, failure_pipe_write)?);
+                Arc::new(run_vm(config, &instance.crosvm_control_socket_path, failure_pipe_write)?);
 
             let instance_monitor_status = instance.clone();
             let child_monitor_status = child.clone();
@@ -228,6 +232,8 @@ pub struct VmInstance {
     vm_context: VmContext,
     /// The CID assigned to the VM for vsock communication.
     pub cid: Cid,
+    /// Path to crosvm control socket
+    crosvm_control_socket_path: PathBuf,
     /// The name of the VM.
     pub name: String,
     /// Whether the VM is a protected VM.
@@ -268,6 +274,7 @@ impl VmInstance {
             vm_state: Mutex::new(VmState::NotStarted { config }),
             vm_context,
             cid,
+            crosvm_control_socket_path: temporary_directory.join("crosvm.sock"),
             name,
             protected,
             temporary_directory,
@@ -439,6 +446,46 @@ impl VmInstance {
         }
     }
 
+    /// Responds to memory-trimming notifications by inflating the virtio
+    /// balloon to reclaim guest memory.
+    pub fn trim_memory(&self, level: MemoryTrimLevel) -> Result<(), Error> {
+        let request = VmRequest::BalloonCommand(BalloonControlCommand::Stats {});
+        match vm_control::client::handle_request(&request, &self.crosvm_control_socket_path) {
+            Ok(VmResponse::BalloonStats { stats, balloon_actual: _ }) => {
+                if let Some(total_memory) = stats.total_memory {
+                    // Reclaim up to 50% of total memory assuming worst case
+                    // most memory is anonymous and must be swapped to zram
+                    // with an approximate 2:1 compression ratio.
+                    let pct = match level {
+                        MemoryTrimLevel::TRIM_MEMORY_RUNNING_CRITICAL => 50,
+                        MemoryTrimLevel::TRIM_MEMORY_RUNNING_LOW => 30,
+                        MemoryTrimLevel::TRIM_MEMORY_RUNNING_MODERATE => 10,
+                        _ => bail!("Invalid memory trim level {:?}", level),
+                    };
+                    let command =
+                        BalloonControlCommand::Adjust { num_bytes: total_memory * pct / 100 };
+                    if let Err(e) = vm_control::client::handle_request(
+                        &VmRequest::BalloonCommand(command),
+                        &self.crosvm_control_socket_path,
+                    ) {
+                        bail!("Error sending balloon adjustment: {:?}", e);
+                    }
+                }
+            }
+            Ok(VmResponse::Err(e)) => {
+                // ENOTSUP is returned when the balloon protocol is not initialised. This
+                // can occur for numerous reasons: Guest is still booting, guest doesn't
+                // support ballooning, host doesn't support ballooning. We don't log or
+                // raise an error in this case: trim is just a hint and we can ignore it.
+                if e.errno() != libc::ENOTSUP {
+                    bail!("Errno return when requesting balloon stats: {}", e.errno())
+                }
+            }
+            e => bail!("Error requesting balloon stats: {:?}", e),
+        }
+        Ok(())
+    }
+
     /// Checks if ramdump has been created. If so, send a notification to the user with the handle
     /// to read the ramdump.
     fn handle_ramdump(&self) -> Result<(), Error> {
@@ -578,7 +625,7 @@ fn death_reason(result: &Result<ExitStatus, io::Error>, mut failure_reason: &str
 /// Starts an instance of `crosvm` to manage a new VM.
 fn run_vm(
     config: CrosvmConfig,
-    temporary_directory: &Path,
+    crosvm_control_socket_path: &Path,
     failure_pipe_write: File,
 ) -> Result<SharedChild, Error> {
     validate_config(&config)?;
@@ -684,9 +731,8 @@ fn run_vm(
         command.arg(add_preserved_fd(&mut preserved_fds, kernel));
     }
 
-    let control_server_socket =
-        UnixSeqpacketListener::bind(temporary_directory.join("crosvm.sock"))
-            .context("failed to create control server")?;
+    let control_server_socket = UnixSeqpacketListener::bind(crosvm_control_socket_path)
+        .context("failed to create control server")?;
     command.arg("--socket").arg(add_preserved_fd(&mut preserved_fds, &control_server_socket));
 
     debug!("Preserving FDs {:?}", preserved_fds);
