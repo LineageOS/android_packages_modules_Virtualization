@@ -176,11 +176,9 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
         List<String> command = new ArrayList<>();
         command.add("sign_virt_apex");
-        for (Map.Entry<String, File> entry : keyOverrides.entrySet()) {
-            String filename = entry.getKey();
-            File overridingKey = entry.getValue();
-            command.add("--key_override " + filename + "=" + overridingKey.getPath());
-        }
+        keyOverrides.forEach(
+                (filename, keyFile) ->
+                        command.add("--key_override " + filename + "=" + keyFile.getPath()));
         command.add(signingKey.getPath());
         command.add(virtApexDir.getPath());
 
