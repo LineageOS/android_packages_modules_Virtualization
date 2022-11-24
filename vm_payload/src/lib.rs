@@ -14,9 +14,9 @@
 
 //! Library for payload to communicate with the Microdroid Manager.
 
-mod vm_payload_service;
+mod api;
 
-pub use vm_payload_service::{
+pub use api::{
     AVmPayload_getDiceAttestationCdi, AVmPayload_getDiceAttestationChain,
     AVmPayload_getVmInstanceSecret, AVmPayload_notifyPayloadReady,
 };
