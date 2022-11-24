@@ -19,6 +19,7 @@ package android.system.virtualmachine;
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
+import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
@@ -32,6 +33,7 @@ import android.os.Parcelable;
  *
  * @hide
  */
+@SystemApi
 public final class VirtualMachineDescriptor implements Parcelable {
     @NonNull private final ParcelFileDescriptor mConfigFd;
     @NonNull private final ParcelFileDescriptor mInstanceImgFd;

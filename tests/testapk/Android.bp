@@ -19,15 +19,12 @@ android_test {
         "truth-prebuilt",
         "compatibility-common-util-devicesidelib",
     ],
-    // We need to compile against the .impl library which includes the hidden
-    // APIs. Once the APIs are promoted to @SystemApi we can switch to
-    // framework-virtualization, which contains API stubs.
-    libs: ["framework-virtualization.impl"],
+    sdk_version: "test_current",
     jni_libs: [
         "MicrodroidTestNativeLib",
         "MicrodroidIdleNativeLib",
     ],
-    platform_apis: true,
+    jni_uses_platform_apis: true,
     use_embedded_native_libs: true,
     // We only support 64-bit ABI, but CTS demands all APKs to be multi-ABI.
     compile_multilib: "both",
