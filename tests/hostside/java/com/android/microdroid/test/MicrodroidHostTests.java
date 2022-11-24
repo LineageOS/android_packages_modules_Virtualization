@@ -66,6 +66,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
@@ -93,6 +94,16 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     private static final int NUM_VCPUS = 3;
 
     private static final int BOOT_COMPLETE_TIMEOUT = 30000; // 30 seconds
+
+    private static class VmInfo {
+        final Process mProcess;
+        final String mCid;
+
+        VmInfo(Process process, String cid) {
+            mProcess = process;
+            mCid = cid;
+        }
+    }
 
     @Rule public TestLogData mTestLogs = new TestLogData();
     @Rule public TestName mTestName = new TestName();
@@ -236,12 +247,10 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         }
 
         ActiveApexInfo get(String apexName) {
-            for (ActiveApexInfo info : mList) {
-                if (info.name.equals(apexName)) {
-                    return info;
-                }
-            }
-            return null;
+            return mList.stream()
+                    .filter(info -> apexName.equals(info.name))
+                    .findFirst()
+                    .orElse(null);
         }
 
         List<ActiveApexInfo> getSharedLibApexes() {
@@ -273,13 +282,8 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         return new ActiveApexInfoList(list);
     }
 
-    private Process runMicrodroidWithResignedImages(
-            File key,
-            Map<String, File> keyOverrides,
-            boolean isProtected,
-            boolean waitForOnline,
-            String consolePath)
-            throws Exception {
+    private VmInfo runMicrodroidWithResignedImages(
+            File key, Map<String, File> keyOverrides, boolean isProtected) throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
 
         File virtApexDir = FileUtil.createTempDir("virt_apex");
@@ -389,20 +393,21 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         getDevice().getSerialNumber(),
                         "shell",
                         VIRT_APEX + "bin/vm run",
-                        (consolePath != null) ? "--console " + consolePath : "",
+                        "--console " + CONSOLE_PATH,
                         "--log " + LOG_PATH,
                         configPath);
 
         PipedInputStream pis = new PipedInputStream();
         Process process = RunUtil.getDefault().runCmdInBackground(args, new PipedOutputStream(pis));
-        BufferedReader stdout = new BufferedReader(new InputStreamReader(pis));
+        return new VmInfo(process, extractCidFrom(pis));
+    }
 
-        // Retrieve the CID from the vm tool output
+    private static String extractCidFrom(InputStream input) throws IOException {
         String cid = null;
         Pattern pattern = Pattern.compile("with CID (\\d+)");
-        try {
-            String line;
-            while ((line = stdout.readLine()) != null) {
+        String line;
+        try (BufferedReader out = new BufferedReader(new InputStreamReader(input))) {
+            while ((line = out.readLine()) != null) {
                 CLog.i("VM output: " + line);
                 Matcher matcher = pattern.matcher(line);
                 if (matcher.find()) {
@@ -410,21 +415,11 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                     break;
                 }
             }
-        } catch (IOException ex) {
-            throw new IllegalStateException(
-                    "Could not find the CID of the VM. The process probably died.", ex);
         }
-        if (cid == null) {
-            throw new IllegalStateException(
-                    "Could not find the CID of the VM. Output does not contain the expected"
-                            + " pattern.");
-        }
-
-        if (waitForOnline) {
-            adbConnectToMicrodroid(getDevice(), cid);
-        }
-
-        return process;
+        assertWithMessage("The output does not contain the expected pattern for CID.")
+                .that(cid)
+                .isNotNull();
+        return cid;
     }
 
     @Test
@@ -432,20 +427,16 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
     public void testBootFailsWhenProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
+        boolean protectedVm = true;
         assumeTrue(
-                "Protected VMs are not supported",
-                getAndroidDevice().supportsMicrodroid(/*protectedVm=*/ true));
+                "Skip if protected VMs are not supported",
+                getAndroidDevice().supportsMicrodroid(protectedVm));
 
         File key = findTestFile("test.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of();
-        boolean isProtected = true;
-        boolean waitForOnline = false; // VM should shut down due to boot failure.
-        String consolePath = TEST_ROOT + "console";
-        Process process =
-                runMicrodroidWithResignedImages(
-                        key, keyOverrides, isProtected, waitForOnline, consolePath);
-        process.waitFor(5L, TimeUnit.SECONDS);
-        assertThat(getDevice().pullFileContents(consolePath), containsString("pvmfw boot failed"));
+        VmInfo vmInfo = runMicrodroidWithResignedImages(key, keyOverrides, protectedVm);
+        vmInfo.mProcess.waitFor(5L, TimeUnit.SECONDS);
+        assertThat(getDevice().pullFileContents(CONSOLE_PATH), containsString("pvmfw boot failed"));
     }
 
     // TODO(b/245277660): Resigning the system/vendor image changes the vbmeta hash.
@@ -457,13 +448,10 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
             throws Exception {
         File key = findTestFile("test.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of();
-        boolean isProtected = false;
-        boolean waitForOnline = true; // Device online means that boot must have succeeded.
-        String consolePath = TEST_ROOT + "console";
-        Process process =
-                runMicrodroidWithResignedImages(
-                        key, keyOverrides, isProtected, waitForOnline, consolePath);
-        process.destroy();
+        VmInfo vmInfo = runMicrodroidWithResignedImages(key, keyOverrides, /*isProtected=*/ false);
+        // Device online means that boot must have succeeded.
+        adbConnectToMicrodroid(getDevice(), vmInfo.mCid);
+        vmInfo.mProcess.destroy();
     }
 
     @Test
@@ -473,19 +461,14 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         File key = findTestFile("test.com.android.virt.pem");
         File key2 = findTestFile("test2.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of("microdroid_vbmeta.img", key2);
-        boolean isProtected = false; // Not interested in pvwfw
-        boolean waitForOnline = false; // Bootloader fails and enters prompts.
         // To be able to stop it, it should be a daemon.
-        String consolePath = TEST_ROOT + "console";
-        Process process =
-                runMicrodroidWithResignedImages(
-                        key, keyOverrides, isProtected, waitForOnline, consolePath);
+        VmInfo vmInfo = runMicrodroidWithResignedImages(key, keyOverrides, /*isProtected=*/ false);
         // Wait so that init can print errors to console (time in cuttlefish >> in real device)
         assertThatEventually(
                 100000,
-                () -> getDevice().pullFileContents(consolePath),
+                () -> getDevice().pullFileContents(CONSOLE_PATH),
                 containsString("init: [libfs_avb]Failed to verify vbmeta digest"));
-        process.destroy();
+        vmInfo.mProcess.destroy();
     }
 
     private boolean isTombstoneGeneratedWithConfig(String configPath) throws Exception {
