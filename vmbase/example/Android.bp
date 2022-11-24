@@ -12,8 +12,12 @@ rust_ffi_static {
         "libaarch64_paging",
         "libbuddy_system_allocator",
         "libdice_nostd",
+        "liblibfdt",
         "liblog_rust_nostd",
         "libvmbase",
+    ],
+    static_libs: [
+        "libarm-optimized-routines-mem",
     ],
     apex_available: ["com.android.virt"],
 }
