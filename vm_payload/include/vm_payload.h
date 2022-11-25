@@ -18,6 +18,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdnoreturn.h>
 #include <sys/cdefs.h>
 
 #include "vm_main.h"
@@ -46,18 +47,17 @@ void AVmPayload_notifyPayloadReady(void);
  * called to allow appropriate action to be taken - e.g. to notify clients that they may now
  * attempt to connect with `AVmPayload_notifyPayloadReady`.
  *
- * The current thread is joined to the binder thread pool to handle incoming messages.
+ * Note that this function does not return. The calling thread joins the binder
+ * thread pool to handle incoming messages.
  *
  * \param service the service to bind to the given port.
  * \param port vsock port.
  * \param on_ready the callback to execute once the server is ready for connections. The callback
  *                 will be called at most once.
  * \param param param for the `on_ready` callback.
- *
- * \return true if the server has shutdown normally, false if it failed in some way.
  */
-bool AVmPayload_runVsockRpcServer(AIBinder *service, unsigned int port,
-                                  void (*on_ready)(void *param), void *param);
+noreturn void AVmPayload_runVsockRpcServer(AIBinder *service, unsigned int port,
+                                           void (*on_ready)(void *param), void *param);
 
 /**
  * Get a secret that is uniquely bound to this VM instance. The secrets are
