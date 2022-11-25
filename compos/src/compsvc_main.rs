@@ -23,11 +23,13 @@ mod compsvc;
 mod fsverity;
 
 use anyhow::Result;
+use binder::unstable_api::AsNative;
 use compos_common::COMPOS_VSOCK_PORT;
 use log::{debug, error};
-use rpcbinder::RpcServer;
+use std::os::raw::c_void;
 use std::panic;
-use vm_payload_bindgen::AVmPayload_notifyPayloadReady;
+use std::ptr;
+use vm_payload_bindgen::{AIBinder, AVmPayload_notifyPayloadReady, AVmPayload_runVsockRpcServer};
 
 fn main() {
     if let Err(e) = try_main() {
@@ -46,10 +48,20 @@ fn try_main() -> Result<()> {
     }));
 
     debug!("compsvc is starting as a rpc service.");
-    let service = compsvc::new_binder()?.as_binder();
-    let server = RpcServer::new_vsock(service, COMPOS_VSOCK_PORT)?;
-    // SAFETY: Invokes a method from the bindgen library `vm_payload_bindgen`.
-    unsafe { AVmPayload_notifyPayloadReady() };
-    server.join();
+    let param = ptr::null_mut();
+    let mut service = compsvc::new_binder()?.as_binder();
+    unsafe {
+        // SAFETY: We hold a strong pointer, so the raw pointer remains valid. The bindgen AIBinder
+        // is the same type as sys::AIBinder.
+        let service = service.as_native_mut() as *mut AIBinder;
+        // SAFETY: It is safe for on_ready to be invoked at any time, with any parameter.
+        AVmPayload_runVsockRpcServer(service, COMPOS_VSOCK_PORT, Some(on_ready), param);
+    }
     Ok(())
+}
+
+extern "C" fn on_ready(_param: *mut c_void) {
+    // SAFETY: Invokes a method from the bindgen library `vm_payload_bindgen` which is safe to
+    // call at any time.
+    unsafe { AVmPayload_notifyPayloadReady() };
 }

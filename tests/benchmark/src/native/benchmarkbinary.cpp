@@ -161,10 +161,8 @@ private:
 Result<void> run_io_benchmark_tests() {
     auto test_service = ndk::SharedRefBase::make<IOBenchmarkService>();
     auto callback = []([[maybe_unused]] void* param) { AVmPayload_notifyPayloadReady(); };
-    if (!AVmPayload_runVsockRpcServer(test_service->asBinder().get(), test_service->SERVICE_PORT,
-                                      callback, nullptr)) {
-        return Error() << "RPC Server failed to run";
-    }
+    AVmPayload_runVsockRpcServer(test_service->asBinder().get(), test_service->SERVICE_PORT,
+                                 callback, nullptr);
     return {};
 }
 } // Anonymous namespace

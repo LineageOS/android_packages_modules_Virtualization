@@ -14,13 +14,17 @@
 
 //! This module handles the interaction with virtual machine payload service.
 
+// We're implementing unsafe functions, but we still want warnings on unsafe usage within them.
+#![warn(unsafe_op_in_unsafe_fn)]
+
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME, VM_APK_CONTENTS_PATH};
-use anyhow::{ensure, Context, Result};
+use anyhow::{ensure, bail, Context, Result};
 use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
 use lazy_static::lazy_static;
 use log::{error, info, Level};
 use rpcbinder::{get_unix_domain_rpc_interface, RpcServer};
+use std::convert::Infallible;
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::os::raw::{c_char, c_void};
@@ -96,44 +100,55 @@ fn try_notify_payload_ready() -> Result<()> {
 /// called to allow appropriate action to be taken - e.g. to notify clients that they may now
 /// attempt to connect.
 ///
-/// The current thread is joined to the binder thread pool to handle incoming messages.
+/// The current thread joins the binder thread pool to handle incoming messages.
+/// This function never returns.
 ///
-/// Returns true if the server has shutdown normally, false if it failed in some way.
+/// Panics on error (including unexpected server exit).
 ///
 /// # Safety
 ///
-/// The `on_ready` callback is only called inside `run_vsock_rpc_server`, within the lifetime of
-/// `ReadyNotifier` (the last parameter of `run_vsock_rpc_server`). If `on_ready` is called with
-/// wrong param, the callback execution could go wrong.
+/// If present, the `on_ready` callback must be a valid function pointer, which will be called at
+/// most once, while this function is executing, with the `param` parameter.
 #[no_mangle]
 pub unsafe extern "C" fn AVmPayload_runVsockRpcServer(
     service: *mut AIBinder,
     port: u32,
     on_ready: Option<unsafe extern "C" fn(param: *mut c_void)>,
     param: *mut c_void,
-) -> bool {
+) -> Infallible {
     initialize_logging();
 
+    // SAFETY: try_run_vsock_server has the same requirements as this function
+    unwrap_or_abort(unsafe { try_run_vsock_server(service, port, on_ready, param) })
+}
+
+/// # Safety: Same as `AVmPayload_runVsockRpcServer`.
+unsafe fn try_run_vsock_server(
+    service: *mut AIBinder,
+    port: u32,
+    on_ready: Option<unsafe extern "C" fn(param: *mut c_void)>,
+    param: *mut c_void,
+) -> Result<Infallible> {
     // SAFETY: AIBinder returned has correct reference count, and the ownership can
     // safely be taken by new_spibinder.
-    let service = new_spibinder(service);
+    let service = unsafe { new_spibinder(service) };
     if let Some(service) = service {
         match RpcServer::new_vsock(service, port) {
             Ok(server) => {
                 if let Some(on_ready) = on_ready {
-                    on_ready(param);
+                    // SAFETY: We're calling the callback with the parameter specified within the
+                    // allowed lifetime.
+                    unsafe { on_ready(param) };
                 }
                 server.join();
-                true
+                bail!("RpcServer unexpectedly terminated");
             }
             Err(err) => {
-                error!("Failed to start RpcServer: {:?}", err);
-                false
+                bail!("Failed to start RpcServer: {:?}", err);
             }
         }
     } else {
-        error!("Failed to convert the given service from AIBinder to SpIBinder.");
-        false
+        bail!("Failed to convert the given service from AIBinder to SpIBinder.");
     }
 }
 
@@ -157,9 +172,15 @@ pub unsafe extern "C" fn AVmPayload_getVmInstanceSecret(
 ) {
     initialize_logging();
 
-    let identifier = std::slice::from_raw_parts(identifier, identifier_size);
+    // SAFETY: See the requirements on `identifier` above.
+    let identifier = unsafe { std::slice::from_raw_parts(identifier, identifier_size) };
     let vm_secret = unwrap_or_abort(try_get_vm_instance_secret(identifier, size));
-    ptr::copy_nonoverlapping(vm_secret.as_ptr(), secret, size);
+
+    // SAFETY: See the requirements on `secret` above; `vm_secret` is known to have length `size`,
+    // and cannot overlap `secret` because we just allocated it.
+    unsafe {
+        ptr::copy_nonoverlapping(vm_secret.as_ptr(), secret, size);
+    }
 }
 
 fn try_get_vm_instance_secret(identifier: &[u8], size: usize) -> Result<Vec<u8>> {
@@ -190,7 +211,9 @@ pub unsafe extern "C" fn AVmPayload_getDiceAttestationChain(data: *mut u8, size:
     initialize_logging();
 
     let chain = unwrap_or_abort(try_get_dice_attestation_chain());
-    ptr::copy_nonoverlapping(chain.as_ptr(), data, std::cmp::min(chain.len(), size));
+    // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+    // the length of either buffer, and `chain` cannot overlap `data` because we just allocated it.
+    unsafe { ptr::copy_nonoverlapping(chain.as_ptr(), data, std::cmp::min(chain.len(), size)) };
     chain.len()
 }
 
@@ -213,7 +236,9 @@ pub unsafe extern "C" fn AVmPayload_getDiceAttestationCdi(data: *mut u8, size: u
     initialize_logging();
 
     let cdi = unwrap_or_abort(try_get_dice_attestation_cdi());
-    ptr::copy_nonoverlapping(cdi.as_ptr(), data, std::cmp::min(cdi.len(), size));
+    // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+    // the length of either buffer, and `cdi` cannot overlap `data` because we just allocated it.
+    unsafe { ptr::copy_nonoverlapping(cdi.as_ptr(), data, std::cmp::min(cdi.len(), size)) };
     cdi.len()
 }
 
