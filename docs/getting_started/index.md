@@ -97,6 +97,15 @@ atest MicrodroidTestApp
 If you run into problems, inspect the logs produced by `atest`. Their location is printed at the
 end. The `host_log_*.zip` file should contain the output of individual commands as well as VM logs.
 
+### Custom pvmfw
+
+Hostside tests, which run on the PC and extends `MicrodroidHostTestCaseBase`, can be run with
+a custom `pvmfw`. Use `--module-arg` to push `pvmfw` for individual test methods.
+
+```shell
+atest com.android.microdroid.test.MicrodroidHostTests -- --module-arg MicrodroidHostTestCases:set-option:pvmfw:pvmfw.img
+```
+
 ## Spawning your own VMs with custom kernel
 
 You can spawn your own VMs by passing a JSON config file to the VirtualizationService via the `vm`
