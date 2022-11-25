@@ -20,7 +20,8 @@
 
 use anyhow::{ensure, Context, Result};
 use clap::{arg, App};
-use dm::{crypt::CipherType, util};
+use dm::crypt::CipherType;
+use dm::util;
 use log::info;
 use std::ffi::CString;
 use std::fs::{create_dir_all, OpenOptions};
@@ -87,7 +88,6 @@ fn encryptedstore_init(blkdevice: &Path, key: &str, mountpoint: &Path) -> Result
 fn enable_crypt(data_device: &Path, key: &str, name: &str) -> Result<PathBuf> {
     let dev_size = util::blkgetsize64(data_device)?;
     let key = hex::decode(key).context("Unable to decode hex key")?;
-    ensure!(key.len() == 32, "We need 32 bytes' key for aes-hctr2 cipher for block encryption");
 
     // Create the dm-crypt spec
     let target = dm::crypt::DmCryptTargetBuilder::default()
