@@ -17,6 +17,7 @@ rust_ffi_static {
         "liblibfdt",
         "liblog_rust_nostd",
         "libpvmfw_embedded_key",
+        "libtinyvec_nostd",
         "libvmbase",
     ],
     static_libs: [
