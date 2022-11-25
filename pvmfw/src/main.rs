@@ -21,8 +21,10 @@
 mod avb;
 mod entry;
 mod exceptions;
+mod fdt;
 mod heap;
 mod helpers;
+mod memory;
 mod mmio_guard;
 mod mmu;
 mod smccc;
@@ -30,14 +32,15 @@ mod smccc;
 use avb::PUBLIC_KEY;
 use log::{debug, info};
 
-fn main(fdt: &mut [u8], payload: &[u8], bcc: &[u8]) {
+fn main(fdt: &libfdt::Fdt, signed_kernel: &[u8], ramdisk: Option<&[u8]>, bcc: &[u8]) {
     info!("pVM firmware");
-    debug!(
-        "fdt_address={:#018x}, payload_start={:#018x}, payload_size={:#018x}",
-        fdt.as_ptr() as usize,
-        payload.as_ptr() as usize,
-        payload.len(),
-    );
+    debug!("FDT: {:?}", fdt as *const libfdt::Fdt);
+    debug!("Signed kernel: {:?} ({:#x} bytes)", signed_kernel.as_ptr(), signed_kernel.len());
+    if let Some(rd) = ramdisk {
+        debug!("Ramdisk: {:?} ({:#x} bytes)", rd.as_ptr(), rd.len());
+    } else {
+        debug!("Ramdisk: None");
+    }
     debug!("BCC: {:?} ({:#x} bytes)", bcc.as_ptr(), bcc.len());
     debug!("AVB public key: addr={:?}, size={:#x} ({1})", PUBLIC_KEY.as_ptr(), PUBLIC_KEY.len());
     info!("Starting payload...");
