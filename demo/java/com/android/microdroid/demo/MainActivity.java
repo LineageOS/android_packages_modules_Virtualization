@@ -256,7 +256,8 @@ public class MainActivity extends AppCompatActivity {
                     builder.setDebugLevel(VirtualMachineConfig.DEBUG_LEVEL_FULL);
                 }
                 VirtualMachineConfig config = builder.build();
-                VirtualMachineManager vmm = VirtualMachineManager.getInstance(getApplication());
+                VirtualMachineManager vmm =
+                        getApplication().getSystemService(VirtualMachineManager.class);
                 mVirtualMachine = vmm.getOrCreate(VM_NAME, config);
                 try {
                     mVirtualMachine.setConfig(config);

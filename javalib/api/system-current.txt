@@ -98,7 +98,6 @@ package android.system.virtualmachine {
     method public void delete(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
     method @Nullable public android.system.virtualmachine.VirtualMachine get(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
     method public int getCapabilities();
-    method @NonNull public static android.system.virtualmachine.VirtualMachineManager getInstance(@NonNull android.content.Context);
     method @NonNull public android.system.virtualmachine.VirtualMachine getOrCreate(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public android.system.virtualmachine.VirtualMachine importFromDescriptor(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineDescriptor) throws android.system.virtualmachine.VirtualMachineException;
     field public static final int CAPABILITY_NON_PROTECTED_VM = 2; // 0x2

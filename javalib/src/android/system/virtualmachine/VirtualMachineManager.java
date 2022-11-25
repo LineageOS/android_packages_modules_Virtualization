@@ -21,10 +21,11 @@ import static java.util.Objects.requireNonNull;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresFeature;
 import android.annotation.RequiresPermission;
-import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.sysprop.HypervisorProperties;
 import android.util.ArrayMap;
 
@@ -34,7 +35,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 /**
  * Manages {@link VirtualMachine virtual machine} instances created by an app. Each instance is
@@ -46,9 +46,13 @@ import java.util.WeakHashMap;
  *
  * <p>The app can then start, stop and otherwise interact with the VM.
  *
+ * <p>An instance of {@link VirtualMachineManager} can be obtained by calling {@link
+ * Context#getSystemService(Class)}.
+ *
  * @hide
  */
 @SystemApi
+@RequiresFeature(PackageManager.FEATURE_VIRTUALIZATION_FRAMEWORK)
 public class VirtualMachineManager {
     /**
      * A lock used to synchronize the creation of virtual machines. It protects {@link #mVmsByName},
@@ -59,13 +63,10 @@ public class VirtualMachineManager {
 
     @NonNull private final Context mContext;
 
-    private VirtualMachineManager(@NonNull Context context) {
-        mContext = context;
+    /** @hide */
+    public VirtualMachineManager(@NonNull Context context) {
+        mContext = requireNonNull(context);
     }
-
-    @GuardedBy("sInstances")
-    private static final Map<Context, WeakReference<VirtualMachineManager>> sInstances =
-            new WeakHashMap<>();
 
     @GuardedBy("sCreateLock")
     private final Map<String, WeakReference<VirtualMachine>> mVmsByName = new ArrayMap<>();
@@ -91,27 +92,6 @@ public class VirtualMachineManager {
      * host OS.
      */
     public static final int CAPABILITY_NON_PROTECTED_VM = 2;
-
-    /**
-     * Returns the per-context instance.
-     *
-     * @hide
-     */
-    @SystemApi
-    @NonNull
-    @SuppressLint("ManagerLookup") // TODO(b/249093790): remove
-    public static VirtualMachineManager getInstance(@NonNull Context context) {
-        requireNonNull(context, "context must not be null");
-        synchronized (sInstances) {
-            VirtualMachineManager vmm =
-                    sInstances.containsKey(context) ? sInstances.get(context).get() : null;
-            if (vmm == null) {
-                vmm = new VirtualMachineManager(context);
-                sInstances.put(context, new WeakReference<>(vmm));
-            }
-            return vmm;
-        }
-    }
 
     /**
      * Returns a set of flags indicating what this implementation of virtualization is capable of.
