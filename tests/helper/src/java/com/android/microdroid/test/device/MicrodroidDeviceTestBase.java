@@ -73,59 +73,44 @@ public abstract class MicrodroidDeviceTestBase {
                 permission);
     }
 
-    // TODO(b/220920264): remove Inner class; this is a hack to hide virt APEX types
-    protected static class Inner {
-        private final boolean mProtectedVm;
-        private final Context mContext;
-        private final VirtualMachineManager mVmm;
-
-        public Inner(Context context, boolean protectedVm, VirtualMachineManager vmm) {
-            mProtectedVm = protectedVm;
-            mVmm = vmm;
-            mContext = context;
-        }
-
-        public VirtualMachineManager getVirtualMachineManager() {
-            return mVmm;
-        }
-
-        public Context getContext() {
-            return mContext;
-        }
-
-        public VirtualMachineConfig.Builder newVmConfigBuilder() {
-            return new VirtualMachineConfig.Builder(mContext).setProtectedVm(mProtectedVm);
-        }
-
-        /**
-         * Creates a new virtual machine, potentially removing an existing virtual machine with
-         * given name.
-         */
-        public VirtualMachine forceCreateNewVirtualMachine(String name, VirtualMachineConfig config)
-                throws VirtualMachineException {
-            VirtualMachine existingVm = mVmm.get(name);
-            if (existingVm != null) {
-                mVmm.delete(name);
-            }
-            return mVmm.create(name, config);
-        }
-    }
-
-    protected Inner mInner;
+    private Context mCtx;
+    private boolean mProtectedVm;
 
     protected Context getContext() {
-        return mInner.getContext();
+        return mCtx;
+    }
+
+    public VirtualMachineManager getVirtualMachineManager() {
+        return mCtx.getSystemService(VirtualMachineManager.class);
+    }
+
+    public VirtualMachineConfig.Builder newVmConfigBuilder() {
+        return new VirtualMachineConfig.Builder(mCtx).setProtectedVm(mProtectedVm);
+    }
+
+    /**
+     * Creates a new virtual machine, potentially removing an existing virtual machine with given
+     * name.
+     */
+    public VirtualMachine forceCreateNewVirtualMachine(String name, VirtualMachineConfig config)
+            throws VirtualMachineException {
+        final VirtualMachineManager vmm = getVirtualMachineManager();
+        VirtualMachine existingVm = vmm.get(name);
+        if (existingVm != null) {
+            vmm.delete(name);
+        }
+        return vmm.create(name, config);
     }
 
     public void prepareTestSetup(boolean protectedVm) {
-        Context ctx = ApplicationProvider.getApplicationContext();
+        mCtx = ApplicationProvider.getApplicationContext();
         assume().withMessage("Device doesn't support AVF")
-                .that(ctx.getPackageManager().hasSystemFeature(FEATURE_VIRTUALIZATION_FRAMEWORK))
+                .that(mCtx.getPackageManager().hasSystemFeature(FEATURE_VIRTUALIZATION_FRAMEWORK))
                 .isTrue();
 
-        mInner = new Inner(ctx, protectedVm, ctx.getSystemService(VirtualMachineManager.class));
+        mProtectedVm = protectedVm;
 
-        int capabilities = mInner.getVirtualMachineManager().getCapabilities();
+        int capabilities = getVirtualMachineManager().getCapabilities();
         if (protectedVm) {
             assume().withMessage("Skip where protected VMs aren't supported")
                     .that(capabilities & VirtualMachineManager.CAPABILITY_PROTECTED_VM)
@@ -314,7 +299,7 @@ public abstract class MicrodroidDeviceTestBase {
 
     public BootResult tryBootVm(String logTag, String vmName)
             throws VirtualMachineException, InterruptedException {
-        VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+        VirtualMachine vm = getVirtualMachineManager().get(vmName);
         final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
         final CompletableFuture<Integer> deathReason = new CompletableFuture<>();
         final CompletableFuture<Long> endTime = new CompletableFuture<>();
