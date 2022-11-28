@@ -29,7 +29,7 @@ cc_binary {
         "libcompos_key",
     ],
     shared_libs: [
-        "libvm_payload",
+        "libvm_payload#current",
         "libbinder_ndk",
     ],
 }

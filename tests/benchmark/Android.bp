@@ -38,6 +38,6 @@ cc_library_shared {
         "libbase",
         "libbinder_ndk",
         "liblog",
-        "libvm_payload",
+        "libvm_payload#current",
     ],
 }
