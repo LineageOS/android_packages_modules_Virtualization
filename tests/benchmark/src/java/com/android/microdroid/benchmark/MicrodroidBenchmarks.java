@@ -88,16 +88,17 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     private boolean canBootMicrodroidWithMemory(int mem)
             throws VirtualMachineException, InterruptedException, IOException {
-        VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
-                .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
-                .setDebugLevel(DEBUG_LEVEL_NONE)
-                .setMemoryMib(mem)
-                .build();
+        VirtualMachineConfig normalConfig =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_NONE)
+                        .setMemoryMib(mem)
+                        .build();
 
         // returns true if succeeded at least once.
         final int trialCount = 5;
         for (int i = 0; i < trialCount; i++) {
-            mInner.forceCreateNewVirtualMachine("test_vm_minimum_memory", normalConfig);
+            forceCreateNewVirtualMachine("test_vm_minimum_memory", normalConfig);
 
             if (tryBootVm(TAG, "test_vm_minimum_memory").payloadStarted) return true;
         }
@@ -147,12 +148,13 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         for (int i = 0; i < trialCount; i++) {
 
             // To grab boot events from log, set debug mode to FULL
-            VirtualMachineConfig normalConfig = mInner.newVmConfigBuilder()
-                    .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
-                    .setDebugLevel(DEBUG_LEVEL_FULL)
-                    .setMemoryMib(256)
-                    .build();
-            mInner.forceCreateNewVirtualMachine("test_vm_boot_time", normalConfig);
+            VirtualMachineConfig normalConfig =
+                    newVmConfigBuilder()
+                            .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                            .setDebugLevel(DEBUG_LEVEL_FULL)
+                            .setMemoryMib(256)
+                            .build();
+            forceCreateNewVirtualMachine("test_vm_boot_time", normalConfig);
 
             BootResult result = tryBootVm(TAG, "test_vm_boot_time");
             assertThat(result.payloadStarted).isTrue();
@@ -195,17 +197,18 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     @Test
     public void testVsockTransferFromHostToVM() throws Exception {
-        VirtualMachineConfig config = mInner.newVmConfigBuilder()
-                .setPayloadConfigPath("assets/vm_config_io.json")
-                .setDebugLevel(DEBUG_LEVEL_FULL)
-                .build();
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadConfigPath("assets/vm_config_io.json")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
         List<Double> transferRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
 
         for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
             int port = (mProtectedVm ? 5666 : 6666) + i;
             String vmName = "test_vm_io_" + i;
-            mInner.forceCreateNewVirtualMachine(vmName, config);
-            VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+            forceCreateNewVirtualMachine(vmName, config);
+            VirtualMachine vm = getVirtualMachineManager().get(vmName);
             BenchmarkVmListener.create(new VsockListener(transferRates, port)).runToFinish(TAG, vm);
         }
         reportMetrics(transferRates, "vsock/transfer_host_to_vm", "mb_per_sec");
@@ -222,10 +225,11 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     private void testVirtioBlkReadRate(boolean isRand) throws Exception {
-        VirtualMachineConfig config = mInner.newVmConfigBuilder()
-                .setPayloadConfigPath("assets/vm_config_io.json")
-                .setDebugLevel(DEBUG_LEVEL_FULL)
-                .build();
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadConfigPath("assets/vm_config_io.json")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
         List<Double> readRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
 
         for (int i = 0; i < IO_TEST_TRIAL_COUNT + 1; ++i) {
@@ -236,8 +240,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 readRates.clear();
             }
             String vmName = "test_vm_io_" + i;
-            mInner.forceCreateNewVirtualMachine(vmName, config);
-            VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+            forceCreateNewVirtualMachine(vmName, config);
+            VirtualMachine vm = getVirtualMachineManager().get(vmName);
             BenchmarkVmListener.create(new VirtioBlkListener(readRates, isRand))
                     .runToFinish(TAG, vm);
         }
@@ -280,13 +284,14 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     @Test
     public void testMemoryUsage() throws Exception {
         final String vmName = "test_vm_mem_usage";
-        VirtualMachineConfig config = mInner.newVmConfigBuilder()
-                .setPayloadConfigPath("assets/vm_config_io.json")
-                .setDebugLevel(DEBUG_LEVEL_NONE)
-                .setMemoryMib(256)
-                .build();
-        mInner.forceCreateNewVirtualMachine(vmName, config);
-        VirtualMachine vm = mInner.getVirtualMachineManager().get(vmName);
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadConfigPath("assets/vm_config_io.json")
+                        .setDebugLevel(DEBUG_LEVEL_NONE)
+                        .setMemoryMib(256)
+                        .build();
+        forceCreateNewVirtualMachine(vmName, config);
+        VirtualMachine vm = getVirtualMachineManager().get(vmName);
         MemoryUsageListener listener = new MemoryUsageListener(this::executeCommand);
         BenchmarkVmListener.create(listener).runToFinish(TAG, vm);
 
