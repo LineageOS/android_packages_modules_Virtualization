@@ -382,7 +382,7 @@ impl<'a> FdtNode<'a> {
         let offset =
             (prop as usize).checked_sub(self.fdt.as_ptr() as usize).ok_or(FdtError::Internal)?;
 
-        Ok(Some(self.fdt.bytes.get(offset..(offset + len)).ok_or(FdtError::Internal)?))
+        Ok(Some(self.fdt.buffer.get(offset..(offset + len)).ok_or(FdtError::Internal)?))
     }
 
     /// Get reference to the containing device tree.
@@ -511,7 +511,7 @@ impl<'a> Iterator for CompatibleIterator<'a> {
 /// Wrapper around low-level libfdt functions.
 #[repr(transparent)]
 pub struct Fdt {
-    bytes: [u8],
+    buffer: [u8],
 }
 
 impl Fdt {
@@ -639,7 +639,7 @@ impl Fdt {
     }
 
     fn check_full(&self) -> Result<()> {
-        let len = self.bytes.len();
+        let len = self.buffer.len();
         // SAFETY - Only performs read accesses within the limits of the slice. If successful, this
         // call guarantees to other unsafe calls that the header contains a valid totalsize (w.r.t.
         // 'len' i.e. the self.fdt slice) that those C functions can use to perform bounds
@@ -658,6 +658,6 @@ impl Fdt {
     }
 
     fn capacity(&self) -> usize {
-        self.bytes.len()
+        self.buffer.len()
     }
 }
