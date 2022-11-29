@@ -15,6 +15,9 @@
  */
 package com.android.microdroid.test;
 
+import static android.system.virtualmachine.VirtualMachine.STATUS_DELETED;
+import static android.system.virtualmachine.VirtualMachine.STATUS_RUNNING;
+import static android.system.virtualmachine.VirtualMachine.STATUS_STOPPED;
 import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_APP_ONLY;
 import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_FULL;
 import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_NONE;
@@ -102,11 +105,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     private static final int MIN_MEM_X86_64 = 196;
 
     @Test
-    @CddTest(requirements = {
-            "9.17/C-1-1",
-            "9.17/C-2-1"
-    })
-    public void connectToVmService() throws Exception {
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void createAndConnectToVm() throws Exception {
         assumeSupportedKernel();
 
         VirtualMachineConfig config =
@@ -148,6 +148,36 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         () -> forceCreateNewVirtualMachine("test_vm_requires_permission", config));
         assertThat(e).hasMessageThat()
                 .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void autoCloseVm() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .build();
+
+        try (VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config)) {
+            assertThat(vm.getStatus()).isEqualTo(STATUS_STOPPED);
+            // close() implicitly called on stopped VM.
+        }
+
+        try (VirtualMachine vm = getVirtualMachineManager().get("test_vm")) {
+            vm.run();
+            assertThat(vm.getStatus()).isEqualTo(STATUS_RUNNING);
+            // close() implicitly called on running VM.
+        }
+
+        try (VirtualMachine vm = getVirtualMachineManager().get("test_vm")) {
+            assertThat(vm.getStatus()).isEqualTo(STATUS_STOPPED);
+            getVirtualMachineManager().delete("test_vm");
+            assertThat(vm.getStatus()).isEqualTo(STATUS_DELETED);
+            // close() implicitly called on deleted VM.
+        }
     }
 
     @Test
