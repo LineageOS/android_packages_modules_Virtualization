@@ -238,7 +238,7 @@ mod tests {
         Ok(())
     }
 
-    fn test_signed_image(algorithm: &str, key: &str) -> Result<()> {
+    fn signed_image_has_valid_vbmeta(algorithm: &str, key: &str) -> Result<()> {
         let test_dir = TempDir::new().unwrap();
         let test_file = test_dir.path().join("test.img");
         let mut cmd = Command::new("./avbtool");
@@ -289,16 +289,16 @@ mod tests {
 
     #[test]
     fn test_rsa2048_signed_image() -> Result<()> {
-        test_signed_image("SHA256_RSA2048", "tests/data/testkey_rsa2048.pem")
+        signed_image_has_valid_vbmeta("SHA256_RSA2048", "data/testkey_rsa2048.pem")
     }
 
     #[test]
     fn test_rsa4096_signed_image() -> Result<()> {
-        test_signed_image("SHA256_RSA4096", "tests/data/testkey_rsa4096.pem")
+        signed_image_has_valid_vbmeta("SHA256_RSA4096", "data/testkey_rsa4096.pem")
     }
 
     #[test]
     fn test_rsa8192_signed_image() -> Result<()> {
-        test_signed_image("SHA256_RSA8192", "tests/data/testkey_rsa8192.pem")
+        signed_image_has_valid_vbmeta("SHA256_RSA8192", "data/testkey_rsa8192.pem")
     }
 }
