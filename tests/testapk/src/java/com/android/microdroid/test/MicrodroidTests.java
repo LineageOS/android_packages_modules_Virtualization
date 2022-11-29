@@ -318,14 +318,20 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
     })
     public void invalidApkPathIsRejected() {
-        assumeSupportedKernel();
-
         VirtualMachineConfig.Builder builder =
                 newVmConfigBuilder()
                         .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
                         .setApkPath("relative/path/to.apk")
                         .setMemoryMib(minMemoryRequired());
         assertThrows(IllegalArgumentException.class, () -> builder.build());
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1"})
+    public void invalidVmNameIsRejected() {
+        VirtualMachineManager vmm = getVirtualMachineManager();
+        assertThrows(IllegalArgumentException.class, () -> vmm.get("../foo"));
+        assertThrows(IllegalArgumentException.class, () -> vmm.get(".."));
     }
 
     @Test

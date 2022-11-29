@@ -43,6 +43,7 @@ import java.util.Map;
  *
  * <p>Each virtual machine instance is named; the configuration and related state of each is
  * persisted in the app's private data directory and an instance can be retrieved given the name.
+ * The name must be a valid directory name and must not contain '/'.
  *
  * <p>The app can then start, stop and otherwise interact with the VM.
  *
