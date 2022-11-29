@@ -72,8 +72,8 @@ struct MemorySlices<'a> {
 impl<'a> MemorySlices<'a> {
     fn new(
         fdt: usize,
-        payload: usize,
-        payload_size: usize,
+        kernel: usize,
+        kernel_size: usize,
         memory: &mut MemoryTracker,
     ) -> Result<Self, RebootReason> {
         // SAFETY - SIZE_2MB is non-zero.
@@ -118,18 +118,36 @@ impl<'a> MemorySlices<'a> {
             RebootReason::InvalidFdt
         })?;
 
-        let payload_size = NonZeroUsize::new(payload_size).ok_or_else(|| {
-            error!("Invalid payload size: {payload_size:#x}");
-            RebootReason::InvalidPayload
+        let kernel_range = fdt::kernel_range(fdt).map_err(|e| {
+            error!("Error while attempting to read the kernel range from the DT: {e}");
+            RebootReason::InvalidFdt
         })?;
 
-        let payload_range = memory.alloc(payload, payload_size).map_err(|e| {
-            error!("Failed to obtain the payload range: {e}");
-            RebootReason::InternalError
-        })?;
+        let kernel_range = if let Some(r) = kernel_range {
+            memory.alloc_range(&r).map_err(|e| {
+                error!("Failed to obtain the kernel range with DT range: {e}");
+                RebootReason::InternalError
+            })?
+        } else if cfg!(feature = "legacy") {
+            warn!("Failed to find the kernel range in the DT; falling back to legacy ABI");
+
+            let kernel_size = NonZeroUsize::new(kernel_size).ok_or_else(|| {
+                error!("Invalid kernel size: {kernel_size:#x}");
+                RebootReason::InvalidPayload
+            })?;
+
+            memory.alloc(kernel, kernel_size).map_err(|e| {
+                error!("Failed to obtain the kernel range with legacy range: {e}");
+                RebootReason::InternalError
+            })?
+        } else {
+            error!("Failed to locate the kernel from the DT");
+            return Err(RebootReason::InvalidPayload);
+        };
+
         // SAFETY - The tracker validated the range to be in main memory, mapped, and not overlap.
         let kernel =
-            unsafe { slice::from_raw_parts(payload_range.start as *const u8, payload_range.len()) };
+            unsafe { slice::from_raw_parts(kernel_range.start as *const u8, kernel_range.len()) };
 
         let ramdisk_range = fdt::initrd_range(fdt).map_err(|e| {
             error!("An error occurred while locating the ramdisk in the device tree: {e}");
