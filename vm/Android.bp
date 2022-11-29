@@ -17,6 +17,7 @@ rust_binary {
         "liblibc",
         "liblog_rust",
         "libmicrodroid_payload_config",
+        "librand",
         "librustutils",
         "libserde_json",
         "libserde",
