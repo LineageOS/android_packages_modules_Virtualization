@@ -44,7 +44,7 @@ idmap:
 	.fill		509, 8, 0x0			// 509 GiB of remaining VA space
 
 	/* level 2 */
-0:	.quad		.L_BLOCK_RO  | 0x80000000	// DT provided by VMM
+0:	.quad		.L_BLOCK_MEM | 0x80000000	// DT provided by VMM
 	.quad		.L_BLOCK_MEM_XIP | 0x80200000	// 2 MiB of DRAM containing image
 	.quad		.L_BLOCK_MEM | 0x80400000	// 2 MiB of writable DRAM
 	.fill		509, 8, 0x0
