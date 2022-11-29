@@ -207,8 +207,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
             int port = (mProtectedVm ? 5666 : 6666) + i;
             String vmName = "test_vm_io_" + i;
-            forceCreateNewVirtualMachine(vmName, config);
-            VirtualMachine vm = getVirtualMachineManager().get(vmName);
+            VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
             BenchmarkVmListener.create(new VsockListener(transferRates, port)).runToFinish(TAG, vm);
         }
         reportMetrics(transferRates, "vsock/transfer_host_to_vm", "mb_per_sec");
@@ -240,8 +239,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 readRates.clear();
             }
             String vmName = "test_vm_io_" + i;
-            forceCreateNewVirtualMachine(vmName, config);
-            VirtualMachine vm = getVirtualMachineManager().get(vmName);
+            VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
             BenchmarkVmListener.create(new VirtioBlkListener(readRates, isRand))
                     .runToFinish(TAG, vm);
         }
@@ -290,8 +288,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryMib(256)
                         .build();
-        forceCreateNewVirtualMachine(vmName, config);
-        VirtualMachine vm = getVirtualMachineManager().get(vmName);
+        VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
         MemoryUsageListener listener = new MemoryUsageListener(this::executeCommand);
         BenchmarkVmListener.create(listener).runToFinish(TAG, vm);
 
