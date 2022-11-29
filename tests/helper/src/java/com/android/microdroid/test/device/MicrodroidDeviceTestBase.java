@@ -88,6 +88,10 @@ public abstract class MicrodroidDeviceTestBase {
         return new VirtualMachineConfig.Builder(mCtx).setProtectedVm(mProtectedVm);
     }
 
+    protected final boolean isProtectedVm() {
+        return mProtectedVm;
+    }
+
     /**
      * Creates a new virtual machine, potentially removing an existing virtual machine with given
      * name.
