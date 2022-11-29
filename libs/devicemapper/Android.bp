@@ -13,6 +13,7 @@ rust_defaults {
         "libbitflags",
         "liblibc",
         "libdata_model",
+        "libhex",
         "libnix",
         "libuuid",
     ],
@@ -33,6 +34,7 @@ rust_test {
     defaults: ["libdm_rust.defaults"],
     test_suites: ["general-tests"],
     rustlibs: [
+        "librustutils",
         "libscopeguard",
         "libtempfile",
     ],

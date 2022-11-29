@@ -20,7 +20,8 @@
 
 use anyhow::{ensure, Context, Result};
 use clap::{arg, App};
-use dm::{crypt::CipherType, util};
+use dm::crypt::CipherType;
+use dm::util;
 use log::info;
 use std::ffi::CString;
 use std::fs::{create_dir_all, OpenOptions};
@@ -45,7 +46,7 @@ fn main() -> Result<()> {
         .args(&[
             arg!(--blkdevice <FILE> "the block device backing the encrypted storage")
                 .required(true),
-            arg!(--key <KEY> "key (in hex) equivalent to 64 bytes)").required(true),
+            arg!(--key <KEY> "key (in hex) equivalent to 32 bytes)").required(true),
             arg!(--mountpoint <MOUNTPOINT> "mount point for the storage").required(true),
         ])
         .get_matches();
@@ -87,12 +88,11 @@ fn encryptedstore_init(blkdevice: &Path, key: &str, mountpoint: &Path) -> Result
 fn enable_crypt(data_device: &Path, key: &str, name: &str) -> Result<PathBuf> {
     let dev_size = util::blkgetsize64(data_device)?;
     let key = hex::decode(key).context("Unable to decode hex key")?;
-    ensure!(key.len() == 64, "We need 64 bytes' key for aes-xts cipher for block encryption");
 
     // Create the dm-crypt spec
     let target = dm::crypt::DmCryptTargetBuilder::default()
         .data_device(data_device, dev_size)
-        .cipher(CipherType::AES256XTS) // TODO(b/259253336) Move to HCTR2 based encryption.
+        .cipher(CipherType::AES256HCTR2)
         .key(&key)
         .build()
         .context("Couldn't build the DMCrypt target")?;
