@@ -399,6 +399,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     })
     public void sameInstanceKeepsSameCdis() throws Exception {
         assumeSupportedKernel();
+        assume().withMessage("Skip on CF. Too Slow. b/257270529").that(isCuttlefish()).isFalse();
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig normalConfig =
