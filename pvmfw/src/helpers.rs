@@ -63,8 +63,8 @@ fn min_dcache_line_size() -> usize {
     1 << dminline
 }
 
+/// Flush `size` bytes of data cache by virtual address.
 #[inline]
-/// Flush data cache over the entire slice.
 pub fn flush_region(start: usize, size: usize) {
     let line_size = min_dcache_line_size();
     let end = start + size;
