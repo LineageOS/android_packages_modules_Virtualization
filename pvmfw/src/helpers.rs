@@ -14,6 +14,8 @@
 
 //! Miscellaneous helper functions.
 
+use core::arch::asm;
+
 pub const SIZE_4KB: usize = 4 << 10;
 pub const SIZE_2MB: usize = 2 << 20;
 
@@ -22,6 +24,13 @@ pub const SIZE_2MB: usize = 2 << 20;
 /// Note: the result is undefined if alignment isn't a power of two.
 pub const fn unchecked_align_down(addr: usize, alignment: usize) -> usize {
     addr & !(alignment - 1)
+}
+
+/// Computes the smallest multiple of the provided alignment larger or equal to the address.
+///
+/// Note: the result is undefined if alignment isn't a power of two and may wrap to 0.
+pub const fn unchecked_align_up(addr: usize, alignment: usize) -> usize {
+    unchecked_align_down(addr + alignment - 1, alignment)
 }
 
 /// Safe wrapper around unchecked_align_up() that validates its assumptions and doesn't wrap.
@@ -38,4 +47,31 @@ pub const fn align_up(addr: usize, alignment: usize) -> Option<usize> {
 /// Computes the address of the 4KiB page containing a given address.
 pub const fn page_4kb_of(addr: usize) -> usize {
     unchecked_align_down(addr, SIZE_4KB)
+}
+
+#[inline]
+fn min_dcache_line_size() -> usize {
+    const DMINLINE_SHIFT: usize = 16;
+    const DMINLINE_MASK: usize = 0xf;
+    let ctr_el0: usize;
+
+    unsafe { asm!("mrs {x}, ctr_el0", x = out(reg) ctr_el0) }
+
+    // DminLine: log2 of the number of words in the smallest cache line of all the data caches.
+    let dminline = (ctr_el0 >> DMINLINE_SHIFT) & DMINLINE_MASK;
+
+    1 << dminline
+}
+
+#[inline]
+/// Flush data cache over the entire slice.
+pub fn flush_region(start: usize, size: usize) {
+    let line_size = min_dcache_line_size();
+    let end = start + size;
+    let start = unchecked_align_down(start, line_size);
+
+    for line in (start..end).step_by(line_size) {
+        // SAFETY - Clearing cache lines shouldn't have Rust-visible side effects.
+        unsafe { asm!("dc cvau, {x}", x = in(reg) line) }
+    }
 }
