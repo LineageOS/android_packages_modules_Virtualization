@@ -38,9 +38,6 @@ java_sdk_library {
         javacflags: [
             // We use @GuardedBy and we want a test failure if our locking isn't consistent with it.
             "-Xep:GuardedBy:ERROR",
-            // JavaApiUsedByMainlineModule is quite spammy, and since we com.android.virt is not
-            // an updatable module we don't need it.
-            "-Xep:JavaApiUsedByMainlineModule:OFF",
         ],
     },
 
