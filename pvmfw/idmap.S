@@ -40,13 +40,9 @@ idmap:
 	/* level 1 */
 	.quad		.L_BLOCK_DEV | 0x0		// 1 GB of device mappings
 	.quad		.L_TT_TYPE_TABLE + 0f		// Unmapped device memory, and pVM firmware
-	.quad		.L_TT_TYPE_TABLE + 1f		// up to 1 GB of DRAM
-	.fill		509, 8, 0x0			// 509 GB of remaining VA space
+	.fill		510, 8, 0x0			// 510 GB of remaining VA space
 
 	/* level 2 */
 0:	.fill		510, 8, 0x0
 	.quad		.L_BLOCK_MEM_XIP | 0x7fc00000	// pVM firmware image
 	.quad		.L_BLOCK_MEM	 | 0x7fe00000	// Writable memory for stack, heap &c.
-1:	.quad		.L_BLOCK_RO	 | 0x80000000	// DT provided by VMM
-	.quad		.L_BLOCK_RO	 | 0x80200000	// 2 MB of DRAM containing payload image
-	.fill		510, 8, 0x0
