@@ -104,6 +104,9 @@ apex_defaults {
     host_required: [
         "vm_shell",
     ],
+    apps: [
+        "EmptyPayloadApp",
+    ],
 }
 
 apex_defaults {

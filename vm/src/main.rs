@@ -27,7 +27,7 @@ use binder::ProcessState;
 use clap::Parser;
 use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
-use run::{command_run, command_run_app};
+use run::{command_run, command_run_app, command_run_microdroid};
 use rustutils::system_properties;
 use std::path::{Path, PathBuf};
 
@@ -109,6 +109,65 @@ enum Opt {
         /// Paths to extra idsig files.
         #[clap(long = "extra-idsig")]
         extra_idsigs: Vec<PathBuf>,
+    },
+    /// Run a virtual machine with Microdroid inside
+    RunMicrodroid {
+        /// Path to the directory where VM-related files (e.g. instance.img, apk.idsig, etc.) will
+        /// be stored. If not specified a random directory under /data/local/tmp/microdroid will be
+        /// created and used.
+        #[clap(long)]
+        work_dir: Option<PathBuf>,
+
+        /// Name of VM
+        #[clap(long)]
+        name: Option<String>,
+
+        /// Detach VM from the terminal and run in the background
+        #[clap(short, long)]
+        daemonize: bool,
+
+        /// Path to the file backing the storage.
+        /// Created if the option is used but the path does not exist in the device.
+        #[clap(long)]
+        storage: Option<PathBuf>,
+
+        /// Size of the storage. Used only if --storage is supplied but path does not exist
+        /// Default size is 10*1024*1024
+        #[clap(long)]
+        storage_size: Option<u64>,
+
+        /// Path to file for VM console output.
+        #[clap(long)]
+        console: Option<PathBuf>,
+
+        /// Path to file for VM log output.
+        #[clap(long)]
+        log: Option<PathBuf>,
+
+        /// Path to file where ramdump is recorded on kernel panic
+        #[clap(long)]
+        ramdump: Option<PathBuf>,
+
+        /// Debug level of the VM. Supported values: "none" (default), "app_only", and "full".
+        #[clap(long, default_value = "none", value_parser = parse_debug_level)]
+        debug: DebugLevel,
+
+        /// Run VM in protected mode.
+        #[clap(short, long)]
+        protected: bool,
+
+        /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
+        /// in the VM config file.
+        #[clap(short, long)]
+        mem: Option<u32>,
+
+        /// Number of vCPUs in the VM. If unspecified, defaults to 1.
+        #[clap(long)]
+        cpus: Option<u32>,
+
+        /// Comma separated list of task profile names to apply to the VM
+        #[clap(long)]
+        task_profiles: Vec<String>,
     },
     /// Run a virtual machine
     Run {
@@ -237,6 +296,36 @@ fn main() -> Result<(), Error> {
             cpus,
             task_profiles,
             &extra_idsigs,
+        ),
+        Opt::RunMicrodroid {
+            name,
+            work_dir,
+            storage,
+            storage_size,
+            daemonize,
+            console,
+            log,
+            ramdump,
+            debug,
+            protected,
+            mem,
+            cpus,
+            task_profiles,
+        } => command_run_microdroid(
+            name,
+            service.as_ref(),
+            work_dir,
+            storage.as_deref(),
+            storage_size,
+            daemonize,
+            console.as_deref(),
+            log.as_deref(),
+            ramdump.as_deref(),
+            debug,
+            protected,
+            mem,
+            cpus,
+            task_profiles,
         ),
         Opt::Run { name, config, daemonize, cpus, task_profiles, console, log } => {
             command_run(
