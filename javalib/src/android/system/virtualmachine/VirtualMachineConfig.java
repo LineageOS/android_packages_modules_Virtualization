@@ -65,9 +65,6 @@ public final class VirtualMachineConfig {
     private static final String KEY_MEMORY_MIB = "memoryMib";
     private static final String KEY_NUM_CPUS = "numCpus";
 
-    // Absolute path to the APK file containing the VM payload.
-    @NonNull private final String mApkPath;
-
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(prefix = "DEBUG_LEVEL_", value = {
@@ -100,6 +97,9 @@ public final class VirtualMachineConfig {
      * @hide
      */
     @SystemApi public static final int DEBUG_LEVEL_FULL = 2;
+
+    /** Absolute path to the APK file containing the VM payload. */
+    @NonNull private final String mApkPath;
 
     @DebugLevel private final int mDebugLevel;
 

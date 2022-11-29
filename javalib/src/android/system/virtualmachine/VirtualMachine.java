@@ -106,26 +106,6 @@ import java.util.zip.ZipFile;
  */
 @SystemApi
 public class VirtualMachine implements AutoCloseable {
-    private static final String TAG = "VirtualMachine";
-
-    /** Name of the directory under the files directory where all VMs created for the app exist. */
-    private static final String VM_DIR = "vm";
-
-    /** Name of the persisted config file for a VM. */
-    private static final String CONFIG_FILE = "config.xml";
-
-    /** Name of the instance image file for a VM. (Not implemented) */
-    private static final String INSTANCE_IMAGE_FILE = "instance.img";
-
-    /** Name of the idsig file for a VM */
-    private static final String IDSIG_FILE = "idsig";
-
-    /** Name of the idsig files for extra APKs. */
-    private static final String EXTRA_IDSIG_FILE_PREFIX = "extra_idsig_";
-
-    /** Name of the virtualization service. */
-    private static final String SERVICE_NAME = "android.system.virtualizationservice";
-
     /** The permission needed to create or run a virtual machine. */
     public static final String MANAGE_VIRTUAL_MACHINE_PERMISSION =
             "android.permission.MANAGE_VIRTUAL_MACHINE";
@@ -162,6 +142,29 @@ public class VirtualMachine implements AutoCloseable {
      */
     public static final int STATUS_DELETED = 2;
 
+    private static final String TAG = "VirtualMachine";
+
+    /** Name of the directory under the files directory where all VMs created for the app exist. */
+    private static final String VM_DIR = "vm";
+
+    /** Name of the persisted config file for a VM. */
+    private static final String CONFIG_FILE = "config.xml";
+
+    /** Name of the instance image file for a VM. (Not implemented) */
+    private static final String INSTANCE_IMAGE_FILE = "instance.img";
+
+    /** Name of the idsig file for a VM */
+    private static final String IDSIG_FILE = "idsig";
+
+    /** Name of the idsig files for extra APKs. */
+    private static final String EXTRA_IDSIG_FILE_PREFIX = "extra_idsig_";
+
+    /** Name of the virtualization service. */
+    private static final String SERVICE_NAME = "android.system.virtualizationservice";
+
+    /** Size of the instance image. 10 MB. */
+    private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
+
     /** The package which owns this VM. */
     @NonNull private final String mPackageName;
 
@@ -184,24 +187,11 @@ public class VirtualMachine implements AutoCloseable {
     /** Path to the idsig file for this VM. */
     @NonNull private final File mIdsigFilePath;
 
-    private static class ExtraApkSpec {
-        public final File apk;
-        public final File idsig;
-
-        ExtraApkSpec(File apk, File idsig) {
-            this.apk = apk;
-            this.idsig = idsig;
-        }
-    }
-
     /**
      * Unmodifiable list of extra apks. Apks are specified by the vm config, and corresponding
      * idsigs are to be generated.
      */
     @NonNull private final List<ExtraApkSpec> mExtraApks;
-
-    /** Size of the instance image. 10 MB. */
-    private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 
     // A note on lock ordering:
     // You can take mLock while holding VirtualMachineManager.sCreateLock, but not vice versa.
@@ -250,6 +240,16 @@ public class VirtualMachine implements AutoCloseable {
     @GuardedBy("mCallbackLock")
     @Nullable
     private Executor mCallbackExecutor;
+
+    private static class ExtraApkSpec {
+        public final File apk;
+        public final File idsig;
+
+        ExtraApkSpec(File apk, File idsig) {
+            this.apk = apk;
+            this.idsig = idsig;
+        }
+    }
 
     static {
         System.loadLibrary("virtualmachine_jni");
