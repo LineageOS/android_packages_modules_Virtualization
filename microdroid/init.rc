@@ -74,6 +74,12 @@ on late-init
     # some services can be started.
     trigger late-fs
 
+    # Wait for microdroid_manager to finish setting up sysprops from the payload config.
+    # Some further actions in the boot sequence might depend on the sysprops from the payloag,
+    # e.g. microdroid.config.enable_authfs configures whether to run authfs_service after
+    # /data is mounted.
+    wait_for_prop microdroid_manager.config_done 1
+
     trigger post-fs-data
 
     # Load persist properties and override properties (if enabled) from /data.
@@ -131,6 +137,13 @@ on post-fs-data
     # Do not place files or directories in /data/local/tmp
     mkdir /data/local 0751 root root
     mkdir /data/local/tmp 0771 shell shell
+
+on post-fs-data && property:microdroid_manager.authfs.enabled=1
+    start authfs_service
+
+on boot
+    # Mark boot completed. This will notify microdroid_manager to run payload.
+    setprop dev.bootcomplete 1
 
 service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000 -remove_tombstones_after_transmitting
     user system
