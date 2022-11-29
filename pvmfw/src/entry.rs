@@ -14,13 +14,20 @@
 
 //! Low-level entry and exit points of pvmfw.
 
+use crate::config;
+use crate::fdt;
 use crate::heap;
 use crate::helpers;
+use crate::memory::MemoryTracker;
 use crate::mmio_guard;
+use crate::mmu;
 use core::arch::asm;
+use core::num::NonZeroUsize;
 use core::slice;
 use log::debug;
 use log::error;
+use log::info;
+use log::warn;
 use log::LevelFilter;
 use vmbase::{console, layout, logger, main, power::reboot};
 
@@ -28,8 +35,16 @@ use vmbase::{console, layout, logger, main, power::reboot};
 enum RebootReason {
     /// A malformed BCC was received.
     InvalidBcc,
+    /// An invalid configuration was appended to pvmfw.
+    InvalidConfig,
     /// An unexpected internal error happened.
     InternalError,
+    /// The provided FDT was invalid.
+    InvalidFdt,
+    /// The provided payload was invalid.
+    InvalidPayload,
+    /// The provided ramdisk was invalid.
+    InvalidRamdisk,
 }
 
 main!(start);
@@ -48,6 +63,98 @@ pub fn start(fdt_address: u64, payload_start: u64, payload_size: u64, _arg3: u64
     // if we reach this point and return, vmbase::entry::rust_entry() will call power::shutdown().
 }
 
+struct MemorySlices<'a> {
+    fdt: &'a mut libfdt::Fdt,
+    kernel: &'a [u8],
+    ramdisk: Option<&'a [u8]>,
+}
+
+impl<'a> MemorySlices<'a> {
+    fn new(
+        fdt: usize,
+        payload: usize,
+        payload_size: usize,
+        memory: &mut MemoryTracker,
+    ) -> Result<Self, RebootReason> {
+        // SAFETY - SIZE_2MB is non-zero.
+        const FDT_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(helpers::SIZE_2MB) };
+        // TODO - Only map the FDT as read-only, until we modify it right before jump_to_payload()
+        // e.g. by generating a DTBO for a template DT in main() and, on return, re-map DT as RW,
+        // overwrite with the template DT and apply the DTBO.
+        let range = memory.alloc_mut(fdt, FDT_SIZE).map_err(|e| {
+            error!("Failed to allocate the FDT range: {e}");
+            RebootReason::InternalError
+        })?;
+
+        // SAFETY - The tracker validated the range to be in main memory, mapped, and not overlap.
+        let fdt = unsafe { slice::from_raw_parts_mut(range.start as *mut u8, range.len()) };
+        let fdt = libfdt::Fdt::from_mut_slice(fdt).map_err(|e| {
+            error!("Failed to spawn the FDT wrapper: {e}");
+            RebootReason::InvalidFdt
+        })?;
+
+        debug!("Fdt passed validation!");
+
+        let memory_range = fdt
+            .memory()
+            .map_err(|e| {
+                error!("Failed to get /memory from the DT: {e}");
+                RebootReason::InvalidFdt
+            })?
+            .ok_or_else(|| {
+                error!("Node /memory was found empty");
+                RebootReason::InvalidFdt
+            })?
+            .next()
+            .ok_or_else(|| {
+                error!("Failed to read the memory size from the FDT");
+                RebootReason::InternalError
+            })?;
+
+        debug!("Resizing MemoryTracker to range {memory_range:#x?}");
+
+        memory.shrink(&memory_range).map_err(|_| {
+            error!("Failed to use memory range value from DT: {memory_range:#x?}");
+            RebootReason::InvalidFdt
+        })?;
+
+        let payload_size = NonZeroUsize::new(payload_size).ok_or_else(|| {
+            error!("Invalid payload size: {payload_size:#x}");
+            RebootReason::InvalidPayload
+        })?;
+
+        let payload_range = memory.alloc(payload, payload_size).map_err(|e| {
+            error!("Failed to obtain the payload range: {e}");
+            RebootReason::InternalError
+        })?;
+        // SAFETY - The tracker validated the range to be in main memory, mapped, and not overlap.
+        let kernel =
+            unsafe { slice::from_raw_parts(payload_range.start as *const u8, payload_range.len()) };
+
+        let ramdisk_range = fdt::initrd_range(fdt).map_err(|e| {
+            error!("An error occurred while locating the ramdisk in the device tree: {e}");
+            RebootReason::InternalError
+        })?;
+
+        let ramdisk = if let Some(r) = ramdisk_range {
+            debug!("Located ramdisk at {r:?}");
+            let r = memory.alloc_range(&r).map_err(|e| {
+                error!("Failed to obtain the initrd range: {e}");
+                RebootReason::InvalidRamdisk
+            })?;
+
+            // SAFETY - The region was validated by memory to be in main memory, mapped, and
+            // not overlap.
+            Some(unsafe { slice::from_raw_parts(r.start as *const u8, r.len()) })
+        } else {
+            info!("Couldn't locate the ramdisk from the device tree");
+            None
+        };
+
+        Ok(Self { fdt, kernel, ramdisk })
+    }
+}
+
 /// Sets up the environment for main() and wraps its result for start().
 ///
 /// Provide the abstractions necessary for start() to abort the pVM boot and for main() to run with
@@ -62,14 +169,6 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     unsafe { heap::init() };
 
     logger::init(LevelFilter::Info).map_err(|_| RebootReason::InternalError)?;
-
-    const FDT_MAX_SIZE: usize = helpers::SIZE_2MB;
-    // TODO: Check that the FDT is fully contained in RAM.
-    // SAFETY - We trust the VMM, for now.
-    let fdt = unsafe { slice::from_raw_parts_mut(fdt as *mut u8, FDT_MAX_SIZE) };
-    // TODO: Check that the payload is fully contained in RAM and doesn't overlap with the FDT.
-    // SAFETY - We trust the VMM, for now.
-    let payload = unsafe { slice::from_raw_parts(payload as *const u8, payload_size) };
 
     // Use debug!() to avoid printing to the UART if we failed to configure it as only local
     // builds that have tweaked the logger::init() call will actually attempt to log the message.
@@ -86,13 +185,45 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
 
     // SAFETY - We only get the appended payload from here, once. It is mapped and the linker
     // script prevents it from overlapping with other objects.
-    let bcc = as_bcc(unsafe { get_appended_data_slice() }).ok_or_else(|| {
+    let appended_data = unsafe { get_appended_data_slice() };
+
+    // Up to this point, we were using the built-in static (from .rodata) page tables.
+
+    let mut page_table = mmu::PageTable::from_static_layout().map_err(|e| {
+        error!("Failed to set up the dynamic page tables: {e}");
+        RebootReason::InternalError
+    })?;
+
+    const CONSOLE_LEN: usize = 1; // vmbase::uart::Uart only uses one u8 register.
+    let uart_range = console::BASE_ADDRESS..(console::BASE_ADDRESS + CONSOLE_LEN);
+    page_table.map_device(&uart_range).map_err(|e| {
+        error!("Failed to remap the UART as a dynamic page table entry: {e}");
+        RebootReason::InternalError
+    })?;
+
+    // SAFETY - We only get the appended payload from here, once. It is statically mapped and the
+    // linker script prevents it from overlapping with other objects.
+    let mut appended = unsafe { AppendedPayload::new(appended_data) }.ok_or_else(|| {
+        error!("No valid configuration found");
+        RebootReason::InvalidConfig
+    })?;
+
+    let bcc = appended.get_bcc_mut().ok_or_else(|| {
         error!("Invalid BCC");
         RebootReason::InvalidBcc
     })?;
 
+    debug!("Activating dynamic page table...");
+    // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
+    // aware of so activating it shouldn't have any visible effect.
+    unsafe { page_table.activate() };
+    debug!("... Success!");
+
+    let mut memory = MemoryTracker::new(page_table);
+    let slices = MemorySlices::new(fdt, payload, payload_size, &mut memory)?;
+
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(fdt, payload, bcc);
+    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc);
 
     // TODO: Overwrite BCC before jumping to payload to avoid leaking our sealing key.
 
@@ -169,13 +300,50 @@ unsafe fn get_appended_data_slice() -> &'static mut [u8] {
     slice::from_raw_parts_mut(base as *mut u8, size)
 }
 
-fn as_bcc(data: &mut [u8]) -> Option<&mut [u8]> {
-    const BCC_SIZE: usize = helpers::SIZE_4KB;
+enum AppendedPayload<'a> {
+    /// Configuration data.
+    Config(config::Config<'a>),
+    /// Deprecated raw BCC, as used in Android T.
+    LegacyBcc(&'a mut [u8]),
+}
 
-    if cfg!(feature = "legacy") {
+impl<'a> AppendedPayload<'a> {
+    /// SAFETY - 'data' should respect the alignment of config::Header.
+    unsafe fn new(data: &'a mut [u8]) -> Option<Self> {
+        if Self::is_valid_config(data) {
+            Some(Self::Config(config::Config::new(data).unwrap()))
+        } else if cfg!(feature = "legacy") {
+            const BCC_SIZE: usize = helpers::SIZE_4KB;
+            warn!("Assuming the appended data at {:?} to be a raw BCC", data.as_ptr());
+            Some(Self::LegacyBcc(&mut data[..BCC_SIZE]))
+        } else {
+            None
+        }
+    }
+
+    unsafe fn is_valid_config(data: &mut [u8]) -> bool {
+        // This function is necessary to prevent the borrow checker from getting confused
+        // about the ownership of data in new(); see https://users.rust-lang.org/t/78467.
+        let addr = data.as_ptr();
+        config::Config::new(data)
+            .map_err(|e| warn!("Invalid configuration data at {addr:?}: {e}"))
+            .is_ok()
+    }
+
+    #[allow(dead_code)] // TODO(b/232900974)
+    fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
+        match self {
+            Self::Config(ref mut cfg) => cfg.get_debug_policy(),
+            Self::LegacyBcc(_) => None,
+        }
+    }
+
+    fn get_bcc_mut(&mut self) -> Option<&mut [u8]> {
+        let bcc = match self {
+            Self::LegacyBcc(ref mut bcc) => bcc,
+            Self::Config(ref mut cfg) => cfg.get_bcc_mut(),
+        };
         // TODO(b/256148034): return None if BccHandoverParse(bcc) != kDiceResultOk.
-        Some(&mut data[..BCC_SIZE])
-    } else {
-        None
+        Some(bcc)
     }
 }
