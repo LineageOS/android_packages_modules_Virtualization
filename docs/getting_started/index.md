@@ -123,7 +123,16 @@ for details.
 ## Spawning your own VMs with Microdroid
 
 [Microdroid](../../microdroid/README.md) is a lightweight version of Android that is intended to run
-on pVM. You can manually run the demo app on top of Microdroid as follows:
+on pVM. You can run a Microdroid with empty payload using the following command:
+
+```shell
+adb shell /apex/com.android.virt/bin/vm run-microdroid --debug full
+```
+
+The `instance.img` and `apk.idsig` files will be stored in a subdirectory under
+`/data/local/tmp/microdroid`, that `vm` will create.
+
+Atlernatively, you can manually run the demo app on top of Microdroid as follows:
 
 ```shell
 UNBUNDLED_BUILD_SDKS_FROM_SOURCE=true TARGET_BUILD_APPS=MicrodroidDemoApp m apps_only dist
