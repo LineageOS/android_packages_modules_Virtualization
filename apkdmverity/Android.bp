@@ -38,7 +38,10 @@ rust_binary {
 
 rust_test {
     name: "apkdmverity.test",
-    defaults: ["apkdmverity.defaults"],
+    defaults: [
+        "apkdmverity.defaults",
+        "ignorabletest.defaults",
+    ],
     test_suites: ["general-tests"],
     compile_multilib: "first",
     rustlibs: [

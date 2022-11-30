@@ -21,6 +21,8 @@
 //! system managed by the host Android which is assumed to be compromisable, it is important to
 //! keep the integrity of the file "inside" Microdroid.
 
+#![cfg_attr(test, allow(unused))]
+
 use anyhow::{bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
 use clap::{arg, Arg, ArgAction, Command};
@@ -33,6 +35,7 @@ use std::fs;
 use std::os::unix::fs::FileTypeExt;
 use std::path::{Path, PathBuf};
 
+#[cfg(not(test))]
 fn main() -> Result<()> {
     let matches = clap_command().get_matches();
 
@@ -150,11 +153,27 @@ fn enable_verity<P: AsRef<Path> + Debug>(
 }
 
 #[cfg(test)]
+ignorabletest::test_main!(tests::all_tests());
+
+#[cfg(test)]
 mod tests {
     use crate::*;
+    use ignorabletest::{list_tests, test};
     use std::fs::{File, OpenOptions};
     use std::io::Write;
+    use std::ops::Deref;
     use std::os::unix::fs::FileExt;
+
+    list_tests! {all_tests: [
+        correct_inputs,
+        incorrect_apk,
+        incorrect_merkle_tree,
+        tampered_apk,
+        tampered_idsig,
+        inputs_are_block_devices,
+        correct_custom_roothash,
+        verify_command,
+    ]}
 
     struct TestContext<'a> {
         data_backing_file: &'a Path,
@@ -202,9 +221,6 @@ mod tests {
         roothash: Option<&[u8]>,
         check: fn(TestContext),
     ) {
-        if should_skip() {
-            return;
-        }
         let test_dir = tempfile::TempDir::new().unwrap();
         let (apk_path, idsig_path) = prepare_inputs(test_dir.path(), apk, idsig);
 
@@ -224,7 +240,7 @@ mod tests {
         });
     }
 
-    #[test]
+    test!(correct_inputs, ignore_if: should_skip());
     fn correct_inputs() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -237,7 +253,7 @@ mod tests {
     }
 
     // A single byte change in the APK file causes an IO error
-    #[test]
+    test!(incorrect_apk, ignore_if: should_skip());
     fn incorrect_apk() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -254,7 +270,7 @@ mod tests {
     }
 
     // A single byte change in the merkle tree also causes an IO error
-    #[test]
+    test!(incorrect_merkle_tree, ignore_if: should_skip());
     fn incorrect_merkle_tree() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -278,7 +294,7 @@ mod tests {
     // APK is not altered when the verity device is created, but later modified. IO error should
     // occur when trying to read the data around the modified location. This is the main scenario
     // that we'd like to protect.
-    #[test]
+    test!(tampered_apk, ignore_if: should_skip());
     fn tampered_apk() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -299,7 +315,7 @@ mod tests {
 
     // idsig file is not alread when the verity device is created, but later modified. Unlike to
     // the APK case, this doesn't occur IO error because the merkle tree is already cached.
-    #[test]
+    test!(tampered_idsig, ignore_if: should_skip());
     fn tampered_idsig() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -316,13 +332,8 @@ mod tests {
     }
 
     // test if both files are already block devices
-    #[test]
+    test!(inputs_are_block_devices, ignore_if: should_skip());
     fn inputs_are_block_devices() {
-        if should_skip() {
-            return;
-        }
-
-        use std::ops::Deref;
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
 
@@ -371,7 +382,7 @@ mod tests {
     }
 
     // test with custom roothash
-    #[test]
+    test!(correct_custom_roothash, ignore_if: should_skip());
     fn correct_custom_roothash() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -393,7 +404,7 @@ mod tests {
         );
     }
 
-    #[test]
+    test!(verify_command);
     fn verify_command() {
         // Check that the command parsing has been configured in a valid way.
         clap_command().debug_assert();
