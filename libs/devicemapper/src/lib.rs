@@ -29,6 +29,7 @@
 //! A library to create device mapper spec & issue ioctls.
 
 #![allow(missing_docs)]
+#![cfg_attr(test, allow(unused))]
 
 use anyhow::{Context, Result};
 use data_model::DataInit;
@@ -232,9 +233,13 @@ fn uuid(node_id: &[u8]) -> Result<String> {
 }
 
 #[cfg(test)]
+ignorabletest::test_main!(tests::all_tests());
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crypt::{CipherType, DmCryptTargetBuilder};
+    use ignorabletest::{list_tests, test};
     use rustutils::system_properties;
     use std::fs::{read, File, OpenOptions};
     use std::io::Write;
@@ -256,6 +261,13 @@ mod tests {
         key: b"thirtytwobyteslongreallylongword",
         different_key: b"drowgnolyllaergnolsetybowtytriht",
     };
+
+    list_tests! {all_tests: [
+        mapping_again_keeps_data_xts,
+        mapping_again_keeps_data_hctr2,
+        data_inaccessible_with_diff_key_xts,
+        data_inaccessible_with_diff_key_hctr2,
+    ]}
 
     // Create a file in given temp directory with given size
     fn prepare_tmpfile(test_dir: &Path, filename: &str, sz: u64) -> PathBuf {
@@ -279,7 +291,6 @@ mod tests {
         Ok(())
     }
 
-    // TODO(b/260692911): Find a better way to skip a test instead of silently passing it.
     fn is_hctr2_supported() -> bool {
         // hctr2 is NOT enabled in kernel 5.10 or lower. We run Microdroid tests on kernel versions
         // 5.10 or above & therefore,  we don't really care to skip test on other versions.
@@ -292,28 +303,23 @@ mod tests {
         }
     }
 
-    #[test]
+    test!(mapping_again_keeps_data_xts);
     fn mapping_again_keeps_data_xts() {
         mapping_again_keeps_data(&KEY_SET_XTS, "name1");
     }
 
-    #[test]
+    test!(mapping_again_keeps_data_hctr2, ignore_if: !is_hctr2_supported());
     fn mapping_again_keeps_data_hctr2() {
-        if !is_hctr2_supported() {
-            return;
-        }
         mapping_again_keeps_data(&KEY_SET_HCTR2, "name2");
     }
-    #[test]
+
+    test!(data_inaccessible_with_diff_key_xts);
     fn data_inaccessible_with_diff_key_xts() {
         data_inaccessible_with_diff_key(&KEY_SET_XTS, "name3");
     }
 
-    #[test]
+    test!(data_inaccessible_with_diff_key_hctr2, ignore_if: !is_hctr2_supported());
     fn data_inaccessible_with_diff_key_hctr2() {
-        if !is_hctr2_supported() {
-            return;
-        }
         data_inaccessible_with_diff_key(&KEY_SET_HCTR2, "name4");
     }
 
