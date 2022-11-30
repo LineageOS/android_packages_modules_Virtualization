@@ -120,6 +120,17 @@ adb shell "/apex/com.android.virt/bin/vm run /data/local/tmp/vm_config.json"
 The `vm` command also has other subcommands for debugging; run `/apex/com.android.virt/bin/vm help`
 for details.
 
+## Spawning your own VMs with custom pvmfw
+
+Set system property `hypervisor.pvmfw.path` to custom `pvmfw` on the device before using `vm` tool.
+`virtualizationservice` will pass the specified `pvmfw` to `crosvm` for protected VMs.
+
+```shell
+adb push pvmfw.img /data/local/tmp/pvmfw.img
+adb root  # required for setprop
+adb shell setprop hypervisor.pvmfw.path /data/local/tmp/pvmfw.img
+```
+
 ## Spawning your own VMs with Microdroid
 
 [Microdroid](../../microdroid/README.md) is a lightweight version of Android that is intended to run

@@ -67,6 +67,8 @@ const CROSVM_WATCHDOG_REBOOT_STATUS: i32 = 36;
 
 const MILLIS_PER_SEC: i64 = 1000;
 
+const SYSPROP_CUSTOM_PVMFW_PATH: &str = "hypervisor.pvmfw.path";
+
 lazy_static! {
     /// If the VM doesn't move to the Started state within this amount time, a hang-up error is
     /// triggered.
@@ -601,7 +603,12 @@ fn run_vm(
     }
 
     if config.protected {
-        command.arg("--protected-vm");
+        match system_properties::read(SYSPROP_CUSTOM_PVMFW_PATH)? {
+            Some(pvmfw_path) if !pvmfw_path.is_empty() => {
+                command.arg("--protected-vm-with-firmware").arg(pvmfw_path)
+            }
+            _ => command.arg("--protected-vm"),
+        };
 
         // 3 virtio-console devices + vsock = 4.
         let virtio_pci_device_count = 4 + config.disks.len();
