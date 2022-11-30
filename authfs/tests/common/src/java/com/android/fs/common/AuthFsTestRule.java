@@ -181,6 +181,10 @@ public class AuthFsTestRule extends TestLogData {
         Future<?> unusedFuture = mThreadPool.submit(() -> runForResult(sAndroid, cmd, "fd_server"));
     }
 
+    public void killFdServerOnAndroid() throws DeviceNotAvailableException {
+        sAndroid.tryRun("killall fd_server");
+    }
+
     public void runAuthFsOnMicrodroid(String flags) {
         String cmd = AUTHFS_BIN + " " + MOUNT_DIR + " " + flags + " --cid " + VMADDR_CID_HOST;
 
@@ -250,7 +254,7 @@ public class AuthFsTestRule extends TestLogData {
         }
 
         assertNotNull(sAndroid);
-        sAndroid.tryRun("killall fd_server");
+        killFdServerOnAndroid();
 
         // Even though we only run one VM for the whole class, and could have collect the VM log
         // after all tests are done, TestLogData doesn't seem to work at class level. Hence,
