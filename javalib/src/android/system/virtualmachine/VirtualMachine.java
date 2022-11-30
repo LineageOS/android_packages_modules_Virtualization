@@ -418,7 +418,10 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     @NonNull
-    private static File getVmDir(Context context, String name) {
+    private static File getVmDir(@NonNull Context context, @NonNull String name) {
+        if (name.contains(File.separator) || name.equals(".") || name.equals("..")) {
+            throw new IllegalArgumentException("Invalid VM name: " + name);
+        }
         File vmRoot = new File(context.getDataDir(), VM_DIR);
         return new File(vmRoot, name);
     }
