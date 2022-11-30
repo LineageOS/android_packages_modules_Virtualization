@@ -236,16 +236,19 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
 }
 
 fn jump_to_payload(fdt_address: u64, payload_start: u64) -> ! {
-    const SCTLR_EL1_RES1: usize = (0b11 << 28) | (0b101 << 20) | (0b1 << 11);
+    const SCTLR_EL1_RES1: u64 = (0b11 << 28) | (0b101 << 20) | (0b1 << 11);
     // Stage 1 instruction access cacheability is unaffected.
-    const SCTLR_EL1_I: usize = 0b1 << 12;
+    const SCTLR_EL1_I: u64 = 0b1 << 12;
     // SETEND instruction disabled at EL0 in aarch32 mode.
-    const SCTLR_EL1_SED: usize = 0b1 << 8;
+    const SCTLR_EL1_SED: u64 = 0b1 << 8;
     // Various IT instructions are disabled at EL0 in aarch32 mode.
-    const SCTLR_EL1_ITD: usize = 0b1 << 7;
+    const SCTLR_EL1_ITD: u64 = 0b1 << 7;
 
-    const SCTLR_EL1_VAL: usize = SCTLR_EL1_RES1 | SCTLR_EL1_ITD | SCTLR_EL1_SED | SCTLR_EL1_I;
+    const SCTLR_EL1_VAL: u64 = SCTLR_EL1_RES1 | SCTLR_EL1_ITD | SCTLR_EL1_SED | SCTLR_EL1_I;
 
+    // Disable the exception vector, caches and page table and then jump to the payload at the
+    // given address, passing it the given FDT pointer.
+    //
     // SAFETY - We're exiting pvmfw by passing the register values we need to a noreturn asm!().
     unsafe {
         asm!(
