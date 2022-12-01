@@ -18,7 +18,7 @@
 #![warn(unsafe_op_in_unsafe_fn)]
 
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
-    IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME, VM_APK_CONTENTS_PATH};
+    ENCRYPTEDSTORE_MOUNTPOINT, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME, VM_APK_CONTENTS_PATH};
 use anyhow::{ensure, bail, Context, Result};
 use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
 use lazy_static::lazy_static;
@@ -28,6 +28,7 @@ use std::convert::Infallible;
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::os::raw::{c_char, c_void};
+use std::path::Path;
 use std::ptr;
 use std::sync::{Mutex, atomic::{AtomicBool, Ordering}};
 
@@ -35,6 +36,8 @@ lazy_static! {
     static ref VM_APK_CONTENTS_PATH_C: CString =
         CString::new(VM_APK_CONTENTS_PATH).expect("CString::new failed");
     static ref PAYLOAD_CONNECTION: Mutex<Option<Strong<dyn IVmPayloadService>>> = Mutex::default();
+    static ref VM_ENCRYPTED_STORAGE_PATH_C: CString =
+        CString::new(ENCRYPTEDSTORE_MOUNTPOINT).expect("CString::new failed");
 }
 
 static ALREADY_NOTIFIED: AtomicBool = AtomicBool::new(false);
@@ -249,12 +252,15 @@ fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
 /// Gets the path to the APK contents.
 #[no_mangle]
 pub extern "C" fn AVmPayload_getApkContentsPath() -> *const c_char {
-    (*VM_APK_CONTENTS_PATH_C).as_ptr()
+    VM_APK_CONTENTS_PATH_C.as_ptr()
 }
 
 /// Gets the path to the VM's encrypted storage.
 #[no_mangle]
 pub extern "C" fn AVmPayload_getEncryptedStoragePath() -> *const c_char {
-    // TODO(b/254454578): Return a real path if storage is present
-    ptr::null()
+    if Path::new(ENCRYPTEDSTORE_MOUNTPOINT).exists() {
+        VM_ENCRYPTED_STORAGE_PATH_C.as_ptr()
+    } else {
+        ptr::null()
+    }
 }
