@@ -439,6 +439,8 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     }
 
     wait_for_property_true("dev.bootcomplete").context("failed waiting for dev.bootcomplete")?;
+    system_properties::write("microdroid_manager.init_done", "1")
+        .context("set microdroid_manager.init_done")?;
     info!("boot completed, time to run payload");
     exec_task(task, service).context("Failed to run payload")
 }
