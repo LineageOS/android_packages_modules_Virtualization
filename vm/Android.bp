@@ -2,8 +2,8 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_binary {
-    name: "vm",
+rust_defaults {
+    name: "vm.defaults",
     crate_name: "vm",
     srcs: ["src/main.rs"],
     edition: "2021",
@@ -25,9 +25,21 @@ rust_binary {
         "libvmclient",
         "libzip",
     ],
+}
+
+rust_binary {
+    name: "vm",
+    defaults: ["vm.defaults"],
     apex_available: [
         "com.android.virt",
     ],
+}
+
+rust_test {
+    name: "vm.test",
+    defaults: ["vm.defaults"],
+    test_suites: ["general-tests"],
+    compile_multilib: "first",
 }
 
 sh_binary_host {
