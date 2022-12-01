@@ -1,6 +1,10 @@
 // Signature format: 2.0
 package android.system.virtualmachine {
 
+  public class VirtualMachine implements java.lang.AutoCloseable {
+    method @NonNull public java.io.File getRootDir();
+  }
+
   public final class VirtualMachineConfig {
     method @Nullable public String getPayloadConfigPath();
   }

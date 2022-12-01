@@ -49,6 +49,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
+import android.annotation.TestApi;
 import android.content.ComponentCallbacks2;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -981,6 +982,18 @@ public class VirtualMachine implements AutoCloseable {
                 throw new VirtualMachineException(e);
             }
         }
+    }
+
+    /**
+     * Returns the root directory where all files related to this {@link VirtualMachine} (e.g.
+     * {@code instance.img}, {@code apk.idsig}, etc) are stored.
+     *
+     * @hide
+     */
+    @TestApi
+    @NonNull
+    public File getRootDir() {
+        return mVmRootPath;
     }
 
     /**
