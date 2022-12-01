@@ -45,7 +45,7 @@ on init
 
     setprop ro.debuggable ${ro.boot.microdroid.debuggable:-0}
 
-on property:dev.bootcomplete=1
+on property:microdroid_manager.init_done=1
     # Stop ueventd to save memory
     stop ueventd
 
