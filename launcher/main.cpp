@@ -34,11 +34,20 @@ extern struct android_namespace_t* android_create_namespace(
         const char* name, const char* ld_library_path, const char* default_library_path,
         uint64_t type, const char* permitted_when_isolated_path,
         struct android_namespace_t* parent);
+
+extern bool android_link_namespaces(struct android_namespace_t* from,
+                                    struct android_namespace_t* to,
+                                    const char* shared_libs_sonames);
 } // extern "C"
 
 static void* load(const std::string& libname);
 
 constexpr char entrypoint_name[] = "AVmPayload_main";
+
+static constexpr const char* kAllowedLibs[] = {
+        "libc.so",   "libm.so",          "libdl.so",         "libdl_android.so",
+        "liblog.so", "libvm_payload.so", "libbinder_ndk.so", "libbinder_rpc_unstable.so",
+};
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -69,8 +78,8 @@ int main(int argc, char* argv[]) {
 void* load(const std::string& libname) {
     // Parent as nullptr means the default namespace
     android_namespace_t* parent = nullptr;
-    // The search paths of the new namespace are inherited from the parent namespace.
-    const uint64_t type = ANDROID_NAMESPACE_TYPE_SHARED;
+    // The search paths of the new namespace are isolated to restrict system private libraries.
+    const uint64_t type = ANDROID_NAMESPACE_TYPE_ISOLATED;
     // The directory of the library is appended to the search paths
     const std::string libdir = libname.substr(0, libname.find_last_of("/"));
     const char* ld_library_path = libdir.c_str();
@@ -83,6 +92,13 @@ void* load(const std::string& libname) {
         std::cerr << "Failed to create linker namespace: " << dlerror() << "\n";
         return nullptr;
     }
+
+    std::string libs;
+    for (const char* lib : kAllowedLibs) {
+        if (!libs.empty()) libs += ':';
+        libs += lib;
+    }
+    android_link_namespaces(new_ns, nullptr, libs.c_str());
 
     const android_dlextinfo info = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
