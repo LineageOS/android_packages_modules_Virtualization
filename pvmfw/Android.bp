@@ -13,6 +13,7 @@ rust_ffi_static {
     ],
     rustlibs: [
         "libaarch64_paging",
+        "libavb_nostd",
         "libbuddy_system_allocator",
         "liblibfdt",
         "liblog_rust_nostd",
