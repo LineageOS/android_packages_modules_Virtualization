@@ -23,7 +23,6 @@ import android.app.job.JobParameters;
 import android.app.job.JobScheduler;
 import android.app.job.JobService;
 import android.content.ComponentName;
-import android.os.Build;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -51,9 +50,7 @@ public class IsolatedCompilationJobService extends JobService {
     private final AtomicReference<CompilationJob> mCurrentJob = new AtomicReference<>();
 
     static void scheduleDailyJob(JobScheduler scheduler) {
-        // This daily job is only for dogfooders (userdebug/eng)
-        if (Build.IS_USER) return;
-
+        // TODO(b/205296305) Remove this
         ComponentName serviceName =
                 new ComponentName("android", IsolatedCompilationJobService.class.getName());
 
