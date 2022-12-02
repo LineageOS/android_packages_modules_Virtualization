@@ -77,6 +77,11 @@ public:
         return ndk::ScopedAStatus::ok();
     }
 
+    ndk::ScopedAStatus allocAnonMemory(long mb, long* out) override {
+        *out = (long)alloc_anon_memory(mb);
+        return ndk::ScopedAStatus::ok();
+    }
+
     ndk::ScopedAStatus initVsockServer(int32_t port, int32_t* out) override {
         auto res = io_vsock::init_vsock_server(port);
         if (res.ok()) {
@@ -129,6 +134,17 @@ private:
         double elapsed_seconds = ((double)clock() - start) / CLOCKS_PER_SEC;
         double file_size_mb = (double)file_size_bytes / kNumBytesPerMB;
         return {file_size_mb / elapsed_seconds};
+    }
+
+    void* alloc_anon_memory(long mb) {
+        long bytes = mb << 20;
+        void* p = malloc(bytes);
+        /*
+         * Heap memory is demand allocated. Dirty all pages to ensure
+         * all are allocated.
+         */
+        memset(p, 0x55, bytes);
+        return p;
     }
 
     Result<size_t> read_meminfo_entry(const std::string& stat) {
