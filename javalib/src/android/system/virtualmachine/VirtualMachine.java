@@ -49,7 +49,9 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
+import android.content.ComponentCallbacks2;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
@@ -61,6 +63,7 @@ import android.system.virtualizationservice.DeathReason;
 import android.system.virtualizationservice.IVirtualMachine;
 import android.system.virtualizationservice.IVirtualMachineCallback;
 import android.system.virtualizationservice.IVirtualizationService;
+import android.system.virtualizationservice.MemoryTrimLevel;
 import android.system.virtualizationservice.PartitionType;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
 import android.system.virtualizationservice.VirtualMachineState;
@@ -193,6 +196,56 @@ public class VirtualMachine implements AutoCloseable {
      */
     @NonNull private final List<ExtraApkSpec> mExtraApks;
 
+    private class MemoryManagementCallbacks implements ComponentCallbacks2 {
+        @Override
+        public void onConfigurationChanged(@NonNull Configuration newConfig) {}
+
+        @Override
+        public void onLowMemory() {}
+
+        @Override
+        public void onTrimMemory(int level) {
+            @MemoryTrimLevel int vmTrimLevel;
+
+            switch (level) {
+                case ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL:
+                    vmTrimLevel = MemoryTrimLevel.TRIM_MEMORY_RUNNING_CRITICAL;
+                    break;
+                case ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW:
+                    vmTrimLevel = MemoryTrimLevel.TRIM_MEMORY_RUNNING_LOW;
+                    break;
+                case ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE:
+                    vmTrimLevel = MemoryTrimLevel.TRIM_MEMORY_RUNNING_MODERATE;
+                    break;
+                case ComponentCallbacks2.TRIM_MEMORY_BACKGROUND:
+                case ComponentCallbacks2.TRIM_MEMORY_MODERATE:
+                case ComponentCallbacks2.TRIM_MEMORY_COMPLETE:
+                    /* Release as much memory as we can. The app is on the LMKD LRU kill list. */
+                    vmTrimLevel = MemoryTrimLevel.TRIM_MEMORY_RUNNING_CRITICAL;
+                    break;
+                default:
+                    /* Treat unrecognised messages as generic low-memory warnings. */
+                    vmTrimLevel = MemoryTrimLevel.TRIM_MEMORY_RUNNING_LOW;
+                    break;
+            }
+
+            synchronized (mLock) {
+                try {
+                    if (mVirtualMachine != null) {
+                        mVirtualMachine.onTrimMemory(vmTrimLevel);
+                    }
+                } catch (Exception e) {
+                    /* Caller doesn't want our exceptions. Log them instead. */
+                    Log.w(TAG, "TrimMemory failed: ", e);
+                }
+            }
+        }
+    }
+
+    @NonNull private final MemoryManagementCallbacks mMemoryManagementCallbacks;
+
+    @NonNull private final Context mContext;
+
     // A note on lock ordering:
     // You can take mLock while holding VirtualMachineManager.sCreateLock, but not vice versa.
     // We never take any other lock while holding mCallbackLock; therefore you can
@@ -268,6 +321,8 @@ public class VirtualMachine implements AutoCloseable {
         mInstanceFilePath = new File(thisVmDir, INSTANCE_IMAGE_FILE);
         mIdsigFilePath = new File(thisVmDir, IDSIG_FILE);
         mExtraApks = setupExtraApks(context, config, thisVmDir);
+        mMemoryManagementCallbacks = new MemoryManagementCallbacks();
+        mContext = context;
     }
 
     /**
@@ -696,6 +751,7 @@ public class VirtualMachine implements AutoCloseable {
                                 executeCallback((cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
                             }
                         });
+                mContext.registerComponentCallbacks(mMemoryManagementCallbacks);
                 service.asBinder().linkToDeath(deathRecipient, 0);
                 mVirtualMachine.start();
             } catch (IOException | IllegalStateException | ServiceSpecificException e) {
@@ -772,6 +828,7 @@ public class VirtualMachine implements AutoCloseable {
             }
             try {
                 mVirtualMachine.stop();
+                mContext.unregisterComponentCallbacks(mMemoryManagementCallbacks);
                 mVirtualMachine = null;
             } catch (RemoteException e) {
                 throw e.rethrowAsRuntimeException();
@@ -797,6 +854,7 @@ public class VirtualMachine implements AutoCloseable {
             try {
                 if (stateToStatus(mVirtualMachine.getState()) == STATUS_RUNNING) {
                     mVirtualMachine.stop();
+                    mContext.unregisterComponentCallbacks(mMemoryManagementCallbacks);
                     mVirtualMachine = null;
                 }
             } catch (RemoteException e) {
