@@ -408,6 +408,31 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
+    public void protectedVmWithValidKernelImageRunsPvmfw() throws Exception {
+        // Arrange
+        boolean protectedVm = true;
+        assumeTrue(
+                "Skip if protected VMs are not supported",
+                getAndroidDevice().supportsMicrodroid(protectedVm));
+        File key = findTestFile("test.com.android.virt.pem");
+
+        // Act
+        // TODO(b/256148034): Do not resign kernel image
+        VmInfo vmInfo =
+                runMicrodroidWithResignedImages(key, /*keyOverrides=*/ Map.of(), protectedVm);
+
+        // Assert
+        vmInfo.mProcess.waitFor(5L, TimeUnit.SECONDS);
+        String consoleLog = getDevice().pullFileContents(CONSOLE_PATH);
+        assertWithMessage("pvmfw should start").that(consoleLog).contains("pVM firmware");
+        assertWithMessage("pvmfw should start payload")
+                .that(consoleLog)
+                .contains("Payload verified. Starting payload...");
+        vmInfo.mProcess.destroy();
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
     public void protectedVmWithImageSignedWithDifferentKeyRunsPvmfw() throws Exception {
         // Arrange
         boolean protectedVm = true;
@@ -420,7 +445,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         VmInfo vmInfo =
                 runMicrodroidWithResignedImages(key, /*keyOverrides=*/ Map.of(), protectedVm);
 
-        // Asserts
+        // Assert
         vmInfo.mProcess.waitFor(5L, TimeUnit.SECONDS);
         String consoleLog = getDevice().pullFileContents(CONSOLE_PATH);
         assertWithMessage("pvmfw should start").that(consoleLog).contains("pVM firmware");
