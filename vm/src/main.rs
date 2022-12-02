@@ -149,7 +149,7 @@ enum Opt {
         ramdump: Option<PathBuf>,
 
         /// Debug level of the VM. Supported values: "none" (default), "app_only", and "full".
-        #[clap(long, default_value = "none", value_parser = parse_debug_level)]
+        #[clap(long, default_value = "full", value_parser = parse_debug_level)]
         debug: DebugLevel,
 
         /// Run VM in protected mode.
