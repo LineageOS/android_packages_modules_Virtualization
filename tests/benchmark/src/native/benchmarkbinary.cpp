@@ -77,8 +77,8 @@ public:
         return ndk::ScopedAStatus::ok();
     }
 
-    ndk::ScopedAStatus allocAnonMemory(long mb, long* out) override {
-        *out = (long)alloc_anon_memory(mb);
+    ndk::ScopedAStatus allocAnonMemory(int64_t mb, int64_t* out) override {
+        *out = (int64_t)(long)alloc_anon_memory((long)mb);
         return ndk::ScopedAStatus::ok();
     }
 
