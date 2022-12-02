@@ -19,6 +19,8 @@ package com.android.microdroid.testservice;
 interface ITestService {
     const int SERVICE_PORT = 5678;
 
+    const int ECHO_REVERSE_PORT = 6789;
+
     /* add two integers. */
     int addInteger(int a, int b);
 
@@ -39,4 +41,9 @@ interface ITestService {
 
     /* get the encrypted storage path. */
     String getEncryptedStoragePath();
+
+    /* start a simple vsock server on ECHO_REVERSE_PORT that reads a line at a time and echoes
+     * each line reverse.
+     */
+    void runEchoReverseServer();
 }
