@@ -33,6 +33,7 @@ use std::io::{self, Read};
 use std::mem;
 use std::num::NonZeroU32;
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
@@ -330,10 +331,18 @@ impl VmInstance {
         self.handle_ramdump().unwrap_or_else(|e| error!("Error handling ramdump: {}", e));
 
         let death_reason = death_reason(&result, &failure_reason);
+        let exit_signal = exit_signal(&result);
+
         self.callbacks.callback_on_died(self.cid, death_reason);
 
         let vm_metric = self.vm_metric.lock().unwrap();
-        write_vm_exited_stats(self.requester_uid as i32, &self.name, death_reason, &*vm_metric);
+        write_vm_exited_stats(
+            self.requester_uid as i32,
+            &self.name,
+            death_reason,
+            exit_signal,
+            &*vm_metric,
+        );
 
         // Delete temporary files.
         if let Err(e) = remove_dir_all(&self.temporary_directory) {
@@ -570,6 +579,13 @@ fn death_reason(result: &Result<ExitStatus, io::Error>, mut failure_reason: &str
         }
     } else {
         DeathReason::INFRASTRUCTURE_ERROR
+    }
+}
+
+fn exit_signal(result: &Result<ExitStatus, io::Error>) -> Option<i32> {
+    match result {
+        Ok(status) => status.signal(),
+        Err(_) => None,
     }
 }
 
