@@ -18,12 +18,14 @@
 #![no_std]
 #![feature(let_else)] // Stabilized in 1.65.0
 
+mod iterators;
+
+pub use iterators::{AddressRange, CellIterator, MemRegIterator, RangesIterator, Reg, RegIterator};
+
 use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
 use core::mem;
-use core::ops::Range;
 use core::result;
-use core::slice;
 
 /// Error type corresponding to libfdt error codes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -146,10 +148,11 @@ fn fdt_err_or_option(val: c_int) -> Result<Option<c_int>> {
 }
 
 /// Value of a #address-cells property.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum AddrCells {
     Single = 1,
     Double = 2,
+    Triple = 3,
 }
 
 impl TryFrom<c_int> for AddrCells {
@@ -159,13 +162,14 @@ impl TryFrom<c_int> for AddrCells {
         match fdt_err(res)? {
             x if x == Self::Single as c_int => Ok(Self::Single),
             x if x == Self::Double as c_int => Ok(Self::Double),
+            x if x == Self::Triple as c_int => Ok(Self::Triple),
             _ => Err(FdtError::BadNCells),
         }
     }
 }
 
 /// Value of a #size-cells property.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum SizeCells {
     None = 0,
     Single = 1,
@@ -182,98 +186,6 @@ impl TryFrom<c_int> for SizeCells {
             x if x == Self::Double as c_int => Ok(Self::Double),
             _ => Err(FdtError::BadNCells),
         }
-    }
-}
-
-/// Iterator over cells of a DT property.
-#[derive(Debug)]
-pub struct CellIterator<'a> {
-    chunks: slice::ChunksExact<'a, u8>,
-}
-
-impl<'a> CellIterator<'a> {
-    fn new(bytes: &'a [u8]) -> Self {
-        const CHUNK_SIZE: usize = mem::size_of::<<CellIterator as Iterator>::Item>();
-
-        Self { chunks: bytes.chunks_exact(CHUNK_SIZE) }
-    }
-}
-
-impl<'a> Iterator for CellIterator<'a> {
-    type Item = u32;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(Self::Item::from_be_bytes(self.chunks.next()?.try_into().ok()?))
-    }
-}
-
-/// Iterator over a 'reg' property of a DT node.
-#[derive(Debug)]
-pub struct RegIterator<'a> {
-    cells: CellIterator<'a>,
-    addr_cells: AddrCells,
-    size_cells: SizeCells,
-}
-
-/// Represents a contiguous region within the address space defined by the parent bus.
-/// Commonly means the offsets and lengths of MMIO blocks, but may have a different meaning on some
-/// bus types. Addresses in the address space defined by the root node are CPU real addresses.
-#[derive(Copy, Clone, Debug)]
-pub struct Reg<T> {
-    /// Base address of the region.
-    pub addr: T,
-    /// Size of the region (optional).
-    pub size: Option<T>,
-}
-
-impl<'a> RegIterator<'a> {
-    fn new(cells: CellIterator<'a>, addr_cells: AddrCells, size_cells: SizeCells) -> Self {
-        Self { cells, addr_cells, size_cells }
-    }
-}
-
-impl<'a> Iterator for RegIterator<'a> {
-    type Item = Reg<u64>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let make_double = |a, b| (u64::from(a) << 32) | u64::from(b);
-
-        let addr = match self.addr_cells {
-            AddrCells::Single => self.cells.next()?.into(),
-            AddrCells::Double => make_double(self.cells.next()?, self.cells.next()?),
-        };
-        // If the parent node specifies a value of 0 for #size-cells, 'size' shall be omitted.
-        let size = match self.size_cells {
-            SizeCells::None => None,
-            SizeCells::Single => Some(self.cells.next()?.into()),
-            SizeCells::Double => Some(make_double(self.cells.next()?, self.cells.next()?)),
-        };
-
-        Some(Self::Item { addr, size })
-    }
-}
-
-/// Iterator over the address ranges defined by the /memory/ node.
-#[derive(Debug)]
-pub struct MemRegIterator<'a> {
-    reg: RegIterator<'a>,
-}
-
-impl<'a> MemRegIterator<'a> {
-    fn new(reg: RegIterator<'a>) -> Self {
-        Self { reg }
-    }
-}
-
-impl<'a> Iterator for MemRegIterator<'a> {
-    type Item = Range<usize>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.reg.next()?;
-        let addr = usize::try_from(next.addr).ok()?;
-        let size = usize::try_from(next.size?).ok()?;
-
-        Some(addr..addr.checked_add(size)?)
     }
 }
 
@@ -309,6 +221,25 @@ impl<'a> FdtNode<'a> {
             let size_cells = parent.size_cells()?;
 
             Ok(Some(RegIterator::new(cells, addr_cells, size_cells)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Retrieves the standard ranges property.
+    pub fn ranges<A, P, S>(&self) -> Result<Option<RangesIterator<'a, A, P, S>>> {
+        let ranges = CStr::from_bytes_with_nul(b"ranges\0").unwrap();
+        if let Some(cells) = self.getprop_cells(ranges)? {
+            let parent = self.parent()?;
+            let addr_cells = self.address_cells()?;
+            let parent_addr_cells = parent.address_cells()?;
+            let size_cells = self.size_cells()?;
+            Ok(Some(RangesIterator::<A, P, S>::new(
+                cells,
+                addr_cells,
+                parent_addr_cells,
+                size_cells,
+            )))
         } else {
             Ok(None)
         }
