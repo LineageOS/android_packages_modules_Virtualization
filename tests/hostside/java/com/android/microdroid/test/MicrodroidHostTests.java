@@ -408,27 +408,33 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
-    public void protectedVmWithValidKernelImageRunsPvmfw() throws Exception {
+    public void protectedVmRunsPvmfw() throws Exception {
         // Arrange
         boolean protectedVm = true;
         assumeTrue(
                 "Skip if protected VMs are not supported",
                 getAndroidDevice().supportsMicrodroid(protectedVm));
-        File key = findTestFile("test.com.android.virt.pem");
+        final String configPath = "assets/vm_config_apex.json";
 
         // Act
-        // TODO(b/256148034): Do not resign kernel image
-        VmInfo vmInfo =
-                runMicrodroidWithResignedImages(key, /*keyOverrides=*/ Map.of(), protectedVm);
+        mMicrodroidDevice =
+                MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
+                        .debugLevel("full")
+                        .memoryMib(minMemorySize())
+                        .numCpus(NUM_VCPUS)
+                        .protectedVm(protectedVm)
+                        .build(getAndroidDevice());
 
         // Assert
-        vmInfo.mProcess.waitFor(5L, TimeUnit.SECONDS);
+        mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         String consoleLog = getDevice().pullFileContents(CONSOLE_PATH);
-        assertWithMessage("pvmfw should start").that(consoleLog).contains("pVM firmware");
-        assertWithMessage("pvmfw should start payload")
+        assertWithMessage("Failed to verify that pvmfw started")
                 .that(consoleLog)
-                .contains("Payload verified. Starting payload...");
-        vmInfo.mProcess.destroy();
+                .contains("pVM firmware");
+        assertWithMessage("pvmfw failed to start kernel")
+                .that(consoleLog)
+                .contains("Starting payload...");
+        // TODO(b/260994818): Investigate the feasibility of checking DeathReason.
     }
 
     @Test
