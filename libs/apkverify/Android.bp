@@ -12,6 +12,7 @@ rust_defaults {
         "libanyhow",
         "libbyteorder",
         "libbytes",
+        "libhex",
         "liblog_rust",
         "libnum_traits",
         "libopenssl",
@@ -33,7 +34,6 @@ rust_test {
     name: "libapkverify.test",
     defaults: ["libapkverify.defaults"],
     test_suites: ["general-tests"],
-    rustlibs: ["libhex"],
     data: ["tests/data/*"],
 }
 

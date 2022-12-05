@@ -196,8 +196,8 @@ impl Signer {
         ensure!(
             computed == digest.digest.as_ref(),
             "Digest mismatch: computed={:?} vs expected={:?}",
-            to_hex_string(&computed),
-            to_hex_string(&digest.digest),
+            hex::encode(&computed),
+            hex::encode(digest.digest.as_ref()),
         );
 
         // 7. Verify that public key of the first certificate of certificates is identical
@@ -260,9 +260,4 @@ impl ReadFromBytes for PKey<pkey::Public> {
         let raw_public_key = buf.read::<LengthPrefixed<Bytes>>()?;
         Ok(PKey::public_key_from_der(raw_public_key.as_ref())?)
     }
-}
-
-#[inline]
-pub(crate) fn to_hex_string(buf: &[u8]) -> String {
-    buf.iter().map(|b| format!("{:02X}", b)).collect()
 }
