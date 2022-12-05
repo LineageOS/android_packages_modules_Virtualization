@@ -20,7 +20,7 @@
 
 mod iterators;
 
-pub use iterators::{CellIterator, MemRegIterator, Reg, RegIterator};
+pub use iterators::{AddressRange, CellIterator, MemRegIterator, RangesIterator, Reg, RegIterator};
 
 use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
@@ -148,10 +148,11 @@ fn fdt_err_or_option(val: c_int) -> Result<Option<c_int>> {
 }
 
 /// Value of a #address-cells property.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum AddrCells {
     Single = 1,
     Double = 2,
+    Triple = 3,
 }
 
 impl TryFrom<c_int> for AddrCells {
@@ -161,13 +162,14 @@ impl TryFrom<c_int> for AddrCells {
         match fdt_err(res)? {
             x if x == Self::Single as c_int => Ok(Self::Single),
             x if x == Self::Double as c_int => Ok(Self::Double),
+            x if x == Self::Triple as c_int => Ok(Self::Triple),
             _ => Err(FdtError::BadNCells),
         }
     }
 }
 
 /// Value of a #size-cells property.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum SizeCells {
     None = 0,
     Single = 1,
@@ -219,6 +221,25 @@ impl<'a> FdtNode<'a> {
             let size_cells = parent.size_cells()?;
 
             Ok(Some(RegIterator::new(cells, addr_cells, size_cells)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Retrieves the standard ranges property.
+    pub fn ranges<A, P, S>(&self) -> Result<Option<RangesIterator<'a, A, P, S>>> {
+        let ranges = CStr::from_bytes_with_nul(b"ranges\0").unwrap();
+        if let Some(cells) = self.getprop_cells(ranges)? {
+            let parent = self.parent()?;
+            let addr_cells = self.address_cells()?;
+            let parent_addr_cells = parent.address_cells()?;
+            let size_cells = self.size_cells()?;
+            Ok(Some(RangesIterator::<A, P, S>::new(
+                cells,
+                addr_cells,
+                parent_addr_cells,
+                size_cells,
+            )))
         } else {
             Ok(None)
         }

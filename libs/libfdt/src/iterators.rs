@@ -15,6 +15,7 @@
 //! Iterators over cells, and various layers on top of them.
 
 use crate::{AddrCells, SizeCells};
+use core::marker::PhantomData;
 use core::{mem::size_of, ops::Range, slice::ChunksExact};
 
 /// Iterator over cells of a DT property.
@@ -72,17 +73,12 @@ impl<'a> Iterator for RegIterator<'a> {
     type Item = Reg<u64>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let make_double = |a, b| (u64::from(a) << 32) | u64::from(b);
-
-        let addr = match self.addr_cells {
-            AddrCells::Single => self.cells.next()?.into(),
-            AddrCells::Double => make_double(self.cells.next()?, self.cells.next()?),
-        };
+        let addr = FromAddrCells::from_addr_cells(&mut self.cells, self.addr_cells)?;
         // If the parent node specifies a value of 0 for #size-cells, 'size' shall be omitted.
-        let size = match self.size_cells {
-            SizeCells::None => None,
-            SizeCells::Single => Some(self.cells.next()?.into()),
-            SizeCells::Double => Some(make_double(self.cells.next()?, self.cells.next()?)),
+        let size = if self.size_cells == SizeCells::None {
+            None
+        } else {
+            Some(FromSizeCells::from_size_cells(&mut self.cells, self.size_cells)?)
         };
 
         Some(Self::Item { addr, size })
@@ -110,5 +106,102 @@ impl<'a> Iterator for MemRegIterator<'a> {
         let size = usize::try_from(next.size?).ok()?;
 
         Some(addr..addr.checked_add(size)?)
+    }
+}
+
+/// Iterator over the 'ranges' property of a DT node.
+#[derive(Debug)]
+pub struct RangesIterator<'a, A, P, S> {
+    cells: CellIterator<'a>,
+    addr_cells: AddrCells,
+    parent_addr_cells: AddrCells,
+    size_cells: SizeCells,
+    _addr: PhantomData<A>,
+    _parent_addr: PhantomData<P>,
+    _size: PhantomData<S>,
+}
+
+/// An address range from the 'ranges' property of a DT node.
+#[derive(Clone, Debug)]
+pub struct AddressRange<A, P, S> {
+    /// The physical address of the range within the child bus's address space.
+    pub addr: A,
+    /// The physical address of the range in the parent bus's address space.
+    pub parent_addr: P,
+    /// The size of the range in the child's address space.
+    pub size: S,
+}
+
+impl<'a, A, P, S> RangesIterator<'a, A, P, S> {
+    pub(crate) fn new(
+        cells: CellIterator<'a>,
+        addr_cells: AddrCells,
+        parent_addr_cells: AddrCells,
+        size_cells: SizeCells,
+    ) -> Self {
+        Self {
+            cells,
+            addr_cells,
+            parent_addr_cells,
+            size_cells,
+            _addr: Default::default(),
+            _parent_addr: Default::default(),
+            _size: Default::default(),
+        }
+    }
+}
+
+impl<'a, A: FromAddrCells, P: FromAddrCells, S: FromSizeCells> Iterator
+    for RangesIterator<'a, A, P, S>
+{
+    type Item = AddressRange<A, P, S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let addr = FromAddrCells::from_addr_cells(&mut self.cells, self.addr_cells)?;
+        let parent_addr = FromAddrCells::from_addr_cells(&mut self.cells, self.parent_addr_cells)?;
+        let size = FromSizeCells::from_size_cells(&mut self.cells, self.size_cells)?;
+        Some(AddressRange { addr, parent_addr, size })
+    }
+}
+
+trait FromAddrCells: Sized {
+    fn from_addr_cells(cells: &mut CellIterator, cell_count: AddrCells) -> Option<Self>;
+}
+
+impl FromAddrCells for u64 {
+    fn from_addr_cells(cells: &mut CellIterator, cell_count: AddrCells) -> Option<Self> {
+        Some(match cell_count {
+            AddrCells::Single => cells.next()?.into(),
+            AddrCells::Double => (cells.next()? as Self) << 32 | cells.next()? as Self,
+            _ => panic!("Invalid addr_cells {:?} for u64", cell_count),
+        })
+    }
+}
+
+impl FromAddrCells for u128 {
+    fn from_addr_cells(cells: &mut CellIterator, cell_count: AddrCells) -> Option<Self> {
+        Some(match cell_count {
+            AddrCells::Single => cells.next()?.into(),
+            AddrCells::Double => (cells.next()? as Self) << 32 | cells.next()? as Self,
+            AddrCells::Triple => {
+                (cells.next()? as Self) << 64
+                    | (cells.next()? as Self) << 32
+                    | cells.next()? as Self
+            }
+        })
+    }
+}
+
+trait FromSizeCells: Sized {
+    fn from_size_cells(cells: &mut CellIterator, cell_count: SizeCells) -> Option<Self>;
+}
+
+impl FromSizeCells for u64 {
+    fn from_size_cells(cells: &mut CellIterator, cell_count: SizeCells) -> Option<Self> {
+        Some(match cell_count {
+            SizeCells::Single => cells.next()?.into(),
+            SizeCells::Double => (cells.next()? as Self) << 32 | cells.next()? as Self,
+            _ => panic!("Invalid size_cells {:?} for u64", cell_count),
+        })
     }
 }
