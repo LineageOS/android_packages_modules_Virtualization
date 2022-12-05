@@ -34,7 +34,7 @@ use alloc::{vec, vec::Vec};
 use buddy_system_allocator::LockedHeap;
 use core::ffi::CStr;
 use libfdt::Fdt;
-use log::{debug, info, LevelFilter};
+use log::{debug, info, trace, LevelFilter};
 use vmbase::{logger, main, println};
 
 /// PCI MMIO configuration region size.
@@ -132,7 +132,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
         .unwrap();
 
     info!("Activating IdMap...");
-    info!("{:?}", idmap);
+    trace!("{:?}", idmap);
     idmap.activate();
     info!("Activated.");
 
