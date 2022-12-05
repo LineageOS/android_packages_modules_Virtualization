@@ -27,6 +27,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
+import android.annotation.TestApi;
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
@@ -284,7 +285,7 @@ public final class VirtualMachineConfig {
      *
      * @hide
      */
-    @SystemApi // TODO(b/243512115): Switch back to @TestApi
+    @TestApi
     @Nullable
     public String getPayloadConfigPath() {
         return mPayloadConfigPath;
@@ -471,7 +472,7 @@ public final class VirtualMachineConfig {
          * @hide
          */
         @RequiresPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
-        @SystemApi // TODO(b/243512115): Switch to @TestApi
+        @TestApi
         @NonNull
         public Builder setPayloadConfigPath(@NonNull String payloadConfigPath) {
             mPayloadConfigPath = requireNonNull(payloadConfigPath);

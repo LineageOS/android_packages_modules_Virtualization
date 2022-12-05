@@ -61,7 +61,6 @@ package android.system.virtualmachine {
     method @IntRange(from=0) public int getMemoryMib();
     method @IntRange(from=1) public int getNumCpus();
     method @Nullable public String getPayloadBinaryPath();
-    method @Nullable public String getPayloadConfigPath();
     method public boolean isCompatibleWith(@NonNull android.system.virtualmachine.VirtualMachineConfig);
     method public boolean isProtectedVm();
     field public static final int DEBUG_LEVEL_APP_ONLY = 1; // 0x1
@@ -77,7 +76,6 @@ package android.system.virtualmachine {
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryMib(@IntRange(from=0) int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setNumCpus(@IntRange(from=1) int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadBinaryPath(@NonNull String);
-    method @NonNull @RequiresPermission(android.system.virtualmachine.VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION) public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadConfigPath(@NonNull String);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setProtectedVm(boolean);
   }
 
