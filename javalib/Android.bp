@@ -56,3 +56,12 @@ prebuilt_apis {
     name: "android-virtualization-framework-sdk",
     api_dirs: ["32"],
 }
+
+java_api_contribution {
+    name: "framework-virtualization-public-stubs",
+    api_surface: "public",
+    api_file: "api/current.txt",
+    visibility: [
+        "//build/orchestrator/apis",
+    ],
+}
