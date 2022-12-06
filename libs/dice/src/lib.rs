@@ -18,13 +18,14 @@
 
 #![no_std]
 
-use core::fmt::{self, Debug};
-use open_dice_cbor_bindgen::{
-    DiceHash, DiceResult, DiceResult_kDiceResultBufferTooSmall as DICE_RESULT_BUFFER_TOO_SMALL,
-    DiceResult_kDiceResultInvalidInput as DICE_RESULT_INVALID_INPUT,
-    DiceResult_kDiceResultOk as DICE_RESULT_OK,
-    DiceResult_kDiceResultPlatformError as DICE_RESULT_PLATFORM_ERROR,
-};
+use core::fmt;
+
+use open_dice_cbor_bindgen::DiceHash;
+use open_dice_cbor_bindgen::DiceResult;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultBufferTooSmall as DICE_RESULT_BUFFER_TOO_SMALL;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultInvalidInput as DICE_RESULT_INVALID_INPUT;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultOk as DICE_RESULT_OK;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultPlatformError as DICE_RESULT_PLATFORM_ERROR;
 
 const HASH_SIZE: usize = open_dice_cbor_bindgen::DICE_HASH_SIZE as usize;
 
@@ -43,7 +44,7 @@ pub enum Error {
     Unknown(DiceResult),
 }
 
-impl Debug for Error {
+impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::InvalidInput => write!(f, "invalid input"),
