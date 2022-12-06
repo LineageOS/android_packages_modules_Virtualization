@@ -182,7 +182,7 @@ pub fn write_vm_exited_stats(
                 DeathReason::KILLED => vm_exited::DeathReason::Killed,
                 DeathReason::UNKNOWN => vm_exited::DeathReason::Unknown,
                 DeathReason::SHUTDOWN => vm_exited::DeathReason::Shutdown,
-                DeathReason::ERROR => vm_exited::DeathReason::Error,
+                DeathReason::START_FAILED => vm_exited::DeathReason::Error,
                 DeathReason::REBOOT => vm_exited::DeathReason::Reboot,
                 DeathReason::CRASH => vm_exited::DeathReason::Crash,
                 DeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH => {
