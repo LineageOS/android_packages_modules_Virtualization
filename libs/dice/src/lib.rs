@@ -28,8 +28,13 @@ use open_dice_cbor_bindgen::DiceResult_kDiceResultInvalidInput as DICE_RESULT_IN
 use open_dice_cbor_bindgen::DiceResult_kDiceResultOk as DICE_RESULT_OK;
 use open_dice_cbor_bindgen::DiceResult_kDiceResultPlatformError as DICE_RESULT_PLATFORM_ERROR;
 
+pub mod bcc;
+
+const CDI_SIZE: usize = open_dice_cbor_bindgen::DICE_CDI_SIZE as usize;
 const HASH_SIZE: usize = open_dice_cbor_bindgen::DICE_HASH_SIZE as usize;
 
+/// Array type of CDIs.
+pub type Cdi = [u8; CDI_SIZE];
 /// Array type of hashes used by DICE.
 pub type Hash = [u8; HASH_SIZE];
 
