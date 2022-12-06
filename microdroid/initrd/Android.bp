@@ -159,3 +159,36 @@ prebuilt_etc {
     },
     filename: "microdroid_initrd_normal.img",
 }
+
+genrule {
+    name: "microdroid_initrd_normal.sha256",
+    srcs: [":microdroid_initrd_normal"],
+    cmd: "cat $(in) | sha256sum | cut -d' ' -f1 > $(out)",
+    out: ["hash"],
+}
+
+genrule {
+    name: "microdroid_initrd_app_debuggable.sha256",
+    srcs: [":microdroid_initrd_app_debuggable"],
+    cmd: "cat $(in) | sha256sum | cut -d' ' -f1 > $(out)",
+    out: ["hash"],
+}
+
+genrule {
+    name: "microdroid_initrd_full_debuggable.sha256",
+    srcs: [":microdroid_initrd_full_debuggable"],
+    cmd: "cat $(in) | sha256sum | cut -d' ' -f1 > $(out)",
+    out: ["hash"],
+}
+
+genrule {
+    name: "microdroid_initrd_hashes",
+    srcs: [
+        ":microdroid_initrd_normal.sha256",
+        ":microdroid_initrd_app_debuggable.sha256",
+        ":microdroid_initrd_full_debuggable.sha256",
+    ],
+    // join the hashes with commas
+    cmd: "cat $(in) | tr '\n' ',' > $(out) && truncate -s -1 $(out)",
+    out: ["output"],
+}
