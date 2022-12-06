@@ -38,7 +38,6 @@ package android.system.virtualmachine {
     field public static final int STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED = 10; // 0xa
     field public static final int STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH = 9; // 0x9
     field public static final int STOP_REASON_CRASH = 6; // 0x6
-    field public static final int STOP_REASON_ERROR = 4; // 0x4
     field public static final int STOP_REASON_HANGUP = 16; // 0x10
     field public static final int STOP_REASON_INFRASTRUCTURE_ERROR = 0; // 0x0
     field public static final int STOP_REASON_KILLED = 1; // 0x1
@@ -51,6 +50,7 @@ package android.system.virtualmachine {
     field public static final int STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH = 7; // 0x7
     field public static final int STOP_REASON_REBOOT = 5; // 0x5
     field public static final int STOP_REASON_SHUTDOWN = 3; // 0x3
+    field public static final int STOP_REASON_START_FAILED = 4; // 0x4
     field public static final int STOP_REASON_UNKNOWN = 2; // 0x2
     field public static final int STOP_REASON_VIRTUALIZATION_SERVICE_DIED = -1; // 0xffffffff
   }

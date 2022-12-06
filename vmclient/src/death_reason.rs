@@ -30,7 +30,7 @@ pub enum DeathReason {
     /// The VM requested to shut down.
     Shutdown,
     /// crosvm had an error starting the VM.
-    Error,
+    StartFailed,
     /// The VM requested to reboot, possibly as the result of a kernel panic.
     Reboot,
     /// The VM or crosvm crashed.
@@ -66,7 +66,7 @@ impl From<AidlDeathReason> for DeathReason {
             AidlDeathReason::KILLED => Self::Killed,
             AidlDeathReason::UNKNOWN => Self::Unknown,
             AidlDeathReason::SHUTDOWN => Self::Shutdown,
-            AidlDeathReason::ERROR => Self::Error,
+            AidlDeathReason::START_FAILED => Self::StartFailed,
             AidlDeathReason::REBOOT => Self::Reboot,
             AidlDeathReason::CRASH => Self::Crash,
             AidlDeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH => Self::PvmFirmwarePublicKeyMismatch,
