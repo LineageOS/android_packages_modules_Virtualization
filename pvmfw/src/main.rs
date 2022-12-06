@@ -55,6 +55,6 @@ fn main(
         error!("Failed to verify the payload: {e}");
         RebootReason::PayloadVerificationError
     })?;
-    info!("Payload verified. Starting payload...");
+    info!("Starting payload...");
     Ok(())
 }
