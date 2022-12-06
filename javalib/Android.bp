@@ -13,8 +13,7 @@ android_app {
 java_sdk_library {
     name: "framework-virtualization",
 
-    // TODO(b/243512044): introduce non-updatable-framework-module-defaults
-    defaults: ["framework-module-defaults"],
+    defaults: ["non-updatable-framework-module-defaults"],
 
     jarjar_rules: "jarjar-rules.txt",
 
@@ -39,11 +38,6 @@ java_sdk_library {
             // We use @GuardedBy and we want a test failure if our locking isn't consistent with it.
             "-Xep:GuardedBy:ERROR",
         ],
-    },
-
-    test: {
-        enabled: true,
-        sdk_version: "module_current",
     },
 
     sdk_version: "core_platform",
