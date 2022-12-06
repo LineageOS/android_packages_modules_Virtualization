@@ -26,7 +26,6 @@ import static android.system.virtualmachine.VirtualMachineCallback.ERROR_UNKNOWN
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_CRASH;
-import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_ERROR;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_HANGUP;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_INFRASTRUCTURE_ERROR;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_KILLED;
@@ -39,6 +38,7 @@ import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_P
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_REBOOT;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_SHUTDOWN;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_START_FAILED;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_UNKNOWN;
 
 import static java.util.Objects.requireNonNull;
@@ -1034,8 +1034,8 @@ public class VirtualMachine implements AutoCloseable {
                 return STOP_REASON_KILLED;
             case DeathReason.SHUTDOWN:
                 return STOP_REASON_SHUTDOWN;
-            case DeathReason.ERROR:
-                return STOP_REASON_ERROR;
+            case DeathReason.START_FAILED:
+                return STOP_REASON_START_FAILED;
             case DeathReason.REBOOT:
                 return STOP_REASON_REBOOT;
             case DeathReason.CRASH:

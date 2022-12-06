@@ -58,26 +58,28 @@ public interface VirtualMachineCallback {
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef(prefix = "STOP_REASON_", value = {
-        STOP_REASON_VIRTUALIZATION_SERVICE_DIED,
-        STOP_REASON_INFRASTRUCTURE_ERROR,
-        STOP_REASON_KILLED,
-        STOP_REASON_UNKNOWN,
-        STOP_REASON_SHUTDOWN,
-        STOP_REASON_ERROR,
-        STOP_REASON_REBOOT,
-        STOP_REASON_CRASH,
-        STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH,
-        STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED,
-        STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH,
-        STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED,
-        STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE,
-        STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED,
-        STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED,
-        STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG,
-        STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR,
-        STOP_REASON_HANGUP,
-    })
+    @IntDef(
+            prefix = "STOP_REASON_",
+            value = {
+                STOP_REASON_VIRTUALIZATION_SERVICE_DIED,
+                STOP_REASON_INFRASTRUCTURE_ERROR,
+                STOP_REASON_KILLED,
+                STOP_REASON_UNKNOWN,
+                STOP_REASON_SHUTDOWN,
+                STOP_REASON_START_FAILED,
+                STOP_REASON_REBOOT,
+                STOP_REASON_CRASH,
+                STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH,
+                STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED,
+                STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH,
+                STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED,
+                STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE,
+                STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED,
+                STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED,
+                STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG,
+                STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR,
+                STOP_REASON_HANGUP,
+            })
     @interface StopReason {}
 
     /** The virtualization service itself died, taking the VM down with it. */
@@ -98,7 +100,7 @@ public interface VirtualMachineCallback {
     int STOP_REASON_SHUTDOWN = 3;
 
     /** crosvm had an error starting the VM. */
-    int STOP_REASON_ERROR = 4;
+    int STOP_REASON_START_FAILED = 4;
 
     /** The VM requested to reboot, possibly as the result of a kernel panic. */
     int STOP_REASON_REBOOT = 5;
