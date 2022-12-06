@@ -567,6 +567,12 @@ avb_add_hash_footer {
             enabled: true,
         },
     },
+    props: [
+        {
+            name: "trusted_ramdisk",
+            file: ":microdroid_initrd_hashes",
+        },
+    ],
 }
 
 prebuilt_etc {
