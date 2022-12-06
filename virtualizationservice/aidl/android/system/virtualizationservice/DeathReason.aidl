@@ -29,7 +29,7 @@ enum DeathReason {
     /** The VM requested to shut down. */
     SHUTDOWN = 3,
     /** crosvm had an error starting the VM. */
-    ERROR = 4,
+    START_FAILED = 4,
     /** The VM requested to reboot, possibly as the result of a kernel panic. */
     REBOOT = 5,
     /** The VM or crosvm crashed. */

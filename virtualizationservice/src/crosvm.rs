@@ -62,7 +62,7 @@ const CROSVM_PATH: &str = "/apex/com.android.virt/bin/crosvm";
 const CROSVM_PLATFORM_VERSION: &str = "1.0.0";
 
 /// The exit status which crosvm returns when it has an error starting a VM.
-const CROSVM_ERROR_STATUS: i32 = 1;
+const CROSVM_START_ERROR_STATUS: i32 = 1;
 /// The exit status which crosvm returns when a VM requests a reboot.
 const CROSVM_REBOOT_STATUS: i32 = 32;
 /// The exit status which crosvm returns when it crashes due to an error.
@@ -637,7 +637,7 @@ fn death_reason(result: &Result<ExitStatus, io::Error>, mut failure_reason: &str
         match status.code() {
             None => DeathReason::KILLED,
             Some(0) => DeathReason::SHUTDOWN,
-            Some(CROSVM_ERROR_STATUS) => DeathReason::ERROR,
+            Some(CROSVM_START_ERROR_STATUS) => DeathReason::START_FAILED,
             Some(CROSVM_REBOOT_STATUS) => DeathReason::REBOOT,
             Some(CROSVM_CRASH_STATUS) => DeathReason::CRASH,
             Some(CROSVM_WATCHDOG_REBOOT_STATUS) => DeathReason::WATCHDOG_REBOOT,
