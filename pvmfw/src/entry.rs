@@ -32,7 +32,7 @@ use log::LevelFilter;
 use vmbase::{console, layout, logger, main, power::reboot};
 
 #[derive(Debug, Clone)]
-pub(crate) enum RebootReason {
+pub enum RebootReason {
     /// A malformed BCC was received.
     InvalidBcc,
     /// An invalid configuration was appended to pvmfw.
@@ -243,10 +243,15 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     let slices = MemorySlices::new(fdt, payload, payload_size, &mut memory)?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc)?;
+    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc, &mut memory)?;
 
     // TODO: Overwrite BCC before jumping to payload to avoid leaking our sealing key.
 
+    info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
+    memory.mmio_unmap_all().map_err(|e| {
+        error!("Failed to unshare MMIO ranges: {e}");
+        RebootReason::InternalError
+    })?;
     mmio_guard::unmap(console::BASE_ADDRESS).map_err(|e| {
         error!("Failed to unshare the UART: {e}");
         RebootReason::InternalError
