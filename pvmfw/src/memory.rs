@@ -134,20 +134,24 @@ impl MemoryTracker {
 
     /// Allocate the address range for a const slice; returns None if failed.
     pub fn alloc_range(&mut self, range: &MemoryRange) -> Result<MemoryRange> {
+        let region = MemoryRegion { range: range.clone(), mem_type: MemoryType::ReadOnly };
+        self.check(&region)?;
         self.page_table.map_rodata(range).map_err(|e| {
             error!("Error during range allocation: {e}");
             MemoryTrackerError::FailedToMap
         })?;
-        self.add(MemoryRegion { range: range.clone(), mem_type: MemoryType::ReadOnly })
+        self.add(region)
     }
 
     /// Allocate the address range for a mutable slice; returns None if failed.
     pub fn alloc_range_mut(&mut self, range: &MemoryRange) -> Result<MemoryRange> {
+        let region = MemoryRegion { range: range.clone(), mem_type: MemoryType::ReadWrite };
+        self.check(&region)?;
         self.page_table.map_data(range).map_err(|e| {
             error!("Error during mutable range allocation: {e}");
             MemoryTrackerError::FailedToMap
         })?;
-        self.add(MemoryRegion { range: range.clone(), mem_type: MemoryType::ReadWrite })
+        self.add(region)
     }
 
     /// Allocate the address range for a const slice; returns None if failed.
@@ -160,13 +164,23 @@ impl MemoryTracker {
         self.alloc_range_mut(&(base..(base + size.get())))
     }
 
-    fn add(&mut self, region: MemoryRegion) -> Result<MemoryRange> {
+    /// Checks that the given region is within the range of the `MemoryTracker` and doesn't overlap
+    /// with any other previously allocated regions, and that the regions ArrayVec has capacity to
+    /// add it.
+    fn check(&self, region: &MemoryRegion) -> Result<()> {
         if !region.is_within(&self.total) {
             return Err(MemoryTrackerError::OutOfRange);
         }
-        if self.regions.iter().any(|r| r.overlaps(region.as_ref())) {
+        if self.regions.iter().any(|r| r.overlaps(&region.range)) {
             return Err(MemoryTrackerError::Overlaps);
         }
+        if self.regions.len() == self.regions.capacity() {
+            return Err(MemoryTrackerError::Full);
+        }
+        Ok(())
+    }
+
+    fn add(&mut self, region: MemoryRegion) -> Result<MemoryRange> {
         if self.regions.try_push(region).is_some() {
             return Err(MemoryTrackerError::Full);
         }
