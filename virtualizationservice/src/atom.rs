@@ -165,6 +165,7 @@ pub fn write_vm_exited_stats(
     uid: i32,
     vm_identifier: &str,
     reason: DeathReason,
+    exit_signal: Option<i32>,
     vm_metric: &VmMetric,
 ) {
     let vm_identifier = vm_identifier.to_owned();
@@ -218,6 +219,7 @@ pub fn write_vm_exited_stats(
             guest_time_millis,
             rss_vm_kb: rss.vm,
             rss_crosvm_kb: rss.crosvm,
+            exit_signal: exit_signal.unwrap_or_default(),
         };
         wait_for_statsd().unwrap_or_else(|e| warn!("failed to wait for statsd with error: {}", e));
         match vm_exited.stats_write() {
