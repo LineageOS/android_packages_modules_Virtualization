@@ -16,7 +16,7 @@
 
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
-        VirtualMachineConfig::VirtualMachineConfig,
+        DiskImage::DiskImage, VirtualMachineConfig::VirtualMachineConfig,
         VirtualMachineRawConfig::VirtualMachineRawConfig,
     },
     binder::{ParcelFileDescriptor, ProcessState},
@@ -25,7 +25,7 @@ use anyhow::{Context, Error};
 use log::info;
 use std::{
     fs::File,
-    io::{self, BufRead, BufReader},
+    io::{self, BufRead, BufReader, Write},
     os::unix::io::FromRawFd,
     panic, thread,
 };
@@ -33,6 +33,7 @@ use vmclient::{DeathReason, VmInstance};
 
 const VMBASE_EXAMPLE_PATH: &str =
     "/data/local/tmp/vmbase_example.integration_test/arm64/vmbase_example.bin";
+const TEST_DISK_IMAGE_PATH: &str = "/data/local/tmp/vmbase_example.integration_test/test_disk.img";
 
 /// Runs the vmbase_example VM as an unprotected VM via VirtualizationService.
 #[test]
@@ -57,13 +58,28 @@ fn test_run_example_vm() -> Result<(), Error> {
             .with_context(|| format!("Failed to open VM image {}", VMBASE_EXAMPLE_PATH))?,
     );
 
+    // Make file for test disk image.
+    let mut test_image = File::options()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(true)
+        .open(TEST_DISK_IMAGE_PATH)
+        .with_context(|| format!("Failed to open test disk image {}", TEST_DISK_IMAGE_PATH))?;
+    // Write 4 sectors worth of 4-byte numbers counting up.
+    for i in 0u32..512 {
+        test_image.write_all(&i.to_le_bytes())?;
+    }
+    let test_image = ParcelFileDescriptor::new(test_image);
+    let disk_image = DiskImage { image: Some(test_image), writable: false, partitions: vec![] };
+
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
         name: String::from("VmBaseTest"),
         kernel: None,
         initrd: None,
         params: None,
         bootloader: Some(bootloader),
-        disks: vec![],
+        disks: vec![disk_image],
         protectedVm: false,
         memoryMib: 300,
         numCpus: 1,
