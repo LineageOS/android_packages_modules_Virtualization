@@ -16,7 +16,7 @@
 
 use aarch64_paging::paging::MemoryRegion;
 use alloc::alloc::{alloc, dealloc, Layout};
-use core::ffi::CStr;
+use core::{ffi::CStr, mem::size_of};
 use libfdt::{Fdt, FdtNode, Reg};
 use log::{debug, info};
 use virtio_drivers::{
@@ -28,7 +28,10 @@ use virtio_drivers::{
 };
 
 /// The standard sector size of a VirtIO block device, in bytes.
-const SECTOR_SIZE_BYTES: u64 = 512;
+const SECTOR_SIZE_BYTES: usize = 512;
+
+/// The size in sectors of the test block device we expect.
+const EXPECTED_SECTOR_COUNT: usize = 4;
 
 /// Finds an FDT node with compatible=pci-host-cam-generic.
 pub fn pci_node(fdt: &Fdt) -> FdtNode {
@@ -40,6 +43,7 @@ pub fn pci_node(fdt: &Fdt) -> FdtNode {
 
 pub fn check_pci(reg: Reg<u64>, allocator: &mut PciMemory32Allocator) {
     let mut pci_root = unsafe { PciRoot::new(reg.addr as *mut u8, Cam::MmioCam) };
+    let mut checked_virtio_device_count = 0;
     for (device_function, info) in pci_root.enumerate_bus(0) {
         let (status, command) = pci_root.get_status_command(device_function);
         info!("Found {} at {}, status {:?} command {:?}", info, device_function, status, command);
@@ -53,15 +57,35 @@ pub fn check_pci(reg: Reg<u64>, allocator: &mut PciMemory32Allocator) {
                 transport.device_type(),
                 transport.read_device_features(),
             );
-            instantiate_virtio_driver(transport, virtio_type);
+            if check_virtio_device(transport, virtio_type) {
+                checked_virtio_device_count += 1;
+            }
         }
     }
+
+    assert_eq!(checked_virtio_device_count, 1);
 }
 
-fn instantiate_virtio_driver(transport: impl Transport, device_type: DeviceType) {
+/// Checks the given VirtIO device, if we know how to.
+///
+/// Returns true if the device was checked, or false if it was ignored.
+fn check_virtio_device(transport: impl Transport, device_type: DeviceType) -> bool {
     if device_type == DeviceType::Block {
-        let blk = VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
-        info!("Found {} KiB block device.", blk.capacity() * SECTOR_SIZE_BYTES / 1024);
+        let mut blk = VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
+        info!("Found {} KiB block device.", blk.capacity() * SECTOR_SIZE_BYTES as u64 / 1024);
+        assert_eq!(blk.capacity(), EXPECTED_SECTOR_COUNT as u64);
+        let mut data = [0; SECTOR_SIZE_BYTES * EXPECTED_SECTOR_COUNT];
+        for i in 0..EXPECTED_SECTOR_COUNT {
+            blk.read_block(i, &mut data[i * SECTOR_SIZE_BYTES..(i + 1) * SECTOR_SIZE_BYTES])
+                .expect("Failed to read block device.");
+        }
+        for (i, chunk) in data.chunks(size_of::<u32>()).enumerate() {
+            assert_eq!(chunk, &(i as u32).to_le_bytes());
+        }
+        info!("Read expected data from block device.");
+        true
+    } else {
+        false
     }
 }
 
