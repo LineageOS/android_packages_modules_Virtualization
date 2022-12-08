@@ -105,7 +105,6 @@ fn mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
     args[0] = ipa;
 
     // TODO(b/251426790): pKVM currently returns NOT_SUPPORTED for SUCCESS.
-    info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     match smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID, args) {
         Err(smccc::Error::NotSupported) | Ok(_) => Ok(()),
         x => x,
