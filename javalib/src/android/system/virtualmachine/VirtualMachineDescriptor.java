@@ -19,6 +19,7 @@ package android.system.virtualmachine;
 import static java.util.Objects.requireNonNull;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
@@ -37,7 +38,9 @@ import android.os.Parcelable;
 public final class VirtualMachineDescriptor implements Parcelable {
     @NonNull private final ParcelFileDescriptor mConfigFd;
     @NonNull private final ParcelFileDescriptor mInstanceImgFd;
-    // TODO(b/243129654): Add trusted storage fd once it is available.
+    // File descriptor of the image backing the encrypted storage - Will be null if encrypted
+    // storage is not enabled. */
+    @Nullable private final ParcelFileDescriptor mEncryptedStoreFd;
 
     @Override
     public int describeContents() {
@@ -48,6 +51,7 @@ public final class VirtualMachineDescriptor implements Parcelable {
     public void writeToParcel(@NonNull Parcel out, int flags) {
         mConfigFd.writeToParcel(out, flags);
         mInstanceImgFd.writeToParcel(out, flags);
+        if (mEncryptedStoreFd != null) mEncryptedStoreFd.writeToParcel(out, flags);
     }
 
     @NonNull
@@ -78,14 +82,27 @@ public final class VirtualMachineDescriptor implements Parcelable {
         return mInstanceImgFd;
     }
 
+    /**
+     * @return File descriptor of image backing the encrypted storage.
+     *     <p>This method will return null if encrypted storage is not enabled.
+     */
+    @Nullable
+    ParcelFileDescriptor getEncryptedStoreFd() {
+        return mEncryptedStoreFd;
+    }
+
     VirtualMachineDescriptor(
-            @NonNull ParcelFileDescriptor configFd, @NonNull ParcelFileDescriptor instanceImgFd) {
+            @NonNull ParcelFileDescriptor configFd,
+            @NonNull ParcelFileDescriptor instanceImgFd,
+            @Nullable ParcelFileDescriptor encryptedStoreFd) {
         mConfigFd = configFd;
         mInstanceImgFd = instanceImgFd;
+        mEncryptedStoreFd = encryptedStoreFd;
     }
 
     private VirtualMachineDescriptor(Parcel in) {
         mConfigFd = requireNonNull(in.readFileDescriptor());
         mInstanceImgFd = requireNonNull(in.readFileDescriptor());
+        mEncryptedStoreFd = in.readFileDescriptor();
     }
 }

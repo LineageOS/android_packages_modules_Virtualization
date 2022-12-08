@@ -363,6 +363,16 @@ public class VirtualMachine implements AutoCloseable {
                 throw new VirtualMachineException("failed to create instance image", e);
             }
             vm.importInstanceFrom(vmDescriptor.getInstanceImgFd());
+
+            if (vmDescriptor.getEncryptedStoreFd() != null) {
+                try {
+                    vm.mEncryptedStoreFilePath.createNewFile();
+                } catch (IOException e) {
+                    throw new VirtualMachineException(
+                            "failed to create encrypted storage image", e);
+                }
+                vm.importEncryptedStoreFrom(vmDescriptor.getEncryptedStoreFd());
+            }
             return vm;
         } catch (VirtualMachineException | RuntimeException e) {
             // If anything goes wrong, delete any files created so far and the VM's directory
@@ -1044,7 +1054,10 @@ public class VirtualMachine implements AutoCloseable {
             try {
                 return new VirtualMachineDescriptor(
                         ParcelFileDescriptor.open(mConfigFilePath, MODE_READ_ONLY),
-                        ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_ONLY));
+                        ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_ONLY),
+                        mEncryptedStoreFilePath != null
+                                ? ParcelFileDescriptor.open(mEncryptedStoreFilePath, MODE_READ_ONLY)
+                                : null);
             } catch (IOException e) {
                 throw new VirtualMachineException(e);
             }
@@ -1208,6 +1221,16 @@ public class VirtualMachine implements AutoCloseable {
             instance.transferFrom(instanceInput, /*position=*/ 0, instanceInput.size());
         } catch (IOException e) {
             throw new VirtualMachineException("failed to transfer instance image", e);
+        }
+    }
+
+    private void importEncryptedStoreFrom(@NonNull ParcelFileDescriptor encryptedStoreFd)
+            throws VirtualMachineException {
+        try (FileChannel storeOutput = new FileOutputStream(mEncryptedStoreFilePath).getChannel();
+                FileChannel storeInput = new AutoCloseInputStream(encryptedStoreFd).getChannel()) {
+            storeOutput.transferFrom(storeInput, /*position=*/ 0, storeInput.size());
+        } catch (IOException e) {
+            throw new VirtualMachineException("failed to transfer encryptedstore image", e);
         }
     }
 }
