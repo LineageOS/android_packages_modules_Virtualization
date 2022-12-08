@@ -405,7 +405,6 @@ pub fn add_microdroid_system_images(
 ) -> Result<()> {
     let debug_suffix = match config.debugLevel {
         DebugLevel::NONE => "normal",
-        DebugLevel::APP_ONLY => "app_debuggable",
         DebugLevel::FULL => "full_debuggable",
         _ => return Err(anyhow!("unsupported debug level: {:?}", config.debugLevel)),
     };
