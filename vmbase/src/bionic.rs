@@ -12,26 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Basic functionality for bare-metal binaries to run in a VM under crosvm.
+//! Low-level compatibility layer between baremetal Rust and Bionic C functions.
 
-#![no_std]
+use crate::linker;
 
-mod bionic;
-pub mod console;
-mod entry;
-pub mod layout;
-mod linker;
-pub mod logger;
-pub mod power;
-pub mod uart;
+/// Reference to __stack_chk_guard.
+pub static STACK_CHK_GUARD: &u64 = unsafe { &linker::__stack_chk_guard };
 
-pub use bionic::STACK_CHK_GUARD;
-
-use core::panic::PanicInfo;
-use power::reboot;
-
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    eprintln!("{}", info);
-    reboot()
+#[no_mangle]
+extern "C" fn __stack_chk_fail() -> ! {
+    panic!("stack guard check failed");
 }
