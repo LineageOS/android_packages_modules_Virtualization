@@ -250,6 +250,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     crate::main(slices.fdt, slices.kernel, slices.ramdisk, &bcc, &mut memory)?;
 
     helpers::flushed_zeroize(bcc_slice);
+    helpers::flush(slices.fdt.as_slice());
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     memory.mmio_unmap_all().map_err(|e| {

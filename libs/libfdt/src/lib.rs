@@ -557,6 +557,11 @@ impl Fdt {
         Ok(self.path_offset(path)?.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
+    /// Return the device tree as a slice (may be smaller than the containing buffer).
+    pub fn as_slice(&self) -> &[u8] {
+        &self.buffer[..self.totalsize()]
+    }
+
     fn path_offset(&self, path: &CStr) -> Result<Option<c_int>> {
         let len = path.to_bytes().len().try_into().map_err(|_| FdtError::BadPath)?;
         // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) and the
@@ -590,5 +595,14 @@ impl Fdt {
 
     fn capacity(&self) -> usize {
         self.buffer.len()
+    }
+
+    fn header(&self) -> &libfdt_bindgen::fdt_header {
+        // SAFETY - A valid FDT (verified by constructor) must contain a valid fdt_header.
+        unsafe { &*(&self as *const _ as *const libfdt_bindgen::fdt_header) }
+    }
+
+    fn totalsize(&self) -> usize {
+        u32::from_be(self.header().totalsize) as usize
     }
 }

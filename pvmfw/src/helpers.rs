@@ -91,8 +91,14 @@ pub fn flush_region(start: usize, size: usize) {
 }
 
 #[inline]
+/// Flushes the slice to the point of unification.
+pub fn flush(reg: &[u8]) {
+    flush_region(reg.as_ptr() as usize, reg.len())
+}
+
+#[inline]
 /// Overwrites the slice with zeroes, to the point of unification.
 pub fn flushed_zeroize(reg: &mut [u8]) {
     reg.zeroize();
-    flush_region(reg.as_ptr() as usize, reg.len())
+    flush(reg)
 }
