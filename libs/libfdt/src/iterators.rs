@@ -178,16 +178,13 @@ impl FromAddrCells for u64 {
     }
 }
 
-impl FromAddrCells for u128 {
+impl FromAddrCells for (u32, u64) {
     fn from_addr_cells(cells: &mut CellIterator, cell_count: AddrCells) -> Option<Self> {
         Some(match cell_count {
-            AddrCells::Single => cells.next()?.into(),
-            AddrCells::Double => (cells.next()? as Self) << 32 | cells.next()? as Self,
             AddrCells::Triple => {
-                (cells.next()? as Self) << 64
-                    | (cells.next()? as Self) << 32
-                    | cells.next()? as Self
+                (cells.next()?, (cells.next()? as u64) << 32 | cells.next()? as u64)
             }
+            _ => panic!("Invalid addr_cells {:?} for (u32, u64)", cell_count),
         })
     }
 }

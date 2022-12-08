@@ -32,11 +32,7 @@ mod mmu;
 mod pci;
 mod smccc;
 
-use crate::{
-    entry::RebootReason,
-    memory::MemoryTracker,
-    pci::{map_cam, pci_node},
-};
+use crate::{entry::RebootReason, memory::MemoryTracker, pci::PciInfo};
 use avb::PUBLIC_KEY;
 use avb_nostd::verify_image;
 use libfdt::Fdt;
@@ -60,8 +56,9 @@ fn main(
     debug!("BCC: {:?} ({:#x} bytes)", bcc.as_ptr(), bcc.len());
 
     // Set up PCI bus for VirtIO devices.
-    let pci_node = pci_node(fdt)?;
-    map_cam(&pci_node, memory)?;
+    let pci_info = PciInfo::from_fdt(fdt)?;
+    info!("PCI: {:#x?}", pci_info);
+    pci_info.map(memory)?;
 
     verify_image(signed_kernel, PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");
