@@ -20,6 +20,8 @@ use zeroize::Zeroize;
 pub const SIZE_4KB: usize = 4 << 10;
 pub const SIZE_2MB: usize = 2 << 20;
 
+pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
+
 /// Computes the largest multiple of the provided alignment smaller or equal to the address.
 ///
 /// Note: the result is undefined if alignment isn't a power of two.

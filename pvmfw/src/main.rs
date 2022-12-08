@@ -21,6 +21,7 @@
 
 mod avb;
 mod config;
+mod dice;
 mod entry;
 mod exceptions;
 mod fdt;
@@ -35,15 +36,19 @@ mod smccc;
 
 use crate::{
     avb::PUBLIC_KEY,
+    dice::derive_next_bcc,
     entry::RebootReason,
+    helpers::GUEST_PAGE_SIZE,
     memory::MemoryTracker,
     pci::{find_virtio_devices, map_mmio},
 };
-use dice::bcc;
+use ::dice::bcc;
 use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
 use pvmfw_avb::verify_payload;
+
+const NEXT_BCC_SIZE: usize = GUEST_PAGE_SIZE;
 
 fn main(
     fdt: &Fdt,
@@ -76,6 +81,32 @@ fn main(
         error!("Failed to verify the payload: {e}");
         RebootReason::PayloadVerificationError
     })?;
+
+    let mut scratch_bcc = [0; NEXT_BCC_SIZE];
+    let next_bcc = &mut scratch_bcc; // TODO(b/256827715): Pass result BCC to next stage.
+    let debug_mode = false; // TODO(b/256148034): Derive the DICE mode from the received initrd.
+    const HASH_SIZE: usize = 64;
+    let mut hashes = [0; HASH_SIZE * 2]; // TODO(b/256148034): Extract AvbHashDescriptor digests.
+    hashes[..HASH_SIZE].copy_from_slice(&::dice::hash(signed_kernel).map_err(|_| {
+        error!("Failed to hash the kernel");
+        RebootReason::InternalError
+    })?);
+    // Note: Using signed_kernel currently makes the DICE code input depend on its VBMeta fields.
+    let code_hash = if let Some(rd) = ramdisk {
+        hashes[HASH_SIZE..].copy_from_slice(&::dice::hash(rd).map_err(|_| {
+            error!("Failed to hash the ramdisk");
+            RebootReason::InternalError
+        })?);
+        &hashes[..]
+    } else {
+        &hashes[..HASH_SIZE]
+    };
+    let next_bcc_size =
+        derive_next_bcc(bcc, next_bcc, code_hash, debug_mode, PUBLIC_KEY).map_err(|e| {
+            error!("Failed to derive next-stage DICE secrets: {e:?}");
+            RebootReason::SecretDerivationError
+        })?;
+    trace!("Next BCC: {:x?}", bcc::Handover::new(&next_bcc[..next_bcc_size]));
 
     info!("Starting payload...");
     Ok(())

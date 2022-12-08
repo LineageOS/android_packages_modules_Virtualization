@@ -48,6 +48,8 @@ pub enum RebootReason {
     InvalidRamdisk,
     /// Failed to verify the payload.
     PayloadVerificationError,
+    /// DICE layering process failed.
+    SecretDerivationError,
 }
 
 main!(start);
