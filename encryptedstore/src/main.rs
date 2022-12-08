@@ -137,7 +137,10 @@ fn format_ext4(device: &Path) -> Result<()> {
 
 fn mount(source: &Path, mountpoint: &Path) -> Result<()> {
     create_dir_all(mountpoint).context(format!("Failed to create {:?}", &mountpoint))?;
-    let mount_options = CString::new("").unwrap();
+    let mount_options = CString::new(
+        "fscontext=u:object_r:encryptedstore_fs:s0,context=u:object_r:encryptedstore_file:s0",
+    )
+    .unwrap();
     let source = CString::new(source.as_os_str().as_bytes())?;
     let mountpoint = CString::new(mountpoint.as_os_str().as_bytes())?;
     let fstype = CString::new("ext4").unwrap();
