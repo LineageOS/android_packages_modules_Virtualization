@@ -18,16 +18,23 @@
 
 #![no_std]
 
-use core::fmt::{self, Debug};
-use open_dice_cbor_bindgen::{
-    DiceHash, DiceResult, DiceResult_kDiceResultBufferTooSmall as DICE_RESULT_BUFFER_TOO_SMALL,
-    DiceResult_kDiceResultInvalidInput as DICE_RESULT_INVALID_INPUT,
-    DiceResult_kDiceResultOk as DICE_RESULT_OK,
-    DiceResult_kDiceResultPlatformError as DICE_RESULT_PLATFORM_ERROR,
-};
+use core::fmt;
+use core::result;
 
+use open_dice_cbor_bindgen::DiceHash;
+use open_dice_cbor_bindgen::DiceResult;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultBufferTooSmall as DICE_RESULT_BUFFER_TOO_SMALL;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultInvalidInput as DICE_RESULT_INVALID_INPUT;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultOk as DICE_RESULT_OK;
+use open_dice_cbor_bindgen::DiceResult_kDiceResultPlatformError as DICE_RESULT_PLATFORM_ERROR;
+
+pub mod bcc;
+
+const CDI_SIZE: usize = open_dice_cbor_bindgen::DICE_CDI_SIZE as usize;
 const HASH_SIZE: usize = open_dice_cbor_bindgen::DICE_HASH_SIZE as usize;
 
+/// Array type of CDIs.
+pub type Cdi = [u8; CDI_SIZE];
 /// Array type of hashes used by DICE.
 pub type Hash = [u8; HASH_SIZE];
 
@@ -43,7 +50,7 @@ pub enum Error {
     Unknown(DiceResult),
 }
 
-impl Debug for Error {
+impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::InvalidInput => write!(f, "invalid input"),
@@ -54,7 +61,10 @@ impl Debug for Error {
     }
 }
 
-fn check_call(ret: DiceResult) -> Result<(), Error> {
+/// Result of DICE functions.
+pub type Result<T> = result::Result<T, Error>;
+
+fn check_call(ret: DiceResult) -> Result<()> {
     match ret {
         DICE_RESULT_OK => Ok(()),
         DICE_RESULT_INVALID_INPUT => Err(Error::InvalidInput),
@@ -69,7 +79,7 @@ fn ctx() -> *mut core::ffi::c_void {
 }
 
 /// Hash the provided input using DICE's default hash function.
-pub fn hash(bytes: &[u8]) -> Result<Hash, Error> {
+pub fn hash(bytes: &[u8]) -> Result<Hash> {
     let mut output: Hash = [0; HASH_SIZE];
     // SAFETY - DiceHash takes a sized input buffer and writes to a constant-sized output buffer.
     check_call(unsafe { DiceHash(ctx(), bytes.as_ptr(), bytes.len(), output.as_mut_ptr()) })?;

@@ -24,6 +24,7 @@ use crate::mmu;
 use core::arch::asm;
 use core::num::NonZeroUsize;
 use core::slice;
+use dice::bcc::Handover;
 use log::debug;
 use log::error;
 use log::info;
@@ -228,8 +229,9 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
         RebootReason::InvalidConfig
     })?;
 
-    let bcc = appended.get_bcc_mut().ok_or_else(|| {
-        error!("Invalid BCC");
+    let bcc_slice = appended.get_bcc_mut();
+    let bcc = Handover::new(bcc_slice).map_err(|e| {
+        error!("Invalid BCC Handover: {e:?}");
         RebootReason::InvalidBcc
     })?;
 
@@ -243,7 +245,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
     let slices = MemorySlices::new(fdt, payload, payload_size, &mut memory)?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc, &mut memory)?;
+    crate::main(slices.fdt, slices.kernel, slices.ramdisk, &bcc, &mut memory)?;
 
     // TODO: Overwrite BCC before jumping to payload to avoid leaking our sealing key.
 
@@ -366,12 +368,10 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    fn get_bcc_mut(&mut self) -> Option<&mut [u8]> {
-        let bcc = match self {
+    fn get_bcc_mut(&mut self) -> &mut [u8] {
+        match self {
             Self::LegacyBcc(ref mut bcc) => bcc,
             Self::Config(ref mut cfg) => cfg.get_bcc_mut(),
-        };
-        // TODO(b/256148034): return None if BccHandoverParse(bcc) != kDiceResultOk.
-        Some(bcc)
+        }
     }
 }
