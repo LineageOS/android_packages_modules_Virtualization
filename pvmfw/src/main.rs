@@ -39,14 +39,15 @@ use crate::{
 };
 use avb::PUBLIC_KEY;
 use avb_nostd::verify_image;
+use dice::bcc;
 use libfdt::Fdt;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 fn main(
     fdt: &Fdt,
     signed_kernel: &[u8],
     ramdisk: Option<&[u8]>,
-    bcc: &[u8],
+    bcc: &bcc::Handover,
     memory: &mut MemoryTracker,
 ) -> Result<(), RebootReason> {
     info!("pVM firmware");
@@ -57,7 +58,7 @@ fn main(
     } else {
         debug!("Ramdisk: None");
     }
-    debug!("BCC: {:?} ({:#x} bytes)", bcc.as_ptr(), bcc.len());
+    trace!("BCC: {bcc:x?}");
 
     // Set up PCI bus for VirtIO devices.
     let pci_node = pci_node(fdt)?;
