@@ -115,6 +115,24 @@ fn next_guest_cid(cid: Cid) -> Cid {
     }
 }
 
+fn create_or_update_idsig_file(
+    input_fd: &ParcelFileDescriptor,
+    idsig_fd: &ParcelFileDescriptor,
+) -> Result<()> {
+    let mut input = clone_file(input_fd)?;
+    let metadata = input.metadata().context("failed to get input metadata")?;
+    if !metadata.is_file() {
+        bail!("input is not a regular file");
+    }
+    let mut sig = V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256)
+        .context("failed to create idsig")?;
+
+    let mut output = clone_file(idsig_fd)?;
+    output.set_len(0).unwrap();
+    sig.write_into(&mut output).unwrap();
+    Ok(())
+}
+
 /// Singleton service for allocating globally-unique VM resources, such as the CID, and running
 /// singleton servers, like tombstone receiver.
 #[derive(Debug, Default)]
@@ -345,12 +363,8 @@ impl IVirtualizationService for VirtualizationService {
 
         check_manage_access()?;
 
-        let mut input = clone_file(input_fd)?;
-        let mut sig = V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256).unwrap();
-
-        let mut output = clone_file(idsig_fd)?;
-        output.set_len(0).unwrap();
-        sig.write_into(&mut output).unwrap();
+        create_or_update_idsig_file(input_fd, idsig_fd)
+            .map_err(|e| Status::new_service_specific_error_str(-1, Some(format!("{:?}", e))))?;
         Ok(())
     }
 
@@ -1301,6 +1315,52 @@ mod tests {
                 bail!("Expected label {} to be disallowed", label);
             }
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_or_update_idsig_file_empty_apk() -> Result<()> {
+        let apk = tempfile::tempfile().unwrap();
+        let idsig = tempfile::tempfile().unwrap();
+
+        let ret = create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk),
+            &ParcelFileDescriptor::new(idsig),
+        );
+        assert!(ret.is_err(), "should fail");
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_or_update_idsig_dir_instead_of_file_for_apk() -> Result<()> {
+        let tmp_dir = tempfile::TempDir::new().unwrap();
+        let apk = File::open(tmp_dir.path()).unwrap();
+        let idsig = tempfile::tempfile().unwrap();
+
+        let ret = create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk),
+            &ParcelFileDescriptor::new(idsig),
+        );
+        assert!(ret.is_err(), "should fail");
+        Ok(())
+    }
+
+    /// Verifies that create_or_update_idsig_file won't oom if a fd that corresponds to a directory
+    /// on ext4 filesystem is passed.
+    /// On ext4 lseek on a directory fd will return (off_t)-1 (see:
+    /// https://bugzilla.kernel.org/show_bug.cgi?id=200043), which will result in
+    /// create_or_update_idsig_file ooming while attempting to allocate petabytes of memory.
+    #[test]
+    fn test_create_or_update_idsig_does_not_crash_dir_on_ext4() -> Result<()> {
+        // APEXes are backed by the ext4.
+        let apk = File::open("/apex/com.android.virt/").unwrap();
+        let idsig = tempfile::tempfile().unwrap();
+
+        let ret = create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk),
+            &ParcelFileDescriptor::new(idsig),
+        );
+        assert!(ret.is_err(), "should fail");
         Ok(())
     }
 }
