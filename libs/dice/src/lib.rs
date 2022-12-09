@@ -19,6 +19,7 @@
 #![no_std]
 
 use core::fmt;
+use core::result;
 
 use open_dice_cbor_bindgen::DiceHash;
 use open_dice_cbor_bindgen::DiceResult;
@@ -55,7 +56,10 @@ impl fmt::Debug for Error {
     }
 }
 
-fn check_call(ret: DiceResult) -> Result<(), Error> {
+/// Result of DICE functions.
+pub type Result<T> = result::Result<T, Error>;
+
+fn check_call(ret: DiceResult) -> Result<()> {
     match ret {
         DICE_RESULT_OK => Ok(()),
         DICE_RESULT_INVALID_INPUT => Err(Error::InvalidInput),
@@ -70,7 +74,7 @@ fn ctx() -> *mut core::ffi::c_void {
 }
 
 /// Hash the provided input using DICE's default hash function.
-pub fn hash(bytes: &[u8]) -> Result<Hash, Error> {
+pub fn hash(bytes: &[u8]) -> Result<Hash> {
     let mut output: Hash = [0; HASH_SIZE];
     // SAFETY - DiceHash takes a sized input buffer and writes to a constant-sized output buffer.
     check_call(unsafe { DiceHash(ctx(), bytes.as_ptr(), bytes.len(), output.as_mut_ptr()) })?;
