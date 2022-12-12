@@ -26,7 +26,7 @@ use core::result;
 use log::error;
 use tinyvec::ArrayVec;
 
-type MemoryRange = Range<usize>;
+pub type MemoryRange = Range<usize>;
 
 #[derive(Clone, Copy, Debug, Default)]
 enum MemoryType {
