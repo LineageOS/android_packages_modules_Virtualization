@@ -70,7 +70,6 @@ public final class VirtualMachineConfig {
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(prefix = "DEBUG_LEVEL_", value = {
             DEBUG_LEVEL_NONE,
-            DEBUG_LEVEL_APP_ONLY,
             DEBUG_LEVEL_FULL
     })
     public @interface DebugLevel {}
@@ -84,20 +83,12 @@ public final class VirtualMachineConfig {
     @SystemApi public static final int DEBUG_LEVEL_NONE = 0;
 
     /**
-     * Only the app is debuggable. Log from the app is exported from the VM. Debugger can be
-     * attached to the app process. Rest of the VM is not debuggable.
-     *
-     * @hide
-     */
-    @SystemApi public static final int DEBUG_LEVEL_APP_ONLY = 1;
-
-    /**
      * Fully debuggable. All logs (both logcat and kernel message) are exported. All processes
      * running in the VM can be attached to the debugger. Rooting is possible.
      *
      * @hide
      */
-    @SystemApi public static final int DEBUG_LEVEL_FULL = 2;
+    @SystemApi public static final int DEBUG_LEVEL_FULL = 1;
 
     /** Absolute path to the APK file containing the VM payload. */
     @NonNull private final String mApkPath;
@@ -152,8 +143,7 @@ public final class VirtualMachineConfig {
                     + "range [1, " + availableCpus + "]");
         }
 
-        if (debugLevel != DEBUG_LEVEL_NONE && debugLevel != DEBUG_LEVEL_APP_ONLY
-                && debugLevel != DEBUG_LEVEL_FULL) {
+        if (debugLevel != DEBUG_LEVEL_NONE && debugLevel != DEBUG_LEVEL_FULL) {
             throw new IllegalArgumentException("Invalid debugLevel: " + debugLevel);
         }
 
@@ -230,8 +220,7 @@ public final class VirtualMachineConfig {
             }
         }
         @DebugLevel int debugLevel = b.getInt(KEY_DEBUGLEVEL);
-        if (debugLevel != DEBUG_LEVEL_NONE && debugLevel != DEBUG_LEVEL_APP_ONLY
-                && debugLevel != DEBUG_LEVEL_FULL) {
+        if (debugLevel != DEBUG_LEVEL_NONE && debugLevel != DEBUG_LEVEL_FULL) {
             throw new VirtualMachineException("Invalid debugLevel: " + debugLevel);
         }
         boolean protectedVm = b.getBoolean(KEY_PROTECTED_VM);
@@ -384,9 +373,6 @@ public final class VirtualMachineConfig {
                     VirtualMachineAppConfig.Payload.configPath(mPayloadConfigPath);
         }
         switch (mDebugLevel) {
-            case DEBUG_LEVEL_APP_ONLY:
-                vsConfig.debugLevel = VirtualMachineAppConfig.DebugLevel.APP_ONLY;
-                break;
             case DEBUG_LEVEL_FULL:
                 vsConfig.debugLevel = VirtualMachineAppConfig.DebugLevel.FULL;
                 break;

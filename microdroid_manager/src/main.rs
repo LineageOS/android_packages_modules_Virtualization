@@ -76,7 +76,7 @@ const DEBUG_MICRODROID_NO_VERIFIED_BOOT: &str =
     "/sys/firmware/devicetree/base/virtualization/guest/debug-microdroid,no-verified-boot";
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
-const APP_DEBUGGABLE_PROP: &str = "ro.boot.microdroid.app_debuggable";
+const DEBUGGABLE_PROP: &str = "ro.boot.microdroid.debuggable";
 const APK_MOUNT_DONE_PROP: &str = "microdroid_manager.apk.mounted";
 
 // SYNC WITH virtualizationservice/src/crosvm.rs
@@ -167,7 +167,7 @@ fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
 
 fn main() -> Result<()> {
     // If debuggable, print full backtrace to console log with stdio_to_kmsg
-    if system_properties::read_bool(APP_DEBUGGABLE_PROP, true)? {
+    if system_properties::read_bool(DEBUGGABLE_PROP, true)? {
         env::set_var("RUST_BACKTRACE", "full");
     }
 
@@ -281,12 +281,12 @@ fn dice_derivation(
         }
     }
 
-    // Check app debuggability, conervatively assuming it is debuggable
-    let app_debuggable = system_properties::read_bool(APP_DEBUGGABLE_PROP, true)?;
+    // Check debuggability, conservatively assuming it is debuggable
+    let debuggable = system_properties::read_bool(DEBUGGABLE_PROP, true)?;
 
     // Send the details to diced
     let hidden = verified_data.salt.clone().try_into().unwrap();
-    dice.derive(code_hash, &config_desc, authority_hash, app_debuggable, hidden)
+    dice.derive(code_hash, &config_desc, authority_hash, debuggable, hidden)
 }
 
 fn encode_tstr(tstr: &str, buffer: &mut Vec<u8>) -> Result<()> {

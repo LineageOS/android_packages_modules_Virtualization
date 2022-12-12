@@ -43,8 +43,8 @@ const FD_SERVER_PORT: i32 = 3264; // TODO: support dynamic port
 fn validate_args(args: &OdrefreshArgs) -> Result<()> {
     if args.compilationMode != CompilationMode::NORMAL_COMPILE {
         // Conservatively check debuggability.
-        let debuggable = system_properties::read_bool("ro.boot.microdroid.app_debuggable", false)
-            .unwrap_or(false);
+        let debuggable =
+            system_properties::read_bool("ro.boot.microdroid.debuggable", false).unwrap_or(false);
         if !debuggable {
             bail!("Requested compilation mode only available in debuggable VMs");
         }
