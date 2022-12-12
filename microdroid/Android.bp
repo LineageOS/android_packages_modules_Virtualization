@@ -83,7 +83,7 @@ android_system_image {
         "microdroid_manifest",
         "microdroid_plat_sepolicy_and_mapping.sha256",
         "microdroid_property_contexts",
-        "mke2fs",
+        "mke2fs.microdroid",
 
         // TODO(b/195425111) these should be added automatically
         "libcrypto", // used by many (init_second_stage, microdroid_manager, toybox, etc)
