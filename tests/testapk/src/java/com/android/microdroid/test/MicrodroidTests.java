@@ -265,8 +265,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void vmConfigUnitTests() {
-        VirtualMachineConfig minimal =
-                newVmConfigBuilder().setPayloadBinaryPath("binary/path").build();
+
+        VirtualMachineConfig.Builder minimalBuilder = newVmConfigBuilder();
+        VirtualMachineConfig minimal = minimalBuilder.setPayloadBinaryPath("binary/path").build();
 
         assertThat(minimal.getApkPath()).isEqualTo(getContext().getPackageCodePath());
         assertThat(minimal.getDebugLevel()).isEqualTo(DEBUG_LEVEL_NONE);
@@ -275,6 +276,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(minimal.getPayloadBinaryPath()).isEqualTo("binary/path");
         assertThat(minimal.getPayloadConfigPath()).isNull();
         assertThat(minimal.isProtectedVm()).isEqualTo(isProtectedVm());
+        assertThat(minimal.isEncryptedStorageEnabled()).isFalse();
+        assertThat(minimal.getEncryptedStorageKib()).isEqualTo(0);
 
         int maxCpus = Runtime.getRuntime().availableProcessors();
         VirtualMachineConfig.Builder maximalBuilder =
@@ -283,7 +286,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setApkPath("/apk/path")
                         .setNumCpus(maxCpus)
                         .setDebugLevel(DEBUG_LEVEL_FULL)
-                        .setMemoryMib(42);
+                        .setMemoryMib(42)
+                        .setEncryptedStorageKib(1024);
         VirtualMachineConfig maximal = maximalBuilder.build();
 
         assertThat(maximal.getApkPath()).isEqualTo("/apk/path");
@@ -293,6 +297,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(maximal.getPayloadBinaryPath()).isNull();
         assertThat(maximal.getPayloadConfigPath()).isEqualTo("config/path");
         assertThat(maximal.isProtectedVm()).isEqualTo(isProtectedVm());
+        assertThat(maximal.isEncryptedStorageEnabled()).isTrue();
+        assertThat(maximal.getEncryptedStorageKib()).isEqualTo(1024);
 
         assertThat(minimal.isCompatibleWith(maximal)).isFalse();
         assertThat(minimal.isCompatibleWith(minimal)).isTrue();
@@ -300,6 +306,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         VirtualMachineConfig compatible = maximalBuilder.setNumCpus(1).setMemoryMib(99).build();
         assertThat(compatible.isCompatibleWith(maximal)).isTrue();
+
+        // Assert that different encrypted storage size would imply the configs are incompatible
+        VirtualMachineConfig incompatible = minimalBuilder.setEncryptedStorageKib(1048).build();
+        assertThat(incompatible.isCompatibleWith(minimal)).isFalse();
     }
 
     @Test
