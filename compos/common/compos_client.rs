@@ -97,11 +97,7 @@ impl ComposClient {
             };
         let config_path = get_vm_config_path(has_system_ext, parameters.prefer_staged);
 
-        let debug_level = match (protected_vm, parameters.debug_mode) {
-            (_, true) => DebugLevel::FULL,
-            (false, false) => DebugLevel::APP_ONLY,
-            (true, false) => DebugLevel::NONE,
-        };
+        let debug_level = if parameters.debug_mode { DebugLevel::FULL } else { DebugLevel::NONE };
 
         let (console_fd, log_fd) = if debug_level == DebugLevel::NONE {
             (None, None)
