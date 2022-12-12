@@ -50,24 +50,24 @@ bootconfigs_x86_64 = [
 ]
 
 genrule {
-    name: "microdroid_initrd_full_debuggable_arm64",
+    name: "microdroid_initrd_debuggable_arm64",
     tools: ["initrd_bootconfig"],
     srcs: [
         ":microdroid_initrd_gen",
-        ":microdroid_bootconfig_full_debuggable_src",
+        ":microdroid_bootconfig_debuggable_src",
     ] + bootconfigs_arm64,
-    out: ["microdroid_initrd_full_debuggable_arm64"],
+    out: ["microdroid_initrd_debuggable_arm64"],
     cmd: "$(location initrd_bootconfig) --output $(out) $(in)",
 }
 
 genrule {
-    name: "microdroid_initrd_full_debuggable_x86_64",
+    name: "microdroid_initrd_debuggable_x86_64",
     tools: ["initrd_bootconfig"],
     srcs: [
         ":microdroid_initrd_gen",
-        ":microdroid_bootconfig_full_debuggable_src",
+        ":microdroid_bootconfig_debuggable_src",
     ] + bootconfigs_x86_64,
-    out: ["microdroid_initrd_full_debuggable_x86_64"],
+    out: ["microdroid_initrd_debuggable_x86_64"],
     cmd: "$(location initrd_bootconfig) --output $(out) $(in)",
 }
 
@@ -94,18 +94,18 @@ genrule {
 }
 
 prebuilt_etc {
-    name: "microdroid_initrd_full_debuggable",
+    name: "microdroid_initrd_debuggable",
     // We don't have ramdisk for architectures other than x86_64 & arm64
     src: "empty_file",
     arch: {
         x86_64: {
-            src: ":microdroid_initrd_full_debuggable_x86_64",
+            src: ":microdroid_initrd_debuggable_x86_64",
         },
         arm64: {
-            src: ":microdroid_initrd_full_debuggable_arm64",
+            src: ":microdroid_initrd_debuggable_arm64",
         },
     },
-    filename: "microdroid_initrd_full_debuggable.img",
+    filename: "microdroid_initrd_debuggable.img",
 }
 
 prebuilt_etc {
@@ -131,8 +131,8 @@ genrule {
 }
 
 genrule {
-    name: "microdroid_initrd_full_debuggable.sha256",
-    srcs: [":microdroid_initrd_full_debuggable"],
+    name: "microdroid_initrd_debuggable.sha256",
+    srcs: [":microdroid_initrd_debuggable"],
     cmd: "cat $(in) | sha256sum | cut -d' ' -f1 > $(out)",
     out: ["hash"],
 }
@@ -141,7 +141,7 @@ genrule {
     name: "microdroid_initrd_hashes",
     srcs: [
         ":microdroid_initrd_normal.sha256",
-        ":microdroid_initrd_full_debuggable.sha256",
+        ":microdroid_initrd_debuggable.sha256",
     ],
     // join the hashes with commas
     cmd: "cat $(in) | tr '\n' ',' > $(out) && truncate -s -1 $(out)",
