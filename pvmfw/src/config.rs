@@ -17,7 +17,6 @@
 use crate::helpers;
 use core::fmt;
 use core::mem;
-use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::result;
 
@@ -43,8 +42,10 @@ pub enum Error {
     InvalidFlags(u32),
     /// Header describes configuration data that doesn't fit in the expected buffer.
     InvalidSize(usize),
+    /// Header entry is missing.
+    MissingEntry(Entry),
     /// Header entry is invalid.
-    InvalidEntry(Entry),
+    InvalidEntry(Entry, EntryError),
 }
 
 impl fmt::Display for Error {
@@ -55,12 +56,37 @@ impl fmt::Display for Error {
             Self::UnsupportedVersion(x, y) => write!(f, "Version {x}.{y} not supported"),
             Self::InvalidFlags(v) => write!(f, "Flags value {v:#x} is incorrect or reserved"),
             Self::InvalidSize(sz) => write!(f, "Total size ({sz:#x}) overflows reserved region"),
-            Self::InvalidEntry(e) => write!(f, "Entry {e:?} is invalid"),
+            Self::MissingEntry(entry) => write!(f, "Mandatory {entry:?} entry is missing"),
+            Self::InvalidEntry(entry, e) => write!(f, "Invalid {entry:?} entry: {e}"),
         }
     }
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+#[derive(Debug)]
+pub enum EntryError {
+    /// Offset isn't between the fixed minimum value and size of configuration data.
+    InvalidOffset(usize),
+    /// Size must be zero when offset is and not be when it isn't.
+    InvalidSize(usize),
+    /// Entry isn't fully within the configuration data structure.
+    OutOfBounds { offset: usize, size: usize, limit: usize },
+}
+
+impl fmt::Display for EntryError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::InvalidOffset(offset) => write!(f, "Invalid offset: {offset:#x?}"),
+            Self::InvalidSize(sz) => write!(f, "Invalid size: {sz:#x?}"),
+            Self::OutOfBounds { offset, size, limit } => {
+                let range = Header::PADDED_SIZE..*limit;
+                let entry = *offset..(*offset + *size);
+                write!(f, "Out of bounds: {entry:#x?} must be within range {range:#x?}")
+            }
+        }
+    }
+}
 
 impl Header {
     const MAGIC: u32 = u32::from_ne_bytes(*b"pvmf");
@@ -85,13 +111,31 @@ impl Header {
 
     fn get_body_range(&self, entry: Entry) -> Result<Option<Range<usize>>> {
         let e = self.entries[entry as usize];
+        let offset = e.offset as usize;
+        let size = e.size as usize;
 
-        if e.is_empty() {
-            Ok(None)
-        } else if e.fits_in(self.total_size()) {
-            Ok(Some(e.as_body_range()))
-        } else {
-            Err(Error::InvalidEntry(entry))
+        self._get_body_range(offset, size).map_err(|e| Error::InvalidEntry(entry, e))
+    }
+
+    fn _get_body_range(
+        &self,
+        offset: usize,
+        size: usize,
+    ) -> result::Result<Option<Range<usize>>, EntryError> {
+        match (offset, size) {
+            (0, 0) => Ok(None),
+            (0, size) | (_, size @ 0) => Err(EntryError::InvalidSize(size)),
+            _ => {
+                let start = offset
+                    .checked_sub(Header::PADDED_SIZE)
+                    .ok_or(EntryError::InvalidOffset(offset))?;
+                let end = start
+                    .checked_add(size)
+                    .filter(|x| *x <= self.body_size())
+                    .ok_or(EntryError::OutOfBounds { offset, size, limit: self.total_size() })?;
+
+                Ok(Some(start..end))
+            }
         }
     }
 }
@@ -111,34 +155,6 @@ impl Entry {
 struct HeaderEntry {
     offset: u32,
     size: u32,
-}
-
-impl HeaderEntry {
-    pub fn is_empty(&self) -> bool {
-        self.offset() == 0 && self.size() == 0
-    }
-
-    pub fn fits_in(&self, max_size: usize) -> bool {
-        (Header::PADDED_SIZE..max_size).contains(&self.offset())
-            && NonZeroUsize::new(self.size())
-                .and_then(|s| s.checked_add(self.offset()))
-                .filter(|&x| x.get() <= max_size)
-                .is_some()
-    }
-
-    pub fn as_body_range(&self) -> Range<usize> {
-        let start = self.offset() - Header::PADDED_SIZE;
-
-        start..(start + self.size())
-    }
-
-    pub fn offset(&self) -> usize {
-        self.offset as usize
-    }
-
-    pub fn size(&self) -> usize {
-        self.size as usize
-    }
 }
 
 #[derive(Debug)]
@@ -171,7 +187,7 @@ impl<'a> Config<'a> {
         }
 
         let bcc_range =
-            header.get_body_range(Entry::Bcc)?.ok_or(Error::InvalidEntry(Entry::Bcc))?;
+            header.get_body_range(Entry::Bcc)?.ok_or(Error::MissingEntry(Entry::Bcc))?;
         let dp_range = header.get_body_range(Entry::DebugPolicy)?;
 
         let body = data
