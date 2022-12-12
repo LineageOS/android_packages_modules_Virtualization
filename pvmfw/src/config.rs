@@ -18,7 +18,7 @@ use crate::helpers;
 use core::fmt;
 use core::mem;
 use core::num::NonZeroUsize;
-use core::ops;
+use core::ops::Range;
 use core::result;
 
 #[repr(C, packed)]
@@ -83,8 +83,16 @@ impl Header {
         self.total_size() - Self::PADDED_SIZE
     }
 
-    fn get(&self, entry: Entry) -> HeaderEntry {
-        self.entries[entry as usize]
+    fn get_body_range(&self, entry: Entry) -> Result<Option<Range<usize>>> {
+        let e = self.entries[entry as usize];
+
+        if e.is_empty() {
+            Ok(None)
+        } else if e.fits_in(self.total_size()) {
+            Ok(Some(e.as_body_range()))
+        } else {
+            Err(Error::InvalidEntry(entry))
+        }
     }
 }
 
@@ -118,7 +126,7 @@ impl HeaderEntry {
                 .is_some()
     }
 
-    pub fn as_body_range(&self) -> ops::Range<usize> {
+    pub fn as_body_range(&self) -> Range<usize> {
         let start = self.offset() - Header::PADDED_SIZE;
 
         start..(start + self.size())
@@ -135,8 +143,9 @@ impl HeaderEntry {
 
 #[derive(Debug)]
 pub struct Config<'a> {
-    header: &'a Header,
     body: &'a mut [u8],
+    bcc_range: Range<usize>,
+    dp_range: Option<Range<usize>>,
 }
 
 impl<'a> Config<'a> {
@@ -161,40 +170,26 @@ impl<'a> Config<'a> {
             return Err(Error::InvalidFlags(header.flags));
         }
 
-        let total_size = header.total_size();
-
-        // BCC is a mandatory entry of the configuration data.
-        if !header.get(Entry::Bcc).fits_in(total_size) {
-            return Err(Error::InvalidEntry(Entry::Bcc));
-        }
-
-        // Debug policy is optional.
-        let dp = header.get(Entry::DebugPolicy);
-        if !dp.is_empty() && !dp.fits_in(total_size) {
-            return Err(Error::InvalidEntry(Entry::DebugPolicy));
-        }
+        let bcc_range =
+            header.get_body_range(Entry::Bcc)?.ok_or(Error::InvalidEntry(Entry::Bcc))?;
+        let dp_range = header.get_body_range(Entry::DebugPolicy)?;
 
         let body = data
             .get_mut(Header::PADDED_SIZE..)
             .ok_or(Error::BufferTooSmall)?
             .get_mut(..header.body_size())
-            .ok_or(Error::InvalidSize(total_size))?;
+            .ok_or_else(|| Error::InvalidSize(header.total_size()))?;
 
-        Ok(Self { header, body })
+        Ok(Self { body, bcc_range, dp_range })
     }
 
     /// Get slice containing the platform BCC.
     pub fn get_bcc_mut(&mut self) -> &mut [u8] {
-        &mut self.body[self.header.get(Entry::Bcc).as_body_range()]
+        &mut self.body[self.bcc_range.clone()]
     }
 
     /// Get slice containing the platform debug policy.
     pub fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
-        let entry = self.header.get(Entry::DebugPolicy);
-        if entry.is_empty() {
-            None
-        } else {
-            Some(&mut self.body[entry.as_body_range()])
-        }
+        self.dp_range.as_ref().map(|r| &mut self.body[r.clone()])
     }
 }
