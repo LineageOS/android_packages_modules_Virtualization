@@ -1,6 +1,3 @@
-# The app is debuggable as full_debuggable is a superser of app_debuggable.
-androidboot.microdroid.app_debuggable=1
-
 # ro.debuggable is set.
 androidboot.microdroid.debuggable=1
 
