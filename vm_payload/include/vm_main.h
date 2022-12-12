@@ -23,5 +23,17 @@ AVmPayload_main_t AVmPayload_main;
 }
 #else
 typedef int AVmPayload_main_t(void);
+
+/**
+ * Entry point for the VM payload. This function must be implemented by the
+ * payload binary, and is called by Microdroid to start the payload inside the
+ * VM.
+ *
+ * When the function returns the VM will be shut down.  If the host app has set
+ * a `VirtualMachineCallback` for the VM, its `onPayloadFinished` method will be
+ * called with the VM's exit code.
+ *
+ * \return the exit code of the VM.
+ */
 extern int AVmPayload_main(void);
 #endif
