@@ -17,7 +17,7 @@
 use aarch64_paging::paging::MemoryRegion;
 use alloc::alloc::{alloc, dealloc, Layout};
 use core::{ffi::CStr, mem::size_of};
-use libfdt::{Fdt, FdtNode, Reg};
+use libfdt::{AddressRange, Fdt, FdtNode, Reg};
 use log::{debug, info};
 use virtio_drivers::{
     pci::{
@@ -113,17 +113,14 @@ impl PciMemory32Allocator {
     pub fn for_pci_ranges(pci_node: &FdtNode) -> Self {
         let mut memory_32_address = 0;
         let mut memory_32_size = 0;
-        for range in pci_node
-            .ranges::<u128, u64, u64>()
+        for AddressRange { addr: (flags, bus_address), parent_addr: cpu_physical, size } in pci_node
+            .ranges::<(u32, u64), u64, u64>()
             .expect("Error getting ranges property from PCI node")
             .expect("PCI node missing ranges property.")
         {
-            let flags = PciMemoryFlags((range.addr >> 64) as u32);
+            let flags = PciMemoryFlags(flags);
             let prefetchable = flags.prefetchable();
             let range_type = flags.range_type();
-            let bus_address = range.addr as u64;
-            let cpu_physical = range.parent_addr;
-            let size = range.size;
             info!(
                 "range: {:?} {}prefetchable bus address: {:#018x} host physical address: {:#018x} size: {:#018x}",
                 range_type,
