@@ -22,9 +22,6 @@ rust_ffi_static {
         "libtinyvec_nostd",
         "libvmbase",
     ],
-    static_libs: [
-        "libarm-optimized-routines-mem",
-    ],
     apex_available: ["com.android.virt"],
 }
 
