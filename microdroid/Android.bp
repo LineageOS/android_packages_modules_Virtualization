@@ -67,7 +67,7 @@ android_system_image {
         "heapprofd_client_api",
         "libartpalette-system",
 
-        "apexd",
+        "apexd.microdroid",
         "atrace",
         "debuggerd",
         "linker",
