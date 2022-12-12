@@ -132,6 +132,8 @@ public abstract class MicrodroidDeviceTestBase {
         private OptionalLong mKernelStartedNanoTime = OptionalLong.empty();
         private OptionalLong mInitStartedNanoTime = OptionalLong.empty();
         private OptionalLong mPayloadStartedNanoTime = OptionalLong.empty();
+        private StringBuilder mConsoleOutput = new StringBuilder();
+        private StringBuilder mLogOutput = new StringBuilder();
 
         private void processBootEvents(String log) {
             if (!mVcpuStartedNanoTime.isPresent()) {
@@ -149,44 +151,50 @@ public abstract class MicrodroidDeviceTestBase {
             }
         }
 
-        private void logVmOutputAndMonitorBootEvents(String tag,
+        private void logVmOutputAndMonitorBootEvents(
+                String tag,
                 InputStream vmOutputStream,
                 String name,
+                StringBuilder result,
                 boolean monitorEvents) {
             new Thread(
-                    () -> {
-                        try {
-                            BufferedReader reader =
-                                    new BufferedReader(new InputStreamReader(vmOutputStream));
-                            String line;
-                            while ((line = reader.readLine()) != null
-                                    && !Thread.interrupted()) {
-                                if (monitorEvents) processBootEvents(line);
-                                Log.i(tag, name + ": " + line);
-                            }
-                        } catch (Exception e) {
-                            Log.w(tag, name, e);
-                        }
-                    }).start();
+                            () -> {
+                                try {
+                                    BufferedReader reader =
+                                            new BufferedReader(
+                                                    new InputStreamReader(vmOutputStream));
+                                    String line;
+                                    while ((line = reader.readLine()) != null
+                                            && !Thread.interrupted()) {
+                                        if (monitorEvents) processBootEvents(line);
+                                        Log.i(tag, name + ": " + line);
+                                        result.append(line + "\n");
+                                    }
+                                } catch (Exception e) {
+                                    Log.w(tag, name, e);
+                                }
+                            })
+                    .start();
         }
 
-        private void logVmOutputAndMonitorBootEvents(String tag,
-                InputStream vmOutputStream,
-                String name) {
-            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, true);
+        private void logVmOutputAndMonitorBootEvents(
+                String tag, InputStream vmOutputStream, String name, StringBuilder result) {
+            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, result, true);
         }
 
         /** Copy output from the VM to logcat. This is helpful when things go wrong. */
-        protected void logVmOutput(String tag, InputStream vmOutputStream, String name) {
-            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, false);
+        protected void logVmOutput(
+                String tag, InputStream vmOutputStream, String name, StringBuilder result) {
+            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, result, false);
         }
 
         public void runToFinish(String logTag, VirtualMachine vm)
                 throws VirtualMachineException, InterruptedException {
             vm.setCallback(mExecutorService, this);
             vm.run();
-            logVmOutputAndMonitorBootEvents(logTag, vm.getConsoleOutput(), "Console");
-            logVmOutput(logTag, vm.getLogOutput(), "Log");
+            logVmOutputAndMonitorBootEvents(
+                    logTag, vm.getConsoleOutput(), "Console", mConsoleOutput);
+            logVmOutput(logTag, vm.getLogOutput(), "Log", mLogOutput);
             mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
         }
 
@@ -204,6 +212,14 @@ public abstract class MicrodroidDeviceTestBase {
 
         public OptionalLong getPayloadStartedNanoTime() {
             return mPayloadStartedNanoTime;
+        }
+
+        public String getConsoleOutput() {
+            return mConsoleOutput.toString();
+        }
+
+        public String getLogOutput() {
+            return mLogOutput.toString();
         }
 
         protected void forceStop(VirtualMachine vm) {
@@ -248,14 +264,20 @@ public abstract class MicrodroidDeviceTestBase {
         public final OptionalLong initStartedNanoTime;
         public final OptionalLong payloadStartedNanoTime;
 
-        BootResult(boolean payloadStarted,
+        public final String consoleOutput;
+        public final String logOutput;
+
+        BootResult(
+                boolean payloadStarted,
                 int deathReason,
                 long apiCallNanoTime,
                 long endToEndNanoTime,
                 OptionalLong vcpuStartedNanoTime,
                 OptionalLong kernelStartedNanoTime,
                 OptionalLong initStartedNanoTime,
-                OptionalLong payloadStartedNanoTime) {
+                OptionalLong payloadStartedNanoTime,
+                String consoleOutput,
+                String logOutput) {
             this.apiCallNanoTime = apiCallNanoTime;
             this.payloadStarted = payloadStarted;
             this.deathReason = deathReason;
@@ -264,6 +286,8 @@ public abstract class MicrodroidDeviceTestBase {
             this.kernelStartedNanoTime = kernelStartedNanoTime;
             this.initStartedNanoTime = initStartedNanoTime;
             this.payloadStartedNanoTime = payloadStartedNanoTime;
+            this.consoleOutput = consoleOutput;
+            this.logOutput = logOutput;
         }
 
         private long getVcpuStartedNanoTime() {
@@ -332,7 +356,9 @@ public abstract class MicrodroidDeviceTestBase {
                 listener.getVcpuStartedNanoTime(),
                 listener.getKernelStartedNanoTime(),
                 listener.getInitStartedNanoTime(),
-                listener.getPayloadStartedNanoTime());
+                listener.getPayloadStartedNanoTime(),
+                listener.getConsoleOutput(),
+                listener.getLogOutput());
     }
 
     /** Execute a command. Returns stdout. */
