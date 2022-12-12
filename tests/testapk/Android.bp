@@ -23,6 +23,8 @@ android_test {
     jni_libs: [
         "MicrodroidTestNativeLib",
         "MicrodroidIdleNativeLib",
+        "MicrodroidEmptyNativeLib",
+        "MicrodroidPrivateLinkingNativeLib",
     ],
     jni_uses_platform_apis: true,
     use_embedded_native_libs: true,
@@ -60,5 +62,23 @@ cc_library_shared {
     name: "MicrodroidIdleNativeLib",
     srcs: ["src/native/idlebinary.cpp"],
     header_libs: ["vm_payload_headers"],
+    stl: "libc++_static",
+}
+
+// An empty payload missing AVmPayload_main
+cc_library_shared {
+    name: "MicrodroidEmptyNativeLib",
+    srcs: ["src/native/emptybinary.cpp"],
+    stl: "none",
+}
+
+// A payload which tries to link against libselinux, one of private libraries
+cc_library_shared {
+    name: "MicrodroidPrivateLinkingNativeLib",
+    srcs: ["src/native/idlebinary.cpp"],
+    header_libs: ["vm_payload_headers"],
+    // HACK: linking against "libselinux" will embed libselinux.so into the apk
+    // link against a stub to prevent libselinux.so from being embedded
+    shared_libs: ["libselinux#latest"],
     stl: "libc++_static",
 }

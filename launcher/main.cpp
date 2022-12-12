@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <android-base/logging.h>
+#include <android-base/result.h>
 #include <android/dlext.h>
 #include <dlfcn.h>
 
@@ -22,6 +24,9 @@
 #include <string>
 
 #include "vm_main.h"
+
+using android::base::Error;
+using android::base::Result;
 
 extern "C" {
 enum {
@@ -40,7 +45,7 @@ extern bool android_link_namespaces(struct android_namespace_t* from,
                                     const char* shared_libs_sonames);
 } // extern "C"
 
-static void* load(const std::string& libname);
+static Result<void*> load(const std::string& libname);
 
 constexpr char entrypoint_name[] = "AVmPayload_main";
 
@@ -56,16 +61,18 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    android::base::InitLogging(argv, &android::base::KernelLogger);
+
     const char* libname = argv[1];
-    void* handle = load(libname);
-    if (handle == nullptr) {
-        std::cerr << "Failed to load " << libname << ": " << dlerror() << "\n";
+    auto handle = load(libname);
+    if (!handle.ok()) {
+        LOG(ERROR) << "Failed to load " << libname << ": " << handle.error().message();
         return EXIT_FAILURE;
     }
 
-    AVmPayload_main_t* entry = reinterpret_cast<decltype(entry)>(dlsym(handle, entrypoint_name));
+    AVmPayload_main_t* entry = reinterpret_cast<decltype(entry)>(dlsym(*handle, entrypoint_name));
     if (entry == nullptr) {
-        std::cerr << "Failed to find entrypoint `" << entrypoint_name << "`: " << dlerror() << "\n";
+        LOG(ERROR) << "Failed to find entrypoint `" << entrypoint_name << "`: " << dlerror();
         return EXIT_FAILURE;
     }
 
@@ -75,7 +82,7 @@ int main(int argc, char* argv[]) {
 // Create a new linker namespace whose search path is set to the directory of the library. Then
 // load it from there. Returns the handle to the loaded library if successful. Returns nullptr
 // if failed.
-void* load(const std::string& libname) {
+Result<void*> load(const std::string& libname) {
     // Parent as nullptr means the default namespace
     android_namespace_t* parent = nullptr;
     // The search paths of the new namespace are isolated to restrict system private libraries.
@@ -89,8 +96,7 @@ void* load(const std::string& libname) {
     new_ns = android_create_namespace("microdroid_app", ld_library_path, default_library_path, type,
                                       /* permitted_when_isolated_path */ nullptr, parent);
     if (new_ns == nullptr) {
-        std::cerr << "Failed to create linker namespace: " << dlerror() << "\n";
-        return nullptr;
+        return Error() << "Failed to create linker namespace: " << dlerror();
     }
 
     std::string libs;
@@ -98,11 +104,17 @@ void* load(const std::string& libname) {
         if (!libs.empty()) libs += ':';
         libs += lib;
     }
-    android_link_namespaces(new_ns, nullptr, libs.c_str());
+    if (!android_link_namespaces(new_ns, nullptr, libs.c_str())) {
+        return Error() << "Failed to link namespace: " << dlerror();
+    }
 
     const android_dlextinfo info = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
             .library_namespace = new_ns,
     };
-    return android_dlopen_ext(libname.c_str(), RTLD_NOW, &info);
+    if (auto ret = android_dlopen_ext(libname.c_str(), RTLD_NOW, &info); ret) {
+        return ret;
+    } else {
+        return Error() << "Failed to dlopen: " << dlerror();
+    }
 }
