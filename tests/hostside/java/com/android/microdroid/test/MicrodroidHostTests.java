@@ -334,7 +334,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         }
 
         // Add partitions to the second disk
-        final String initrdPath = TEST_ROOT + "etc/microdroid_initrd_full_debuggable.img";
+        final String initrdPath = TEST_ROOT + "etc/microdroid_initrd_debuggable.img";
         config.put("initrd", initrdPath);
         // Add instance image as a partition in disks[1]
         disks.put(new JSONObject()
