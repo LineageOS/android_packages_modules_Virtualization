@@ -828,6 +828,50 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 VirtualMachineCallback.STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR);
     }
 
+    // Checks whether microdroid_launcher started but payload failed. reason must be recorded in the
+    // console output.
+    private void assertThatPayloadFailsDueTo(VirtualMachine vm, String reason) throws Exception {
+        final CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
+        final CompletableFuture<Integer> exitCodeFuture = new CompletableFuture<>();
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm) {
+                        payloadStarted.complete(true);
+                    }
+
+                    @Override
+                    public void onPayloadFinished(VirtualMachine vm, int exitCode) {
+                        exitCodeFuture.complete(exitCode);
+                    }
+                };
+        listener.runToFinish(TAG, vm);
+
+        assertThat(payloadStarted.getNow(false)).isTrue();
+        assertThat(exitCodeFuture.getNow(0)).isNotEqualTo(0);
+        assertThat(listener.getConsoleOutput()).contains(reason);
+    }
+
+    @Test
+    public void bootFailsWhenBinaryIsMissingEntryFunction() throws Exception {
+        VirtualMachineConfig.Builder builder =
+                newVmConfigBuilder().setPayloadBinaryPath("MicrodroidEmptyNativeLib.so");
+        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_missing_entry", normalConfig);
+
+        assertThatPayloadFailsDueTo(vm, "Failed to find entrypoint");
+    }
+
+    @Test
+    public void bootFailsWhenBinaryTriesToLinkAgainstPrivateLibs() throws Exception {
+        VirtualMachineConfig.Builder builder =
+                newVmConfigBuilder().setPayloadBinaryPath("MicrodroidPrivateLinkingNativeLib.so");
+        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_private_linking", normalConfig);
+
+        assertThatPayloadFailsDueTo(vm, "Failed to dlopen");
+    }
+
     @Test
     public void sameInstancesShareTheSameVmObject() throws Exception {
         VirtualMachineConfig config =
