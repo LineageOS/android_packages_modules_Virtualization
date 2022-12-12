@@ -59,8 +59,6 @@ parcelable VirtualMachineAppConfig {
     enum DebugLevel {
         /** Not debuggable at all */
         NONE,
-        /** Only the logs from app is shown */
-        APP_ONLY,
         /**
          * Fully debuggable. All logs are shown, kernel messages are shown, and adb shell is
          * supported

@@ -63,8 +63,7 @@ package android.system.virtualmachine {
     method @Nullable public String getPayloadBinaryPath();
     method public boolean isCompatibleWith(@NonNull android.system.virtualmachine.VirtualMachineConfig);
     method public boolean isProtectedVm();
-    field public static final int DEBUG_LEVEL_APP_ONLY = 1; // 0x1
-    field public static final int DEBUG_LEVEL_FULL = 2; // 0x2
+    field public static final int DEBUG_LEVEL_FULL = 1; // 0x1
     field public static final int DEBUG_LEVEL_NONE = 0; // 0x0
   }
 

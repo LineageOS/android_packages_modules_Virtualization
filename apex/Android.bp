@@ -4,7 +4,6 @@ package {
 
 microdroid_filesystem_images = [
     "microdroid_boot",
-    "microdroid_bootconfig_app_debuggable",
     "microdroid_bootconfig_full_debuggable",
     "microdroid_bootconfig_normal",
     "microdroid_init_boot",
@@ -93,7 +92,6 @@ apex_defaults {
     prebuilts: [
         "com.android.virt.init.rc",
         "features_com.android.virt.xml",
-        "microdroid_initrd_app_debuggable",
         "microdroid_initrd_full_debuggable",
         "microdroid_initrd_normal",
         "microdroid.json",
