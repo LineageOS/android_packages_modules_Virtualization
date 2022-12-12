@@ -521,6 +521,12 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         changeDebugLevel(DEBUG_LEVEL_NONE, DEBUG_LEVEL_FULL);
     }
 
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-7"})
+    public void changingDebuggableVmNonDebuggableInvalidatesVmIdentity() throws Exception {
+        changeDebugLevel(DEBUG_LEVEL_FULL, DEBUG_LEVEL_NONE);
+    }
+
     private void changeDebugLevel(int fromLevel, int toLevel) throws Exception {
         assumeSupportedKernel();
 
