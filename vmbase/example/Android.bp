@@ -17,9 +17,6 @@ rust_ffi_static {
         "libvirtio_drivers",
         "libvmbase",
     ],
-    static_libs: [
-        "libarm-optimized-routines-mem",
-    ],
     apex_available: ["com.android.virt"],
 }
 
