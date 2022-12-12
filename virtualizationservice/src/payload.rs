@@ -405,7 +405,7 @@ pub fn add_microdroid_system_images(
 ) -> Result<()> {
     let debug_suffix = match config.debugLevel {
         DebugLevel::NONE => "normal",
-        DebugLevel::FULL => "full_debuggable",
+        DebugLevel::FULL => "debuggable",
         _ => return Err(anyhow!("unsupported debug level: {:?}", config.debugLevel)),
     };
     let initrd = format!("/apex/com.android.virt/etc/microdroid_initrd_{}.img", debug_suffix);
