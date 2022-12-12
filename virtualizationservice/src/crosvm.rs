@@ -423,7 +423,6 @@ impl VmInstance {
                 let mut vm_metric = self.vm_metric.lock().unwrap();
 
                 // Get CPU Information
-                // TODO: Collect it once right before VM dies using SIGCHLD
                 if let Ok(guest_time) = get_guest_time(pid) {
                     vm_metric.cpu_guest_time = Some(guest_time);
                 } else {
