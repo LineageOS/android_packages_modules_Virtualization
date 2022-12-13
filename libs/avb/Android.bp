@@ -39,7 +39,7 @@ rust_test {
 
 rust_library_rlib {
     name: "libavb_nostd",
-    crate_name: "avb_nostd",
+    crate_name: "avb",
     srcs: ["src/lib.rs"],
     no_stdlibs: true,
     prefer_rlib: true,
