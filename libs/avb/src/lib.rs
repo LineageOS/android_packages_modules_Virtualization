@@ -16,6 +16,8 @@
 
 #![no_std]
 
-mod avb_ops;
+extern crate alloc;
 
-pub use avb_ops::{verify_image, AvbImageVerifyError};
+mod ops;
+
+pub use ops::{verify_image, AvbImageVerifyError};
