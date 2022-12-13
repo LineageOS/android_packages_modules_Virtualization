@@ -973,13 +973,16 @@ impl IVirtualMachine for VirtualMachine {
         if !matches!(&*self.instance.vm_state.lock().unwrap(), VmState::Running { .. }) {
             return Err(Status::new_service_specific_error_str(-1, Some("VM is not running")));
         }
-        let stream =
-            VsockStream::connect_with_cid_port(self.instance.cid, port as u32).map_err(|e| {
-                Status::new_service_specific_error_str(
-                    -1,
-                    Some(format!("Failed to connect: {:?}", e)),
-                )
-            })?;
+        let port = port as u32;
+        if port < 1024 {
+            return Err(Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Can't connect to privileged port {port}")),
+            ));
+        }
+        let stream = VsockStream::connect_with_cid_port(self.instance.cid, port).map_err(|e| {
+            Status::new_service_specific_error_str(-1, Some(format!("Failed to connect: {:?}", e)))
+        })?;
         Ok(vsock_stream_to_pfd(stream))
     }
 }

@@ -45,9 +45,11 @@ import static java.util.Objects.requireNonNull;
 
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
+import android.annotation.IntRange;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresPermission;
+import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.content.ComponentCallbacks2;
@@ -119,6 +121,24 @@ public class VirtualMachine implements AutoCloseable {
      */
     public static final String USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION =
             "android.permission.USE_CUSTOM_VIRTUAL_MACHINE";
+
+    /**
+     * The lowest port number that can be used to communicate with the virtual machine payload.
+     *
+     * @see #connectToVsockServer
+     * @see #connectVsock
+     */
+    @SuppressLint("MinMaxConstant") // Won't change: see man 7 vsock.
+    public static final long MIN_VSOCK_PORT = 1024;
+
+    /**
+     * The highest port number that can be used to communicate with the virtual machine payload.
+     *
+     * @see #connectToVsockServer
+     * @see #connectVsock
+     */
+    @SuppressLint("MinMaxConstant") // Won't change: see man 7 vsock.
+    public static final long MAX_VSOCK_PORT = (1L << 32) - 1;
 
     /**
      * Status of a virtual machine
@@ -998,9 +1018,13 @@ public class VirtualMachine implements AutoCloseable {
      */
     @SystemApi
     @NonNull
-    public IBinder connectToVsockServer(int port) throws VirtualMachineException {
+    public IBinder connectToVsockServer(
+            @IntRange(from = MIN_VSOCK_PORT, to = MAX_VSOCK_PORT) long port)
+            throws VirtualMachineException {
+
         synchronized (mLock) {
-            IBinder iBinder = nativeConnectToVsockServer(getRunningVm().asBinder(), port);
+            IBinder iBinder =
+                    nativeConnectToVsockServer(getRunningVm().asBinder(), validatePort(port));
             if (iBinder == null) {
                 throw new VirtualMachineException("Failed to connect to vsock server");
             }
@@ -1016,16 +1040,28 @@ public class VirtualMachine implements AutoCloseable {
      */
     @SystemApi
     @NonNull
-    public ParcelFileDescriptor connectVsock(int port) throws VirtualMachineException {
+    public ParcelFileDescriptor connectVsock(
+            @IntRange(from = MIN_VSOCK_PORT, to = MAX_VSOCK_PORT) long port)
+            throws VirtualMachineException {
         synchronized (mLock) {
             try {
-                return getRunningVm().connectVsock(port);
+                return getRunningVm().connectVsock(validatePort(port));
             } catch (RemoteException e) {
                 throw e.rethrowAsRuntimeException();
             } catch (ServiceSpecificException e) {
                 throw new VirtualMachineException(e);
             }
         }
+    }
+
+    private int validatePort(long port) {
+        // Ports below 1024 are "privileged" (payload code can't bind to these), and port numbers
+        // are 32-bit unsigned numbers at the OS level, even though we pass them as 32-bit signed
+        // numbers internally.
+        if (port < MIN_VSOCK_PORT || port > MAX_VSOCK_PORT) {
+            throw new IllegalArgumentException("Bad port " + port);
+        }
+        return (int) port;
     }
 
     /**
