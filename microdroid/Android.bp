@@ -71,7 +71,6 @@ android_system_image {
         "atrace",
         "debuggerd",
         "linker",
-        "linkerconfig",
         "tombstoned.microdroid",
         "tombstone_transmit.microdroid",
         "cgroups.json",
