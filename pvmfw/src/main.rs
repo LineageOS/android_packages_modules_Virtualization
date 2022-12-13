@@ -32,7 +32,12 @@ mod mmu;
 mod pci;
 mod smccc;
 
-use crate::{avb::PUBLIC_KEY, entry::RebootReason, memory::MemoryTracker, pci::PciInfo};
+use crate::{
+    avb::PUBLIC_KEY,
+    entry::RebootReason,
+    memory::MemoryTracker,
+    pci::{allocate_all_virtio_bars, PciError, PciInfo, PciMemory32Allocator},
+};
 use ::avb::verify_image;
 use dice::bcc;
 use libfdt::Fdt;
@@ -56,9 +61,15 @@ fn main(
     trace!("BCC: {bcc:x?}");
 
     // Set up PCI bus for VirtIO devices.
-    let pci_info = PciInfo::from_fdt(fdt)?;
-    info!("PCI: {:#x?}", pci_info);
+    let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
+    debug!("PCI: {:#x?}", pci_info);
     pci_info.map(memory)?;
+    let mut bar_allocator = PciMemory32Allocator::new(&pci_info);
+    debug!("Allocator: {:#x?}", bar_allocator);
+    // Safety: This is the only place where we call make_pci_root, and this main function is only
+    // called once.
+    let mut pci_root = unsafe { pci_info.make_pci_root() };
+    allocate_all_virtio_bars(&mut pci_root, &mut bar_allocator).map_err(handle_pci_error)?;
 
     verify_image(signed_kernel, PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");
@@ -66,4 +77,25 @@ fn main(
     })?;
     info!("Starting payload...");
     Ok(())
+}
+
+/// Logs the given PCI error and returns the appropriate `RebootReason`.
+fn handle_pci_error(e: PciError) -> RebootReason {
+    error!("{}", e);
+    match e {
+        PciError::FdtErrorPci(_)
+        | PciError::FdtNoPci
+        | PciError::FdtErrorReg(_)
+        | PciError::FdtMissingReg
+        | PciError::FdtRegEmpty
+        | PciError::FdtRegMissingSize
+        | PciError::CamWrongSize(_)
+        | PciError::FdtErrorRanges(_)
+        | PciError::FdtMissingRanges
+        | PciError::RangeAddressMismatch { .. }
+        | PciError::NoSuitableRange => RebootReason::InvalidFdt,
+        PciError::BarInfoFailed(_)
+        | PciError::BarAllocationFailed { .. }
+        | PciError::UnsupportedBarType(_) => RebootReason::PciError,
+    }
 }

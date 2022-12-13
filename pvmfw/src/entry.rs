@@ -48,6 +48,8 @@ pub enum RebootReason {
     InvalidRamdisk,
     /// Failed to verify the payload.
     PayloadVerificationError,
+    /// Error interacting with a VirtIO PCI device.
+    PciError,
 }
 
 main!(start);
