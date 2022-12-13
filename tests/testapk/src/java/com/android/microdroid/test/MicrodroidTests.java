@@ -927,13 +927,28 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    public void importedVmIsEqualToTheOriginalVm() throws Exception {
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void importedVmIsEqualToTheOriginalVm_WithoutStorage() throws Exception {
+        TestResults testResults = importedVmIsEqualToTheOriginalVm(false);
+        assertThat(testResults.mEncryptedStoragePath).isEqualTo("");
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void importedVmIsEqualToTheOriginalVm_WithStorage() throws Exception {
+        TestResults testResults = importedVmIsEqualToTheOriginalVm(true);
+        assertThat(testResults.mEncryptedStoragePath).isEqualTo("/mnt/encryptedstore");
+    }
+
+    private TestResults importedVmIsEqualToTheOriginalVm(boolean encryptedStoreEnabled)
+            throws Exception {
         // Arrange
-        VirtualMachineConfig config =
+        VirtualMachineConfig.Builder builder =
                 newVmConfigBuilder()
                         .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
-                        .setDebugLevel(DEBUG_LEVEL_FULL)
-                        .build();
+                        .setDebugLevel(DEBUG_LEVEL_FULL);
+        if (encryptedStoreEnabled) builder = builder.setEncryptedStorageKib(4096);
+        VirtualMachineConfig config = builder.build();
         String vmNameOrig = "test_vm_orig";
         String vmNameImport = "test_vm_import";
         VirtualMachine vmOrig = forceCreateNewVirtualMachine(vmNameOrig, config);
@@ -953,12 +968,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // Asserts
         assertFileContentsAreEqualInTwoVms("config.xml", vmNameOrig, vmNameImport);
         assertFileContentsAreEqualInTwoVms("instance.img", vmNameOrig, vmNameImport);
+        if (encryptedStoreEnabled) {
+            assertFileContentsAreEqualInTwoVms("storage.img", vmNameOrig, vmNameImport);
+        }
         assertThat(vmImport).isNotEqualTo(vmOrig);
         vmm.delete(vmNameOrig);
         assertThat(vmImport).isEqualTo(vmm.get(vmNameImport));
         TestResults testResults = runVmTestService(vmImport);
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mAddInteger).isEqualTo(123 + 456);
+        return testResults;
     }
 
     @Test
