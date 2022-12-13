@@ -169,6 +169,9 @@ public class VirtualMachine implements AutoCloseable {
     /** Size of the instance image. 10 MB. */
     private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 
+    /** Name of the file backing the encrypted storage */
+    private static final String ENCRYPTED_STORE_FILE = "storage.img";
+
     /** The package which owns this VM. */
     @NonNull private final String mPackageName;
 
@@ -190,6 +193,9 @@ public class VirtualMachine implements AutoCloseable {
 
     /** Path to the idsig file for this VM. */
     @NonNull private final File mIdsigFilePath;
+
+    /** File that backs the encrypted storage - Will be null if not enabled. */
+    @Nullable private final File mEncryptedStoreFilePath;
 
     /**
      * Unmodifiable list of extra apks. Apks are specified by the vm config, and corresponding
@@ -324,6 +330,10 @@ public class VirtualMachine implements AutoCloseable {
         mExtraApks = setupExtraApks(context, config, thisVmDir);
         mMemoryManagementCallbacks = new MemoryManagementCallbacks();
         mContext = context;
+        mEncryptedStoreFilePath =
+                (config.isEncryptedStorageEnabled())
+                        ? new File(thisVmDir, ENCRYPTED_STORE_FILE)
+                        : null;
     }
 
     /**
@@ -386,6 +396,14 @@ public class VirtualMachine implements AutoCloseable {
             } catch (IOException e) {
                 throw new VirtualMachineException("failed to create instance image", e);
             }
+            if (config.isEncryptedStorageEnabled()) {
+                try {
+                    vm.mEncryptedStoreFilePath.createNewFile();
+                } catch (IOException e) {
+                    throw new VirtualMachineException(
+                            "failed to create encrypted storage image", e);
+                }
+            }
 
             IVirtualizationService service =
                     IVirtualizationService.Stub.asInterface(
@@ -402,6 +420,22 @@ public class VirtualMachine implements AutoCloseable {
                 throw e.rethrowAsRuntimeException();
             } catch (ServiceSpecificException | IllegalArgumentException e) {
                 throw new VirtualMachineException("failed to create instance partition", e);
+            }
+
+            if (config.isEncryptedStorageEnabled()) {
+                try {
+                    service.initializeWritablePartition(
+                            ParcelFileDescriptor.open(vm.mEncryptedStoreFilePath, MODE_READ_WRITE),
+                            config.getEncryptedStorageKib() * 1024L,
+                            PartitionType.ENCRYPTEDSTORE);
+                } catch (FileNotFoundException e) {
+                    throw new VirtualMachineException("encrypted storage image missing", e);
+                } catch (RemoteException e) {
+                    throw e.rethrowAsRuntimeException();
+                } catch (ServiceSpecificException | IllegalArgumentException e) {
+                    throw new VirtualMachineException(
+                            "failed to create encrypted storage partition", e);
+                }
             }
             return vm;
         } catch (VirtualMachineException | RuntimeException e) {
@@ -432,7 +466,9 @@ public class VirtualMachine implements AutoCloseable {
         if (!vm.mInstanceFilePath.exists()) {
             throw new VirtualMachineException("instance image missing");
         }
-
+        if (config.isEncryptedStorageEnabled() && !vm.mEncryptedStoreFilePath.exists()) {
+            throw new VirtualMachineException("Storage image missing");
+        }
         return vm;
     }
 
@@ -681,8 +717,12 @@ public class VirtualMachine implements AutoCloseable {
 
                 // Re-open idsig file in read-only mode
                 appConfig.idsig = ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_ONLY);
-                appConfig.instanceImage = ParcelFileDescriptor.open(mInstanceFilePath,
-                        MODE_READ_WRITE);
+                appConfig.instanceImage =
+                        ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_WRITE);
+                if (mEncryptedStoreFilePath != null) {
+                    appConfig.encryptedStorageImage =
+                            ParcelFileDescriptor.open(mEncryptedStoreFilePath, MODE_READ_WRITE);
+                }
                 List<ParcelFileDescriptor> extraIdsigs = new ArrayList<>();
                 for (ExtraApkSpec extraApk : mExtraApks) {
                     extraIdsigs.add(ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_ONLY));
