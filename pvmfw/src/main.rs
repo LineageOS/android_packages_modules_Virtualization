@@ -32,9 +32,8 @@ mod mmu;
 mod pci;
 mod smccc;
 
-use crate::{entry::RebootReason, memory::MemoryTracker, pci::PciInfo};
-use avb::PUBLIC_KEY;
-use avb_nostd::verify_image;
+use crate::{avb::PUBLIC_KEY, entry::RebootReason, memory::MemoryTracker, pci::PciInfo};
+use ::avb::verify_image;
 use dice::bcc;
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
