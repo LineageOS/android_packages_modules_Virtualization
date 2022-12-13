@@ -28,11 +28,10 @@ use avb_bindgen::{
 };
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
-use std::mem::{size_of, MaybeUninit};
+use std::mem::{size_of, transmute, MaybeUninit};
 use std::os::raw::c_uint;
 use std::path::Path;
 use std::ptr::null_mut;
-use std::slice;
 use thiserror::Error;
 
 pub use crate::descriptor::{Descriptor, Descriptors};
@@ -189,14 +188,10 @@ fn verify_vbmeta_image(data: &[u8]) -> Result<(), VbMetaImageVerificationError> 
 /// Read the AVB footer, if present, given a reader that's positioned at the end of the image.
 fn read_avb_footer<R: Read + Seek>(image: &mut R) -> io::Result<Option<AvbFooter>> {
     image.seek(SeekFrom::Current(-(size_of::<AvbFooter>() as i64)))?;
+    let mut raw_footer = [0u8; size_of::<AvbFooter>()];
+    image.read_exact(&mut raw_footer)?;
     // SAFETY: the slice is the same size as the struct which only contains simple data types.
-    let mut footer = unsafe {
-        let mut footer = MaybeUninit::<AvbFooter>::uninit();
-        let footer_slice =
-            slice::from_raw_parts_mut(&mut footer as *mut _ as *mut u8, size_of::<AvbFooter>());
-        image.read_exact(footer_slice)?;
-        footer.assume_init()
-    };
+    let mut footer = unsafe { transmute::<[u8; size_of::<AvbFooter>()], AvbFooter>(raw_footer) };
     // SAFETY: the function updates the struct in-place.
     if unsafe { avb_footer_validate_and_byteswap(&footer, &mut footer) } {
         Ok(Some(footer))
