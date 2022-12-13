@@ -139,7 +139,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     }
 
     // Same as runOnHost, but failure is not an error
-    private static String tryRunOnHost(String... cmd) {
+    public static String tryRunOnHost(String... cmd) {
         final long timeout = 10000;
         CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd);
         return result.getStdout().trim();
