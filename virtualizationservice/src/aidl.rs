@@ -881,8 +881,9 @@ fn check_label_for_partition(partition: &Partition) -> Result<()> {
 // Return whether a partition is exempt from selinux label checks, because we know that it does
 // not contain code and is likely to be generated in an app-writable directory.
 fn is_safe_app_partition(label: &str) -> bool {
-    // See make_payload_disk in payload.rs.
+    // See add_microdroid_system_images & add_microdroid_payload_images in payload.rs.
     label == "vm-instance"
+        || label == "encryptedstore"
         || label == "microdroid-apk-idsig"
         || label == "payload-metadata"
         || label.starts_with("extra-idsig-")
@@ -898,7 +899,7 @@ fn check_label_is_allowed(ctx: &SeContext) -> Result<()> {
     match ctx.selinux_type()? {
         | "system_file" // immutable dm-verity protected partition
         | "apk_data_file" // APKs of an installed app
-        | "staging_data_file" // updated/staged APEX imagess
+        | "staging_data_file" // updated/staged APEX images
         | "shell_data_file" // test files created via adb shell
          => Ok(()),
         _ => bail!("Label {} is not allowed", ctx),
