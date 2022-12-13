@@ -220,7 +220,7 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn test_unsigned_image() -> Result<()> {
+    fn unsigned_image_does_not_have_public_key() -> Result<()> {
         let test_dir = TempDir::new().unwrap();
         let test_file = test_dir.path().join("test.img");
         let mut cmd = Command::new("./avbtool");
