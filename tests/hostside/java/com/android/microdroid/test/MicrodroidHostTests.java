@@ -26,6 +26,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
 import static java.util.stream.Collectors.toList;
@@ -492,7 +493,8 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         vmInfo.mProcess.destroy();
     }
 
-    private boolean isTombstoneGeneratedWithConfig(String configPath) throws Exception {
+    private boolean isTombstoneGenerated(String configPath, String... crashCommand)
+            throws Exception {
         // Note this test relies on logcat values being printed by tombstone_transmit on
         // and the reeceiver on host (virtualization_service)
         mMicrodroidDevice =
@@ -505,35 +507,72 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         mMicrodroidDevice.enableAdbRoot();
 
         CommandRunner microdroid = new CommandRunner(mMicrodroidDevice);
-        microdroid.run("kill", "-SIGSEGV", "$(pidof microdroid_launcher)");
+        microdroid.run(crashCommand);
 
         // check until microdroid is shut down
         CommandRunner android = new CommandRunner(getDevice());
         // TODO: improve crosvm exit check. b/258848245
-        android.runWithTimeout(15000, "logcat", "-m", "1", "-e",
-                              "'virtualizationservice::crosvm.*exited with status exit status: 0'");
+        android.runWithTimeout(
+                15000,
+                "logcat",
+                "-m",
+                "1",
+                "-e",
+                "'virtualizationservice::crosvm.*exited with status exit status:'");
+
         // Check that tombstone is received (from host logcat)
+        String ramdumpRegex =
+                "Received [0-9]+ bytes from guest & wrote to tombstone file|"
+                        + "Ramdump \"[^ ]+/ramdump\" sent to tombstoned";
+
         String result =
-                runOnHost(
+                tryRunOnHost(
+                        "timeout",
+                        "10s",
                         "adb",
                         "-s",
                         getDevice().getSerialNumber(),
                         "logcat",
-                        "-d",
+                        "-m",
+                        "1",
                         "-e",
-                        "Received [0-9]+ bytes from guest & wrote to tombstone file");
+                        ramdumpRegex);
         return !result.trim().isEmpty();
     }
 
     @Test
-    public void testTombstonesAreGeneratedUponCrash() throws Exception {
-        assertThat(isTombstoneGeneratedWithConfig("assets/vm_config_crash.json")).isTrue();
+    public void testTombstonesAreGeneratedUponUserspaceCrash() throws Exception {
+        assertThat(
+                        isTombstoneGenerated(
+                                "assets/vm_config_crash.json",
+                                "kill",
+                                "-SIGSEGV",
+                                "$(pidof microdroid_launcher)"))
+                .isTrue();
     }
 
     @Test
-    public void testTombstonesAreNotGeneratedIfNotExported() throws Exception {
-        assertThat(isTombstoneGeneratedWithConfig("assets/vm_config_crash_no_tombstone.json"))
+    public void testTombstonesAreNotGeneratedIfNotExportedUponUserspaceCrash() throws Exception {
+        assertThat(
+                        isTombstoneGenerated(
+                                "assets/vm_config_crash_no_tombstone.json",
+                                "kill",
+                                "-SIGSEGV",
+                                "$(pidof microdroid_launcher)"))
                 .isFalse();
+    }
+
+    @Test
+    public void testTombstonesAreGeneratedUponKernelCrash() throws Exception {
+        assumeFalse("Cuttlefish is not supported", isCuttlefish());
+        assertThat(
+                        isTombstoneGenerated(
+                                "assets/vm_config_crash.json",
+                                "echo",
+                                "c",
+                                ">",
+                                "/proc/sysrq-trigger"))
+                .isTrue();
     }
 
     @Test
