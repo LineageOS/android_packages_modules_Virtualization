@@ -197,11 +197,6 @@ fn read_avb_footer<R: Read + Seek>(image: &mut R) -> io::Result<Option<AvbFooter
         image.read_exact(footer_slice)?;
         footer.assume_init()
     };
-    // Check the magic matches "AVBf" to suppress misleading logs from libavb.
-    const AVB_FOOTER_MAGIC: [u8; 4] = [0x41, 0x56, 0x42, 0x66];
-    if footer.magic != AVB_FOOTER_MAGIC {
-        return Ok(None);
-    }
     // SAFETY: the function updates the struct in-place.
     if unsafe { avb_footer_validate_and_byteswap(&footer, &mut footer) } {
         Ok(Some(footer))
