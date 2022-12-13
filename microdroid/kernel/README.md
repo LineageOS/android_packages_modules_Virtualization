@@ -10,7 +10,7 @@ turned off to make the kernel fast & slim.
 ### Checkout the GKI source code.
 
 ```bash
-repo init -u https://android.googlesource.com/kernel/manifest -b android14-5.15
+repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-5.15
 repo sync
 ```
 
