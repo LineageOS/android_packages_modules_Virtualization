@@ -65,6 +65,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_PROTECTED_VM = "protectedVm";
     private static final String KEY_MEMORY_MIB = "memoryMib";
     private static final String KEY_NUM_CPUS = "numCpus";
+    private static final String KEY_ENCRYPTED_STORAGE_KIB = "encryptedStorageKib";
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
@@ -120,6 +121,9 @@ public final class VirtualMachineConfig {
      */
     @Nullable private final String mPayloadBinaryPath;
 
+    /** The size of storage in KB. 0 indicates that encryptedStorage is not required */
+    private final long mEncryptedStorageKib;
+
     private VirtualMachineConfig(
             @NonNull String apkPath,
             @Nullable String payloadConfigPath,
@@ -127,7 +131,8 @@ public final class VirtualMachineConfig {
             @DebugLevel int debugLevel,
             boolean protectedVm,
             int memoryMib,
-            int numCpus) {
+            int numCpus,
+            long encryptedStorageKib) {
         requireNonNull(apkPath);
         if (!apkPath.startsWith("/")) {
             throw new IllegalArgumentException("APK path must be an absolute path");
@@ -167,6 +172,9 @@ public final class VirtualMachineConfig {
             throw new UnsupportedOperationException(
                     "Unprotected VMs are not supported on this device.");
         }
+        if (encryptedStorageKib < 0) {
+            throw new IllegalArgumentException("Encrypted Storage size cannot be negative");
+        }
 
         mApkPath = apkPath;
         mPayloadConfigPath = payloadConfigPath;
@@ -175,6 +183,7 @@ public final class VirtualMachineConfig {
         mProtectedVm = protectedVm;
         mMemoryMib = memoryMib;
         mNumCpus = numCpus;
+        mEncryptedStorageKib = encryptedStorageKib;
     }
 
     /** Loads a config from a file. */
@@ -226,9 +235,17 @@ public final class VirtualMachineConfig {
         boolean protectedVm = b.getBoolean(KEY_PROTECTED_VM);
         int memoryMib = b.getInt(KEY_MEMORY_MIB);
         int numCpus = b.getInt(KEY_NUM_CPUS);
+        long encryptedStorageKib = b.getLong(KEY_ENCRYPTED_STORAGE_KIB);
 
-        return new VirtualMachineConfig(apkPath, payloadConfigPath, payloadBinaryPath, debugLevel,
-                protectedVm, memoryMib, numCpus);
+        return new VirtualMachineConfig(
+                apkPath,
+                payloadConfigPath,
+                payloadBinaryPath,
+                debugLevel,
+                protectedVm,
+                memoryMib,
+                numCpus,
+                encryptedStorageKib);
     }
 
     /** Persists this config to a file. */
@@ -252,6 +269,9 @@ public final class VirtualMachineConfig {
         b.putInt(KEY_NUM_CPUS, mNumCpus);
         if (mMemoryMib > 0) {
             b.putInt(KEY_MEMORY_MIB, mMemoryMib);
+        }
+        if (mEncryptedStorageKib > 0) {
+            b.putLong(KEY_ENCRYPTED_STORAGE_KIB, mEncryptedStorageKib);
         }
         b.writeToStream(output);
     }
@@ -337,6 +357,28 @@ public final class VirtualMachineConfig {
     }
 
     /**
+     * Returns whether encrypted storage is enabled or not.
+     *
+     * @hide
+     */
+    @SystemApi
+    public boolean isEncryptedStorageEnabled() {
+        return mEncryptedStorageKib > 0;
+    }
+
+    /**
+     * Returns the size of encrypted storage (in KB) available in the VM, or 0 if encrypted storage
+     * is not enabled
+     *
+     * @hide
+     */
+    @SystemApi
+    @IntRange(from = 0)
+    public long getEncryptedStorageKib() {
+        return mEncryptedStorageKib;
+    }
+
+    /**
      * Tests if this config is compatible with other config. Being compatible means that the configs
      * can be interchangeably used for the same virtual machine. Compatible changes includes the
      * number of CPUs and the size of the RAM. All other changes (e.g. using a different payload,
@@ -348,6 +390,7 @@ public final class VirtualMachineConfig {
     public boolean isCompatibleWith(@NonNull VirtualMachineConfig other) {
         return this.mDebugLevel == other.mDebugLevel
                 && this.mProtectedVm == other.mProtectedVm
+                && this.mEncryptedStorageKib == other.mEncryptedStorageKib
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryPath, other.mPayloadBinaryPath)
                 && this.mApkPath.equals(other.mApkPath);
@@ -405,6 +448,7 @@ public final class VirtualMachineConfig {
         private boolean mProtectedVmSet;
         private int mMemoryMib;
         private int mNumCpus;
+        private long mEncryptedStorageKib;
 
         /**
          * Creates a builder for the given context.
@@ -416,6 +460,7 @@ public final class VirtualMachineConfig {
             mContext = requireNonNull(context, "context must not be null");
             mDebugLevel = DEBUG_LEVEL_NONE;
             mNumCpus = 1;
+            mEncryptedStorageKib = 0;
         }
 
         /**
@@ -433,8 +478,14 @@ public final class VirtualMachineConfig {
             }
 
             return new VirtualMachineConfig(
-                    apkPath, mPayloadConfigPath, mPayloadBinaryPath, mDebugLevel, mProtectedVm,
-                    mMemoryMib, mNumCpus);
+                    apkPath,
+                    mPayloadConfigPath,
+                    mPayloadBinaryPath,
+                    mDebugLevel,
+                    mProtectedVm,
+                    mMemoryMib,
+                    mNumCpus,
+                    mEncryptedStorageKib);
         }
 
         /**
@@ -528,6 +579,28 @@ public final class VirtualMachineConfig {
         @NonNull
         public Builder setNumCpus(@IntRange(from = 1) int num) {
             mNumCpus = num;
+            return this;
+        }
+
+        /**
+         * Sets the size (in KB) of encrypted storage available to the VM.
+         *
+         * <p>The storage is encrypted with a key deterministically derived from the VM identity
+         *
+         * <p>The encrypted storage is persistent across VM reboots as well as device reboots. The
+         * backing file (containing encrypted data) is stored in the app's private data directory.
+         *
+         * <p>Note - There is no integrity guarantee or rollback protection on the storage in case
+         * the encrypted data is modified.
+         *
+         * <p>Deleting the VM will delete the encrypted data - there is no way to recover that data.
+         *
+         * @hide
+         */
+        @SystemApi
+        @NonNull
+        public Builder setEncryptedStorageKib(@IntRange(from = 0) long encryptedStorageKib) {
+            mEncryptedStorageKib = encryptedStorageKib;
             return this;
         }
     }
