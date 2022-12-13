@@ -19,8 +19,6 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-extern crate alloc;
-
 use alloc::ffi::CString;
 use avb_bindgen::{
     avb_slot_verify, AvbHashtreeErrorMode_AVB_HASHTREE_ERROR_MODE_EIO,
