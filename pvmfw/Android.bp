@@ -20,6 +20,7 @@ rust_ffi_static {
         "liblog_rust_nostd",
         "libpvmfw_embedded_key",
         "libtinyvec_nostd",
+        "libvirtio_drivers",
         "libvmbase",
     ],
     apex_available: ["com.android.virt"],
