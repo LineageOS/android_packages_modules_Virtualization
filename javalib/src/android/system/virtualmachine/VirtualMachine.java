@@ -940,23 +940,6 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     /**
-     * Returns the CID of this virtual machine, if it is running.
-     *
-     * @throws VirtualMachineException if the virtual machine is not running.
-     * @hide
-     */
-    @SystemApi
-    public int getCid() throws VirtualMachineException {
-        synchronized (mLock) {
-            try {
-                return getRunningVm().getCid();
-            } catch (RemoteException e) {
-                throw e.rethrowAsRuntimeException();
-            }
-        }
-    }
-
-    /**
      * Changes the config of this virtual machine to a new one. This can be used to adjust things
      * like the number of CPU and size of the RAM, depending on the situation (e.g. the size of the
      * application to run on the virtual machine, etc.)

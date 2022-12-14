@@ -6,7 +6,6 @@ package android.system.virtualmachine {
     method public void close();
     method @NonNull public android.os.IBinder connectToVsockServer(int) throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public android.os.ParcelFileDescriptor connectVsock(int) throws android.system.virtualmachine.VirtualMachineException;
-    method public int getCid() throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig getConfig();
     method @NonNull public java.io.InputStream getConsoleOutput() throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public java.io.InputStream getLogOutput() throws android.system.virtualmachine.VirtualMachineException;
