@@ -248,9 +248,6 @@ public abstract class MicrodroidDeviceTestBase {
             vm.clearCallback();
             mExecutorService.shutdown();
         }
-
-        @Override
-        public void onRamdump(VirtualMachine vm, ParcelFileDescriptor ramdump) {}
     }
 
     public static class BootResult {
