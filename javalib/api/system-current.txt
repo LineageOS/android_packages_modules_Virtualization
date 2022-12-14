@@ -74,8 +74,8 @@ package android.system.virtualmachine {
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig build();
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setApkPath(@NonNull String);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setDebugLevel(int);
-    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setEncryptedStorageKib(@IntRange(from=0) long);
-    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryMib(@IntRange(from=0) int);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setEncryptedStorageKib(@IntRange(from=1) long);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryMib(@IntRange(from=1) int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setNumCpus(@IntRange(from=1) int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadBinaryPath(@NonNull String);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setProtectedVm(boolean);
