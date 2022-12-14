@@ -458,10 +458,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachineConfig.Builder builder =
                 newVmConfigBuilder()
                         .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
-                        .setApkPath("relative/path/to.apk")
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .setMemoryMib(minMemoryRequired());
-        assertThrows(IllegalArgumentException.class, () -> builder.build());
+        assertThrows(
+                IllegalArgumentException.class, () -> builder.setApkPath("relative/path/to.apk"));
     }
 
     @Test
