@@ -114,7 +114,16 @@ impl Header {
         let offset = e.offset as usize;
         let size = e.size as usize;
 
-        self._get_body_range(offset, size).map_err(|e| Error::InvalidEntry(entry, e))
+        match self._get_body_range(offset, size) {
+            Ok(r) => Ok(r),
+            Err(EntryError::InvalidSize(0)) => {
+                // As our bootloader currently uses this (non-compliant) case, permit it for now.
+                log::warn!("Config entry {entry:?} uses non-zero offset with zero size");
+                // TODO(b/262181812): Either make this case valid or fix the bootloader.
+                Ok(None)
+            }
+            Err(e) => Err(Error::InvalidEntry(entry, e)),
+        }
     }
 
     fn _get_body_range(
