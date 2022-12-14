@@ -21,9 +21,6 @@ pub mod compos_client;
 pub mod odrefresh;
 pub mod timeouts;
 
-/// Special CID indicating "any".
-pub const VMADDR_CID_ANY: u32 = -1i32 as u32;
-
 /// VSock port that the CompOS server listens on for RPC binder connections. This should be out of
 /// future port range (if happens) that microdroid may reserve for system components.
 pub const COMPOS_VSOCK_PORT: u32 = 6432;

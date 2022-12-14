@@ -136,7 +136,7 @@ unsafe fn try_run_vsock_server(
     // safely be taken by new_spibinder.
     let service = unsafe { new_spibinder(service) };
     if let Some(service) = service {
-        match RpcServer::new_vsock(service, port) {
+        match RpcServer::new_vsock(service, libc::VMADDR_CID_HOST, port) {
             Ok(server) => {
                 if let Some(on_ready) = on_ready {
                     // SAFETY: We're calling the callback with the parameter specified within the
