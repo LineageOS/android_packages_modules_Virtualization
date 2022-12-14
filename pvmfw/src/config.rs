@@ -17,8 +17,7 @@
 use crate::helpers;
 use core::fmt;
 use core::mem;
-use core::num::NonZeroUsize;
-use core::ops;
+use core::ops::Range;
 use core::result;
 
 #[repr(C, packed)]
@@ -43,8 +42,10 @@ pub enum Error {
     InvalidFlags(u32),
     /// Header describes configuration data that doesn't fit in the expected buffer.
     InvalidSize(usize),
+    /// Header entry is missing.
+    MissingEntry(Entry),
     /// Header entry is invalid.
-    InvalidEntry(Entry),
+    InvalidEntry(Entry, EntryError),
 }
 
 impl fmt::Display for Error {
@@ -55,12 +56,37 @@ impl fmt::Display for Error {
             Self::UnsupportedVersion(x, y) => write!(f, "Version {x}.{y} not supported"),
             Self::InvalidFlags(v) => write!(f, "Flags value {v:#x} is incorrect or reserved"),
             Self::InvalidSize(sz) => write!(f, "Total size ({sz:#x}) overflows reserved region"),
-            Self::InvalidEntry(e) => write!(f, "Entry {e:?} is invalid"),
+            Self::MissingEntry(entry) => write!(f, "Mandatory {entry:?} entry is missing"),
+            Self::InvalidEntry(entry, e) => write!(f, "Invalid {entry:?} entry: {e}"),
         }
     }
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+#[derive(Debug)]
+pub enum EntryError {
+    /// Offset isn't between the fixed minimum value and size of configuration data.
+    InvalidOffset(usize),
+    /// Size must be zero when offset is and not be when it isn't.
+    InvalidSize(usize),
+    /// Entry isn't fully within the configuration data structure.
+    OutOfBounds { offset: usize, size: usize, limit: usize },
+}
+
+impl fmt::Display for EntryError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::InvalidOffset(offset) => write!(f, "Invalid offset: {offset:#x?}"),
+            Self::InvalidSize(sz) => write!(f, "Invalid size: {sz:#x?}"),
+            Self::OutOfBounds { offset, size, limit } => {
+                let range = Header::PADDED_SIZE..*limit;
+                let entry = *offset..(*offset + *size);
+                write!(f, "Out of bounds: {entry:#x?} must be within range {range:#x?}")
+            }
+        }
+    }
+}
 
 impl Header {
     const MAGIC: u32 = u32::from_ne_bytes(*b"pvmf");
@@ -83,8 +109,43 @@ impl Header {
         self.total_size() - Self::PADDED_SIZE
     }
 
-    fn get(&self, entry: Entry) -> HeaderEntry {
-        self.entries[entry as usize]
+    fn get_body_range(&self, entry: Entry) -> Result<Option<Range<usize>>> {
+        let e = self.entries[entry as usize];
+        let offset = e.offset as usize;
+        let size = e.size as usize;
+
+        match self._get_body_range(offset, size) {
+            Ok(r) => Ok(r),
+            Err(EntryError::InvalidSize(0)) => {
+                // As our bootloader currently uses this (non-compliant) case, permit it for now.
+                log::warn!("Config entry {entry:?} uses non-zero offset with zero size");
+                // TODO(b/262181812): Either make this case valid or fix the bootloader.
+                Ok(None)
+            }
+            Err(e) => Err(Error::InvalidEntry(entry, e)),
+        }
+    }
+
+    fn _get_body_range(
+        &self,
+        offset: usize,
+        size: usize,
+    ) -> result::Result<Option<Range<usize>>, EntryError> {
+        match (offset, size) {
+            (0, 0) => Ok(None),
+            (0, size) | (_, size @ 0) => Err(EntryError::InvalidSize(size)),
+            _ => {
+                let start = offset
+                    .checked_sub(Header::PADDED_SIZE)
+                    .ok_or(EntryError::InvalidOffset(offset))?;
+                let end = start
+                    .checked_add(size)
+                    .filter(|x| *x <= self.body_size())
+                    .ok_or(EntryError::OutOfBounds { offset, size, limit: self.total_size() })?;
+
+                Ok(Some(start..end))
+            }
+        }
     }
 }
 
@@ -105,38 +166,11 @@ struct HeaderEntry {
     size: u32,
 }
 
-impl HeaderEntry {
-    pub fn is_empty(&self) -> bool {
-        self.offset() == 0 && self.size() == 0
-    }
-
-    pub fn fits_in(&self, max_size: usize) -> bool {
-        (Header::PADDED_SIZE..max_size).contains(&self.offset())
-            && NonZeroUsize::new(self.size())
-                .and_then(|s| s.checked_add(self.offset()))
-                .filter(|&x| x.get() <= max_size)
-                .is_some()
-    }
-
-    pub fn as_body_range(&self) -> ops::Range<usize> {
-        let start = self.offset() - Header::PADDED_SIZE;
-
-        start..(start + self.size())
-    }
-
-    pub fn offset(&self) -> usize {
-        self.offset as usize
-    }
-
-    pub fn size(&self) -> usize {
-        self.size as usize
-    }
-}
-
 #[derive(Debug)]
 pub struct Config<'a> {
-    header: &'a Header,
     body: &'a mut [u8],
+    bcc_range: Range<usize>,
+    dp_range: Option<Range<usize>>,
 }
 
 impl<'a> Config<'a> {
@@ -161,40 +195,26 @@ impl<'a> Config<'a> {
             return Err(Error::InvalidFlags(header.flags));
         }
 
-        let total_size = header.total_size();
-
-        // BCC is a mandatory entry of the configuration data.
-        if !header.get(Entry::Bcc).fits_in(total_size) {
-            return Err(Error::InvalidEntry(Entry::Bcc));
-        }
-
-        // Debug policy is optional.
-        let dp = header.get(Entry::DebugPolicy);
-        if !dp.is_empty() && !dp.fits_in(total_size) {
-            return Err(Error::InvalidEntry(Entry::DebugPolicy));
-        }
+        let bcc_range =
+            header.get_body_range(Entry::Bcc)?.ok_or(Error::MissingEntry(Entry::Bcc))?;
+        let dp_range = header.get_body_range(Entry::DebugPolicy)?;
 
         let body = data
             .get_mut(Header::PADDED_SIZE..)
             .ok_or(Error::BufferTooSmall)?
             .get_mut(..header.body_size())
-            .ok_or(Error::InvalidSize(total_size))?;
+            .ok_or_else(|| Error::InvalidSize(header.total_size()))?;
 
-        Ok(Self { header, body })
+        Ok(Self { body, bcc_range, dp_range })
     }
 
     /// Get slice containing the platform BCC.
     pub fn get_bcc_mut(&mut self) -> &mut [u8] {
-        &mut self.body[self.header.get(Entry::Bcc).as_body_range()]
+        &mut self.body[self.bcc_range.clone()]
     }
 
     /// Get slice containing the platform debug policy.
     pub fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
-        let entry = self.header.get(Entry::DebugPolicy);
-        if entry.is_empty() {
-            None
-        } else {
-            Some(&mut self.body[entry.as_body_range()])
-        }
+        self.dp_range.as_ref().map(|r| &mut self.body[r.clone()])
     }
 }
