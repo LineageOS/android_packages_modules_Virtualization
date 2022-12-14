@@ -17,6 +17,10 @@ on early-init
 
     start ueventd
 
+    # Generate empty linker config to suppress warnings
+    write /linkerconfig/ld.config.txt \#
+    chmod 644 /linkerconfig/ld.config.txt
+
 # If VM is debuggable, send logs to outside ot the VM via the serial console.
 # If non-debuggable, logs are internally consumed at /dev/null
 on early-init && property:ro.boot.microdroid.debuggable=1
