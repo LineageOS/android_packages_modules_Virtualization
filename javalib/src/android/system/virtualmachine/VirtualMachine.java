@@ -610,9 +610,22 @@ public class VirtualMachine implements AutoCloseable {
         } catch (RemoteException e) {
             throw e.rethrowAsRuntimeException();
         }
+        // It's stopped, but we still have a reference to it - we can fix that.
+        dropVm();
     }
 
-    // If we have an IVirtualMachine in the running state return it, otherwise throw.
+    /**
+     * This should only be called when we know our VM has stopped; we no longer need to hold a
+     * reference to it (this allows resources to be GC'd) and we no longer need to be informed of
+     * memory pressure.
+     */
+    @GuardedBy("mLock")
+    private void dropVm() {
+        mContext.unregisterComponentCallbacks(mMemoryManagementCallbacks);
+        mVirtualMachine = null;
+    }
+
+    /** If we have an IVirtualMachine in the running state return it, otherwise throw. */
     @GuardedBy("mLock")
     private IVirtualMachine getRunningVm() throws VirtualMachineException {
         try {
@@ -879,8 +892,7 @@ public class VirtualMachine implements AutoCloseable {
             }
             try {
                 mVirtualMachine.stop();
-                mContext.unregisterComponentCallbacks(mMemoryManagementCallbacks);
-                mVirtualMachine = null;
+                dropVm();
             } catch (RemoteException e) {
                 throw e.rethrowAsRuntimeException();
             } catch (ServiceSpecificException e) {
@@ -905,8 +917,7 @@ public class VirtualMachine implements AutoCloseable {
             try {
                 if (stateToStatus(mVirtualMachine.getState()) == STATUS_RUNNING) {
                     mVirtualMachine.stop();
-                    mContext.unregisterComponentCallbacks(mMemoryManagementCallbacks);
-                    mVirtualMachine = null;
+                    dropVm();
                 }
             } catch (RemoteException e) {
                 throw e.rethrowAsRuntimeException();
