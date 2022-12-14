@@ -128,8 +128,8 @@ fn create_or_update_idsig_file(
         .context("failed to create idsig")?;
 
     let mut output = clone_file(idsig_fd)?;
-    output.set_len(0).unwrap();
-    sig.write_into(&mut output).unwrap();
+    output.set_len(0).context("failed to set_len on the idsig output")?;
+    sig.write_into(&mut output).context("failed to write idsig")?;
     Ok(())
 }
 
