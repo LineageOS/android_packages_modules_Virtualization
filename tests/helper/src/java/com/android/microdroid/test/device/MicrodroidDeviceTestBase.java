@@ -126,6 +126,12 @@ public abstract class MicrodroidDeviceTestBase {
         }
     }
 
+    protected enum EncryptedStoreOperation {
+        NONE,
+        READ,
+        WRITE,
+    }
+
     public abstract static class VmEventListener implements VirtualMachineCallback {
         private ExecutorService mExecutorService = Executors.newSingleThreadExecutor();
         private OptionalLong mVcpuStartedNanoTime = OptionalLong.empty();

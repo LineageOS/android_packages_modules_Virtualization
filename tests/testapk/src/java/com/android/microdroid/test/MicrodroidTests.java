@@ -113,6 +113,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     private static final int MIN_MEM_ARM64 = 150;
     private static final int MIN_MEM_X86_64 = 196;
+    private static final String EXAMPLE_STRING = "Literally any string!! :)";
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
@@ -1142,6 +1143,29 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mEffectiveCapabilities).isEmpty();
     }
 
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void encryptedStorageIsPersistent() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .setEncryptedStorageKib(4096)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_a", config);
+        TestResults testResults = runVmTestService(vm, EncryptedStoreOperation.WRITE);
+        assertThat(testResults.mException).isNull();
+
+        // Re-run the same VM & verify the file persisted. Note, the previous `runVmTestService`
+        // stopped the VM
+        testResults = runVmTestService(vm, EncryptedStoreOperation.READ);
+        assertThat(testResults.mException).isNull();
+        assertThat(testResults.mFileContent).isEqualTo(EXAMPLE_STRING);
+    }
+
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
             throws IOException {
         File file1 = getVmFile(vmName1, fileName);
@@ -1197,9 +1221,15 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         String mApkContentsPath;
         String mEncryptedStoragePath;
         String[] mEffectiveCapabilities;
+        String mFileContent;
     }
 
     private TestResults runVmTestService(VirtualMachine vm) throws Exception {
+        return runVmTestService(vm, EncryptedStoreOperation.NONE);
+    }
+
+    private TestResults runVmTestService(VirtualMachine vm, EncryptedStoreOperation mode)
+            throws Exception {
         CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
         CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
         TestResults testResults = new TestResults();
@@ -1222,6 +1252,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                                     testService.getEncryptedStoragePath();
                             testResults.mEffectiveCapabilities =
                                     testService.getEffectiveCapabilities();
+                            if (mode == EncryptedStoreOperation.WRITE) {
+                                testService.writeToFile(
+                                        /*content*/ EXAMPLE_STRING,
+                                        /*path*/ "/mnt/encryptedstore/test_file");
+                            } else if (mode == EncryptedStoreOperation.READ) {
+                                testResults.mFileContent =
+                                        testService.readFromFile("/mnt/encryptedstore/test_file");
+                            }
                         } catch (Exception e) {
                             testResults.mException = e;
                         }
