@@ -809,11 +809,6 @@ public class VirtualMachine implements AutoCloseable {
                                                             VirtualMachine.this, translatedReason));
                                 }
                             }
-
-                            @Override
-                            public void onRamdump(int cid, ParcelFileDescriptor ramdump) {
-                                executeCallback((cb) -> cb.onRamdump(VirtualMachine.this, ramdump));
-                            }
                         });
                 mContext.registerComponentCallbacks(mMemoryManagementCallbacks);
                 service.asBinder().linkToDeath(deathRecipient, 0);
