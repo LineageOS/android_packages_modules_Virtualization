@@ -1049,17 +1049,6 @@ impl VirtualMachineCallbacks {
         }
     }
 
-    /// Call all registered callbacks to say that there was a ramdump to download.
-    pub fn callback_on_ramdump(&self, cid: Cid, ramdump: File) {
-        let callbacks = &*self.0.lock().unwrap();
-        let pfd = ParcelFileDescriptor::new(ramdump);
-        for callback in callbacks {
-            if let Err(e) = callback.onRamdump(cid as i32, &pfd) {
-                error!("Error notifying ramdump of VM CID {}: {:?}", cid, e);
-            }
-        }
-    }
-
     /// Add a new callback to the set.
     fn add(&self, callback: Strong<dyn IVirtualMachineCallback>) {
         self.0.lock().unwrap().push(callback);
