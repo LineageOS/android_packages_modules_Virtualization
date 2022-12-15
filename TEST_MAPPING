@@ -58,6 +58,9 @@
       "path": "packages/modules/Virtualization/authfs"
     },
     {
+      "path": "packages/modules/Virtualization/pvmfw"
+    },
+    {
       "path": "packages/modules/Virtualization/rialto"
     },
     {

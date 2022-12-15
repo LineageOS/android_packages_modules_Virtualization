@@ -38,10 +38,10 @@ use crate::{
     memory::MemoryTracker,
     pci::{allocate_all_virtio_bars, PciError, PciInfo, PciMemory32Allocator},
 };
-use ::avb::verify_image;
 use dice::bcc;
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
+use pvmfw_avb::verify_payload;
 
 fn main(
     fdt: &Fdt,
@@ -71,7 +71,7 @@ fn main(
     let mut pci_root = unsafe { pci_info.make_pci_root() };
     allocate_all_virtio_bars(&mut pci_root, &mut bar_allocator).map_err(handle_pci_error)?;
 
-    verify_image(signed_kernel, PUBLIC_KEY).map_err(|e| {
+    verify_payload(PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");
         RebootReason::PayloadVerificationError
     })?;
