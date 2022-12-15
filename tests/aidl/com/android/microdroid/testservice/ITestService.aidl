@@ -17,9 +17,9 @@ package com.android.microdroid.testservice;
 
 /** {@hide} */
 interface ITestService {
-    const int SERVICE_PORT = 5678;
+    const long SERVICE_PORT = 5678;
 
-    const int ECHO_REVERSE_PORT = 6789;
+    const long ECHO_REVERSE_PORT = 0x80000001L; // Deliberately chosen to be > 2^31, < 2^32
 
     /* add two integers. */
     int addInteger(int a, int b);

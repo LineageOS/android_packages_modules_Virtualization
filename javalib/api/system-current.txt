@@ -4,8 +4,8 @@ package android.system.virtualmachine {
   public class VirtualMachine implements java.lang.AutoCloseable {
     method public void clearCallback();
     method public void close();
-    method @NonNull public android.os.IBinder connectToVsockServer(int) throws android.system.virtualmachine.VirtualMachineException;
-    method @NonNull public android.os.ParcelFileDescriptor connectVsock(int) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.os.IBinder connectToVsockServer(@IntRange(from=android.system.virtualmachine.VirtualMachine.MIN_VSOCK_PORT, to=android.system.virtualmachine.VirtualMachine.MAX_VSOCK_PORT) long) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull public android.os.ParcelFileDescriptor connectVsock(@IntRange(from=android.system.virtualmachine.VirtualMachine.MIN_VSOCK_PORT, to=android.system.virtualmachine.VirtualMachine.MAX_VSOCK_PORT) long) throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig getConfig();
     method @NonNull public java.io.InputStream getConsoleOutput() throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public java.io.InputStream getLogOutput() throws android.system.virtualmachine.VirtualMachineException;
@@ -17,6 +17,8 @@ package android.system.virtualmachine {
     method public void stop() throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public android.system.virtualmachine.VirtualMachineDescriptor toDescriptor() throws android.system.virtualmachine.VirtualMachineException;
     field public static final String MANAGE_VIRTUAL_MACHINE_PERMISSION = "android.permission.MANAGE_VIRTUAL_MACHINE";
+    field public static final long MAX_VSOCK_PORT = 4294967295L; // 0xffffffffL
+    field public static final long MIN_VSOCK_PORT = 1024L; // 0x400L
     field public static final int STATUS_DELETED = 2; // 0x2
     field public static final int STATUS_RUNNING = 1; // 0x1
     field public static final int STATUS_STOPPED = 0; // 0x0
