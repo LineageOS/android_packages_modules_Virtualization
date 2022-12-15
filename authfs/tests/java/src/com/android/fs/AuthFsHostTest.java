@@ -173,6 +173,7 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     @Before
     public void setUp() throws Exception {
         assumeFalse(sAssumptionFailed);
+        assumeFalse(isCuttlefish());
         sAndroid.run("mkdir " + TEST_OUTPUT_DIR);
     }
 
