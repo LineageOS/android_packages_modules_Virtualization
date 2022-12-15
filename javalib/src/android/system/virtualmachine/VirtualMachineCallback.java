@@ -20,7 +20,6 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
-import android.os.ParcelFileDescriptor;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -155,7 +154,4 @@ public interface VirtualMachineCallback {
 
     /** Called when the VM has stopped. */
     void onStopped(@NonNull VirtualMachine vm, @StopReason int reason);
-
-    /** Called when kernel panic occurs and as a result ramdump is generated from the VM. */
-    void onRamdump(@NonNull VirtualMachine vm, @NonNull ParcelFileDescriptor ramdump);
 }

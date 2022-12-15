@@ -520,15 +520,10 @@ impl VmInstance {
         Ok(())
     }
 
-    /// Checks if ramdump has been created. If so, send a notification to the user with the handle
-    /// to read the ramdump.
+    /// Checks if ramdump has been created. If so, send it to tombstoned.
     fn handle_ramdump(&self) -> Result<(), Error> {
         let ramdump_path = self.temporary_directory.join("ramdump");
         if std::fs::metadata(&ramdump_path)?.len() > 0 {
-            let ramdump = File::open(&ramdump_path)
-                .context(format!("Failed to open ramdump {:?} for reading", &ramdump_path))?;
-            self.callbacks.callback_on_ramdump(self.cid, ramdump);
-
             Self::send_ramdump_to_tombstoned(&ramdump_path)?;
         }
         Ok(())
@@ -536,7 +531,7 @@ impl VmInstance {
 
     fn send_ramdump_to_tombstoned(ramdump_path: &Path) -> Result<(), Error> {
         let mut input = File::open(ramdump_path)
-            .context(format!("Failed to open raudmp {:?} for reading", ramdump_path))?;
+            .context(format!("Failed to open ramdump {:?} for reading", ramdump_path))?;
 
         let pid = std::process::id() as i32;
         let conn = TombstonedConnection::connect(pid, DebuggerdDumpType::Tombstone)

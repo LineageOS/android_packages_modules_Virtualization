@@ -28,7 +28,6 @@ package android.system.virtualmachine {
     method public void onPayloadFinished(@NonNull android.system.virtualmachine.VirtualMachine, int);
     method public void onPayloadReady(@NonNull android.system.virtualmachine.VirtualMachine);
     method public void onPayloadStarted(@NonNull android.system.virtualmachine.VirtualMachine);
-    method public void onRamdump(@NonNull android.system.virtualmachine.VirtualMachine, @NonNull android.os.ParcelFileDescriptor);
     method public void onStopped(@NonNull android.system.virtualmachine.VirtualMachine, int);
     field public static final int ERROR_PAYLOAD_CHANGED = 2; // 0x2
     field public static final int ERROR_PAYLOAD_INVALID_CONFIG = 3; // 0x3
