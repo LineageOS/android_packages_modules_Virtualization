@@ -12,6 +12,7 @@ rust_bindgen {
     source_stem: "bindings",
     bindgen_flags: [
         "--size_t-is-usize",
+        "--default-enum-style rust",
         "--allowlist-function=.*",
         "--use-core",
         "--raw-line=#![no_std]",
