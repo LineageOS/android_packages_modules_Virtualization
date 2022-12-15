@@ -19,6 +19,8 @@
 #![feature(default_alloc_error_handler)]
 #![feature(ptr_const_cast)] // Stabilized in 1.65.0
 
+extern crate alloc;
+
 mod avb;
 mod config;
 mod entry;
@@ -30,14 +32,14 @@ mod hvc;
 mod memory;
 mod mmio_guard;
 mod mmu;
-mod pci;
 mod smccc;
+mod virtio;
 
 use crate::{
     avb::PUBLIC_KEY,
     entry::RebootReason,
     memory::MemoryTracker,
-    pci::{find_virtio_devices, map_mmio},
+    virtio::pci::{find_virtio_devices, map_mmio},
 };
 use dice::bcc;
 use fdtpci::{PciError, PciInfo};
