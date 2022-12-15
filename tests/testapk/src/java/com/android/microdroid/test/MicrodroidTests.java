@@ -313,6 +313,37 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
+    public void vmConfigBuilderUnitTests() {
+        VirtualMachineConfig.Builder builder = newVmConfigBuilder();
+
+        // All your null are belong to me.
+        assertThrows(NullPointerException.class, () -> new VirtualMachineConfig.Builder(null));
+        assertThrows(NullPointerException.class, () -> builder.setApkPath(null));
+        assertThrows(NullPointerException.class, () -> builder.setPayloadConfigPath(null));
+        assertThrows(NullPointerException.class, () -> builder.setPayloadBinaryPath(null));
+        assertThrows(NullPointerException.class, () -> builder.setPayloadConfigPath(null));
+
+        // Individual property checks.
+        assertThrows(
+                IllegalArgumentException.class, () -> builder.setApkPath("relative/path/to.apk"));
+        assertThrows(IllegalArgumentException.class, () -> builder.setDebugLevel(-1));
+        assertThrows(IllegalArgumentException.class, () -> builder.setMemoryMib(0));
+        assertThrows(IllegalArgumentException.class, () -> builder.setNumCpus(0));
+        assertThrows(IllegalArgumentException.class, () -> builder.setEncryptedStorageKib(0));
+
+        // Consistency checks enforced at build time.
+        Exception e;
+        e = assertThrows(IllegalStateException.class, () -> builder.build());
+        assertThat(e).hasMessageThat().contains("setPayloadBinaryPath must be called");
+
+        VirtualMachineConfig.Builder protectedNotSet =
+                new VirtualMachineConfig.Builder(getContext()).setPayloadBinaryPath("binary/path");
+        e = assertThrows(IllegalStateException.class, () -> protectedNotSet.build());
+        assertThat(e).hasMessageThat().contains("setProtectedVm must be called");
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1"})
     public void vmUnitTests() throws Exception {
         VirtualMachineConfig.Builder builder =
                 newVmConfigBuilder().setPayloadBinaryPath("binary/path");
@@ -448,20 +479,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults = runVmTestService(vm);
         assertThat(testResults.mException).isNull();
-    }
-
-    @Test
-    @CddTest(requirements = {
-            "9.17/C-1-1",
-    })
-    public void invalidApkPathIsRejected() {
-        VirtualMachineConfig.Builder builder =
-                newVmConfigBuilder()
-                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
-                        .setDebugLevel(DEBUG_LEVEL_FULL)
-                        .setMemoryMib(minMemoryRequired());
-        assertThrows(
-                IllegalArgumentException.class, () -> builder.setApkPath("relative/path/to.apk"));
     }
 
     @Test
