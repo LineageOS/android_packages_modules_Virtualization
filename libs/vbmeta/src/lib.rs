@@ -18,18 +18,12 @@ mod descriptor;
 
 use avb_bindgen::{
     avb_footer_validate_and_byteswap, avb_vbmeta_image_header_to_host_byte_order,
-    avb_vbmeta_image_verify, AvbAlgorithmType_AVB_ALGORITHM_TYPE_NONE, AvbFooter,
-    AvbVBMetaImageHeader, AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_HASH_MISMATCH,
-    AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_INVALID_VBMETA_HEADER,
-    AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_OK,
-    AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_OK_NOT_SIGNED,
-    AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_SIGNATURE_MISMATCH,
-    AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_UNSUPPORTED_VERSION,
+    avb_vbmeta_image_verify, AvbAlgorithmType, AvbFooter, AvbVBMetaImageHeader,
+    AvbVBMetaVerifyResult,
 };
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::mem::{size_of, transmute, MaybeUninit};
-use std::os::raw::c_uint;
 use std::path::Path;
 use std::ptr::null_mut;
 use thiserror::Error;
@@ -68,9 +62,6 @@ pub enum VbMetaImageVerificationError {
     /// The VBMeta image signature did not validate.
     #[error("Signature mismatch")]
     SignatureMismatch,
-    /// An unexpected libavb error code was returned.
-    #[error("Unknown libavb error: {0}")]
-    UnknownLibavbError(c_uint),
 }
 
 /// A VBMeta Image.
@@ -130,7 +121,7 @@ impl VbMetaImage {
     /// Get the public key that verified the VBMeta image. If the image was not signed, there
     /// is no such public key.
     pub fn public_key(&self) -> Option<&[u8]> {
-        if self.header.algorithm_type == AvbAlgorithmType_AVB_ALGORITHM_TYPE_NONE {
+        if self.header.algorithm_type == AvbAlgorithmType::AVB_ALGORITHM_TYPE_NONE as u32 {
             return None;
         }
         let begin = size_of::<AvbVBMetaImageHeader>()
@@ -144,7 +135,7 @@ impl VbMetaImage {
     /// image was not signed, there might not be a hash and, if there is, it's not known to be
     /// correct.
     pub fn hash(&self) -> Option<&[u8]> {
-        if self.header.algorithm_type == AvbAlgorithmType_AVB_ALGORITHM_TYPE_NONE {
+        if self.header.algorithm_type == AvbAlgorithmType::AVB_ALGORITHM_TYPE_NONE as u32 {
             return None;
         }
         let begin = size_of::<AvbVBMetaImageHeader>() + self.header.hash_offset as usize;
@@ -168,23 +159,21 @@ fn verify_vbmeta_image(data: &[u8]) -> Result<(), VbMetaImageVerificationError> 
     // SAFETY: the function only reads from the provided data and the NULL pointers disable the
     // output arguments.
     let res = unsafe { avb_vbmeta_image_verify(data.as_ptr(), data.len(), null_mut(), null_mut()) };
-    #[allow(non_upper_case_globals)]
     match res {
-        AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_OK
-        | AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_OK_NOT_SIGNED => Ok(()),
-        AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_INVALID_VBMETA_HEADER => {
+        AvbVBMetaVerifyResult::AVB_VBMETA_VERIFY_RESULT_OK
+        | AvbVBMetaVerifyResult::AVB_VBMETA_VERIFY_RESULT_OK_NOT_SIGNED => Ok(()),
+        AvbVBMetaVerifyResult::AVB_VBMETA_VERIFY_RESULT_INVALID_VBMETA_HEADER => {
             Err(VbMetaImageParseError::InvalidHeader.into())
         }
-        AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_UNSUPPORTED_VERSION => {
+        AvbVBMetaVerifyResult::AVB_VBMETA_VERIFY_RESULT_UNSUPPORTED_VERSION => {
             Err(VbMetaImageParseError::UnsupportedVersion.into())
         }
-        AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_HASH_MISMATCH => {
+        AvbVBMetaVerifyResult::AVB_VBMETA_VERIFY_RESULT_HASH_MISMATCH => {
             Err(VbMetaImageVerificationError::HashMismatch)
         }
-        AvbVBMetaVerifyResult_AVB_VBMETA_VERIFY_RESULT_SIGNATURE_MISMATCH => {
+        AvbVBMetaVerifyResult::AVB_VBMETA_VERIFY_RESULT_SIGNATURE_MISMATCH => {
             Err(VbMetaImageVerificationError::SignatureMismatch)
         }
-        err => Err(VbMetaImageVerificationError::UnknownLibavbError(err)),
     }
 }
 

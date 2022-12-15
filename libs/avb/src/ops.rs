@@ -20,70 +20,54 @@
 #![allow(unused_imports)]
 
 use alloc::ffi::CString;
-use avb_bindgen::{
-    avb_slot_verify, AvbHashtreeErrorMode_AVB_HASHTREE_ERROR_MODE_EIO,
-    AvbSlotVerifyFlags_AVB_SLOT_VERIFY_FLAGS_NO_VBMETA_PARTITION,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_IO,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_OOM,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION,
-    AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_OK,
-};
+use avb_bindgen::{avb_slot_verify, AvbHashtreeErrorMode, AvbSlotVerifyFlags, AvbSlotVerifyResult};
 use core::fmt;
 use log::debug;
 
 /// Error code from AVB image verification.
 #[derive(Clone, Copy, Debug)]
 pub enum AvbImageVerifyError {
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT
     InvalidArgument,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA
     InvalidMetadata,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_IO
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_IO
     Io,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_OOM
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_OOM
     Oom,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED
     PublicKeyRejected,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX
     RollbackIndex,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION
     UnsupportedVersion,
-    /// AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION
+    /// AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION
     Verification,
-    /// Unknown error.
-    Unknown(u32),
 }
 
-fn to_avb_verify_result(result: u32) -> Result<(), AvbImageVerifyError> {
-    #[allow(non_upper_case_globals)]
+fn to_avb_verify_result(result: AvbSlotVerifyResult) -> Result<(), AvbImageVerifyError> {
     match result {
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_OK => Ok(()),
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT => {
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_OK => Ok(()),
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT => {
             Err(AvbImageVerifyError::InvalidArgument)
         }
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA => {
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA => {
             Err(AvbImageVerifyError::InvalidMetadata)
         }
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_IO => Err(AvbImageVerifyError::Io),
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_OOM => Err(AvbImageVerifyError::Oom),
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED => {
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_IO => Err(AvbImageVerifyError::Io),
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_OOM => Err(AvbImageVerifyError::Oom),
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED => {
             Err(AvbImageVerifyError::PublicKeyRejected)
         }
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX => {
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX => {
             Err(AvbImageVerifyError::RollbackIndex)
         }
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION => {
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION => {
             Err(AvbImageVerifyError::UnsupportedVersion)
         }
-        AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION => {
+        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION => {
             Err(AvbImageVerifyError::Verification)
         }
-        _ => Err(AvbImageVerifyError::Unknown(result)),
     }
 }
 
@@ -105,7 +89,6 @@ impl fmt::Display for AvbImageVerifyError {
                 "Some of the metadata requires a newer version of libavb than what is in use."
             ),
             Self::Verification => write!(f, "Data does not verify."),
-            Self::Unknown(e) => write!(f, "Unknown avb_slot_verify error '{e}'"),
         }
     }
 }
@@ -115,8 +98,9 @@ impl fmt::Display for AvbImageVerifyError {
 ///  - The VBMeta struct is valid.
 ///  - The partitions of the image match the descriptors of the verified VBMeta struct.
 /// Returns Ok if everything is verified correctly and the public key is accepted.
-pub fn verify_image(image: &[u8], public_key: &[u8]) -> Result<(), AvbImageVerifyError> {
-    AvbOps::new().verify_image(image, public_key)
+pub fn verify_image(_image: &[u8], _public_key: &[u8]) -> Result<(), AvbImageVerifyError> {
+    // TODO(b/256148034): Call verify_slot() from pvmfw.
+    AvbOps::new().verify_slot()
 }
 
 /// TODO(b/256148034): Make AvbOps a rust wrapper of avb_bindgen::AvbOps using foreign_types.
@@ -127,25 +111,23 @@ impl AvbOps {
         AvbOps {}
     }
 
-    fn verify_image(&self, image: &[u8], public_key: &[u8]) -> Result<(), AvbImageVerifyError> {
-        debug!("AVB image: addr={:?}, size={:#x} ({1})", image.as_ptr(), image.len());
-        debug!(
-            "AVB public key: addr={:?}, size={:#x} ({1})",
-            public_key.as_ptr(),
-            public_key.len()
-        );
+    fn verify_slot(&mut self) -> Result<(), AvbImageVerifyError> {
+        let flags = AvbSlotVerifyFlags::AVB_SLOT_VERIFY_FLAGS_NO_VBMETA_PARTITION;
+        let hashtree_error_mode = AvbHashtreeErrorMode::AVB_HASHTREE_ERROR_MODE_EIO;
+        debug!("flags: {:?}", flags);
+        debug!("hashtree_error_mode: {:?}", hashtree_error_mode);
         // TODO(b/256148034): Verify the kernel image with avb_slot_verify()
         // let result = unsafe {
         //     avb_slot_verify(
         //         self.as_ptr(),
         //         requested_partitions.as_ptr(),
         //         ab_suffix.as_ptr(),
-        //         AvbSlotVerifyFlags_AVB_SLOT_VERIFY_FLAGS_NO_VBMETA_PARTITION,
-        //         AvbHashtreeErrorMode_AVB_HASHTREE_ERROR_MODE_EIO,
+        //         flags,
+        //         hashtree_error_mode,
         //         &image.as_ptr(),
         //     )
         // };
-        let result = AvbSlotVerifyResult_AVB_SLOT_VERIFY_RESULT_OK;
+        let result = AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_OK;
         to_avb_verify_result(result)
     }
 }
