@@ -68,7 +68,7 @@ rust_library_rlib {
         "libspin_nostd",
     ],
     whole_static_libs: [
-        "libarm-optimized-routines-mem",
+        "librust_baremetal",
     ],
     apex_available: ["com.android.virt"],
 }
