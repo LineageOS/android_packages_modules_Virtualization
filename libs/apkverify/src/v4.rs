@@ -146,6 +146,11 @@ impl<R: Read + Seek> V4Signature<R> {
 
     /// Read a stream for an APK file and creates a corresponding `V4Signature` struct that digests
     /// the APK file. Note that the signing is not done.
+    /// Important: callers of this function are expected to verify the validity of the passed |apk|.
+    /// To be more specific, they should check that |apk| corresponds to a regular file, as calling
+    /// lseek on directory fds is not defined in the standard, and on ext4 it will return (off_t)-1
+    /// (see: https://bugzilla.kernel.org/show_bug.cgi?id=200043), which will result in this
+    /// function OOMing.
     pub fn create(
         mut apk: &mut R,
         block_size: usize,
