@@ -1,6 +1,6 @@
 # Doing RAM dump of a Microdroid VM and analyzing it
 
-A Microdroid VM creates a RAM dump of itself when the kernel panics. This
+A debuggable Microdroid VM creates a RAM dump of itself when the kernel panics. This
 document explains how the dump can be obtained and analyzed.
 
 ## Force triggering a RAM dump
@@ -49,7 +49,7 @@ reboot: Restarting system with command 'kernel panic'
 
 ## Obtaining the RAM dump
 
-By default, RAM dumps are sent to tombstone. To see which tombstone file is for
+RAM dumps are sent to tombstone. To see which tombstone file is for
 the RAM dump, look into the log.
 
 ```shell
@@ -63,15 +63,6 @@ You can download this using `adb pull`.
 ```shell
 $ adb root && adb pull /data/tombstones/tombstone_47 ramdump && adb unroot
 ```
-
-Alternatively, you can specify the path to where RAM dump is stored when
-launching the VM using the `--ramdump` option of the `vm` tool.
-
-```shell
-$ adb shelll /apex/com.android.virt/bin/vm run-app --ramdump /data/local/tmp/virt/ramdump ...
-```
-
-In the above example, the RAM dump is saved to `/data/local/tmp/virt/ramdump`.
 
 ## Analyzing the RAM dump
 
@@ -151,9 +142,3 @@ Above shows that the shell process that executed `echo c > /proc/sysrq-trigger`
 actually triggered a crash in the kernel.
 
 For more commands of crash(8), refer to the man page, or embedded `help` command.
-
-
-
-
-
-
