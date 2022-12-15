@@ -18,12 +18,14 @@
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/result.h>
+#include <android-base/scopeguard.h>
 #include <android/log.h>
 #include <fcntl.h>
 #include <fsverity_digests.pb.h>
 #include <linux/vm_sockets.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/capability.h>
 #include <sys/system_properties.h>
 #include <unistd.h>
 #include <vm_main.h>
@@ -35,6 +37,7 @@
 using android::base::borrowed_fd;
 using android::base::ErrnoError;
 using android::base::Error;
+using android::base::make_scope_guard;
 using android::base::Result;
 using android::base::unique_fd;
 
@@ -193,6 +196,29 @@ Result<void> start_test_service() {
                 out->clear();
             } else {
                 *out = path_c;
+            }
+            return ScopedAStatus::ok();
+        }
+
+        ScopedAStatus getEffectiveCapabilities(std::vector<std::string>* out) override {
+            if (out == nullptr) {
+                return ScopedAStatus::ok();
+            }
+            cap_t cap = cap_get_proc();
+            auto guard = make_scope_guard([&cap]() { cap_free(cap); });
+            for (cap_value_t cap_id = 0; cap_id < CAP_LAST_CAP + 1; cap_id++) {
+                cap_flag_value_t value;
+                if (cap_get_flag(cap, cap_id, CAP_EFFECTIVE, &value) != 0) {
+                    return ScopedAStatus::
+                            fromServiceSpecificErrorWithMessage(0, "cap_get_flag failed");
+                }
+                if (value == CAP_SET) {
+                    // Ideally we would just send back the cap_ids, but I wasn't able to find java
+                    // APIs for linux capabilities, hence we transform to the human readable name
+                    // here.
+                    char* name = cap_to_name(cap_id);
+                    out->push_back(std::string(name) + "(" + std::to_string(cap_id) + ")");
+                }
             }
             return ScopedAStatus::ok();
         }

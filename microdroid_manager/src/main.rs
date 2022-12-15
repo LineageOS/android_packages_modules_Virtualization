@@ -55,6 +55,7 @@ use std::convert::TryInto;
 use std::env;
 use std::fs::{self, create_dir, OpenOptions};
 use std::io::Write;
+use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
@@ -795,6 +796,24 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
             command
         }
     };
+
+    unsafe {
+        // SAFETY: we are not accessing any resource of the parent process.
+        command.pre_exec(|| {
+            info!("dropping capabilities before executing payload");
+            // It is OK to continue with payload execution even if the calls below fail, since
+            // whether process can use a capability is controlled by the SELinux. Dropping the
+            // capabilities here is just another defense-in-depth layer.
+            if let Err(e) = cap::drop_inheritable_caps() {
+                error!("failed to drop inheritable capabilities: {:?}", e);
+            }
+            if let Err(e) = cap::drop_bounding_set() {
+                error!("failed to drop bounding set: {:?}", e);
+            }
+            Ok(())
+        });
+    }
+
     command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
 
     info!("notifying payload started");

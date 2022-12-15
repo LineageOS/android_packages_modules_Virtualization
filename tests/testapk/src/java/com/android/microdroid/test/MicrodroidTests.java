@@ -1117,6 +1117,25 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mEncryptedStoragePath).isEqualTo("/mnt/encryptedstore");
     }
 
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void microdroidLauncherHasEmptyCapabilities() throws Exception {
+        assumeSupportedKernel();
+
+        final VirtualMachineConfig vmConfig =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        final VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_caps", vmConfig);
+
+        final TestResults testResults = runVmTestService(vm);
+
+        assertThat(testResults.mException).isNull();
+        assertThat(testResults.mEffectiveCapabilities).isEmpty();
+    }
+
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
             throws IOException {
         File file1 = getVmFile(vmName1, fileName);
@@ -1171,6 +1190,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         String mExtraApkTestProp;
         String mApkContentsPath;
         String mEncryptedStoragePath;
+        String[] mEffectiveCapabilities;
     }
 
     private TestResults runVmTestService(VirtualMachine vm) throws Exception {
@@ -1194,6 +1214,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                             testResults.mApkContentsPath = testService.getApkContentsPath();
                             testResults.mEncryptedStoragePath =
                                     testService.getEncryptedStoragePath();
+                            testResults.mEffectiveCapabilities =
+                                    testService.getEffectiveCapabilities();
                         } catch (Exception e) {
                             testResults.mException = e;
                         }

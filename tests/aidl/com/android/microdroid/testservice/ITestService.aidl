@@ -46,4 +46,7 @@ interface ITestService {
      * each line reverse.
      */
     void runEchoReverseServer();
+
+    /** Returns a mask of effective capabilities that the process running the payload binary has. */
+    String[] getEffectiveCapabilities();
 }
