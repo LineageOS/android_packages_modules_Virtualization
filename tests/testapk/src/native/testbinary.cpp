@@ -112,7 +112,7 @@ Result<void> start_echo_reverse_server() {
     }
     struct sockaddr_vm server_sa = (struct sockaddr_vm){
             .svm_family = AF_VSOCK,
-            .svm_port = BnTestService::ECHO_REVERSE_PORT,
+            .svm_port = static_cast<uint32_t>(BnTestService::ECHO_REVERSE_PORT),
             .svm_cid = VMADDR_CID_ANY,
     };
     int ret = TEMP_FAILURE_RETRY(bind(server_fd, (struct sockaddr*)&server_sa, sizeof(server_sa)));
