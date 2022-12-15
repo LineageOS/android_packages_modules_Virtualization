@@ -22,6 +22,7 @@ rust_ffi_static {
         "libtinyvec_nostd",
         "libvirtio_drivers",
         "libvmbase",
+        "libzeroize_nostd",
     ],
     apex_available: ["com.android.virt"],
 }

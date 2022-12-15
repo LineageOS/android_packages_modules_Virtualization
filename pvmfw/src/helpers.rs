@@ -15,6 +15,7 @@
 //! Miscellaneous helper functions.
 
 use core::arch::asm;
+use zeroize::Zeroize;
 
 pub const SIZE_4KB: usize = 4 << 10;
 pub const SIZE_2MB: usize = 2 << 20;
@@ -74,4 +75,11 @@ pub fn flush_region(start: usize, size: usize) {
         // SAFETY - Clearing cache lines shouldn't have Rust-visible side effects.
         unsafe { asm!("dc cvau, {x}", x = in(reg) line) }
     }
+}
+
+#[inline]
+/// Overwrites the slice with zeroes, to the point of unification.
+pub fn flushed_zeroize(reg: &mut [u8]) {
+    reg.zeroize();
+    flush_region(reg.as_ptr() as usize, reg.len())
 }
