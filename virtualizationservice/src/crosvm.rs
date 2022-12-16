@@ -40,10 +40,8 @@ use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
 use std::thread::{self, JoinHandle};
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    DeathReason::DeathReason,
-    MemoryTrimLevel::MemoryTrimLevel,
-};
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::DeathReason::DeathReason;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::MemoryTrimLevel::MemoryTrimLevel;
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IGlobalVmContext::IGlobalVmContext;
 use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;

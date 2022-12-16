@@ -23,10 +23,11 @@ pub use crate::death_reason::DeathReason;
 pub use crate::error_code::ErrorCode;
 pub use crate::errors::VmWaitError;
 use crate::sync::Monitor;
-use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode as AidlErrorCode;
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::{
+    DeathReason::DeathReason as AidlDeathReason, ErrorCode::ErrorCode as AidlErrorCode,
+};
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
-        DeathReason::DeathReason as AidlDeathReason,
         IVirtualMachine::IVirtualMachine,
         IVirtualMachineCallback::{BnVirtualMachineCallback, IVirtualMachineCallback},
         IVirtualizationService::IVirtualizationService,
