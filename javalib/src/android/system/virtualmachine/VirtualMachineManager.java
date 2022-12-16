@@ -150,6 +150,11 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} with the given name. Returns null if there is no
      * such virtual machine.
      *
+     * <p>There is at most one {@code VirtualMachine} object corresponding to a given virtual
+     * machine instance. Multiple calls to get() passing the same name will get the same object
+     * returned, until the virtual machine is deleted (via {@link #delete}) and then recreated.
+     *
+     * @see #getOrCreate
      * @throws VirtualMachineException if the virtual machine exists but could not be successfully
      *     retrieved.
      * @hide
