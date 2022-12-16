@@ -13,11 +13,11 @@ rust_ffi_static {
     ],
     rustlibs: [
         "libaarch64_paging",
-        "libavb_nostd",
         "libbuddy_system_allocator",
         "libdice_nostd",
         "liblibfdt",
         "liblog_rust_nostd",
+        "libpvmfw_avb_nostd",
         "libpvmfw_embedded_key",
         "libtinyvec_nostd",
         "libvirtio_drivers",
