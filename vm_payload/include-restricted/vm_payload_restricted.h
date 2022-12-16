@@ -34,21 +34,21 @@ __BEGIN_DECLS
 /**
  * Get the VM's DICE attestation chain.
  *
- * \param data pointer to size bytes where the chain is written.
+ * \param data pointer to size bytes where the chain is written (may be null if size is 0).
  * \param size number of bytes that can be written to data.
  *
  * \return the total size of the chain
  */
-size_t AVmPayload_getDiceAttestationChain(void *data, size_t size);
+size_t AVmPayload_getDiceAttestationChain(void* _Nullable data, size_t size);
 
 /**
  * Get the VM's DICE attestation CDI.
  *
- * \param data pointer to size bytes where the CDI is written.
+ * \param data pointer to size bytes where the CDI is written (may be null if size is 0).
  * \param size number of bytes that can be written to data.
  *
  * \return the total size of the CDI
  */
-size_t AVmPayload_getDiceAttestationCdi(void *data, size_t size);
+size_t AVmPayload_getDiceAttestationCdi(void* _Nullable data, size_t size);
 
 __END_DECLS
