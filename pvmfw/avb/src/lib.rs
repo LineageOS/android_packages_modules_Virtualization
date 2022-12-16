@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module regroups the rust API for libavb.
+//! A library implementing the payload verification for pvmfw with libavb
 
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
-extern crate alloc;
+mod verify;
 
-mod ops;
-
-pub use ops::{verify_image, AvbImageVerifyError};
+pub use verify::{verify_payload, AvbImageVerifyError};
