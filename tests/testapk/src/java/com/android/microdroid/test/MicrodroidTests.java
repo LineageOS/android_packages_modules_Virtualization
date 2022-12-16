@@ -53,6 +53,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.function.ThrowingRunnable;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -209,6 +210,62 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             assertThat(vm.getStatus()).isEqualTo(STATUS_DELETED);
             // close() implicitly called on deleted VM.
         }
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void vmLifecycleChecks() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
+        assertThat(vm.getStatus()).isEqualTo(STATUS_STOPPED);
+
+        // These methods require a running VM
+        assertThrowsVmExceptionContaining(
+                () -> vm.connectVsock(VirtualMachine.MIN_VSOCK_PORT), "not in running state");
+        assertThrowsVmExceptionContaining(
+                () -> vm.connectToVsockServer(VirtualMachine.MIN_VSOCK_PORT),
+                "not in running state");
+
+        vm.run();
+        assertThat(vm.getStatus()).isEqualTo(STATUS_RUNNING);
+
+        // These methods require a stopped VM
+        assertThrowsVmExceptionContaining(() -> vm.run(), "not in stopped state");
+        assertThrowsVmExceptionContaining(() -> vm.setConfig(config), "not in stopped state");
+        assertThrowsVmExceptionContaining(() -> vm.toDescriptor(), "not in stopped state");
+        assertThrowsVmExceptionContaining(
+                () -> getVirtualMachineManager().delete("test_vm"), "not in stopped state");
+
+        vm.stop();
+        getVirtualMachineManager().delete("test_vm");
+        assertThat(vm.getStatus()).isEqualTo(STATUS_DELETED);
+
+        // None of these should work for a deleted VM
+        assertThrowsVmExceptionContaining(
+                () -> vm.connectVsock(VirtualMachine.MIN_VSOCK_PORT), "deleted");
+        assertThrowsVmExceptionContaining(
+                () -> vm.connectToVsockServer(VirtualMachine.MIN_VSOCK_PORT), "deleted");
+        assertThrowsVmExceptionContaining(() -> vm.run(), "deleted");
+        assertThrowsVmExceptionContaining(() -> vm.setConfig(config), "deleted");
+        assertThrowsVmExceptionContaining(() -> vm.toDescriptor(), "deleted");
+        // This is indistinguishable from the VM having never existed, so the message
+        // is non-specific.
+        assertThrows(
+                VirtualMachineException.class, () -> getVirtualMachineManager().delete("test_vm"));
+    }
+
+    private void assertThrowsVmExceptionContaining(
+            ThrowingRunnable runnable, String expectedContents) {
+        Exception e = assertThrows(VirtualMachineException.class, runnable);
+        assertThat(e).hasMessageThat().contains(expectedContents);
     }
 
     @Test
