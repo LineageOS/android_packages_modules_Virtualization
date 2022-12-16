@@ -258,14 +258,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThrowsVmExceptionContaining(() -> vm.toDescriptor(), "deleted");
         // This is indistinguishable from the VM having never existed, so the message
         // is non-specific.
-        assertThrows(
-                VirtualMachineException.class, () -> getVirtualMachineManager().delete("test_vm"));
-    }
-
-    private void assertThrowsVmExceptionContaining(
-            ThrowingRunnable runnable, String expectedContents) {
-        Exception e = assertThrows(VirtualMachineException.class, runnable);
-        assertThat(e).hasMessageThat().contains(expectedContents);
+        assertThrowsVmException(() -> getVirtualMachineManager().delete("test_vm"));
     }
 
     @Test
@@ -423,6 +416,48 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
+    public void vmmGetAndCreate() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachineManager vmm = getVirtualMachineManager();
+        String vmName = "vmName";
+
+        // VM does not yet exist
+        assertThat(vmm.get(vmName)).isNull();
+
+        VirtualMachine vm1 = vmm.create(vmName, config);
+
+        // Now it does, and we should get the same instance back
+        assertThat(vmm.get(vmName)).isSameInstanceAs(vm1);
+        assertThat(vmm.getOrCreate(vmName, config)).isSameInstanceAs(vm1);
+
+        // Can't recreate it though
+        assertThrowsVmException(() -> vmm.create(vmName, config));
+
+        vmm.delete(vmName);
+        assertThat(vmm.get(vmName)).isNull();
+
+        // Now that we deleted the old one, this should create rather than get, and it should be a
+        // new instance.
+        VirtualMachine vm2 = vmm.getOrCreate(vmName, config);
+        assertThat(vm2).isNotSameInstanceAs(vm1);
+
+        // Subsequent gets should return this new one.
+        assertThat(vmm.get(vmName)).isSameInstanceAs(vm2);
+        assertThat(vmm.getOrCreate(vmName, config)).isSameInstanceAs(vm2);
+
+        vmm.delete(vmName);
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1"})
     public void vmFilesStoredInDeDirWhenCreatedFromDEContext() throws Exception {
         final Context ctx = getContext().createDeviceProtectedStorageContext();
         final int userId = ctx.getUserId();
@@ -511,10 +546,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(vmm.get("test_vm_delete")).isNull();
 
         // Can't start the VM even with an existing reference
-        assertThrows(VirtualMachineException.class, vm::run);
+        assertThrowsVmException(vm::run);
 
         // Can't delete the VM since it no longer exists
-        assertThrows(VirtualMachineException.class, () -> vmm.delete("test_vm_delete"));
+        assertThrowsVmException(() -> vmm.delete("test_vm_delete"));
     }
 
     @Test
@@ -1096,6 +1131,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         Context context = ApplicationProvider.getApplicationContext();
         Path filePath = Paths.get(context.getDataDir().getPath(), "vm", vmName, fileName);
         return filePath.toFile();
+    }
+
+    private void assertThrowsVmException(ThrowingRunnable runnable) {
+        assertThrows(VirtualMachineException.class, runnable);
+    }
+
+    private void assertThrowsVmExceptionContaining(
+            ThrowingRunnable runnable, String expectedContents) {
+        Exception e = assertThrows(VirtualMachineException.class, runnable);
+        assertThat(e).hasMessageThat().contains(expectedContents);
     }
 
     private int minMemoryRequired() {
