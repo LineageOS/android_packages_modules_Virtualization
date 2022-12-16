@@ -15,9 +15,9 @@
 //! Safe MMIO_GUARD support.
 
 use crate::helpers;
+use crate::hvc::{mmio_guard_enroll, mmio_guard_info, mmio_guard_map, mmio_guard_unmap};
 use crate::smccc;
 use core::{fmt, result};
-use log::info;
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -62,51 +62,4 @@ pub fn map(addr: usize) -> Result<()> {
 
 pub fn unmap(addr: usize) -> Result<()> {
     mmio_guard_unmap(helpers::page_4kb_of(addr) as u64).map_err(Error::UnmapFailed)
-}
-
-fn mmio_guard_info() -> smccc::Result<u64> {
-    const VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID: u32 = 0xc6000005;
-    let args = [0u64; 17];
-
-    smccc::checked_hvc64(VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID, args)
-}
-
-fn mmio_guard_enroll() -> smccc::Result<()> {
-    const VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID: u32 = 0xc6000006;
-    let args = [0u64; 17];
-
-    smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID, args)
-}
-
-fn mmio_guard_map(ipa: u64) -> smccc::Result<()> {
-    const VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID: u32 = 0xc6000007;
-    let mut args = [0u64; 17];
-    args[0] = ipa;
-
-    // TODO(b/253586500): pKVM currently returns a i32 instead of a i64.
-    let is_i32_error_code = |n| u32::try_from(n).ok().filter(|v| (*v as i32) < 0).is_some();
-    match smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID, args) {
-        Err(smccc::Error::Unexpected(e)) if is_i32_error_code(e) => {
-            info!("Handled a pKVM bug by interpreting the MMIO_GUARD_MAP return value as i32");
-            match e as u32 as i32 {
-                -1 => Err(smccc::Error::NotSupported),
-                -2 => Err(smccc::Error::NotRequired),
-                -3 => Err(smccc::Error::InvalidParameter),
-                ret => Err(smccc::Error::Unknown(ret as i64)),
-            }
-        }
-        res => res,
-    }
-}
-
-fn mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
-    const VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID: u32 = 0xc6000008;
-    let mut args = [0u64; 17];
-    args[0] = ipa;
-
-    // TODO(b/251426790): pKVM currently returns NOT_SUPPORTED for SUCCESS.
-    match smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID, args) {
-        Err(smccc::Error::NotSupported) | Ok(_) => Ok(()),
-        x => x,
-    }
 }

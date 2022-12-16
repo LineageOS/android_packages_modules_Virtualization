@@ -26,6 +26,7 @@ mod exceptions;
 mod fdt;
 mod heap;
 mod helpers;
+mod hvc;
 mod memory;
 mod mmio_guard;
 mod mmu;
