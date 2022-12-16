@@ -26,15 +26,15 @@ import android.annotation.SystemApi;
  */
 @SystemApi
 public class VirtualMachineException extends Exception {
-    public VirtualMachineException(@Nullable String message) {
+    VirtualMachineException(@Nullable String message) {
         super(message);
     }
 
-    public VirtualMachineException(@Nullable String message, @Nullable Throwable cause) {
+    VirtualMachineException(@Nullable String message, @Nullable Throwable cause) {
         super(message, cause);
     }
 
-    public VirtualMachineException(@Nullable Throwable cause) {
+    VirtualMachineException(@Nullable Throwable cause) {
         super(cause);
     }
 }
