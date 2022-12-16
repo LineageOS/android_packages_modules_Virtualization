@@ -88,9 +88,6 @@ package android.system.virtualmachine {
   }
 
   public class VirtualMachineException extends java.lang.Exception {
-    ctor public VirtualMachineException(@Nullable String);
-    ctor public VirtualMachineException(@Nullable String, @Nullable Throwable);
-    ctor public VirtualMachineException(@Nullable Throwable);
   }
 
   public class VirtualMachineManager {
