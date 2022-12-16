@@ -206,7 +206,7 @@ fn try_get_vm_instance_secret(identifier: &[u8], size: usize) -> Result<Vec<u8>>
 ///
 /// Behavior is undefined if any of the following conditions are violated:
 ///
-/// * `data` must be [valid] for writes of `size` bytes.
+/// * `data` must be [valid] for writes of `size` bytes, if size > 0.
 ///
 /// [valid]: ptr#safety
 #[no_mangle]
@@ -214,9 +214,13 @@ pub unsafe extern "C" fn AVmPayload_getDiceAttestationChain(data: *mut u8, size:
     initialize_logging();
 
     let chain = unwrap_or_abort(try_get_dice_attestation_chain());
-    // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
-    // the length of either buffer, and `chain` cannot overlap `data` because we just allocated it.
-    unsafe { ptr::copy_nonoverlapping(chain.as_ptr(), data, std::cmp::min(chain.len(), size)) };
+    if size != 0 {
+        // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+        // the length of either buffer, and `chain` cannot overlap `data` because we just allocated
+        // it. We allow data to be null, which is never valid, but only if size == 0 which is
+        // checked above.
+        unsafe { ptr::copy_nonoverlapping(chain.as_ptr(), data, std::cmp::min(chain.len(), size)) };
+    }
     chain.len()
 }
 
@@ -231,7 +235,7 @@ fn try_get_dice_attestation_chain() -> Result<Vec<u8>> {
 ///
 /// Behavior is undefined if any of the following conditions are violated:
 ///
-/// * `data` must be [valid] for writes of `size` bytes.
+/// * `data` must be [valid] for writes of `size` bytes, if size > 0.
 ///
 /// [valid]: ptr#safety
 #[no_mangle]
@@ -239,9 +243,13 @@ pub unsafe extern "C" fn AVmPayload_getDiceAttestationCdi(data: *mut u8, size: u
     initialize_logging();
 
     let cdi = unwrap_or_abort(try_get_dice_attestation_cdi());
-    // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
-    // the length of either buffer, and `cdi` cannot overlap `data` because we just allocated it.
-    unsafe { ptr::copy_nonoverlapping(cdi.as_ptr(), data, std::cmp::min(cdi.len(), size)) };
+    if size != 0 {
+        // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+        // the length of either buffer, and `cdi` cannot overlap `data` because we just allocated
+        // it. We allow data to be null, which is never valid, but only if size == 0 which is
+        // checked above.
+        unsafe { ptr::copy_nonoverlapping(cdi.as_ptr(), data, std::cmp::min(cdi.len(), size)) };
+    }
     cdi.len()
 }
 
