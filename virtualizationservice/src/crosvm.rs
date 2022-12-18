@@ -39,7 +39,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DeathReason::DeathReason,
     MemoryTrimLevel::MemoryTrimLevel,
@@ -140,6 +140,8 @@ pub enum VmState {
     Running {
         /// The crosvm child process.
         child: Arc<SharedChild>,
+        /// The thread waiting for crosvm to finish.
+        monitor_vm_exit_thread: Option<JoinHandle<()>>,
     },
     /// The VM died or was killed.
     Dead,
@@ -187,9 +189,9 @@ impl VmState {
 
             let child_clone = child.clone();
             let instance_clone = instance.clone();
-            thread::spawn(move || {
+            let monitor_vm_exit_thread = Some(thread::spawn(move || {
                 instance_clone.monitor_vm_exit(child_clone, failure_pipe_read);
-            });
+            }));
 
             if detect_hangup {
                 let child_clone = child.clone();
@@ -199,7 +201,7 @@ impl VmState {
             }
 
             // If it started correctly, update the state.
-            *self = VmState::Running { child };
+            *self = VmState::Running { child, monitor_vm_exit_thread };
             Ok(())
         } else {
             *self = state;
@@ -465,19 +467,24 @@ impl VmInstance {
 
     /// Kills the crosvm instance, if it is running.
     pub fn kill(&self) -> Result<(), Error> {
-        let vm_state = &*self.vm_state.lock().unwrap();
-        if let VmState::Running { child } = vm_state {
-            let id = child.id();
-            debug!("Killing crosvm({})", id);
-            // TODO: Talk to crosvm to shutdown cleanly.
-            if let Err(e) = child.kill() {
-                bail!("Error killing crosvm({}) instance: {}", id, e);
+        let monitor_vm_exit_thread = {
+            let vm_state = &mut *self.vm_state.lock().unwrap();
+            if let VmState::Running { child, monitor_vm_exit_thread } = vm_state {
+                let id = child.id();
+                debug!("Killing crosvm({})", id);
+                // TODO: Talk to crosvm to shutdown cleanly.
+                child.kill().with_context(|| format!("Error killing crosvm({id}) instance"))?;
+                monitor_vm_exit_thread.take()
             } else {
-                Ok(())
+                bail!("VM is not running")
             }
-        } else {
-            bail!("VM is not running")
-        }
+        };
+
+        // Wait for monitor_vm_exit() to finish. Must release vm_state lock
+        // first, as monitor_vm_exit() takes it as well.
+        monitor_vm_exit_thread.map(JoinHandle::join);
+
+        Ok(())
     }
 
     /// Responds to memory-trimming notifications by inflating the virtio
