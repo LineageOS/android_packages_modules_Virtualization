@@ -14,15 +14,19 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
-use crate::atom::{write_vm_booted_stats, write_vm_creation_stats};
+use crate::atom::{
+    forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom,
+    write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
 use crate::selinux::{getfilecon, SeContext};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
-use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::{
     DeathReason::DeathReason,
+    ErrorCode::ErrorCode,
+};
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DiskImage::DiskImage,
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
@@ -38,6 +42,9 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineState::VirtualMachineState,
 };
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::{
+    AtomVmBooted::AtomVmBooted,
+    AtomVmCreationRequested::AtomVmCreationRequested,
+    AtomVmExited::AtomVmExited,
     IGlobalVmContext::{BnGlobalVmContext, IGlobalVmContext},
     IVirtualizationServiceInternal::{BnVirtualizationServiceInternal, IVirtualizationServiceInternal},
 };
@@ -51,6 +58,7 @@ use binder::{
     Status, StatusCode, Strong, ThreadState,
 };
 use disk::QcowFile;
+use lazy_static::lazy_static;
 use libc::VMADDR_CID_HOST;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
@@ -101,6 +109,13 @@ const CHUNK_RECV_MAX_LEN: usize = 1024;
 const MICRODROID_OS_NAME: &str = "microdroid";
 
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
+
+lazy_static! {
+    pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> = {
+        let service = VirtualizationServiceInternal::init();
+        BnVirtualizationServiceInternal::new_binder(service, BinderFeatures::default())
+    };
+}
 
 fn is_valid_guest_cid(cid: Cid) -> bool {
     (GUEST_CID_MIN..=GUEST_CID_MAX).contains(&cid)
@@ -163,6 +178,21 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
         })?;
         Ok(GlobalVmContext::create(cid))
+    }
+
+    fn atomVmBooted(&self, atom: &AtomVmBooted) -> Result<(), Status> {
+        forward_vm_booted_atom(atom);
+        Ok(())
+    }
+
+    fn atomVmCreationRequested(&self, atom: &AtomVmCreationRequested) -> Result<(), Status> {
+        forward_vm_creation_atom(atom);
+        Ok(())
+    }
+
+    fn atomVmExited(&self, atom: &AtomVmExited) -> Result<(), Status> {
+        forward_vm_exited_atom(atom);
+        Ok(())
     }
 }
 
@@ -257,10 +287,9 @@ impl IGlobalVmContext for GlobalVmContext {
 }
 
 /// Implementation of `IVirtualizationService`, the entry point of the AIDL service.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VirtualizationService {
     state: Arc<Mutex<State>>,
-    global_service: Strong<dyn IVirtualizationServiceInternal>,
 }
 
 impl Interface for VirtualizationService {
@@ -461,18 +490,14 @@ fn handle_tombstone(stream: &mut VsockStream) -> Result<()> {
 
 impl VirtualizationService {
     pub fn init() -> VirtualizationService {
-        let global_service = VirtualizationServiceInternal::init();
-        let global_service =
-            BnVirtualizationServiceInternal::new_binder(global_service, BinderFeatures::default());
-
-        VirtualizationService { global_service, state: Default::default() }
+        VirtualizationService::default()
     }
 
     fn create_vm_context(&self) -> Result<(VmContext, Cid)> {
         const NUM_ATTEMPTS: usize = 5;
 
         for _ in 0..NUM_ATTEMPTS {
-            let global_context = self.global_service.allocateGlobalVmContext()?;
+            let global_context = GLOBAL_SERVICE.allocateGlobalVmContext()?;
             let cid = global_context.getCid()? as Cid;
             let service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
 
