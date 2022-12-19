@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package android.system.virtualizationservice;
+package android.system.virtualizationcommon;
 
 /**
  * The reason why a VM died.

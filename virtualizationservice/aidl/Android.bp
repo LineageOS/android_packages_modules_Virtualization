@@ -36,6 +36,7 @@ aidl_interface {
 aidl_interface {
     name: "android.system.virtualizationservice_internal",
     srcs: ["android/system/virtualizationservice_internal/**/*.aidl"],
+    imports: ["android.system.virtualizationcommon"],
     unstable: true,
     backend: {
         java: {

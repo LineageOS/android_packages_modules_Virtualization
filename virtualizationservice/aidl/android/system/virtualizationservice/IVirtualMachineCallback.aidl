@@ -15,8 +15,8 @@
  */
 package android.system.virtualizationservice;
 
+import android.system.virtualizationcommon.DeathReason;
 import android.system.virtualizationcommon.ErrorCode;
-import android.system.virtualizationservice.DeathReason;
 
 /**
  * An object which a client may register with the VirtualizationService to get callbacks about the
