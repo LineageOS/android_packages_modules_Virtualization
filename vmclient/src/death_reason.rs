@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use android_system_virtualizationservice::{
-        aidl::android::system::virtualizationservice::{
-            DeathReason::DeathReason as AidlDeathReason}};
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::DeathReason::DeathReason as AidlDeathReason;
 
 /// The reason why a VM died.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
