@@ -59,7 +59,6 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
 import android.system.virtualizationcommon.DeathReason;
 import android.system.virtualizationcommon.ErrorCode;
@@ -324,6 +323,9 @@ public class VirtualMachine implements AutoCloseable {
     @Nullable
     private Executor mCallbackExecutor;
 
+    /* Running instance of virtmgr that hosts VirtualizationService for this VM. */
+    @NonNull private VirtualizationService mVirtualizationService;
+
     private static class ExtraApkSpec {
         public final File apk;
         public final File idsig;
@@ -339,11 +341,15 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     private VirtualMachine(
-            @NonNull Context context, @NonNull String name, @NonNull VirtualMachineConfig config)
+            @NonNull Context context,
+            @NonNull String name,
+            @NonNull VirtualMachineConfig config,
+            @NonNull VirtualizationService service)
             throws VirtualMachineException {
         mPackageName = context.getPackageName();
         mName = requireNonNull(name, "Name must not be null");
         mConfig = requireNonNull(config, "Config must not be null");
+        mVirtualizationService = service;
 
         File thisVmDir = getVmDir(context, mName);
         mVmRootPath = thisVmDir;
@@ -357,6 +363,7 @@ public class VirtualMachine implements AutoCloseable {
                 (config.isEncryptedStorageEnabled())
                         ? new File(thisVmDir, ENCRYPTED_STORE_FILE)
                         : null;
+
     }
 
     /**
@@ -379,7 +386,8 @@ public class VirtualMachine implements AutoCloseable {
         VirtualMachineConfig config = VirtualMachineConfig.from(vmDescriptor.getConfigFd());
         File vmDir = createVmDir(context, name);
         try {
-            VirtualMachine vm = new VirtualMachine(context, name, config);
+            VirtualMachine vm =
+                    new VirtualMachine(context, name, config, VirtualizationService.getInstance());
             config.serialize(vm.mConfigFilePath);
             try {
                 vm.mInstanceFilePath.createNewFile();
@@ -422,7 +430,8 @@ public class VirtualMachine implements AutoCloseable {
         File vmDir = createVmDir(context, name);
 
         try {
-            VirtualMachine vm = new VirtualMachine(context, name, config);
+            VirtualMachine vm =
+                    new VirtualMachine(context, name, config, VirtualizationService.getInstance());
             config.serialize(vm.mConfigFilePath);
             try {
                 vm.mInstanceFilePath.createNewFile();
@@ -438,9 +447,7 @@ public class VirtualMachine implements AutoCloseable {
                 }
             }
 
-            IVirtualizationService service =
-                    IVirtualizationService.Stub.asInterface(
-                            ServiceManager.waitForService(SERVICE_NAME));
+            IVirtualizationService service = vm.mVirtualizationService.connect();
 
             try {
                 service.initializeWritablePartition(
@@ -494,7 +501,8 @@ public class VirtualMachine implements AutoCloseable {
         }
         File configFilePath = new File(thisVmDir, CONFIG_FILE);
         VirtualMachineConfig config = VirtualMachineConfig.from(configFilePath);
-        VirtualMachine vm = new VirtualMachine(context, name, config);
+        VirtualMachine vm =
+                new VirtualMachine(context, name, config, VirtualizationService.getInstance());
 
         if (!vm.mInstanceFilePath.exists()) {
             throw new VirtualMachineException("instance image missing");
@@ -747,9 +755,7 @@ public class VirtualMachine implements AutoCloseable {
                 throw new VirtualMachineException("failed to create idsig file", e);
             }
 
-            IVirtualizationService service =
-                    IVirtualizationService.Stub.asInterface(
-                            ServiceManager.waitForService(SERVICE_NAME));
+            IVirtualizationService service = mVirtualizationService.connect();
 
             try {
                 createVmPipes();
