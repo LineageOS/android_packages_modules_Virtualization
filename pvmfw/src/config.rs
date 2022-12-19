@@ -20,13 +20,19 @@ use core::mem;
 use core::ops::Range;
 use core::result;
 
+/// Configuration data header.
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug)]
 struct Header {
+    /// Magic number; must be `Header::MAGIC`.
     magic: u32,
+    /// Version of the header format.
     version: u32,
+    /// Total size of the configuration data.
     total_size: u32,
+    /// Feature flags; currently reserved and must be zero.
     flags: u32,
+    /// (offset, size) pairs used to locate individual entries appended to the header.
     entries: [HeaderEntry; Entry::COUNT],
 }
 
@@ -90,6 +96,7 @@ impl fmt::Display for EntryError {
 
 impl Header {
     const MAGIC: u32 = u32::from_ne_bytes(*b"pvmf");
+    const VERSION_1_0: u32 = Self::version(1, 0);
     const PADDED_SIZE: usize =
         helpers::unchecked_align_up(mem::size_of::<Self>(), mem::size_of::<u64>());
 
@@ -186,7 +193,7 @@ impl<'a> Config<'a> {
             return Err(Error::InvalidMagic);
         }
 
-        if header.version != Header::version(1, 0) {
+        if header.version != Header::VERSION_1_0 {
             let (major, minor) = header.version_tuple();
             return Err(Error::UnsupportedVersion(major, minor));
         }
