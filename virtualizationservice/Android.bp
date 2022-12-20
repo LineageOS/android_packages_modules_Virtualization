@@ -5,7 +5,6 @@ package {
 rust_defaults {
     name: "virtualizationservice_defaults",
     crate_name: "virtualizationservice",
-    srcs: ["src/main.rs"],
     edition: "2021",
     // Only build on targets which crosvm builds on.
     enabled: false,
@@ -67,11 +66,23 @@ rust_defaults {
 rust_binary {
     name: "virtualizationservice",
     defaults: ["virtualizationservice_defaults"],
+    srcs: ["src/main.rs"],
+    apex_available: ["com.android.virt"],
+}
+
+rust_binary {
+    name: "virtmgr",
+    defaults: ["virtualizationservice_defaults"],
+    srcs: ["src/virtmgr.rs"],
+    rustlibs: [
+        "libclap",
+    ],
     apex_available: ["com.android.virt"],
 }
 
 rust_test {
     name: "virtualizationservice_device_test",
+    srcs: ["src/main.rs"],
     defaults: ["virtualizationservice_defaults"],
     rustlibs: [
         "libtempfile",
