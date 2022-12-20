@@ -16,6 +16,7 @@
 
 use crate::aidl::{clone_file, GLOBAL_SERVICE};
 use crate::crosvm::VmMetric;
+use crate::get_calling_uid;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::DeathReason::DeathReason;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     IVirtualMachine::IVirtualMachine,
@@ -29,7 +30,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
     AtomVmExited::AtomVmExited,
 };
 use anyhow::{anyhow, Result};
-use binder::{ParcelFileDescriptor, ThreadState};
+use binder::ParcelFileDescriptor;
 use log::{trace, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use rustutils::system_properties;
@@ -112,7 +113,7 @@ pub fn write_vm_creation_stats(
     };
 
     let atom = AtomVmCreationRequested {
-        uid: ThreadState::get_calling_uid() as i32,
+        uid: get_calling_uid() as i32,
         vmIdentifier: vm_identifier,
         isProtected: is_protected,
         creationSucceeded: creation_succeeded,
