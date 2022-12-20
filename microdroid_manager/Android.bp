@@ -18,6 +18,7 @@ rust_defaults {
         "libapkverify",
         "libbinder_rs",
         "libbyteorder",
+        "libcap_rust",
         "libdiced",
         "libdiced_open_dice_cbor",
         "libdiced_sample_inputs",
