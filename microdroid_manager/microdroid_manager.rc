@@ -7,6 +7,8 @@ service microdroid_manager /system/bin/microdroid_manager
     setenv RUST_LOG info
     # TODO(jooyung) remove this when microdroid_manager becomes a daemon
     oneshot
-    # SYS_BOOT is required to exec kexecload from microdroid_manager
-    capabilities AUDIT_CONTROL SYS_ADMIN SYS_BOOT
+    # CAP_SYS_BOOT is required to exec kexecload from microdroid_manager
+    # CAP_SETCAP is required to allow microdroid_manager to drop capabilities
+    #   before executing the payload
+    capabilities AUDIT_CONTROL SYS_ADMIN SYS_BOOT SETPCAP
     socket vm_payload_service stream 0666 system system
