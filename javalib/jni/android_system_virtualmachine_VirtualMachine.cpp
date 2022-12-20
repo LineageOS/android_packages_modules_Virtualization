@@ -55,7 +55,12 @@ JNIEXPORT jobject JNICALL android_system_virtualmachine_VirtualMachine_connectTo
         return ret;
     };
 
-    return AIBinder_toJavaBinder(env, RpcPreconnectedClient(requestFunc, &args));
+    auto session = ARpcSession_new();
+    auto client = ARpcSession_setupPreconnectedClient(session, requestFunc, &args);
+    auto obj = AIBinder_toJavaBinder(env, client);
+    // Free the NDK handle. The underlying RpcSession object remains alive.
+    ARpcSession_free(session);
+    return obj;
 }
 
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
