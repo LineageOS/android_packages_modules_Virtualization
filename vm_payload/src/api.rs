@@ -23,7 +23,7 @@ use anyhow::{ensure, bail, Context, Result};
 use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
 use lazy_static::lazy_static;
 use log::{error, info, Level};
-use rpcbinder::{get_unix_domain_rpc_interface, RpcServer};
+use rpcbinder::{RpcSession, RpcServer};
 use std::convert::Infallible;
 use std::ffi::CString;
 use std::fmt::Debug;
@@ -49,10 +49,9 @@ fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
     if let Some(strong) = &*connection {
         Ok(strong.clone())
     } else {
-        let new_connection: Strong<dyn IVmPayloadService> = get_unix_domain_rpc_interface(
-            VM_PAYLOAD_SERVICE_SOCKET_NAME,
-        )
-        .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_SOCKET_NAME))?;
+        let new_connection: Strong<dyn IVmPayloadService> = RpcSession::new()
+            .setup_unix_domain_client(VM_PAYLOAD_SERVICE_SOCKET_NAME)
+            .context(format!("Failed to connect to service: {}", VM_PAYLOAD_SERVICE_SOCKET_NAME))?;
         *connection = Some(new_connection.clone());
         Ok(new_connection)
     }

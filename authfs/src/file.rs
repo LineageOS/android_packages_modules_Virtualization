@@ -9,7 +9,7 @@ pub use remote_file::{RemoteFileEditor, RemoteFileReader, RemoteMerkleTreeReader
 use crate::common::{divide_roundup, CHUNK_SIZE};
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::IVirtFdService;
 use binder::{Status, StatusCode, Strong};
-use rpcbinder::get_vsock_rpc_interface;
+use rpcbinder::RpcSession;
 use std::convert::TryFrom;
 use std::io;
 use std::path::{Path, MAIN_SEPARATOR};
@@ -22,7 +22,7 @@ pub type ChunkBuffer = [u8; CHUNK_SIZE as usize];
 pub const RPC_SERVICE_PORT: u32 = 3264;
 
 pub fn get_rpc_binder_service(cid: u32) -> io::Result<VirtFdService> {
-    get_vsock_rpc_interface(cid, RPC_SERVICE_PORT).map_err(|e| match e {
+    RpcSession::new().setup_vsock_client(cid, RPC_SERVICE_PORT).map_err(|e| match e {
         StatusCode::BAD_VALUE => {
             io::Error::new(io::ErrorKind::InvalidInput, "Invalid raw AIBinder")
         }

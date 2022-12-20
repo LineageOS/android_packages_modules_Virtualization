@@ -39,7 +39,7 @@ use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
 };
 use compos_common::binder::to_binder_result;
 use compos_common::odrefresh::{is_system_property_interesting, ODREFRESH_PATH};
-use rpcbinder::get_unix_domain_rpc_interface;
+use rpcbinder::RpcSession;
 
 /// Constructs a binder object that implements ICompOsService.
 pub fn new_binder() -> Result<Strong<dyn ICompOsService>> {
@@ -130,9 +130,9 @@ impl ICompOsService for CompOsService {
 impl CompOsService {
     fn do_odrefresh(&self, args: &OdrefreshArgs) -> Result<i8> {
         log::debug!("Prepare to connect to {}", AUTHFS_SERVICE_SOCKET_NAME);
-        let authfs_service: Strong<dyn IAuthFsService> =
-            get_unix_domain_rpc_interface(AUTHFS_SERVICE_SOCKET_NAME)
-                .with_context(|| format!("Failed to connect to {}", AUTHFS_SERVICE_SOCKET_NAME))?;
+        let authfs_service: Strong<dyn IAuthFsService> = RpcSession::new()
+            .setup_unix_domain_client(AUTHFS_SERVICE_SOCKET_NAME)
+            .with_context(|| format!("Failed to connect to {}", AUTHFS_SERVICE_SOCKET_NAME))?;
         let exit_code = odrefresh(&self.odrefresh_path, args, authfs_service, |output_dir| {
             // authfs only shows us the files we created, so it's ok to just sign everything
             // under the output directory.
