@@ -24,6 +24,16 @@ function print_help() {
     echo "      cid - cid of the VM to connect to. If not specified user will "
     echo "            be promted to select one from the list of available cids"
     echo ""
+    echo "    start-microdroid [--auto-connect] [-- extra_args]"
+    echo "        Starts a Microdroid VM. Args after the -- will be"
+    echo "        passed through to the invocation of the "
+    echo "        /apex/com.android.virt/bin/vm run-microdroid binary."
+    echo ""
+    echo "        E.g.:"
+    echo "            vm_shell start-microdroid -- --cpu 5"
+    echo ""
+    echo "        --auto-connect - automatically connects to the started VMs"
+    echo ""
     echo "    help - prints this help message"
 }
 
@@ -72,11 +82,30 @@ function handle_connect_cmd() {
     connect_vm ${selected_cid}
 }
 
+function handle_start_microdroid_cmd() {
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+          --auto-connect) auto_connect=true; ;;
+          --) shift; passthrough_args="$@"; break ;;
+          *) echo "Unknown argument: $1"; exit 1 ;;
+        esac
+        shift
+    done
+    if [[ "${auto_connect}" == true ]]; then
+        adb shell /apex/com.android.virt/bin/vm run-microdroid -d "${passthrough_args}"
+        sleep 2
+        handle_connect_cmd
+    else
+        adb shell /apex/com.android.virt/bin/vm run-microdroid "${passthrough_args}"
+    fi
+}
+
 cmd=$1
 shift
 
 case $cmd in
   connect) handle_connect_cmd "$@" ;;
+  start-microdroid) handle_start_microdroid_cmd "$@" ;;
   help) print_help ;;
   *) print_help; exit 1 ;;
 esac
