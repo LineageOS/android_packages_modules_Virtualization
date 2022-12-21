@@ -45,6 +45,17 @@ pub const fn align_up(addr: usize, alignment: usize) -> Option<usize> {
     }
 }
 
+/// Aligns the given address to the given alignment, if it is a power of two.
+///
+/// Returns `None` if the alignment isn't a power of two.
+pub const fn align_down(addr: usize, alignment: usize) -> Option<usize> {
+    if !alignment.is_power_of_two() {
+        None
+    } else {
+        Some(unchecked_align_down(addr, alignment))
+    }
+}
+
 /// Computes the address of the 4KiB page containing a given address.
 pub const fn page_4kb_of(addr: usize) -> usize {
     unchecked_align_down(addr, SIZE_4KB)
