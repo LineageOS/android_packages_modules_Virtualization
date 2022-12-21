@@ -16,6 +16,7 @@ rust_ffi_static {
         "libavb_nostd",
         "libbuddy_system_allocator",
         "libdice_nostd",
+        "libfdtpci",
         "liblibfdt",
         "liblog_rust_nostd",
         "libpvmfw_embedded_key",
