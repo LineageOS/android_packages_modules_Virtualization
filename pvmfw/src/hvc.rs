@@ -17,10 +17,40 @@
 use crate::smccc::{self, checked_hvc64, checked_hvc64_expect_zero};
 use log::info;
 
+const ARM_SMCCC_KVM_FUNC_HYP_MEMINFO: u32 = 0xc6000002;
+const ARM_SMCCC_KVM_FUNC_MEM_SHARE: u32 = 0xc6000003;
+const ARM_SMCCC_KVM_FUNC_MEM_UNSHARE: u32 = 0xc6000004;
 const VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID: u32 = 0xc6000005;
 const VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID: u32 = 0xc6000006;
 const VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID: u32 = 0xc6000007;
 const VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID: u32 = 0xc6000008;
+
+/// Queries the memory protection parameters for a protected virtual machine.
+///
+/// Returns the memory protection granule size in bytes.
+pub fn hyp_meminfo() -> smccc::Result<u64> {
+    let args = [0u64; 17];
+    checked_hvc64(ARM_SMCCC_KVM_FUNC_HYP_MEMINFO, args)
+}
+
+/// Shares a region of memory with the KVM host, granting it read, write and execute permissions.
+/// The size of the region is equal to the memory protection granule returned by [`hyp_meminfo`].
+pub fn mem_share(base_ipa: u64) -> smccc::Result<()> {
+    let mut args = [0u64; 17];
+    args[0] = base_ipa;
+
+    checked_hvc64_expect_zero(ARM_SMCCC_KVM_FUNC_MEM_SHARE, args)
+}
+
+/// Revokes access permission from the KVM host to a memory region previously shared with
+/// [`mem_share`]. The size of the region is equal to the memory protection granule returned by
+/// [`hyp_meminfo`].
+pub fn mem_unshare(base_ipa: u64) -> smccc::Result<()> {
+    let mut args = [0u64; 17];
+    args[0] = base_ipa;
+
+    checked_hvc64_expect_zero(ARM_SMCCC_KVM_FUNC_MEM_UNSHARE, args)
+}
 
 pub fn mmio_guard_info() -> smccc::Result<u64> {
     let args = [0u64; 17];

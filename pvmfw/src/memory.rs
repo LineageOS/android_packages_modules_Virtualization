@@ -14,9 +14,11 @@
 
 //! Low-level allocation and tracking of main memory.
 
-use crate::helpers::{self, page_4kb_of, SIZE_4KB};
+use crate::helpers::{self, align_down, page_4kb_of, SIZE_4KB};
+use crate::hvc::{hyp_meminfo, mem_share, mem_unshare};
 use crate::mmio_guard;
 use crate::mmu;
+use crate::smccc;
 use core::cmp::max;
 use core::cmp::min;
 use core::fmt;
@@ -265,6 +267,36 @@ impl Drop for MemoryTracker {
             }
         }
     }
+}
+
+/// Gives the KVM host read, write and execute permissions on the given memory range. If the range
+/// is not aligned with the memory protection granule then it will be extended on either end to
+/// align.
+#[allow(unused)]
+pub fn share_range(range: &MemoryRange) -> smccc::Result<()> {
+    let granule = hyp_meminfo()? as usize;
+    for base in (align_down(range.start, granule)
+        .expect("Memory protection granule was not a power of two")..range.end)
+        .step_by(granule)
+    {
+        mem_share(base as u64)?;
+    }
+    Ok(())
+}
+
+/// Removes permission from the KVM host to access the given memory range which was previously
+/// shared. If the range is not aligned with the memory protection granule then it will be extended
+/// on either end to align.
+#[allow(unused)]
+pub fn unshare_range(range: &MemoryRange) -> smccc::Result<()> {
+    let granule = hyp_meminfo()? as usize;
+    for base in (align_down(range.start, granule)
+        .expect("Memory protection granule was not a power of two")..range.end)
+        .step_by(granule)
+    {
+        mem_unshare(base as u64)?;
+    }
+    Ok(())
 }
 
 /// Returns an iterator which yields the base address of each 4 KiB page within the given range.
