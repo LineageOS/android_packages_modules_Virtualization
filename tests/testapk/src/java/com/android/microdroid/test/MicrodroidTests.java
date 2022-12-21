@@ -71,6 +71,7 @@ public class MicrodroidTests {
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
     private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
+    private static final String PRODUCT_NAME = SystemProperties.get("ro.product.name");
 
     private static class Inner {
         public boolean mProtectedVm;
@@ -141,6 +142,14 @@ public class MicrodroidTests {
         }
         mInner.mVm.stop();
         mInner.mVm.delete();
+    }
+
+    private boolean isCuttlefish() {
+        return (null != PRODUCT_NAME)
+               && (PRODUCT_NAME.startsWith("aosp_cf_x86")
+                       || PRODUCT_NAME.startsWith("aosp_cf_arm")
+                       || PRODUCT_NAME.startsWith("cf_x86")
+                       || PRODUCT_NAME.startsWith("cf_arm"));
     }
 
     private abstract static class VmEventListener implements VirtualMachineCallback {
@@ -361,6 +370,7 @@ public class MicrodroidTests {
             .withMessage("SKip on 5.4 kernel. b/218303240")
             .that(KERNEL_VERSION)
             .isNotEqualTo("5.4");
+        assume().withMessage("Skip on CF. Too Slow. b/257270529").that(isCuttlefish()).isFalse();
 
         VmCdis first_boot_cdis = launchVmAndGetCdis("test_vm");
         VmCdis second_boot_cdis = launchVmAndGetCdis("test_vm");
@@ -509,6 +519,8 @@ public class MicrodroidTests {
     @Test
     public void bootFailsWhenMicrodroidDataIsCompromised()
             throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on CF. Too Slow. b/257270529").that(isCuttlefish()).isFalse();
+
         assertThatBootFailsAfterCompromisingPartition(MICRODROID_PARTITION_UUID);
     }
 

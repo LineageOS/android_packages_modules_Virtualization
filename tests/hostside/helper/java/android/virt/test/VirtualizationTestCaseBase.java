@@ -399,4 +399,13 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
         // Check if it actually booted by reading a sysprop.
         assertThat(runOnMicrodroid("getprop", "ro.hardware"), is("microdroid"));
     }
+
+    protected boolean isCuttlefish() throws Exception {
+        String productName = getDevice().getProperty("ro.product.name");
+        return (null != productName)
+                && (productName.startsWith("aosp_cf_x86")
+                        || productName.startsWith("aosp_cf_arm")
+                        || productName.startsWith("cf_x86")
+                        || productName.startsWith("cf_arm"));
+    }
 }
