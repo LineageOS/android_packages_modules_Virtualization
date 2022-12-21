@@ -29,3 +29,6 @@ subsystem dma_heap
 /dev/hvc2                 0666   system     system
 
 /dev/open-dice0           0660   root       root
+
+# Aside from kernel threads, only prng_seeder needs access to HW RNG
+/dev/hw_random            0400   prng_seeder prng_seeder
