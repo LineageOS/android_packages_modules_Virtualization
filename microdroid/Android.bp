@@ -46,6 +46,7 @@ android_system_image {
     use_avb: true,
     avb_private_key: ":microdroid_sign_key",
     avb_algorithm: "SHA256_RSA4096",
+    avb_hash_algorithm: "sha256",
     partition_name: "system",
     deps: [
         "init_second_stage",
@@ -215,6 +216,7 @@ android_filesystem {
     },
     avb_private_key: ":microdroid_sign_key",
     avb_algorithm: "SHA256_RSA4096",
+    avb_hash_algorithm: "sha256",
     file_contexts: ":microdroid_vendor_file_contexts.gen",
     // For deterministic output, use fake_timestamp, hard-coded uuid
     fake_timestamp: "1611569676",
