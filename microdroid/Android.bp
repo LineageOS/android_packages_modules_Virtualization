@@ -91,7 +91,7 @@ android_system_image {
 
         "libvm_payload", // used by payload to interact with microdroid manager
 
-        "prng_seeder",
+        "prng_seeder_microdroid",
     ] + microdroid_shell_and_utilities,
     multilib: {
         common: {
