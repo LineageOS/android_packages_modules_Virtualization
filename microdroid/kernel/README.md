@@ -60,7 +60,7 @@ cp out/dist/Image <android_checkout>/packages/modules/Virtualization/microdroid/
 
 For x86\_64,
 ```bash
-cp out/dist/bzImage <android_checkout>/packages/modules/Virtualization/microdroid/kernel/arm64/kernel-5.15
+cp out/dist/bzImage <android_checkout>/packages/modules/Virtualization/microdroid/kernel/x86_64/kernel-5.15
 ```
 
 ### For official updates
