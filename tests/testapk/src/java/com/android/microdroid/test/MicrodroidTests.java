@@ -429,31 +429,37 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachineManager vmm = getVirtualMachineManager();
         String vmName = "vmName";
 
-        // VM does not yet exist
-        assertThat(vmm.get(vmName)).isNull();
+        try {
+            // VM does not yet exist
+            assertThat(vmm.get(vmName)).isNull();
 
-        VirtualMachine vm1 = vmm.create(vmName, config);
+            VirtualMachine vm1 = vmm.create(vmName, config);
 
-        // Now it does, and we should get the same instance back
-        assertThat(vmm.get(vmName)).isSameInstanceAs(vm1);
-        assertThat(vmm.getOrCreate(vmName, config)).isSameInstanceAs(vm1);
+            // Now it does, and we should get the same instance back
+            assertThat(vmm.get(vmName)).isSameInstanceAs(vm1);
+            assertThat(vmm.getOrCreate(vmName, config)).isSameInstanceAs(vm1);
 
-        // Can't recreate it though
-        assertThrowsVmException(() -> vmm.create(vmName, config));
+            // Can't recreate it though
+            assertThrowsVmException(() -> vmm.create(vmName, config));
 
-        vmm.delete(vmName);
-        assertThat(vmm.get(vmName)).isNull();
+            vmm.delete(vmName);
+            assertThat(vmm.get(vmName)).isNull();
 
-        // Now that we deleted the old one, this should create rather than get, and it should be a
-        // new instance.
-        VirtualMachine vm2 = vmm.getOrCreate(vmName, config);
-        assertThat(vm2).isNotSameInstanceAs(vm1);
+            // Now that we deleted the old one, this should create rather than get, and it should be
+            // a new instance.
+            VirtualMachine vm2 = vmm.getOrCreate(vmName, config);
+            assertThat(vm2).isNotSameInstanceAs(vm1);
 
-        // Subsequent gets should return this new one.
-        assertThat(vmm.get(vmName)).isSameInstanceAs(vm2);
-        assertThat(vmm.getOrCreate(vmName, config)).isSameInstanceAs(vm2);
+            // The old one must remain deleted, or we'd have two VirtualMachine instances referring
+            // to the same VM.
+            assertThat(vm1.getStatus()).isEqualTo(STATUS_DELETED);
 
-        vmm.delete(vmName);
+            // Subsequent gets should return this new one.
+            assertThat(vmm.get(vmName)).isSameInstanceAs(vm2);
+            assertThat(vmm.getOrCreate(vmName, config)).isSameInstanceAs(vm2);
+        } finally {
+            vmm.delete(vmName);
+        }
     }
 
     @Test
