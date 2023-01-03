@@ -311,6 +311,9 @@ public class VirtualMachine implements AutoCloseable {
     @Nullable
     private ParcelFileDescriptor mLogWriter;
 
+    @GuardedBy("mLock")
+    private boolean mWasDeleted = false;
+
     /** The registered callback */
     @GuardedBy("mCallbackLock")
     @Nullable
@@ -506,6 +509,9 @@ public class VirtualMachine implements AutoCloseable {
     void delete(Context context, String name) throws VirtualMachineException {
         synchronized (mLock) {
             checkStopped();
+            // Once we explicitly delete a VM it must remain permanently in the deleted state;
+            // if a new VM is created with the same name (and files) that's unrelated.
+            mWasDeleted = true;
             deleteVmDirectory(context, name);
         }
     }
@@ -587,6 +593,9 @@ public class VirtualMachine implements AutoCloseable {
     public int getStatus() {
         IVirtualMachine virtualMachine;
         synchronized (mLock) {
+            if (mWasDeleted) {
+                return STATUS_DELETED;
+            }
             virtualMachine = mVirtualMachine;
         }
         if (virtualMachine == null) {
@@ -617,7 +626,7 @@ public class VirtualMachine implements AutoCloseable {
     // Throw an appropriate exception if we have a running VM, or the VM has been deleted.
     @GuardedBy("mLock")
     private void checkStopped() throws VirtualMachineException {
-        if (!mVmRootPath.exists()) {
+        if (mWasDeleted || !mVmRootPath.exists()) {
             throw new VirtualMachineException("VM has been deleted");
         }
         if (mVirtualMachine == null) {
@@ -653,7 +662,7 @@ public class VirtualMachine implements AutoCloseable {
                     && stateToStatus(mVirtualMachine.getState()) == STATUS_RUNNING) {
                 return mVirtualMachine;
             } else {
-                if (!mVmRootPath.exists()) {
+                if (mWasDeleted || !mVmRootPath.exists()) {
                     throw new VirtualMachineException("VM has been deleted");
                 } else {
                     throw new VirtualMachineException("VM is not in running state");
