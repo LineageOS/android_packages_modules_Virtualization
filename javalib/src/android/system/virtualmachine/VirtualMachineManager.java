@@ -24,6 +24,7 @@ import android.annotation.Nullable;
 import android.annotation.RequiresFeature;
 import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
+import android.annotation.WorkerThread;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.sysprop.HypervisorProperties;
@@ -123,12 +124,15 @@ public class VirtualMachineManager {
      * the name and the config are the same as a deleted one. The new virtual machine will initially
      * be stopped.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the VM cannot be created, or there is an existing VM with
      *     the given name.
      * @hide
      */
     @SystemApi
     @NonNull
+    @WorkerThread
     @RequiresPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION)
     public VirtualMachine create(@NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
@@ -154,12 +158,15 @@ public class VirtualMachineManager {
      * machine instance. Multiple calls to get() passing the same name will get the same object
      * returned, until the virtual machine is deleted (via {@link #delete}) and then recreated.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @see #getOrCreate
      * @throws VirtualMachineException if the virtual machine exists but could not be successfully
      *     retrieved.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @Nullable
     public VirtualMachine get(@NonNull String name) throws VirtualMachineException {
         synchronized (sCreateLock) {
@@ -186,11 +193,14 @@ public class VirtualMachineManager {
      *
      * <p>The new virtual machine will be in the same state as the descriptor indicates.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the VM cannot be imported.
      * @hide
      */
     @NonNull
     @SystemApi
+    @WorkerThread
     public VirtualMachine importFromDescriptor(
             @NonNull String name, @NonNull VirtualMachineDescriptor vmDescriptor)
             throws VirtualMachineException {
@@ -205,10 +215,13 @@ public class VirtualMachineManager {
      * Returns an existing {@link VirtualMachine} if it exists, or create a new one. The config
      * parameter is used only when a new virtual machine is created.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the virtual machine could not be created or retrieved.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public VirtualMachine getOrCreate(@NonNull String name, @NonNull VirtualMachineConfig config)
             throws VirtualMachineException {
@@ -229,11 +242,14 @@ public class VirtualMachineManager {
      * with the same name is different from an already deleted virtual machine even if it has the
      * same config.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the virtual machine does not exist, is not stopped, or
      *     cannot be deleted.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     public void delete(@NonNull String name) throws VirtualMachineException {
         synchronized (sCreateLock) {
             VirtualMachine vm = getVmByName(name);
