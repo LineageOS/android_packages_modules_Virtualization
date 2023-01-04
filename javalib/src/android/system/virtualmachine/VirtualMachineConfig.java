@@ -349,9 +349,10 @@ public final class VirtualMachineConfig {
 
     /**
      * Tests if this config is compatible with other config. Being compatible means that the configs
-     * can be interchangeably used for the same virtual machine. Compatible changes includes the
-     * number of CPUs and the size of the RAM. All other changes (e.g. using a different payload,
-     * change of the debug mode, etc.) are considered as incompatible.
+     * can be interchangeably used for the same virtual machine; they do not change the VM identity
+     * or secrets. Such changes include varying the number of CPUs or the size of the RAM. Changes
+     * that would alter the identity of the VM (e.g. using a different payload or changing the debug
+     * mode) are considered incompatible.
      *
      * @hide
      */

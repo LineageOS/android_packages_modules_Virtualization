@@ -108,6 +108,15 @@ import java.util.zip.ZipFile;
  * received using {@link #setCallback}. The app can communicate with the VM using {@link
  * #connectToVsockServer} or {@link #connectVsock}.
  *
+ * <p>The payload code running inside the VM has access to a set of native APIs; see the <a
+ * href="https://cs.android.com/android/platform/superproject/+/master:packages/modules/Virtualization/vm_payload/README.md">README
+ * file</a> for details.
+ *
+ * <p>Each VM has a unique secret, computed from the APK that contains the code running in it, the
+ * VM configuration, and a random per-instance salt. The secret can be accessed by the payload code
+ * running inside the VM (using {@code AVmPayload_getVmInstanceSecret}) but is not made available
+ * outside it.
+ *
  * @hide
  */
 @SystemApi
@@ -569,9 +578,9 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the currently selected config of this virtual machine. There can be multiple virtual
      * machines sharing the same config. Even in that case, the virtual machines are completely
-     * isolated from each other; one cannot share its secret to another virtual machine even if they
-     * share the same config. It is also possible that a virtual machine can switch its config,
-     * which can be done by calling {@link #setConfig(VirtualMachineConfig)}.
+     * isolated from each other; they have different secrets. It is also possible that a virtual
+     * machine can change its config, which can be done by calling {@link
+     * #setConfig(VirtualMachineConfig)}.
      *
      * @hide
      */
