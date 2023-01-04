@@ -60,7 +60,7 @@ This subset consists of:
 
 C++ can be used, but you will need to include the C++ runtime in your APK along
 with your payload, either statically linked (if
-[appropriate](https://developer.android.com/ndk/guides/cpp-support#sr) or as a
+[appropriate](https://developer.android.com/ndk/guides/cpp-support#sr)) or as a
 separate .so.
 
 The same is true for other languages such as Rust.
