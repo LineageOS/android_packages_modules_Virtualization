@@ -62,9 +62,23 @@ noreturn void AVmPayload_runVsockRpcServer(AIBinder* _Nonnull service, uint32_t 
                                            void* _Nullable param);
 
 /**
- * Get a secret that is uniquely bound to this VM instance. The secrets are
- * 32-byte values and the value associated with an identifier will not change
- * over the lifetime of the VM instance.
+ * Returns all or part of a 32-byte secret that is bound to this unique VM
+ * instance and the supplied identifier. The secret can be used e.g. as an
+ * encryption key.
+ *
+ * Every VM has a secret that is derived from a device-specific value known to
+ * the hypervisor, the code that runs in the VM and its non-modifiable
+ * configuration; it is not made available to the host OS.
+ *
+ * This function performs a further derivation from the VM secret and the
+ * supplied identifier. As long as the VM identity doesn't change the same value
+ * will be returned for the same identifier, even if the VM is stopped &
+ * restarted or the device rebooted.
+ *
+ * If multiple secrets are required for different purposes, a different
+ * identifier should be used for each. The identifiers otherwise are arbitrary
+ * byte sequences and do not need to be kept secret; typically they are
+ * hardcoded in the calling code.
  *
  * \param identifier identifier of the secret to return.
  * \param identifier_size size of the secret identifier.
