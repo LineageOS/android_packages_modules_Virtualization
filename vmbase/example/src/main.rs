@@ -82,7 +82,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     // access it; maybe there is some new version of PCI we don't know about.
     assert_eq!(pci_reg.size.unwrap(), AARCH64_PCI_CFG_SIZE);
     // Parse ranges property to find memory ranges from which to allocate PCI BARs.
-    let mut pci_allocator = PciMemory32Allocator::for_pci_ranges(&pci_node);
+    let pci_allocator = PciMemory32Allocator::for_pci_ranges(&pci_node);
 
     modify_fdt(fdt);
 
@@ -139,7 +139,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     check_data();
     check_dice();
 
-    check_pci(pci_reg, &mut pci_allocator);
+    check_pci(pci_reg);
 }
 
 fn check_stack_guard() {

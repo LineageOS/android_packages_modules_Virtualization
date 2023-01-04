@@ -37,7 +37,7 @@ use crate::{
     avb::PUBLIC_KEY,
     entry::RebootReason,
     memory::MemoryTracker,
-    pci::{allocate_all_virtio_bars, PciError, PciInfo, PciMemory32Allocator},
+    pci::{find_virtio_devices, PciError, PciInfo},
 };
 use dice::bcc;
 use libfdt::Fdt;
@@ -65,12 +65,10 @@ fn main(
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
     pci_info.map(memory)?;
-    let mut bar_allocator = PciMemory32Allocator::new(&pci_info);
-    debug!("Allocator: {:#x?}", bar_allocator);
     // Safety: This is the only place where we call make_pci_root, and this main function is only
     // called once.
     let mut pci_root = unsafe { pci_info.make_pci_root() };
-    allocate_all_virtio_bars(&mut pci_root, &mut bar_allocator).map_err(handle_pci_error)?;
+    find_virtio_devices(&mut pci_root).map_err(handle_pci_error)?;
 
     verify_payload(PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");
@@ -95,8 +93,5 @@ fn handle_pci_error(e: PciError) -> RebootReason {
         | PciError::FdtMissingRanges
         | PciError::RangeAddressMismatch { .. }
         | PciError::NoSuitableRange => RebootReason::InvalidFdt,
-        PciError::BarInfoFailed(_)
-        | PciError::BarAllocationFailed { .. }
-        | PciError::UnsupportedBarType(_) => RebootReason::PciError,
     }
 }
