@@ -20,6 +20,7 @@
 #include <jni.h>
 #include <time.h>
 
+using android::base::ErrnoError;
 using android::base::Error;
 using android::base::Result;
 using android::base::WriteStringToFd;
@@ -29,12 +30,18 @@ constexpr size_t kNumBytesPerMB = 1024 * 1024;
 Result<double> measure_send_rate(int fd, int num_bytes_to_send) {
     std::string data;
     data.assign(num_bytes_to_send, 'a');
-    clock_t start = clock();
+    struct timespec start;
+    if (clock_gettime(CLOCK_MONOTONIC, &start) == -1) {
+        return ErrnoError() << "failed to clock_gettime";
+    }
     if (!WriteStringToFd(data, fd)) {
         return Error() << "Cannot send data to client";
     }
-    clock_t end = clock();
-    double elapsed_seconds = (double)(end - start) / CLOCKS_PER_SEC;
+    struct timespec finish;
+    if (clock_gettime(CLOCK_MONOTONIC, &finish) == -1) {
+        return ErrnoError() << "failed to clock_gettime";
+    }
+    double elapsed_seconds = finish.tv_sec - start.tv_sec + (finish.tv_nsec - start.tv_nsec) / 1e9;
     LOG(INFO) << "Host:Finished sending data in " << elapsed_seconds << " seconds.";
     double send_rate = (double)num_bytes_to_send / kNumBytesPerMB / elapsed_seconds;
     return {send_rate};

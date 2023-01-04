@@ -55,7 +55,10 @@ int main(int argc, const char *argv[]) {
     }
 
     char buf[kBlockSizeBytes];
-    clock_t start = clock();
+    struct timespec start;
+    if (clock_gettime(CLOCK_MONOTONIC, &start) == -1) {
+        err(EXIT_FAILURE, "failed to clock_gettime");
+    }
     for (auto i = 0; i < block_count; ++i) {
         auto bytes = is_read ? pread(fd, buf, kBlockSizeBytes, offsets[i])
                              : pwrite(fd, buf, kBlockSizeBytes, offsets[i]);
@@ -69,7 +72,11 @@ int main(int argc, const char *argv[]) {
         // Writes all the buffered modifications to the open file.
         assert(syncfs(fd) == 0);
     }
-    double elapsed_seconds = ((double)clock() - start) / CLOCKS_PER_SEC;
+    struct timespec finish;
+    if (clock_gettime(CLOCK_MONOTONIC, &finish) == -1) {
+        err(EXIT_FAILURE, "failed to clock_gettime");
+    }
+    double elapsed_seconds = finish.tv_sec - start.tv_sec + (finish.tv_nsec - start.tv_nsec) / 1e9;
     double rate = (double)file_size_mb / elapsed_seconds;
     std::cout << std::setprecision(12) << rate << std::endl;
 
