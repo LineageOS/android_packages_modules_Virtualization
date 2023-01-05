@@ -232,6 +232,29 @@ Result<void> start_test_service() {
                 return ScopedAStatus::fromServiceSpecificErrorWithMessage(-1, message.c_str());
             }
         }
+
+        ScopedAStatus writeToFile(const std::string& content, const std::string& path) override {
+            if (!android::base::WriteStringToFile(content, path)) {
+                std::string msg = "Failed to write " + content + " to file " + path +
+                        ". Errono: " + std::to_string(errno);
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   msg.c_str());
+            }
+            // TODO(b/264520098): Remove sync() once TestService supports quit() method
+            // and Microdroid manager flushes filesystem caches on shutdown.
+            sync();
+            return ScopedAStatus::ok();
+        }
+
+        ScopedAStatus readFromFile(const std::string& path, std::string* out) override {
+            if (!android::base::ReadFileToString(path, out)) {
+                std::string msg =
+                        "Failed to read " + path + " to string. Errono: " + std::to_string(errno);
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   msg.c_str());
+            }
+            return ScopedAStatus::ok();
+        }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
 

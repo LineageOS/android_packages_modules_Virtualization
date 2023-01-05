@@ -49,4 +49,10 @@ interface ITestService {
 
     /** Returns a mask of effective capabilities that the process running the payload binary has. */
     String[] getEffectiveCapabilities();
+
+    /* write the content into the specified file. */
+    void writeToFile(String content, String path);
+
+    /* get the content of the specified file. */
+    String readFromFile(String path);
 }
