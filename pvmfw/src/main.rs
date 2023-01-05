@@ -37,9 +37,10 @@ use crate::{
     avb::PUBLIC_KEY,
     entry::RebootReason,
     memory::MemoryTracker,
-    pci::{find_virtio_devices, PciError, PciInfo},
+    pci::{find_virtio_devices, map_mmio},
 };
 use dice::bcc;
+use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
 use pvmfw_avb::verify_payload;
@@ -64,7 +65,7 @@ fn main(
     // Set up PCI bus for VirtIO devices.
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
-    pci_info.map(memory)?;
+    map_mmio(&pci_info, memory)?;
     // Safety: This is the only place where we call make_pci_root, and this main function is only
     // called once.
     let mut pci_root = unsafe { pci_info.make_pci_root() };

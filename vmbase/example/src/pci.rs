@@ -16,14 +16,11 @@
 
 use aarch64_paging::paging::MemoryRegion;
 use alloc::alloc::{alloc, dealloc, Layout};
-use core::{ffi::CStr, mem::size_of};
-use libfdt::{AddressRange, Fdt, FdtNode, Reg};
+use core::mem::size_of;
+use fdtpci::PciInfo;
 use log::{debug, info};
 use virtio_drivers::{
-    pci::{
-        bus::{Cam, PciRoot},
-        virtio_device_type, PciTransport,
-    },
+    pci::{bus::PciRoot, virtio_device_type, PciTransport},
     DeviceType, Hal, PhysAddr, Transport, VirtAddr, VirtIOBlk, PAGE_SIZE,
 };
 
@@ -33,24 +30,14 @@ const SECTOR_SIZE_BYTES: usize = 512;
 /// The size in sectors of the test block device we expect.
 const EXPECTED_SECTOR_COUNT: usize = 4;
 
-/// Finds an FDT node with compatible=pci-host-cam-generic.
-pub fn pci_node(fdt: &Fdt) -> FdtNode {
-    fdt.compatible_nodes(CStr::from_bytes_with_nul(b"pci-host-cam-generic\0").unwrap())
-        .unwrap()
-        .next()
-        .unwrap()
-}
-
-pub fn check_pci(reg: Reg<u64>) {
-    let mut pci_root = unsafe { PciRoot::new(reg.addr as *mut u8, Cam::MmioCam) };
+pub fn check_pci(pci_root: &mut PciRoot) {
     let mut checked_virtio_device_count = 0;
     for (device_function, info) in pci_root.enumerate_bus(0) {
         let (status, command) = pci_root.get_status_command(device_function);
         info!("Found {} at {}, status {:?} command {:?}", info, device_function, status, command);
         if let Some(virtio_type) = virtio_device_type(&info) {
             info!("  VirtIO {:?}", virtio_type);
-            let mut transport =
-                PciTransport::new::<HalImpl>(&mut pci_root, device_function).unwrap();
+            let mut transport = PciTransport::new::<HalImpl>(pci_root, device_function).unwrap();
             info!(
                 "Detected virtio PCI device with device type {:?}, features {:#018x}",
                 transport.device_type(),
@@ -88,89 +75,9 @@ fn check_virtio_device(transport: impl Transport, device_type: DeviceType) -> bo
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct PciMemoryFlags(u32);
-
-impl PciMemoryFlags {
-    pub fn prefetchable(self) -> bool {
-        self.0 & 0x80000000 != 0
-    }
-
-    pub fn range_type(self) -> PciRangeType {
-        PciRangeType::from((self.0 & 0x3000000) >> 24)
-    }
-}
-
-/// Allocates 32-bit memory addresses for PCI BARs.
-pub struct PciMemory32Allocator {
-    start: u32,
-    end: u32,
-}
-
-impl PciMemory32Allocator {
-    /// Creates a new allocator based on the ranges property of the given PCI node.
-    pub fn for_pci_ranges(pci_node: &FdtNode) -> Self {
-        let mut memory_32_address = 0;
-        let mut memory_32_size = 0;
-        for AddressRange { addr: (flags, bus_address), parent_addr: cpu_physical, size } in pci_node
-            .ranges::<(u32, u64), u64, u64>()
-            .expect("Error getting ranges property from PCI node")
-            .expect("PCI node missing ranges property.")
-        {
-            let flags = PciMemoryFlags(flags);
-            let prefetchable = flags.prefetchable();
-            let range_type = flags.range_type();
-            info!(
-                "range: {:?} {}prefetchable bus address: {:#018x} host physical address: {:#018x} size: {:#018x}",
-                range_type,
-                if prefetchable { "" } else { "non-" },
-                bus_address,
-                cpu_physical,
-                size,
-            );
-            if !prefetchable
-                && ((range_type == PciRangeType::Memory32 && size > memory_32_size.into())
-                    || (range_type == PciRangeType::Memory64
-                        && size > memory_32_size.into()
-                        && bus_address + size < u32::MAX.into()))
-            {
-                // Use the 64-bit range for 32-bit memory, if it is low enough.
-                assert_eq!(bus_address, cpu_physical);
-                memory_32_address = u32::try_from(cpu_physical).unwrap();
-                memory_32_size = u32::try_from(size).unwrap();
-            }
-        }
-        if memory_32_size == 0 {
-            panic!("No PCI memory regions found.");
-        }
-
-        Self { start: memory_32_address, end: memory_32_address + memory_32_size }
-    }
-
-    /// Gets a memory region covering the address space from which this allocator will allocate.
-    pub fn get_region(&self) -> MemoryRegion {
-        MemoryRegion::new(self.start as usize, self.end as usize)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum PciRangeType {
-    ConfigurationSpace,
-    IoSpace,
-    Memory32,
-    Memory64,
-}
-
-impl From<u32> for PciRangeType {
-    fn from(value: u32) -> Self {
-        match value {
-            0 => Self::ConfigurationSpace,
-            1 => Self::IoSpace,
-            2 => Self::Memory32,
-            3 => Self::Memory64,
-            _ => panic!("Tried to convert invalid range type {}", value),
-        }
-    }
+/// Gets the memory region in which BARs are allocated.
+pub fn get_bar_region(pci_info: &PciInfo) -> MemoryRegion {
+    MemoryRegion::new(pci_info.bar_range.start as usize, pci_info.bar_range.end as usize)
 }
 
 struct HalImpl;
