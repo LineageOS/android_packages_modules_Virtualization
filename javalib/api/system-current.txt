@@ -3,19 +3,19 @@ package android.system.virtualmachine {
 
   public class VirtualMachine implements java.lang.AutoCloseable {
     method public void clearCallback();
-    method public void close();
-    method @NonNull public android.os.IBinder connectToVsockServer(@IntRange(from=android.system.virtualmachine.VirtualMachine.MIN_VSOCK_PORT, to=android.system.virtualmachine.VirtualMachine.MAX_VSOCK_PORT) long) throws android.system.virtualmachine.VirtualMachineException;
-    method @NonNull public android.os.ParcelFileDescriptor connectVsock(@IntRange(from=android.system.virtualmachine.VirtualMachine.MIN_VSOCK_PORT, to=android.system.virtualmachine.VirtualMachine.MAX_VSOCK_PORT) long) throws android.system.virtualmachine.VirtualMachineException;
-    method @NonNull public android.system.virtualmachine.VirtualMachineConfig getConfig();
-    method @NonNull public java.io.InputStream getConsoleOutput() throws android.system.virtualmachine.VirtualMachineException;
-    method @NonNull public java.io.InputStream getLogOutput() throws android.system.virtualmachine.VirtualMachineException;
+    method @WorkerThread public void close();
+    method @NonNull @WorkerThread public android.os.IBinder connectToVsockServer(@IntRange(from=android.system.virtualmachine.VirtualMachine.MIN_VSOCK_PORT, to=android.system.virtualmachine.VirtualMachine.MAX_VSOCK_PORT) long) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public android.os.ParcelFileDescriptor connectVsock(@IntRange(from=android.system.virtualmachine.VirtualMachine.MIN_VSOCK_PORT, to=android.system.virtualmachine.VirtualMachine.MAX_VSOCK_PORT) long) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public android.system.virtualmachine.VirtualMachineConfig getConfig();
+    method @NonNull @WorkerThread public java.io.InputStream getConsoleOutput() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public java.io.InputStream getLogOutput() throws android.system.virtualmachine.VirtualMachineException;
     method @NonNull public String getName();
-    method public int getStatus();
-    method @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) public void run() throws android.system.virtualmachine.VirtualMachineException;
+    method @WorkerThread public int getStatus();
+    method @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) @WorkerThread public void run() throws android.system.virtualmachine.VirtualMachineException;
     method public void setCallback(@NonNull java.util.concurrent.Executor, @NonNull android.system.virtualmachine.VirtualMachineCallback);
-    method @NonNull public android.system.virtualmachine.VirtualMachineConfig setConfig(@NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
-    method public void stop() throws android.system.virtualmachine.VirtualMachineException;
-    method @NonNull public android.system.virtualmachine.VirtualMachineDescriptor toDescriptor() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public android.system.virtualmachine.VirtualMachineConfig setConfig(@NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
+    method @WorkerThread public void stop() throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public android.system.virtualmachine.VirtualMachineDescriptor toDescriptor() throws android.system.virtualmachine.VirtualMachineException;
     field public static final String MANAGE_VIRTUAL_MACHINE_PERMISSION = "android.permission.MANAGE_VIRTUAL_MACHINE";
     field public static final long MAX_VSOCK_PORT = 4294967295L; // 0xffffffffL
     field public static final long MIN_VSOCK_PORT = 1024L; // 0x400L
@@ -91,12 +91,12 @@ package android.system.virtualmachine {
   }
 
   public class VirtualMachineManager {
-    method @NonNull @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) public android.system.virtualmachine.VirtualMachine create(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
-    method public void delete(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
-    method @Nullable public android.system.virtualmachine.VirtualMachine get(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) @WorkerThread public android.system.virtualmachine.VirtualMachine create(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
+    method @WorkerThread public void delete(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
+    method @Nullable @WorkerThread public android.system.virtualmachine.VirtualMachine get(@NonNull String) throws android.system.virtualmachine.VirtualMachineException;
     method public int getCapabilities();
-    method @NonNull public android.system.virtualmachine.VirtualMachine getOrCreate(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
-    method @NonNull public android.system.virtualmachine.VirtualMachine importFromDescriptor(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineDescriptor) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public android.system.virtualmachine.VirtualMachine getOrCreate(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineConfig) throws android.system.virtualmachine.VirtualMachineException;
+    method @NonNull @WorkerThread public android.system.virtualmachine.VirtualMachine importFromDescriptor(@NonNull String, @NonNull android.system.virtualmachine.VirtualMachineDescriptor) throws android.system.virtualmachine.VirtualMachineException;
     field public static final int CAPABILITY_NON_PROTECTED_VM = 2; // 0x2
     field public static final int CAPABILITY_PROTECTED_VM = 1; // 0x1
   }
