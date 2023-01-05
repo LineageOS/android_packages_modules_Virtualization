@@ -52,6 +52,7 @@ import android.annotation.RequiresPermission;
 import android.annotation.SuppressLint;
 import android.annotation.SystemApi;
 import android.annotation.TestApi;
+import android.annotation.WorkerThread;
 import android.content.ComponentCallbacks2;
 import android.content.Context;
 import android.content.res.Configuration;
@@ -107,6 +108,15 @@ import java.util.zip.ZipFile;
  * will continue until it exits or {@link #stop} is called. Updates on the state of the VM can be
  * received using {@link #setCallback}. The app can communicate with the VM using {@link
  * #connectToVsockServer} or {@link #connectVsock}.
+ *
+ * <p>The payload code running inside the VM has access to a set of native APIs; see the <a
+ * href="https://cs.android.com/android/platform/superproject/+/master:packages/modules/Virtualization/vm_payload/README.md">README
+ * file</a> for details.
+ *
+ * <p>Each VM has a unique secret, computed from the APK that contains the code running in it, the
+ * VM configuration, and a random per-instance salt. The secret can be accessed by the payload code
+ * running inside the VM (using {@code AVmPayload_getVmInstanceSecret}) but is not made available
+ * outside it.
  *
  * @hide
  */
@@ -512,8 +522,8 @@ public class VirtualMachine implements AutoCloseable {
             // Once we explicitly delete a VM it must remain permanently in the deleted state;
             // if a new VM is created with the same name (and files) that's unrelated.
             mWasDeleted = true;
-            deleteVmDirectory(context, name);
         }
+        deleteVmDirectory(context, name);
     }
 
     static void deleteVmDirectory(Context context, String name) throws VirtualMachineException {
@@ -569,13 +579,16 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the currently selected config of this virtual machine. There can be multiple virtual
      * machines sharing the same config. Even in that case, the virtual machines are completely
-     * isolated from each other; one cannot share its secret to another virtual machine even if they
-     * share the same config. It is also possible that a virtual machine can switch its config,
-     * which can be done by calling {@link #setConfig(VirtualMachineConfig)}.
+     * isolated from each other; they have different secrets. It is also possible that a virtual
+     * machine can change its config, which can be done by calling {@link
+     * #setConfig(VirtualMachineConfig)}.
+     *
+     * <p>NOTE: This method may block and should not be called on the main thread.
      *
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public VirtualMachineConfig getConfig() {
         synchronized (mLock) {
@@ -586,9 +599,12 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the current status of this virtual machine.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @Status
     public int getStatus() {
         IVirtualMachine virtualMachine;
@@ -727,11 +743,14 @@ public class VirtualMachine implements AutoCloseable {
      * registering a callback using {@link #setCallback(Executor, VirtualMachineCallback)} before
      * calling {@code run()}.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the virtual machine is not stopped or could not be
      *     started.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @RequiresPermission(MANAGE_VIRTUAL_MACHINE_PERMISSION)
     public void run() throws VirtualMachineException {
         synchronized (mLock) {
@@ -872,10 +891,13 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the stream object representing the console output from the virtual machine.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the stream could not be created.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public InputStream getConsoleOutput() throws VirtualMachineException {
         synchronized (mLock) {
@@ -887,10 +909,13 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Returns the stream object representing the log output from the virtual machine.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the stream could not be created.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public InputStream getLogOutput() throws VirtualMachineException {
         synchronized (mLock) {
@@ -904,11 +929,14 @@ public class VirtualMachine implements AutoCloseable {
      * computer; the machine halts immediately. Software running on the virtual machine is not
      * notified of the event. A stopped virtual machine can be re-started by calling {@link #run()}.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the virtual machine is not running or could not be
      *     stopped.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     public void stop() throws VirtualMachineException {
         synchronized (mLock) {
             if (mVirtualMachine == null) {
@@ -928,10 +956,13 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Stops this virtual machine, if it is running.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @see #stop()
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @Override
     public void close() {
         synchronized (mLock) {
@@ -982,12 +1013,15 @@ public class VirtualMachine implements AutoCloseable {
      * <p>The new config must be {@link VirtualMachineConfig#isCompatibleWith compatible with} the
      * existing config.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @return the old config
      * @throws VirtualMachineException if the virtual machine is not stopped, or the new config is
      *     incompatible.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public VirtualMachineConfig setConfig(@NonNull VirtualMachineConfig newConfig)
             throws VirtualMachineException {
@@ -1016,11 +1050,14 @@ public class VirtualMachine implements AutoCloseable {
      * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to establish a
      * connection to the guest VM.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if the virtual machine is not running or the connection
      *     failed.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public IBinder connectToVsockServer(
             @IntRange(from = MIN_VSOCK_PORT, to = MAX_VSOCK_PORT) long port)
@@ -1039,10 +1076,13 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Opens a vsock connection to the VM on the given port.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @throws VirtualMachineException if connecting fails.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public ParcelFileDescriptor connectVsock(
             @IntRange(from = MIN_VSOCK_PORT, to = MAX_VSOCK_PORT) long port)
@@ -1088,12 +1128,15 @@ public class VirtualMachine implements AutoCloseable {
      * VirtualMachineManager#importFromDescriptor} is called. It is recommended that the VM not be
      * started until that operation is complete.
      *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
      * @return a {@link VirtualMachineDescriptor} instance that represents the VM's state.
      * @throws VirtualMachineException if the virtual machine is not stopped, or the state could not
      *     be captured.
      * @hide
      */
     @SystemApi
+    @WorkerThread
     @NonNull
     public VirtualMachineDescriptor toDescriptor() throws VirtualMachineException {
         synchronized (mLock) {
