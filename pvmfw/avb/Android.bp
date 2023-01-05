@@ -10,6 +10,9 @@ rust_defaults {
     rustlibs: [
         "libavb_bindgen",
     ],
+    whole_static_libs: [
+        "libavb",
+    ],
 }
 
 rust_library_rlib {
@@ -25,4 +28,31 @@ rust_test {
     name: "libpvmfw_avb.test",
     defaults: ["libpvmfw_avb_nostd_defaults"],
     test_suites: ["general-tests"],
+    data: [
+        ":avb_testkey_rsa2048_pub_bin",
+        ":avb_testkey_rsa4096_pub_bin",
+        ":microdroid_kernel_signed",
+        ":unsigned_test_image",
+    ],
+    rustlibs: [
+        "libanyhow",
+    ],
+    enabled: false,
+    arch: {
+        // Microdroid kernel is only available in these architectures.
+        arm64: {
+            enabled: true,
+        },
+        x86_64: {
+            enabled: true,
+        },
+    },
+}
+
+// Generates a 16KB unsigned image for testing.
+genrule {
+    name: "unsigned_test_image",
+    tools: ["avbtool"],
+    out: ["unsigned_test.img"],
+    cmd: "$(location avbtool) generate_test_image --image_size 16384 --output $(out)",
 }
