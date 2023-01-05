@@ -34,7 +34,7 @@ mod pci;
 mod smccc;
 
 use crate::{
-    avb::PUBLIC_KEY,
+    avb::PUBLIC_KEY, // Keep the public key here otherwise the signing script will be broken.
     entry::RebootReason,
     memory::MemoryTracker,
     pci::{find_virtio_devices, map_mmio},
@@ -43,7 +43,6 @@ use dice::bcc;
 use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
-use pvmfw_avb::verify_payload;
 
 fn main(
     fdt: &Fdt,
@@ -55,6 +54,7 @@ fn main(
     info!("pVM firmware");
     debug!("FDT: {:?}", fdt as *const libfdt::Fdt);
     debug!("Signed kernel: {:?} ({:#x} bytes)", signed_kernel.as_ptr(), signed_kernel.len());
+    debug!("AVB public key: addr={:?}, size={:#x} ({1})", PUBLIC_KEY.as_ptr(), PUBLIC_KEY.len());
     if let Some(rd) = ramdisk {
         debug!("Ramdisk: {:?} ({:#x} bytes)", rd.as_ptr(), rd.len());
     } else {
@@ -71,10 +71,6 @@ fn main(
     let mut pci_root = unsafe { pci_info.make_pci_root() };
     find_virtio_devices(&mut pci_root).map_err(handle_pci_error)?;
 
-    verify_payload(PUBLIC_KEY).map_err(|e| {
-        error!("Failed to verify the payload: {e}");
-        RebootReason::PayloadVerificationError
-    })?;
     info!("Starting payload...");
     Ok(())
 }
