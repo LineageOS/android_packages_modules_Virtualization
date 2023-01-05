@@ -28,17 +28,15 @@ use crate::layout::{
     bionic_tls, dtb_range, print_addresses, rodata_range, stack_chk_guard, text_range,
     writable_region, DEVICE_REGION,
 };
-use crate::pci::{check_pci, pci_node, PciMemory32Allocator};
+use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::{idmap::IdMap, paging::Attributes};
 use alloc::{vec, vec::Vec};
 use buddy_system_allocator::LockedHeap;
 use core::ffi::CStr;
+use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, info, trace, LevelFilter};
 use vmbase::{logger, main, println};
-
-/// PCI MMIO configuration region size.
-const AARCH64_PCI_CFG_SIZE: u64 = 0x1000000;
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
@@ -73,16 +71,8 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     info!("FDT passed verification.");
     check_fdt(fdt);
 
-    let pci_node = pci_node(fdt);
-    // Parse reg property to find CAM.
-    let pci_reg = pci_node.reg().unwrap().unwrap().next().unwrap();
-    debug!("Found PCI CAM at {:#x}-{:#x}", pci_reg.addr, pci_reg.addr + pci_reg.size.unwrap());
-    // Check that the CAM is the size we expect, so we don't later try accessing it beyond its
-    // bounds. If it is a different size then something is very wrong and we shouldn't continue to
-    // access it; maybe there is some new version of PCI we don't know about.
-    assert_eq!(pci_reg.size.unwrap(), AARCH64_PCI_CFG_SIZE);
-    // Parse ranges property to find memory ranges from which to allocate PCI BARs.
-    let pci_allocator = PciMemory32Allocator::for_pci_ranges(&pci_node);
+    let pci_info = PciInfo::from_fdt(fdt).unwrap();
+    debug!("Found PCI CAM at {:#x}-{:#x}", pci_info.cam_range.start, pci_info.cam_range.end);
 
     modify_fdt(fdt);
 
@@ -125,10 +115,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
         )
         .unwrap();
     idmap
-        .map_range(
-            &pci_allocator.get_region(),
-            Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER,
-        )
+        .map_range(&get_bar_region(&pci_info), Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER)
         .unwrap();
 
     info!("Activating IdMap...");
@@ -139,7 +126,8 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     check_data();
     check_dice();
 
-    check_pci(pci_reg);
+    let mut pci_root = unsafe { pci_info.make_pci_root() };
+    check_pci(&mut pci_root);
 }
 
 fn check_stack_guard() {
