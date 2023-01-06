@@ -1166,6 +1166,30 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mFileContent).isEqualTo(EXAMPLE_STRING);
     }
 
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void canReadFileFromAssets_debugFull() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_read_from_assets", config);
+
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (testService, ts) -> {
+                            ts.mFileContent = testService.readFromFile("/mnt/apk/assets/file.txt");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        assertThat(testResults.mFileContent).isEqualTo("Hello, I am a file!");
+    }
+
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
             throws IOException {
         File file1 = getVmFile(vmName1, fileName);
@@ -1283,5 +1307,48 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(payloadStarted.getNow(false)).isTrue();
         assertThat(payloadReady.getNow(false)).isTrue();
         return testResults;
+    }
+
+    private TestResults runVmTestService(VirtualMachine vm, RunTestsAgainstTestService testsToRun)
+            throws Exception {
+        CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
+        CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
+        TestResults testResults = new TestResults();
+        VmEventListener listener =
+                new VmEventListener() {
+                    private void testVMService(VirtualMachine vm) {
+                        try {
+                            ITestService testService =
+                                    ITestService.Stub.asInterface(
+                                            vm.connectToVsockServer(ITestService.SERVICE_PORT));
+                            testsToRun.runTests(testService, testResults);
+                        } catch (Exception e) {
+                            testResults.mException = e;
+                        }
+                    }
+
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        Log.i(TAG, "onPayloadReady");
+                        payloadReady.complete(true);
+                        testVMService(vm);
+                        forceStop(vm);
+                    }
+
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm) {
+                        Log.i(TAG, "onPayloadStarted");
+                        payloadStarted.complete(true);
+                    }
+                };
+        listener.runToFinish(TAG, vm);
+        assertThat(payloadStarted.getNow(false)).isTrue();
+        assertThat(payloadReady.getNow(false)).isTrue();
+        return testResults;
+    }
+
+    @FunctionalInterface
+    interface RunTestsAgainstTestService {
+        void runTests(ITestService testService, TestResults testResults) throws Exception;
     }
 }
