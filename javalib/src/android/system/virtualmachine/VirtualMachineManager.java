@@ -38,9 +38,9 @@ import java.lang.ref.WeakReference;
 import java.util.Map;
 
 /**
- * Manages {@link VirtualMachine virtual machine} instances created by an app. Each instance is
- * created from a {@link VirtualMachineConfig configuration} that defines the shape of the VM (RAM,
- * CPUs), the code to execute within it, etc.
+ * Manages {@linkplain VirtualMachine virtual machine} instances created by an app. Each instance is
+ * created from a {@linkplain VirtualMachineConfig configuration} that defines the shape of the VM
+ * (RAM, CPUs), the code to execute within it, etc.
  *
  * <p>Each virtual machine instance is named; the configuration and related state of each is
  * persisted in the app's private data directory and an instance can be retrieved given the name.
