@@ -22,6 +22,13 @@ import android.system.virtualizationservice_internal.IGlobalVmContext;
 
 interface IVirtualizationServiceInternal {
     /**
+     * Removes the memlock rlimit of the calling process.
+     *
+     * The SELinux policy only allows this to succeed for virtmgr callers.
+     */
+    void removeMemlockRlimit();
+
+    /**
      * Allocates global context for a new VM.
      *
      * This allocates VM's globally unique resources such as the CID.

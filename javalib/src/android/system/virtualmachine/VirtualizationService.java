@@ -16,15 +16,24 @@
 
 package android.system.virtualmachine;
 
+import android.annotation.NonNull;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.system.virtualizationservice.IVirtualizationService;
+
+import com.android.internal.annotations.GuardedBy;
+
+import java.lang.ref.SoftReference;
 
 /** A running instance of virtmgr that is hosting a VirtualizationService AIDL service. */
 class VirtualizationService {
     static {
         System.loadLibrary("virtualizationservice_jni");
     }
+
+    /* Soft reference caching the last created instance of this class. */
+    @GuardedBy("VirtualMachineManager.sCreateLock")
+    private static SoftReference<VirtualizationService> sInstance;
 
     /*
      * Client FD for UDS connection to virtmgr's RpcBinder server. Closing it
@@ -36,11 +45,13 @@ class VirtualizationService {
 
     private native IBinder nativeConnect(int clientFd);
 
+    private native boolean nativeIsOk(int clientFd);
+
     /*
      * Spawns a new virtmgr subprocess that will host a VirtualizationService
      * AIDL service.
      */
-    public VirtualizationService() throws VirtualMachineException {
+    private VirtualizationService() throws VirtualMachineException {
         int clientFd = nativeSpawn();
         if (clientFd < 0) {
             throw new VirtualMachineException("Could not spawn VirtualizationService");
@@ -55,5 +66,28 @@ class VirtualizationService {
             throw new VirtualMachineException("Could not connect to VirtualizationService");
         }
         return IVirtualizationService.Stub.asInterface(binder);
+    }
+
+    /*
+     * Checks the state of the client FD. Returns false if the FD is in erroneous state
+     * or if the other endpoint had closed its FD.
+     */
+    private boolean isOk() {
+        return nativeIsOk(mClientFd.getFd());
+    }
+
+    /*
+     * Returns an instance of this class. Might spawn a new instance if one doesn't exist, or
+     * if the previous instance had crashed.
+     */
+    @GuardedBy("VirtualMachineManager.sCreateLock")
+    @NonNull
+    static VirtualizationService getInstance() throws VirtualMachineException {
+        VirtualizationService service = (sInstance == null) ? null : sInstance.get();
+        if (service == null || !service.isOk()) {
+            service = new VirtualizationService();
+            sInstance = new SoftReference(service);
+        }
+        return service;
     }
 }
