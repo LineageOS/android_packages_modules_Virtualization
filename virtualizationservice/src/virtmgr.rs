@@ -21,10 +21,10 @@ mod crosvm;
 mod payload;
 mod selinux;
 
-use crate::aidl::VirtualizationService;
+use crate::aidl::{GLOBAL_SERVICE, VirtualizationService};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
 use anyhow::{bail, Context};
-use binder::BinderFeatures;
+use binder::{BinderFeatures, ProcessState};
 use lazy_static::lazy_static;
 use log::{info, Level};
 use rpcbinder::{FileDescriptorTransportMode, RpcServer};
@@ -101,6 +101,11 @@ fn main() {
         .expect("Failed to take ownership of rpc_server_fd");
     let ready_fd = take_fd_ownership(args.ready_fd, &mut owned_fds)
         .expect("Failed to take ownership of ready_fd");
+
+    // Start thread pool for kernel Binder connection to VirtualizationServiceInternal.
+    ProcessState::start_thread_pool();
+
+    GLOBAL_SERVICE.removeMemlockRlimit().expect("Failed to remove memlock rlimit");
 
     let service = VirtualizationService::init();
     let service =

@@ -14,7 +14,7 @@
 
 //! Functions for running instances of `crosvm`.
 
-use crate::aidl::{Cid, VirtualMachineCallbacks};
+use crate::aidl::{remove_temporary_files, Cid, VirtualMachineCallbacks};
 use crate::atom::write_vm_exited_stats;
 use anyhow::{anyhow, bail, Context, Error, Result};
 use command_fds::CommandFdExt;
@@ -29,7 +29,7 @@ use shared_child::SharedChild;
 use std::borrow::Cow;
 use std::cmp::max;
 use std::fmt;
-use std::fs::{read_to_string, remove_dir_all, File};
+use std::fs::{read_to_string, File};
 use std::io::{self, Read};
 use std::mem;
 use std::num::NonZeroU32;
@@ -379,10 +379,10 @@ impl VmInstance {
             &*vm_metric,
         );
 
-        // Delete temporary files.
-        if let Err(e) = remove_dir_all(&self.temporary_directory) {
-            error!("Error removing temporary directory {:?}: {}", self.temporary_directory, e);
-        }
+        // Delete temporary files. The folder itself is removed by VirtualizationServiceInternal.
+        remove_temporary_files(&self.temporary_directory).unwrap_or_else(|e| {
+            error!("Error removing temporary files from {:?}: {}", self.temporary_directory, e);
+        });
     }
 
     /// Waits until payload is started, or timeout expires. When timeout occurs, kill
