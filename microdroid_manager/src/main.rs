@@ -53,6 +53,7 @@ use rustutils::system_properties::PropertyWatcher;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::convert::TryInto;
 use std::env;
+use std::ffi::CString;
 use std::fs::{self, create_dir, OpenOptions};
 use std::io::Write;
 use std::os::unix::process::CommandExt;
@@ -216,13 +217,21 @@ fn try_main() -> Result<()> {
 
     match try_run_payload(&service) {
         Ok(code) => {
-            info!("notifying payload finished");
-            service.notifyPayloadFinished(code)?;
             if code == 0 {
                 info!("task successfully finished");
             } else {
                 error!("task exited with exit code: {}", code);
             }
+            if let Err(e) = post_payload_work() {
+                error!(
+                    "Failed to run post payload work. It is possible that certain tasks
+                    like syncing encrypted store might be incomplete. Error: {:?}",
+                    e
+                );
+            };
+
+            info!("notifying payload finished");
+            service.notifyPayloadFinished(code)?;
             Ok(())
         }
         Err(err) => {
@@ -233,6 +242,28 @@ fn try_main() -> Result<()> {
     }
 }
 
+fn post_payload_work() -> Result<()> {
+    // Sync the encrypted storage filesystem (flushes the filesystem caches).
+    if Path::new(ENCRYPTEDSTORE_BACKING_DEVICE).exists() {
+        let mountpoint = CString::new(ENCRYPTEDSTORE_MOUNTPOINT).unwrap();
+
+        let ret = unsafe {
+            let dirfd = libc::open(
+                mountpoint.as_ptr(),
+                libc::O_DIRECTORY | libc::O_RDONLY | libc::O_CLOEXEC,
+            );
+            ensure!(dirfd >= 0, "Unable to open {:?}", mountpoint);
+            let ret = libc::syncfs(dirfd);
+            libc::close(dirfd);
+            ret
+        };
+        if ret != 0 {
+            error!("failed to sync encrypted storage.");
+            return Err(anyhow!(std::io::Error::last_os_error()));
+        }
+    }
+    Ok(())
+}
 fn dice_derivation(
     dice: DiceDriver,
     verified_data: &MicrodroidData,
