@@ -47,7 +47,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
     AtomVmCreationRequested::AtomVmCreationRequested,
     AtomVmExited::AtomVmExited,
     IGlobalVmContext::{BnGlobalVmContext, IGlobalVmContext},
-    IVirtualizationServiceInternal::{BnVirtualizationServiceInternal, IVirtualizationServiceInternal},
+    IVirtualizationServiceInternal::IVirtualizationServiceInternal,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
         BnVirtualMachineService, IVirtualMachineService, VM_TOMBSTONES_SERVICE_PORT,
@@ -55,8 +55,8 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
 use anyhow::{anyhow, bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
 use binder::{
-    self, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, ParcelFileDescriptor,
-    Status, StatusCode, Strong,
+    self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard,
+    ParcelFileDescriptor, Status, StatusCode, Strong,
 };
 use disk::QcowFile;
 use lazy_static::lazy_static;
@@ -69,9 +69,10 @@ use semver::VersionReq;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CStr;
-use std::fs::{create_dir, File, OpenOptions};
+use std::fs::{create_dir, read_dir, remove_dir, remove_file, set_permissions, File, OpenOptions, Permissions};
 use std::io::{Error, ErrorKind, Read, Write};
 use std::num::NonZeroU32;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
@@ -79,9 +80,12 @@ use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
 use vmconfig::VmConfig;
 use vsock::{VsockListener, VsockStream};
 use zip::ZipArchive;
+use nix::unistd::{chown, Uid};
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;
+
+pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 /// Directory in which to write disk image files used while running VMs.
 pub const TEMPORARY_DIRECTORY: &str = "/data/misc/virtualizationservice";
@@ -110,10 +114,9 @@ const MICRODROID_OS_NAME: &str = "microdroid";
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
 lazy_static! {
-    pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> = {
-        let service = VirtualizationServiceInternal::init();
-        BnVirtualizationServiceInternal::new_binder(service, BinderFeatures::default())
-    };
+    pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> =
+        wait_for_interface(BINDER_SERVICE_IDENTIFIER)
+            .expect("Could not connect to VirtualizationServiceInternal");
 }
 
 fn is_valid_guest_cid(cid: Cid) -> bool {
@@ -155,6 +158,9 @@ pub struct VirtualizationServiceInternal {
 }
 
 impl VirtualizationServiceInternal {
+    // TODO(b/245727626): Remove after the source files for virtualizationservice
+    // and virtmgr binaries are split from each other.
+    #[allow(dead_code)]
     pub fn init() -> VirtualizationServiceInternal {
         let service = VirtualizationServiceInternal::default();
 
@@ -171,12 +177,32 @@ impl VirtualizationServiceInternal {
 impl Interface for VirtualizationServiceInternal {}
 
 impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
+    fn removeMemlockRlimit(&self) -> binder::Result<()> {
+        let pid = get_calling_pid();
+        let lim = libc::rlimit { rlim_cur: libc::RLIM_INFINITY, rlim_max: libc::RLIM_INFINITY };
+
+        // SAFETY - borrowing the new limit struct only
+        let ret = unsafe { libc::prlimit(pid, libc::RLIMIT_MEMLOCK, &lim, std::ptr::null_mut()) };
+
+        match ret {
+            0 => Ok(()),
+            -1 => Err(Status::new_exception_str(
+                ExceptionCode::ILLEGAL_STATE,
+                Some(std::io::Error::last_os_error().to_string()),
+            )),
+            n => Err(Status::new_exception_str(
+                ExceptionCode::ILLEGAL_STATE,
+                Some(format!("Unexpected return value from prlimit(): {n}")),
+            )),
+        }
+    }
+
     fn allocateGlobalVmContext(&self) -> binder::Result<Strong<dyn IGlobalVmContext>> {
+        let client_uid = Uid::from_raw(get_calling_uid());
         let state = &mut *self.state.lock().unwrap();
-        let cid = state.allocate_cid().map_err(|e| {
+        state.allocate_vm_context(client_uid).map_err(|e| {
             Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
-        })?;
-        Ok(GlobalVmContext::create(cid))
+        })
     }
 
     fn atomVmBooted(&self, atom: &AtomVmBooted) -> Result<(), Status> {
@@ -258,6 +284,50 @@ impl GlobalState {
     {
         range.find(|cid| !self.held_cids.contains_key(cid))
     }
+
+    fn allocate_vm_context(&mut self, client_uid: Uid) -> Result<Strong<dyn IGlobalVmContext>> {
+        let cid = self.allocate_cid()?;
+        let temp_dir = create_vm_directory(client_uid, *cid)?;
+        let binder = GlobalVmContext { cid, temp_dir, ..Default::default() };
+        Ok(BnGlobalVmContext::new_binder(binder, BinderFeatures::default()))
+    }
+}
+
+fn create_vm_directory(client_uid: Uid, cid: Cid) -> Result<PathBuf> {
+    let path: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
+    if path.as_path().exists() {
+        remove_temporary_dir(&path).unwrap_or_else(|e| {
+            warn!("Could not delete temporary directory {:?}: {}", path, e);
+        });
+    }
+    // Create a directory that is owned by client's UID but system's GID, and permissions 0700.
+    // If the chown() fails, this will leave behind an empty directory that will get removed
+    // at the next attempt, or if virtualizationservice is restarted.
+    create_dir(&path)
+        .with_context(|| format!("Could not create temporary directory {:?}", path))?;
+    chown(&path, Some(client_uid), None)
+        .with_context(|| format!("Could not set ownership of temporary directory {:?}", path))?;
+    Ok(path)
+}
+
+/// Removes a directory owned by a different user by first changing its owner back
+/// to VirtualizationService.
+pub fn remove_temporary_dir(path: &PathBuf) -> Result<()> {
+    if !path.as_path().is_dir() {
+        bail!("Path {:?} is not a directory", path);
+    }
+    chown(path, Some(Uid::current()), None)?;
+    set_permissions(path, Permissions::from_mode(0o700))?;
+    remove_temporary_files(path)?;
+    remove_dir(path)?;
+    Ok(())
+}
+
+pub fn remove_temporary_files(path: &PathBuf) -> Result<()> {
+    for dir_entry in read_dir(path)? {
+        remove_file(dir_entry?.path())?;
+    }
+    Ok(())
 }
 
 /// Implementation of the AIDL `IGlobalVmContext` interface.
@@ -265,16 +335,11 @@ impl GlobalState {
 struct GlobalVmContext {
     /// The unique CID assigned to the VM for vsock communication.
     cid: Arc<Cid>,
+    /// The temporary folder created for the VM and owned by the creator's UID.
+    temp_dir: PathBuf,
     /// Keeps our service process running as long as this VM context exists.
     #[allow(dead_code)]
     lazy_service_guard: LazyServiceGuard,
-}
-
-impl GlobalVmContext {
-    fn create(cid: Arc<Cid>) -> Strong<dyn IGlobalVmContext> {
-        let binder = GlobalVmContext { cid, ..Default::default() };
-        BnGlobalVmContext::new_binder(binder, BinderFeatures::default())
-    }
 }
 
 impl Interface for GlobalVmContext {}
@@ -282,6 +347,10 @@ impl Interface for GlobalVmContext {}
 impl IGlobalVmContext for GlobalVmContext {
     fn getCid(&self) -> binder::Result<i32> {
         Ok(*self.cid as i32)
+    }
+
+    fn getTemporaryDirectory(&self) -> binder::Result<String> {
+        Ok(self.temp_dir.to_string_lossy().to_string())
     }
 }
 
@@ -488,16 +557,20 @@ fn handle_tombstone(stream: &mut VsockStream) -> Result<()> {
 }
 
 impl VirtualizationService {
+    // TODO(b/245727626): Remove after the source files for virtualizationservice
+    // and virtmgr binaries are split from each other.
+    #[allow(dead_code)]
     pub fn init() -> VirtualizationService {
         VirtualizationService::default()
     }
 
-    fn create_vm_context(&self) -> Result<(VmContext, Cid)> {
+    fn create_vm_context(&self) -> Result<(VmContext, Cid, PathBuf)> {
         const NUM_ATTEMPTS: usize = 5;
 
         for _ in 0..NUM_ATTEMPTS {
             let global_context = GLOBAL_SERVICE.allocateGlobalVmContext()?;
             let cid = global_context.getCid()? as Cid;
+            let temp_dir: PathBuf = global_context.getTemporaryDirectory()?.into();
             let service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
 
             // Start VM service listening for connections from the new CID on port=CID.
@@ -505,7 +578,7 @@ impl VirtualizationService {
             match RpcServer::new_vsock(service, cid, port) {
                 Ok(vm_server) => {
                     vm_server.start();
-                    return Ok((VmContext::new(global_context, vm_server), cid));
+                    return Ok((VmContext::new(global_context, vm_server), cid, temp_dir));
                 }
                 Err(err) => {
                     warn!("Could not start RpcServer on port {}: {}", port, err);
@@ -538,7 +611,7 @@ impl VirtualizationService {
             check_use_custom_virtual_machine()?;
         }
 
-        let (vm_context, cid) = self.create_vm_context().map_err(|e| {
+        let (vm_context, cid, temporary_directory) = self.create_vm_context().map_err(|e| {
             error!("Failed to create VmContext: {:?}", e);
             Status::new_service_specific_error_str(
                 -1,
@@ -557,24 +630,6 @@ impl VirtualizationService {
         // Files which are referred to from composite images. These must be mapped to the crosvm
         // child process, and not closed before it is started.
         let mut indirect_files = vec![];
-
-        // Make directory for temporary files.
-        let temporary_directory: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
-        create_dir(&temporary_directory).map_err(|e| {
-            // At this point, we do not know the protected status of Vm
-            // setting it to false, though this may not be correct.
-            error!(
-                "Failed to create temporary directory {:?} for VM files: {:?}",
-                temporary_directory, e
-            );
-            Status::new_service_specific_error_str(
-                -1,
-                Some(format!(
-                    "Failed to create temporary directory {:?} for VM files: {:?}",
-                    temporary_directory, e
-                )),
-            )
-        })?;
 
         let (is_app_config, config) = match config {
             VirtualMachineConfig::RawConfig(config) => (false, BorrowedOrOwned::Borrowed(config)),
@@ -947,15 +1002,11 @@ fn check_label_is_allowed(ctx: &SeContext) -> Result<()> {
 #[derive(Debug)]
 struct VirtualMachine {
     instance: Arc<VmInstance>,
-    /// Keeps our service process running as long as this VM instance exists.
-    #[allow(dead_code)]
-    lazy_service_guard: LazyServiceGuard,
 }
 
 impl VirtualMachine {
     fn create(instance: Arc<VmInstance>) -> Strong<dyn IVirtualMachine> {
-        let binder = VirtualMachine { instance, lazy_service_guard: Default::default() };
-        BnVirtualMachine::new_binder(binder, BinderFeatures::default())
+        BnVirtualMachine::new_binder(VirtualMachine { instance }, BinderFeatures::default())
     }
 }
 

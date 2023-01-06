@@ -20,6 +20,7 @@
 #include <android/binder_ibinder_jni.h>
 #include <jni.h>
 #include <log/log.h>
+#include <poll.h>
 
 #include <string>
 
@@ -85,6 +86,18 @@ JNIEXPORT jobject JNICALL android_system_virtualmachine_VirtualizationService_co
     return AIBinder_toJavaBinder(env, client);
 }
 
+JNIEXPORT jboolean JNICALL android_system_virtualmachine_VirtualizationService_isOk(
+        JNIEnv* env, [[maybe_unused]] jobject obj, int clientFd) {
+    /* Setting events=0 only returns POLLERR, POLLHUP or POLLNVAL. */
+    struct pollfd pfds[] = {{.fd = clientFd, .events = 0}};
+    if (poll(pfds, /*nfds*/ 1, /*timeout*/ 0) < 0) {
+        env->ThrowNew(env->FindClass("android/system/virtualmachine/VirtualMachineException"),
+                      ("Failed to poll client FD: " + std::string(strerror(errno))).c_str());
+        return false;
+    }
+    return pfds[0].revents == 0;
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
@@ -105,6 +118,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
              reinterpret_cast<void*>(android_system_virtualmachine_VirtualizationService_spawn)},
             {"nativeConnect", "(I)Landroid/os/IBinder;",
              reinterpret_cast<void*>(android_system_virtualmachine_VirtualizationService_connect)},
+            {"nativeIsOk", "(I)Z",
+             reinterpret_cast<void*>(android_system_virtualmachine_VirtualizationService_isOk)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods) / sizeof(JNINativeMethod));
     if (rc != JNI_OK) {

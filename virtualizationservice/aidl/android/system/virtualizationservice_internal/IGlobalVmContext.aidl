@@ -18,4 +18,7 @@ package android.system.virtualizationservice_internal;
 interface IGlobalVmContext {
     /** Get the CID allocated to the VM. */
     int getCid();
+
+    /** Get the path to the temporary folder of the VM. */
+    String getTemporaryDirectory();
 }
