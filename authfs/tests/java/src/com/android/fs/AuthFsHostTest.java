@@ -125,6 +125,11 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         ITestDevice androidDevice = testInfo.getDevice();
         sAndroid = new CommandRunner(androidDevice);
 
+        if (isCuttlefish(androidDevice)) {
+            sAssumptionFailed = true;
+            return;
+        }
+
         try {
             testIfDeviceIsCapable(androidDevice);
         } catch (AssumptionViolatedException e) {
@@ -173,7 +178,6 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
     @Before
     public void setUp() throws Exception {
         assumeFalse(sAssumptionFailed);
-        assumeFalse(isCuttlefish());
         sAndroid.run("mkdir " + TEST_OUTPUT_DIR);
     }
 
