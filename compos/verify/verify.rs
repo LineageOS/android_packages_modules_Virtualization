@@ -106,7 +106,8 @@ fn try_main() -> Result<()> {
     // We need to start the thread pool to be able to receive Binder callbacks
     ProcessState::start_thread_pool();
 
-    let virtualization_service = vmclient::connect()?;
+    let virtmgr = vmclient::VirtualizationService::new()?;
+    let virtualization_service = virtmgr.connect()?;
     let vm_instance = ComposClient::start(
         &*virtualization_service,
         instance_image,

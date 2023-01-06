@@ -45,8 +45,11 @@ fn try_main() -> Result<()> {
 
     ProcessState::start_thread_pool();
 
+    let virtmgr =
+        vmclient::VirtualizationService::new().context("Failed to spawn VirtualizationService")?;
     let virtualization_service =
-        vmclient::connect().context("Failed to find VirtualizationService")?;
+        virtmgr.connect().context("Failed to connect to VirtualizationService")?;
+
     let instance_manager = Arc::new(InstanceManager::new(virtualization_service));
     let composd_service = service::new_binder(instance_manager);
     register_lazy_service("android.system.composd", composd_service.as_binder())

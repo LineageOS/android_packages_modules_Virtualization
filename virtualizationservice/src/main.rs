@@ -21,18 +21,16 @@ mod crosvm;
 mod payload;
 mod selinux;
 
-use crate::aidl::{VirtualizationService, TEMPORARY_DIRECTORY};
+use crate::aidl::{remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY, VirtualizationServiceInternal};
 use android_logger::{Config, FilterBuilder};
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
-use anyhow::{bail, Context, Error};
+use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IVirtualizationServiceInternal::BnVirtualizationServiceInternal;
+use anyhow::Error;
 use binder::{register_lazy_service, BinderFeatures, ProcessState, ThreadState};
 use log::{info, Level};
-use std::fs::{remove_dir_all, remove_file, read_dir};
+use std::fs::read_dir;
 use std::os::unix::raw::{pid_t, uid_t};
 
 const LOG_TAG: &str = "VirtualizationService";
-
-const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservice";
 
 fn get_calling_pid() -> pid_t {
     ThreadState::get_calling_pid()
@@ -55,38 +53,19 @@ fn main() {
             ),
     );
 
-    remove_memlock_rlimit().expect("Failed to remove memlock rlimit");
     clear_temporary_files().expect("Failed to delete old temporary files");
 
-    let service = VirtualizationService::init();
-    let service = BnVirtualizationService::new_binder(service, BinderFeatures::default());
+    let service = VirtualizationServiceInternal::init();
+    let service = BnVirtualizationServiceInternal::new_binder(service, BinderFeatures::default());
     register_lazy_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
     info!("Registered Binder service, joining threadpool.");
     ProcessState::join_thread_pool();
 }
 
-/// Set this PID's RLIMIT_MEMLOCK to RLIM_INFINITY to allow crosvm (a child process) to mlock()
-/// arbitrary amounts of memory. This is necessary for spawning protected VMs.
-fn remove_memlock_rlimit() -> Result<(), Error> {
-    let lim = libc::rlimit { rlim_cur: libc::RLIM_INFINITY, rlim_max: libc::RLIM_INFINITY };
-    // SAFETY - borrowing the new limit struct only
-    match unsafe { libc::setrlimit(libc::RLIMIT_MEMLOCK, &lim) } {
-        0 => Ok(()),
-        -1 => Err(std::io::Error::last_os_error()).context("setrlimit failed"),
-        n => bail!("Unexpected return value from setrlimit(): {}", n),
-    }
-}
-
 /// Remove any files under `TEMPORARY_DIRECTORY`.
 fn clear_temporary_files() -> Result<(), Error> {
     for dir_entry in read_dir(TEMPORARY_DIRECTORY)? {
-        let dir_entry = dir_entry?;
-        let path = dir_entry.path();
-        if dir_entry.file_type()?.is_dir() {
-            remove_dir_all(path)?;
-        } else {
-            remove_file(path)?;
-        }
+        remove_temporary_dir(&dir_entry?.path())?
     }
     Ok(())
 }

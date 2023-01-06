@@ -245,7 +245,9 @@ fn main() -> Result<(), Error> {
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
 
-    let service = vmclient::connect().context("Failed to find VirtualizationService")?;
+    let virtmgr =
+        vmclient::VirtualizationService::new().context("Failed to spawn VirtualizationService")?;
+    let service = virtmgr.connect().context("Failed to connect to VirtualizationService")?;
 
     match opt {
         Opt::RunApp {
