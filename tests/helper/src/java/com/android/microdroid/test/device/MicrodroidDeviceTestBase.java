@@ -24,6 +24,7 @@ import android.app.UiAutomation;
 import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.os.SystemProperties;
+import android.system.Os;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
@@ -50,6 +51,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public abstract class MicrodroidDeviceTestBase {
+    private final String MAX_PERFORMANCE_TASK_PROFILE = "CPUSET_SP_TOP_APP";
+
     public static boolean isCuttlefish() {
         return DeviceProperties.create(SystemProperties::get).isCuttlefish();
     }
@@ -71,6 +74,17 @@ public abstract class MicrodroidDeviceTestBase {
         UiAutomation uiAutomation = instrumentation.getUiAutomation();
         uiAutomation.revokeRuntimePermission(instrumentation.getContext().getPackageName(),
                 permission);
+    }
+
+    protected final void setMaxPerformanceTaskProfile() throws IOException {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        UiAutomation uiAutomation = instrumentation.getUiAutomation();
+        String cmd = "settaskprofile " + Os.gettid() + " " + MAX_PERFORMANCE_TASK_PROFILE;
+        String out = runInShell("MicrodroidDeviceTestBase", uiAutomation, cmd).trim();
+        String expect = "Profile " + MAX_PERFORMANCE_TASK_PROFILE + " is applied successfully!";
+        if (!expect.equals(out)) {
+            throw new IOException("Could not apply max performance task profile: " + out);
+        }
     }
 
     private Context mCtx;
