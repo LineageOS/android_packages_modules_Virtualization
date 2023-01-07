@@ -401,7 +401,11 @@ public abstract class VirtualizationTestCaseBase extends BaseHostJUnit4Test {
     }
 
     protected boolean isCuttlefish() throws Exception {
-        String productName = getDevice().getProperty("ro.product.name");
+        return isCuttlefish(getDevice());
+    }
+
+    protected static boolean isCuttlefish(ITestDevice device) throws Exception {
+        String productName = device.getProperty("ro.product.name");
         return (null != productName)
                 && (productName.startsWith("aosp_cf_x86")
                         || productName.startsWith("aosp_cf_arm")
