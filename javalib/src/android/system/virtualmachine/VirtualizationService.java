@@ -23,7 +23,7 @@ import android.system.virtualizationservice.IVirtualizationService;
 
 import com.android.internal.annotations.GuardedBy;
 
-import java.lang.ref.SoftReference;
+import java.lang.ref.WeakReference;
 
 /** A running instance of virtmgr that is hosting a VirtualizationService AIDL service. */
 class VirtualizationService {
@@ -33,7 +33,7 @@ class VirtualizationService {
 
     /* Soft reference caching the last created instance of this class. */
     @GuardedBy("VirtualMachineManager.sCreateLock")
-    private static SoftReference<VirtualizationService> sInstance;
+    private static WeakReference<VirtualizationService> sInstance;
 
     /*
      * Client FD for UDS connection to virtmgr's RpcBinder server. Closing it
@@ -86,7 +86,7 @@ class VirtualizationService {
         VirtualizationService service = (sInstance == null) ? null : sInstance.get();
         if (service == null || !service.isOk()) {
             service = new VirtualizationService();
-            sInstance = new SoftReference(service);
+            sInstance = new WeakReference(service);
         }
         return service;
     }
