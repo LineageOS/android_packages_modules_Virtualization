@@ -95,8 +95,11 @@ impl InodeData {
     }
 
     fn new_file(zip_index: ZipIndex, zip_file: &zip::read::ZipFile) -> InodeData {
+        // b/264668376 some files in APK don't have unix permissions specified. Default to 400
+        // otherwise those files won't be readable even by the owner.
+        const DEFAULT_FILE_MODE: u32 = libc::S_IRUSR;
         InodeData {
-            mode: zip_file.unix_mode().unwrap_or(0),
+            mode: zip_file.unix_mode().unwrap_or(DEFAULT_FILE_MODE),
             size: zip_file.size(),
             data: InodeDataData::File(zip_index),
         }
