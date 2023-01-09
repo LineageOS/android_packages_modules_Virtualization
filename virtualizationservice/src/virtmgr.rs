@@ -30,6 +30,7 @@ use log::{info, Level};
 use rpcbinder::{FileDescriptorTransportMode, RpcServer};
 use std::os::unix::io::{FromRawFd, OwnedFd, RawFd};
 use clap::Parser;
+use nix::fcntl::{fcntl, F_GETFD, F_SETFD, FdFlag};
 use nix::unistd::{Pid, Uid};
 use std::os::unix::raw::{pid_t, uid_t};
 
@@ -66,8 +67,12 @@ struct Args {
 
 fn take_fd_ownership(raw_fd: RawFd, owned_fds: &mut Vec<RawFd>) -> Result<OwnedFd, anyhow::Error> {
     // Basic check that the integer value does correspond to a file descriptor.
-    nix::fcntl::fcntl(raw_fd, nix::fcntl::F_GETFD)
-        .with_context(|| format!("Invalid file descriptor {raw_fd}"))?;
+    fcntl(raw_fd, F_GETFD).with_context(|| format!("Invalid file descriptor {raw_fd}"))?;
+
+    // The file descriptor had CLOEXEC disabled to be inherited from the parent.
+    // Re-enable it to make sure it is not accidentally inherited further.
+    fcntl(raw_fd, F_SETFD(FdFlag::FD_CLOEXEC))
+        .with_context(|| format!("Could not set CLOEXEC on file descriptor {raw_fd}"))?;
 
     // Creating OwnedFd for stdio FDs is not safe.
     if [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO].contains(&raw_fd) {
