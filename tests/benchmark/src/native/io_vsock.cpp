@@ -59,12 +59,22 @@ Result<void> run_vsock_server_and_receive_data(int server_fd, int num_bytes_to_r
     }
     LOG(INFO) << "VM:Connection from CID " << client_sa.svm_cid << " on port "
               << client_sa.svm_port;
-    std::string data;
-    if (!ReadFdToString(client_fd, &data)) {
-        return Error() << "Cannot get data from the host.";
+
+    ssize_t total = 0;
+    char buf[4096];
+    for (;;) {
+        ssize_t n = TEMP_FAILURE_RETRY(read(client_fd.get(), buf, sizeof(buf)));
+        if (n < 0) {
+            return Error() << "Cannot get data from the host.";
+        }
+        if (n == 0) {
+            break;
+        }
+        total += n;
     }
-    if (data.length() != num_bytes_to_receive) {
-        return Error() << "Received data length(" << data.length() << ") is not equal to "
+
+    if (total != num_bytes_to_receive) {
+        return Error() << "Received data length(" << total << ") is not equal to "
                        << num_bytes_to_receive;
     }
     LOG(INFO) << "VM:Finished reading data.";
