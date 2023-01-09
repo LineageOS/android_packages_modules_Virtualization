@@ -1,12 +1,73 @@
 # Protected Virtual Machine Firmware
 
-## Configuration Data Format
+In the context of the [Android Virtualization Framework][AVF], a hypervisor
+(_e.g._ [pKVM]) enforces full memory isolation between its virtual machines
+(VMs) and the host.  As a result, the host is only allowed to access memory that
+has been explicitly shared back by a VM. Such _protected VMs_ (“pVMs”) are
+therefore able to manipulate secrets without being at risk of an attacker
+stealing them by compromising the Android host.
 
-pvmfw will expect a [header] to have been appended to its loaded binary image
-at the next 4KiB boundary. It describes the configuration data entries that
-pvmfw will use and, being loaded by the pvmfw loader, is necessarily trusted.
+As pVMs are started dynamically by a _virtual machine manager_ (“VMM”) running
+as a host process and as pVMs must not trust the host (see [_Why
+AVF?_][why-avf]), the virtual machine it configures can't be trusted either.
+Furthermore, even though the isolation mentioned above allows pVMs to protect
+their secrets from the host, it does not help with provisioning them during
+boot. In particular, the threat model would prohibit the host from ever having
+access to those secrets, preventing the VMM from passing them to the pVM.
 
-The layout of the configuration data is as follows:
+To address these concerns the hypervisor securely loads the pVM firmware
+(“pvmfw”) in the pVM from a protected memory region (this prevents the host or
+any pVM from tampering with it), setting it as the entry point of the virtual
+machine. As a result, pvmfw becomes the very first code that gets executed in
+the pVM, allowing it to validate the environment and abort the boot sequence if
+necessary. This process takes place whenever the VMM places a VM in protected
+mode and can’t be prevented by the host.
+
+Given the threat model, pvmfw is not allowed to trust the devices or device
+layout provided by the virtual platform it is running on as those are configured
+by the VMM. Instead, it performs all the necessary checks to ensure that the pVM
+was set up as expected. For functional purposes, the interface with the
+hypervisor, although trusted, is also validated.
+
+Once it has been determined that the platform can be trusted, pvmfw derives
+unique secrets for the guest through the [_Boot Certificate Chain_][BCC]
+("BCC", see [Open Profile for DICE][open-dice]) that can be used to prove the
+identity of the pVM to local and remote actors. If any operation or check fails,
+or in case of a missing prerequisite, pvmfw will abort the boot process of the
+pVM, effectively preventing non-compliant pVMs and/or guests from running.
+Otherwise, it hands over the pVM to the guest kernel by jumping to its first
+instruction, similarly to a bootloader.
+
+pvmfw currently only supports AArch64.
+
+[AVF]: https://source.android.com/docs/core/virtualization
+[why-avf]: https://source.android.com/docs/core/virtualization/whyavf
+[BCC]: https://pigweed.googlesource.com/open-dice/+/master/src/android/README.md
+[pKVM]: https://source.android.com/docs/core/virtualization/architecture#hypervisor
+[open-dice]: https://pigweed.googlesource.com/open-dice/+/refs/heads/main/docs/specification.md
+
+## Integration
+
+### Configuration Data
+
+As part of the process of loading pvmfw, the loader (typically the Android
+Bootloader, "ABL") is expected to pass device-specific pvmfw configuration data
+by appending it to the pvmfw binary and including it in the region passed to the
+hypervisor. As a result, the hypervisor will give the same protection to this
+data as it does to pvmfw and will transparently load it in guest memory, making
+it available to pvmfw at runtime. This enables pvmfw to be kept device-agnostic,
+simplifying its adoption and distribution as a centralized signed binary, while
+also being able to support device-specific details.
+
+The configuration data will be read by pvmfw at the next 4KiB boundary from the
+end of its loaded binary. Even if the pvmfw is position-independent, it will be
+expected for it to also have been loaded at a 4-KiB boundary. As a result, the
+location of the configuration data is implicitly passed to pvmfw and known to it
+at build time.
+
+#### Configuration Data Format
+
+The configuration data is described using the following [header]:
 
 ```
 +===============================+
