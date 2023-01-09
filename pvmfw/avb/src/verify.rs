@@ -393,10 +393,12 @@ pub fn verify_payload(kernel: &[u8], trusted_public_key: &[u8]) -> Result<(), Av
 mod tests {
     use super::*;
     use anyhow::Result;
-    use std::fs;
+    use avb_bindgen::AvbFooter;
+    use std::{fs, mem::size_of};
 
     const PUBLIC_KEY_RSA2048_PATH: &str = "data/testkey_rsa2048_pub.bin";
     const PUBLIC_KEY_RSA4096_PATH: &str = "data/testkey_rsa4096_pub.bin";
+    const RANDOM_FOOTER_POS: usize = 30;
 
     /// This test uses the Microdroid payload compiled on the fly to check that
     /// the latest payload can be verified successfully.
@@ -454,6 +456,19 @@ mod tests {
             &kernel,
             &fs::read(PUBLIC_KEY_RSA4096_PATH)?,
             AvbImageVerifyError::Verification,
+        )
+    }
+
+    #[test]
+    fn tampered_kernel_footer_fails_verification() -> Result<()> {
+        let mut kernel = load_latest_signed_kernel()?;
+        let avb_footer_index = kernel.len() - size_of::<AvbFooter>() + RANDOM_FOOTER_POS;
+        kernel[avb_footer_index] = !kernel[avb_footer_index];
+
+        assert_payload_verification_fails(
+            &kernel,
+            &fs::read(PUBLIC_KEY_RSA4096_PATH)?,
+            AvbImageVerifyError::InvalidMetadata,
         )
     }
 
