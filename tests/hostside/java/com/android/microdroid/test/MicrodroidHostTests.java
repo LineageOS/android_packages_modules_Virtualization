@@ -795,6 +795,39 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                                 + " permission");
     }
 
+    @Test
+    public void testPathToBinaryIsRejected() throws Exception {
+        CommandRunner android = new CommandRunner(getDevice());
+
+        // Create the idsig file for the APK
+        final String apkPath = getPathForPackage(PACKAGE_NAME);
+        final String idSigPath = TEST_ROOT + "idsig";
+        android.run(VIRT_APEX + "bin/vm", "create-idsig", apkPath, idSigPath);
+
+        // Create the instance image for the VM
+        final String instanceImgPath = TEST_ROOT + "instance.img";
+        android.run(
+                VIRT_APEX + "bin/vm",
+                "create-partition",
+                "--type instance",
+                instanceImgPath,
+                Integer.toString(10 * 1024 * 1024));
+
+        final String ret =
+                android.runForResult(
+                                VIRT_APEX + "bin/vm",
+                                "run-app",
+                                "--payload-binary-name",
+                                "./MicrodroidTestNativeLib.so",
+                                apkPath,
+                                idSigPath,
+                                instanceImgPath)
+                        .getStderr()
+                        .trim();
+
+        assertThat(ret).contains("Payload binary name must not specify a path");
+    }
+
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
