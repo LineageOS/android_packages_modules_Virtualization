@@ -46,7 +46,16 @@
       "path": "packages/modules/Virtualization/virtualizationservice"
     },
     {
+      "path": "packages/modules/Virtualization/libs/apexutil"
+    },
+    {
       "path": "packages/modules/Virtualization/libs/apkverify"
+    },
+    {
+      "path": "packages/modules/Virtualization/libs/avb"
+    },
+    {
+      "path": "packages/modules/Virtualization/libs/capabilities"
     },
     {
       "path": "packages/modules/Virtualization/libs/devicemapper"
@@ -58,10 +67,16 @@
       "path": "packages/modules/Virtualization/authfs"
     },
     {
+      "path": "packages/modules/Virtualization/microdroid_manager"
+    },
+    {
       "path": "packages/modules/Virtualization/pvmfw"
     },
     {
       "path": "packages/modules/Virtualization/rialto"
+    },
+    {
+      "path": "packages/modules/Virtualization/vm"
     },
     {
       "path": "packages/modules/Virtualization/vmbase"
