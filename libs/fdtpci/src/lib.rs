@@ -23,7 +23,7 @@ use core::{
 };
 use libfdt::{AddressRange, Fdt, FdtError, FdtNode};
 use log::debug;
-use virtio_drivers::pci::bus::{Cam, PciRoot};
+use virtio_drivers::transport::pci::bus::{Cam, PciRoot};
 
 /// PCI MMIO configuration region size.
 const PCI_CFG_SIZE: usize = 0x100_0000;
