@@ -29,7 +29,7 @@ import android.os.Parcelable;
  * A VM descriptor that captures the state of a Virtual Machine.
  *
  * <p>You can capture the current state of VM by creating an instance of this class with {@link
- * VirtualMachine#toDescriptor()}, optionally pass it to another App, and then build an identical VM
+ * VirtualMachine#toDescriptor}, optionally pass it to another App, and then build an identical VM
  * with the descriptor received.
  *
  * @hide

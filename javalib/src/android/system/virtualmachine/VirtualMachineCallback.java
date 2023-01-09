@@ -141,8 +141,8 @@ public interface VirtualMachineCallback {
     void onPayloadStarted(@NonNull VirtualMachine vm);
 
     /**
-     * Called when the payload in the VM is ready to serve. See
-     * {@link VirtualMachine#connectToVsockServer(int)}.
+     * Called when the payload in the VM is ready to serve. See {@link
+     * VirtualMachine#connectToVsockServer}.
      */
     void onPayloadReady(@NonNull VirtualMachine vm);
 
