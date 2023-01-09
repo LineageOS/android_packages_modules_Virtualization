@@ -87,6 +87,7 @@ pub fn run_fuse(
 
     let mut mount_options = vec![
         MountOption::FD(dev_fuse.as_raw_fd()),
+        MountOption::DefaultPermissions,
         MountOption::RootMode(libc::S_IFDIR | libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH),
         MountOption::AllowOther,
         MountOption::UserId(0),
