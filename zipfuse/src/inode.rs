@@ -31,6 +31,11 @@ pub type Inode = u64;
 const INVALID: Inode = 0;
 const ROOT: Inode = 1;
 
+const DEFAULT_DIR_MODE: u32 = libc::S_IRUSR | libc::S_IXUSR;
+// b/264668376 some files in APK don't have unix permissions specified. Default to 400
+// otherwise those files won't be readable even by the owner.
+const DEFAULT_FILE_MODE: u32 = libc::S_IRUSR;
+
 /// `InodeData` represents an inode which has metadata about a file or a directory
 #[derive(Debug)]
 pub struct InodeData {
@@ -95,9 +100,6 @@ impl InodeData {
     }
 
     fn new_file(zip_index: ZipIndex, zip_file: &zip::read::ZipFile) -> InodeData {
-        // b/264668376 some files in APK don't have unix permissions specified. Default to 400
-        // otherwise those files won't be readable even by the owner.
-        const DEFAULT_FILE_MODE: u32 = libc::S_IRUSR;
         InodeData {
             mode: zip_file.unix_mode().unwrap_or(DEFAULT_FILE_MODE),
             size: zip_file.size(),
@@ -172,7 +174,7 @@ impl InodeTable {
 
         // Add the inodes for the invalid and the root directory
         assert_eq!(INVALID, table.put(InodeData::new_dir(0)));
-        assert_eq!(ROOT, table.put(InodeData::new_dir(0)));
+        assert_eq!(ROOT, table.put(InodeData::new_dir(DEFAULT_DIR_MODE)));
 
         // For each zip file in the archive, create an inode and add it to the table. If the file's
         // parent directories don't have corresponding inodes in the table, handle them too.
@@ -203,12 +205,10 @@ impl InodeTable {
                     // Update the mode if this is a directory leaf.
                     if !is_file && is_leaf {
                         let mut inode = table.get_mut(parent).unwrap();
-                        inode.mode = file.unix_mode().unwrap_or(0);
+                        inode.mode = file.unix_mode().unwrap_or(DEFAULT_DIR_MODE);
                     }
                     continue;
                 }
-
-                const DEFAULT_DIR_MODE: u32 = libc::S_IRUSR | libc::S_IXUSR;
 
                 // No inode found. Create a new inode and add it to the inode table.
                 let inode = if is_file {
