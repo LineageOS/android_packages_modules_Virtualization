@@ -278,6 +278,9 @@ public class VirtualMachine implements AutoCloseable {
         }
     }
 
+    /** Running instance of virtmgr that hosts VirtualizationService for this VM. */
+    @NonNull private final VirtualizationService mVirtualizationService;
+
     @NonNull private final MemoryManagementCallbacks mMemoryManagementCallbacks;
 
     @NonNull private final Context mContext;
@@ -332,9 +335,6 @@ public class VirtualMachine implements AutoCloseable {
     @GuardedBy("mCallbackLock")
     @Nullable
     private Executor mCallbackExecutor;
-
-    /* Running instance of virtmgr that hosts VirtualizationService for this VM. */
-    @NonNull private VirtualizationService mVirtualizationService;
 
     private static class ExtraApkSpec {
         public final File apk;
