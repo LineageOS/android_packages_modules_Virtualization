@@ -17,7 +17,7 @@
 use crate::{entry::RebootReason, memory::MemoryTracker};
 use fdtpci::{PciError, PciInfo};
 use log::{debug, error};
-use virtio_drivers::pci::{bus::PciRoot, virtio_device_type};
+use virtio_drivers::transport::pci::{bus::PciRoot, virtio_device_type};
 
 /// Maps the CAM and BAR range in the page table and MMIO guard.
 pub fn map_mmio(pci_info: &PciInfo, memory: &mut MemoryTracker) -> Result<(), RebootReason> {
