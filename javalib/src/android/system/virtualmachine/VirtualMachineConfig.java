@@ -587,7 +587,7 @@ public final class VirtualMachineConfig {
 
         /**
          * Sets the number of vCPUs in the VM. Defaults to 1. Cannot be more than the number of real
-         * CPUs (as returned by {@link Runtime#availableProcessors()}).
+         * CPUs (as returned by {@link Runtime#availableProcessors}).
          *
          * @hide
          */
