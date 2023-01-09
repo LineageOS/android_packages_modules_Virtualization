@@ -161,6 +161,37 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void testMicrodroidMulticoreBootTime()
+            throws VirtualMachineException, InterruptedException, IOException {
+        assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
+
+        final int trialCount = 10;
+        final int[] trialNumCpus = {2, 4, 8};
+
+        for (int numCpus : trialNumCpus) {
+            List<Double> bootTimeMetrics = new ArrayList<>();
+            for (int i = 0; i < trialCount; i++) {
+                VirtualMachineConfig normalConfig =
+                        newVmConfigBuilder()
+                                .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                                .setDebugLevel(DEBUG_LEVEL_NONE)
+                                .setMemoryMib(256)
+                                .setNumCpus(numCpus)
+                                .build();
+                forceCreateNewVirtualMachine("test_vm_boot_time_multicore", normalConfig);
+
+                BootResult result = tryBootVm(TAG, "test_vm_boot_time_multicore");
+                assertThat(result.payloadStarted).isTrue();
+
+                bootTimeMetrics.add(result.endToEndNanoTime / NANO_TO_MILLI);
+            }
+
+            String metricName = "boot_time_" + numCpus + "cpus";
+            reportMetrics(bootTimeMetrics, metricName, "ms");
+        }
+    }
+
+    @Test
     public void testMicrodroidDebugBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
         assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
