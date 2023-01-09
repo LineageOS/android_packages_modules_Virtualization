@@ -31,7 +31,8 @@ using namespace android::base;
 static constexpr const char VIRTMGR_PATH[] = "/apex/com.android.virt/bin/virtmgr";
 static constexpr size_t VIRTMGR_THREADS = 16;
 
-JNIEXPORT jint JNICALL android_system_virtualmachine_VirtualizationService_spawn(
+extern "C" JNIEXPORT jint JNICALL
+Java_android_system_virtualmachine_VirtualizationService_nativeSpawn(
         JNIEnv* env, [[maybe_unused]] jclass clazz) {
     unique_fd serverFd, clientFd;
     if (!Socketpair(SOCK_STREAM, &serverFd, &clientFd)) {
@@ -74,8 +75,10 @@ JNIEXPORT jint JNICALL android_system_virtualmachine_VirtualizationService_spawn
     return clientFd.release();
 }
 
-JNIEXPORT jobject JNICALL android_system_virtualmachine_VirtualizationService_connect(
-        JNIEnv* env, [[maybe_unused]] jobject obj, int clientFd) {
+extern "C" JNIEXPORT jobject JNICALL
+Java_android_system_virtualmachine_VirtualizationService_nativeConnect(JNIEnv* env,
+                                                                       [[maybe_unused]] jobject obj,
+                                                                       int clientFd) {
     RpcSessionHandle session;
     ARpcSession_setFileDescriptorTransportMode(session.get(),
                                                ARpcSession_FileDescriptorTransportMode::Unix);
@@ -86,8 +89,10 @@ JNIEXPORT jobject JNICALL android_system_virtualmachine_VirtualizationService_co
     return AIBinder_toJavaBinder(env, client);
 }
 
-JNIEXPORT jboolean JNICALL android_system_virtualmachine_VirtualizationService_isOk(
-        JNIEnv* env, [[maybe_unused]] jobject obj, int clientFd) {
+extern "C" JNIEXPORT jboolean JNICALL
+Java_android_system_virtualmachine_VirtualizationService_nativeIsOk(JNIEnv* env,
+                                                                    [[maybe_unused]] jobject obj,
+                                                                    int clientFd) {
     /* Setting events=0 only returns POLLERR, POLLHUP or POLLNVAL. */
     struct pollfd pfds[] = {{.fd = clientFd, .events = 0}};
     if (poll(pfds, /*nfds*/ 1, /*timeout*/ 0) < 0) {
@@ -96,36 +101,4 @@ JNIEXPORT jboolean JNICALL android_system_virtualmachine_VirtualizationService_i
         return false;
     }
     return pfds[0].revents == 0;
-}
-
-JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
-    JNIEnv* env;
-    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-        ALOGE("%s: Failed to get the environment", __FUNCTION__);
-        return JNI_ERR;
-    }
-
-    jclass c = env->FindClass("android/system/virtualmachine/VirtualizationService");
-    if (c == nullptr) {
-        ALOGE("%s: Failed to find class android.system.virtualmachine.VirtualizationService",
-              __FUNCTION__);
-        return JNI_ERR;
-    }
-
-    // Register your class' native methods.
-    static const JNINativeMethod methods[] = {
-            {"nativeSpawn", "()I",
-             reinterpret_cast<void*>(android_system_virtualmachine_VirtualizationService_spawn)},
-            {"nativeConnect", "(I)Landroid/os/IBinder;",
-             reinterpret_cast<void*>(android_system_virtualmachine_VirtualizationService_connect)},
-            {"nativeIsOk", "(I)Z",
-             reinterpret_cast<void*>(android_system_virtualmachine_VirtualizationService_isOk)},
-    };
-    int rc = env->RegisterNatives(c, methods, sizeof(methods) / sizeof(JNINativeMethod));
-    if (rc != JNI_OK) {
-        ALOGE("%s: Failed to register natives", __FUNCTION__);
-        return rc;
-    }
-
-    return JNI_VERSION_1_6;
 }

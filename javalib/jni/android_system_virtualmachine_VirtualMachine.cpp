@@ -27,7 +27,8 @@
 
 #include "common.h"
 
-JNIEXPORT jobject JNICALL android_system_virtualmachine_VirtualMachine_connectToVsockServer(
+extern "C" JNIEXPORT jobject JNICALL
+Java_android_system_virtualmachine_VirtualMachine_nativeConnectToVsockServer(
         JNIEnv* env, [[maybe_unused]] jclass clazz, jobject vmBinder, jint port) {
     using aidl::android::system::virtualizationservice::IVirtualMachine;
     using ndk::ScopedFileDescriptor;
@@ -58,33 +59,4 @@ JNIEXPORT jobject JNICALL android_system_virtualmachine_VirtualMachine_connectTo
     RpcSessionHandle session;
     auto client = ARpcSession_setupPreconnectedClient(session.get(), requestFunc, &args);
     return AIBinder_toJavaBinder(env, client);
-}
-
-JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
-    JNIEnv* env;
-    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-        ALOGE("%s: Failed to get the environment", __FUNCTION__);
-        return JNI_ERR;
-    }
-
-    jclass c = env->FindClass("android/system/virtualmachine/VirtualMachine");
-    if (c == nullptr) {
-        ALOGE("%s: Failed to find class android.system.virtualmachine.VirtualMachine",
-              __FUNCTION__);
-        return JNI_ERR;
-    }
-
-    // Register your class' native methods.
-    static const JNINativeMethod methods[] = {
-            {"nativeConnectToVsockServer", "(Landroid/os/IBinder;I)Landroid/os/IBinder;",
-             reinterpret_cast<void*>(
-                     android_system_virtualmachine_VirtualMachine_connectToVsockServer)},
-    };
-    int rc = env->RegisterNatives(c, methods, sizeof(methods) / sizeof(JNINativeMethod));
-    if (rc != JNI_OK) {
-        ALOGE("%s: Failed to register natives", __FUNCTION__);
-        return rc;
-    }
-
-    return JNI_VERSION_1_6;
 }
