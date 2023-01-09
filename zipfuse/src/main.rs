@@ -59,6 +59,18 @@ fn main() -> Result<()> {
                 .takes_value(true)
                 .help("Specify a property to be set when mount is ready"),
         )
+        .arg(
+            Arg::with_name("uid")
+                .short('u')
+                .takes_value(true)
+                .help("numeric UID who's the owner of the files"),
+        )
+        .arg(
+            Arg::with_name("gid")
+                .short('g')
+                .takes_value(true)
+                .help("numeric GID who's the group of the files"),
+        )
         .arg(Arg::with_name("ZIPFILE").required(true))
         .arg(Arg::with_name("MOUNTPOINT").required(true))
         .get_matches();
@@ -68,7 +80,9 @@ fn main() -> Result<()> {
     let options = matches.value_of("options");
     let noexec = matches.is_present("noexec");
     let ready_prop = matches.value_of("readyprop");
-    run_fuse(zip_file, mount_point, options, noexec, ready_prop)?;
+    let uid: u32 = matches.value_of("uid").map_or(0, |s| s.parse().unwrap());
+    let gid: u32 = matches.value_of("gid").map_or(0, |s| s.parse().unwrap());
+    run_fuse(zip_file, mount_point, options, noexec, ready_prop, uid, gid)?;
     Ok(())
 }
 
@@ -79,6 +93,8 @@ pub fn run_fuse(
     extra_options: Option<&str>,
     noexec: bool,
     ready_prop: Option<&str>,
+    uid: u32,
+    gid: u32,
 ) -> Result<()> {
     const MAX_READ: u32 = 1 << 20; // TODO(jiyong): tune this
     const MAX_WRITE: u32 = 1 << 13; // This is a read-only filesystem
@@ -111,7 +127,7 @@ pub fn run_fuse(
 
     let mut config = fuse::FuseConfig::new();
     config.dev_fuse(dev_fuse).max_write(MAX_WRITE).max_read(MAX_READ);
-    Ok(config.enter_message_loop(ZipFuse::new(zip_file)?)?)
+    Ok(config.enter_message_loop(ZipFuse::new(zip_file, uid, gid)?)?)
 }
 
 struct ZipFuse {
@@ -120,6 +136,8 @@ struct ZipFuse {
     inode_table: InodeTable,
     open_files: Mutex<HashMap<Handle, OpenFile>>,
     open_dirs: Mutex<HashMap<Handle, OpenDirBuf>>,
+    uid: u32,
+    gid: u32,
 }
 
 /// Represents a [`ZipFile`] that is opened.
@@ -152,7 +170,7 @@ fn timeout_max() -> std::time::Duration {
 }
 
 impl ZipFuse {
-    fn new(zip_file: &Path) -> Result<ZipFuse> {
+    fn new(zip_file: &Path, uid: u32, gid: u32) -> Result<ZipFuse> {
         // TODO(jiyong): Use O_DIRECT to avoid double caching.
         // `.custom_flags(nix::fcntl::OFlag::O_DIRECT.bits())` currently doesn't work.
         let f = File::open(zip_file)?;
@@ -167,6 +185,8 @@ impl ZipFuse {
             inode_table: it,
             open_files: Mutex::new(HashMap::new()),
             open_dirs: Mutex::new(HashMap::new()),
+            uid,
+            gid,
         })
     }
 
@@ -189,8 +209,8 @@ impl ZipFuse {
         st.st_ino = inode;
         st.st_mode = if inode_data.is_dir() { libc::S_IFDIR } else { libc::S_IFREG };
         st.st_mode |= inode_data.mode;
-        st.st_uid = 0;
-        st.st_gid = 0;
+        st.st_uid = self.uid;
+        st.st_gid = self.gid;
         st.st_size = i64::try_from(inode_data.size).unwrap_or(i64::MAX);
         Ok(st)
     }
@@ -466,7 +486,7 @@ mod tests {
         let zip_path = PathBuf::from(zip_path);
         let mnt_path = PathBuf::from(mnt_path);
         std::thread::spawn(move || {
-            crate::run_fuse(&zip_path, &mnt_path, None, noexec).unwrap();
+            crate::run_fuse(&zip_path, &mnt_path, None, noexec, 0, 0).unwrap();
         });
     }
 
