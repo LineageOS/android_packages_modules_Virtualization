@@ -162,7 +162,7 @@ public class VirtualMachine implements AutoCloseable {
     })
     public @interface Status {}
 
-     /** The virtual machine has just been created, or {@link #stop()} was called on it. */
+    /** The virtual machine has just been created, or {@link #stop} was called on it. */
     public static final int STATUS_STOPPED = 0;
 
     /** The virtual machine is running. */
@@ -588,8 +588,7 @@ public class VirtualMachine implements AutoCloseable {
      * Returns the currently selected config of this virtual machine. There can be multiple virtual
      * machines sharing the same config. Even in that case, the virtual machines are completely
      * isolated from each other; they have different secrets. It is also possible that a virtual
-     * machine can change its config, which can be done by calling {@link
-     * #setConfig(VirtualMachineConfig)}.
+     * machine can change its config, which can be done by calling {@link #setConfig}.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
@@ -748,8 +747,7 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Runs this virtual machine. The returning of this method however doesn't mean that the VM has
      * actually started running or the OS has booted there. Such events can be notified by
-     * registering a callback using {@link #setCallback(Executor, VirtualMachineCallback)} before
-     * calling {@code run()}.
+     * registering a callback using {@link #setCallback} before calling {@code run()}.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
@@ -933,7 +931,15 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Stops this virtual machine. Stopping a virtual machine is like pulling the plug on a real
      * computer; the machine halts immediately. Software running on the virtual machine is not
-     * notified of the event. A stopped virtual machine can be re-started by calling {@link #run()}.
+     * notified of the event. Writes to {@linkplain
+     * VirtualMachineConfig.Builder#setEncryptedStorageKib encrypted storage} might not be
+     * persisted, and the instance might be left in an inconsistent state.
+     *
+     * <p>For a graceful shutdown, you could request the payload to call {@code exit()}, e.g. via a
+     * {@linkplain #connectToVsockServer binder request}, and wait for {@link
+     * VirtualMachineCallback#onPayloadFinished} to be called.
+     *
+     * <p>A stopped virtual machine can be re-started by calling {@link #run()}.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
@@ -1016,8 +1022,8 @@ public class VirtualMachine implements AutoCloseable {
      * like the number of CPU and size of the RAM, depending on the situation (e.g. the size of the
      * application to run on the virtual machine, etc.)
      *
-     * <p>The new config must be {@link VirtualMachineConfig#isCompatibleWith compatible with} the
-     * existing config.
+     * <p>The new config must be {@linkplain VirtualMachineConfig#isCompatibleWith compatible with}
+     * the existing config.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
@@ -1053,8 +1059,8 @@ public class VirtualMachine implements AutoCloseable {
     /**
      * Connect to a VM's binder service via vsock and return the root IBinder object. Guest VMs are
      * expected to set up vsock servers in their payload. After the host app receives the {@link
-     * VirtualMachineCallback#onPayloadReady(VirtualMachine)}, it can use this method to establish a
-     * connection to the guest VM.
+     * VirtualMachineCallback#onPayloadReady}, it can use this method to establish a connection to
+     * the guest VM.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
@@ -1081,6 +1087,8 @@ public class VirtualMachine implements AutoCloseable {
 
     /**
      * Opens a vsock connection to the VM on the given port.
+     *
+     * <p>The caller is responsible for closing the returned {@code ParcelFileDescriptor}.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
