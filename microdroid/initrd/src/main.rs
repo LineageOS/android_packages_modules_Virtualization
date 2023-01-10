@@ -12,29 +12,88 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Append bootconfig to initrd image
-use anyhow::Result;
+//! Attach/Detach bootconfigs to initrd image
+use anyhow::{bail, Result};
 use clap::Parser;
+use std::cmp::min;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::mem::size_of;
 use std::path::PathBuf;
 
 const FOOTER_ALIGNMENT: usize = 4;
 const ZEROS: [u8; 4] = [0u8; 4_usize];
+const BOOTCONFIG_MAGIC: &str = "#BOOTCONFIG\n";
+// Footer includes [size(le32)][checksum(le32)][#BOOTCONFIG\n] at the end of bootconfigs.
+const INITRD_FOOTER_LEN: usize = 2 * std::mem::size_of::<u32>() + BOOTCONFIG_MAGIC.len();
 
 #[derive(Parser, Debug)]
-struct Args {
-    /// Initrd (without bootconfig)
-    initrd: PathBuf,
-    /// Bootconfig
-    bootconfigs: Vec<PathBuf>,
-    /// Output
-    #[clap(long = "output")]
-    output: PathBuf,
+enum Opt {
+    /// Append bootconfig(s) to initrd image
+    Attach {
+        /// Initrd (without bootconfigs) <- Input
+        initrd: PathBuf,
+        /// Bootconfigs <- Input
+        bootconfigs: Vec<PathBuf>,
+        /// Initrd (with bootconfigs) <- Output
+        #[clap(long = "output")]
+        output: PathBuf,
+    },
+
+    /// Detach the initrd & bootconfigs - this is required for cases when we update
+    /// bootconfigs in sign_virt_apex
+    Detach {
+        /// Initrd (with bootconfigs) <- Input
+        initrd_with_bootconfigs: PathBuf,
+        /// Initrd (without bootconfigs) <- Output
+        initrd: PathBuf,
+        /// Bootconfigs <- Output
+        bootconfigs: PathBuf,
+    },
 }
 
 fn get_checksum(file_path: &PathBuf) -> Result<u32> {
     File::open(file_path)?.bytes().map(|x| Ok(x? as u32)).sum()
+}
+
+// Copy n bytes of file_in to file_out. Note: copying starts from the current cursors of files.
+// On successful return, the files' cursors would have moved forward by k bytes.
+fn copyfile2file(file_in: &mut File, file_out: &mut File, n: usize) -> Result<()> {
+    let mut buf = vec![0; 1024];
+    let mut copied: usize = 0;
+    while copied < n {
+        let k = min(n - copied, buf.len());
+        file_in.read_exact(&mut buf[..k])?;
+        file_out.write_all(&buf[..k])?;
+        copied += k;
+    }
+    Ok(())
+}
+
+// Note: attaching & then detaching bootconfigs can lead to extra padding in bootconfigs
+fn detach_bootconfig(initrd_bc: PathBuf, initrd: PathBuf, bootconfig: PathBuf) -> Result<()> {
+    let mut initrd_bc = File::open(&initrd_bc)?;
+    let mut bootconfig = File::create(&bootconfig)?;
+    let mut initrd = File::create(&initrd)?;
+    let initrd_bc_size: usize = initrd_bc.metadata()?.len().try_into()?;
+
+    initrd_bc.seek(SeekFrom::End(-(BOOTCONFIG_MAGIC.len() as i64)))?;
+    let mut magic_buf = [0; BOOTCONFIG_MAGIC.len()];
+    initrd_bc.read_exact(&mut magic_buf)?;
+    if magic_buf != BOOTCONFIG_MAGIC.as_bytes() {
+        bail!("BOOTCONFIG_MAGIC not found in initrd. Bootconfigs might not be attached correctly");
+    }
+    let mut size_buf = [0; size_of::<u32>()];
+    initrd_bc.seek(SeekFrom::End(-(INITRD_FOOTER_LEN as i64)))?;
+    initrd_bc.read_exact(&mut size_buf)?;
+    let bc_size: usize = u32::from_le_bytes(size_buf) as usize;
+
+    let initrd_size: usize = initrd_bc_size - bc_size - INITRD_FOOTER_LEN;
+
+    initrd_bc.seek(SeekFrom::Start(0))?;
+    copyfile2file(&mut initrd_bc, &mut initrd, initrd_size)?;
+    copyfile2file(&mut initrd_bc, &mut bootconfig, bc_size)?;
+    Ok(())
 }
 
 // Bootconfig is attached to the initrd in the following way:
@@ -59,14 +118,21 @@ fn attach_bootconfig(initrd: PathBuf, bootconfigs: Vec<PathBuf>, output: PathBuf
     output_file.write_all(&ZEROS[..padding_size])?;
     output_file.write_all(&((padding_size + bootconfig_size) as u32).to_le_bytes())?;
     output_file.write_all(&checksum.to_le_bytes())?;
-    output_file.write_all(b"#BOOTCONFIG\n")?;
+    output_file.write_all(BOOTCONFIG_MAGIC.as_bytes())?;
     output_file.flush()?;
     Ok(())
 }
 
 fn try_main() -> Result<()> {
-    let args = Args::parse();
-    attach_bootconfig(args.initrd, args.bootconfigs, args.output)?;
+    let args = Opt::parse();
+    match args {
+        Opt::Attach { initrd, bootconfigs, output } => {
+            attach_bootconfig(initrd, bootconfigs, output)?
+        }
+        Opt::Detach { initrd_with_bootconfigs, initrd, bootconfigs } => {
+            detach_bootconfig(initrd_with_bootconfigs, initrd, bootconfigs)?
+        }
+    };
     Ok(())
 }
 
@@ -82,6 +148,6 @@ mod tests {
     #[test]
     fn verify_args() {
         // Check that the command parsing has been configured in a valid way.
-        Args::command().debug_assert();
+        Opt::command().debug_assert();
     }
 }
