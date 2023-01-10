@@ -93,7 +93,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             throws VirtualMachineException, InterruptedException, IOException {
         VirtualMachineConfig normalConfig =
                 newVmConfigBuilder()
-                        .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                        .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryMib(mem)
                         .build();
@@ -146,7 +146,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         for (int i = 0; i < trialCount; i++) {
             VirtualMachineConfig normalConfig =
                     newVmConfigBuilder()
-                            .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                            .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                             .setDebugLevel(DEBUG_LEVEL_NONE)
                             .setMemoryMib(256)
                             .build();
@@ -174,7 +174,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             for (int i = 0; i < trialCount; i++) {
                 VirtualMachineConfig normalConfig =
                         newVmConfigBuilder()
-                                .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                                .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                                 .setDebugLevel(DEBUG_LEVEL_NONE)
                                 .setMemoryMib(256)
                                 .setNumCpus(numCpus)
@@ -209,7 +209,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             // To grab boot events from log, set debug mode to FULL
             VirtualMachineConfig normalConfig =
                     newVmConfigBuilder()
-                            .setPayloadBinaryPath("MicrodroidIdleNativeLib.so")
+                            .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                             .setDebugLevel(DEBUG_LEVEL_FULL)
                             .setMemoryMib(256)
                             .build();
