@@ -352,6 +352,7 @@ public final class VirtualMachineConfig {
      * that would alter the identity of the VM (e.g. using a different payload or changing the debug
      * mode) are considered incompatible.
      *
+     * @see VirtualMachine#setConfig
      * @hide
      */
     @SystemApi
@@ -536,6 +537,14 @@ public final class VirtualMachineConfig {
         /**
          * Sets the debug level. Defaults to {@link #DEBUG_LEVEL_NONE}.
          *
+         * <p>If {@link #DEBUG_LEVEL_FULL} is set then logs from inside the VM are exported to the
+         * host and adb connections from the host are possible. This is convenient for debugging but
+         * may compromise the integrity of the VM - including bypassing the protections offered by a
+         * {@linkplain #setProtectedVm protected VM}.
+         *
+         * <p>Note that it isn't possible to {@linkplain #isCompatibleWith change} the debug level
+         * of a VM instance; debug and non-debug VMs always have different secrets.
+         *
          * @hide
          */
         @SystemApi
@@ -551,6 +560,13 @@ public final class VirtualMachineConfig {
         /**
          * Sets whether to protect the VM memory from the host. No default is provided, this must be
          * set explicitly.
+         *
+         * <p>Note that if debugging is {@linkplain #setDebugLevel enabled} for a protected VM, the
+         * VM is not truly protected - direct memory access by the host is prevented, but e.g. the
+         * debugger can be used to access the VM's internals.
+         *
+         * <p>It isn't possible to {@linkplain #isCompatibleWith change} the protected status of a
+         * VM instance; protected and non-protected VMs always have different secrets.
          *
          * @see VirtualMachineManager#getCapabilities
          * @hide
