@@ -192,9 +192,6 @@ public class VirtualMachine implements AutoCloseable {
     /** Name of the idsig files for extra APKs. */
     private static final String EXTRA_IDSIG_FILE_PREFIX = "extra_idsig_";
 
-    /** Name of the virtualization service. */
-    private static final String SERVICE_NAME = "android.system.virtualizationservice";
-
     /** Size of the instance image. 10 MB. */
     private static final long INSTANCE_FILE_SIZE = 10 * 1024 * 1024;
 

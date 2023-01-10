@@ -39,7 +39,7 @@ class VirtualizationService {
      * Client FD for UDS connection to virtmgr's RpcBinder server. Closing it
      * will make virtmgr shut down.
      */
-    private ParcelFileDescriptor mClientFd;
+    private final ParcelFileDescriptor mClientFd;
 
     private static native int nativeSpawn();
 
@@ -86,7 +86,7 @@ class VirtualizationService {
         VirtualizationService service = (sInstance == null) ? null : sInstance.get();
         if (service == null || !service.isOk()) {
             service = new VirtualizationService();
-            sInstance = new WeakReference(service);
+            sInstance = new WeakReference<>(service);
         }
         return service;
     }
