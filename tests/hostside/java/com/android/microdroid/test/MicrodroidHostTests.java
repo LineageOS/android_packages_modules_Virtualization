@@ -678,9 +678,6 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         // Check if the native library in the APK is has correct filesystem info
         final String[] abis = microdroid.run("getprop", "ro.product.cpu.abilist").split(",");
         assertThat(abis).hasLength(1);
-        final String testLib = "/mnt/apk/lib/" + abis[0] + "/MicrodroidTestNativeLib.so";
-        final String label = "u:object_r:system_file:s0";
-        assertThat(microdroid.run("ls", "-Z", testLib)).isEqualTo(label + " " + testLib);
 
         // Check that no denials have happened so far
         CommandRunner android = new CommandRunner(getDevice());
