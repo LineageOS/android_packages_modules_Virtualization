@@ -47,7 +47,6 @@ pub enum RebootReason {
     /// The provided ramdisk was invalid.
     InvalidRamdisk,
     /// Failed to verify the payload.
-    #[allow(dead_code)]
     PayloadVerificationError,
 }
 
