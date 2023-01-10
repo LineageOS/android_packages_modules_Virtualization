@@ -1210,7 +1210,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
-                        .setPayloadBinaryPath("MicrodroidTestNativeLib.so")
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setMemoryMib(minMemoryRequired())
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
