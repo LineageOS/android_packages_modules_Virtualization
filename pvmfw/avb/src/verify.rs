@@ -144,6 +144,45 @@ extern "C" fn read_is_device_unlocked(
     AvbIOResult::AVB_IO_RESULT_OK
 }
 
+unsafe extern "C" fn get_preloaded_partition(
+    ops: *mut AvbOps,
+    partition: *const c_char,
+    num_bytes: usize,
+    out_pointer: *mut *mut u8,
+    out_num_bytes_preloaded: *mut usize,
+) -> AvbIOResult {
+    to_avb_io_result(try_get_preloaded_partition(
+        ops,
+        partition,
+        num_bytes,
+        out_pointer,
+        out_num_bytes_preloaded,
+    ))
+}
+
+fn try_get_preloaded_partition(
+    ops: *mut AvbOps,
+    partition: *const c_char,
+    num_bytes: usize,
+    out_pointer: *mut *mut u8,
+    out_num_bytes_preloaded: *mut usize,
+) -> Result<(), AvbIOError> {
+    let ops = as_avbops_ref(ops)?;
+    let partition = ops.as_ref().get_partition(partition)?;
+    let out_pointer = to_nonnull(out_pointer)?;
+    // SAFETY: It is safe as the raw pointer `out_pointer` is a nonnull pointer.
+    unsafe {
+        *out_pointer.as_ptr() = partition.as_ptr() as _;
+    }
+    let out_num_bytes_preloaded = to_nonnull(out_num_bytes_preloaded)?;
+    // SAFETY: The raw pointer `out_num_bytes_preloaded` was created to point to a valid a `usize`
+    // and we checked it is nonnull.
+    unsafe {
+        *out_num_bytes_preloaded.as_ptr() = partition.len().min(num_bytes);
+    }
+    Ok(())
+}
+
 extern "C" fn read_from_partition(
     ops: *mut AvbOps,
     partition: *const c_char,
@@ -355,7 +394,7 @@ pub fn verify_payload(kernel: &[u8], trusted_public_key: &[u8]) -> Result<(), Av
         ab_ops: ptr::null_mut(),
         atx_ops: ptr::null_mut(),
         read_from_partition: Some(read_from_partition),
-        get_preloaded_partition: None,
+        get_preloaded_partition: Some(get_preloaded_partition),
         write_to_partition: None,
         validate_vbmeta_public_key: None,
         read_rollback_index: Some(read_rollback_index),
