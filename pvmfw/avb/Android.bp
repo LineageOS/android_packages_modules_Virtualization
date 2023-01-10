@@ -32,6 +32,8 @@ rust_test {
         ":avb_testkey_rsa2048_pub_bin",
         ":avb_testkey_rsa4096_pub_bin",
         ":microdroid_kernel_signed",
+        ":microdroid_initrd_normal",
+        ":test_image_with_one_hashdesc",
         ":unsigned_test_image",
     ],
     rustlibs: [
@@ -55,4 +57,12 @@ genrule {
     tools: ["avbtool"],
     out: ["unsigned_test.img"],
     cmd: "$(location avbtool) generate_test_image --image_size 16384 --output $(out)",
+}
+
+avb_add_hash_footer {
+    name: "test_image_with_one_hashdesc",
+    src: ":unsigned_test_image",
+    partition_name: "bootloader",
+    private_key: ":pvmfw_sign_key",
+    salt: "1111",
 }
