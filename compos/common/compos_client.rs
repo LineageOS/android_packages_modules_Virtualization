@@ -222,10 +222,10 @@ fn want_protected_vm() -> Result<bool> {
         bail!("Protected VM not supported, unable to start VM");
     }
 
-    let have_unprotected_vm =
+    let have_non_protected_vm =
         system_properties::read_bool("ro.boot.hypervisor.vm.supported", false)?;
-    if have_unprotected_vm {
-        warn!("Protected VM not supported, falling back to unprotected on debuggable build");
+    if have_non_protected_vm {
+        warn!("Protected VM not supported, falling back to non-protected on debuggable build");
         return Ok(false);
     }
 

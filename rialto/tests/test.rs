@@ -33,7 +33,7 @@ use vmclient::{DeathReason, VmInstance};
 
 const RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
 
-/// Runs the Rialto VM as an unprotected VM via VirtualizationService.
+/// Runs the Rialto VM as a non-protected VM via VirtualizationService.
 #[test]
 fn test_boots() -> Result<(), Error> {
     android_logger::init_once(

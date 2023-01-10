@@ -566,7 +566,7 @@ public final class VirtualMachineConfig {
             } else {
                 if (!HypervisorProperties.hypervisor_vm_supported().orElse(false)) {
                     throw new UnsupportedOperationException(
-                            "Unprotected VMs are not supported on this device.");
+                            "Non-protected VMs are not supported on this device.");
                 }
             }
             mProtectedVm = protectedVm;
