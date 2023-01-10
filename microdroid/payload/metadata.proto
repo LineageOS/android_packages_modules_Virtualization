@@ -65,6 +65,6 @@ message ApkPayload {
 
 message PayloadConfig {
   // Required.
-  // Path to the payload binary file inside the APK.
-  string payload_binary_path = 1;
+  // Name of the payload binary file inside the APK.
+  string payload_binary_name = 1;
 }

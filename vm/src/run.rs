@@ -48,7 +48,7 @@ pub fn command_run_app(
     storage: Option<&Path>,
     storage_size: Option<u64>,
     config_path: Option<String>,
-    payload_path: Option<String>,
+    payload_binary_name: Option<String>,
     daemonize: bool,
     console_path: Option<&Path>,
     log_path: Option<&Path>,
@@ -117,14 +117,16 @@ pub fn command_run_app(
     let extra_idsig_fds = extra_idsig_files?.into_iter().map(ParcelFileDescriptor::new).collect();
 
     let payload = if let Some(config_path) = config_path {
-        if payload_path.is_some() {
-            bail!("Only one of --config-path or --payload-path can be defined")
+        if payload_binary_name.is_some() {
+            bail!("Only one of --config-path or --payload-binary-name can be defined")
         }
         Payload::ConfigPath(config_path)
-    } else if let Some(payload_path) = payload_path {
-        Payload::PayloadConfig(VirtualMachinePayloadConfig { payloadPath: payload_path })
+    } else if let Some(payload_binary_name) = payload_binary_name {
+        Payload::PayloadConfig(VirtualMachinePayloadConfig {
+            payloadBinaryName: payload_binary_name,
+        })
     } else {
-        bail!("Either --config-path or --payload-path must be defined")
+        bail!("Either --config-path or --payload-binary-name must be defined")
     };
 
     let payload_config_str = format!("{:?}!{:?}", apk, payload);
@@ -197,7 +199,7 @@ pub fn command_run_microdroid(
     let instance_img = work_dir.join("instance.img");
     println!("instance.img path: {}", instance_img.display());
 
-    let payload_path = "MicrodroidEmptyPayloadJniLib.so";
+    let payload_binary_name = "MicrodroidEmptyPayloadJniLib.so";
     let extra_sig = [];
     command_run_app(
         name,
@@ -208,7 +210,7 @@ pub fn command_run_microdroid(
         storage,
         storage_size,
         /* config_path= */ None,
-        Some(payload_path.to_owned()),
+        Some(payload_binary_name.to_owned()),
         daemonize,
         console_path,
         log_path,
