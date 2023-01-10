@@ -34,7 +34,7 @@ mod pci;
 mod smccc;
 
 use crate::{
-    avb::PUBLIC_KEY, // Keep the public key here otherwise the signing script will be broken.
+    avb::PUBLIC_KEY,
     entry::RebootReason,
     memory::MemoryTracker,
     pci::{find_virtio_devices, map_mmio},
@@ -43,6 +43,7 @@ use dice::bcc;
 use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
+use pvmfw_avb::verify_payload;
 
 fn main(
     fdt: &Fdt,
@@ -70,6 +71,11 @@ fn main(
     // called once.
     let mut pci_root = unsafe { pci_info.make_pci_root() };
     find_virtio_devices(&mut pci_root).map_err(handle_pci_error)?;
+
+    verify_payload(signed_kernel, PUBLIC_KEY).map_err(|e| {
+        error!("Failed to verify the payload: {e}");
+        RebootReason::PayloadVerificationError
+    })?;
 
     info!("Starting payload...");
     Ok(())
