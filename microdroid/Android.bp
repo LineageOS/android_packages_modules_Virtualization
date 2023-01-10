@@ -538,26 +538,6 @@ filegroup {
     srcs: ["bootconfig.normal"],
 }
 
-// python -c "import hashlib; print(hashlib.sha256(b'initrd_normal').hexdigest())"
-initrd_normal_salt = "8041a07d54ac82290f6d90bac1fa8d7fdbc4db974d101d60faf294749d1ebaf8"
-
-avb_gen_vbmeta_image {
-    name: "microdroid_initrd_normal_hashdesc",
-    src: ":microdroid_initrd_normal",
-    partition_name: "initrd_normal",
-    salt: initrd_normal_salt,
-}
-
-// python -c "import hashlib; print(hashlib.sha256(b'initrd_debug').hexdigest())"
-initrd_debug_salt = "8ab9dc9cb7e6456700ff6ef18c6b4c3acc24c5fa5381b829563f8d7a415d869a"
-
-avb_gen_vbmeta_image {
-    name: "microdroid_initrd_debug_hashdesc",
-    src: ":microdroid_initrd_debuggable",
-    partition_name: "initrd_debug",
-    salt: initrd_debug_salt,
-}
-
 avb_add_hash_footer {
     name: "microdroid_kernel_signed",
     src: "empty_kernel",
@@ -576,9 +556,11 @@ avb_add_hash_footer {
             enabled: true,
         },
     },
-    include_descriptors_from_images: [
-        ":microdroid_initrd_normal_hashdesc",
-        ":microdroid_initrd_debug_hashdesc",
+    props: [
+        {
+            name: "trusted_ramdisk",
+            file: ":microdroid_initrd_hashes",
+        },
     ],
 }
 
