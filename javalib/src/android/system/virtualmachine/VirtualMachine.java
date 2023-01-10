@@ -1226,17 +1226,15 @@ public class VirtualMachine implements AutoCloseable {
     public String toString() {
         VirtualMachineConfig config = getConfig();
         String payloadConfigPath = config.getPayloadConfigPath();
-        String payloadBinaryPath = config.getPayloadBinaryPath();
+        String payloadBinaryName = config.getPayloadBinaryName();
 
         StringBuilder result = new StringBuilder();
         result.append("VirtualMachine(")
                 .append("name:")
                 .append(getName())
                 .append(", ");
-        if (payloadBinaryPath != null) {
-            result.append("payload:")
-                    .append(payloadBinaryPath)
-                    .append(", ");
+        if (payloadBinaryName != null) {
+            result.append("payload:").append(payloadBinaryName).append(", ");
         }
         if (payloadConfigPath != null) {
             result.append("config:")
