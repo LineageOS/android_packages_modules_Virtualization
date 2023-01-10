@@ -488,6 +488,8 @@ struct Zipfuse {
 }
 
 impl Zipfuse {
+    const MICRODROID_PAYLOAD_UID: u32 = 0; // TODO(b/264861173) should be non-root
+    const MICRODROID_PAYLOAD_GID: u32 = 0; // TODO(b/264861173) should be non-root
     fn mount(
         &mut self,
         noexec: MountForExec,
@@ -501,6 +503,8 @@ impl Zipfuse {
             cmd.arg("--noexec");
         }
         cmd.args(["-p", &ready_prop, "-o", option]);
+        cmd.args(["-u", &Self::MICRODROID_PAYLOAD_UID.to_string()]);
+        cmd.args(["-g", &Self::MICRODROID_PAYLOAD_GID.to_string()]);
         cmd.arg(zip_path).arg(mount_dir);
         self.ready_properties.push(ready_prop);
         cmd.spawn().with_context(|| format!("Failed to run zipfuse for {mount_dir:?}"))
