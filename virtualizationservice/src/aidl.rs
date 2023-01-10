@@ -841,7 +841,7 @@ fn load_app_config(
             load_vm_payload_config_from_file(&apk_file, config_path.as_str())
                 .with_context(|| format!("Couldn't read config from {}", config_path))?
         }
-        Payload::PayloadConfig(payload_config) => create_vm_payload_config(payload_config),
+        Payload::PayloadConfig(payload_config) => create_vm_payload_config(payload_config)?,
     };
 
     // For now, the only supported OS is Microdroid
@@ -887,13 +887,20 @@ fn load_vm_payload_config_from_file(apk_file: &File, config_path: &str) -> Resul
     Ok(serde_json::from_reader(config_file)?)
 }
 
-fn create_vm_payload_config(payload_config: &VirtualMachinePayloadConfig) -> VmPayloadConfig {
+fn create_vm_payload_config(
+    payload_config: &VirtualMachinePayloadConfig,
+) -> Result<VmPayloadConfig> {
     // There isn't an actual config file. Construct a synthetic VmPayloadConfig from the explicit
     // parameters we've been given. Microdroid will do something equivalent inside the VM using the
     // payload config that we send it via the metadata file.
-    let task =
-        Task { type_: TaskType::MicrodroidLauncher, command: payload_config.payloadPath.clone() };
-    VmPayloadConfig {
+
+    let payload_binary_name = &payload_config.payloadBinaryName;
+    if payload_binary_name.contains('/') {
+        bail!("Payload binary name must not specify a path: {payload_binary_name}");
+    }
+
+    let task = Task { type_: TaskType::MicrodroidLauncher, command: payload_binary_name.clone() };
+    Ok(VmPayloadConfig {
         os: OsConfig { name: MICRODROID_OS_NAME.to_owned() },
         task: Some(task),
         apexes: vec![],
@@ -901,7 +908,7 @@ fn create_vm_payload_config(payload_config: &VirtualMachinePayloadConfig) -> VmP
         prefer_staged: false,
         export_tombstones: false,
         enable_authfs: false,
-    }
+    })
 }
 
 /// Generates a unique filename to use for a composite disk image.
