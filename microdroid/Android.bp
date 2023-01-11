@@ -544,7 +544,7 @@ initrd_normal_salt = "8041a07d54ac82290f6d90bac1fa8d7fdbc4db974d101d60faf294749d
 avb_gen_vbmeta_image {
     name: "microdroid_initrd_normal_hashdesc",
     src: ":microdroid_initrd_normal",
-    partition_name: "vbmeta_initrd_normal",
+    partition_name: "initrd_normal",
     salt: initrd_normal_salt,
     enabled: false,
     arch: {
@@ -564,7 +564,7 @@ initrd_debug_salt = "8ab9dc9cb7e6456700ff6ef18c6b4c3acc24c5fa5381b829563f8d7a415
 avb_gen_vbmeta_image {
     name: "microdroid_initrd_debug_hashdesc",
     src: ":microdroid_initrd_debuggable",
-    partition_name: "vbmeta_initrd_debug",
+    partition_name: "initrd_debug",
     salt: initrd_debug_salt,
     enabled: false,
     arch: {
