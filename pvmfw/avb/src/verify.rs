@@ -14,83 +14,15 @@
 
 //! This module handles the pvmfw payload verification.
 
-use avb_bindgen::{
-    avb_slot_verify, AvbHashtreeErrorMode, AvbIOResult, AvbOps, AvbSlotVerifyFlags,
-    AvbSlotVerifyResult,
-};
+use crate::error::{slot_verify_result_to_verify_payload_result, AvbSlotVerifyError};
+use avb_bindgen::{avb_slot_verify, AvbHashtreeErrorMode, AvbIOResult, AvbOps, AvbSlotVerifyFlags};
 use core::{
     ffi::{c_char, c_void, CStr},
-    fmt,
     ptr::{self, NonNull},
     slice,
 };
 
 static NULL_BYTE: &[u8] = b"\0";
-
-/// Error code from AVB image verification.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum AvbImageVerifyError {
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT
-    InvalidArgument,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA
-    InvalidMetadata,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_IO
-    Io,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_OOM
-    Oom,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED
-    PublicKeyRejected,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX
-    RollbackIndex,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION
-    UnsupportedVersion,
-    /// AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION
-    Verification,
-}
-
-impl fmt::Display for AvbImageVerifyError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::InvalidArgument => write!(f, "Invalid parameters."),
-            Self::InvalidMetadata => write!(f, "Invalid metadata."),
-            Self::Io => write!(f, "I/O error while trying to load data or get a rollback index."),
-            Self::Oom => write!(f, "Unable to allocate memory."),
-            Self::PublicKeyRejected => write!(f, "Public key rejected or data not signed."),
-            Self::RollbackIndex => write!(f, "Rollback index is less than its stored value."),
-            Self::UnsupportedVersion => write!(
-                f,
-                "Some of the metadata requires a newer version of libavb than what is in use."
-            ),
-            Self::Verification => write!(f, "Data does not verify."),
-        }
-    }
-}
-
-fn to_avb_verify_result(result: AvbSlotVerifyResult) -> Result<(), AvbImageVerifyError> {
-    match result {
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_OK => Ok(()),
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_ARGUMENT => {
-            Err(AvbImageVerifyError::InvalidArgument)
-        }
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_INVALID_METADATA => {
-            Err(AvbImageVerifyError::InvalidMetadata)
-        }
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_IO => Err(AvbImageVerifyError::Io),
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_OOM => Err(AvbImageVerifyError::Oom),
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_PUBLIC_KEY_REJECTED => {
-            Err(AvbImageVerifyError::PublicKeyRejected)
-        }
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_ROLLBACK_INDEX => {
-            Err(AvbImageVerifyError::RollbackIndex)
-        }
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_UNSUPPORTED_VERSION => {
-            Err(AvbImageVerifyError::UnsupportedVersion)
-        }
-        AvbSlotVerifyResult::AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION => {
-            Err(AvbImageVerifyError::Verification)
-        }
-    }
-}
 
 enum AvbIOError {
     /// AVB_IO_RESULT_ERROR_OOM,
@@ -391,9 +323,9 @@ impl<'a> Payload<'a> {
         }
     }
 
-    fn verify_partitions(&mut self, partition_names: &[&CStr]) -> Result<(), AvbImageVerifyError> {
+    fn verify_partitions(&mut self, partition_names: &[&CStr]) -> Result<(), AvbSlotVerifyError> {
         if partition_names.len() > Self::MAX_NUM_OF_HASH_DESCRIPTORS {
-            return Err(AvbImageVerifyError::InvalidArgument);
+            return Err(AvbSlotVerifyError::InvalidArgument);
         }
         let mut requested_partitions = [ptr::null(); Self::MAX_NUM_OF_HASH_DESCRIPTORS + 1];
         partition_names
@@ -434,7 +366,7 @@ impl<'a> Payload<'a> {
                 out_data,
             )
         };
-        to_avb_verify_result(result)
+        slot_verify_result_to_verify_payload_result(result)
     }
 }
 
@@ -443,7 +375,7 @@ pub fn verify_payload(
     kernel: &[u8],
     initrd: Option<&[u8]>,
     trusted_public_key: &[u8],
-) -> Result<(), AvbImageVerifyError> {
+) -> Result<(), AvbSlotVerifyError> {
     let mut payload = Payload { kernel, initrd, trusted_public_key };
     let kernel = CStr::from_bytes_with_nul(Payload::KERNEL_PARTITION_NAME).unwrap();
     let requested_partitions = [kernel];
@@ -496,7 +428,7 @@ mod tests {
             &load_latest_signed_kernel()?,
             &load_latest_initrd_normal()?,
             /*trusted_public_key=*/ &[0u8; 0],
-            AvbImageVerifyError::PublicKeyRejected,
+            AvbSlotVerifyError::PublicKeyRejected,
         )
     }
 
@@ -506,7 +438,7 @@ mod tests {
             &load_latest_signed_kernel()?,
             &load_latest_initrd_normal()?,
             /*trusted_public_key=*/ &[0u8; 512],
-            AvbImageVerifyError::PublicKeyRejected,
+            AvbSlotVerifyError::PublicKeyRejected,
         )
     }
 
@@ -516,7 +448,7 @@ mod tests {
             &load_latest_signed_kernel()?,
             &load_latest_initrd_normal()?,
             &fs::read(PUBLIC_KEY_RSA2048_PATH)?,
-            AvbImageVerifyError::PublicKeyRejected,
+            AvbSlotVerifyError::PublicKeyRejected,
         )
     }
 
@@ -526,7 +458,7 @@ mod tests {
             &fs::read(UNSIGNED_TEST_IMG_PATH)?,
             &load_latest_initrd_normal()?,
             &fs::read(PUBLIC_KEY_RSA4096_PATH)?,
-            AvbImageVerifyError::Io,
+            AvbSlotVerifyError::Io,
         )
     }
 
@@ -539,7 +471,7 @@ mod tests {
             &kernel,
             &load_latest_initrd_normal()?,
             &fs::read(PUBLIC_KEY_RSA4096_PATH)?,
-            AvbImageVerifyError::Verification,
+            AvbSlotVerifyError::Verification,
         )
     }
 
@@ -553,7 +485,7 @@ mod tests {
             &kernel,
             &load_latest_initrd_normal()?,
             &fs::read(PUBLIC_KEY_RSA4096_PATH)?,
-            AvbImageVerifyError::InvalidMetadata,
+            AvbSlotVerifyError::InvalidMetadata,
         )
     }
 
@@ -561,7 +493,7 @@ mod tests {
         kernel: &[u8],
         initrd: &[u8],
         trusted_public_key: &[u8],
-        expected_error: AvbImageVerifyError,
+        expected_error: AvbSlotVerifyError,
     ) -> Result<()> {
         assert_eq!(Err(expected_error), verify_payload(kernel, Some(initrd), trusted_public_key));
         Ok(())
