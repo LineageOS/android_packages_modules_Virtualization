@@ -354,6 +354,41 @@ fn is_not_null<T>(ptr: *const T) -> Result<(), AvbIOError> {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum PartitionName {
+    Kernel,
+    InitrdNormal,
+    InitrdDebug,
+}
+
+impl PartitionName {
+    const KERNEL_PARTITION_NAME: &[u8] = b"bootloader\0";
+    const INITRD_NORMAL_PARTITION_NAME: &[u8] = b"initrd_normal\0";
+    const INITRD_DEBUG_PARTITION_NAME: &[u8] = b"initrd_debug\0";
+
+    fn as_cstr(&self) -> &CStr {
+        let partition_name = match self {
+            Self::Kernel => Self::KERNEL_PARTITION_NAME,
+            Self::InitrdNormal => Self::INITRD_NORMAL_PARTITION_NAME,
+            Self::InitrdDebug => Self::INITRD_DEBUG_PARTITION_NAME,
+        };
+        CStr::from_bytes_with_nul(partition_name).unwrap()
+    }
+}
+
+impl TryFrom<&CStr> for PartitionName {
+    type Error = AvbIOError;
+
+    fn try_from(partition_name: &CStr) -> Result<Self, Self::Error> {
+        match partition_name.to_bytes_with_nul() {
+            Self::KERNEL_PARTITION_NAME => Ok(Self::Kernel),
+            Self::INITRD_NORMAL_PARTITION_NAME => Ok(Self::InitrdNormal),
+            Self::INITRD_DEBUG_PARTITION_NAME => Ok(Self::InitrdDebug),
+            _ => Err(AvbIOError::NoSuchPartition),
+        }
+    }
+}
+
 struct Payload<'a> {
     kernel: &'a [u8],
     initrd: Option<&'a [u8]>,
@@ -372,22 +407,17 @@ impl<'a> AsRef<Payload<'a>> for AvbOps {
 }
 
 impl<'a> Payload<'a> {
-    const KERNEL_PARTITION_NAME: &[u8] = b"bootloader\0";
-    const INITRD_NORMAL_PARTITION_NAME: &[u8] = b"initrd_normal\0";
-    const INITRD_DEBUG_PARTITION_NAME: &[u8] = b"initrd_debug\0";
-
     const MAX_NUM_OF_HASH_DESCRIPTORS: usize = 3;
 
     fn get_partition(&self, partition_name: *const c_char) -> Result<&[u8], AvbIOError> {
         is_not_null(partition_name)?;
         // SAFETY: It is safe as the raw pointer `partition_name` is a nonnull pointer.
         let partition_name = unsafe { CStr::from_ptr(partition_name) };
-        match partition_name.to_bytes_with_nul() {
-            Self::KERNEL_PARTITION_NAME => Ok(self.kernel),
-            Self::INITRD_NORMAL_PARTITION_NAME | Self::INITRD_DEBUG_PARTITION_NAME => {
+        match partition_name.try_into()? {
+            PartitionName::Kernel => Ok(self.kernel),
+            PartitionName::InitrdNormal | PartitionName::InitrdDebug => {
                 self.initrd.ok_or(AvbIOError::NoSuchPartition)
             }
-            _ => Err(AvbIOError::NoSuchPartition),
         }
     }
 
@@ -445,8 +475,7 @@ pub fn verify_payload(
     trusted_public_key: &[u8],
 ) -> Result<(), AvbImageVerifyError> {
     let mut payload = Payload { kernel, initrd, trusted_public_key };
-    let kernel = CStr::from_bytes_with_nul(Payload::KERNEL_PARTITION_NAME).unwrap();
-    let requested_partitions = [kernel];
+    let requested_partitions = [PartitionName::Kernel.as_cstr()];
     payload.verify_partitions(&requested_partitions)
 }
 
