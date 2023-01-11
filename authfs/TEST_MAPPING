@@ -4,6 +4,9 @@
       "name": "authfs_device_test_src_lib"
     },
     {
+      "name": "open_then_run.test"
+    },
+    {
       "name": "AuthFsHostTest"
     }
   ],
