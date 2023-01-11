@@ -358,15 +358,15 @@ fn command_list(service: &dyn IVirtualizationService) -> Result<(), Error> {
 
 /// Print information about supported VM types.
 fn command_info() -> Result<(), Error> {
-    let unprotected_vm_supported =
+    let non_protected_vm_supported =
         system_properties::read_bool("ro.boot.hypervisor.vm.supported", false)?;
     let protected_vm_supported =
         system_properties::read_bool("ro.boot.hypervisor.protected_vm.supported", false)?;
-    match (unprotected_vm_supported, protected_vm_supported) {
+    match (non_protected_vm_supported, protected_vm_supported) {
         (false, false) => println!("VMs are not supported."),
         (false, true) => println!("Only protected VMs are supported."),
-        (true, false) => println!("Only unprotected VMs are supported."),
-        (true, true) => println!("Both protected and unprotected VMs are supported."),
+        (true, false) => println!("Only non-protected VMs are supported."),
+        (true, true) => println!("Both protected and non-protected VMs are supported."),
     }
 
     if let Some(version) = system_properties::read("ro.boot.hypervisor.version")? {
