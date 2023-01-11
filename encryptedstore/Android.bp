@@ -29,3 +29,9 @@ rust_binary {
     defaults: ["encryptedstore.defaults"],
     bootstrap: true,
 }
+
+rust_test {
+    name: "encryptedstore.test",
+    defaults: ["encryptedstore.defaults"],
+    test_suites: ["general-tests"],
+}
