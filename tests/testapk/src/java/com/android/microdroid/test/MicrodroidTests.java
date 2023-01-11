@@ -394,37 +394,43 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(e).hasMessageThat().contains("setProtectedVm must be called");
     }
 
+    private VirtualMachineConfig.Builder newBaselineBuilder() {
+        return newVmConfigBuilder().setPayloadBinaryName("binary.so").setApkPath("/apk/path");
+    }
+
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void compatibleConfigTests() throws Exception {
         int maxCpus = Runtime.getRuntime().availableProcessors();
 
-        VirtualMachineConfig.Builder builder =
-                newVmConfigBuilder().setPayloadBinaryName("binary.so").setApkPath("/apk/path");
-        VirtualMachineConfig baseline = builder.build();
+        VirtualMachineConfig baseline = newBaselineBuilder().build();
 
         // A config must be compatible with itself
-        assertConfigCompatible(baseline, builder).isTrue();
+        assertConfigCompatible(baseline, newBaselineBuilder()).isTrue();
 
         // Changes that must always be compatible
-        assertConfigCompatible(baseline, builder.setMemoryMib(99)).isTrue();
+        assertConfigCompatible(baseline, newBaselineBuilder().setMemoryMib(99)).isTrue();
         if (maxCpus > 1) {
-            assertConfigCompatible(baseline, builder.setNumCpus(2)).isTrue();
+            assertConfigCompatible(baseline, newBaselineBuilder().setNumCpus(2)).isTrue();
         }
 
         // Changes that must be incompatible, since they must change the VM identity.
-        assertConfigCompatible(baseline, builder.setDebugLevel(DEBUG_LEVEL_FULL)).isFalse();
-        assertConfigCompatible(baseline, builder.setPayloadBinaryName("different")).isFalse();
+        assertConfigCompatible(baseline, newBaselineBuilder().setDebugLevel(DEBUG_LEVEL_FULL))
+                .isFalse();
+        assertConfigCompatible(baseline, newBaselineBuilder().setPayloadBinaryName("different"))
+                .isFalse();
         int capabilities = getVirtualMachineManager().getCapabilities();
         if ((capabilities & CAPABILITY_PROTECTED_VM) != 0
                 && (capabilities & CAPABILITY_NON_PROTECTED_VM) != 0) {
-            assertConfigCompatible(baseline, builder.setProtectedVm(!isProtectedVm())).isFalse();
+            assertConfigCompatible(baseline, newBaselineBuilder().setProtectedVm(!isProtectedVm()))
+                    .isFalse();
         }
 
         // Changes that are currently incompatible for ease of implementation, but this might change
         // in the future.
-        assertConfigCompatible(baseline, builder.setApkPath("/different")).isFalse();
-        assertConfigCompatible(baseline, builder.setEncryptedStorageKib(100)).isFalse();
+        assertConfigCompatible(baseline, newBaselineBuilder().setApkPath("/different")).isFalse();
+        assertConfigCompatible(baseline, newBaselineBuilder().setEncryptedStorageKib(100))
+                .isFalse();
     }
 
     private BooleanSubject assertConfigCompatible(
