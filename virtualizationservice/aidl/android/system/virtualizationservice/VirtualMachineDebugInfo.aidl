@@ -33,7 +33,4 @@ parcelable VirtualMachineDebugInfo {
      * the PID may have been reused for a different process, so this should not be trusted.
      */
     int requesterPid;
-
-    /** The current lifecycle state of the VM. */
-    VirtualMachineState state = VirtualMachineState.NOT_STARTED;
 }

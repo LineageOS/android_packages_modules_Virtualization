@@ -74,7 +74,7 @@ use std::io::{Error, ErrorKind, Read, Write};
 use std::num::NonZeroU32;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
-use std::os::unix::raw::uid_t;
+use std::os::unix::raw::{pid_t, uid_t};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
@@ -189,10 +189,14 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         }
     }
 
-    fn allocateGlobalVmContext(&self) -> binder::Result<Strong<dyn IGlobalVmContext>> {
+    fn allocateGlobalVmContext(
+        &self,
+        requester_debug_pid: i32,
+    ) -> binder::Result<Strong<dyn IGlobalVmContext>> {
         let requester_uid = get_calling_uid();
+        let requester_debug_pid = requester_debug_pid as pid_t;
         let state = &mut *self.state.lock().unwrap();
-        state.allocate_vm_context(requester_uid).map_err(|e| {
+        state.allocate_vm_context(requester_uid, requester_debug_pid).map_err(|e| {
             Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
         })
     }
@@ -211,12 +215,32 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         forward_vm_exited_atom(atom);
         Ok(())
     }
+
+    fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
+        let state = &mut *self.state.lock().unwrap();
+        let cids = state
+            .held_contexts
+            .iter()
+            .filter_map(|(_, inst)| Weak::upgrade(inst))
+            .map(|vm| VirtualMachineDebugInfo {
+                cid: vm.cid as i32,
+                temporaryDirectory: vm.get_temp_dir().to_string_lossy().to_string(),
+                requesterUid: vm.requester_uid as i32,
+                requesterPid: vm.requester_debug_pid as i32,
+            })
+            .collect();
+        Ok(cids)
+    }
 }
 
 #[derive(Debug, Default)]
 struct GlobalVmInstance {
     /// The unique CID assigned to the VM for vsock communication.
     cid: Cid,
+    /// UID of the client who requested this VM instance.
+    requester_uid: uid_t,
+    /// PID of the client who requested this VM instance.
+    requester_debug_pid: pid_t,
 }
 
 impl GlobalVmInstance {
@@ -289,12 +313,13 @@ impl GlobalState {
     fn allocate_vm_context(
         &mut self,
         requester_uid: uid_t,
+        requester_debug_pid: pid_t,
     ) -> Result<Strong<dyn IGlobalVmContext>> {
         // Garbage collect unused VM contexts.
         self.held_contexts.retain(|_, instance| instance.strong_count() > 0);
 
         let cid = self.get_next_available_cid()?;
-        let instance = Arc::new(GlobalVmInstance { cid });
+        let instance = Arc::new(GlobalVmInstance { cid, requester_uid, requester_debug_pid });
         create_temporary_directory(&instance.get_temp_dir(), requester_uid)?;
 
         self.held_contexts.insert(cid, Arc::downgrade(&instance));
@@ -475,20 +500,7 @@ impl IVirtualizationService for VirtualizationService {
     /// and as such is only permitted from the shell user.
     fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
         check_debug_access()?;
-
-        let state = &mut *self.state.lock().unwrap();
-        let vms = state.vms();
-        let cids = vms
-            .into_iter()
-            .map(|vm| VirtualMachineDebugInfo {
-                cid: vm.cid as i32,
-                temporaryDirectory: vm.temporary_directory.to_string_lossy().to_string(),
-                requesterUid: vm.requester_uid as i32,
-                requesterPid: vm.requester_debug_pid,
-                state: get_state(&vm),
-            })
-            .collect();
-        Ok(cids)
+        GLOBAL_SERVICE.debugListVms()
     }
 
     /// Hold a strong reference to a VM in VirtualizationService. This method is only intended for
@@ -570,13 +582,13 @@ impl VirtualizationService {
         VirtualizationService::default()
     }
 
-    fn create_vm_context(&self) -> Result<(VmContext, Cid, PathBuf)> {
+    fn create_vm_context(&self, requester_debug_pid: pid_t) -> Result<(VmContext, Cid, PathBuf)> {
         const NUM_ATTEMPTS: usize = 5;
 
         for _ in 0..NUM_ATTEMPTS {
-            let global_context = GLOBAL_SERVICE.allocateGlobalVmContext()?;
-            let cid = global_context.getCid()? as Cid;
-            let temp_dir: PathBuf = global_context.getTemporaryDirectory()?.into();
+            let vm_context = GLOBAL_SERVICE.allocateGlobalVmContext(requester_debug_pid as i32)?;
+            let cid = vm_context.getCid()? as Cid;
+            let temp_dir: PathBuf = vm_context.getTemporaryDirectory()?.into();
             let service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
 
             // Start VM service listening for connections from the new CID on port=CID.
@@ -584,7 +596,7 @@ impl VirtualizationService {
             match RpcServer::new_vsock(service, cid, port) {
                 Ok(vm_server) => {
                     vm_server.start();
-                    return Ok((VmContext::new(global_context, vm_server), cid, temp_dir));
+                    return Ok((VmContext::new(vm_context, vm_server), cid, temp_dir));
                 }
                 Err(err) => {
                     warn!("Could not start RpcServer on port {}: {}", port, err);
@@ -617,19 +629,21 @@ impl VirtualizationService {
             check_use_custom_virtual_machine()?;
         }
 
-        let (vm_context, cid, temporary_directory) = self.create_vm_context().map_err(|e| {
-            error!("Failed to create VmContext: {:?}", e);
-            Status::new_service_specific_error_str(
-                -1,
-                Some(format!("Failed to create VmContext: {:?}", e)),
-            )
-        })?;
+        let requester_uid = get_calling_uid();
+        let requester_debug_pid = get_calling_pid();
+
+        let (vm_context, cid, temporary_directory) =
+            self.create_vm_context(requester_debug_pid).map_err(|e| {
+                error!("Failed to create VmContext: {:?}", e);
+                Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to create VmContext: {:?}", e)),
+                )
+            })?;
 
         let state = &mut *self.state.lock().unwrap();
         let console_fd = console_fd.map(clone_file).transpose()?;
         let log_fd = log_fd.map(clone_file).transpose()?;
-        let requester_uid = get_calling_uid();
-        let requester_debug_pid = get_calling_pid();
 
         // Counter to generate unique IDs for temporary image files.
         let mut next_temporary_image_id = 0;

@@ -652,6 +652,8 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-1-2", "9.17/C/1-3"})
     public void testMicrodroidBoots() throws Exception {
+        CommandRunner android = new CommandRunner(getDevice());
+
         final String configPath = "assets/vm_config.json"; // path inside the APK
         mMicrodroidDevice =
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
@@ -661,6 +663,9 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         .build(getAndroidDevice());
         mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         CommandRunner microdroid = new CommandRunner(mMicrodroidDevice);
+
+        String vmList = android.run("/apex/com.android.virt/bin/vm list");
+        assertThat(vmList).contains("requesterUid: " + android.run("id -u"));
 
         // Test writing to /data partition
         microdroid.run("echo MicrodroidTest > /data/local/tmp/test.txt");
@@ -680,7 +685,6 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertThat(abis).hasLength(1);
 
         // Check that no denials have happened so far
-        CommandRunner android = new CommandRunner(getDevice());
         assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", LOG_PATH)).isNull();
         assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", CONSOLE_PATH)).isNull();
 
