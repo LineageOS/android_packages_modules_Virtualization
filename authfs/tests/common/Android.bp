@@ -31,3 +31,19 @@ rust_test {
     test_suites: ["general-tests"],
     test_harness: false,
 }
+
+rust_test {
+    name: "open_then_run.test",
+    crate_name: "open_then_run",
+    srcs: ["src/open_then_run.rs"],
+    edition: "2021",
+    rustlibs: [
+        "libandroid_logger",
+        "libanyhow",
+        "libclap",
+        "libcommand_fds",
+        "liblibc",
+        "liblog_rust",
+    ],
+    test_suites: ["general-tests"],
+}
