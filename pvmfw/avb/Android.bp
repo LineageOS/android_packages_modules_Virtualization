@@ -34,6 +34,7 @@ rust_test {
         ":avb_testkey_rsa4096_pub_bin",
         ":microdroid_kernel_signed",
         ":microdroid_initrd_normal",
+        ":microdroid_initrd_debuggable",
         ":test_image_with_one_hashdesc",
         ":unsigned_test_image",
     ],
