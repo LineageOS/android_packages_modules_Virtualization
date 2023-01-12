@@ -74,6 +74,7 @@ use std::io::{Error, ErrorKind, Read, Write};
 use std::num::NonZeroU32;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::os::unix::raw::{pid_t, uid_t};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
@@ -121,15 +122,6 @@ lazy_static! {
 
 fn is_valid_guest_cid(cid: Cid) -> bool {
     (GUEST_CID_MIN..=GUEST_CID_MAX).contains(&cid)
-}
-
-fn next_guest_cid(cid: Cid) -> Cid {
-    assert!(is_valid_guest_cid(cid));
-    if cid == GUEST_CID_MAX {
-        GUEST_CID_MIN
-    } else {
-        cid + 1
-    }
 }
 
 fn create_or_update_idsig_file(
@@ -197,10 +189,14 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         }
     }
 
-    fn allocateGlobalVmContext(&self) -> binder::Result<Strong<dyn IGlobalVmContext>> {
-        let client_uid = Uid::from_raw(get_calling_uid());
+    fn allocateGlobalVmContext(
+        &self,
+        requester_debug_pid: i32,
+    ) -> binder::Result<Strong<dyn IGlobalVmContext>> {
+        let requester_uid = get_calling_uid();
+        let requester_debug_pid = requester_debug_pid as pid_t;
         let state = &mut *self.state.lock().unwrap();
-        state.allocate_vm_context(client_uid).map_err(|e| {
+        state.allocate_vm_context(requester_uid, requester_debug_pid).map_err(|e| {
             Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
         })
     }
@@ -219,25 +215,55 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         forward_vm_exited_atom(atom);
         Ok(())
     }
+
+    fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
+        let state = &mut *self.state.lock().unwrap();
+        let cids = state
+            .held_contexts
+            .iter()
+            .filter_map(|(_, inst)| Weak::upgrade(inst))
+            .map(|vm| VirtualMachineDebugInfo {
+                cid: vm.cid as i32,
+                temporaryDirectory: vm.get_temp_dir().to_string_lossy().to_string(),
+                requesterUid: vm.requester_uid as i32,
+                requesterPid: vm.requester_debug_pid as i32,
+            })
+            .collect();
+        Ok(cids)
+    }
+}
+
+#[derive(Debug, Default)]
+struct GlobalVmInstance {
+    /// The unique CID assigned to the VM for vsock communication.
+    cid: Cid,
+    /// UID of the client who requested this VM instance.
+    requester_uid: uid_t,
+    /// PID of the client who requested this VM instance.
+    requester_debug_pid: pid_t,
+}
+
+impl GlobalVmInstance {
+    fn get_temp_dir(&self) -> PathBuf {
+        let cid = self.cid;
+        format!("{TEMPORARY_DIRECTORY}/{cid}").into()
+    }
 }
 
 /// The mutable state of the VirtualizationServiceInternal. There should only be one instance
 /// of this struct.
 #[derive(Debug, Default)]
 struct GlobalState {
-    /// CIDs currently allocated to running VMs. A CID is never recycled as long
+    /// VM contexts currently allocated to running VMs. A CID is never recycled as long
     /// as there is a strong reference held by a GlobalVmContext.
-    held_cids: HashMap<Cid, Weak<Cid>>,
+    held_contexts: HashMap<Cid, Weak<GlobalVmInstance>>,
 }
 
 impl GlobalState {
     /// Get the next available CID, or an error if we have run out. The last CID used is stored in
     /// a system property so that restart of virtualizationservice doesn't reuse CID while the host
     /// Android is up.
-    fn allocate_cid(&mut self) -> Result<Arc<Cid>> {
-        // Garbage collect unused CIDs.
-        self.held_cids.retain(|_, cid| cid.strong_count() > 0);
-
+    fn get_next_available_cid(&mut self) -> Result<Cid> {
         // Start trying to find a CID from the last used CID + 1. This ensures
         // that we do not eagerly recycle CIDs. It makes debugging easier but
         // also means that retrying to allocate a CID, eg. because it is
@@ -259,55 +285,62 @@ impl GlobalState {
             });
 
         let first_cid = if let Some(last_cid) = last_cid_prop {
-            next_guest_cid(last_cid)
+            if last_cid == GUEST_CID_MAX {
+                GUEST_CID_MIN
+            } else {
+                last_cid + 1
+            }
         } else {
             GUEST_CID_MIN
         };
 
         let cid = self
             .find_available_cid(first_cid..=GUEST_CID_MAX)
-            .or_else(|| self.find_available_cid(GUEST_CID_MIN..first_cid));
+            .or_else(|| self.find_available_cid(GUEST_CID_MIN..first_cid))
+            .ok_or_else(|| anyhow!("Could not find an available CID."))?;
 
-        if let Some(cid) = cid {
-            let cid_arc = Arc::new(cid);
-            self.held_cids.insert(cid, Arc::downgrade(&cid_arc));
-            system_properties::write(SYSPROP_LAST_CID, &format!("{}", cid))?;
-            Ok(cid_arc)
-        } else {
-            Err(anyhow!("Could not find an available CID."))
-        }
+        system_properties::write(SYSPROP_LAST_CID, &format!("{}", cid))?;
+        Ok(cid)
     }
 
     fn find_available_cid<I>(&self, mut range: I) -> Option<Cid>
     where
         I: Iterator<Item = Cid>,
     {
-        range.find(|cid| !self.held_cids.contains_key(cid))
+        range.find(|cid| !self.held_contexts.contains_key(cid))
     }
 
-    fn allocate_vm_context(&mut self, client_uid: Uid) -> Result<Strong<dyn IGlobalVmContext>> {
-        let cid = self.allocate_cid()?;
-        let temp_dir = create_vm_directory(client_uid, *cid)?;
-        let binder = GlobalVmContext { cid, temp_dir, ..Default::default() };
+    fn allocate_vm_context(
+        &mut self,
+        requester_uid: uid_t,
+        requester_debug_pid: pid_t,
+    ) -> Result<Strong<dyn IGlobalVmContext>> {
+        // Garbage collect unused VM contexts.
+        self.held_contexts.retain(|_, instance| instance.strong_count() > 0);
+
+        let cid = self.get_next_available_cid()?;
+        let instance = Arc::new(GlobalVmInstance { cid, requester_uid, requester_debug_pid });
+        create_temporary_directory(&instance.get_temp_dir(), requester_uid)?;
+
+        self.held_contexts.insert(cid, Arc::downgrade(&instance));
+        let binder = GlobalVmContext { instance, ..Default::default() };
         Ok(BnGlobalVmContext::new_binder(binder, BinderFeatures::default()))
     }
 }
 
-fn create_vm_directory(client_uid: Uid, cid: Cid) -> Result<PathBuf> {
-    let path: PathBuf = format!("{}/{}", TEMPORARY_DIRECTORY, cid).into();
+fn create_temporary_directory(path: &PathBuf, requester_uid: uid_t) -> Result<()> {
     if path.as_path().exists() {
-        remove_temporary_dir(&path).unwrap_or_else(|e| {
+        remove_temporary_dir(path).unwrap_or_else(|e| {
             warn!("Could not delete temporary directory {:?}: {}", path, e);
         });
     }
     // Create a directory that is owned by client's UID but system's GID, and permissions 0700.
     // If the chown() fails, this will leave behind an empty directory that will get removed
     // at the next attempt, or if virtualizationservice is restarted.
-    create_dir(&path)
-        .with_context(|| format!("Could not create temporary directory {:?}", path))?;
-    chown(&path, Some(client_uid), None)
+    create_dir(path).with_context(|| format!("Could not create temporary directory {:?}", path))?;
+    chown(path, Some(Uid::from_raw(requester_uid)), None)
         .with_context(|| format!("Could not set ownership of temporary directory {:?}", path))?;
-    Ok(path)
+    Ok(())
 }
 
 /// Removes a directory owned by a different user by first changing its owner back
@@ -333,10 +366,8 @@ pub fn remove_temporary_files(path: &PathBuf) -> Result<()> {
 /// Implementation of the AIDL `IGlobalVmContext` interface.
 #[derive(Debug, Default)]
 struct GlobalVmContext {
-    /// The unique CID assigned to the VM for vsock communication.
-    cid: Arc<Cid>,
-    /// The temporary folder created for the VM and owned by the creator's UID.
-    temp_dir: PathBuf,
+    /// Strong reference to the context's instance data structure.
+    instance: Arc<GlobalVmInstance>,
     /// Keeps our service process running as long as this VM context exists.
     #[allow(dead_code)]
     lazy_service_guard: LazyServiceGuard,
@@ -346,11 +377,11 @@ impl Interface for GlobalVmContext {}
 
 impl IGlobalVmContext for GlobalVmContext {
     fn getCid(&self) -> binder::Result<i32> {
-        Ok(*self.cid as i32)
+        Ok(self.instance.cid as i32)
     }
 
     fn getTemporaryDirectory(&self) -> binder::Result<String> {
-        Ok(self.temp_dir.to_string_lossy().to_string())
+        Ok(self.instance.get_temp_dir().to_string_lossy().to_string())
     }
 }
 
@@ -469,20 +500,7 @@ impl IVirtualizationService for VirtualizationService {
     /// and as such is only permitted from the shell user.
     fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
         check_debug_access()?;
-
-        let state = &mut *self.state.lock().unwrap();
-        let vms = state.vms();
-        let cids = vms
-            .into_iter()
-            .map(|vm| VirtualMachineDebugInfo {
-                cid: vm.cid as i32,
-                temporaryDirectory: vm.temporary_directory.to_string_lossy().to_string(),
-                requesterUid: vm.requester_uid as i32,
-                requesterPid: vm.requester_debug_pid,
-                state: get_state(&vm),
-            })
-            .collect();
-        Ok(cids)
+        GLOBAL_SERVICE.debugListVms()
     }
 
     /// Hold a strong reference to a VM in VirtualizationService. This method is only intended for
@@ -564,13 +582,13 @@ impl VirtualizationService {
         VirtualizationService::default()
     }
 
-    fn create_vm_context(&self) -> Result<(VmContext, Cid, PathBuf)> {
+    fn create_vm_context(&self, requester_debug_pid: pid_t) -> Result<(VmContext, Cid, PathBuf)> {
         const NUM_ATTEMPTS: usize = 5;
 
         for _ in 0..NUM_ATTEMPTS {
-            let global_context = GLOBAL_SERVICE.allocateGlobalVmContext()?;
-            let cid = global_context.getCid()? as Cid;
-            let temp_dir: PathBuf = global_context.getTemporaryDirectory()?.into();
+            let vm_context = GLOBAL_SERVICE.allocateGlobalVmContext(requester_debug_pid as i32)?;
+            let cid = vm_context.getCid()? as Cid;
+            let temp_dir: PathBuf = vm_context.getTemporaryDirectory()?.into();
             let service = VirtualMachineService::new_binder(self.state.clone(), cid).as_binder();
 
             // Start VM service listening for connections from the new CID on port=CID.
@@ -578,7 +596,7 @@ impl VirtualizationService {
             match RpcServer::new_vsock(service, cid, port) {
                 Ok(vm_server) => {
                     vm_server.start();
-                    return Ok((VmContext::new(global_context, vm_server), cid, temp_dir));
+                    return Ok((VmContext::new(vm_context, vm_server), cid, temp_dir));
                 }
                 Err(err) => {
                     warn!("Could not start RpcServer on port {}: {}", port, err);
@@ -611,19 +629,21 @@ impl VirtualizationService {
             check_use_custom_virtual_machine()?;
         }
 
-        let (vm_context, cid, temporary_directory) = self.create_vm_context().map_err(|e| {
-            error!("Failed to create VmContext: {:?}", e);
-            Status::new_service_specific_error_str(
-                -1,
-                Some(format!("Failed to create VmContext: {:?}", e)),
-            )
-        })?;
+        let requester_uid = get_calling_uid();
+        let requester_debug_pid = get_calling_pid();
+
+        let (vm_context, cid, temporary_directory) =
+            self.create_vm_context(requester_debug_pid).map_err(|e| {
+                error!("Failed to create VmContext: {:?}", e);
+                Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to create VmContext: {:?}", e)),
+                )
+            })?;
 
         let state = &mut *self.state.lock().unwrap();
         let console_fd = console_fd.map(clone_file).transpose()?;
         let log_fd = log_fd.map(clone_file).transpose()?;
-        let requester_uid = get_calling_uid();
-        let requester_debug_pid = get_calling_pid();
 
         // Counter to generate unique IDs for temporary image files.
         let mut next_temporary_image_id = 0;
