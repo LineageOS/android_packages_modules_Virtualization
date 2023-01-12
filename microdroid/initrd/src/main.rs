@@ -54,7 +54,8 @@ fn attach_bootconfig(initrd: PathBuf, bootconfigs: Vec<PathBuf>, output: PathBuf
         checksum += get_checksum(&bootconfig)?;
     }
 
-    let padding_size: usize = FOOTER_ALIGNMENT - (initrd_size + bootconfig_size) % FOOTER_ALIGNMENT;
+    let padding_size: usize =
+        (FOOTER_ALIGNMENT - (initrd_size + bootconfig_size) % FOOTER_ALIGNMENT) % FOOTER_ALIGNMENT;
     output_file.write_all(&ZEROS[..padding_size])?;
     output_file.write_all(&((padding_size + bootconfig_size) as u32).to_le_bytes())?;
     output_file.write_all(&checksum.to_le_bytes())?;
