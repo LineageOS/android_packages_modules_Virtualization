@@ -14,8 +14,11 @@
 
 //! Heap implementation.
 
+use alloc::alloc::alloc;
+use alloc::alloc::Layout;
+use alloc::boxed::Box;
+
 use core::alloc::GlobalAlloc as _;
-use core::alloc::Layout;
 use core::ffi::c_void;
 use core::mem;
 use core::num::NonZeroUsize;
@@ -31,6 +34,19 @@ static mut HEAP: [u8; 65536] = [0; 65536];
 
 pub unsafe fn init() {
     HEAP_ALLOCATOR.lock().init(HEAP.as_mut_ptr() as usize, HEAP.len());
+}
+
+/// Allocate an aligned but uninitialized slice of heap.
+pub fn aligned_boxed_slice(size: usize, align: usize) -> Option<Box<[u8]>> {
+    let size = NonZeroUsize::new(size)?.get();
+    let layout = Layout::from_size_align(size, align).ok()?;
+    // SAFETY - We verify that `size` and the returned `ptr` are non-null.
+    let ptr = unsafe { alloc(layout) };
+    let ptr = NonNull::new(ptr)?.as_ptr();
+    let slice_ptr = ptr::slice_from_raw_parts_mut(ptr, size);
+
+    // SAFETY - The memory was allocated using the proper layout by our global_allocator.
+    Some(unsafe { Box::from_raw(slice_ptr) })
 }
 
 #[no_mangle]
