@@ -18,6 +18,8 @@
 // For usize.checked_add_signed(isize), available in Rust 1.66.0
 #![feature(mixed_integer_ops)]
 
+mod error;
 mod verify;
 
-pub use verify::{verify_payload, AvbImageVerifyError};
+pub use error::AvbSlotVerifyError;
+pub use verify::verify_payload;
