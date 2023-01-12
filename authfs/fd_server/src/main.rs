@@ -148,3 +148,15 @@ fn main() -> Result<()> {
     server.join();
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_args() {
+        // Check that the command parsing has been configured in a valid way.
+        Args::command().debug_assert();
+    }
+}

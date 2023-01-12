@@ -13,7 +13,16 @@
       "name": "art_standalone_dexpreopt_tests"
     },
     {
+      "name": "composd_cmd.test"
+    },
+    {
       "name": "compos_key_tests"
+    },
+    {
+      "name": "composd_verify.test"
+    },
+    {
+      "name": "initrd_bootconfig.test"
     }
   ],
   "avf-postsubmit": [

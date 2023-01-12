@@ -23,3 +23,25 @@ rust_binary {
     ],
     apex_available: ["com.android.virt"],
 }
+
+rust_test {
+    name: "fd_server.test",
+    srcs: ["src/main.rs"],
+    rustlibs: [
+        "authfs_aidl_interface-rust",
+        "libandroid_logger",
+        "libanyhow",
+        "libauthfs_fsverity_metadata",
+        "libbinder_rs",
+        "libclap",
+        "liblibc",
+        "liblog_rust",
+        "libnix",
+        "librpcbinder_rs",
+    ],
+    prefer_rlib: true,
+    shared_libs: [
+        "libbinder_rpc_unstable",
+    ],
+    test_suites: ["general-tests"],
+}
