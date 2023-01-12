@@ -53,17 +53,4 @@ interface IVirtualizationService {
      * and as such is only permitted from the shell user.
      */
     VirtualMachineDebugInfo[] debugListVms();
-
-    /**
-     * Hold a strong reference to a VM in VirtualizationService. This method is only intended for
-     * debug purposes, and as such is only permitted from the shell user.
-     */
-    void debugHoldVmRef(IVirtualMachine vm);
-
-    /**
-     * Drop reference to a VM that is being held by VirtualizationService. Returns the reference if
-     * VM was found and null otherwise. This method is only intended for debug purposes, and as such
-     * is only permitted from the shell user.
-     */
-    @nullable IVirtualMachine debugDropVmRef(int cid);
 }
