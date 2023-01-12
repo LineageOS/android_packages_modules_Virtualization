@@ -163,3 +163,15 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_actions() {
+        // Check that the command parsing has been configured in a valid way.
+        Actions::command().debug_assert();
+    }
+}

@@ -12,6 +12,17 @@ rust_binary_host {
     prefer_rlib: true,
 }
 
+rust_test_host {
+    name: "initrd_bootconfig.test",
+    srcs: ["src/main.rs"],
+    rustlibs: [
+        "libanyhow",
+        "libclap",
+    ],
+    prefer_rlib: true,
+    test_suites: ["general-tests"],
+}
+
 python_binary_host {
     name: "gen_vbmeta_bootconfig",
     srcs: ["gen_vbmeta_bootconfig.py"],
