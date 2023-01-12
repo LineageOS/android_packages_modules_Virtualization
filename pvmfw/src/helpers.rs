@@ -20,6 +20,8 @@ use zeroize::Zeroize;
 pub const SIZE_4KB: usize = 4 << 10;
 pub const SIZE_2MB: usize = 2 << 20;
 
+pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
+
 /// Computes the largest multiple of the provided alignment smaller or equal to the address.
 ///
 /// Note: the result is undefined if alignment isn't a power of two.
@@ -89,8 +91,14 @@ pub fn flush_region(start: usize, size: usize) {
 }
 
 #[inline]
+/// Flushes the slice to the point of unification.
+pub fn flush(reg: &[u8]) {
+    flush_region(reg.as_ptr() as usize, reg.len())
+}
+
+#[inline]
 /// Overwrites the slice with zeroes, to the point of unification.
 pub fn flushed_zeroize(reg: &mut [u8]) {
     reg.zeroize();
-    flush_region(reg.as_ptr() as usize, reg.len())
+    flush(reg)
 }

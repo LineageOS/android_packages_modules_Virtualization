@@ -48,3 +48,29 @@ pub fn initrd_range(fdt: &libfdt::Fdt) -> libfdt::Result<Option<Range<usize>>> {
 
     Ok(None)
 }
+
+/// Add a "google,open-dice"-compatible reserved-memory node to the tree.
+pub fn add_dice_node(fdt: &mut libfdt::Fdt, addr: usize, size: usize) -> libfdt::Result<()> {
+    fdt.unpack()?;
+
+    let reserved_memory = CStr::from_bytes_with_nul(b"/reserved-memory\0").unwrap();
+    // We reject DTs with missing reserved-memory node as validation should have checked that the
+    // "swiotlb" subnode (compatible = "restricted-dma-pool") was present.
+    let mut reserved_memory = fdt.node_mut(reserved_memory)?.ok_or(libfdt::FdtError::NotFound)?;
+
+    let dice = CStr::from_bytes_with_nul(b"dice\0").unwrap();
+    let mut dice = reserved_memory.add_subnode(dice)?;
+
+    let compatible = CStr::from_bytes_with_nul(b"compatible\0").unwrap();
+    dice.appendprop(compatible, b"google,open-dice\0")?;
+
+    let no_map = CStr::from_bytes_with_nul(b"no-map\0").unwrap();
+    dice.appendprop(no_map, &[])?;
+
+    let reg = CStr::from_bytes_with_nul(b"reg\0").unwrap();
+    dice.appendprop_addrrange(reg, addr as u64, size as u64)?;
+
+    fdt.pack()?;
+
+    Ok(())
+}
