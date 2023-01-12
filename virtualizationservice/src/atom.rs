@@ -31,10 +31,9 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 };
 use anyhow::{anyhow, Result};
 use binder::ParcelFileDescriptor;
-use log::{trace, warn};
+use log::warn;
 use microdroid_payload_config::VmPayloadConfig;
-use rustutils::system_properties;
-use statslog_virtualization_rust::{vm_booted, vm_creation_requested, vm_exited};
+use statslog_virtualization_rust::vm_creation_requested;
 use std::thread;
 use std::time::{Duration, SystemTime};
 use zip::ZipArchive;
@@ -131,39 +130,6 @@ pub fn write_vm_creation_stats(
     });
 }
 
-pub fn forward_vm_creation_atom(atom: &AtomVmCreationRequested) {
-    let config_type = match atom.configType {
-        x if x == vm_creation_requested::ConfigType::VirtualMachineAppConfig as i32 => {
-            vm_creation_requested::ConfigType::VirtualMachineAppConfig
-        }
-        x if x == vm_creation_requested::ConfigType::VirtualMachineRawConfig as i32 => {
-            vm_creation_requested::ConfigType::VirtualMachineRawConfig
-        }
-        _ => vm_creation_requested::ConfigType::UnknownConfig,
-    };
-    let vm_creation_requested = vm_creation_requested::VmCreationRequested {
-        uid: atom.uid,
-        vm_identifier: &atom.vmIdentifier,
-        hypervisor: vm_creation_requested::Hypervisor::Pkvm,
-        is_protected: atom.isProtected,
-        creation_succeeded: atom.creationSucceeded,
-        binder_exception_code: atom.binderExceptionCode,
-        config_type,
-        num_cpus: atom.numCpus,
-        cpu_affinity: "", // deprecated
-        memory_mib: atom.memoryMib,
-        apexes: &atom.apexes,
-        // TODO(seungjaeyoo) Fill information about task_profile
-        // TODO(seungjaeyoo) Fill information about disk_image for raw config
-    };
-
-    wait_for_statsd().unwrap_or_else(|e| warn!("failed to wait for statsd with error: {}", e));
-    match vm_creation_requested.stats_write() {
-        Err(e) => warn!("statslog_rust failed with error: {}", e),
-        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
-    }
-}
-
 /// Write the stats of VM boot to statsd
 /// The function creates a separate thread which waits fro statsd to start to push atom
 pub fn write_vm_booted_stats(
@@ -185,20 +151,6 @@ pub fn write_vm_booted_stats(
             warn!("Failed to write VmCreationRequested atom: {e}");
         });
     });
-}
-
-pub fn forward_vm_booted_atom(atom: &AtomVmBooted) {
-    let vm_booted = vm_booted::VmBooted {
-        uid: atom.uid,
-        vm_identifier: &atom.vmIdentifier,
-        elapsed_time_millis: atom.elapsedTimeMillis,
-    };
-
-    wait_for_statsd().unwrap_or_else(|e| warn!("failed to wait for statsd with error: {}", e));
-    match vm_booted.stats_write() {
-        Err(e) => warn!("statslog_rust failed with error: {}", e),
-        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
-    }
 }
 
 /// Write the stats of VM exit to statsd
@@ -231,82 +183,4 @@ pub fn write_vm_exited_stats(
             warn!("Failed to write VmExited atom: {e}");
         });
     });
-}
-
-pub fn forward_vm_exited_atom(atom: &AtomVmExited) {
-    let death_reason = match atom.deathReason {
-        DeathReason::INFRASTRUCTURE_ERROR => vm_exited::DeathReason::InfrastructureError,
-        DeathReason::KILLED => vm_exited::DeathReason::Killed,
-        DeathReason::UNKNOWN => vm_exited::DeathReason::Unknown,
-        DeathReason::SHUTDOWN => vm_exited::DeathReason::Shutdown,
-        DeathReason::START_FAILED => vm_exited::DeathReason::Error,
-        DeathReason::REBOOT => vm_exited::DeathReason::Reboot,
-        DeathReason::CRASH => vm_exited::DeathReason::Crash,
-        DeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH => {
-            vm_exited::DeathReason::PvmFirmwarePublicKeyMismatch
-        }
-        DeathReason::PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED => {
-            vm_exited::DeathReason::PvmFirmwareInstanceImageChanged
-        }
-        DeathReason::BOOTLOADER_PUBLIC_KEY_MISMATCH => {
-            vm_exited::DeathReason::BootloaderPublicKeyMismatch
-        }
-        DeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED => {
-            vm_exited::DeathReason::BootloaderInstanceImageChanged
-        }
-        DeathReason::MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE => {
-            vm_exited::DeathReason::MicrodroidFailedToConnectToVirtualizationService
-        }
-        DeathReason::MICRODROID_PAYLOAD_HAS_CHANGED => {
-            vm_exited::DeathReason::MicrodroidPayloadHasChanged
-        }
-        DeathReason::MICRODROID_PAYLOAD_VERIFICATION_FAILED => {
-            vm_exited::DeathReason::MicrodroidPayloadVerificationFailed
-        }
-        DeathReason::MICRODROID_INVALID_PAYLOAD_CONFIG => {
-            vm_exited::DeathReason::MicrodroidInvalidPayloadConfig
-        }
-        DeathReason::MICRODROID_UNKNOWN_RUNTIME_ERROR => {
-            vm_exited::DeathReason::MicrodroidUnknownRuntimeError
-        }
-        DeathReason::HANGUP => vm_exited::DeathReason::Hangup,
-        _ => vm_exited::DeathReason::Unknown,
-    };
-
-    let vm_exited = vm_exited::VmExited {
-        uid: atom.uid,
-        vm_identifier: &atom.vmIdentifier,
-        elapsed_time_millis: atom.elapsedTimeMillis,
-        death_reason,
-        guest_time_millis: atom.guestTimeMillis,
-        rss_vm_kb: atom.rssVmKb,
-        rss_crosvm_kb: atom.rssCrosvmKb,
-        exit_signal: atom.exitSignal,
-    };
-
-    wait_for_statsd().unwrap_or_else(|e| warn!("failed to wait for statsd with error: {}", e));
-    match vm_exited.stats_write() {
-        Err(e) => warn!("statslog_rust failed with error: {}", e),
-        Ok(_) => trace!("statslog_rust succeeded for virtualization service"),
-    }
-}
-
-fn wait_for_statsd() -> Result<()> {
-    let mut prop = system_properties::PropertyWatcher::new("init.svc.statsd")?;
-    loop {
-        prop.wait()?;
-        match system_properties::read("init.svc.statsd")? {
-            Some(s) => {
-                if s == "running" {
-                    break;
-                }
-            }
-            None => {
-                // This case never really happens because
-                // prop.wait() waits for property to be non-null.
-                break;
-            }
-        }
-    }
-    Ok(())
 }

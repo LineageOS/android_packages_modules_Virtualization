@@ -14,14 +14,13 @@
 
 //! Android VirtualizationService
 
-mod aidl;
-mod atom;
-mod composite;
-mod crosvm;
-mod payload;
-mod selinux;
+mod aidl_vs;
+mod atom_vs;
 
-use crate::aidl::{remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY, VirtualizationServiceInternal};
+use crate::aidl_vs::{
+    remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY,
+    VirtualizationServiceInternal
+};
 use android_logger::{Config, FilterBuilder};
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IVirtualizationServiceInternal::BnVirtualizationServiceInternal;
 use anyhow::Error;
