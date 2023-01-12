@@ -60,10 +60,6 @@ enum Opt {
         #[clap(long)]
         name: Option<String>,
 
-        /// Detach VM from the terminal and run in the background
-        #[clap(short, long)]
-        daemonize: bool,
-
         /// Path to the file backing the storage.
         /// Created if the option is used but the path does not exist in the device.
         #[clap(long)]
@@ -119,10 +115,6 @@ enum Opt {
         #[clap(long)]
         name: Option<String>,
 
-        /// Detach VM from the terminal and run in the background
-        #[clap(short, long)]
-        daemonize: bool,
-
         /// Path to the file backing the storage.
         /// Created if the option is used but the path does not exist in the device.
         #[clap(long)]
@@ -171,10 +163,6 @@ enum Opt {
         #[clap(long)]
         name: Option<String>,
 
-        /// Detach VM from the terminal and run in the background
-        #[clap(short, long)]
-        daemonize: bool,
-
         /// Number of vCPUs in the VM. If unspecified, defaults to 1.
         #[clap(long)]
         cpus: Option<u32>,
@@ -190,11 +178,6 @@ enum Opt {
         /// Path to file for VM log output.
         #[clap(long)]
         log: Option<PathBuf>,
-    },
-    /// Stop a virtual machine running in the background
-    Stop {
-        /// CID of the virtual machine
-        cid: u32,
     },
     /// List running virtual machines
     List,
@@ -260,7 +243,6 @@ fn main() -> Result<(), Error> {
             storage_size,
             config_path,
             payload_binary_name,
-            daemonize,
             console,
             log,
             debug,
@@ -279,7 +261,6 @@ fn main() -> Result<(), Error> {
             storage_size,
             config_path,
             payload_binary_name,
-            daemonize,
             console.as_deref(),
             log.as_deref(),
             debug,
@@ -294,7 +275,6 @@ fn main() -> Result<(), Error> {
             work_dir,
             storage,
             storage_size,
-            daemonize,
             console,
             log,
             debug,
@@ -308,7 +288,6 @@ fn main() -> Result<(), Error> {
             work_dir,
             storage.as_deref(),
             storage_size,
-            daemonize,
             console.as_deref(),
             log.as_deref(),
             debug,
@@ -317,12 +296,11 @@ fn main() -> Result<(), Error> {
             cpus,
             task_profiles,
         ),
-        Opt::Run { name, config, daemonize, cpus, task_profiles, console, log } => {
+        Opt::Run { name, config, cpus, task_profiles, console, log } => {
             command_run(
                 name,
                 service.as_ref(),
                 &config,
-                daemonize,
                 console.as_deref(),
                 log.as_deref(),
                 /* mem */ None,
@@ -330,7 +308,6 @@ fn main() -> Result<(), Error> {
                 task_profiles,
             )
         }
-        Opt::Stop { cid } => command_stop(service.as_ref(), cid),
         Opt::List => command_list(service.as_ref()),
         Opt::Info => command_info(),
         Opt::CreatePartition { path, size, partition_type } => {
@@ -338,15 +315,6 @@ fn main() -> Result<(), Error> {
         }
         Opt::CreateIdsig { apk, path } => command_create_idsig(service.as_ref(), &apk, &path),
     }
-}
-
-/// Retrieve reference to a previously daemonized VM and stop it.
-fn command_stop(service: &dyn IVirtualizationService, cid: u32) -> Result<(), Error> {
-    service
-        .debugDropVmRef(cid as i32)
-        .context("Failed to get VM from VirtualizationService")?
-        .context("CID does not correspond to a running background VM")?;
-    Ok(())
 }
 
 /// List the VMs currently running.
