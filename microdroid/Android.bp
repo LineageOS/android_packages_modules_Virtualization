@@ -582,7 +582,7 @@ avb_add_hash_footer {
     name: "microdroid_kernel_signed",
     src: "empty_kernel",
     filename: "microdroid_kernel",
-    partition_name: "bootloader",
+    partition_name: "boot",
     private_key: ":microdroid_sign_key",
     salt: bootloader_salt,
     enabled: false,

@@ -62,7 +62,7 @@ genrule {
 avb_add_hash_footer {
     name: "test_image_with_one_hashdesc",
     src: ":unsigned_test_image",
-    partition_name: "bootloader",
+    partition_name: "boot",
     private_key: ":pvmfw_sign_key",
     salt: "1111",
 }
