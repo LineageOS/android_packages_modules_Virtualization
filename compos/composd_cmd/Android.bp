@@ -18,3 +18,18 @@ rust_binary {
         "com.android.compos",
     ],
 }
+
+rust_test {
+    name: "composd_cmd.test",
+    srcs: ["composd_cmd.rs"],
+    edition: "2021",
+    rustlibs: [
+        "android.system.composd-rust",
+        "libanyhow",
+        "libbinder_rs",
+        "libclap",
+        "libcompos_common",
+    ],
+    prefer_rlib: true,
+    test_suites: ["general-tests"],
+}
