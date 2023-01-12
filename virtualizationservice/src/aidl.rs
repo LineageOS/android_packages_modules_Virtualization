@@ -15,7 +15,7 @@
 //! Implementation of the AIDL interface of the VirtualizationService.
 
 use crate::{get_calling_pid, get_calling_uid};
-use crate::atom_vs::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom};
+use crate::atom::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::{

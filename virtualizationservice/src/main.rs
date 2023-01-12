@@ -14,10 +14,10 @@
 
 //! Android VirtualizationService
 
-mod aidl_vs;
-mod atom_vs;
+mod aidl;
+mod atom;
 
-use crate::aidl_vs::{
+use crate::aidl::{
     remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY,
     VirtualizationServiceInternal
 };
