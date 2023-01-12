@@ -502,26 +502,6 @@ impl IVirtualizationService for VirtualizationService {
         check_debug_access()?;
         GLOBAL_SERVICE.debugListVms()
     }
-
-    /// Hold a strong reference to a VM in VirtualizationService. This method is only intended for
-    /// debug purposes, and as such is only permitted from the shell user.
-    fn debugHoldVmRef(&self, vmref: &Strong<dyn IVirtualMachine>) -> binder::Result<()> {
-        check_debug_access()?;
-
-        let state = &mut *self.state.lock().unwrap();
-        state.debug_hold_vm(vmref.clone());
-        Ok(())
-    }
-
-    /// Drop reference to a VM that is being held by VirtualizationService. Returns the reference if
-    /// the VM was found and None otherwise. This method is only intended for debug purposes, and as
-    /// such is only permitted from the shell user.
-    fn debugDropVmRef(&self, cid: i32) -> binder::Result<Option<Strong<dyn IVirtualMachine>>> {
-        check_debug_access()?;
-
-        let state = &mut *self.state.lock().unwrap();
-        Ok(state.debug_drop_vm(cid))
-    }
 }
 
 fn handle_stream_connection_tombstoned() -> Result<()> {
@@ -1183,10 +1163,6 @@ struct State {
     /// Binder client are dropped the weak reference here will become invalid, and will be removed
     /// from the list opportunistically the next time `add_vm` is called.
     vms: Vec<Weak<VmInstance>>,
-
-    /// Vector of strong VM references held on behalf of users that cannot hold them themselves.
-    /// This is only used for debugging purposes.
-    debug_held_vms: Vec<Strong<dyn IVirtualMachine>>,
 }
 
 impl State {
@@ -1208,18 +1184,6 @@ impl State {
     /// Get a VM that corresponds to the given cid
     fn get_vm(&self, cid: Cid) -> Option<Arc<VmInstance>> {
         self.vms().into_iter().find(|vm| vm.cid == cid)
-    }
-
-    /// Store a strong VM reference.
-    fn debug_hold_vm(&mut self, vm: Strong<dyn IVirtualMachine>) {
-        self.debug_held_vms.push(vm);
-    }
-
-    /// Retrieve and remove a strong VM reference.
-    fn debug_drop_vm(&mut self, cid: i32) -> Option<Strong<dyn IVirtualMachine>> {
-        let pos = self.debug_held_vms.iter().position(|vm| vm.getCid() == Ok(cid))?;
-        let vm = self.debug_held_vms.swap_remove(pos);
-        Some(vm)
     }
 }
 
