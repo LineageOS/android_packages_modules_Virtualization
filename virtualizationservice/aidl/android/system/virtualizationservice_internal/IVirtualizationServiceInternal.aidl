@@ -15,6 +15,7 @@
  */
 package android.system.virtualizationservice_internal;
 
+import android.system.virtualizationservice.VirtualMachineDebugInfo;
 import android.system.virtualizationservice_internal.AtomVmBooted;
 import android.system.virtualizationservice_internal.AtomVmCreationRequested;
 import android.system.virtualizationservice_internal.AtomVmExited;
@@ -35,7 +36,7 @@ interface IVirtualizationServiceInternal {
      * The resources will not be recycled as long as there is a strong reference
      * to the returned object.
      */
-    IGlobalVmContext allocateGlobalVmContext();
+    IGlobalVmContext allocateGlobalVmContext(int requesterDebugPid);
 
     /** Forwards a VmBooted atom to statsd. */
     void atomVmBooted(in AtomVmBooted atom);
@@ -45,4 +46,7 @@ interface IVirtualizationServiceInternal {
 
     /** Forwards a VmExited atom to statsd. */
     void atomVmExited(in AtomVmExited atom);
+
+    /** Get a list of all currently running VMs. */
+    VirtualMachineDebugInfo[] debugListVms();
 }
