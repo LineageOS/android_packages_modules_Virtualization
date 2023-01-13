@@ -68,14 +68,7 @@ extern "C" fn read_is_device_unlocked(
     _ops: *mut AvbOps,
     out_is_unlocked: *mut bool,
 ) -> AvbIOResult {
-    if let Err(e) = is_not_null(out_is_unlocked) {
-        return e.into();
-    }
-    // SAFETY: It is safe as the raw pointer `out_is_unlocked` is a valid pointer.
-    unsafe {
-        *out_is_unlocked = false;
-    }
-    AvbIOResult::AVB_IO_RESULT_OK
+    to_avb_io_result(write(out_is_unlocked, false))
 }
 
 unsafe extern "C" fn get_preloaded_partition(
@@ -103,18 +96,8 @@ fn try_get_preloaded_partition(
 ) -> Result<(), AvbIOError> {
     let ops = as_ref(ops)?;
     let partition = ops.as_ref().get_partition(partition)?;
-    let out_pointer = to_nonnull(out_pointer)?;
-    // SAFETY: It is safe as the raw pointer `out_pointer` is a nonnull pointer.
-    unsafe {
-        *out_pointer.as_ptr() = partition.as_ptr() as _;
-    }
-    let out_num_bytes_preloaded = to_nonnull(out_num_bytes_preloaded)?;
-    // SAFETY: The raw pointer `out_num_bytes_preloaded` was created to point to a valid a `usize`
-    // and we checked it is nonnull.
-    unsafe {
-        *out_num_bytes_preloaded.as_ptr() = partition.len().min(num_bytes);
-    }
-    Ok(())
+    write(out_pointer, partition.as_ptr() as *mut u8)?;
+    write(out_num_bytes_preloaded, partition.len().min(num_bytes))
 }
 
 extern "C" fn read_from_partition(
@@ -150,13 +133,7 @@ fn try_read_from_partition(
     // is created to point to the `num_bytes` of bytes in memory.
     let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer.as_ptr() as *mut u8, num_bytes) };
     copy_data_to_dst(partition, offset, buffer_slice)?;
-    let out_num_read = to_nonnull(out_num_read)?;
-    // SAFETY: The raw pointer `out_num_read` was created to point to a valid a `usize`
-    // and we checked it is nonnull.
-    unsafe {
-        *out_num_read.as_ptr() = buffer_slice.len();
-    }
-    Ok(())
+    write(out_num_read, buffer_slice.len())
 }
 
 fn copy_data_to_dst(src: &[u8], offset: i64, dst: &mut [u8]) -> Result<(), AvbIOError> {
@@ -189,13 +166,7 @@ fn try_get_size_of_partition(
     let partition = ops.as_ref().get_partition(partition)?;
     let partition_size =
         u64::try_from(partition.len()).map_err(|_| AvbIOError::InvalidValueSize)?;
-    let out_size_num_bytes = to_nonnull(out_size_num_bytes)?;
-    // SAFETY: The raw pointer `out_size_num_bytes` was created to point to a valid a `u64`
-    // and we checked it is nonnull.
-    unsafe {
-        *out_size_num_bytes.as_ptr() = partition_size;
-    }
-    Ok(())
+    write(out_size_num_bytes, partition_size)
 }
 
 extern "C" fn read_rollback_index(
@@ -260,10 +231,14 @@ fn try_validate_public_key_for_partition(
     // Verifies the public key for the known partitions only.
     ops.as_ref().get_partition(partition)?;
     let trusted_public_key = ops.as_ref().trusted_public_key;
-    let out_is_trusted = to_nonnull(out_is_trusted)?;
-    // SAFETY: It is safe as the raw pointer `out_is_trusted` is a nonnull pointer.
+    write(out_is_trusted, public_key == trusted_public_key)
+}
+
+fn write<T>(ptr: *mut T, value: T) -> Result<(), AvbIOError> {
+    let ptr = to_nonnull(ptr)?;
+    // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
     unsafe {
-        *out_is_trusted.as_ptr() = public_key == trusted_public_key;
+        *ptr.as_ptr() = value;
     }
     Ok(())
 }
