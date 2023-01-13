@@ -247,10 +247,10 @@ bootimg {
     kernel_prebuilt: "empty_kernel",
     arch: {
         arm64: {
-            kernel_prebuilt: ":microdroid_kernel_prebuilts-5.15-arm64",
+            kernel_prebuilt: ":microdroid_kernel_prebuilts-6.1-arm64",
         },
         x86_64: {
-            kernel_prebuilt: ":microdroid_kernel_prebuilts-5.15-x86_64",
+            kernel_prebuilt: ":microdroid_kernel_prebuilts-6.1-x86_64",
         },
     },
 
@@ -588,11 +588,11 @@ avb_add_hash_footer {
     enabled: false,
     arch: {
         arm64: {
-            src: ":microdroid_kernel_prebuilts-5.15-arm64",
+            src: ":microdroid_kernel_prebuilts-6.1-arm64",
             enabled: true,
         },
         x86_64: {
-            src: ":microdroid_kernel_prebuilts-5.15-x86_64",
+            src: ":microdroid_kernel_prebuilts-6.1-x86_64",
             enabled: true,
         },
     },
