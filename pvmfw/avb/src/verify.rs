@@ -22,7 +22,7 @@ use core::{
     slice,
 };
 
-static NULL_BYTE: &[u8] = b"\0";
+const NULL_BYTE: &[u8] = b"\0";
 
 enum AvbIOError {
     /// AVB_IO_RESULT_ERROR_OOM,
@@ -78,7 +78,7 @@ extern "C" fn read_is_device_unlocked(
     AvbIOResult::AVB_IO_RESULT_OK
 }
 
-unsafe extern "C" fn get_preloaded_partition(
+extern "C" fn get_preloaded_partition(
     ops: *mut AvbOps,
     partition: *const c_char,
     num_bytes: usize,
