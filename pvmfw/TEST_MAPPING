@@ -1,7 +1,7 @@
 {
   "avf-presubmit" : [
     {
-      "name" : "libpvmfw_avb.test"
+      "name" : "libpvmfw_avb.integration_test"
     }
   ]
 }
