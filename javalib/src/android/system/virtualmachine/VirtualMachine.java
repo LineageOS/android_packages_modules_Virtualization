@@ -293,6 +293,7 @@ public class VirtualMachine implements AutoCloseable {
     /** Lock protecting callbacks. */
     private final Object mCallbackLock = new Object();
 
+    private final boolean mVmOutputCaptured;
 
     /** The configuration that is currently associated with this VM. */
     @GuardedBy("mLock")
@@ -371,6 +372,7 @@ public class VirtualMachine implements AutoCloseable {
                         ? new File(thisVmDir, ENCRYPTED_STORE_FILE)
                         : null;
 
+        mVmOutputCaptured = config.isVmOutputCaptured();
     }
 
     /**
@@ -772,7 +774,9 @@ public class VirtualMachine implements AutoCloseable {
             IVirtualizationService service = mVirtualizationService.connect();
 
             try {
-                createVmPipes();
+                if (mVmOutputCaptured) {
+                    createVmPipes();
+                }
 
                 VirtualMachineAppConfig appConfig = getConfig().toVsConfig();
                 appConfig.name = mName;
@@ -890,17 +894,26 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     /**
-     * Returns the stream object representing the console output from the virtual machine.
+     * Returns the stream object representing the console output from the virtual machine. The
+     * console output is only available if the {@link VirtualMachineConfig} specifies that it should
+     * be {@linkplain VirtualMachineConfig#isVmOutputCaptured captured}.
+     *
+     * <p>If you turn on output capture, you must consume data from {@code getConsoleOutput} -
+     * because otherwise the code in the VM may get blocked when the pipe buffer fills up.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
-     * @throws VirtualMachineException if the stream could not be created.
+     * @throws VirtualMachineException if the stream could not be created, or capturing is turned
+     *     off.
      * @hide
      */
     @SystemApi
     @WorkerThread
     @NonNull
     public InputStream getConsoleOutput() throws VirtualMachineException {
+        if (!mVmOutputCaptured) {
+            throw new VirtualMachineException("Capturing vm outputs is turned off");
+        }
         synchronized (mLock) {
             createVmPipes();
             return new FileInputStream(mConsoleReader.getFileDescriptor());
@@ -908,17 +921,26 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     /**
-     * Returns the stream object representing the log output from the virtual machine.
+     * Returns the stream object representing the log output from the virtual machine. The log
+     * output is only available if the VirtualMachineConfig specifies that it should be {@linkplain
+     * VirtualMachineConfig#isVmOutputCaptured captured}.
+     *
+     * <p>If you turn on output capture, you must consume data from {@code getLogOutput} - because
+     * otherwise the code in the VM may get blocked when the pipe buffer fills up.
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
-     * @throws VirtualMachineException if the stream could not be created.
+     * @throws VirtualMachineException if the stream could not be created, or capturing is turned
+     *     off.
      * @hide
      */
     @SystemApi
     @WorkerThread
     @NonNull
     public InputStream getLogOutput() throws VirtualMachineException {
+        if (!mVmOutputCaptured) {
+            throw new VirtualMachineException("Capturing vm outputs is turned off");
+        }
         synchronized (mLock) {
             createVmPipes();
             return new FileInputStream(mLogReader.getFileDescriptor());
