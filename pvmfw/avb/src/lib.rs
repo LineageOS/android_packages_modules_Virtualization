@@ -22,4 +22,4 @@ mod error;
 mod verify;
 
 pub use error::AvbSlotVerifyError;
-pub use verify::verify_payload;
+pub use verify::{verify_payload, DebugLevel};

@@ -31,6 +31,15 @@ use core::{
 
 const NULL_BYTE: &[u8] = b"\0";
 
+/// This enum corresponds to the `DebugLevel` in `VirtualMachineConfig`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DebugLevel {
+    /// Not debuggable at all.
+    None,
+    /// Fully debuggable.
+    Full,
+}
+
 extern "C" fn read_is_device_unlocked(
     _ops: *mut AvbOps,
     out_is_unlocked: *mut bool,
@@ -156,38 +165,31 @@ extern "C" fn get_unique_guid_for_partition(
     AvbIOResult::AVB_IO_RESULT_OK
 }
 
-extern "C" fn validate_public_key_for_partition(
+extern "C" fn validate_vbmeta_public_key(
     ops: *mut AvbOps,
-    partition: *const c_char,
     public_key_data: *const u8,
     public_key_length: usize,
     public_key_metadata: *const u8,
     public_key_metadata_length: usize,
     out_is_trusted: *mut bool,
-    out_rollback_index_location: *mut u32,
 ) -> AvbIOResult {
-    to_avb_io_result(try_validate_public_key_for_partition(
+    to_avb_io_result(try_validate_vbmeta_public_key(
         ops,
-        partition,
         public_key_data,
         public_key_length,
         public_key_metadata,
         public_key_metadata_length,
         out_is_trusted,
-        out_rollback_index_location,
     ))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn try_validate_public_key_for_partition(
+fn try_validate_vbmeta_public_key(
     ops: *mut AvbOps,
-    partition: *const c_char,
     public_key_data: *const u8,
     public_key_length: usize,
     _public_key_metadata: *const u8,
     _public_key_metadata_length: usize,
     out_is_trusted: *mut bool,
-    _out_rollback_index_location: *mut u32,
 ) -> Result<(), AvbIOError> {
     is_not_null(public_key_data)?;
     // SAFETY: It is safe to create a slice with the given pointer and length as
@@ -195,8 +197,6 @@ fn try_validate_public_key_for_partition(
     // `public_key_length`.
     let public_key = unsafe { slice::from_raw_parts(public_key_data, public_key_length) };
     let ops = as_ref(ops)?;
-    // Verifies the public key for the known partitions only.
-    ops.as_ref().get_partition(partition)?;
     let trusted_public_key = ops.as_ref().trusted_public_key;
     write(out_is_trusted, public_key == trusted_public_key)
 }
@@ -457,7 +457,7 @@ impl<'a> Payload<'a> {
             read_from_partition: Some(read_from_partition),
             get_preloaded_partition: Some(get_preloaded_partition),
             write_to_partition: None,
-            validate_vbmeta_public_key: None,
+            validate_vbmeta_public_key: Some(validate_vbmeta_public_key),
             read_rollback_index: Some(read_rollback_index),
             write_rollback_index: None,
             read_is_device_unlocked: Some(read_is_device_unlocked),
@@ -465,7 +465,7 @@ impl<'a> Payload<'a> {
             get_size_of_partition: Some(get_size_of_partition),
             read_persistent_value: None,
             write_persistent_value: None,
-            validate_public_key_for_partition: Some(validate_public_key_for_partition),
+            validate_public_key_for_partition: None,
         };
         let ab_suffix = CStr::from_bytes_with_nul(NULL_BYTE).unwrap();
         let mut out_data = MaybeUninit::uninit();
@@ -478,7 +478,7 @@ impl<'a> Payload<'a> {
                 &mut avb_ops,
                 requested_partitions.as_ptr(),
                 ab_suffix.as_ptr(),
-                AvbSlotVerifyFlags::AVB_SLOT_VERIFY_FLAGS_NO_VBMETA_PARTITION,
+                AvbSlotVerifyFlags::AVB_SLOT_VERIFY_FLAGS_NONE,
                 AvbHashtreeErrorMode::AVB_HASHTREE_ERROR_MODE_RESTART_AND_INVALIDATE,
                 out_data.as_mut_ptr(),
             )
@@ -528,7 +528,7 @@ pub fn verify_payload(
     kernel: &[u8],
     initrd: Option<&[u8]>,
     trusted_public_key: &[u8],
-) -> Result<(), AvbSlotVerifyError> {
+) -> Result<DebugLevel, AvbSlotVerifyError> {
     let mut payload = Payload { kernel, initrd, trusted_public_key };
     let kernel_verify_result = payload.verify_partition(PartitionName::Kernel.as_cstr())?;
     let vbmeta_images = kernel_verify_result.vbmeta_images()?;
@@ -540,8 +540,17 @@ pub fn verify_payload(
     verify_vbmeta_is_from_kernel_partition(&vbmeta_image)?;
     if payload.initrd.is_none() {
         verify_vbmeta_has_no_initrd_descriptor(&vbmeta_image)?;
+        return Ok(DebugLevel::None);
     }
     // TODO(b/256148034): Check the vbmeta doesn't have hash descriptors other than
     // boot, initrd_normal, initrd_debug.
-    Ok(())
+
+    let debug_level = if payload.verify_partition(PartitionName::InitrdNormal.as_cstr()).is_ok() {
+        DebugLevel::None
+    } else if payload.verify_partition(PartitionName::InitrdDebug.as_cstr()).is_ok() {
+        DebugLevel::Full
+    } else {
+        return Err(AvbSlotVerifyError::Verification);
+    };
+    Ok(debug_level)
 }

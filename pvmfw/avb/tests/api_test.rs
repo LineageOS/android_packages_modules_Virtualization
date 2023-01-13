@@ -18,7 +18,7 @@ mod utils;
 
 use anyhow::Result;
 use avb_bindgen::{AvbFooter, AvbVBMetaImageHeader};
-use pvmfw_avb::AvbSlotVerifyError;
+use pvmfw_avb::{AvbSlotVerifyError, DebugLevel};
 use std::{fs, mem::size_of, ptr};
 use utils::*;
 
@@ -37,7 +37,7 @@ fn latest_normal_payload_passes_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Ok(()),
+        Ok(DebugLevel::None),
     )
 }
 
@@ -47,7 +47,7 @@ fn latest_debug_payload_passes_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         &load_latest_initrd_debug()?,
         &load_trusted_public_key()?,
-        Ok(()),
+        Ok(DebugLevel::Full),
     )
 }
 
@@ -57,7 +57,7 @@ fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()
         &fs::read(TEST_IMG_WITH_ONE_HASHDESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        Ok(()),
+        Ok(DebugLevel::None),
     )
 }
 
@@ -67,7 +67,7 @@ fn payload_with_non_initrd_descriptor_passes_verification_with_no_initrd() -> Re
         &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        Ok(()),
+        Ok(DebugLevel::None),
     )
 }
 
@@ -118,6 +118,16 @@ fn payload_with_a_different_valid_public_key_fails_verification() -> Result<()> 
         &load_latest_initrd_normal()?,
         &fs::read(PUBLIC_KEY_RSA2048_PATH)?,
         Err(AvbSlotVerifyError::PublicKeyRejected),
+    )
+}
+
+#[test]
+fn payload_with_an_invalid_initrd_fails_verification() -> Result<()> {
+    assert_payload_verification_with_initrd_eq(
+        &load_latest_signed_kernel()?,
+        /*initrd=*/ &fs::read(UNSIGNED_TEST_IMG_PATH)?,
+        &load_trusted_public_key()?,
+        Err(AvbSlotVerifyError::Verification),
     )
 }
 
