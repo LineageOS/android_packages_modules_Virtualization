@@ -13,12 +13,12 @@
 // limitations under the License.
 
 package {
-    default_applicable_licenses: ["microdroid_kernel_prebuilts_5.15_x86_64_license"],
+    default_applicable_licenses: ["microdroid_kernel_prebuilts_6.1_x86_64_license"],
 }
 
 // See: http://go/android-license-faq
 license {
-    name: "microdroid_kernel_prebuilts_5.15_x86_64_license",
+    name: "microdroid_kernel_prebuilts_6.1_x86_64_license",
     visibility: [":__subpackages__"],
     license_kinds: [
         "SPDX-license-identifier-GPL-2.0-only",
@@ -27,6 +27,6 @@ license {
 }
 
 filegroup {
-    name: "microdroid_kernel_prebuilts-5.15-x86_64",
-    srcs: ["kernel-5.15"],
+    name: "microdroid_kernel_prebuilts-6.1-x86_64",
+    srcs: ["kernel-6.1"],
 }

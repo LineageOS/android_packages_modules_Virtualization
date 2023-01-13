@@ -10,7 +10,7 @@ turned off to make the kernel fast & slim.
 ### Checkout the GKI source code.
 
 ```bash
-repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-5.15
+repo init -u https://android.googlesource.com/kernel/manifest -b common-android14-6.1
 repo sync
 ```
 
@@ -55,12 +55,12 @@ Copy the built kernel image to the Android source tree directly, and build the v
 
 For ARM64,
 ```bash
-cp out/dist/Image <android_checkout>/packages/modules/Virtualization/microdroid/kernel/arm64/kernel-5.15
+cp out/dist/Image <android_checkout>/packages/modules/Virtualization/microdroid/kernel/arm64/kernel-6.1
 ```
 
 For x86\_64,
 ```bash
-cp out/dist/bzImage <android_checkout>/packages/modules/Virtualization/microdroid/kernel/x86_64/kernel-5.15
+cp out/dist/bzImage <android_checkout>/packages/modules/Virtualization/microdroid/kernel/x86_64/kernel-6.1
 ```
 
 ### For official updates
