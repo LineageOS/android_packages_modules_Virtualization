@@ -22,6 +22,7 @@ extern crate alloc;
 
 mod avb;
 mod config;
+mod debug_policy;
 mod dice;
 mod entry;
 mod exceptions;
