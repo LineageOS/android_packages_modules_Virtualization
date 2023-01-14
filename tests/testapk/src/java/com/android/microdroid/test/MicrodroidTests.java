@@ -50,6 +50,7 @@ import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.ITestService;
 
+import com.google.common.base.Strings;
 import com.google.common.truth.BooleanSubject;
 
 import org.junit.After;
@@ -76,6 +77,8 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.OptionalLong;
@@ -1260,7 +1263,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    public void outputsShouldBeExplicitlyForwarded() throws Exception {
+    public void outputShouldBeExplicitlyCaptured() throws Exception {
         assumeSupportedKernel();
 
         final VirtualMachineConfig vmConfig =
@@ -1280,6 +1283,57 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         } finally {
             vm.stop();
         }
+    }
+
+    private boolean checkVmOutputIsRedirectedToLogcat(boolean debuggable) throws Exception {
+        String time =
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
+        final VirtualMachineConfig vmConfig =
+                new VirtualMachineConfig.Builder(ApplicationProvider.getApplicationContext())
+                        .setProtectedVm(mProtectedVm)
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(debuggable ? DEBUG_LEVEL_FULL : DEBUG_LEVEL_NONE)
+                        .setVmOutputCaptured(false)
+                        .build();
+        final VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_logcat", vmConfig);
+
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadStarted(VirtualMachine vm) {
+                        forceStop(vm);
+                    }
+                };
+        listener.runToFinish(TAG, vm);
+
+        // only check logs printed after this test
+        Process logcatProcess =
+                new ProcessBuilder()
+                        .command(
+                                "logcat",
+                                "-e",
+                                "virtualizationservice::aidl: Console.*executing main task",
+                                "-t",
+                                time)
+                        .start();
+        logcatProcess.waitFor();
+        BufferedReader reader =
+                new BufferedReader(new InputStreamReader(logcatProcess.getInputStream()));
+        return !Strings.isNullOrEmpty(reader.readLine());
+    }
+
+    @Test
+    public void outputIsRedirectedToLogcatIfNotCaptured() throws Exception {
+        assumeSupportedKernel();
+
+        assertThat(checkVmOutputIsRedirectedToLogcat(true)).isTrue();
+    }
+
+    @Test
+    public void outputIsNotRedirectedToLogcatIfNotDebuggable() throws Exception {
+        assumeSupportedKernel();
+
+        assertThat(checkVmOutputIsRedirectedToLogcat(false)).isFalse();
     }
 
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
