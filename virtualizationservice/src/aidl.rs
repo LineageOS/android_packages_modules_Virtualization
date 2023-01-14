@@ -35,7 +35,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
     PartitionType::PartitionType,
-    VirtualMachineAppConfig::{Payload::Payload, VirtualMachineAppConfig},
+    VirtualMachineAppConfig::{DebugLevel::DebugLevel, Payload::Payload, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
     VirtualMachineDebugInfo::VirtualMachineDebugInfo,
     VirtualMachinePayloadConfig::VirtualMachinePayloadConfig,
@@ -63,6 +63,7 @@ use lazy_static::lazy_static;
 use libc::VMADDR_CID_HOST;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
+use nix::unistd::pipe;
 use rpcbinder::RpcServer;
 use rustutils::system_properties;
 use semver::VersionReq;
@@ -70,7 +71,7 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fs::{create_dir, read_dir, remove_dir, remove_file, set_permissions, File, OpenOptions, Permissions};
-use std::io::{Error, ErrorKind, Read, Write};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Write};
 use std::num::NonZeroU32;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -624,8 +625,9 @@ impl VirtualizationService {
         }
 
         let state = &mut *self.state.lock().unwrap();
-        let console_fd = console_fd.map(clone_file).transpose()?;
-        let log_fd = log_fd.map(clone_file).transpose()?;
+        let console_fd =
+            clone_or_prepare_logger_fd(config, console_fd, format!("Console({})", cid))?;
+        let log_fd = clone_or_prepare_logger_fd(config, log_fd, format!("Log({})", cid))?;
 
         // Counter to generate unique IDs for temporary image files.
         let mut next_temporary_image_id = 0;
@@ -1262,6 +1264,57 @@ fn parse_platform_version_req(s: &str) -> Result<VersionReq, Status> {
             Some(format!("Invalid platform version requirement {}: {:?}", s, e)),
         )
     })
+}
+
+fn is_debuggable(config: &VirtualMachineConfig) -> bool {
+    match config {
+        VirtualMachineConfig::AppConfig(config) => config.debugLevel != DebugLevel::NONE,
+        _ => false,
+    }
+}
+
+fn clone_or_prepare_logger_fd(
+    config: &VirtualMachineConfig,
+    fd: Option<&ParcelFileDescriptor>,
+    tag: String,
+) -> Result<Option<File>, Status> {
+    if let Some(fd) = fd {
+        return Ok(Some(clone_file(fd)?));
+    }
+
+    if !is_debuggable(config) {
+        return Ok(None);
+    }
+
+    let (raw_read_fd, raw_write_fd) = pipe().map_err(|e| {
+        Status::new_service_specific_error_str(-1, Some(format!("Failed to create pipe: {:?}", e)))
+    })?;
+
+    // SAFETY: We are the sole owners of these fds as they were just created.
+    let mut reader = BufReader::new(unsafe { File::from_raw_fd(raw_read_fd) });
+    let write_fd = unsafe { File::from_raw_fd(raw_write_fd) };
+
+    std::thread::spawn(move || loop {
+        let mut buf = vec![];
+        match reader.read_until(b'\n', &mut buf) {
+            Ok(0) => {
+                // EOF
+                return;
+            }
+            Ok(size) => {
+                if buf[size - 1] == b'\n' {
+                    buf.pop();
+                }
+                info!("{}: {}", &tag, &String::from_utf8_lossy(&buf));
+            }
+            Err(e) => {
+                error!("Could not read console pipe: {:?}", e);
+                return;
+            }
+        };
+    });
+
+    Ok(Some(write_fd))
 }
 
 /// Simple utility for referencing Borrowed or Owned. Similar to std::borrow::Cow, but
