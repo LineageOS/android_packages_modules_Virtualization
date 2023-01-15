@@ -186,13 +186,16 @@ public final class ComposTestCase extends MicrodroidHostTestCaseBase {
                 new FileInputStreamSource(bcc_file));
 
         // Find the validator binary - note that it's specified as a dependency in our Android.bp.
-        File validator = getTestInformation().getDependencyFile("bcc_validator", /*targetFirst=*/
-                false);
+        File validator = getTestInformation().getDependencyFile("hwtrust", /*targetFirst=*/ false);
 
-        CommandResult result = new RunUtil().runTimedCmd(10000,
-                validator.getAbsolutePath(), "verify-chain", bcc_file.getAbsolutePath());
-        assertWithMessage("bcc_validator failed").about(command_results())
-                .that(result).isSuccess();
+        CommandResult result =
+                new RunUtil()
+                        .runTimedCmd(
+                                10000,
+                                validator.getAbsolutePath(),
+                                "verify-dice-chain",
+                                bcc_file.getAbsolutePath());
+        assertWithMessage("hwtrust failed").about(command_results()).that(result).isSuccess();
     }
 
     private CommandResult runOdrefresh(CommandRunner android, String command) throws Exception {
