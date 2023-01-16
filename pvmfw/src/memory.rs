@@ -14,16 +14,23 @@
 
 //! Low-level allocation and tracking of main memory.
 
-use crate::helpers::{self, align_down, page_4kb_of, SIZE_4KB};
+#![deny(unsafe_op_in_unsafe_fn)]
+
+use crate::helpers::{self, align_down, align_up, page_4kb_of, SIZE_4KB};
 use crate::hvc::{hyp_meminfo, mem_share, mem_unshare};
 use crate::mmio_guard;
 use crate::mmu;
 use crate::smccc;
+use alloc::alloc::alloc_zeroed;
+use alloc::alloc::dealloc;
+use alloc::alloc::handle_alloc_error;
+use core::alloc::Layout;
 use core::cmp::max;
 use core::cmp::min;
 use core::fmt;
 use core::num::NonZeroUsize;
 use core::ops::Range;
+use core::ptr::NonNull;
 use core::result;
 use log::error;
 use tinyvec::ArrayVec;
@@ -272,9 +279,7 @@ impl Drop for MemoryTracker {
 /// Gives the KVM host read, write and execute permissions on the given memory range. If the range
 /// is not aligned with the memory protection granule then it will be extended on either end to
 /// align.
-#[allow(unused)]
-pub fn share_range(range: &MemoryRange) -> smccc::Result<()> {
-    let granule = hyp_meminfo()? as usize;
+fn share_range(range: &MemoryRange, granule: usize) -> smccc::Result<()> {
     for base in (align_down(range.start, granule)
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
@@ -287,9 +292,7 @@ pub fn share_range(range: &MemoryRange) -> smccc::Result<()> {
 /// Removes permission from the KVM host to access the given memory range which was previously
 /// shared. If the range is not aligned with the memory protection granule then it will be extended
 /// on either end to align.
-#[allow(unused)]
-pub fn unshare_range(range: &MemoryRange) -> smccc::Result<()> {
-    let granule = hyp_meminfo()? as usize;
+fn unshare_range(range: &MemoryRange, granule: usize) -> smccc::Result<()> {
     for base in (align_down(range.start, granule)
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
@@ -299,7 +302,78 @@ pub fn unshare_range(range: &MemoryRange) -> smccc::Result<()> {
     Ok(())
 }
 
+/// Allocates a memory range of at least the given size from the global allocator, and shares it
+/// with the host. Returns a pointer to the buffer.
+///
+/// It will be aligned to the memory sharing granule size supported by the hypervisor.
+pub fn alloc_shared(size: usize) -> smccc::Result<NonNull<u8>> {
+    let layout = shared_buffer_layout(size)?;
+    let granule = layout.align();
+
+    // Safe because `shared_buffer_layout` panics if the size is 0, so the layout must have a
+    // non-zero size.
+    let buffer = unsafe { alloc_zeroed(layout) };
+
+    // TODO: Use let-else once we have Rust 1.65 in AOSP.
+    let buffer = if let Some(buffer) = NonNull::new(buffer) {
+        buffer
+    } else {
+        handle_alloc_error(layout);
+    };
+
+    let vaddr = buffer.as_ptr() as usize;
+    let paddr = virt_to_phys(vaddr);
+    // If share_range fails then we will leak the allocation, but that seems better than having it
+    // be reused while maybe still partially shared with the host.
+    share_range(&(paddr..paddr + layout.size()), granule)?;
+
+    Ok(buffer)
+}
+
+/// Unshares and deallocates a memory range which was previously allocated by `alloc_shared`.
+///
+/// The size passed in must be the size passed to the original `alloc_shared` call.
+///
+/// # Safety
+///
+/// The memory must have been allocated by `alloc_shared` with the same size, and not yet
+/// deallocated.
+pub unsafe fn dealloc_shared(vaddr: usize, size: usize) -> smccc::Result<()> {
+    let layout = shared_buffer_layout(size)?;
+    let granule = layout.align();
+
+    let paddr = virt_to_phys(vaddr);
+    unshare_range(&(paddr..paddr + layout.size()), granule)?;
+    // Safe because the memory was allocated by `alloc_shared` above using the same allocator, and
+    // the layout is the same as was used then.
+    unsafe { dealloc(vaddr as *mut u8, layout) };
+
+    Ok(())
+}
+
+/// Returns the layout to use for allocating a buffer of at least the given size shared with the
+/// host.
+///
+/// It will be aligned to the memory sharing granule size supported by the hypervisor.
+///
+/// Panics if `size` is 0.
+fn shared_buffer_layout(size: usize) -> smccc::Result<Layout> {
+    assert_ne!(size, 0);
+    let granule = hyp_meminfo()? as usize;
+    let allocated_size =
+        align_up(size, granule).expect("Memory protection granule was not a power of two");
+    Ok(Layout::from_size_align(allocated_size, granule).unwrap())
+}
+
 /// Returns an iterator which yields the base address of each 4 KiB page within the given range.
 fn page_iterator(range: &MemoryRange) -> impl Iterator<Item = usize> {
     (page_4kb_of(range.start)..range.end).step_by(SIZE_4KB)
+}
+
+/// Returns the intermediate physical address corresponding to the given virtual address.
+///
+/// As we use identity mapping for everything, this is just the identity function, but it's useful
+/// to use it to be explicit about where we are converting from virtual to physical address.
+pub fn virt_to_phys(vaddr: usize) -> usize {
+    vaddr
 }

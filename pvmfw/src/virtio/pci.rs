@@ -14,10 +14,17 @@
 
 //! Functions to scan the PCI bus for VirtIO devices.
 
+use super::hal::HalImpl;
 use crate::{entry::RebootReason, memory::MemoryTracker};
 use fdtpci::{PciError, PciInfo};
-use log::{debug, error};
-use virtio_drivers::transport::pci::{bus::PciRoot, virtio_device_type};
+use log::{debug, error, info};
+use virtio_drivers::{
+    device::blk::VirtIOBlk,
+    transport::{
+        pci::{bus::PciRoot, virtio_device_type, PciTransport},
+        DeviceType, Transport,
+    },
+};
 
 /// Maps the CAM and BAR range in the page table and MMIO guard.
 pub fn map_mmio(pci_info: &PciInfo, memory: &mut MemoryTracker) -> Result<(), RebootReason> {
@@ -46,6 +53,19 @@ pub fn find_virtio_devices(pci_root: &mut PciRoot) -> Result<(), PciError> {
         );
         if let Some(virtio_type) = virtio_device_type(&info) {
             debug!("  VirtIO {:?}", virtio_type);
+            let mut transport = PciTransport::new::<HalImpl>(pci_root, device_function).unwrap();
+            info!(
+                "Detected virtio PCI device with device type {:?}, features {:#018x}",
+                transport.device_type(),
+                transport.read_device_features(),
+            );
+            if virtio_type == DeviceType::Block {
+                let mut blk =
+                    VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
+                info!("Found {} KiB block device.", blk.capacity() * 512 / 1024);
+                let mut data = [0; 512];
+                blk.read_block(0, &mut data).expect("Failed to read block device");
+            }
         }
     }
 

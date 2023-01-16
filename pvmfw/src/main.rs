@@ -33,8 +33,8 @@ mod hvc;
 mod memory;
 mod mmio_guard;
 mod mmu;
-mod pci;
 mod smccc;
+mod virtio;
 
 use alloc::boxed::Box;
 
@@ -46,7 +46,7 @@ use crate::{
     helpers::flush,
     helpers::GUEST_PAGE_SIZE,
     memory::MemoryTracker,
-    pci::{find_virtio_devices, map_mmio},
+    virtio::pci::{find_virtio_devices, map_mmio},
 };
 use ::dice::bcc;
 use fdtpci::{PciError, PciInfo};
