@@ -29,6 +29,8 @@ const MICRODROID_KERNEL_IMG_PATH: &str = "microdroid_kernel";
 const INITRD_NORMAL_IMG_PATH: &str = "microdroid_initrd_normal.img";
 const INITRD_DEBUG_IMG_PATH: &str = "microdroid_initrd_debuggable.img";
 const TEST_IMG_WITH_ONE_HASHDESC_PATH: &str = "test_image_with_one_hashdesc.img";
+const TEST_IMG_WITH_PROP_DESC_PATH: &str = "test_image_with_prop_desc.img";
+const TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH: &str = "test_image_with_non_initrd_hashdesc.img";
 const UNSIGNED_TEST_IMG_PATH: &str = "unsigned_test.img";
 
 const PUBLIC_KEY_RSA2048_PATH: &str = "data/testkey_rsa2048_pub.bin";
@@ -57,15 +59,39 @@ fn latest_debug_payload_passes_verification() -> Result<()> {
 
 #[test]
 fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()> {
-    let kernel = fs::read(TEST_IMG_WITH_ONE_HASHDESC_PATH)?;
-    let public_key = load_trusted_public_key()?;
-
-    assert_eq!(Ok(()), verify_payload(&kernel, None, &public_key));
-    Ok(())
+    assert_payload_verification_with_no_initrd_eq(
+        &fs::read(TEST_IMG_WITH_ONE_HASHDESC_PATH)?,
+        &load_trusted_public_key()?,
+        Ok(()),
+    )
 }
 
-// TODO(b/256148034): Test that kernel with two hashdesc and no initrd fails verification.
-// e.g. payload_expecting_initrd_fails_verification_with_no_initrd
+#[test]
+fn payload_with_non_initrd_descriptor_passes_verification_with_no_initrd() -> Result<()> {
+    assert_payload_verification_with_no_initrd_eq(
+        &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
+        &load_trusted_public_key()?,
+        Ok(()),
+    )
+}
+
+#[test]
+fn payload_with_prop_descriptor_fails_verification_with_no_initrd() -> Result<()> {
+    assert_payload_verification_with_no_initrd_eq(
+        &fs::read(TEST_IMG_WITH_PROP_DESC_PATH)?,
+        &load_trusted_public_key()?,
+        Err(AvbSlotVerifyError::InvalidMetadata),
+    )
+}
+
+#[test]
+fn payload_expecting_initrd_fails_verification_with_no_initrd() -> Result<()> {
+    assert_payload_verification_with_no_initrd_eq(
+        &load_latest_signed_kernel()?,
+        &load_trusted_public_key()?,
+        Err(AvbSlotVerifyError::InvalidMetadata),
+    )
+}
 
 #[test]
 fn payload_with_empty_public_key_fails_verification() -> Result<()> {
@@ -206,6 +232,15 @@ fn extract_vbmeta_header(kernel: &[u8], footer: &AvbFooter) -> Result<AvbVBMetaI
         header.assume_init()
     };
     Ok(vbmeta_header)
+}
+
+fn assert_payload_verification_with_no_initrd_eq(
+    kernel: &[u8],
+    trusted_public_key: &[u8],
+    expected_result: Result<(), AvbSlotVerifyError>,
+) -> Result<()> {
+    assert_eq!(expected_result, verify_payload(kernel, /*initrd=*/ None, trusted_public_key));
+    Ok(())
 }
 
 fn assert_payload_verification_fails(
