@@ -464,8 +464,6 @@ impl<'a> AsRef<Payload<'a>> for AvbOps {
 }
 
 impl<'a> Payload<'a> {
-    const MAX_NUM_OF_HASH_DESCRIPTORS: usize = 3;
-
     fn get_partition(&self, partition_name: *const c_char) -> Result<&[u8], AvbIOError> {
         is_not_null(partition_name)?;
         // SAFETY: It is safe as the raw pointer `partition_name` is a nonnull pointer.
@@ -478,19 +476,11 @@ impl<'a> Payload<'a> {
         }
     }
 
-    fn verify_partitions(
+    fn verify_partition(
         &mut self,
-        partition_names: &[&CStr],
+        partition_name: &CStr,
     ) -> Result<AvbSlotVerifyDataWrap, AvbSlotVerifyError> {
-        if partition_names.len() > Self::MAX_NUM_OF_HASH_DESCRIPTORS {
-            return Err(AvbSlotVerifyError::InvalidArgument);
-        }
-        let mut requested_partitions = [ptr::null(); Self::MAX_NUM_OF_HASH_DESCRIPTORS + 1];
-        partition_names
-            .iter()
-            .enumerate()
-            .for_each(|(i, name)| requested_partitions[i] = name.as_ptr());
-
+        let requested_partitions = [partition_name.as_ptr(), ptr::null()];
         let mut avb_ops = AvbOps {
             user_data: self as *mut _ as *mut c_void,
             ab_ops: ptr::null_mut(),
@@ -562,7 +552,7 @@ pub fn verify_payload(
     trusted_public_key: &[u8],
 ) -> Result<(), AvbSlotVerifyError> {
     let mut payload = Payload { kernel, initrd, trusted_public_key };
-    let kernel_verify_result = payload.verify_partitions(&[PartitionName::Kernel.as_cstr()])?;
+    let kernel_verify_result = payload.verify_partition(PartitionName::Kernel.as_cstr())?;
     let vbmeta_images = kernel_verify_result.vbmeta_images()?;
     if vbmeta_images.len() != 1 {
         // There can only be one VBMeta, from the 'boot' partition.
