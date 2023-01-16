@@ -23,7 +23,10 @@ use once_cell::race::OnceBox;
 use virtio_drivers::{
     device::blk::VirtIOBlk,
     transport::{
-        pci::{bus::PciRoot, virtio_device_type, PciTransport},
+        pci::{
+            bus::{BusDeviceIterator, PciRoot},
+            virtio_device_type, PciTransport,
+        },
         DeviceType, Transport,
     },
 };
@@ -66,30 +69,58 @@ fn map_mmio(pci_info: &PciInfo, memory: &mut MemoryTracker) -> Result<(), Reboot
     Ok(())
 }
 
-/// Finds VirtIO PCI devices.
-pub fn find_virtio_devices(pci_root: &mut PciRoot) -> Result<(), PciError> {
-    for (device_function, info) in pci_root.enumerate_bus(0) {
-        let (status, command) = pci_root.get_status_command(device_function);
-        debug!(
-            "Found PCI device {} at {}, status {:?} command {:?}",
-            info, device_function, status, command
-        );
-        if let Some(virtio_type) = virtio_device_type(&info) {
+struct VirtIOBlkIterator<'a> {
+    pci_root: &'a mut PciRoot,
+    bus: BusDeviceIterator,
+}
+
+impl<'a> VirtIOBlkIterator<'a> {
+    pub fn new(pci_root: &'a mut PciRoot) -> Self {
+        let bus = pci_root.enumerate_bus(0);
+        Self { pci_root, bus }
+    }
+}
+
+impl<'a> Iterator for VirtIOBlkIterator<'a> {
+    type Item = VirtIOBlk<HalImpl, PciTransport>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let (device_function, info) = self.bus.next()?;
+            let (status, command) = self.pci_root.get_status_command(device_function);
+            debug!(
+                "Found PCI device {} at {}, status {:?} command {:?}",
+                info, device_function, status, command
+            );
+
+            let virtio_type = if let Some(t) = virtio_device_type(&info) {
+                t
+            } else {
+                continue;
+            };
             debug!("  VirtIO {:?}", virtio_type);
-            let mut transport = PciTransport::new::<HalImpl>(pci_root, device_function).unwrap();
-            info!(
+
+            let mut transport =
+                PciTransport::new::<HalImpl>(self.pci_root, device_function).unwrap();
+            debug!(
                 "Detected virtio PCI device with device type {:?}, features {:#018x}",
                 transport.device_type(),
                 transport.read_device_features(),
             );
+
             if virtio_type == DeviceType::Block {
-                let mut blk =
-                    VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
-                info!("Found {} KiB block device.", blk.capacity() * 512 / 1024);
-                let mut data = [0; 512];
-                blk.read_block(0, &mut data).expect("Failed to read block device");
+                return Some(Self::Item::new(transport).expect("failed to create blk driver"));
             }
         }
+    }
+}
+
+/// Finds VirtIO PCI devices.
+pub fn find_virtio_devices(pci_root: &mut PciRoot) -> Result<(), PciError> {
+    for mut blk in VirtIOBlkIterator::new(pci_root) {
+        info!("Found {} KiB block device.", blk.capacity() * 512 / 1024);
+        let mut data = [0; 512];
+        blk.read_block(0, &mut data).expect("Failed to read block device");
     }
 
     Ok(())
