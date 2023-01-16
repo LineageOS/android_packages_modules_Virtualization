@@ -2,13 +2,14 @@
 
 This directory contains the definition of the VM Payload API. This is a native
 API, exposed as a set of C functions, available to payload code running inside a
-[Microdroid](../microdroid/README.md) VM.
+[Microdroid](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/microdroid/README.md)
+VM.
 
 Note that only native code is supported in Microdroid, so no Java APIs are
 available in the VM, and only 64 bit code is supported.
 
 To create a VM and run the payload from Android, see
-[android.system.virtualmachine.VirtualMachineManager](../javalib/src/android/system/virtualmachine/VirtualMachineManager.java).
+[android.system.virtualmachine.VirtualMachineManager](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/javalib/src/android/system/virtualmachine/VirtualMachineManager.java).
 
 ## Entry point
 
@@ -16,7 +17,7 @@ The payload should be packaged as one (or more) .so files inside the app's APK -
 under the `lib/<ABI>` directory, like other JNI code.
 
 The primary .so, which is specified as part of the VM configuration via
-[VirtualMachineConfig.Builder#setPayloadBinaryPath](../javalib/src/android/system/virtualmachine/VirtualMachineConfig.java),
+[VirtualMachineConfig.Builder#setPayloadBinaryPath](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/javalib/src/android/system/virtualmachine/VirtualMachineConfig.java),
 must define the entry point for the payload.
 
 This entry point is a C function called `AVmPayload_main()`, as declared in
@@ -34,11 +35,12 @@ In the Android build system, the payload binary should be built with
 against a stub `libvm_payload.so`, where the dependencies will be satisfied at
 runtime from the real `libvm_payload.so` hosted within the Microdroid VM.
 
-See `MicrodroidTestNativeLib` in the [test APK](../tests/testapk/Android.bp) for
-an example.
+See `MicrodroidTestNativeLib` in the [test
+APK](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/tests/testapk/Android.bp)
+for an example.
 
 In other build systems a similar stub `libvm_payload.so` can be built using
-[stub.c](stub/stub.c).
+[stub.c](stub/stub.c) and the [linker script](libvm_payload.map.txt).
 
 ## Available NDK APIs
 
