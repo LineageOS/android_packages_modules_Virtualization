@@ -25,6 +25,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use anyhow::{anyhow, bail, Context, Error};
 use binder::ParcelFileDescriptor;
+use glob::glob;
 use microdroid_payload_config::VmPayloadConfig;
 use rand::{distributions::Alphanumeric, Rng};
 use std::fs;
@@ -32,7 +33,6 @@ use std::fs::File;
 use std::io;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use vmclient::{ErrorCode, VmInstance};
 use vmconfig::{open_parcel_file, VmConfig};
 use zip::ZipArchive;
@@ -147,18 +147,16 @@ pub fn command_run_app(
     run(service, &config, &payload_config_str, console_path, log_path)
 }
 
-const EMPTY_PAYLOAD_APK: &str = "com.android.microdroid.empty_payload";
-
 fn find_empty_payload_apk_path() -> Result<PathBuf, Error> {
-    let output = Command::new("/system/bin/pm")
-        .arg("path")
-        .arg(EMPTY_PAYLOAD_APK)
-        .output()
-        .context("failed to execute pm path")?;
-    let output_str = String::from_utf8(output.stdout).context("failed to parse output")?;
-    match output_str.strip_prefix("package:") {
-        None => Err(anyhow!("Unexpected output {}", output_str)),
-        Some(apk_path) => Ok(PathBuf::from(apk_path.trim())),
+    const GLOB_PATTERN: &str = "/apex/com.android.virt/app/**/EmptyPayloadApp.apk";
+    let mut entries: Vec<PathBuf> =
+        glob(GLOB_PATTERN).context("failed to glob")?.filter_map(|e| e.ok()).collect();
+    if entries.len() > 1 {
+        return Err(anyhow!("Found more than one apk matching {}", GLOB_PATTERN));
+    }
+    match entries.pop() {
+        Some(path) => Ok(path),
+        None => Err(anyhow!("No apks match {}", GLOB_PATTERN)),
     }
 }
 
@@ -187,9 +185,8 @@ pub fn command_run_microdroid(
     cpus: Option<u32>,
     task_profiles: Vec<String>,
 ) -> Result<(), Error> {
-    let apk = find_empty_payload_apk_path()
-        .context(anyhow!("failed to find path for {} apk", EMPTY_PAYLOAD_APK))?;
-    println!("found path for {} apk: {}", EMPTY_PAYLOAD_APK, apk.display());
+    let apk = find_empty_payload_apk_path()?;
+    println!("found path {}", apk.display());
 
     let work_dir = work_dir.unwrap_or(create_work_dir()?);
     let idsig = work_dir.join("apk.idsig");
