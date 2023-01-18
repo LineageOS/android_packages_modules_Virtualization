@@ -135,7 +135,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
 
-        TestResults testResults = runVmTestService(vm);
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mAddInteger = ts.addInteger(123, 456);
+                            tr.mAppRunProp = ts.readProperty("debug.microdroid.app.run");
+                            tr.mSublibRunProp = ts.readProperty("debug.microdroid.app.sublib.run");
+                            tr.mApkContentsPath = ts.getApkContentsPath();
+                            tr.mEncryptedStoragePath = ts.getEncryptedStoragePath();
+                        });
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mAddInteger).isEqualTo(123 + 456);
         assertThat(testResults.mAppRunProp).isEqualTo("true");
@@ -160,8 +169,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
 
-        TestResults testResults = runVmTestService(vm);
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mAddInteger = ts.addInteger(37, 73);
+                        });
         assertThat(testResults.mException).isNull();
+        assertThat(testResults.mAddInteger).isEqualTo(37 + 73);
     }
 
     @Test
@@ -593,7 +608,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachine vm =
                 forceCreateNewVirtualMachine("test_vm_config_requires_permission", config);
 
-        SecurityException e = assertThrows(SecurityException.class, () -> runVmTestService(vm));
+        SecurityException e =
+                assertThrows(SecurityException.class, () -> runVmTestService(vm, (ts, tr) -> {}));
         assertThat(e).hasMessageThat()
                 .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
     }
@@ -642,8 +658,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_explicit_apk_path", config);
 
-        TestResults testResults = runVmTestService(vm);
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mApkContentsPath = ts.getApkContentsPath();
+                        });
         assertThat(testResults.mException).isNull();
+        assertThat(testResults.mApkContentsPath).isEqualTo("/mnt/apk");
     }
 
     @Test
@@ -671,7 +693,13 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_extra_apk", config);
 
-        TestResults testResults = runVmTestService(vm);
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mExtraApkTestProp =
+                                    ts.readProperty("debug.microdroid.test.extra_apk");
+                        });
         assertThat(testResults.mExtraApkTestProp).isEqualTo("PASS");
     }
 
@@ -1145,13 +1173,21 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 newVmConfigBuilder()
                         .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_FULL);
-        if (encryptedStoreEnabled) builder = builder.setEncryptedStorageKib(4096);
+        if (encryptedStoreEnabled) {
+            builder.setEncryptedStorageKib(4096);
+        }
         VirtualMachineConfig config = builder.build();
         String vmNameOrig = "test_vm_orig";
         String vmNameImport = "test_vm_import";
         VirtualMachine vmOrig = forceCreateNewVirtualMachine(vmNameOrig, config);
         // Run something to make the instance.img different with the initialized one.
-        TestResults origTestResults = runVmTestService(vmOrig);
+        TestResults origTestResults =
+                runVmTestService(
+                        vmOrig,
+                        (ts, tr) -> {
+                            tr.mAddInteger = ts.addInteger(123, 456);
+                            tr.mEncryptedStoragePath = ts.getEncryptedStoragePath();
+                        });
         assertThat(origTestResults.mException).isNull();
         assertThat(origTestResults.mAddInteger).isEqualTo(123 + 456);
         VirtualMachineDescriptor descriptor = vmOrig.toDescriptor();
@@ -1172,7 +1208,13 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(vmImport).isNotEqualTo(vmOrig);
         vmm.delete(vmNameOrig);
         assertThat(vmImport).isEqualTo(vmm.get(vmNameImport));
-        TestResults testResults = runVmTestService(vmImport);
+        TestResults testResults =
+                runVmTestService(
+                        vmImport,
+                        (ts, tr) -> {
+                            tr.mAddInteger = ts.addInteger(123, 456);
+                            tr.mEncryptedStoragePath = ts.getEncryptedStoragePath();
+                        });
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mAddInteger).isEqualTo(123 + 456);
         return testResults;
@@ -1192,7 +1234,12 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
 
-        TestResults testResults = runVmTestService(vm);
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mEncryptedStoragePath = ts.getEncryptedStoragePath();
+                        });
         assertThat(testResults.mEncryptedStoragePath).isEqualTo("/mnt/encryptedstore");
     }
 
@@ -1209,7 +1256,12 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
         final VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_caps", vmConfig);
 
-        final TestResults testResults = runVmTestService(vm);
+        final TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mEffectiveCapabilities = ts.getEffectiveCapabilities();
+                        });
 
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mEffectiveCapabilities).isEmpty();
@@ -1228,12 +1280,24 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_a", config);
-        TestResults testResults = runVmTestService(vm, EncryptedStoreOperation.WRITE);
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            ts.writeToFile(
+                                    /* content= */ EXAMPLE_STRING,
+                                    /* path= */ "/mnt/encryptedstore/test_file");
+                        });
         assertThat(testResults.mException).isNull();
 
         // Re-run the same VM & verify the file persisted. Note, the previous `runVmTestService`
         // stopped the VM
-        testResults = runVmTestService(vm, EncryptedStoreOperation.READ);
+        testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            tr.mFileContent = ts.readFromFile("/mnt/encryptedstore/test_file");
+                        });
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mFileContent).isEqualTo(EXAMPLE_STRING);
     }
@@ -1392,67 +1456,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         String mEncryptedStoragePath;
         String[] mEffectiveCapabilities;
         String mFileContent;
-    }
-
-    private TestResults runVmTestService(VirtualMachine vm) throws Exception {
-        return runVmTestService(vm, EncryptedStoreOperation.NONE);
-    }
-
-    private TestResults runVmTestService(VirtualMachine vm, EncryptedStoreOperation mode)
-            throws Exception {
-        CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
-        TestResults testResults = new TestResults();
-        VmEventListener listener =
-                new VmEventListener() {
-                    private void testVMService(VirtualMachine vm) {
-                        try {
-                            ITestService testService =
-                                    ITestService.Stub.asInterface(
-                                            vm.connectToVsockServer(ITestService.SERVICE_PORT));
-                            testResults.mAddInteger = testService.addInteger(123, 456);
-                            testResults.mAppRunProp =
-                                    testService.readProperty("debug.microdroid.app.run");
-                            testResults.mSublibRunProp =
-                                    testService.readProperty("debug.microdroid.app.sublib.run");
-                            testResults.mExtraApkTestProp =
-                                    testService.readProperty("debug.microdroid.test.extra_apk");
-                            testResults.mApkContentsPath = testService.getApkContentsPath();
-                            testResults.mEncryptedStoragePath =
-                                    testService.getEncryptedStoragePath();
-                            testResults.mEffectiveCapabilities =
-                                    testService.getEffectiveCapabilities();
-                            if (mode == EncryptedStoreOperation.WRITE) {
-                                testService.writeToFile(
-                                        /*content*/ EXAMPLE_STRING,
-                                        /*path*/ "/mnt/encryptedstore/test_file");
-                            } else if (mode == EncryptedStoreOperation.READ) {
-                                testResults.mFileContent =
-                                        testService.readFromFile("/mnt/encryptedstore/test_file");
-                            }
-                        } catch (Exception e) {
-                            testResults.mException = e;
-                        }
-                    }
-
-                    @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        Log.i(TAG, "onPayloadReady");
-                        payloadReady.complete(true);
-                        testVMService(vm);
-                        forceStop(vm);
-                    }
-
-                    @Override
-                    public void onPayloadStarted(VirtualMachine vm) {
-                        Log.i(TAG, "onPayloadStarted");
-                        payloadStarted.complete(true);
-                    }
-                };
-        listener.runToFinish(TAG, vm);
-        assertThat(payloadStarted.getNow(false)).isTrue();
-        assertThat(payloadReady.getNow(false)).isTrue();
-        return testResults;
     }
 
     private TestResults runVmTestService(VirtualMachine vm, RunTestsAgainstTestService testsToRun)
