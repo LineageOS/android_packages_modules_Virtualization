@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module contains the error thrown by the payload verification API.
+//! This module contains the error thrown by the payload verification API
+//! and other errors used in the library.
 
-use avb_bindgen::AvbSlotVerifyResult;
+use avb_bindgen::{AvbIOResult, AvbSlotVerifyResult};
 
 use core::fmt;
 
@@ -84,4 +85,45 @@ pub(crate) fn slot_verify_result_to_verify_payload_result(
             Err(AvbSlotVerifyError::Verification)
         }
     }
+}
+
+#[derive(Debug)]
+pub(crate) enum AvbIOError {
+    /// AVB_IO_RESULT_ERROR_OOM,
+    #[allow(dead_code)]
+    Oom,
+    /// AVB_IO_RESULT_ERROR_IO,
+    #[allow(dead_code)]
+    Io,
+    /// AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION,
+    NoSuchPartition,
+    /// AVB_IO_RESULT_ERROR_RANGE_OUTSIDE_PARTITION,
+    RangeOutsidePartition,
+    /// AVB_IO_RESULT_ERROR_NO_SUCH_VALUE,
+    NoSuchValue,
+    /// AVB_IO_RESULT_ERROR_INVALID_VALUE_SIZE,
+    InvalidValueSize,
+    /// AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE,
+    #[allow(dead_code)]
+    InsufficientSpace,
+}
+
+impl From<AvbIOError> for AvbIOResult {
+    fn from(error: AvbIOError) -> Self {
+        match error {
+            AvbIOError::Oom => AvbIOResult::AVB_IO_RESULT_ERROR_OOM,
+            AvbIOError::Io => AvbIOResult::AVB_IO_RESULT_ERROR_IO,
+            AvbIOError::NoSuchPartition => AvbIOResult::AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION,
+            AvbIOError::RangeOutsidePartition => {
+                AvbIOResult::AVB_IO_RESULT_ERROR_RANGE_OUTSIDE_PARTITION
+            }
+            AvbIOError::NoSuchValue => AvbIOResult::AVB_IO_RESULT_ERROR_NO_SUCH_VALUE,
+            AvbIOError::InvalidValueSize => AvbIOResult::AVB_IO_RESULT_ERROR_INVALID_VALUE_SIZE,
+            AvbIOError::InsufficientSpace => AvbIOResult::AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE,
+        }
+    }
+}
+
+pub(crate) fn to_avb_io_result(result: Result<(), AvbIOError>) -> AvbIOResult {
+    result.map_or_else(|e| e.into(), |_| AvbIOResult::AVB_IO_RESULT_OK)
 }

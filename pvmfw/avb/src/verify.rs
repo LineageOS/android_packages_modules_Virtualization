@@ -14,7 +14,9 @@
 
 //! This module handles the pvmfw payload verification.
 
-use crate::error::{slot_verify_result_to_verify_payload_result, AvbSlotVerifyError};
+use crate::error::{
+    slot_verify_result_to_verify_payload_result, to_avb_io_result, AvbIOError, AvbSlotVerifyError,
+};
 use avb_bindgen::{
     avb_descriptor_foreach, avb_hash_descriptor_validate_and_byteswap, avb_slot_verify,
     avb_slot_verify_data_free, AvbDescriptor, AvbHashDescriptor, AvbHashtreeErrorMode, AvbIOResult,
@@ -28,47 +30,6 @@ use core::{
 };
 
 const NULL_BYTE: &[u8] = b"\0";
-
-#[derive(Debug)]
-enum AvbIOError {
-    /// AVB_IO_RESULT_ERROR_OOM,
-    #[allow(dead_code)]
-    Oom,
-    /// AVB_IO_RESULT_ERROR_IO,
-    #[allow(dead_code)]
-    Io,
-    /// AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION,
-    NoSuchPartition,
-    /// AVB_IO_RESULT_ERROR_RANGE_OUTSIDE_PARTITION,
-    RangeOutsidePartition,
-    /// AVB_IO_RESULT_ERROR_NO_SUCH_VALUE,
-    NoSuchValue,
-    /// AVB_IO_RESULT_ERROR_INVALID_VALUE_SIZE,
-    InvalidValueSize,
-    /// AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE,
-    #[allow(dead_code)]
-    InsufficientSpace,
-}
-
-impl From<AvbIOError> for AvbIOResult {
-    fn from(error: AvbIOError) -> Self {
-        match error {
-            AvbIOError::Oom => AvbIOResult::AVB_IO_RESULT_ERROR_OOM,
-            AvbIOError::Io => AvbIOResult::AVB_IO_RESULT_ERROR_IO,
-            AvbIOError::NoSuchPartition => AvbIOResult::AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION,
-            AvbIOError::RangeOutsidePartition => {
-                AvbIOResult::AVB_IO_RESULT_ERROR_RANGE_OUTSIDE_PARTITION
-            }
-            AvbIOError::NoSuchValue => AvbIOResult::AVB_IO_RESULT_ERROR_NO_SUCH_VALUE,
-            AvbIOError::InvalidValueSize => AvbIOResult::AVB_IO_RESULT_ERROR_INVALID_VALUE_SIZE,
-            AvbIOError::InsufficientSpace => AvbIOResult::AVB_IO_RESULT_ERROR_INSUFFICIENT_SPACE,
-        }
-    }
-}
-
-fn to_avb_io_result(result: Result<(), AvbIOError>) -> AvbIOResult {
-    result.map_or_else(|e| e.into(), |_| AvbIOResult::AVB_IO_RESULT_OK)
-}
 
 extern "C" fn read_is_device_unlocked(
     _ops: *mut AvbOps,
