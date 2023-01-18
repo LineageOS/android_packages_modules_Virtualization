@@ -380,6 +380,17 @@ impl PartitionName {
     }
 }
 
+impl TryFrom<*const c_char> for PartitionName {
+    type Error = AvbIOError;
+
+    fn try_from(partition_name: *const c_char) -> Result<Self, Self::Error> {
+        is_not_null(partition_name)?;
+        // SAFETY: It is safe as the raw pointer `partition_name` is a nonnull pointer.
+        let partition_name = unsafe { CStr::from_ptr(partition_name) };
+        partition_name.try_into()
+    }
+}
+
 impl TryFrom<&CStr> for PartitionName {
     type Error = AvbIOError;
 
@@ -465,9 +476,6 @@ impl<'a> AsRef<Payload<'a>> for AvbOps {
 
 impl<'a> Payload<'a> {
     fn get_partition(&self, partition_name: *const c_char) -> Result<&[u8], AvbIOError> {
-        is_not_null(partition_name)?;
-        // SAFETY: It is safe as the raw pointer `partition_name` is a nonnull pointer.
-        let partition_name = unsafe { CStr::from_ptr(partition_name) };
         match partition_name.try_into()? {
             PartitionName::Kernel => Ok(self.kernel),
             PartitionName::InitrdNormal | PartitionName::InitrdDebug => {
@@ -545,6 +553,15 @@ fn verify_vbmeta_has_no_initrd_descriptor(
     }
 }
 
+fn verify_vbmeta_is_from_kernel_partition(
+    vbmeta_image: &AvbVBMetaData,
+) -> Result<(), AvbSlotVerifyError> {
+    match (vbmeta_image.partition_name as *const c_char).try_into() {
+        Ok(PartitionName::Kernel) => Ok(()),
+        _ => Err(AvbSlotVerifyError::InvalidMetadata),
+    }
+}
+
 /// Verifies the payload (signed kernel + initrd) against the trusted public key.
 pub fn verify_payload(
     kernel: &[u8],
@@ -555,11 +572,13 @@ pub fn verify_payload(
     let kernel_verify_result = payload.verify_partition(PartitionName::Kernel.as_cstr())?;
     let vbmeta_images = kernel_verify_result.vbmeta_images()?;
     if vbmeta_images.len() != 1 {
-        // There can only be one VBMeta, from the 'boot' partition.
+        // There can only be one VBMeta.
         return Err(AvbSlotVerifyError::InvalidMetadata);
     }
+    let vbmeta_image = vbmeta_images[0];
+    verify_vbmeta_is_from_kernel_partition(&vbmeta_image)?;
     if payload.initrd.is_none() {
-        verify_vbmeta_has_no_initrd_descriptor(&vbmeta_images[0])?;
+        verify_vbmeta_has_no_initrd_descriptor(&vbmeta_image)?;
     }
     // TODO(b/256148034): Check the vbmeta doesn't have hash descriptors other than
     // boot, initrd_normal, initrd_debug.
