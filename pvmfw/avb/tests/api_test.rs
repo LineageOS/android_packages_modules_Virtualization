@@ -23,6 +23,7 @@ use pvmfw_avb::{verify_payload, AvbSlotVerifyError};
 use std::{
     fs,
     mem::{size_of, transmute, MaybeUninit},
+    ptr,
 };
 
 const MICRODROID_KERNEL_IMG_PATH: &str = "microdroid_kernel";
@@ -205,7 +206,41 @@ fn vbmeta_with_public_key_overwritten_fails_verification() -> Result<()> {
     )
 }
 
-// TODO(b/256148034): Test that vbmeta with its verification flag overwritten fails verification.
+#[test]
+fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
+    // From external/avb/libavb/avb_vbmeta_image.h
+    const AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED: u32 = 2;
+
+    // Arrange.
+    let mut kernel = load_latest_signed_kernel()?;
+    let footer = extract_avb_footer(&kernel)?;
+    let vbmeta_header = extract_vbmeta_header(&kernel, &footer)?;
+    assert_eq!(
+        0, vbmeta_header.flags as u32,
+        "The disable flag should not be set in the latest kernel."
+    );
+    let flags_addr = ptr::addr_of!(vbmeta_header.flags) as *const u8;
+    // SAFETY: It is safe as both raw pointers `flags_addr` and `vbmeta_header` are not null.
+    let flags_offset = unsafe { flags_addr.offset_from(ptr::addr_of!(vbmeta_header) as *const u8) };
+    let flags_offset = usize::try_from(footer.vbmeta_offset)? + usize::try_from(flags_offset)?;
+
+    // Act.
+    kernel[flags_offset..(flags_offset + size_of::<u32>())]
+        .copy_from_slice(&AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED.to_be_bytes());
+
+    // Assert.
+    let vbmeta_header = extract_vbmeta_header(&kernel, &footer)?;
+    assert_eq!(
+        AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED, vbmeta_header.flags as u32,
+        "VBMeta verification flag should be disabled now."
+    );
+    assert_payload_verification_fails(
+        &kernel,
+        &load_latest_initrd_normal()?,
+        &load_trusted_public_key()?,
+        AvbSlotVerifyError::Verification,
+    )
+}
 
 fn extract_avb_footer(kernel: &[u8]) -> Result<AvbFooter> {
     let footer_start = kernel.len() - size_of::<AvbFooter>();
