@@ -1,7 +1,0 @@
-{
-  "avf-presubmit": [
-    {
-      "name": "virtualizationservice_device_test"
-    }
-  ]
-}
