@@ -528,7 +528,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 "-m",
                 "1",
                 "-e",
-                "'virtualizationservice::crosvm.*exited with status exit status:'");
+                "'virtualizationmanager::crosvm.*exited with status exit status:'");
 
         // Check that tombstone is received (from host logcat)
         String ramdumpRegex =

@@ -55,7 +55,7 @@
       "path": "packages/modules/Virtualization/encryptedstore"
     },
     {
-      "path": "packages/modules/Virtualization/virtualizationservice"
+      "path": "packages/modules/Virtualization/virtualizationmanager"
     },
     {
       "path": "packages/modules/Virtualization/libs/apexutil"
