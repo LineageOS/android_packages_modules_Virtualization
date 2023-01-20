@@ -17,6 +17,8 @@
 use crate::error::{
     slot_verify_result_to_verify_payload_result, to_avb_io_result, AvbIOError, AvbSlotVerifyError,
 };
+use crate::partition::PartitionName;
+use crate::utils::{as_ref, is_not_null, to_nonnull, to_usize, usize_checked_add, write};
 use avb_bindgen::{
     avb_descriptor_foreach, avb_hash_descriptor_validate_and_byteswap, avb_slot_verify,
     avb_slot_verify_data_free, AvbDescriptor, AvbHashDescriptor, AvbHashtreeErrorMode, AvbIOResult,
@@ -25,8 +27,7 @@ use avb_bindgen::{
 use core::{
     ffi::{c_char, c_void, CStr},
     mem::{size_of, MaybeUninit},
-    ptr::{self, NonNull},
-    slice,
+    ptr, slice,
 };
 
 const NULL_BYTE: &[u8] = b"\0";
@@ -273,108 +274,6 @@ impl AvbHashDescriptorRef {
         // SAFETY: The descriptor has been validated as nonnull and the partition name is
         // contained within the image.
         unsafe { Ok(slice::from_raw_parts(desc.add(partition_name_offset), partition_name_len)) }
-    }
-}
-
-fn to_usize<T: TryInto<usize>>(num: T) -> Result<usize, AvbIOError> {
-    num.try_into().map_err(|_| AvbIOError::InvalidValueSize)
-}
-
-fn usize_checked_add(x: usize, y: usize) -> Result<usize, AvbIOError> {
-    x.checked_add(y).ok_or(AvbIOError::InvalidValueSize)
-}
-
-fn write<T>(ptr: *mut T, value: T) -> Result<(), AvbIOError> {
-    let ptr = to_nonnull(ptr)?;
-    // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
-    unsafe {
-        *ptr.as_ptr() = value;
-    }
-    Ok(())
-}
-
-fn as_ref<'a, T>(ptr: *mut T) -> Result<&'a T, AvbIOError> {
-    let ptr = to_nonnull(ptr)?;
-    // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
-    unsafe { Ok(ptr.as_ref()) }
-}
-
-fn to_nonnull<T>(ptr: *mut T) -> Result<NonNull<T>, AvbIOError> {
-    NonNull::new(ptr).ok_or(AvbIOError::NoSuchValue)
-}
-
-fn is_not_null<T>(ptr: *const T) -> Result<(), AvbIOError> {
-    if ptr.is_null() {
-        Err(AvbIOError::NoSuchValue)
-    } else {
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum PartitionName {
-    Kernel,
-    InitrdNormal,
-    InitrdDebug,
-}
-
-impl PartitionName {
-    const KERNEL_PARTITION_NAME: &[u8] = b"boot\0";
-    const INITRD_NORMAL_PARTITION_NAME: &[u8] = b"initrd_normal\0";
-    const INITRD_DEBUG_PARTITION_NAME: &[u8] = b"initrd_debug\0";
-
-    fn as_cstr(&self) -> &CStr {
-        CStr::from_bytes_with_nul(self.as_bytes()).unwrap()
-    }
-
-    fn as_non_null_terminated_bytes(&self) -> &[u8] {
-        let partition_name = self.as_bytes();
-        &partition_name[..partition_name.len() - 1]
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        match self {
-            Self::Kernel => Self::KERNEL_PARTITION_NAME,
-            Self::InitrdNormal => Self::INITRD_NORMAL_PARTITION_NAME,
-            Self::InitrdDebug => Self::INITRD_DEBUG_PARTITION_NAME,
-        }
-    }
-}
-
-impl TryFrom<*const c_char> for PartitionName {
-    type Error = AvbIOError;
-
-    fn try_from(partition_name: *const c_char) -> Result<Self, Self::Error> {
-        is_not_null(partition_name)?;
-        // SAFETY: It is safe as the raw pointer `partition_name` is a nonnull pointer.
-        let partition_name = unsafe { CStr::from_ptr(partition_name) };
-        partition_name.try_into()
-    }
-}
-
-impl TryFrom<&CStr> for PartitionName {
-    type Error = AvbIOError;
-
-    fn try_from(partition_name: &CStr) -> Result<Self, Self::Error> {
-        match partition_name.to_bytes_with_nul() {
-            Self::KERNEL_PARTITION_NAME => Ok(Self::Kernel),
-            Self::INITRD_NORMAL_PARTITION_NAME => Ok(Self::InitrdNormal),
-            Self::INITRD_DEBUG_PARTITION_NAME => Ok(Self::InitrdDebug),
-            _ => Err(AvbIOError::NoSuchPartition),
-        }
-    }
-}
-
-impl TryFrom<&[u8]> for PartitionName {
-    type Error = AvbIOError;
-
-    fn try_from(non_null_terminated_name: &[u8]) -> Result<Self, Self::Error> {
-        match non_null_terminated_name {
-            x if x == Self::Kernel.as_non_null_terminated_bytes() => Ok(Self::Kernel),
-            x if x == Self::InitrdNormal.as_non_null_terminated_bytes() => Ok(Self::InitrdNormal),
-            x if x == Self::InitrdDebug.as_non_null_terminated_bytes() => Ok(Self::InitrdDebug),
-            _ => Err(AvbIOError::NoSuchPartition),
-        }
     }
 }
 
