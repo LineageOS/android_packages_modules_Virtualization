@@ -77,6 +77,7 @@ const DEBUG_MICRODROID_NO_VERIFIED_BOOT: &str =
     "/sys/firmware/devicetree/base/virtualization/guest/debug-microdroid,no-verified-boot";
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
+const TOMBSTONE_TRANSMIT_DONE_PROP: &str = "tombstone_transmit.init_done";
 const DEBUGGABLE_PROP: &str = "ro.boot.microdroid.debuggable";
 
 // SYNC WITH virtualizationservice/src/crosvm.rs
@@ -435,6 +436,10 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     register_vm_payload_service(allow_restricted_apis, service.clone(), dice_context)?;
 
+    if config.export_tombstones {
+        wait_for_tombstone_transmit_done()?;
+    }
+
     // Wait for encryptedstore to finish mounting the storage (if enabled) before setting
     // microdroid_manager.init_done. Reason is init stops uneventd after that.
     // Encryptedstore, however requires ueventd
@@ -721,6 +726,11 @@ fn setup_config_sysprops(config: &VmPayloadConfig) -> Result<()> {
 // Waits until linker config is generated
 fn wait_for_apex_config_done() -> Result<()> {
     wait_for_property_true(APEX_CONFIG_DONE_PROP).context("Failed waiting for apex config done")
+}
+
+fn wait_for_tombstone_transmit_done() -> Result<()> {
+    wait_for_property_true(TOMBSTONE_TRANSMIT_DONE_PROP)
+        .context("Failed waiting for tombstone transmit done")
 }
 
 fn wait_for_property_true(property_name: &str) -> Result<()> {
