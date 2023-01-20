@@ -19,6 +19,8 @@
 #![feature(mixed_integer_ops)]
 
 mod error;
+mod partition;
+mod utils;
 mod verify;
 
 pub use error::AvbSlotVerifyError;
