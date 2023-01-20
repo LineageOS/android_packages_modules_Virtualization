@@ -66,12 +66,16 @@ function handle_connect_cmd() {
     fi
 
     if [ ! -n "${selected_cid}" ]; then
-        PS3="Select CID of VM to adb-shell into: "
-        select cid in ${available_cids}
-        do
-            selected_cid=${cid}
-            break
-        done
+        if [ ${#selected_cid[@]} -eq 1 ]; then
+            selected_cid=${available_cids[0]}
+        else
+            PS3="Select CID of VM to adb-shell into: "
+            select cid in ${available_cids}
+            do
+                selected_cid=${cid}
+                break
+            done
+        fi
     fi
 
     if [[ ! " ${available_cids[*]} " =~ " ${selected_cid} " ]]; then
