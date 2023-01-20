@@ -110,7 +110,7 @@ pub(crate) fn extract_signer_and_apk_sections<R: Read + Seek>(
 ) -> Result<(Signer, ApkSections<R>)> {
     let mut sections = ApkSections::new(apk)?;
     let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID).context(
-        "Fallback to v2 when v3 block not found is not yet implemented. See b/197052981.",
+        "Fallback to v2 when v3 block not found is not yet implemented.", // b/197052981
     )?;
     let mut supported = block
         .read::<Signers>()?
@@ -135,7 +135,7 @@ impl Signer {
             .iter()
             .filter(|sig| sig.signature_algorithm_id.map_or(false, |algo| algo.is_supported()))
             .max_by_key(|sig| sig.signature_algorithm_id.unwrap().content_digest_algorithm())
-            .context("No supported signatures found")?)
+            .context("No supported APK signatures found; DSA is not supported")?)
     }
 
     pub(crate) fn find_digest_by_algorithm(

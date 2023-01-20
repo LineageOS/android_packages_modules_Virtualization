@@ -44,7 +44,7 @@ fn apks_signed_with_v3_dsa_sha256_are_not_supported() {
     for key_name in KEY_NAMES_DSA.iter() {
         let res = verify(format!("tests/data/v3-only-with-dsa-sha256-{}.apk", key_name));
         assert!(res.is_err(), "DSA algorithm is not supported for verification. See b/197052981.");
-        assert_contains(&res.unwrap_err().to_string(), "No supported signatures found");
+        assert_contains(&res.unwrap_err().to_string(), "No supported APK signatures found");
     }
 }
 
@@ -151,7 +151,7 @@ fn test_verify_v3_no_certs_in_sig() {
 fn test_verify_v3_no_supported_sig_algs() {
     let res = verify("tests/data/v3-only-no-supported-sig-algs.apk");
     assert!(res.is_err());
-    assert_contains(&res.unwrap_err().to_string(), "No supported signatures found");
+    assert_contains(&res.unwrap_err().to_string(), "No supported APK signatures found");
 }
 
 #[test]
