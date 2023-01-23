@@ -21,6 +21,7 @@
 #include <android-base/scopeguard.h>
 #include <android/log.h>
 #include <fcntl.h>
+#include <fstab/fstab.h>
 #include <fsverity_digests.pb.h>
 #include <linux/vm_sockets.h>
 #include <stdint.h>
@@ -31,6 +32,7 @@
 #include <vm_main.h>
 #include <vm_payload_restricted.h>
 
+#include <cstdint>
 #include <string>
 #include <thread>
 
@@ -40,6 +42,10 @@ using android::base::Error;
 using android::base::make_scope_guard;
 using android::base::Result;
 using android::base::unique_fd;
+using android::fs_mgr::Fstab;
+using android::fs_mgr::FstabEntry;
+using android::fs_mgr::GetEntryForMountPoint;
+using android::fs_mgr::ReadFstabFromFile;
 
 using aidl::com::android::microdroid::testservice::BnTestService;
 using ndk::ScopedAStatus;
@@ -253,6 +259,22 @@ Result<void> start_test_service() {
                 return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
                                                                    msg.c_str());
             }
+            return ScopedAStatus::ok();
+        }
+
+        ScopedAStatus getMountFlags(const std::string& mount_point, int32_t* out) override {
+            Fstab fstab;
+            if (!ReadFstabFromFile("/proc/mounts", &fstab)) {
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   "Failed to read /proc/mounts");
+            }
+            FstabEntry* entry = GetEntryForMountPoint(&fstab, mount_point);
+            if (entry == nullptr) {
+                std::string msg = mount_point + " not found in /proc/mounts";
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   msg.c_str());
+            }
+            *out = entry->flags;
             return ScopedAStatus::ok();
         }
     };
