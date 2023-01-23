@@ -508,6 +508,19 @@ impl Fdt {
         fdt_err_expect_zero(ret)
     }
 
+    /// Applies a DT overlay on the base DT.
+    ///
+    /// # Safety
+    ///
+    /// On failure, the library corrupts the DT and overlay so both must be discarded.
+    pub unsafe fn apply_overlay<'a>(&'a mut self, overlay: &'a mut Fdt) -> Result<&'a mut Self> {
+        fdt_err_expect_zero(libfdt_bindgen::fdt_overlay_apply(
+            self.as_mut_ptr(),
+            overlay.as_mut_ptr(),
+        ))?;
+        Ok(self)
+    }
+
     /// Return an iterator of memory banks specified the "/memory" node.
     ///
     /// NOTE: This does not support individual "/memory@XXXX" banks.
