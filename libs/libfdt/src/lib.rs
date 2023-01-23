@@ -16,7 +16,6 @@
 //! to a bare-metal environment.
 
 #![no_std]
-#![feature(let_else)] // Stabilized in 1.65.0
 
 mod iterators;
 

@@ -376,7 +376,7 @@ impl VmInstance {
             &self.name,
             death_reason,
             exit_signal,
-            &*vm_metric,
+            &vm_metric,
         );
 
         // Delete temporary files. The folder itself is removed by VirtualizationServiceInternal.
