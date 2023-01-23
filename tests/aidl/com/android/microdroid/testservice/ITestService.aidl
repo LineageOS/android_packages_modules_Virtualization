@@ -55,7 +55,4 @@ interface ITestService {
 
     /* get the content of the specified file. */
     String readFromFile(String path);
-
-    /** Returns flags for the given mountPoint. */
-    int getMountFlags(String mountPoint);
 }
