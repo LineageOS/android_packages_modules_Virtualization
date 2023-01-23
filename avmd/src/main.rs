@@ -128,21 +128,21 @@ fn clap_command() -> Command {
                 .arg(
                     Arg::new("vbmeta")
                         .long("vbmeta")
-                        .value_names(&namespace_name_file)
+                        .value_names(namespace_name_file)
                         .num_args(3)
                         .action(ArgAction::Append),
                 )
                 .arg(
                     Arg::new("apk")
                         .long("apk")
-                        .value_names(&namespace_name_file)
+                        .value_names(namespace_name_file)
                         .num_args(3)
                         .action(ArgAction::Append),
                 )
                 .arg(
                     Arg::new("apex-payload")
                         .long("apex-payload")
-                        .value_names(&namespace_name_file)
+                        .value_names(namespace_name_file)
                         .num_args(3)
                         .action(ArgAction::Append),
                 ),
