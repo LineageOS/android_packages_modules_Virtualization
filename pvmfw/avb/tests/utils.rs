@@ -21,7 +21,7 @@ use avb_bindgen::{
     avb_footer_validate_and_byteswap, avb_vbmeta_image_header_to_host_byte_order, AvbFooter,
     AvbVBMetaImageHeader,
 };
-use pvmfw_avb::{verify_payload, AvbSlotVerifyError};
+use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel};
 use std::{
     fs,
     mem::{size_of, transmute, MaybeUninit},
@@ -38,7 +38,7 @@ pub fn assert_payload_verification_with_initrd_eq(
     kernel: &[u8],
     initrd: &[u8],
     trusted_public_key: &[u8],
-    expected_result: Result<(), AvbSlotVerifyError>,
+    expected_result: Result<DebugLevel, AvbSlotVerifyError>,
 ) -> Result<()> {
     assert_payload_verification_eq(kernel, Some(initrd), trusted_public_key, expected_result)
 }
@@ -47,7 +47,7 @@ pub fn assert_payload_verification_eq(
     kernel: &[u8],
     initrd: Option<&[u8]>,
     trusted_public_key: &[u8],
-    expected_result: Result<(), AvbSlotVerifyError>,
+    expected_result: Result<DebugLevel, AvbSlotVerifyError>,
 ) -> Result<()> {
     assert_eq!(expected_result, verify_payload(kernel, initrd, trusted_public_key));
     Ok(())
