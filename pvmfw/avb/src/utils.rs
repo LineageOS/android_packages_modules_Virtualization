@@ -16,8 +16,11 @@
 
 use crate::error::AvbIOError;
 use core::ptr::NonNull;
+use core::result;
 
-pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<(), AvbIOError> {
+pub(crate) type Result<T> = result::Result<T, AvbIOError>;
+
+pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<()> {
     let ptr = to_nonnull(ptr)?;
     // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
     unsafe {
@@ -26,17 +29,17 @@ pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<(), AvbIOError> {
     Ok(())
 }
 
-pub(crate) fn as_ref<'a, T>(ptr: *mut T) -> Result<&'a T, AvbIOError> {
+pub(crate) fn as_ref<'a, T>(ptr: *mut T) -> Result<&'a T> {
     let ptr = to_nonnull(ptr)?;
     // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
     unsafe { Ok(ptr.as_ref()) }
 }
 
-pub(crate) fn to_nonnull<T>(ptr: *mut T) -> Result<NonNull<T>, AvbIOError> {
+pub(crate) fn to_nonnull<T>(ptr: *mut T) -> Result<NonNull<T>> {
     NonNull::new(ptr).ok_or(AvbIOError::NoSuchValue)
 }
 
-pub(crate) fn is_not_null<T>(ptr: *const T) -> Result<(), AvbIOError> {
+pub(crate) fn is_not_null<T>(ptr: *const T) -> Result<()> {
     if ptr.is_null() {
         Err(AvbIOError::NoSuchValue)
     } else {
@@ -44,10 +47,10 @@ pub(crate) fn is_not_null<T>(ptr: *const T) -> Result<(), AvbIOError> {
     }
 }
 
-pub(crate) fn to_usize<T: TryInto<usize>>(num: T) -> Result<usize, AvbIOError> {
+pub(crate) fn to_usize<T: TryInto<usize>>(num: T) -> Result<usize> {
     num.try_into().map_err(|_| AvbIOError::InvalidValueSize)
 }
 
-pub(crate) fn usize_checked_add(x: usize, y: usize) -> Result<usize, AvbIOError> {
+pub(crate) fn usize_checked_add(x: usize, y: usize) -> Result<usize> {
     x.checked_add(y).ok_or(AvbIOError::InvalidValueSize)
 }
