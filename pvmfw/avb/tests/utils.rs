@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//! Utility methods used by API tests.
+//! Utility functions used by API tests.
 
 use anyhow::Result;
 use avb_bindgen::{
