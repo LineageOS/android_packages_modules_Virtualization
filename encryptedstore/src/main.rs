@@ -63,7 +63,7 @@ fn clap_command() -> clap::Command {
 
 fn encryptedstore_init(blkdevice: &Path, key: &str, mountpoint: &Path) -> Result<()> {
     ensure!(
-        std::fs::metadata(&blkdevice)
+        std::fs::metadata(blkdevice)
             .context(format!("Failed to get metadata of {:?}", blkdevice))?
             .file_type()
             .is_block_device(),
