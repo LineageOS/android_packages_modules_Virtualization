@@ -52,11 +52,6 @@ java_sdk_library {
     ],
 }
 
-prebuilt_apis {
-    name: "android-virtualization-framework-sdk",
-    api_dirs: ["32"],
-}
-
 java_api_contribution {
     name: "framework-virtualization-public-stubs",
     api_surface: "public",
