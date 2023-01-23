@@ -47,6 +47,7 @@ cc_library_shared {
     static_libs: [
         "com.android.microdroid.testservice-ndk",
         "libbase",
+        "libfstab",
         "libfsverity_digests_proto_cc",
         "liblog",
         "libprotobuf-cpp-lite-ndk",
