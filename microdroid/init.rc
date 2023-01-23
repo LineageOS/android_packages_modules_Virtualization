@@ -98,7 +98,7 @@ on post-fs
     mount rootfs rootfs / remount bind ro nodev
 
     # TODO(b/185767624): change the hard-coded size?
-    mount tmpfs tmpfs /data noatime nosuid nodev noexec rw size=128M
+    mount tmpfs tmpfs /data noatime nosuid nodev rw size=128M
 
     # We chown/chmod /data again so because mount is run as root + defaults
     chown system system /data
