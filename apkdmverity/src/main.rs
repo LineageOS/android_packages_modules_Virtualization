@@ -69,7 +69,7 @@ fn clap_command() -> Command {
                 optional; idsig file's root hash will be used if specified as \"none\"."
             )
             .action(ArgAction::Append)
-            .value_names(&["apk_path", "idsig_path", "name", "root_hash"]),
+            .value_names(["apk_path", "idsig_path", "name", "root_hash"]),
         )
         .arg(
             Arg::new("verbose")
