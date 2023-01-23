@@ -178,6 +178,37 @@ impl<'a> MemorySlices<'a> {
     }
 }
 
+/// Applies the debug policy device tree overlay to the pVM DT.
+///
+/// # Safety
+///
+/// When an error is returned by this function, the input `Fdt` should be discarded as it may have
+/// have been partially corrupted during the overlay application process.
+unsafe fn apply_debug_policy(
+    fdt: &mut libfdt::Fdt,
+    debug_policy: &mut [u8],
+) -> Result<(), RebootReason> {
+    let overlay = libfdt::Fdt::from_mut_slice(debug_policy).map_err(|e| {
+        error!("Failed to load the debug policy overlay: {e}");
+        RebootReason::InvalidConfig
+    })?;
+
+    fdt.unpack().map_err(|e| {
+        error!("Failed to unpack DT for debug policy: {e}");
+        RebootReason::InternalError
+    })?;
+
+    let fdt = fdt.apply_overlay(overlay).map_err(|e| {
+        error!("Failed to apply the debug policy overlay: {e}");
+        RebootReason::InvalidConfig
+    })?;
+
+    fdt.pack().map_err(|e| {
+        error!("Failed to re-pack DT after debug policy: {e}");
+        RebootReason::InternalError
+    })
+}
+
 /// Sets up the environment for main() and wraps its result for start().
 ///
 /// Provide the abstractions necessary for start() to abort the pVM boot and for main() to run with
@@ -251,6 +282,11 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
 
     helpers::flushed_zeroize(bcc_slice);
     helpers::flush(slices.fdt.as_slice());
+
+    if let Some(debug_policy) = appended.get_debug_policy() {
+        // SAFETY - As we `?` the result, there is no risk of re-using a bad `slices.fdt`.
+        unsafe { apply_debug_policy(slices.fdt, debug_policy) }?;
+    }
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     memory.mmio_unmap_all().map_err(|e| {
