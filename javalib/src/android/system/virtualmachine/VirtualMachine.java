@@ -40,6 +40,7 @@ import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_R
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_SHUTDOWN;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_START_FAILED;
 import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_UNKNOWN;
+import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_VIRTUALIZATION_SERVICE_DIED;
 
 import static java.util.Objects.requireNonNull;
 
@@ -809,62 +810,9 @@ public class VirtualMachine implements AutoCloseable {
                         android.system.virtualizationservice.VirtualMachineConfig.appConfig(
                                 appConfig);
 
-                // The VM should only be observed to die once
-                AtomicBoolean onDiedCalled = new AtomicBoolean(false);
-
-                IBinder.DeathRecipient deathRecipient = () -> {
-                    if (onDiedCalled.compareAndSet(false, true)) {
-                        executeCallback((cb) -> cb.onStopped(VirtualMachine.this,
-                                VirtualMachineCallback.STOP_REASON_VIRTUALIZATION_SERVICE_DIED));
-                    }
-                };
-
                 mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, mLogWriter);
-                mVirtualMachine.registerCallback(
-                        new IVirtualMachineCallback.Stub() {
-                            @Override
-                            public void onPayloadStarted(int cid) {
-                                executeCallback((cb) -> cb.onPayloadStarted(VirtualMachine.this));
-                            }
-
-                            @Override
-                            public void onPayloadReady(int cid) {
-                                executeCallback((cb) -> cb.onPayloadReady(VirtualMachine.this));
-                            }
-
-                            @Override
-                            public void onPayloadFinished(int cid, int exitCode) {
-                                executeCallback(
-                                        (cb) ->
-                                                cb.onPayloadFinished(
-                                                        VirtualMachine.this, exitCode));
-                            }
-
-                            @Override
-                            public void onError(int cid, int errorCode, String message) {
-                                int translatedError = getTranslatedError(errorCode);
-                                executeCallback(
-                                        (cb) ->
-                                                cb.onError(
-                                                        VirtualMachine.this,
-                                                        translatedError,
-                                                        message));
-                            }
-
-                            @Override
-                            public void onDied(int cid, int reason) {
-                                service.asBinder().unlinkToDeath(deathRecipient, 0);
-                                int translatedReason = getTranslatedReason(reason);
-                                if (onDiedCalled.compareAndSet(false, true)) {
-                                    executeCallback(
-                                            (cb) ->
-                                                    cb.onStopped(
-                                                            VirtualMachine.this, translatedReason));
-                                }
-                            }
-                        });
+                mVirtualMachine.registerCallback(new CallbackTranslator(service));
                 mContext.registerComponentCallbacks(mMemoryManagementCallbacks);
-                service.asBinder().linkToDeath(deathRecipient, 0);
                 mVirtualMachine.start();
             } catch (IOException | IllegalStateException | ServiceSpecificException e) {
                 throw new VirtualMachineException(e);
@@ -1187,60 +1135,6 @@ public class VirtualMachine implements AutoCloseable {
         }
     }
 
-    @VirtualMachineCallback.ErrorCode
-    private int getTranslatedError(int reason) {
-        switch (reason) {
-            case ErrorCode.PAYLOAD_VERIFICATION_FAILED:
-                return ERROR_PAYLOAD_VERIFICATION_FAILED;
-            case ErrorCode.PAYLOAD_CHANGED:
-                return ERROR_PAYLOAD_CHANGED;
-            case ErrorCode.PAYLOAD_CONFIG_INVALID:
-                return ERROR_PAYLOAD_INVALID_CONFIG;
-            default:
-                return ERROR_UNKNOWN;
-        }
-    }
-
-    @VirtualMachineCallback.StopReason
-    private int getTranslatedReason(int reason) {
-        switch (reason) {
-            case DeathReason.INFRASTRUCTURE_ERROR:
-                return STOP_REASON_INFRASTRUCTURE_ERROR;
-            case DeathReason.KILLED:
-                return STOP_REASON_KILLED;
-            case DeathReason.SHUTDOWN:
-                return STOP_REASON_SHUTDOWN;
-            case DeathReason.START_FAILED:
-                return STOP_REASON_START_FAILED;
-            case DeathReason.REBOOT:
-                return STOP_REASON_REBOOT;
-            case DeathReason.CRASH:
-                return STOP_REASON_CRASH;
-            case DeathReason.PVM_FIRMWARE_PUBLIC_KEY_MISMATCH:
-                return STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH;
-            case DeathReason.PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED:
-                return STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED;
-            case DeathReason.BOOTLOADER_PUBLIC_KEY_MISMATCH:
-                return STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH;
-            case DeathReason.BOOTLOADER_INSTANCE_IMAGE_CHANGED:
-                return STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED;
-            case DeathReason.MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE:
-                return STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE;
-            case DeathReason.MICRODROID_PAYLOAD_HAS_CHANGED:
-                return STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED;
-            case DeathReason.MICRODROID_PAYLOAD_VERIFICATION_FAILED:
-                return STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED;
-            case DeathReason.MICRODROID_INVALID_PAYLOAD_CONFIG:
-                return STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG;
-            case DeathReason.MICRODROID_UNKNOWN_RUNTIME_ERROR:
-                return STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR;
-            case DeathReason.HANGUP:
-                return STOP_REASON_HANGUP;
-            default:
-                return STOP_REASON_UNKNOWN;
-        }
-    }
-
     @Override
     public String toString() {
         VirtualMachineConfig config = getConfig();
@@ -1352,6 +1246,109 @@ public class VirtualMachine implements AutoCloseable {
             storeOutput.transferFrom(storeInput, /*position=*/ 0, storeInput.size());
         } catch (IOException e) {
             throw new VirtualMachineException("failed to transfer encryptedstore image", e);
+        }
+    }
+
+    /** Map the raw AIDL (& binder) callbacks to what the client expects. */
+    private class CallbackTranslator extends IVirtualMachineCallback.Stub {
+        private final IVirtualizationService mService;
+        private final DeathRecipient mDeathRecipient;
+
+        // The VM should only be observed to die once
+        private final AtomicBoolean mOnDiedCalled = new AtomicBoolean(false);
+
+        public CallbackTranslator(IVirtualizationService service) throws RemoteException {
+            this.mService = service;
+            this.mDeathRecipient = () -> reportStopped(STOP_REASON_VIRTUALIZATION_SERVICE_DIED);
+            service.asBinder().linkToDeath(mDeathRecipient, 0);
+        }
+
+        @Override
+        public void onPayloadStarted(int cid) {
+            executeCallback((cb) -> cb.onPayloadStarted(VirtualMachine.this));
+        }
+
+        @Override
+        public void onPayloadReady(int cid) {
+            executeCallback((cb) -> cb.onPayloadReady(VirtualMachine.this));
+        }
+
+        @Override
+        public void onPayloadFinished(int cid, int exitCode) {
+            executeCallback((cb) -> cb.onPayloadFinished(VirtualMachine.this, exitCode));
+        }
+
+        @Override
+        public void onError(int cid, int errorCode, String message) {
+            int translatedError = getTranslatedError(errorCode);
+            executeCallback((cb) -> cb.onError(VirtualMachine.this, translatedError, message));
+        }
+
+        @Override
+        public void onDied(int cid, int reason) {
+            int translatedReason = getTranslatedReason(reason);
+            reportStopped(translatedReason);
+            mService.asBinder().unlinkToDeath(mDeathRecipient, 0);
+        }
+
+        private void reportStopped(@VirtualMachineCallback.StopReason int reason) {
+            if (mOnDiedCalled.compareAndSet(false, true)) {
+                executeCallback((cb) -> cb.onStopped(VirtualMachine.this, reason));
+            }
+        }
+
+        @VirtualMachineCallback.ErrorCode
+        private int getTranslatedError(int reason) {
+            switch (reason) {
+                case ErrorCode.PAYLOAD_VERIFICATION_FAILED:
+                    return ERROR_PAYLOAD_VERIFICATION_FAILED;
+                case ErrorCode.PAYLOAD_CHANGED:
+                    return ERROR_PAYLOAD_CHANGED;
+                case ErrorCode.PAYLOAD_CONFIG_INVALID:
+                    return ERROR_PAYLOAD_INVALID_CONFIG;
+                default:
+                    return ERROR_UNKNOWN;
+            }
+        }
+
+        @VirtualMachineCallback.StopReason
+        private int getTranslatedReason(int reason) {
+            switch (reason) {
+                case DeathReason.INFRASTRUCTURE_ERROR:
+                    return STOP_REASON_INFRASTRUCTURE_ERROR;
+                case DeathReason.KILLED:
+                    return STOP_REASON_KILLED;
+                case DeathReason.SHUTDOWN:
+                    return STOP_REASON_SHUTDOWN;
+                case DeathReason.START_FAILED:
+                    return STOP_REASON_START_FAILED;
+                case DeathReason.REBOOT:
+                    return STOP_REASON_REBOOT;
+                case DeathReason.CRASH:
+                    return STOP_REASON_CRASH;
+                case DeathReason.PVM_FIRMWARE_PUBLIC_KEY_MISMATCH:
+                    return STOP_REASON_PVM_FIRMWARE_PUBLIC_KEY_MISMATCH;
+                case DeathReason.PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED:
+                    return STOP_REASON_PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED;
+                case DeathReason.BOOTLOADER_PUBLIC_KEY_MISMATCH:
+                    return STOP_REASON_BOOTLOADER_PUBLIC_KEY_MISMATCH;
+                case DeathReason.BOOTLOADER_INSTANCE_IMAGE_CHANGED:
+                    return STOP_REASON_BOOTLOADER_INSTANCE_IMAGE_CHANGED;
+                case DeathReason.MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE:
+                    return STOP_REASON_MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE;
+                case DeathReason.MICRODROID_PAYLOAD_HAS_CHANGED:
+                    return STOP_REASON_MICRODROID_PAYLOAD_HAS_CHANGED;
+                case DeathReason.MICRODROID_PAYLOAD_VERIFICATION_FAILED:
+                    return STOP_REASON_MICRODROID_PAYLOAD_VERIFICATION_FAILED;
+                case DeathReason.MICRODROID_INVALID_PAYLOAD_CONFIG:
+                    return STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG;
+                case DeathReason.MICRODROID_UNKNOWN_RUNTIME_ERROR:
+                    return STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR;
+                case DeathReason.HANGUP:
+                    return STOP_REASON_HANGUP;
+                default:
+                    return STOP_REASON_UNKNOWN;
+            }
         }
     }
 }
