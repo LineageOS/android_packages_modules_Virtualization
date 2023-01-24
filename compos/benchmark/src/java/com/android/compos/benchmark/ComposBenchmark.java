@@ -17,6 +17,7 @@ package com.android.compos.benchmark;
 
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assert.assertTrue;
@@ -136,9 +137,7 @@ public class ComposBenchmark extends MicrodroidDeviceTestBase {
             Long compileStartTime = System.nanoTime();
             String output = executeCommand(command);
             Long compileEndTime = System.nanoTime();
-            Pattern pattern = Pattern.compile("All Ok");
-            Matcher matcher = pattern.matcher(output);
-            assertTrue(matcher.find());
+            assertThat(output).containsMatch("All Ok");
             double elapsedSec = (compileEndTime - compileStartTime) / NANOS_IN_SEC;
             Log.i(TAG, "Compile time in guest took " + elapsedSec + "s");
             getMetricsRunnable.stop();
