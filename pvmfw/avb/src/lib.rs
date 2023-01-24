@@ -19,6 +19,7 @@
 #![feature(mixed_integer_ops)]
 
 mod error;
+mod ops;
 mod partition;
 mod utils;
 mod verify;
