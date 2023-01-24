@@ -321,8 +321,7 @@ pub fn alloc_shared(size: usize) -> smccc::Result<NonNull<u8>> {
         handle_alloc_error(layout);
     };
 
-    let vaddr = buffer.as_ptr() as usize;
-    let paddr = virt_to_phys(vaddr);
+    let paddr = virt_to_phys(buffer);
     // If share_range fails then we will leak the allocation, but that seems better than having it
     // be reused while maybe still partially shared with the host.
     share_range(&(paddr..paddr + layout.size()), granule)?;
@@ -338,7 +337,7 @@ pub fn alloc_shared(size: usize) -> smccc::Result<NonNull<u8>> {
 ///
 /// The memory must have been allocated by `alloc_shared` with the same size, and not yet
 /// deallocated.
-pub unsafe fn dealloc_shared(vaddr: usize, size: usize) -> smccc::Result<()> {
+pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> smccc::Result<()> {
     let layout = shared_buffer_layout(size)?;
     let granule = layout.align();
 
@@ -346,7 +345,7 @@ pub unsafe fn dealloc_shared(vaddr: usize, size: usize) -> smccc::Result<()> {
     unshare_range(&(paddr..paddr + layout.size()), granule)?;
     // Safe because the memory was allocated by `alloc_shared` above using the same allocator, and
     // the layout is the same as was used then.
-    unsafe { dealloc(vaddr as *mut u8, layout) };
+    unsafe { dealloc(vaddr.as_ptr(), layout) };
 
     Ok(())
 }
@@ -372,8 +371,16 @@ fn page_iterator(range: &MemoryRange) -> impl Iterator<Item = usize> {
 
 /// Returns the intermediate physical address corresponding to the given virtual address.
 ///
-/// As we use identity mapping for everything, this is just the identity function, but it's useful
-/// to use it to be explicit about where we are converting from virtual to physical address.
-pub fn virt_to_phys(vaddr: usize) -> usize {
-    vaddr
+/// As we use identity mapping for everything, this is just a cast, but it's useful to use it to be
+/// explicit about where we are converting from virtual to physical address.
+pub fn virt_to_phys(vaddr: NonNull<u8>) -> usize {
+    vaddr.as_ptr() as _
+}
+
+/// Returns a pointer for the virtual address corresponding to the given non-zero intermediate
+/// physical address.
+///
+/// Panics if `paddr` is 0.
+pub fn phys_to_virt(paddr: usize) -> NonNull<u8> {
+    NonNull::new(paddr as _).unwrap()
 }
