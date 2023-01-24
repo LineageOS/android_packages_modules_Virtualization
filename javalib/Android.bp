@@ -60,3 +60,30 @@ java_api_contribution {
         "//build/orchestrator/apis",
     ],
 }
+
+java_api_contribution {
+    name: "framework-virtualization-system-stubs",
+    api_surface: "system",
+    api_file: "api/system-current.txt",
+    visibility: [
+        "//build/orchestrator/apis",
+    ],
+}
+
+java_api_contribution {
+    name: "framework-virtualization-test-stubs",
+    api_surface: "test",
+    api_file: "api/test-current.txt",
+    visibility: [
+        "//build/orchestrator/apis",
+    ],
+}
+
+java_api_contribution {
+    name: "framework-virtualization-module-lib-stubs",
+    api_surface: "module-lib",
+    api_file: "api/module-lib-current.txt",
+    visibility: [
+        "//build/orchestrator/apis",
+    ],
+}
