@@ -135,6 +135,16 @@ fn verify_vbmeta_has_no_initrd_descriptor(
     }
 }
 
+fn verify_only_one_vbmeta_exists(
+    vbmeta_images: &[AvbVBMetaData],
+) -> Result<(), AvbSlotVerifyError> {
+    if vbmeta_images.len() == 1 {
+        Ok(())
+    } else {
+        Err(AvbSlotVerifyError::InvalidMetadata)
+    }
+}
+
 fn verify_vbmeta_is_from_kernel_partition(
     vbmeta_image: &AvbVBMetaData,
 ) -> Result<(), AvbSlotVerifyError> {
@@ -154,12 +164,10 @@ pub fn verify_payload(
     let mut ops = Ops::from(&mut payload);
     let kernel_verify_result = ops.verify_partition(PartitionName::Kernel.as_cstr())?;
     let vbmeta_images = kernel_verify_result.vbmeta_images()?;
-    if vbmeta_images.len() != 1 {
-        // There can only be one VBMeta.
-        return Err(AvbSlotVerifyError::InvalidMetadata);
-    }
+    verify_only_one_vbmeta_exists(vbmeta_images)?;
     let vbmeta_image = vbmeta_images[0];
     verify_vbmeta_is_from_kernel_partition(&vbmeta_image)?;
+
     if initrd.is_none() {
         verify_vbmeta_has_no_initrd_descriptor(&vbmeta_image)?;
         return Ok(DebugLevel::None);
