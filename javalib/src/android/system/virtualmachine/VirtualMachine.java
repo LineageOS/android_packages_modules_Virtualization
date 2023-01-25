@@ -769,7 +769,7 @@ public class VirtualMachine implements AutoCloseable {
                 }
             } catch (IOException e) {
                 // If the file already exists, exception is not thrown.
-                throw new VirtualMachineException("failed to create idsig file", e);
+                throw new VirtualMachineException("Failed to create APK signature file", e);
             }
 
             IVirtualizationService service = mVirtualizationService.connect();
@@ -782,29 +782,11 @@ public class VirtualMachine implements AutoCloseable {
                 VirtualMachineAppConfig appConfig = getConfig().toVsConfig();
                 appConfig.name = mName;
 
-                // Fill the idsig file by hashing the apk
-                service.createOrUpdateIdsigFile(
-                        appConfig.apk, ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_WRITE));
-
-                for (ExtraApkSpec extraApk : mExtraApks) {
-                    service.createOrUpdateIdsigFile(
-                            ParcelFileDescriptor.open(extraApk.apk, MODE_READ_ONLY),
-                            ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_WRITE));
+                try {
+                    createIdSigs(service, appConfig);
+                } catch (FileNotFoundException e) {
+                    throw new VirtualMachineException("Failed to generate APK signature", e);
                 }
-
-                // Re-open idsig file in read-only mode
-                appConfig.idsig = ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_ONLY);
-                appConfig.instanceImage =
-                        ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_WRITE);
-                if (mEncryptedStoreFilePath != null) {
-                    appConfig.encryptedStorageImage =
-                            ParcelFileDescriptor.open(mEncryptedStoreFilePath, MODE_READ_WRITE);
-                }
-                List<ParcelFileDescriptor> extraIdsigs = new ArrayList<>();
-                for (ExtraApkSpec extraApk : mExtraApks) {
-                    extraIdsigs.add(ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_ONLY));
-                }
-                appConfig.extraIdsigs = extraIdsigs;
 
                 android.system.virtualizationservice.VirtualMachineConfig vmConfigParcel =
                         android.system.virtualizationservice.VirtualMachineConfig.appConfig(
@@ -814,12 +796,38 @@ public class VirtualMachine implements AutoCloseable {
                 mVirtualMachine.registerCallback(new CallbackTranslator(service));
                 mContext.registerComponentCallbacks(mMemoryManagementCallbacks);
                 mVirtualMachine.start();
-            } catch (IOException | IllegalStateException | ServiceSpecificException e) {
+            } catch (IllegalStateException | ServiceSpecificException e) {
                 throw new VirtualMachineException(e);
             } catch (RemoteException e) {
                 throw e.rethrowAsRuntimeException();
             }
         }
+    }
+
+    private void createIdSigs(IVirtualizationService service, VirtualMachineAppConfig appConfig)
+            throws RemoteException, FileNotFoundException {
+        // Fill the idsig file by hashing the apk
+        service.createOrUpdateIdsigFile(
+                appConfig.apk, ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_WRITE));
+
+        for (ExtraApkSpec extraApk : mExtraApks) {
+            service.createOrUpdateIdsigFile(
+                    ParcelFileDescriptor.open(extraApk.apk, MODE_READ_ONLY),
+                    ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_WRITE));
+        }
+
+        // Re-open idsig files in read-only mode
+        appConfig.idsig = ParcelFileDescriptor.open(mIdsigFilePath, MODE_READ_ONLY);
+        appConfig.instanceImage = ParcelFileDescriptor.open(mInstanceFilePath, MODE_READ_WRITE);
+        if (mEncryptedStoreFilePath != null) {
+            appConfig.encryptedStorageImage =
+                    ParcelFileDescriptor.open(mEncryptedStoreFilePath, MODE_READ_WRITE);
+        }
+        List<ParcelFileDescriptor> extraIdsigs = new ArrayList<>();
+        for (ExtraApkSpec extraApk : mExtraApks) {
+            extraIdsigs.add(ParcelFileDescriptor.open(extraApk.idsig, MODE_READ_ONLY));
+        }
+        appConfig.extraIdsigs = extraIdsigs;
     }
 
     @GuardedBy("mLock")
