@@ -229,15 +229,13 @@ fn try_get_size_of_partition(
 extern "C" fn read_rollback_index(
     _ops: *mut AvbOps,
     _rollback_index_location: usize,
-    _out_rollback_index: *mut u64,
+    out_rollback_index: *mut u64,
 ) -> AvbIOResult {
-    // TODO(b/256148034): Write -1 to out_rollback_index
-    // so that we won't compare the current rollback index with uninitialized number
-    // in avb_slot_verify.
-
-    // Rollback protection is not yet implemented, but
-    // this method is required by `avb_slot_verify()`.
-    AvbIOResult::AVB_IO_RESULT_OK
+    // Rollback protection is not yet implemented, but this method is required by
+    // `avb_slot_verify()`.
+    // We set `out_rollback_index` to 0 to ensure that the default rollback index (0)
+    // is never smaller than it, thus the rollback index check will pass.
+    to_avb_io_result(write(out_rollback_index, 0))
 }
 
 extern "C" fn get_unique_guid_for_partition(
