@@ -202,6 +202,19 @@ fn tampered_kernel_footer_fails_verification() -> Result<()> {
 }
 
 #[test]
+fn extended_initrd_fails_verification() -> Result<()> {
+    let mut initrd = load_latest_initrd_normal()?;
+    initrd.extend(b"androidboot.vbmeta.digest=1111");
+
+    assert_payload_verification_with_initrd_eq(
+        &load_latest_signed_kernel()?,
+        &initrd,
+        &load_trusted_public_key()?,
+        Err(AvbSlotVerifyError::Verification),
+    )
+}
+
+#[test]
 fn tampered_vbmeta_fails_verification() -> Result<()> {
     let mut kernel = load_latest_signed_kernel()?;
     let footer = extract_avb_footer(&kernel)?;
