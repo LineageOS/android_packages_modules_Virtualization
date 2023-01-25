@@ -31,6 +31,7 @@ import static org.junit.Assert.assertThrows;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.ParcelFileDescriptor.AutoCloseInputStream;
@@ -342,7 +343,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachineConfig.Builder minimalBuilder = newVmConfigBuilder();
         VirtualMachineConfig minimal = minimalBuilder.setPayloadBinaryName("binary.so").build();
 
-        assertThat(minimal.getApkPath()).isEqualTo(getContext().getPackageCodePath());
+        assertThat(minimal.getApkPath()).isNull();
         assertThat(minimal.getDebugLevel()).isEqualTo(DEBUG_LEVEL_NONE);
         assertThat(minimal.getMemoryMib()).isEqualTo(0);
         assertThat(minimal.getNumCpus()).isEqualTo(1);
@@ -425,13 +426,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(e).hasMessageThat().contains("debug level must be FULL to capture output");
     }
 
-    private VirtualMachineConfig.Builder newBaselineBuilder() {
-        return newVmConfigBuilder().setPayloadBinaryName("binary.so").setApkPath("/apk/path");
-    }
-
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
-    public void compatibleConfigTests() throws Exception {
+    public void compatibleConfigTests() {
         int maxCpus = Runtime.getRuntime().availableProcessors();
 
         VirtualMachineConfig baseline = newBaselineBuilder().build();
@@ -467,6 +464,31 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 newBaselineBuilder().setDebugLevel(DEBUG_LEVEL_FULL);
         VirtualMachineConfig debuggable = debuggableBuilder.build();
         assertConfigCompatible(debuggable, debuggableBuilder.setVmOutputCaptured(true)).isFalse();
+
+        VirtualMachineConfig currentContextConfig =
+                new VirtualMachineConfig.Builder(getContext())
+                        .setProtectedVm(isProtectedVm())
+                        .setPayloadBinaryName("binary.so")
+                        .build();
+
+        // packageName is not directly exposed by the config, so we have to be a bit creative
+        // to modify it.
+        Context otherContext =
+                new ContextWrapper(getContext()) {
+                    @Override
+                    public String getPackageName() {
+                        return "other.package.name";
+                    }
+                };
+        VirtualMachineConfig.Builder otherContextBuilder =
+                new VirtualMachineConfig.Builder(otherContext)
+                        .setProtectedVm(isProtectedVm())
+                        .setPayloadBinaryName("binary.so");
+        assertConfigCompatible(currentContextConfig, otherContextBuilder).isFalse();
+    }
+
+    private VirtualMachineConfig.Builder newBaselineBuilder() {
+        return newVmConfigBuilder().setPayloadBinaryName("binary.so").setApkPath("/apk/path");
     }
 
     private BooleanSubject assertConfigCompatible(
