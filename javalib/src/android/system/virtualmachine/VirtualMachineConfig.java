@@ -393,9 +393,14 @@ public final class VirtualMachineConfig {
      * app-owned files and that could be abused to run a VM with software that the calling
      * application doesn't own.
      */
-    VirtualMachineAppConfig toVsConfig() throws FileNotFoundException {
+    VirtualMachineAppConfig toVsConfig() throws VirtualMachineException {
         VirtualMachineAppConfig vsConfig = new VirtualMachineAppConfig();
-        vsConfig.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
+
+        try {
+            vsConfig.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
+        } catch (FileNotFoundException e) {
+            throw new VirtualMachineException("Failed to open APK", e);
+        }
         if (mPayloadBinaryName != null) {
             VirtualMachinePayloadConfig payloadConfig = new VirtualMachinePayloadConfig();
             payloadConfig.payloadBinaryName = mPayloadBinaryName;
