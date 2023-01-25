@@ -20,7 +20,7 @@ use crate::partition::PartitionName;
 use crate::utils::{is_not_null, to_usize, usize_checked_add, write};
 use avb_bindgen::{
     avb_descriptor_foreach, avb_hash_descriptor_validate_and_byteswap, AvbDescriptor,
-    AvbHashDescriptor, AvbVBMetaData,
+    AvbHashDescriptor, AvbPartitionData, AvbVBMetaData,
 };
 use core::{
     ffi::{c_char, c_void},
@@ -154,6 +154,29 @@ fn verify_vbmeta_is_from_kernel_partition(
     }
 }
 
+fn verify_loaded_partition_has_expected_length(
+    loaded_partitions: &[AvbPartitionData],
+    partition_name: PartitionName,
+    expected_len: usize,
+) -> Result<(), AvbSlotVerifyError> {
+    if loaded_partitions.len() != 1 {
+        // Only one partition should be loaded in each verify result.
+        return Err(AvbSlotVerifyError::Io);
+    }
+    let loaded_partition = loaded_partitions[0];
+    if !PartitionName::try_from(loaded_partition.partition_name as *const c_char)
+        .map_or(false, |p| p == partition_name)
+    {
+        // Only the requested partition should be loaded.
+        return Err(AvbSlotVerifyError::Io);
+    }
+    if loaded_partition.data_size == expected_len {
+        Ok(())
+    } else {
+        Err(AvbSlotVerifyError::Verification)
+    }
+}
+
 /// Verifies the payload (signed kernel + initrd) against the trusted public key.
 pub fn verify_payload(
     kernel: &[u8],
@@ -163,6 +186,7 @@ pub fn verify_payload(
     let mut payload = Payload::new(kernel, initrd, trusted_public_key);
     let mut ops = Ops::from(&mut payload);
     let kernel_verify_result = ops.verify_partition(PartitionName::Kernel.as_cstr())?;
+
     let vbmeta_images = kernel_verify_result.vbmeta_images()?;
     verify_only_one_vbmeta_exists(vbmeta_images)?;
     let vbmeta_image = vbmeta_images[0];
@@ -175,12 +199,20 @@ pub fn verify_payload(
     // TODO(b/256148034): Check the vbmeta doesn't have hash descriptors other than
     // boot, initrd_normal, initrd_debug.
 
-    let debug_level = if ops.verify_partition(PartitionName::InitrdNormal.as_cstr()).is_ok() {
-        DebugLevel::None
-    } else if ops.verify_partition(PartitionName::InitrdDebug.as_cstr()).is_ok() {
-        DebugLevel::Full
-    } else {
-        return Err(AvbSlotVerifyError::Verification);
-    };
+    let initrd = initrd.unwrap();
+    let (debug_level, initrd_verify_result, initrd_partition_name) =
+        if let Ok(result) = ops.verify_partition(PartitionName::InitrdNormal.as_cstr()) {
+            (DebugLevel::None, result, PartitionName::InitrdNormal)
+        } else if let Ok(result) = ops.verify_partition(PartitionName::InitrdDebug.as_cstr()) {
+            (DebugLevel::Full, result, PartitionName::InitrdDebug)
+        } else {
+            return Err(AvbSlotVerifyError::Verification);
+        };
+    let loaded_partitions = initrd_verify_result.loaded_partitions()?;
+    verify_loaded_partition_has_expected_length(
+        loaded_partitions,
+        initrd_partition_name,
+        initrd.len(),
+    )?;
     Ok(debug_level)
 }
