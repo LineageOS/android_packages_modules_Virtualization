@@ -45,7 +45,7 @@ use crate::{
     helpers::flush,
     helpers::GUEST_PAGE_SIZE,
     memory::MemoryTracker,
-    virtio::pci::{find_virtio_devices, map_mmio},
+    virtio::pci::{self, find_virtio_devices},
 };
 use ::dice::bcc;
 use fdtpci::{PciError, PciInfo};
@@ -76,10 +76,7 @@ fn main(
     // Set up PCI bus for VirtIO devices.
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
-    map_mmio(&pci_info, memory)?;
-    // Safety: This is the only place where we call make_pci_root, and this main function is only
-    // called once.
-    let mut pci_root = unsafe { pci_info.make_pci_root() };
+    let mut pci_root = pci::initialise(pci_info, memory)?;
     find_virtio_devices(&mut pci_root).map_err(handle_pci_error)?;
 
     verify_payload(signed_kernel, ramdisk, PUBLIC_KEY).map_err(|e| {

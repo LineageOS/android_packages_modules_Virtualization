@@ -16,8 +16,10 @@
 
 use super::hal::HalImpl;
 use crate::{entry::RebootReason, memory::MemoryTracker};
+use alloc::boxed::Box;
 use fdtpci::{PciError, PciInfo};
 use log::{debug, error, info};
+use once_cell::race::OnceBox;
 use virtio_drivers::{
     device::blk::VirtIOBlk,
     transport::{
@@ -26,8 +28,29 @@ use virtio_drivers::{
     },
 };
 
+pub(super) static PCI_INFO: OnceBox<PciInfo> = OnceBox::new();
+
+/// Prepares to use VirtIO PCI devices.
+///
+/// In particular:
+///
+/// 1. Maps the PCI CAM and BAR range in the page table and MMIO guard.
+/// 2. Stores the `PciInfo` for the VirtIO HAL to use later.
+/// 3. Creates and returns a `PciRoot`.
+///
+/// This must only be called once; it will panic if it is called a second time.
+pub fn initialise(pci_info: PciInfo, memory: &mut MemoryTracker) -> Result<PciRoot, RebootReason> {
+    map_mmio(&pci_info, memory)?;
+
+    PCI_INFO.set(Box::new(pci_info.clone())).expect("Tried to set PCI_INFO a second time");
+
+    // Safety: This is the only place where we call make_pci_root, and `PCI_INFO.set` above will
+    // panic if it is called a second time.
+    Ok(unsafe { pci_info.make_pci_root() })
+}
+
 /// Maps the CAM and BAR range in the page table and MMIO guard.
-pub fn map_mmio(pci_info: &PciInfo, memory: &mut MemoryTracker) -> Result<(), RebootReason> {
+fn map_mmio(pci_info: &PciInfo, memory: &mut MemoryTracker) -> Result<(), RebootReason> {
     memory.map_mmio_range(pci_info.cam_range.clone()).map_err(|e| {
         error!("Failed to map PCI CAM: {}", e);
         RebootReason::InternalError
