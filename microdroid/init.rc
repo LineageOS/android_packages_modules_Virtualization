@@ -149,6 +149,10 @@ on boot
     # Mark boot completed. This will notify microdroid_manager to run payload.
     setprop dev.bootcomplete 1
 
+on property:tombstone_transmit.start=1
+    mkdir /data/tombstones 0771 system system
+    start tombstone_transmit
+
 service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000 -remove_tombstones_after_transmitting
     user system
     group system
@@ -175,4 +179,3 @@ service console /system/bin/sh
     group shell log readproc
     seclabel u:r:shell:s0
     setenv HOSTNAME console
-
