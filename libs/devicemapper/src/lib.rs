@@ -227,8 +227,8 @@ fn uuid(node_id: &[u8]) -> Result<String> {
     let context = Context::new(0);
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
     let ts = Timestamp::from_unix(context, now.as_secs(), now.subsec_nanos());
-    let uuid = Uuid::new_v1(ts, node_id)?;
-    Ok(String::from(uuid.to_hyphenated().encode_lower(&mut Uuid::encode_buffer())))
+    let uuid = Uuid::new_v1(ts, node_id.try_into()?);
+    Ok(String::from(uuid.hyphenated().encode_lower(&mut Uuid::encode_buffer())))
 }
 
 #[cfg(test)]
