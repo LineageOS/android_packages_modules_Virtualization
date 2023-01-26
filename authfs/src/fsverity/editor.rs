@@ -204,7 +204,7 @@ impl<F: ReadByChunk + RandomWrite> RandomWrite for VerifiedFileEditor<F> {
             let mut merkle_tree = self.merkle_tree.write().unwrap();
 
             let offset_in_buf = (output_offset - offset) as usize;
-            let source = &buf[offset_in_buf as usize..offset_in_buf as usize + current_size];
+            let source = &buf[offset_in_buf..offset_in_buf + current_size];
             let output_chunk_index = (output_offset / CHUNK_SIZE) as usize;
             let offset_from_alignment = (output_offset % CHUNK_SIZE) as usize;
 

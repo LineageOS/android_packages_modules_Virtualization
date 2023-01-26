@@ -575,7 +575,7 @@ fn get_guest_time(pid: u32) -> Result<i64> {
 
     let guest_time_ticks = data_list[42].parse::<i64>()?;
     // SAFETY : It just returns an integer about CPU tick information.
-    let ticks_per_sec = unsafe { sysconf(_SC_CLK_TCK) } as i64;
+    let ticks_per_sec = unsafe { sysconf(_SC_CLK_TCK) };
     Ok(guest_time_ticks * MILLIS_PER_SEC / ticks_per_sec)
 }
 
