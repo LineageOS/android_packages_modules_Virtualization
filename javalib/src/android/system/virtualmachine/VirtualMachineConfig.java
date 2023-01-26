@@ -29,6 +29,8 @@ import android.annotation.RequiresPermission;
 import android.annotation.SystemApi;
 import android.annotation.TestApi;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.sysprop.HypervisorProperties;
@@ -58,8 +60,9 @@ public final class VirtualMachineConfig {
     private static final String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
-    private static final int VERSION = 3;
+    private static final int VERSION = 4;
     private static final String KEY_VERSION = "version";
+    private static final String KEY_PACKAGENAME = "packageName";
     private static final String KEY_APKPATH = "apkPath";
     private static final String KEY_PAYLOADCONFIGPATH = "payloadConfigPath";
     private static final String KEY_PAYLOADBINARYNAME = "payloadBinaryPath";
@@ -94,8 +97,11 @@ public final class VirtualMachineConfig {
      */
     @SystemApi public static final int DEBUG_LEVEL_FULL = 1;
 
+    /** Name of a package whose primary APK contains the VM payload. */
+    @Nullable private final String mPackageName;
+
     /** Absolute path to the APK file containing the VM payload. */
-    @NonNull private final String mApkPath;
+    @Nullable private final String mApkPath;
 
     @DebugLevel private final int mDebugLevel;
 
@@ -129,7 +135,8 @@ public final class VirtualMachineConfig {
     private final boolean mVmOutputCaptured;
 
     private VirtualMachineConfig(
-            @NonNull String apkPath,
+            @Nullable String packageName,
+            @Nullable String apkPath,
             @Nullable String payloadConfigPath,
             @Nullable String payloadBinaryName,
             @DebugLevel int debugLevel,
@@ -139,6 +146,7 @@ public final class VirtualMachineConfig {
             long encryptedStorageKib,
             boolean vmOutputCaptured) {
         // This is only called from Builder.build(); the builder handles parameter validation.
+        mPackageName = packageName;
         mApkPath = apkPath;
         mPayloadConfigPath = payloadConfigPath;
         mPayloadBinaryName = payloadBinaryName;
@@ -191,8 +199,13 @@ public final class VirtualMachineConfig {
                     "Version " + version + " too high; current is " + VERSION);
         }
 
-        Builder builder = new Builder();
-        builder.setApkPath(b.getString(KEY_APKPATH));
+        String packageName = b.getString(KEY_PACKAGENAME);
+        Builder builder = new Builder(packageName);
+
+        String apkPath = b.getString(KEY_APKPATH);
+        if (apkPath != null) {
+            builder.setApkPath(apkPath);
+        }
 
         String payloadConfigPath = b.getString(KEY_PAYLOADCONFIGPATH);
         if (payloadConfigPath == null) {
@@ -234,7 +247,12 @@ public final class VirtualMachineConfig {
     private void serializeOutputStream(@NonNull OutputStream output) throws IOException {
         PersistableBundle b = new PersistableBundle();
         b.putInt(KEY_VERSION, VERSION);
-        b.putString(KEY_APKPATH, mApkPath);
+        if (mPackageName != null) {
+            b.putString(KEY_PACKAGENAME, mPackageName);
+        }
+        if (mApkPath != null) {
+            b.putString(KEY_APKPATH, mApkPath);
+        }
         b.putString(KEY_PAYLOADCONFIGPATH, mPayloadConfigPath);
         b.putString(KEY_PAYLOADBINARYNAME, mPayloadBinaryName);
         b.putInt(KEY_DEBUGLEVEL, mDebugLevel);
@@ -252,12 +270,13 @@ public final class VirtualMachineConfig {
 
     /**
      * Returns the absolute path of the APK which should contain the binary payload that will
-     * execute within the VM.
+     * execute within the VM. Returns null if no specific path has been set, so the primary APK will
+     * be used.
      *
      * @hide
      */
     @SystemApi
-    @NonNull
+    @Nullable
     public String getApkPath() {
         return mApkPath;
     }
@@ -383,7 +402,8 @@ public final class VirtualMachineConfig {
                 && this.mVmOutputCaptured == other.mVmOutputCaptured
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
-                && this.mApkPath.equals(other.mApkPath);
+                && Objects.equals(this.mPackageName, other.mPackageName)
+                && Objects.equals(this.mApkPath, other.mApkPath);
     }
 
     /**
@@ -393,11 +413,25 @@ public final class VirtualMachineConfig {
      * app-owned files and that could be abused to run a VM with software that the calling
      * application doesn't own.
      */
-    VirtualMachineAppConfig toVsConfig() throws VirtualMachineException {
+    VirtualMachineAppConfig toVsConfig(@NonNull PackageManager packageManager)
+            throws VirtualMachineException {
         VirtualMachineAppConfig vsConfig = new VirtualMachineAppConfig();
 
+        String apkPath = mApkPath;
+        if (apkPath == null) {
+            try {
+                ApplicationInfo appInfo =
+                        packageManager.getApplicationInfo(
+                                mPackageName, PackageManager.ApplicationInfoFlags.of(0));
+                // This really is the path to the APK, not a directory.
+                apkPath = appInfo.sourceDir;
+            } catch (PackageManager.NameNotFoundException e) {
+                throw new VirtualMachineException("Package not found", e);
+            }
+        }
+
         try {
-            vsConfig.apk = ParcelFileDescriptor.open(new File(mApkPath), MODE_READ_ONLY);
+            vsConfig.apk = ParcelFileDescriptor.open(new File(apkPath), MODE_READ_ONLY);
         } catch (FileNotFoundException e) {
             throw new VirtualMachineException("Failed to open APK", e);
         }
@@ -433,7 +467,7 @@ public final class VirtualMachineConfig {
      */
     @SystemApi
     public static final class Builder {
-        @Nullable private final Context mContext;
+        @Nullable private final String mPackageName;
         @Nullable private String mApkPath;
         @Nullable private String mPayloadConfigPath;
         @Nullable private String mPayloadBinaryName;
@@ -452,15 +486,15 @@ public final class VirtualMachineConfig {
          */
         @SystemApi
         public Builder(@NonNull Context context) {
-            mContext = requireNonNull(context, "context must not be null");
+            mPackageName = requireNonNull(context, "context must not be null").getPackageName();
         }
 
         /**
-         * Creates a builder with no associated context; {@link #setApkPath} must be called to
-         * specify which APK contains the payload.
+         * Creates a builder for a specific package. If packageName is null, {@link #setApkPath}
+         * must be called to specify the APK containing the payload.
          */
-        private Builder() {
-            mContext = null;
+        private Builder(@Nullable String packageName) {
+            mPackageName = packageName;
         }
 
         /**
@@ -471,14 +505,16 @@ public final class VirtualMachineConfig {
         @SystemApi
         @NonNull
         public VirtualMachineConfig build() {
-            String apkPath;
-            if (mApkPath == null) {
-                if (mContext == null) {
-                    throw new IllegalStateException("apkPath must be specified");
-                }
-                apkPath = mContext.getPackageCodePath();
-            } else {
+            String apkPath = null;
+            String packageName = null;
+
+            if (mApkPath != null) {
                 apkPath = mApkPath;
+            } else if (mPackageName != null) {
+                packageName = mPackageName;
+            } else {
+                // This should never happen, unless we're deserializing a bad config
+                throw new IllegalStateException("apkPath or packageName must be specified");
             }
 
             if (mPayloadBinaryName == null) {
@@ -501,6 +537,7 @@ public final class VirtualMachineConfig {
             }
 
             return new VirtualMachineConfig(
+                    packageName,
                     apkPath,
                     mPayloadConfigPath,
                     mPayloadBinaryName,
