@@ -779,7 +779,8 @@ public class VirtualMachine implements AutoCloseable {
                     createVmPipes();
                 }
 
-                VirtualMachineAppConfig appConfig = getConfig().toVsConfig();
+                VirtualMachineAppConfig appConfig =
+                        getConfig().toVsConfig(mContext.getPackageManager());
                 appConfig.name = mName;
 
                 try {
