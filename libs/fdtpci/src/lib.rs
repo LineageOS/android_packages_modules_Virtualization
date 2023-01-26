@@ -91,7 +91,7 @@ impl Display for PciError {
 }
 
 /// Information about the PCI bus parsed from the device tree.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PciInfo {
     /// The MMIO range used by the memory-mapped PCI CAM.
     pub cam_range: Range<usize>,
