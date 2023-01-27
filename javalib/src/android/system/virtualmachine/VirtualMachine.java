@@ -621,15 +621,26 @@ public class VirtualMachine implements AutoCloseable {
             }
             virtualMachine = mVirtualMachine;
         }
+
+        int status;
         if (virtualMachine == null) {
-            return mVmRootPath.exists() ? STATUS_STOPPED : STATUS_DELETED;
+            status = STATUS_STOPPED;
         } else {
             try {
-                return stateToStatus(virtualMachine.getState());
+                status = stateToStatus(virtualMachine.getState());
             } catch (RemoteException e) {
                 throw e.rethrowAsRuntimeException();
             }
         }
+        if (status == STATUS_STOPPED && !mVmRootPath.exists()) {
+            // A VM can quite happily keep running if its backing files have been deleted.
+            // But once it stops, it's gone forever.
+            synchronized (mLock) {
+                dropVm();
+            }
+            return STATUS_DELETED;
+        }
+        return status;
     }
 
     private int stateToStatus(@VirtualMachineState int state) {
