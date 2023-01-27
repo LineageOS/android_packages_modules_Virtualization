@@ -66,7 +66,7 @@ fn mkswap(dev: &str) -> Result<()> {
     f.write_all(Uuid::new_v4().as_bytes())?;
 
     // Write the magic signature string.
-    f.seek(SeekFrom::Start((pagesize - 10) as u64))?;
+    f.seek(SeekFrom::Start(pagesize - 10))?;
     f.write_all("SWAPSPACE2".as_bytes())?;
 
     Ok(())
