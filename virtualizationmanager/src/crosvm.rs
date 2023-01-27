@@ -78,9 +78,9 @@ lazy_static! {
     /// triggered.
     static ref BOOT_HANGUP_TIMEOUT: Duration = if nested_virt::is_nested_virtualization().unwrap() {
         // Nested virtualization is slow, so we need a longer timeout.
-        Duration::from_secs(100)
+        Duration::from_secs(300)
     } else {
-        Duration::from_secs(10)
+        Duration::from_secs(30)
     };
 }
 
