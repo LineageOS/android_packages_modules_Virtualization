@@ -175,8 +175,10 @@ fn kernel_footer_with_vbmeta_offset_overwritten_fails_verification() -> Result<(
             .copy_from_slice(&wrong_offset.to_be_bytes());
 
         // Assert.
-        let _footer = extract_avb_footer(&kernel)?;
-        //assert_eq!(wrong_offset, footer.vbmeta_offset);
+        let footer = extract_avb_footer(&kernel)?;
+        // footer is unaligned; copy vbmeta_offset to local variable
+        let vbmeta_offset = footer.vbmeta_offset;
+        assert_eq!(wrong_offset, vbmeta_offset);
         assert_payload_verification_with_initrd_eq(
             &kernel,
             &load_latest_initrd_normal()?,
@@ -268,10 +270,10 @@ fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
     let mut kernel = load_latest_signed_kernel()?;
     let footer = extract_avb_footer(&kernel)?;
     let vbmeta_header = extract_vbmeta_header(&kernel, &footer)?;
-    //assert_eq!(
-    //    0, vbmeta_header.flags,
-    //    "The disable flag should not be set in the latest kernel."
-    //);
+
+    // vbmeta_header is unaligned; copy flags to local variable
+    let vbmeta_header_flags = vbmeta_header.flags;
+    assert_eq!(0, vbmeta_header_flags, "The disable flag should not be set in the latest kernel.");
     let flags_addr = ptr::addr_of!(vbmeta_header.flags) as *const u8;
     // SAFETY: It is safe as both raw pointers `flags_addr` and `vbmeta_header` are not null.
     let flags_offset = unsafe { flags_addr.offset_from(ptr::addr_of!(vbmeta_header) as *const u8) };
@@ -282,11 +284,13 @@ fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
         .copy_from_slice(&AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED.to_be_bytes());
 
     // Assert.
-    let _vbmeta_header = extract_vbmeta_header(&kernel, &footer)?;
-    //assert_eq!(
-    //    AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED, vbmeta_header.flags,
-    //    "VBMeta verification flag should be disabled now."
-    //);
+    let vbmeta_header = extract_vbmeta_header(&kernel, &footer)?;
+    // vbmeta_header is unaligned; copy flags to local variable
+    let vbmeta_header_flags = vbmeta_header.flags;
+    assert_eq!(
+        AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED, vbmeta_header_flags,
+        "VBMeta verification flag should be disabled now."
+    );
     assert_payload_verification_with_initrd_eq(
         &kernel,
         &load_latest_initrd_normal()?,
