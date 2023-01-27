@@ -172,13 +172,13 @@ mod tests {
 
     fn is_direct_io(dev: &Path) -> bool {
         let dio = Path::new("/sys/block").join(dev.file_name().unwrap()).join("loop/dio");
-        "1" == fs::read_to_string(&dio).unwrap().trim()
+        "1" == fs::read_to_string(dio).unwrap().trim()
     }
 
     // kernel exposes /sys/block/loop*/ro which gives the read-only value
     fn is_direct_io_writable(dev: &Path) -> bool {
         let ro = Path::new("/sys/block").join(dev.file_name().unwrap()).join("ro");
-        "0" == fs::read_to_string(&ro).unwrap().trim()
+        "0" == fs::read_to_string(ro).unwrap().trim()
     }
 
     #[test]

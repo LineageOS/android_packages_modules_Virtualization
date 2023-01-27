@@ -144,7 +144,7 @@ mod tests {
         let res = verify("tests/data/test.apex").unwrap();
         // The expected hex is generated when we ran the method the first time.
         assert_eq!(
-            hex::encode(&res.root_digest),
+            hex::encode(res.root_digest),
             "fe11ab17da0a3a738b54bdc3a13f6139cbdf91ec32f001f8d4bbbf8938e04e39"
         );
     }
@@ -153,7 +153,7 @@ mod tests {
     fn payload_vbmeta_has_valid_image_hash() {
         let result = get_payload_vbmeta_image_hash("tests/data/test.apex").unwrap();
         assert_eq!(
-            hex::encode(&result),
+            hex::encode(result),
             "296e32a76544de9da01713e471403ab4667705ad527bb4f1fac0cf61e7ce122d"
         );
     }
