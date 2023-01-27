@@ -148,7 +148,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
                 cid: vm.cid as i32,
                 temporaryDirectory: vm.get_temp_dir().to_string_lossy().to_string(),
                 requesterUid: vm.requester_uid as i32,
-                requesterPid: vm.requester_debug_pid as i32,
+                requesterPid: vm.requester_debug_pid,
             })
             .collect();
         Ok(cids)
