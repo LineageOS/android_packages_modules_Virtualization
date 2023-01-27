@@ -664,6 +664,40 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    @CddTest(
+            requirements = {
+                "9.17/C-1-1",
+            })
+    public void deleteVmFiles() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidExitNativeLib.so")
+                        .setMemoryMib(minMemoryRequired())
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_delete", config);
+        vm.run();
+        // If we explicitly stop a VM, that triggers some tidy up; so for this test we start a VM
+        // that immediately stops itself.
+        while (vm.getStatus() == STATUS_RUNNING) {
+            Thread.sleep(100);
+        }
+
+        // Delete the files without telling VMM. This isn't a good idea, but we can't stop an
+        // app doing it, and we should recover from it.
+        for (File f : vm.getRootDir().listFiles()) {
+            Files.delete(f.toPath());
+        }
+        vm.getRootDir().delete();
+
+        VirtualMachineManager vmm = getVirtualMachineManager();
+        assertThat(vmm.get("test_vm_delete")).isNull();
+        assertThat(vm.getStatus()).isEqualTo(STATUS_DELETED);
+    }
+
+    @Test
     @CddTest(requirements = {
             "9.17/C-1-1",
     })
