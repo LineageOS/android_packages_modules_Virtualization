@@ -40,8 +40,8 @@ fn get_checksum(file_path: &PathBuf) -> Result<u32> {
 // Bootconfig is attached to the initrd in the following way:
 // [initrd][bootconfig][padding][size(le32)][checksum(le32)][#BOOTCONFIG\n]
 fn attach_bootconfig(initrd: PathBuf, bootconfigs: Vec<PathBuf>, output: PathBuf) -> Result<()> {
-    let mut output_file = File::create(&output)?;
-    let mut initrd_file = File::open(&initrd)?;
+    let mut output_file = File::create(output)?;
+    let mut initrd_file = File::open(initrd)?;
     let initrd_size: usize = initrd_file.metadata()?.len().try_into()?;
     let mut bootconfig_size: usize = 0;
     let mut checksum: u32 = 0;

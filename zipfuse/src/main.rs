@@ -673,7 +673,7 @@ mod tests {
             |root| {
                 let path = root.join("foo");
 
-                let metadata = fs::metadata(&path);
+                let metadata = fs::metadata(path);
                 assert!(metadata.is_ok());
                 let metadata = metadata.unwrap();
 

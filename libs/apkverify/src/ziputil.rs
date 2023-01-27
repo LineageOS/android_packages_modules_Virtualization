@@ -46,7 +46,7 @@ pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<(R, ZipSections)> {
     reader = archive.into_inner();
     // the current position should point EOCD offset
     let eocd_offset = reader.seek(SeekFrom::Current(0))? as u32;
-    let mut eocd = vec![0u8; eocd_size as usize];
+    let mut eocd = vec![0u8; eocd_size];
     reader.read_exact(&mut eocd)?;
     ensure!(
         (&eocd[0..]).get_u32_le() == EOCD_SIGNATURE,
