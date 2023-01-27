@@ -426,7 +426,8 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     // Start tombstone_transmit if enabled
     if config.export_tombstones {
-        control_service("start", "tombstone_transmit")?;
+        system_properties::write("tombstone_transmit.start", "1")
+            .context("set tombstone_transmit.start")?;
     } else {
         control_service("stop", "tombstoned")?;
     }
@@ -435,10 +436,6 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     zipfuse.wait_until_done()?;
 
     register_vm_payload_service(allow_restricted_apis, service.clone(), dice_context)?;
-
-    if config.export_tombstones {
-        wait_for_tombstone_transmit_done()?;
-    }
 
     // Wait for encryptedstore to finish mounting the storage (if enabled) before setting
     // microdroid_manager.init_done. Reason is init stops uneventd after that.
@@ -451,6 +448,12 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     wait_for_property_true("dev.bootcomplete").context("failed waiting for dev.bootcomplete")?;
     system_properties::write("microdroid_manager.init_done", "1")
         .context("set microdroid_manager.init_done")?;
+
+    // Wait for tombstone_transmit to init
+    if config.export_tombstones {
+        wait_for_tombstone_transmit_done()?;
+    }
+
     info!("boot completed, time to run payload");
     exec_task(task, service).context("Failed to run payload")
 }
