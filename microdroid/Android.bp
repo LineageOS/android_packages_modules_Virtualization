@@ -240,37 +240,6 @@ logical_partition {
     ],
 }
 
-bootimg {
-    name: "microdroid_boot",
-    // We don't have kernel for arm and x86. But Soong demands one when it builds for
-    // arm or x86 target. Satisfy that by providing an empty file as the kernel.
-    kernel_prebuilt: "empty_kernel",
-    arch: {
-        arm64: {
-            kernel_prebuilt: ":microdroid_kernel_prebuilts-6.1-arm64",
-        },
-        x86_64: {
-            kernel_prebuilt: ":microdroid_kernel_prebuilts-6.1-x86_64",
-        },
-    },
-
-    dtb_prebuilt: "dummy_dtb.img",
-    header_version: "4",
-    partition_name: "boot",
-    use_avb: true,
-    avb_private_key: ":microdroid_sign_key",
-}
-
-bootimg {
-    name: "microdroid_init_boot",
-    ramdisk_module: "microdroid_ramdisk",
-    kernel_prebuilt: "empty_kernel",
-    header_version: "4",
-    partition_name: "init_boot",
-    use_avb: true,
-    avb_private_key: ":microdroid_sign_key",
-}
-
 android_filesystem {
     name: "microdroid_ramdisk",
     deps: [
@@ -287,25 +256,6 @@ android_filesystem {
         "second_stage_resources",
     ],
     type: "compressed_cpio",
-}
-
-bootimg {
-    name: "microdroid_vendor_boot",
-    ramdisk_module: "microdroid_vendor_ramdisk",
-    dtb_prebuilt: "dummy_dtb.img",
-    header_version: "4",
-    vendor_boot: true,
-    arch: {
-        arm64: {
-            bootconfig: ":microdroid_bootconfig_arm64_gen",
-        },
-        x86_64: {
-            bootconfig: ":microdroid_bootconfig_x86_64_gen",
-        },
-    },
-    partition_name: "vendor_boot",
-    use_avb: true,
-    avb_private_key: ":microdroid_sign_key",
 }
 
 android_filesystem {
@@ -347,43 +297,6 @@ genrule {
     cmd: "cat $(in) > $(out)",
 }
 
-vbmeta {
-    name: "microdroid_vbmeta_bootconfig",
-    partition_name: "vbmeta",
-    private_key: ":microdroid_sign_key",
-    chained_partitions: [
-        {
-            name: "bootconfig",
-            private_key: ":microdroid_sign_key",
-        },
-        {
-            name: "uboot_env",
-            private_key: ":microdroid_sign_key",
-        },
-    ],
-}
-
-// python -c "import hashlib; print(hashlib.sha256(b'bootconfig').hexdigest())"
-bootconfig_salt = "e158851fbebb402e1f18ea9372ea2f76b4dea23eceb5c4b92e5b27ade8537f5b"
-
-avb_add_hash_footer {
-    name: "microdroid_bootconfig_normal",
-    src: "bootconfig.normal",
-    filename: "microdroid_bootconfig.normal",
-    partition_name: "bootconfig",
-    private_key: ":microdroid_sign_key",
-    salt: bootconfig_salt,
-}
-
-avb_add_hash_footer {
-    name: "microdroid_bootconfig_debuggable",
-    src: "bootconfig.debuggable",
-    filename: "microdroid_bootconfig.debuggable",
-    partition_name: "bootconfig",
-    private_key: ":microdroid_sign_key",
-    salt: bootconfig_salt,
-}
-
 prebuilt_etc {
     name: "microdroid_fstab",
     src: "fstab.microdroid",
@@ -391,88 +304,8 @@ prebuilt_etc {
     installable: false,
 }
 
-prebuilt_etc {
-    name: "microdroid_bootloader",
-    src: ":microdroid_bootloader_signed",
-    arch: {
-        x86_64: {
-            // For unknown reason, the signed bootloader doesn't work on x86_64. Until the problem
-            // is fixed, let's use the unsigned bootloader for the architecture.
-            // TODO(b/185115783): remove this
-            src: ":microdroid_bootloader_pubkey_replaced",
-        },
-    },
-    relative_install_path: "fs",
-    filename: "microdroid_bootloader",
-}
-
 // python -c "import hashlib; print(hashlib.sha256(b'bootloader').hexdigest())"
 bootloader_salt = "3b4a12881d11f33cff968a24d7c53723a8232cde9a8d91e29fdbd6a95ae6adf0"
-
-avb_add_hash_footer {
-    name: "microdroid_bootloader_signed",
-    src: ":microdroid_bootloader_pubkey_replaced",
-    filename: "microdroid_bootloader",
-    partition_name: "bootloader",
-    private_key: ":microdroid_sign_key",
-    salt: bootloader_salt,
-}
-
-// Replace avbpubkey of prebuilt bootloader with the avbpubkey of the signing key
-genrule {
-    name: "microdroid_bootloader_pubkey_replaced",
-    tools: ["replace_bytes"],
-    srcs: [
-        ":microdroid_crosvm_bootloader", // input (bootloader)
-        ":microdroid_crosvm_bootloader.avbpubkey", // old bytes (old pubkey)
-        ":microdroid_bootloader_avbpubkey_gen", // new bytes (new pubkey)
-    ],
-    out: ["bootloader-pubkey-replaced"],
-    // 1. Copy the input to the output (replace_bytes modifies the file in-place)
-    // 2. Replace embedded pubkey with new one.
-    cmd: "cp $(location :microdroid_crosvm_bootloader) $(out) && " +
-        "$(location replace_bytes) $(out) " +
-        "$(location :microdroid_crosvm_bootloader.avbpubkey) " +
-        "$(location :microdroid_bootloader_avbpubkey_gen)",
-}
-
-// Apex keeps a copy of avbpubkey embedded in bootloader so that embedded avbpubkey can be replaced
-// while re-signing bootloader.
-prebuilt_etc {
-    name: "microdroid_bootloader.avbpubkey",
-    src: ":microdroid_bootloader_avbpubkey_gen",
-}
-
-// Generate avbpukey from the signing key
-genrule {
-    name: "microdroid_bootloader_avbpubkey_gen",
-    tools: ["avbtool"],
-    srcs: [":microdroid_sign_key"],
-    out: ["bootloader.pubkey"],
-    cmd: "$(location avbtool) extract_public_key " +
-        "--key $(location :microdroid_sign_key) " +
-        "--output $(out)",
-}
-
-// python -c "import hashlib; print(hashlib.sha256(b'uboot_env').hexdigest())"
-uboot_env_salt = "cbf2d76827ece5ca8d176a40c94ac6355edcf6511b4b887364a8c0e05850df10"
-
-avb_add_hash_footer {
-    name: "microdroid_uboot_env",
-    src: ":microdroid_uboot_env_gen",
-    filename: "uboot_env.img",
-    partition_name: "uboot_env",
-    private_key: ":microdroid_sign_key",
-    salt: uboot_env_salt,
-}
-
-genrule {
-    name: "microdroid_uboot_env_gen",
-    tools: ["mkenvimage_slim"],
-    srcs: ["uboot-env.txt"],
-    out: ["output.img"],
-    cmd: "$(location mkenvimage_slim) -output_path $(out) -input_path $(location uboot-env.txt)",
-}
 
 // Note that keys can be different for filesystem images even though we're using the same key
 // for microdroid. However, the key signing VBmeta should match with the pubkey embedded in
