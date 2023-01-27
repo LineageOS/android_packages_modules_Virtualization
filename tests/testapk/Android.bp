@@ -24,6 +24,7 @@ android_test {
         "MicrodroidTestNativeLib",
         "MicrodroidIdleNativeLib",
         "MicrodroidEmptyNativeLib",
+        "MicrodroidExitNativeLib",
         "MicrodroidPrivateLinkingNativeLib",
     ],
     jni_uses_platform_apis: true,
@@ -71,6 +72,14 @@ cc_library_shared {
     name: "MicrodroidEmptyNativeLib",
     srcs: ["src/native/emptybinary.cpp"],
     stl: "none",
+}
+
+// A payload that exits immediately on start
+cc_library_shared {
+    name: "MicrodroidExitNativeLib",
+    srcs: ["src/native/exitbinary.cpp"],
+    header_libs: ["vm_payload_headers"],
+    stl: "libc++_static",
 }
 
 // A payload which tries to link against libselinux, one of private libraries
