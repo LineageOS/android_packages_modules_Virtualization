@@ -38,7 +38,7 @@ apex_defaults {
     name: "com.android.virt_common",
     // TODO(jiyong): make it updatable
     updatable: false,
-    future_updatable: true,
+    future_updatable: false,
     platform_apis: true,
 
     manifest: "manifest.json",
