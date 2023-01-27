@@ -849,6 +849,64 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertThat(ret).contains("Payload binary name must not specify a path");
     }
 
+    @Test
+    @CddTest(requirements = {"9.17/C-2-2", "9.17/C-2-6"})
+    public void testAllVbmetaUseSHA256() throws Exception {
+        File virtApexDir = FileUtil.createTempDir("virt_apex");
+        // Pull the virt apex's etc/ directory (which contains images)
+        File virtApexEtcDir = new File(virtApexDir, "etc");
+        // We need only etc/ directory for images
+        assertWithMessage("Failed to mkdir " + virtApexEtcDir)
+                .that(virtApexEtcDir.mkdirs())
+                .isTrue();
+        assertWithMessage("Failed to pull " + VIRT_APEX + "etc")
+                .that(getDevice().pullDir(VIRT_APEX + "etc", virtApexEtcDir))
+                .isTrue();
+
+        checkHashAlgorithm(virtApexEtcDir);
+    }
+
+    private String avbInfo(String image_path) throws Exception {
+        File avbtool = findTestFile("avbtool");
+        List<String> command =
+                Arrays.asList(avbtool.getAbsolutePath(), "info_image", "--image", image_path);
+        CommandResult result =
+                new RunUtil().runTimedCmd(5000, "/bin/bash", "-c", String.join(" ", command));
+        String out = result.getStdout();
+        String err = result.getStderr();
+        assertWithMessage(
+                        "Command "
+                                + command
+                                + " failed."
+                                + ":\n\tout: "
+                                + out
+                                + "\n\terr: "
+                                + err
+                                + "\n")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
+        return out;
+    }
+
+    private void checkHashAlgorithm(File virtApexEtcDir) throws Exception {
+        List<String> images =
+                Arrays.asList(
+                        // kernel image (contains descriptors from initrd(s) as well)
+                        "/fs/microdroid_kernel",
+                        // vbmeta partition (contains descriptors from vendor/system images)
+                        "/fs/microdroid_vbmeta.img");
+
+        for (String path : images) {
+            String info = avbInfo(virtApexEtcDir + path);
+            Pattern pattern = Pattern.compile("Hash Algorithm:[ ]*(sha1|sha256)");
+            Matcher m = pattern.matcher(info);
+            while (m.find()) {
+                assertThat(m.group(1)).isEqualTo("sha256");
+            }
+        }
+    }
+
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
