@@ -205,23 +205,19 @@ def AvbInfo(args, image_path):
     return info, descriptors
 
 
-# Look up a list of (key, value) with a key. Returns the value of the first matching pair.
+# Look up a list of (key, value) with a key. Returns the list of value(s) with the matching key.
+# The order of those values is maintained.
 def LookUp(pairs, key):
-    for k, v in pairs:
-        if key == k:
-            return v
-    return None
+    return [v for (k, v) in pairs if k == key]
 
 
-def AddHashFooter(args, key, image_path):
+def AddHashFooter(args, key, image_path, partition_name, additional_descriptors=None):
     if os.path.basename(image_path) in args.key_overrides:
         key = args.key_overrides[os.path.basename(image_path)]
-    info, descriptors = AvbInfo(args, image_path)
+    info, _ = AvbInfo(args, image_path)
     if info:
-        descriptor = LookUp(descriptors, 'Hash descriptor')
         image_size = ReadBytesSize(info['Image size'])
         algorithm = info['Algorithm']
-        partition_name = descriptor['Partition Name']
         partition_size = str(image_size)
 
         cmd = ['avbtool', 'add_hash_footer',
@@ -232,6 +228,9 @@ def AddHashFooter(args, key, image_path):
                '--image', image_path]
         if args.signing_args:
             cmd.extend(shlex.split(args.signing_args))
+        if additional_descriptors:
+            for image in additional_descriptors:
+                cmd.extend(['--include_descriptors_from_image', image])
         RunCommand(args, cmd)
 
 
@@ -240,7 +239,7 @@ def AddHashTreeFooter(args, key, image_path):
         key = args.key_overrides[os.path.basename(image_path)]
     info, descriptors = AvbInfo(args, image_path)
     if info:
-        descriptor = LookUp(descriptors, 'Hashtree descriptor')
+        descriptor = LookUp(descriptors, 'Hashtree descriptor')[0]
         image_size = ReadBytesSize(info['Image size'])
         algorithm = info['Algorithm']
         partition_name = descriptor['Partition Name']
@@ -399,6 +398,14 @@ def MakeSuperImage(args, partitions, output):
         RunCommand(args, cmd)
 
 
+def GenVbmetaImage(args, image, output, partition_name):
+    cmd = ['avbtool', 'add_hash_footer', '--dynamic_partition_size',
+           '--do_not_append_vbmeta_image',
+           '--partition_name', partition_name,
+           '--image', image,
+           '--output_vbmeta_image', output]
+    RunCommand(args, cmd)
+
 # dict of (key, file) for re-sign/verification. keys are un-versioned for readability.
 virt_apex_files = {
     'kernel': 'etc/fs/microdroid_kernel',
@@ -438,14 +445,26 @@ def SignVirtApex(args):
                      images=[system_a_img, vendor_a_img],
                      wait=[system_a_f, vendor_a_f])
 
+    vbmeta_bc_f = None
     if not args.do_not_update_bootconfigs:
-        Async(UpdateVbmetaBootconfig, args, [files['initrd_normal.img'],
-                                             files['initrd_debuggable.img']], files['vbmeta.img'],
-              wait=[vbmeta_f])
+        vbmeta_bc_f = Async(UpdateVbmetaBootconfig, args,
+                            [files['initrd_normal.img'],
+                                files['initrd_debuggable.img']], files['vbmeta.img'],
+                            wait=[vbmeta_f])
 
-    # Re-sign kernel
-    # TODO(b/265382249): Kernel's vbmeta should contain hashes of initrd
-    Async(AddHashFooter, args, key, files['kernel'])
+    # Re-sign kernel. Note kernel's vbmeta contain addition descriptor from ramdisk(s)
+    initrd_normal_hashdesc = tempfile.NamedTemporaryFile(delete=False).name
+    initrd_debug_hashdesc = tempfile.NamedTemporaryFile(delete=False).name
+    initrd_n_f = Async(GenVbmetaImage, args, files['initrd_normal.img'],
+                       initrd_normal_hashdesc, "initrd_normal",
+                       wait=[vbmeta_bc_f] if vbmeta_bc_f is not None else [])
+    initrd_d_f = Async(GenVbmetaImage, args, files['initrd_debuggable.img'],
+                       initrd_debug_hashdesc, "initrd_debug",
+                       wait=[vbmeta_bc_f] if vbmeta_bc_f is not None else [])
+    Async(AddHashFooter, args, key, files['kernel'], partition_name="boot",
+          additional_descriptors=[
+              initrd_normal_hashdesc, initrd_debug_hashdesc],
+          wait=[initrd_n_f, initrd_d_f])
 
 
 def VerifyVirtApex(args):
