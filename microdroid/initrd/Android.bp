@@ -68,7 +68,7 @@ genrule {
         ":microdroid_bootconfig_debuggable_src",
     ] + bootconfigs_arm64,
     out: ["microdroid_initrd_debuggable_arm64"],
-    cmd: "$(location initrd_bootconfig) --output $(out) $(in)",
+    cmd: "$(location initrd_bootconfig) attach --output $(out) $(in)",
 }
 
 genrule {
@@ -79,7 +79,7 @@ genrule {
         ":microdroid_bootconfig_debuggable_src",
     ] + bootconfigs_x86_64,
     out: ["microdroid_initrd_debuggable_x86_64"],
-    cmd: "$(location initrd_bootconfig) --output $(out) $(in)",
+    cmd: "$(location initrd_bootconfig) attach --output $(out) $(in)",
 }
 
 genrule {
@@ -90,7 +90,7 @@ genrule {
         ":microdroid_bootconfig_normal_src",
     ] + bootconfigs_arm64,
     out: ["microdroid_initrd_normal_arm64"],
-    cmd: "$(location initrd_bootconfig) --output $(out) $(in)",
+    cmd: "$(location initrd_bootconfig) attach --output $(out) $(in)",
 }
 
 genrule {
@@ -101,7 +101,7 @@ genrule {
         ":microdroid_bootconfig_normal_src",
     ] + bootconfigs_x86_64,
     out: ["microdroid_initrd_normal_x86_64"],
-    cmd: "$(location initrd_bootconfig) --output $(out) $(in)",
+    cmd: "$(location initrd_bootconfig) attach --output $(out) $(in)",
 }
 
 prebuilt_etc {
