@@ -29,6 +29,7 @@ java_test_host {
         // For re-sign test
         "avbtool",
         "img2simg",
+        "initrd_bootconfig",
         "lpmake",
         "lpunpack",
         "mk_payload",

@@ -3,15 +3,8 @@ package {
 }
 
 microdroid_filesystem_images = [
-    "microdroid_boot",
-    "microdroid_bootconfig_debuggable",
-    "microdroid_bootconfig_normal",
-    "microdroid_init_boot",
     "microdroid_super",
-    "microdroid_uboot_env",
     "microdroid_vbmeta",
-    "microdroid_vbmeta_bootconfig",
-    "microdroid_vendor_boot",
 ]
 
 soong_config_module_type {
@@ -98,8 +91,6 @@ apex_defaults {
         "microdroid_initrd_debuggable",
         "microdroid_initrd_normal",
         "microdroid.json",
-        "microdroid_bootloader",
-        "microdroid_bootloader.avbpubkey",
         "microdroid_kernel",
     ],
     host_required: [
@@ -146,7 +137,10 @@ python_binary_host {
         },
     },
     required: [
+        // sign_virt_apex should be runnable from outside the source tree,
+        // therefore, any required tool should be listed in build/make/core/Makefile as well.
         "img2simg",
+        "initrd_bootconfig",
         "lpmake",
         "lpunpack",
         "simg2img",
@@ -167,6 +161,7 @@ sh_test_host {
         // sign_virt_apex
         "avbtool",
         "img2simg",
+        "initrd_bootconfig",
         "lpmake",
         "lpunpack",
         "sign_virt_apex",
