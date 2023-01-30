@@ -476,7 +476,7 @@ public class VirtualMachine implements AutoCloseable {
                 try {
                     service.initializeWritablePartition(
                             ParcelFileDescriptor.open(vm.mEncryptedStoreFilePath, MODE_READ_WRITE),
-                            config.getEncryptedStorageKib() * 1024L,
+                            config.getEncryptedStorageBytes(),
                             PartitionType.ENCRYPTEDSTORE);
                 } catch (FileNotFoundException e) {
                     throw new VirtualMachineException("encrypted storage image missing", e);
@@ -919,7 +919,7 @@ public class VirtualMachine implements AutoCloseable {
      * Stops this virtual machine. Stopping a virtual machine is like pulling the plug on a real
      * computer; the machine halts immediately. Software running on the virtual machine is not
      * notified of the event. Writes to {@linkplain
-     * VirtualMachineConfig.Builder#setEncryptedStorageKib encrypted storage} might not be
+     * VirtualMachineConfig.Builder#setEncryptedStorageBytes encrypted storage} might not be
      * persisted, and the instance might be left in an inconsistent state.
      *
      * <p>For a graceful shutdown, you could request the payload to call {@code exit()}, e.g. via a

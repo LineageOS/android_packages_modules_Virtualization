@@ -351,7 +351,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(minimal.getPayloadConfigPath()).isNull();
         assertThat(minimal.isProtectedVm()).isEqualTo(isProtectedVm());
         assertThat(minimal.isEncryptedStorageEnabled()).isFalse();
-        assertThat(minimal.getEncryptedStorageKib()).isEqualTo(0);
+        assertThat(minimal.getEncryptedStorageBytes()).isEqualTo(0);
         assertThat(minimal.isVmOutputCaptured()).isEqualTo(false);
 
         // Maximal has everything that can be set to some non-default value. (And has different
@@ -365,7 +365,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setNumCpus(maxCpus)
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .setMemoryMib(42)
-                        .setEncryptedStorageKib(1024)
+                        .setEncryptedStorageBytes(1_000_000)
                         .setVmOutputCaptured(true);
         VirtualMachineConfig maximal = maximalBuilder.build();
 
@@ -377,7 +377,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(maximal.getPayloadConfigPath()).isEqualTo("config/path");
         assertThat(maximal.isProtectedVm()).isEqualTo(isProtectedVm());
         assertThat(maximal.isEncryptedStorageEnabled()).isTrue();
-        assertThat(maximal.getEncryptedStorageKib()).isEqualTo(1024);
+        assertThat(maximal.getEncryptedStorageBytes()).isEqualTo(1_000_000);
         assertThat(maximal.isVmOutputCaptured()).isEqualTo(true);
 
         assertThat(minimal.isCompatibleWith(maximal)).isFalse();
@@ -405,7 +405,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThrows(IllegalArgumentException.class, () -> builder.setDebugLevel(-1));
         assertThrows(IllegalArgumentException.class, () -> builder.setMemoryMib(0));
         assertThrows(IllegalArgumentException.class, () -> builder.setNumCpus(0));
-        assertThrows(IllegalArgumentException.class, () -> builder.setEncryptedStorageKib(0));
+        assertThrows(IllegalArgumentException.class, () -> builder.setEncryptedStorageBytes(0));
 
         // Consistency checks enforced at build time.
         Exception e;
@@ -457,7 +457,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // Changes that are currently incompatible for ease of implementation, but this might change
         // in the future.
         assertConfigCompatible(baseline, newBaselineBuilder().setApkPath("/different")).isFalse();
-        assertConfigCompatible(baseline, newBaselineBuilder().setEncryptedStorageKib(100))
+        assertConfigCompatible(baseline, newBaselineBuilder().setEncryptedStorageBytes(100_000))
                 .isFalse();
 
         VirtualMachineConfig.Builder debuggableBuilder =
@@ -1230,7 +1230,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_FULL);
         if (encryptedStoreEnabled) {
-            builder.setEncryptedStorageKib(4096);
+            builder.setEncryptedStorageBytes(4_000_000);
         }
         VirtualMachineConfig config = builder.build();
         String vmNameOrig = "test_vm_orig";
@@ -1285,7 +1285,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 newVmConfigBuilder()
                         .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setMemoryMib(minMemoryRequired())
-                        .setEncryptedStorageKib(4096)
+                        .setEncryptedStorageBytes(4_000_000)
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
@@ -1332,7 +1332,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 newVmConfigBuilder()
                         .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setMemoryMib(minMemoryRequired())
-                        .setEncryptedStorageKib(4096)
+                        .setEncryptedStorageBytes(4_000_000)
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_a", config);
