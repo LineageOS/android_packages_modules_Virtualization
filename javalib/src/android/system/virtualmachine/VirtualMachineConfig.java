@@ -68,7 +68,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_PAYLOADBINARYNAME = "payloadBinaryPath";
     private static final String KEY_DEBUGLEVEL = "debugLevel";
     private static final String KEY_PROTECTED_VM = "protectedVm";
-    private static final String KEY_MEMORY_MIB = "memoryMib";
+    private static final String KEY_MEMORY_BYTES = "memoryBytes";
     private static final String KEY_NUM_CPUS = "numCpus";
     private static final String KEY_ENCRYPTED_STORAGE_BYTES = "encryptedStorageBytes";
     private static final String KEY_VM_OUTPUT_CAPTURED = "vmOutputCaptured";
@@ -111,9 +111,10 @@ public final class VirtualMachineConfig {
     private final boolean mProtectedVm;
 
     /**
-     * The amount of RAM to give the VM, in MiB. If this is 0 or negative the default will be used.
+     * The amount of RAM to give the VM, in bytes. If this is 0 or negative the default will be
+     * used.
      */
-    private final int mMemoryMib;
+    private final long mMemoryBytes;
 
     /**
      * Number of vCPUs in the VM. Defaults to 1 when not specified.
@@ -141,7 +142,7 @@ public final class VirtualMachineConfig {
             @Nullable String payloadBinaryName,
             @DebugLevel int debugLevel,
             boolean protectedVm,
-            int memoryMib,
+            long memoryBytes,
             int numCpus,
             long encryptedStorageBytes,
             boolean vmOutputCaptured) {
@@ -152,7 +153,7 @@ public final class VirtualMachineConfig {
         mPayloadBinaryName = payloadBinaryName;
         mDebugLevel = debugLevel;
         mProtectedVm = protectedVm;
-        mMemoryMib = memoryMib;
+        mMemoryBytes = memoryBytes;
         mNumCpus = numCpus;
         mEncryptedStorageBytes = encryptedStorageBytes;
         mVmOutputCaptured = vmOutputCaptured;
@@ -220,9 +221,9 @@ public final class VirtualMachineConfig {
         }
         builder.setDebugLevel(debugLevel);
         builder.setProtectedVm(b.getBoolean(KEY_PROTECTED_VM));
-        int memoryMib = b.getInt(KEY_MEMORY_MIB);
-        if (memoryMib != 0) {
-            builder.setMemoryMib(memoryMib);
+        long memoryBytes = b.getLong(KEY_MEMORY_BYTES);
+        if (memoryBytes != 0) {
+            builder.setMemoryBytes(memoryBytes);
         }
         builder.setNumCpus(b.getInt(KEY_NUM_CPUS));
         long encryptedStorageBytes = b.getLong(KEY_ENCRYPTED_STORAGE_BYTES);
@@ -258,8 +259,8 @@ public final class VirtualMachineConfig {
         b.putInt(KEY_DEBUGLEVEL, mDebugLevel);
         b.putBoolean(KEY_PROTECTED_VM, mProtectedVm);
         b.putInt(KEY_NUM_CPUS, mNumCpus);
-        if (mMemoryMib > 0) {
-            b.putInt(KEY_MEMORY_MIB, mMemoryMib);
+        if (mMemoryBytes > 0) {
+            b.putLong(KEY_MEMORY_BYTES, mMemoryBytes);
         }
         if (mEncryptedStorageBytes > 0) {
             b.putLong(KEY_ENCRYPTED_STORAGE_BYTES, mEncryptedStorageBytes);
@@ -335,8 +336,8 @@ public final class VirtualMachineConfig {
      */
     @SystemApi
     @IntRange(from = 0)
-    public int getMemoryMib() {
-        return mMemoryMib;
+    public long getMemoryBytes() {
+        return mMemoryBytes;
     }
 
     /**
@@ -453,11 +454,21 @@ public final class VirtualMachineConfig {
                 break;
         }
         vsConfig.protectedVm = mProtectedVm;
-        vsConfig.memoryMib = mMemoryMib;
+        vsConfig.memoryMib = bytesToMebiBytes(mMemoryBytes);
         vsConfig.numCpus = mNumCpus;
         // Don't allow apps to set task profiles ... at least for now.
         vsConfig.taskProfiles = EMPTY_STRING_ARRAY;
         return vsConfig;
+    }
+
+    private int bytesToMebiBytes(long mMemoryBytes) {
+        long oneMebi = 1024 * 1024;
+        // We can't express requests for more than 2 exabytes, but then they're not going to succeed
+        // anyway.
+        if (mMemoryBytes > (Integer.MAX_VALUE - 1) * oneMebi) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) ((mMemoryBytes + oneMebi - 1) / oneMebi);
     }
 
     /**
@@ -474,7 +485,7 @@ public final class VirtualMachineConfig {
         @DebugLevel private int mDebugLevel = DEBUG_LEVEL_NONE;
         private boolean mProtectedVm;
         private boolean mProtectedVmSet;
-        private int mMemoryMib;
+        private long mMemoryBytes;
         private int mNumCpus = 1;
         private long mEncryptedStorageBytes;
         private boolean mVmOutputCaptured = false;
@@ -543,7 +554,7 @@ public final class VirtualMachineConfig {
                     mPayloadBinaryName,
                     mDebugLevel,
                     mProtectedVm,
-                    mMemoryMib,
+                    mMemoryBytes,
                     mNumCpus,
                     mEncryptedStorageBytes,
                     mVmOutputCaptured);
@@ -660,18 +671,18 @@ public final class VirtualMachineConfig {
         }
 
         /**
-         * Sets the amount of RAM to give the VM, in mebibytes. If not explicitly set then a default
+         * Sets the amount of RAM to give the VM, in bytes. If not explicitly set then a default
          * size will be used.
          *
          * @hide
          */
         @SystemApi
         @NonNull
-        public Builder setMemoryMib(@IntRange(from = 1) int memoryMib) {
-            if (memoryMib <= 0) {
+        public Builder setMemoryBytes(@IntRange(from = 1) long memoryBytes) {
+            if (memoryBytes <= 0) {
                 throw new IllegalArgumentException("Memory size must be positive");
             }
-            mMemoryMib = memoryMib;
+            mMemoryBytes = memoryBytes;
             return this;
         }
 

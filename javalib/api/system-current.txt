@@ -59,7 +59,7 @@ package android.system.virtualmachine {
     method @Nullable public String getApkPath();
     method @NonNull public int getDebugLevel();
     method @IntRange(from=0) public long getEncryptedStorageBytes();
-    method @IntRange(from=0) public int getMemoryMib();
+    method @IntRange(from=0) public long getMemoryBytes();
     method @IntRange(from=1) public int getNumCpus();
     method @Nullable public String getPayloadBinaryName();
     method public boolean isCompatibleWith(@NonNull android.system.virtualmachine.VirtualMachineConfig);
@@ -76,7 +76,7 @@ package android.system.virtualmachine {
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setApkPath(@NonNull String);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setDebugLevel(int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setEncryptedStorageBytes(@IntRange(from=1) long);
-    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryMib(@IntRange(from=1) int);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryBytes(@IntRange(from=1) long);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setNumCpus(@IntRange(from=1) int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadBinaryName(@NonNull String);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setProtectedVm(boolean);
