@@ -22,7 +22,7 @@ pub(crate) type Result<T> = result::Result<T, AvbIOError>;
 
 pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<()> {
     let ptr = to_nonnull(ptr)?;
-    // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
+    // SAFETY: It is safe as the raw pointer `ptr` is a non-null pointer.
     unsafe {
         *ptr.as_ptr() = value;
     }
@@ -31,7 +31,7 @@ pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<()> {
 
 pub(crate) fn as_ref<'a, T>(ptr: *mut T) -> Result<&'a T> {
     let ptr = to_nonnull(ptr)?;
-    // SAFETY: It is safe as the raw pointer `ptr` is a nonnull pointer.
+    // SAFETY: It is safe as the raw pointer `ptr` is a non-null pointer.
     unsafe { Ok(ptr.as_ref()) }
 }
 
