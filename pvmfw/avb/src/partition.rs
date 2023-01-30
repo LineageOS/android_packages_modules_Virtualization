@@ -25,7 +25,16 @@ pub(crate) enum PartitionName {
     InitrdDebug,
 }
 
+/// This is needed to build the default `HashDescriptor`.
+impl Default for PartitionName {
+    fn default() -> Self {
+        Self::Kernel
+    }
+}
+
 impl PartitionName {
+    pub(crate) const NUM_OF_KNOWN_PARTITIONS: usize = 3;
+
     const KERNEL_PARTITION_NAME: &[u8] = b"boot\0";
     const INITRD_NORMAL_PARTITION_NAME: &[u8] = b"initrd_normal\0";
     const INITRD_DEBUG_PARTITION_NAME: &[u8] = b"initrd_debug\0";
