@@ -34,11 +34,14 @@ use crate::bytes_ext::ReadFromBytes;
 /// [SignatureAlgorithm.java]: (tools/apksig/src/main/java/com/android/apksig/internal/apk/SignatureAlgorithm.java)
 ///
 /// Some of the algorithms are not implemented. See b/197052981.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, Default, Eq, PartialEq, FromPrimitive, ToPrimitive,
+)]
 #[repr(u32)]
 pub enum SignatureAlgorithmID {
     /// RSASSA-PSS with SHA2-256 digest, SHA2-256 MGF1, 32 bytes of salt, trailer: 0xbc, content
     /// digested using SHA2-256 in 1 MB chunks.
+    #[default]
     RsaPssWithSha256 = 0x0101,
 
     /// RSASSA-PSS with SHA2-512 digest, SHA2-512 MGF1, 64 bytes of salt, trailer: 0xbc, content
@@ -75,12 +78,6 @@ pub enum SignatureAlgorithmID {
     /// same way fsverity operates. This digest and the content length (before digestion,
     /// 8 bytes in little endian) construct the final digest.
     VerityDsaWithSha256 = 0x0425,
-}
-
-impl Default for SignatureAlgorithmID {
-    fn default() -> Self {
-        SignatureAlgorithmID::RsaPssWithSha256
-    }
 }
 
 impl ReadFromBytes for Option<SignatureAlgorithmID> {
