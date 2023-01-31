@@ -72,9 +72,9 @@ fn copyfile2file(file_in: &mut File, file_out: &mut File, n: usize) -> Result<()
 
 // Note: attaching & then detaching bootconfigs can lead to extra padding in bootconfigs
 fn detach_bootconfig(initrd_bc: PathBuf, initrd: PathBuf, bootconfig: PathBuf) -> Result<()> {
-    let mut initrd_bc = File::open(&initrd_bc)?;
-    let mut bootconfig = File::create(&bootconfig)?;
-    let mut initrd = File::create(&initrd)?;
+    let mut initrd_bc = File::open(initrd_bc)?;
+    let mut bootconfig = File::create(bootconfig)?;
+    let mut initrd = File::create(initrd)?;
     let initrd_bc_size: usize = initrd_bc.metadata()?.len().try_into()?;
 
     initrd_bc.seek(SeekFrom::End(-(BOOTCONFIG_MAGIC.len() as i64)))?;
