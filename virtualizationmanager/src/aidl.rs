@@ -90,6 +90,9 @@ const MICRODROID_OS_NAME: &str = "microdroid";
 
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
+/// crosvm requires all partitions to be a multiple of 4KiB.
+const PARTITION_GRANULARITY_BYTES: u64 = 4096;
+
 lazy_static! {
     pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> =
         wait_for_interface(BINDER_SERVICE_IDENTIFIER)
@@ -172,16 +175,17 @@ impl IVirtualizationService for VirtualizationService {
     fn initializeWritablePartition(
         &self,
         image_fd: &ParcelFileDescriptor,
-        size: i64,
+        size_bytes: i64,
         partition_type: PartitionType,
     ) -> binder::Result<()> {
         check_manage_access()?;
-        let size = size.try_into().map_err(|e| {
+        let size_bytes = size_bytes.try_into().map_err(|e| {
             Status::new_exception_str(
                 ExceptionCode::ILLEGAL_ARGUMENT,
-                Some(format!("Invalid size {}: {:?}", size, e)),
+                Some(format!("Invalid size {}: {:?}", size_bytes, e)),
             )
         })?;
+        let size_bytes = round_up(size_bytes, PARTITION_GRANULARITY_BYTES);
         let image = clone_file(image_fd)?;
         // initialize the file. Any data in the file will be erased.
         image.set_len(0).map_err(|e| {
@@ -190,7 +194,7 @@ impl IVirtualizationService for VirtualizationService {
                 Some(format!("Failed to reset a file: {:?}", e)),
             )
         })?;
-        let mut part = QcowFile::new(image, size).map_err(|e| {
+        let mut part = QcowFile::new(image, size_bytes).map_err(|e| {
             Status::new_service_specific_error_str(
                 -1,
                 Some(format!("Failed to create QCOW2 image: {:?}", e)),
@@ -458,6 +462,15 @@ fn format_as_encryptedstore(part: &mut dyn Write) -> std::io::Result<()> {
 
 fn prepare_ramdump_file(ramdump_path: &Path) -> Result<File> {
     File::create(ramdump_path).context(format!("Failed to create ramdump file {:?}", &ramdump_path))
+}
+
+fn round_up(input: u64, granularity: u64) -> u64 {
+    if granularity == 0 {
+        return input;
+    }
+    // If the input is absurdly large we round down instead of up; it's going to fail anyway.
+    let result = input.checked_add(granularity - 1).unwrap_or(input);
+    (result / granularity) * granularity
 }
 
 /// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
