@@ -31,7 +31,7 @@ use buddy_system_allocator::LockedHeap;
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
 
 /// 128 KiB
-const HEAP_SIZE: usize =  0x20000;
+const HEAP_SIZE: usize = 0x20000;
 static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 
 pub unsafe fn init() {
