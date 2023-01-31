@@ -18,18 +18,13 @@ use crate::error::AvbIOError;
 use crate::utils::is_not_null;
 use core::ffi::{c_char, CStr};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) enum PartitionName {
+    /// The default `PartitionName` is needed to build the default `HashDescriptor`.
+    #[default]
     Kernel,
     InitrdNormal,
     InitrdDebug,
-}
-
-/// This is needed to build the default `HashDescriptor`.
-impl Default for PartitionName {
-    fn default() -> Self {
-        Self::Kernel
-    }
 }
 
 impl PartitionName {
