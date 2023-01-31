@@ -60,7 +60,7 @@ public final class VirtualMachineConfig {
     private static final String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
-    private static final int VERSION = 4;
+    private static final int VERSION = 5;
     private static final String KEY_VERSION = "version";
     private static final String KEY_PACKAGENAME = "packageName";
     private static final String KEY_APKPATH = "apkPath";
@@ -68,9 +68,9 @@ public final class VirtualMachineConfig {
     private static final String KEY_PAYLOADBINARYNAME = "payloadBinaryPath";
     private static final String KEY_DEBUGLEVEL = "debugLevel";
     private static final String KEY_PROTECTED_VM = "protectedVm";
-    private static final String KEY_MEMORY_MIB = "memoryMib";
+    private static final String KEY_MEMORY_BYTES = "memoryBytes";
     private static final String KEY_NUM_CPUS = "numCpus";
-    private static final String KEY_ENCRYPTED_STORAGE_KIB = "encryptedStorageKib";
+    private static final String KEY_ENCRYPTED_STORAGE_BYTES = "encryptedStorageBytes";
     private static final String KEY_VM_OUTPUT_CAPTURED = "vmOutputCaptured";
 
     /** @hide */
@@ -111,9 +111,10 @@ public final class VirtualMachineConfig {
     private final boolean mProtectedVm;
 
     /**
-     * The amount of RAM to give the VM, in MiB. If this is 0 or negative the default will be used.
+     * The amount of RAM to give the VM, in bytes. If this is 0 or negative the default will be
+     * used.
      */
-    private final int mMemoryMib;
+    private final long mMemoryBytes;
 
     /**
      * Number of vCPUs in the VM. Defaults to 1 when not specified.
@@ -128,8 +129,8 @@ public final class VirtualMachineConfig {
     /** Name of the payload binary file within the APK that will be executed within the VM. */
     @Nullable private final String mPayloadBinaryName;
 
-    /** The size of storage in KiB. 0 indicates that encryptedStorage is not required */
-    private final long mEncryptedStorageKib;
+    /** The size of storage in bytes. 0 indicates that encryptedStorage is not required */
+    private final long mEncryptedStorageBytes;
 
     /** Whether the app can read console and log output. */
     private final boolean mVmOutputCaptured;
@@ -141,9 +142,9 @@ public final class VirtualMachineConfig {
             @Nullable String payloadBinaryName,
             @DebugLevel int debugLevel,
             boolean protectedVm,
-            int memoryMib,
+            long memoryBytes,
             int numCpus,
-            long encryptedStorageKib,
+            long encryptedStorageBytes,
             boolean vmOutputCaptured) {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
@@ -152,9 +153,9 @@ public final class VirtualMachineConfig {
         mPayloadBinaryName = payloadBinaryName;
         mDebugLevel = debugLevel;
         mProtectedVm = protectedVm;
-        mMemoryMib = memoryMib;
+        mMemoryBytes = memoryBytes;
         mNumCpus = numCpus;
-        mEncryptedStorageKib = encryptedStorageKib;
+        mEncryptedStorageBytes = encryptedStorageBytes;
         mVmOutputCaptured = vmOutputCaptured;
     }
 
@@ -220,14 +221,14 @@ public final class VirtualMachineConfig {
         }
         builder.setDebugLevel(debugLevel);
         builder.setProtectedVm(b.getBoolean(KEY_PROTECTED_VM));
-        int memoryMib = b.getInt(KEY_MEMORY_MIB);
-        if (memoryMib != 0) {
-            builder.setMemoryMib(memoryMib);
+        long memoryBytes = b.getLong(KEY_MEMORY_BYTES);
+        if (memoryBytes != 0) {
+            builder.setMemoryBytes(memoryBytes);
         }
         builder.setNumCpus(b.getInt(KEY_NUM_CPUS));
-        long encryptedStorageKib = b.getLong(KEY_ENCRYPTED_STORAGE_KIB);
-        if (encryptedStorageKib != 0) {
-            builder.setEncryptedStorageKib(encryptedStorageKib);
+        long encryptedStorageBytes = b.getLong(KEY_ENCRYPTED_STORAGE_BYTES);
+        if (encryptedStorageBytes != 0) {
+            builder.setEncryptedStorageBytes(encryptedStorageBytes);
         }
         builder.setVmOutputCaptured(b.getBoolean(KEY_VM_OUTPUT_CAPTURED));
 
@@ -258,11 +259,11 @@ public final class VirtualMachineConfig {
         b.putInt(KEY_DEBUGLEVEL, mDebugLevel);
         b.putBoolean(KEY_PROTECTED_VM, mProtectedVm);
         b.putInt(KEY_NUM_CPUS, mNumCpus);
-        if (mMemoryMib > 0) {
-            b.putInt(KEY_MEMORY_MIB, mMemoryMib);
+        if (mMemoryBytes > 0) {
+            b.putLong(KEY_MEMORY_BYTES, mMemoryBytes);
         }
-        if (mEncryptedStorageKib > 0) {
-            b.putLong(KEY_ENCRYPTED_STORAGE_KIB, mEncryptedStorageKib);
+        if (mEncryptedStorageBytes > 0) {
+            b.putLong(KEY_ENCRYPTED_STORAGE_BYTES, mEncryptedStorageBytes);
         }
         b.putBoolean(KEY_VM_OUTPUT_CAPTURED, mVmOutputCaptured);
         b.writeToStream(output);
@@ -335,8 +336,8 @@ public final class VirtualMachineConfig {
      */
     @SystemApi
     @IntRange(from = 0)
-    public int getMemoryMib() {
-        return mMemoryMib;
+    public long getMemoryBytes() {
+        return mMemoryBytes;
     }
 
     /**
@@ -357,26 +358,26 @@ public final class VirtualMachineConfig {
      */
     @SystemApi
     public boolean isEncryptedStorageEnabled() {
-        return mEncryptedStorageKib > 0;
+        return mEncryptedStorageBytes > 0;
     }
 
     /**
-     * Returns the size of encrypted storage (in KiB) available in the VM, or 0 if encrypted storage
-     * is not enabled
+     * Returns the size of encrypted storage (in bytes) available in the VM, or 0 if encrypted
+     * storage is not enabled
      *
      * @hide
      */
     @SystemApi
     @IntRange(from = 0)
-    public long getEncryptedStorageKib() {
-        return mEncryptedStorageKib;
+    public long getEncryptedStorageBytes() {
+        return mEncryptedStorageBytes;
     }
 
     /**
      * Returns whether the app can read the VM console or log output. If not, the VM output is
      * automatically forwarded to the host logcat.
      *
-     * @see #setVmOutputCaptured
+     * @see Builder#setVmOutputCaptured
      * @hide
      */
     @SystemApi
@@ -398,7 +399,7 @@ public final class VirtualMachineConfig {
     public boolean isCompatibleWith(@NonNull VirtualMachineConfig other) {
         return this.mDebugLevel == other.mDebugLevel
                 && this.mProtectedVm == other.mProtectedVm
-                && this.mEncryptedStorageKib == other.mEncryptedStorageKib
+                && this.mEncryptedStorageBytes == other.mEncryptedStorageBytes
                 && this.mVmOutputCaptured == other.mVmOutputCaptured
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
@@ -453,11 +454,21 @@ public final class VirtualMachineConfig {
                 break;
         }
         vsConfig.protectedVm = mProtectedVm;
-        vsConfig.memoryMib = mMemoryMib;
+        vsConfig.memoryMib = bytesToMebiBytes(mMemoryBytes);
         vsConfig.numCpus = mNumCpus;
         // Don't allow apps to set task profiles ... at least for now.
         vsConfig.taskProfiles = EMPTY_STRING_ARRAY;
         return vsConfig;
+    }
+
+    private int bytesToMebiBytes(long mMemoryBytes) {
+        long oneMebi = 1024 * 1024;
+        // We can't express requests for more than 2 exabytes, but then they're not going to succeed
+        // anyway.
+        if (mMemoryBytes > (Integer.MAX_VALUE - 1) * oneMebi) {
+            return Integer.MAX_VALUE;
+        }
+        return (int) ((mMemoryBytes + oneMebi - 1) / oneMebi);
     }
 
     /**
@@ -474,9 +485,9 @@ public final class VirtualMachineConfig {
         @DebugLevel private int mDebugLevel = DEBUG_LEVEL_NONE;
         private boolean mProtectedVm;
         private boolean mProtectedVmSet;
-        private int mMemoryMib;
+        private long mMemoryBytes;
         private int mNumCpus = 1;
-        private long mEncryptedStorageKib;
+        private long mEncryptedStorageBytes;
         private boolean mVmOutputCaptured = false;
 
         /**
@@ -543,9 +554,9 @@ public final class VirtualMachineConfig {
                     mPayloadBinaryName,
                     mDebugLevel,
                     mProtectedVm,
-                    mMemoryMib,
+                    mMemoryBytes,
                     mNumCpus,
-                    mEncryptedStorageKib,
+                    mEncryptedStorageBytes,
                     mVmOutputCaptured);
         }
 
@@ -660,18 +671,18 @@ public final class VirtualMachineConfig {
         }
 
         /**
-         * Sets the amount of RAM to give the VM, in mebibytes. If not explicitly set then a default
+         * Sets the amount of RAM to give the VM, in bytes. If not explicitly set then a default
          * size will be used.
          *
          * @hide
          */
         @SystemApi
         @NonNull
-        public Builder setMemoryMib(@IntRange(from = 1) int memoryMib) {
-            if (memoryMib <= 0) {
+        public Builder setMemoryBytes(@IntRange(from = 1) long memoryBytes) {
+            if (memoryBytes <= 0) {
                 throw new IllegalArgumentException("Memory size must be positive");
             }
-            mMemoryMib = memoryMib;
+            mMemoryBytes = memoryBytes;
             return this;
         }
 
@@ -699,8 +710,8 @@ public final class VirtualMachineConfig {
         }
 
         /**
-         * Sets the size (in KiB) of encrypted storage available to the VM. If not set, no encrypted
-         * storage is provided.
+         * Sets the size (in bytes) of encrypted storage available to the VM. If not set, no
+         * encrypted storage is provided.
          *
          * <p>The storage is encrypted with a key deterministically derived from the VM identity
          *
@@ -716,11 +727,11 @@ public final class VirtualMachineConfig {
          */
         @SystemApi
         @NonNull
-        public Builder setEncryptedStorageKib(@IntRange(from = 1) long encryptedStorageKib) {
-            if (encryptedStorageKib <= 0) {
+        public Builder setEncryptedStorageBytes(@IntRange(from = 1) long encryptedStorageBytes) {
+            if (encryptedStorageBytes <= 0) {
                 throw new IllegalArgumentException("Encrypted Storage size must be positive");
             }
-            mEncryptedStorageKib = encryptedStorageKib;
+            mEncryptedStorageBytes = encryptedStorageBytes;
             return this;
         }
 
