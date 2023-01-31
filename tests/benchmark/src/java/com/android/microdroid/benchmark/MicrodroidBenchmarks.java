@@ -60,6 +60,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidBenchmarks";
     private static final String METRIC_NAME_PREFIX = getMetricPrefix() + "microdroid/";
     private static final int IO_TEST_TRIAL_COUNT = 5;
+    private static final long ONE_MEBI = 1024 * 1024;
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
@@ -95,7 +96,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 newVmConfigBuilder()
                         .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
-                        .setMemoryMib(mem)
+                        .setMemoryBytes(mem * ONE_MEBI)
                         .build();
 
         // returns true if succeeded at least once.
@@ -148,7 +149,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                     newVmConfigBuilder()
                             .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                             .setDebugLevel(DEBUG_LEVEL_NONE)
-                            .setMemoryMib(256)
+                            .setMemoryBytes(256 * ONE_MEBI)
                             .build();
             forceCreateNewVirtualMachine("test_vm_boot_time", normalConfig);
 
@@ -176,7 +177,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                         newVmConfigBuilder()
                                 .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                                 .setDebugLevel(DEBUG_LEVEL_NONE)
-                                .setMemoryMib(256)
+                                .setMemoryBytes(256 * ONE_MEBI)
                                 .setNumCpus(numCpus)
                                 .build();
                 forceCreateNewVirtualMachine("test_vm_boot_time_multicore", normalConfig);
@@ -212,7 +213,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                             .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
                             .setDebugLevel(DEBUG_LEVEL_FULL)
                             .setVmOutputCaptured(true)
-                            .setMemoryMib(256)
+                            .setMemoryBytes(256 * ONE_MEBI)
                             .build();
             forceCreateNewVirtualMachine("test_vm_boot_time_debug", normalConfig);
 
@@ -397,7 +398,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 newVmConfigBuilder()
                         .setPayloadConfigPath("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
-                        .setMemoryMib(256)
+                        .setMemoryBytes(256 * ONE_MEBI)
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
         MemoryUsageListener listener = new MemoryUsageListener(this::executeCommand);
@@ -469,7 +470,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 newVmConfigBuilder()
                         .setPayloadConfigPath("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
-                        .setMemoryMib(256)
+                        .setMemoryBytes(256 * ONE_MEBI)
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
         MemoryReclaimListener listener = new MemoryReclaimListener(this::executeCommand);
