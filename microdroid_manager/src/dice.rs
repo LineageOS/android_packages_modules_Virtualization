@@ -17,7 +17,7 @@
 use anyhow::{bail, Context, Error, Result};
 use byteorder::{NativeEndian, ReadBytesExt};
 use diced_open_dice_cbor::{
-    Config, ContextImpl, InputValuesOwned, Mode, OpenDiceCborContext, CDI_SIZE, HASH_SIZE,
+    Config, ContextImpl, DiceMode, InputValuesOwned, OpenDiceCborContext, CDI_SIZE, HASH_SIZE,
     HIDDEN_SIZE,
 };
 use keystore2_crypto::ZVec;
@@ -148,7 +148,7 @@ impl DiceDriver<'_> {
             Config::Descriptor(config_desc),
             authority_hash,
             None,
-            if debug { Mode::Debug } else { Mode::Normal },
+            if debug { DiceMode::kDiceModeDebug } else { DiceMode::kDiceModeNormal },
             hidden,
         );
         let (cdi_attest, cdi_seal, bcc) = match &self {

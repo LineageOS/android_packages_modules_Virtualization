@@ -23,15 +23,12 @@ use core::mem;
 use core::ptr;
 use core::result;
 
+pub use open_dice_cbor_bindgen::DiceMode;
+
 use open_dice_cbor_bindgen::DiceConfigType_kDiceConfigTypeDescriptor as DICE_CONFIG_TYPE_DESCRIPTOR;
 use open_dice_cbor_bindgen::DiceConfigType_kDiceConfigTypeInline as DICE_CONFIG_TYPE_INLINE;
 use open_dice_cbor_bindgen::DiceHash;
 use open_dice_cbor_bindgen::DiceInputValues;
-use open_dice_cbor_bindgen::DiceMode;
-use open_dice_cbor_bindgen::DiceMode_kDiceModeDebug as DICE_MODE_DEBUG;
-use open_dice_cbor_bindgen::DiceMode_kDiceModeMaintenance as DICE_MODE_MAINTENANCE;
-use open_dice_cbor_bindgen::DiceMode_kDiceModeNormal as DICE_MODE_NORMAL;
-use open_dice_cbor_bindgen::DiceMode_kDiceModeNotInitialized as DICE_MODE_NOT_INITIALIZED;
 use open_dice_cbor_bindgen::DiceResult;
 use open_dice_cbor_bindgen::DiceResult_kDiceResultBufferTooSmall as DICE_RESULT_BUFFER_TOO_SMALL;
 use open_dice_cbor_bindgen::DiceResult_kDiceResultInvalidInput as DICE_RESULT_INVALID_INPUT;
@@ -90,26 +87,6 @@ fn check_call(ret: DiceResult) -> Result<()> {
     }
 }
 
-/// DICE mode values.
-#[derive(Clone, Copy, Debug)]
-pub enum Mode {
-    /// At least one security mechanism has not been configured. Also acts as a catch-all.
-    /// Invalid mode values should be treated like this mode.
-    NotInitialized = DICE_MODE_NOT_INITIALIZED as _,
-    /// Indicates the device is operating normally under secure configuration.
-    Normal = DICE_MODE_NORMAL as _,
-    /// Indicates at least one criteria for Normal mode is not met.
-    Debug = DICE_MODE_DEBUG as _,
-    /// Indicates a recovery or maintenance mode of some kind.
-    Maintenance = DICE_MODE_MAINTENANCE as _,
-}
-
-impl From<Mode> for DiceMode {
-    fn from(mode: Mode) -> Self {
-        mode as Self
-    }
-}
-
 /// DICE configuration input type.
 #[derive(Debug)]
 pub enum ConfigType<'a> {
@@ -132,7 +109,7 @@ impl InputValues {
         config: &ConfigType,
         auth_hash: Option<&Hash>,
         auth_descriptor: Option<&[u8]>,
-        mode: Mode,
+        mode: DiceMode,
         hidden: Option<&Hidden>,
     ) -> Self {
         const ZEROED_INLINE_CONFIG: InlineConfig = [0; INLINE_CONFIG_SIZE];
@@ -157,7 +134,7 @@ impl InputValues {
             authority_hash: auth_hash.map_or([0; mem::size_of::<Hash>()], |h| *h),
             authority_descriptor,
             authority_descriptor_size,
-            mode: mode.into(),
+            mode,
             hidden: hidden.map_or([0; mem::size_of::<Hidden>()], |h| *h),
         })
     }
