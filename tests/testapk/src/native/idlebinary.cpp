@@ -20,6 +20,6 @@
 extern "C" int AVmPayload_main() {
     // do nothing; just leave it alive. good night.
     for (;;) {
-        sleep(1000);
+        pause();
     }
 }
