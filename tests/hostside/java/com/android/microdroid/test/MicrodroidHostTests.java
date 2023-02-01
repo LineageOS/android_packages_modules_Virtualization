@@ -509,7 +509,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertThatEventually(
                 100000,
                 () -> getDevice().pullFileContents(CONSOLE_PATH),
-                containsString("init: [libfs_avb]Failed to verify vbmeta digest"));
+                containsString("init: [libfs_avb] Failed to verify vbmeta digest"));
         vmInfo.mProcess.destroy();
     }
 
