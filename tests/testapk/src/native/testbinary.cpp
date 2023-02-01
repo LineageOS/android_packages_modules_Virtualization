@@ -240,9 +240,6 @@ Result<void> start_test_service() {
                 return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
                                                                    msg.c_str());
             }
-            // TODO(b/264520098): Remove sync() once TestService supports quit() method
-            // and Microdroid manager flushes filesystem caches on shutdown.
-            sync();
             return ScopedAStatus::ok();
         }
 
@@ -255,6 +252,8 @@ Result<void> start_test_service() {
             }
             return ScopedAStatus::ok();
         }
+
+        ScopedAStatus quit() override { exit(0); }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
 
