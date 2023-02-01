@@ -25,5 +25,6 @@ mod partition;
 mod utils;
 mod verify;
 
+pub use descriptor::Digest;
 pub use error::AvbSlotVerifyError;
-pub use verify::{verify_payload, DebugLevel};
+pub use verify::{verify_payload, DebugLevel, VerifiedBootData};

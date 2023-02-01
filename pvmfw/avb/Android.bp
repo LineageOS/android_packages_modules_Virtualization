@@ -46,7 +46,9 @@ rust_test {
     rustlibs: [
         "libanyhow",
         "libavb_bindgen",
+        "libhex",
         "libpvmfw_avb_nostd",
+        "libopenssl",
     ],
     enabled: false,
     arch: {
