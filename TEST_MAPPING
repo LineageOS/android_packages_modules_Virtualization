@@ -19,7 +19,7 @@
       "name": "compos_key_tests"
     },
     {
-      "name": "composd_verify.test"
+      "name": "compos_verify.test"
     },
     {
       "name": "initrd_bootconfig.test"
