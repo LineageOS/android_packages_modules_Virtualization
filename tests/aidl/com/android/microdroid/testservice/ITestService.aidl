@@ -55,4 +55,10 @@ interface ITestService {
 
     /* get the content of the specified file. */
     String readFromFile(String path);
+
+    /**
+     * Request the service to exit, triggering the termination of the VM. This may cause any
+     * requests in flight to fail.
+     */
+    oneway void quit();
 }
