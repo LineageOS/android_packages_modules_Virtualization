@@ -63,13 +63,71 @@
 .set .Lsctlrval, .L_SCTLR_ELx_M | .L_SCTLR_ELx_C | .L_SCTLR_ELx_SA | .L_SCTLR_EL1_ITD | .L_SCTLR_EL1_SED
 .set .Lsctlrval, .Lsctlrval | .L_SCTLR_ELx_I | .L_SCTLR_EL1_SPAN | .L_SCTLR_EL1_RES1 | .L_SCTLR_EL1_WXN
 
+/* SMC function IDs */
+.set .L_SMCCC_VERSION_ID, 0x80000000
+.set .L_SMCCC_TRNG_VERSION_ID, 0x84000050
+.set .L_SMCCC_TRNG_FEATURES_ID, 0x84000051
+.set .L_SMCCC_TRNG_RND64_ID, 0xc4000053
+
+/* SMC function versions */
+.set .L_SMCCC_VERSION_1_1, 0x0101
+.set .L_SMCCC_TRNG_VERSION_1_0, 0x0100
+
 /* Bionic-compatible stack protector */
 .section .data.stack_protector, "aw"
 __bionic_tls:
 	.zero	40
 .global __stack_chk_guard
 __stack_chk_guard:
-	.quad	0x23d6d3f3c3b84098 	/* TODO: randomize */
+	.quad	0
+
+/**
+ * This macro stores a random value into a register.
+ * If a TRNG backed is not present or if an error occurs, the value remains unchanged.
+ */
+.macro rnd_reg reg:req
+	mov x20, x0
+	mov x21, x1
+	mov x22, x2
+	mov x23, x3
+
+	/* Verify SMCCC version >=1.1 */
+	hvc_call .L_SMCCC_VERSION_ID
+	cmp w0, 0
+	b.lt 100f
+	cmp w0, .L_SMCCC_VERSION_1_1
+	b.lt 100f
+
+	/* Verify TRNG ABI version 1.x */
+	hvc_call .L_SMCCC_TRNG_VERSION_ID
+	cmp w0, 0
+	b.lt 100f
+	cmp w0, .L_SMCCC_TRNG_VERSION_1_0
+	b.lt 100f
+
+	/* Call TRNG_FEATURES, ensure TRNG_RND is implemented */
+	mov_i x1, .L_SMCCC_TRNG_RND64_ID
+	hvc_call .L_SMCCC_TRNG_FEATURES_ID
+	cmp w0, 0
+	b.lt 100f
+
+	/* Call TRNG_RND, request 64 bits of entropy */
+	mov x1, #64
+	hvc_call .L_SMCCC_TRNG_RND64_ID
+	cmp x0, 0
+	b.lt 100f
+
+	mov \reg, x3
+	b 101f
+
+100:
+	reset_or_hang
+101:
+	mov x0, x20
+	mov x1, x21
+	mov x2, x22
+	mov x3, x23
+.endm
 
 /**
  * This is a generic entry point for an image. It carries out the operations required to prepare the
@@ -162,9 +220,15 @@ entry:
 	adr_l x30, __bionic_tls
 	msr tpidr_el0, x30
 
+	/* Randomize stack protector. */
+	rnd_reg x29
+	adr_l x30, __stack_chk_guard
+	str x29, [x30]
+
 	/* Call into Rust code. */
 	bl rust_entry
 
 	/* Loop forever waiting for interrupts. */
 4:	wfi
 	b 4b
+

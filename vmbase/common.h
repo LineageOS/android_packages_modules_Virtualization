@@ -30,9 +30,13 @@
 	movk \reg, :abs_g0_nc:\imm
 .endm
 
+.macro hvc_call func_id:req
+    mov_i x0, \func_id
+    hvc 0
+.endm
+
 .macro reset_or_hang
-	mov_i x0, PSCI_SYSTEM_RESET
-	hvc 0
+	hvc_call PSCI_SYSTEM_RESET
 999:	wfi
 	b 999b
 .endm
