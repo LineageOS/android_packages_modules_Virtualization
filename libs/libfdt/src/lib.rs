@@ -388,6 +388,23 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)
     }
 
+    /// Create or change a property name-value pair to the given node.
+    pub fn setprop(&mut self, name: &CStr, value: &[u8]) -> Result<()> {
+        // SAFETY - New value size is constrained to the DT totalsize
+        //          (validated by underlying libfdt).
+        let ret = unsafe {
+            libfdt_bindgen::fdt_setprop(
+                self.fdt.as_mut_ptr(),
+                self.offset,
+                name.as_ptr(),
+                value.as_ptr().cast::<c_void>(),
+                value.len().try_into().map_err(|_| FdtError::BadValue)?,
+            )
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
     /// Get reference to the containing device tree.
     pub fn fdt(&mut self) -> &mut Fdt {
         self.fdt

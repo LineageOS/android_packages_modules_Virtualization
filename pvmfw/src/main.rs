@@ -21,6 +21,7 @@
 extern crate alloc;
 
 mod config;
+mod debug_policy;
 mod dice;
 mod entry;
 mod exceptions;
