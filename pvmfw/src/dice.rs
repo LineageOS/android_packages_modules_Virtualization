@@ -15,24 +15,40 @@
 //! Support for DICE derivation and BCC generation.
 
 use core::ffi::CStr;
-
+use core::mem::size_of;
 use dice::bcc::format_config_descriptor;
 use dice::bcc::Handover;
 use dice::hash;
 use dice::ConfigType;
 use dice::InputValues;
+use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
+
+fn to_dice_mode(debug_level: DebugLevel) -> dice::Mode {
+    match debug_level {
+        DebugLevel::None => dice::Mode::Normal,
+        DebugLevel::Full => dice::Mode::Debug,
+    }
+}
+
+fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> dice::Result<dice::Hash> {
+    let mut digests = [0u8; size_of::<Digest>() * 2];
+    digests[..size_of::<Digest>()].copy_from_slice(&verified_boot_data.kernel_digest);
+    if let Some(initrd_digest) = verified_boot_data.initrd_digest {
+        digests[size_of::<Digest>()..].copy_from_slice(&initrd_digest);
+    }
+    hash(&digests)
+}
 
 /// Derive the VM-specific secrets and certificate through DICE.
 pub fn derive_next_bcc(
     bcc: &Handover,
     next_bcc: &mut [u8],
-    code: &[u8],
-    debug_mode: bool,
+    verified_boot_data: &VerifiedBootData,
     authority: &[u8],
 ) -> dice::Result<usize> {
-    let code_hash = hash(code)?;
+    let code_hash = to_dice_hash(verified_boot_data)?;
     let auth_hash = hash(authority)?;
-    let mode = if debug_mode { dice::Mode::Debug } else { dice::Mode::Normal };
+    let mode = to_dice_mode(verified_boot_data.debug_level);
     let component_name = CStr::from_bytes_with_nul(b"vm_entry\0").unwrap();
     let mut config_descriptor_buffer = [0; 128];
     let config_descriptor_size = format_config_descriptor(

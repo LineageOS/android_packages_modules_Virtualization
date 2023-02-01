@@ -16,9 +16,9 @@
 
 mod utils;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use avb_bindgen::{AvbFooter, AvbVBMetaImageHeader};
-use pvmfw_avb::{AvbSlotVerifyError, DebugLevel};
+use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel};
 use std::{fs, mem::size_of, ptr};
 use utils::*;
 
@@ -35,121 +35,125 @@ const RANDOM_FOOTER_POS: usize = 30;
 /// the latest payload can be verified successfully.
 #[test]
 fn latest_normal_payload_passes_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
-        &load_latest_signed_kernel()?,
+    assert_latest_payload_verification_passes(
         &load_latest_initrd_normal()?,
-        &load_trusted_public_key()?,
-        Ok(DebugLevel::None),
+        b"initrd_normal",
+        DebugLevel::None,
     )
 }
 
 #[test]
 fn latest_debug_payload_passes_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
-        &load_latest_signed_kernel()?,
+    assert_latest_payload_verification_passes(
         &load_latest_initrd_debug()?,
-        &load_trusted_public_key()?,
-        Ok(DebugLevel::Full),
+        b"initrd_debug",
+        DebugLevel::Full,
     )
 }
 
 #[test]
 fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()> {
-    assert_payload_verification_eq(
+    let verified_boot_data = verify_payload(
         &fs::read(TEST_IMG_WITH_ONE_HASHDESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        Ok(DebugLevel::None),
     )
+    .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
+
+    assert_eq!(DebugLevel::None, verified_boot_data.debug_level);
+    let digest = hash(&[&hex::decode("1111")?, &fs::read(UNSIGNED_TEST_IMG_PATH)?]);
+    assert_eq!(digest, verified_boot_data.kernel_digest);
+    assert!(verified_boot_data.initrd_digest.is_none());
+    Ok(())
 }
 
 #[test]
 fn payload_with_non_initrd_descriptor_fails_verification_with_no_initrd() -> Result<()> {
-    assert_payload_verification_eq(
+    assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::InvalidMetadata),
+        AvbSlotVerifyError::InvalidMetadata,
     )
 }
 
 #[test]
 fn payload_with_non_initrd_descriptor_fails_verification_with_initrd() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &fs::read(TEST_IMG_WITH_INITRD_AND_NON_INITRD_DESC_PATH)?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::InvalidMetadata),
+        AvbSlotVerifyError::InvalidMetadata,
     )
 }
 
 #[test]
 fn payload_with_prop_descriptor_fails_verification_with_no_initrd() -> Result<()> {
-    assert_payload_verification_eq(
+    assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_PROP_DESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::InvalidMetadata),
+        AvbSlotVerifyError::InvalidMetadata,
     )
 }
 
 #[test]
 fn payload_expecting_initrd_fails_verification_with_no_initrd() -> Result<()> {
-    assert_payload_verification_eq(
+    assert_payload_verification_fails(
         &load_latest_signed_kernel()?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::InvalidMetadata),
+        AvbSlotVerifyError::InvalidMetadata,
     )
 }
 
 #[test]
 fn payload_with_empty_public_key_fails_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         /*trusted_public_key=*/ &[0u8; 0],
-        Err(AvbSlotVerifyError::PublicKeyRejected),
+        AvbSlotVerifyError::PublicKeyRejected,
     )
 }
 
 #[test]
 fn payload_with_an_invalid_public_key_fails_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         /*trusted_public_key=*/ &[0u8; 512],
-        Err(AvbSlotVerifyError::PublicKeyRejected),
+        AvbSlotVerifyError::PublicKeyRejected,
     )
 }
 
 #[test]
 fn payload_with_a_different_valid_public_key_fails_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         &fs::read(PUBLIC_KEY_RSA2048_PATH)?,
-        Err(AvbSlotVerifyError::PublicKeyRejected),
+        AvbSlotVerifyError::PublicKeyRejected,
     )
 }
 
 #[test]
 fn payload_with_an_invalid_initrd_fails_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         /*initrd=*/ &fs::read(UNSIGNED_TEST_IMG_PATH)?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::Verification),
+        AvbSlotVerifyError::Verification,
     )
 }
 
 #[test]
 fn unsigned_kernel_fails_verification() -> Result<()> {
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &fs::read(UNSIGNED_TEST_IMG_PATH)?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::Io),
+        AvbSlotVerifyError::Io,
     )
 }
 
@@ -158,11 +162,11 @@ fn tampered_kernel_fails_verification() -> Result<()> {
     let mut kernel = load_latest_signed_kernel()?;
     kernel[1] = !kernel[1]; // Flip the bits
 
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::Verification),
+        AvbSlotVerifyError::Verification,
     )
 }
 
@@ -191,11 +195,11 @@ fn kernel_footer_with_vbmeta_offset_overwritten_fails_verification() -> Result<(
         // footer is unaligned; copy vbmeta_offset to local variable
         let vbmeta_offset = footer.vbmeta_offset;
         assert_eq!(wrong_offset, vbmeta_offset);
-        assert_payload_verification_with_initrd_eq(
+        assert_payload_verification_with_initrd_fails(
             &kernel,
             &load_latest_initrd_normal()?,
             &load_trusted_public_key()?,
-            Err(AvbSlotVerifyError::Io),
+            AvbSlotVerifyError::Io,
         )?;
     }
     Ok(())
@@ -207,11 +211,11 @@ fn tampered_kernel_footer_fails_verification() -> Result<()> {
     let avb_footer_index = kernel.len() - size_of::<AvbFooter>() + RANDOM_FOOTER_POS;
     kernel[avb_footer_index] = !kernel[avb_footer_index];
 
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::InvalidMetadata),
+        AvbSlotVerifyError::InvalidMetadata,
     )
 }
 
@@ -220,11 +224,11 @@ fn extended_initrd_fails_verification() -> Result<()> {
     let mut initrd = load_latest_initrd_normal()?;
     initrd.extend(b"androidboot.vbmeta.digest=1111");
 
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         &initrd,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::Verification),
+        AvbSlotVerifyError::Verification,
     )
 }
 
@@ -236,11 +240,11 @@ fn tampered_vbmeta_fails_verification() -> Result<()> {
 
     kernel[vbmeta_index] = !kernel[vbmeta_index]; // Flip the bits
 
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::InvalidMetadata),
+        AvbSlotVerifyError::InvalidMetadata,
     )
 }
 
@@ -259,17 +263,17 @@ fn vbmeta_with_public_key_overwritten_fails_verification() -> Result<()> {
     kernel[public_key_offset..(public_key_offset + public_key_size)]
         .copy_from_slice(&empty_public_key);
 
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &empty_public_key,
-        Err(AvbSlotVerifyError::Verification),
+        AvbSlotVerifyError::Verification,
     )?;
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::Verification),
+        AvbSlotVerifyError::Verification,
     )
 }
 
@@ -303,10 +307,10 @@ fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
         AVB_VBMETA_IMAGE_FLAGS_VERIFICATION_DISABLED, vbmeta_header_flags,
         "VBMeta verification flag should be disabled now."
     );
-    assert_payload_verification_with_initrd_eq(
+    assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        Err(AvbSlotVerifyError::Verification),
+        AvbSlotVerifyError::Verification,
     )
 }
