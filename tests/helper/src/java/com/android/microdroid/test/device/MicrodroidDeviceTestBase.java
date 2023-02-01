@@ -148,8 +148,9 @@ public abstract class MicrodroidDeviceTestBase {
         private OptionalLong mPayloadStartedNanoTime = OptionalLong.empty();
         private StringBuilder mConsoleOutput = new StringBuilder();
         private StringBuilder mLogOutput = new StringBuilder();
+        private boolean mProcessedBootTimeMetrics = false;
 
-        private void processBootEvents(String log) {
+        private void processBootTimeMetrics(String log) {
             if (!mVcpuStartedNanoTime.isPresent()) {
                 mVcpuStartedNanoTime = OptionalLong.of(System.nanoTime());
             }
@@ -165,12 +166,13 @@ public abstract class MicrodroidDeviceTestBase {
             }
         }
 
-        private void logVmOutputAndMonitorBootEvents(
+        private void logVmOutputAndMonitorBootTimeMetrics(
                 String tag,
                 InputStream vmOutputStream,
                 String name,
                 StringBuilder result,
                 boolean monitorEvents) {
+            mProcessedBootTimeMetrics = monitorEvents;
             new Thread(
                             () -> {
                                 try {
@@ -180,7 +182,7 @@ public abstract class MicrodroidDeviceTestBase {
                                     String line;
                                     while ((line = reader.readLine()) != null
                                             && !Thread.interrupted()) {
-                                        if (monitorEvents) processBootEvents(line);
+                                        if (monitorEvents) processBootTimeMetrics(line);
                                         Log.i(tag, name + ": " + line);
                                         result.append(line + "\n");
                                     }
@@ -191,15 +193,15 @@ public abstract class MicrodroidDeviceTestBase {
                     .start();
         }
 
-        private void logVmOutputAndMonitorBootEvents(
+        private void logVmOutputAndMonitorBootTimeMetrics(
                 String tag, InputStream vmOutputStream, String name, StringBuilder result) {
-            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, result, true);
+            logVmOutputAndMonitorBootTimeMetrics(tag, vmOutputStream, name, result, true);
         }
 
         /** Copy output from the VM to logcat. This is helpful when things go wrong. */
         protected void logVmOutput(
                 String tag, InputStream vmOutputStream, String name, StringBuilder result) {
-            logVmOutputAndMonitorBootEvents(tag, vmOutputStream, name, result, false);
+            logVmOutputAndMonitorBootTimeMetrics(tag, vmOutputStream, name, result, false);
         }
 
         public void runToFinish(String logTag, VirtualMachine vm)
@@ -207,7 +209,7 @@ public abstract class MicrodroidDeviceTestBase {
             vm.setCallback(mExecutorService, this);
             vm.run();
             if (vm.getConfig().isVmOutputCaptured()) {
-                logVmOutputAndMonitorBootEvents(
+                logVmOutputAndMonitorBootTimeMetrics(
                         logTag, vm.getConsoleOutput(), "Console", mConsoleOutput);
                 logVmOutput(logTag, vm.getLogOutput(), "Log", mLogOutput);
             }
@@ -238,6 +240,10 @@ public abstract class MicrodroidDeviceTestBase {
             return mLogOutput.toString();
         }
 
+        public boolean hasProcessedBootTimeMetrics() {
+            return mProcessedBootTimeMetrics;
+        }
+
         protected void forceStop(VirtualMachine vm) {
             try {
                 vm.stop();
@@ -266,12 +272,21 @@ public abstract class MicrodroidDeviceTestBase {
         }
     }
 
+    public enum BootTimeMetric {
+        TOTAL,
+        VM_START,
+        BOOTLOADER,
+        KERNEL,
+        USERSPACE,
+    }
+
     public static class BootResult {
         public final boolean payloadStarted;
         public final int deathReason;
         public final long apiCallNanoTime;
         public final long endToEndNanoTime;
 
+        public final boolean processedBootTimeMetrics;
         public final OptionalLong vcpuStartedNanoTime;
         public final OptionalLong kernelStartedNanoTime;
         public final OptionalLong initStartedNanoTime;
@@ -285,6 +300,7 @@ public abstract class MicrodroidDeviceTestBase {
                 int deathReason,
                 long apiCallNanoTime,
                 long endToEndNanoTime,
+                boolean processedBootTimeMetrics,
                 OptionalLong vcpuStartedNanoTime,
                 OptionalLong kernelStartedNanoTime,
                 OptionalLong initStartedNanoTime,
@@ -295,6 +311,7 @@ public abstract class MicrodroidDeviceTestBase {
             this.payloadStarted = payloadStarted;
             this.deathReason = deathReason;
             this.endToEndNanoTime = endToEndNanoTime;
+            this.processedBootTimeMetrics = processedBootTimeMetrics;
             this.vcpuStartedNanoTime = vcpuStartedNanoTime;
             this.kernelStartedNanoTime = kernelStartedNanoTime;
             this.initStartedNanoTime = initStartedNanoTime;
@@ -336,6 +353,31 @@ public abstract class MicrodroidDeviceTestBase {
         public long getUserspaceElapsedNanoTime() {
             return getPayloadStartedNanoTime() - getInitStartedNanoTime();
         }
+
+        public boolean hasProcessedBootTimeMetrics() {
+            return processedBootTimeMetrics;
+        }
+
+        public OptionalLong getBootTimeMetricNanoTime(BootTimeMetric metric) {
+            if (metric == BootTimeMetric.TOTAL) {
+                return OptionalLong.of(endToEndNanoTime);
+            }
+
+            if (processedBootTimeMetrics) {
+                switch (metric) {
+                    case VM_START:
+                        return OptionalLong.of(getVMStartingElapsedNanoTime());
+                    case BOOTLOADER:
+                        return OptionalLong.of(getBootloaderElapsedNanoTime());
+                    case KERNEL:
+                        return OptionalLong.of(getKernelElapsedNanoTime());
+                    case USERSPACE:
+                        return OptionalLong.of(getUserspaceElapsedNanoTime());
+                }
+            }
+
+            return OptionalLong.empty();
+        }
     }
 
     public BootResult tryBootVm(String logTag, String vmName)
@@ -366,6 +408,7 @@ public abstract class MicrodroidDeviceTestBase {
                 deathReason.getNow(VmEventListener.STOP_REASON_INFRASTRUCTURE_ERROR),
                 apiCallNanoTime,
                 endTime.getNow(apiCallNanoTime) - apiCallNanoTime,
+                listener.hasProcessedBootTimeMetrics(),
                 listener.getVcpuStartedNanoTime(),
                 listener.getKernelStartedNanoTime(),
                 listener.getInitStartedNanoTime(),
