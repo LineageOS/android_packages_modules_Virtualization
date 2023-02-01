@@ -8,11 +8,11 @@ rust_defaults {
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
-        "libavb_bindgen",
+        "libavb_bindgen_nostd",
         "libtinyvec_nostd",
     ],
     whole_static_libs: [
-        "libavb_non_debug",
+        "libavb_baremetal",
     ],
 }
 
