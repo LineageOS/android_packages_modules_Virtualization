@@ -2,12 +2,22 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-android_test {
-    name: "MicrodroidTestApp",
+java_defaults {
+    name: "MicrodroidTestAppsDefaults",
     test_suites: [
         "cts",
         "general-tests",
     ],
+    sdk_version: "test_current",
+    jni_uses_platform_apis: true,
+    use_embedded_native_libs: true,
+    // We only support 64-bit ABI, but CTS demands all APKs to be multi-ABI.
+    compile_multilib: "both",
+}
+
+android_test {
+    name: "MicrodroidTestApp",
+    defaults: ["MicrodroidTestAppsDefaults"],
     srcs: ["src/java/**/*.java"],
     static_libs: [
         "MicrodroidDeviceTestHelper",
@@ -19,7 +29,6 @@ android_test {
         "truth-prebuilt",
         "compatibility-common-util-devicesidelib",
     ],
-    sdk_version: "test_current",
     jni_libs: [
         "MicrodroidTestNativeLib",
         "MicrodroidIdleNativeLib",
@@ -27,15 +36,28 @@ android_test {
         "MicrodroidExitNativeLib",
         "MicrodroidPrivateLinkingNativeLib",
     ],
-    jni_uses_platform_apis: true,
-    use_embedded_native_libs: true,
-    // We only support 64-bit ABI, but CTS demands all APKs to be multi-ABI.
-    compile_multilib: "both",
     min_sdk_version: "33",
+    data: [":MicrodroidVmShareApp"],
 }
 
-cc_library_shared {
-    name: "MicrodroidTestNativeLib",
+// Helper app to verify that we can create a VM using others app payload.
+android_test_helper_app {
+    name: "MicrodroidVmShareApp",
+    defaults: ["MicrodroidTestAppsDefaults"],
+    jni_libs: [
+        "MicrodroidPayloadInOtherAppNativeLib",
+    ],
+    min_sdk_version: "UpsideDownCake",
+    manifest: "AndroidManifest_VmShareApp.xml",
+    // The MicrodroidVmShareApp doesn't need assets.
+    asset_dirs: [],
+}
+
+// Defaults shared between MicrodroidTestNativeLib and MicrodroidPayloadInOtherAppNativeLib shared
+// libs. They are expected to share everything apart from the name, so that one app
+// (MicrodroidTestApp) can start a payload defined in the another app (MicrodroidVmShareApp).
+cc_defaults {
+    name: "MicrodroidTestNativeLibDefaults",
     srcs: ["src/native/testbinary.cpp"],
     stl: "libc++_static",
     header_libs: ["vm_payload_restricted_headers"],
@@ -52,6 +74,16 @@ cc_library_shared {
         "liblog",
         "libprotobuf-cpp-lite-ndk",
     ],
+}
+
+cc_library_shared {
+    name: "MicrodroidPayloadInOtherAppNativeLib",
+    defaults: ["MicrodroidTestNativeLibDefaults"],
+}
+
+cc_library_shared {
+    name: "MicrodroidTestNativeLib",
+    defaults: ["MicrodroidTestNativeLibDefaults"],
 }
 
 cc_library_shared {

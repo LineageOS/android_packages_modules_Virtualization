@@ -125,6 +125,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     private static final long MIN_MEM_X86_64 = 196 * ONE_MEBI;
     private static final String EXAMPLE_STRING = "Literally any string!! :)";
 
+    private static final String VM_SHARE_APP_PACKAGE_NAME = "com.android.microdroid.vmshare_app";
+
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
     public void createAndConnectToVm() throws Exception {
@@ -1456,6 +1458,33 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assumeSupportedKernel();
 
         assertThat(checkVmOutputIsRedirectedToLogcat(false)).isFalse();
+    }
+
+    @Test
+    public void testStartVmWithPayloadOfAnotherApp() throws Exception {
+        assumeSupportedKernel();
+
+        Context ctx = getContext();
+        Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
+
+        VirtualMachineConfig config =
+                new VirtualMachineConfig.Builder(otherAppCtx)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setProtectedVm(isProtectedVm())
+                        .setPayloadBinaryName("MicrodroidPayloadInOtherAppNativeLib.so")
+                        .build();
+
+        try (VirtualMachine vm = forceCreateNewVirtualMachine("vm_from_another_app", config)) {
+            TestResults results =
+                    runVmTestService(
+                            vm,
+                            (ts, tr) -> {
+                                tr.mAddInteger = ts.addInteger(101, 303);
+                            });
+            assertThat(results.mAddInteger).isEqualTo(404);
+        }
+
+        getVirtualMachineManager().delete("vm_from_another_app");
     }
 
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
