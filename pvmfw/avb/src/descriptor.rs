@@ -31,7 +31,8 @@ use core::{
 };
 use tinyvec::ArrayVec;
 
-const DIGEST_SIZE: usize = AVB_SHA256_DIGEST_SIZE as usize;
+/// Digest type for kernel and initrd.
+pub type Digest = [u8; AVB_SHA256_DIGEST_SIZE as usize];
 
 /// `HashDescriptors` can have maximum one `HashDescriptor` per known partition.
 #[derive(Default)]
@@ -132,9 +133,7 @@ unsafe fn try_check_and_save_descriptor(
 #[derive(Default)]
 pub(crate) struct HashDescriptor {
     partition_name: PartitionName,
-    /// TODO(b/265897559): Pass this digest to DICE.
-    #[allow(dead_code)]
-    pub(crate) digest: [u8; DIGEST_SIZE],
+    pub(crate) digest: Digest,
 }
 
 impl HashDescriptor {
@@ -145,7 +144,7 @@ impl HashDescriptor {
             .try_into()?;
         let partition_digest =
             data.get(desc.digest_range()?).ok_or(AvbIOError::RangeOutsidePartition)?;
-        let mut digest = [0u8; DIGEST_SIZE];
+        let mut digest = [0u8; size_of::<Digest>()];
         digest.copy_from_slice(partition_digest);
         Ok(Self { partition_name, digest })
     }
