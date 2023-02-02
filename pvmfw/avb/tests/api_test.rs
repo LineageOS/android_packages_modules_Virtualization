@@ -53,16 +53,21 @@ fn latest_debug_payload_passes_verification() -> Result<()> {
 
 #[test]
 fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()> {
+    let public_key = load_trusted_public_key()?;
     let verified_boot_data = verify_payload(
         &fs::read(TEST_IMG_WITH_ONE_HASHDESC_PATH)?,
         /*initrd=*/ None,
-        &load_trusted_public_key()?,
+        &public_key,
     )
     .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
 
     let kernel_digest = hash(&[&hex::decode("1111")?, &fs::read(UNSIGNED_TEST_IMG_PATH)?]);
-    let expected_boot_data =
-        VerifiedBootData { debug_level: DebugLevel::None, kernel_digest, initrd_digest: None };
+    let expected_boot_data = VerifiedBootData {
+        debug_level: DebugLevel::None,
+        kernel_digest,
+        initrd_digest: None,
+        public_key: &public_key,
+    };
     assert_eq!(expected_boot_data, verified_boot_data);
 
     Ok(())
