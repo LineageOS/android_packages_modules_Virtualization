@@ -20,7 +20,7 @@ rust_bindgen {
         "--ctypes-prefix=core::ffi",
     ],
     static_libs: [
-        "libavb",
+        "libavb_non_debug",
     ],
     shared_libs: [
         "libcrypto",
