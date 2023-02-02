@@ -20,13 +20,14 @@ use dice::bcc::format_config_descriptor;
 use dice::bcc::Handover;
 use dice::hash;
 use dice::ConfigType;
+use dice::DiceMode;
 use dice::InputValues;
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
 
-fn to_dice_mode(debug_level: DebugLevel) -> dice::Mode {
+fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
     match debug_level {
-        DebugLevel::None => dice::Mode::Normal,
-        DebugLevel::Full => dice::Mode::Debug,
+        DebugLevel::None => DiceMode::kDiceModeNormal,
+        DebugLevel::Full => DiceMode::kDiceModeDebug,
     }
 }
 
