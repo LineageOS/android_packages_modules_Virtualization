@@ -12,7 +12,7 @@ rust_defaults {
         "libtinyvec_nostd",
     ],
     whole_static_libs: [
-        "libavb",
+        "libavb_non_debug",
     ],
 }
 
