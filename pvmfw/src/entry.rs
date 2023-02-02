@@ -72,7 +72,7 @@ pub fn start(fdt_address: u64, payload_start: u64, payload_size: u64, _arg3: u64
     // - can't access MMIO (therefore, no logging)
 
     match main_wrapper(fdt_address as usize, payload_start as usize, payload_size as usize) {
-        Ok(_) => jump_to_payload(fdt_address, payload_start),
+        Ok(entry) => jump_to_payload(fdt_address, entry.try_into().unwrap()),
         Err(_) => reboot(), // TODO(b/220071963) propagate the reason back to the host.
     }
 
@@ -193,7 +193,7 @@ impl<'a> MemorySlices<'a> {
 ///
 /// Provide the abstractions necessary for start() to abort the pVM boot and for main() to run with
 /// the assumption that its environment has been properly configured.
-fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), RebootReason> {
+fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize, RebootReason> {
     // Limitations in this function:
     // - only access MMIO once (and while) it has been mapped and configured
     // - only perform logging once the logger has been initialized
@@ -281,7 +281,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<(), R
         RebootReason::InternalError
     })?;
 
-    Ok(())
+    Ok(slices.kernel.as_ptr() as usize)
 }
 
 fn jump_to_payload(fdt_address: u64, payload_start: u64) -> ! {
