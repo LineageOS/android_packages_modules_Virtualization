@@ -14,9 +14,19 @@
 
 //! Wrappers around calls to the hypervisor.
 
+pub mod trng;
+
 use crate::smccc::{self, checked_hvc64, checked_hvc64_expect_zero};
 use log::info;
 
+const ARM_SMCCC_TRNG_VERSION: u32 = 0x8400_0050;
+#[allow(dead_code)]
+const ARM_SMCCC_TRNG_FEATURES: u32 = 0x8400_0051;
+#[allow(dead_code)]
+const ARM_SMCCC_TRNG_GET_UUID: u32 = 0x8400_0052;
+#[allow(dead_code)]
+const ARM_SMCCC_TRNG_RND32: u32 = 0x8400_0053;
+const ARM_SMCCC_TRNG_RND64: u32 = 0xc400_0053;
 const ARM_SMCCC_KVM_FUNC_HYP_MEMINFO: u32 = 0xc6000002;
 const ARM_SMCCC_KVM_FUNC_MEM_SHARE: u32 = 0xc6000003;
 const ARM_SMCCC_KVM_FUNC_MEM_UNSHARE: u32 = 0xc6000004;
@@ -93,4 +103,23 @@ pub fn mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
         Err(smccc::Error::NotSupported) | Ok(_) => Ok(()),
         x => x,
     }
+}
+
+/// Returns the (major, minor) version tuple, as defined by the SMCCC TRNG.
+pub fn trng_version() -> trng::Result<(u16, u16)> {
+    let args = [0u64; 17];
+
+    let version = trng::hvc64(ARM_SMCCC_TRNG_VERSION, args)?[0];
+    Ok(((version >> 16) as u16, version as u16))
+}
+
+pub type TrngRng64Entropy = (u64, u64, u64);
+
+pub fn trng_rnd64(nbits: u64) -> trng::Result<TrngRng64Entropy> {
+    let mut args = [0u64; 17];
+    args[0] = nbits;
+
+    let regs = trng::hvc64_expect_zero(ARM_SMCCC_TRNG_RND64, args)?;
+
+    Ok((regs[1], regs[2], regs[3]))
 }

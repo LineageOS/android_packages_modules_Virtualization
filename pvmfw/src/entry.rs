@@ -22,6 +22,7 @@ use crate::helpers;
 use crate::memory::MemoryTracker;
 use crate::mmio_guard;
 use crate::mmu;
+use crate::rand;
 use core::arch::asm;
 use core::num::NonZeroUsize;
 use core::slice;
@@ -251,6 +252,11 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
 
     let mut memory = MemoryTracker::new(page_table);
     let slices = MemorySlices::new(fdt, payload, payload_size, &mut memory)?;
+
+    rand::init().map_err(|e| {
+        error!("Failed to initialize rand: {e}");
+        RebootReason::InternalError
+    })?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
     crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, &mut memory)?;
