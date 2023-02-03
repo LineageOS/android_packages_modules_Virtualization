@@ -19,18 +19,14 @@
 #![no_std]
 
 pub use diced_open_dice::{
-    check_result, Config, DiceError, Hash, InputValues, Result, HASH_SIZE, HIDDEN_SIZE,
+    check_result, Cdi, Config, DiceError, Hash, InputValues, Result, CDI_SIZE, HASH_SIZE,
+    HIDDEN_SIZE,
 };
 pub use open_dice_cbor_bindgen::DiceMode;
 
 use open_dice_cbor_bindgen::DiceHash;
 
 pub mod bcc;
-
-const CDI_SIZE: usize = open_dice_cbor_bindgen::DICE_CDI_SIZE as usize;
-
-/// Array type of CDIs.
-pub type Cdi = [u8; CDI_SIZE];
 
 fn ctx() -> *mut core::ffi::c_void {
     core::ptr::null_mut()
