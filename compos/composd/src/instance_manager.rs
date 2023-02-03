@@ -30,7 +30,7 @@ use std::sync::{Arc, Mutex, Weak};
 use virtualizationservice::IVirtualizationService::IVirtualizationService;
 
 // Enough memory to complete odrefresh in the VM.
-const VM_MEMORY_MIB: i32 = 1024;
+const VM_MEMORY_MIB: i32 = 1280;
 
 pub struct InstanceManager {
     service: Strong<dyn IVirtualizationService>,
