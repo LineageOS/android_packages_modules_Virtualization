@@ -24,7 +24,6 @@ use open_dice_bcc_bindgen::BccConfigValues;
 use open_dice_bcc_bindgen::BccFormatConfigDescriptor;
 use open_dice_bcc_bindgen::BccHandoverMainFlow;
 use open_dice_bcc_bindgen::BccHandoverParse;
-use open_dice_bcc_bindgen::DiceInputValues;
 use open_dice_bcc_bindgen::BCC_INPUT_COMPONENT_NAME;
 use open_dice_bcc_bindgen::BCC_INPUT_COMPONENT_VERSION;
 use open_dice_bcc_bindgen::BCC_INPUT_RESETTABLE;
@@ -99,7 +98,7 @@ impl<'a> Handover<'a> {
                 context,
                 self.buffer.as_ptr(),
                 self.buffer.len(),
-                input_values as *const _ as *const DiceInputValues,
+                input_values.as_ptr(),
                 buffer.len(),
                 buffer.as_mut_ptr(),
                 &mut size as *mut usize,

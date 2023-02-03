@@ -19,7 +19,7 @@ use core::mem::size_of;
 use dice::bcc::format_config_descriptor;
 use dice::bcc::Handover;
 use dice::hash;
-use dice::ConfigType;
+use dice::Config;
 use dice::DiceMode;
 use dice::InputValues;
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
@@ -59,14 +59,13 @@ pub fn derive_next_bcc(
         false, // resettable
     )?;
     let config = &config_descriptor_buffer[..config_descriptor_size];
-    let config = ConfigType::Descriptor(config);
 
     let input_values = InputValues::new(
         &code_hash,
         None, // code_descriptor
-        &config,
-        Some(&auth_hash),
-        None, // auth_descriptor
+        Config::Descriptor(config),
+        &auth_hash,
+        None, // authority_descriptor
         mode,
         None, // TODO(b/249723852): Get salt from instance.img (virtio-blk) and/or TRNG.
     );
