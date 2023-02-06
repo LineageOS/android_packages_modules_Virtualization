@@ -53,9 +53,6 @@ pub const IDSIG_MANIFEST_APK_FILE: &str = "idsig_manifest_apk";
 /// /system_ext available in CompOS.
 pub const IDSIG_MANIFEST_EXT_APK_FILE: &str = "idsig_manifest_ext_apk";
 
-/// Number of CPUs to run dex2oat (actually the entire compos VM) with
-pub const DEX2OAT_THREADS_PROP_NAME: &str = "dalvik.vm.boot-dex2oat-threads";
-
 /// The Android path of fs-verity build manifest APK for /system.
 pub const BUILD_MANIFEST_APK_PATH: &str = "/system/etc/security/fsverity/BuildManifest.apk";
 
