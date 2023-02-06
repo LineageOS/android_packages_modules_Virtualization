@@ -18,7 +18,9 @@
 
 #![no_std]
 
-pub use diced_open_dice::{check_result, Config, DiceError, Hash, InputValues, Result, HASH_SIZE};
+pub use diced_open_dice::{
+    check_result, Config, DiceError, Hash, InputValues, Result, HASH_SIZE, HIDDEN_SIZE,
+};
 pub use open_dice_cbor_bindgen::DiceMode;
 
 use open_dice_cbor_bindgen::DiceHash;
