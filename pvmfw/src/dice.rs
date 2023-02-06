@@ -17,12 +17,10 @@
 use core::ffi::CStr;
 use core::mem::size_of;
 use dice::bcc::Handover;
-use dice::bcc_format_config_descriptor;
-use dice::hash;
 use dice::Config;
 use dice::DiceMode;
 use dice::InputValues;
-use dice::HIDDEN_SIZE;
+use diced_open_dice::{bcc_format_config_descriptor, hash, HIDDEN_SIZE};
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {

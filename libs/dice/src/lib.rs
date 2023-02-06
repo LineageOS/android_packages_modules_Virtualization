@@ -23,18 +23,4 @@ pub use diced_open_dice::{
     InputValues, Result, CDI_SIZE, HASH_SIZE, HIDDEN_SIZE,
 };
 
-use open_dice_cbor_bindgen::DiceHash;
-
 pub mod bcc;
-
-fn ctx() -> *mut core::ffi::c_void {
-    core::ptr::null_mut()
-}
-
-/// Hash the provided input using DICE's default hash function.
-pub fn hash(bytes: &[u8]) -> Result<Hash> {
-    let mut output: Hash = [0; HASH_SIZE];
-    // SAFETY - DiceHash takes a sized input buffer and writes to a constant-sized output buffer.
-    check_result(unsafe { DiceHash(ctx(), bytes.as_ptr(), bytes.len(), output.as_mut_ptr()) })?;
-    Ok(output)
-}
