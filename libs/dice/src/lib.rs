@@ -18,18 +18,10 @@
 
 #![no_std]
 
-use core::fmt;
-use core::result;
-
-pub use diced_open_dice::{Config, Hash, InputValues, HASH_SIZE};
+pub use diced_open_dice::{check_result, Config, DiceError, Hash, InputValues, Result, HASH_SIZE};
 pub use open_dice_cbor_bindgen::DiceMode;
 
 use open_dice_cbor_bindgen::DiceHash;
-use open_dice_cbor_bindgen::DiceResult;
-use open_dice_cbor_bindgen::DiceResult_kDiceResultBufferTooSmall as DICE_RESULT_BUFFER_TOO_SMALL;
-use open_dice_cbor_bindgen::DiceResult_kDiceResultInvalidInput as DICE_RESULT_INVALID_INPUT;
-use open_dice_cbor_bindgen::DiceResult_kDiceResultOk as DICE_RESULT_OK;
-use open_dice_cbor_bindgen::DiceResult_kDiceResultPlatformError as DICE_RESULT_PLATFORM_ERROR;
 
 pub mod bcc;
 
@@ -37,42 +29,6 @@ const CDI_SIZE: usize = open_dice_cbor_bindgen::DICE_CDI_SIZE as usize;
 
 /// Array type of CDIs.
 pub type Cdi = [u8; CDI_SIZE];
-
-/// Error type used by DICE.
-pub enum Error {
-    /// Provided input was invalid.
-    InvalidInput,
-    /// Provided buffer was too small.
-    BufferTooSmall,
-    /// Unexpected platform error.
-    PlatformError,
-    /// Unexpected return value.
-    Unknown(DiceResult),
-}
-
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Error::InvalidInput => write!(f, "invalid input"),
-            Error::BufferTooSmall => write!(f, "buffer too small"),
-            Error::PlatformError => write!(f, "platform error"),
-            Error::Unknown(n) => write!(f, "unknown error: {}", n),
-        }
-    }
-}
-
-/// Result of DICE functions.
-pub type Result<T> = result::Result<T, Error>;
-
-fn check_call(ret: DiceResult) -> Result<()> {
-    match ret {
-        DICE_RESULT_OK => Ok(()),
-        DICE_RESULT_INVALID_INPUT => Err(Error::InvalidInput),
-        DICE_RESULT_BUFFER_TOO_SMALL => Err(Error::BufferTooSmall),
-        DICE_RESULT_PLATFORM_ERROR => Err(Error::PlatformError),
-        n => Err(Error::Unknown(n)),
-    }
-}
 
 fn ctx() -> *mut core::ffi::c_void {
     core::ptr::null_mut()
@@ -82,6 +38,6 @@ fn ctx() -> *mut core::ffi::c_void {
 pub fn hash(bytes: &[u8]) -> Result<Hash> {
     let mut output: Hash = [0; HASH_SIZE];
     // SAFETY - DiceHash takes a sized input buffer and writes to a constant-sized output buffer.
-    check_call(unsafe { DiceHash(ctx(), bytes.as_ptr(), bytes.len(), output.as_mut_ptr()) })?;
+    check_result(unsafe { DiceHash(ctx(), bytes.as_ptr(), bytes.len(), output.as_mut_ptr()) })?;
     Ok(output)
 }

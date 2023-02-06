@@ -28,9 +28,9 @@ use open_dice_bcc_bindgen::BCC_INPUT_COMPONENT_NAME;
 use open_dice_bcc_bindgen::BCC_INPUT_COMPONENT_VERSION;
 use open_dice_bcc_bindgen::BCC_INPUT_RESETTABLE;
 
-use crate::check_call;
+use crate::check_result;
 use crate::Cdi;
-use crate::Error;
+use crate::DiceError;
 use crate::InputValues;
 use crate::Result;
 
@@ -56,7 +56,7 @@ impl<'a> Handover<'a> {
 
         // SAFETY - The buffer is only read and never stored and the returned pointers should all
         // point within the address range of the buffer or be NULL.
-        check_call(unsafe {
+        check_result(unsafe {
             BccHandoverParse(
                 buffer.as_ptr(),
                 buffer.len(),
@@ -68,20 +68,20 @@ impl<'a> Handover<'a> {
         })?;
 
         let cdi_attest = {
-            let i = index_from_ptr(buffer, cdi_attest).ok_or(Error::PlatformError)?;
-            let s = buffer.get(i..(i + mem::size_of::<Cdi>())).ok_or(Error::PlatformError)?;
-            s.try_into().map_err(|_| Error::PlatformError)?
+            let i = index_from_ptr(buffer, cdi_attest).ok_or(DiceError::PlatformError)?;
+            let s = buffer.get(i..(i + mem::size_of::<Cdi>())).ok_or(DiceError::PlatformError)?;
+            s.try_into().map_err(|_| DiceError::PlatformError)?
         };
         let cdi_seal = {
-            let i = index_from_ptr(buffer, cdi_seal).ok_or(Error::PlatformError)?;
-            let s = buffer.get(i..(i + mem::size_of::<Cdi>())).ok_or(Error::PlatformError)?;
-            s.try_into().map_err(|_| Error::PlatformError)?
+            let i = index_from_ptr(buffer, cdi_seal).ok_or(DiceError::PlatformError)?;
+            let s = buffer.get(i..(i + mem::size_of::<Cdi>())).ok_or(DiceError::PlatformError)?;
+            s.try_into().map_err(|_| DiceError::PlatformError)?
         };
         let bcc = if bcc.is_null() {
             None
         } else {
-            let i = index_from_ptr(buffer, bcc).ok_or(Error::PlatformError)?;
-            Some(buffer.get(i..(i + bcc_size)).ok_or(Error::PlatformError)?)
+            let i = index_from_ptr(buffer, bcc).ok_or(DiceError::PlatformError)?;
+            Some(buffer.get(i..(i + bcc_size)).ok_or(DiceError::PlatformError)?)
         };
 
         Ok(Self { buffer, cdi_attest, cdi_seal, bcc })
@@ -93,7 +93,7 @@ impl<'a> Handover<'a> {
         let mut size: usize = 0;
         // SAFETY - The function only reads `self.buffer`, writes to `buffer` within its bounds,
         // reads `input_values` as a constant input and doesn't store any pointer.
-        check_call(unsafe {
+        check_result(unsafe {
             BccHandoverMainFlow(
                 context,
                 self.buffer.as_ptr(),
@@ -148,7 +148,7 @@ pub fn format_config_descriptor(
 
     // SAFETY - The function writes to the buffer, within the given bounds, and only reads the
     // input values. It writes its result to buffer_size.
-    check_call(unsafe {
+    check_result(unsafe {
         BccFormatConfigDescriptor(
             &values as *const _,
             buffer.len(),
