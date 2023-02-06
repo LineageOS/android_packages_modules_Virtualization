@@ -16,7 +16,7 @@
 
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
-        DiskImage::DiskImage, VirtualMachineConfig::VirtualMachineConfig,
+        CpuTopology::CpuTopology, DiskImage::DiskImage, VirtualMachineConfig::VirtualMachineConfig,
         VirtualMachineRawConfig::VirtualMachineRawConfig,
     },
     binder::{ParcelFileDescriptor, ProcessState},
@@ -84,7 +84,7 @@ fn test_run_example_vm() -> Result<(), Error> {
         disks: vec![disk_image],
         protectedVm: false,
         memoryMib: 300,
-        numCpus: 1,
+        cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
         taskProfiles: vec![],
     });
