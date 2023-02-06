@@ -22,6 +22,7 @@ use dice::hash;
 use dice::Config;
 use dice::DiceMode;
 use dice::InputValues;
+use dice::HIDDEN_SIZE;
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
@@ -61,13 +62,11 @@ pub fn derive_next_bcc(
     let config = &config_descriptor_buffer[..config_descriptor_size];
 
     let input_values = InputValues::new(
-        &code_hash,
-        None, // code_descriptor
+        code_hash,
         Config::Descriptor(config),
-        &auth_hash,
-        None, // authority_descriptor
+        auth_hash,
         mode,
-        None, // TODO(b/249723852): Get salt from instance.img (virtio-blk) and/or TRNG.
+        [0u8; HIDDEN_SIZE], // TODO(b/249723852): Get salt from instance.img (virtio-blk) and/or TRNG.
     );
 
     bcc.main_flow(&input_values, next_bcc)
