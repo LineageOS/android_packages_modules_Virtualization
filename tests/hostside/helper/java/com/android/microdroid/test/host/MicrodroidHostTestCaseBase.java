@@ -110,6 +110,10 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         }
     }
 
+    public boolean isUserBuild() {
+        return DeviceProperties.create(getDevice()::getProperty).isUserBuild();
+    }
+
     protected boolean isCuttlefish() {
         return DeviceProperties.create(getDevice()::getProperty).isCuttlefish();
     }
