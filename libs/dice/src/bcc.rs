@@ -16,17 +16,11 @@
 
 //! Wrapper around dice/android/bcc.h.
 
-use core::ffi::CStr;
 use core::mem;
 use core::ptr;
 
-use open_dice_bcc_bindgen::BccConfigValues;
-use open_dice_bcc_bindgen::BccFormatConfigDescriptor;
 use open_dice_bcc_bindgen::BccHandoverMainFlow;
 use open_dice_bcc_bindgen::BccHandoverParse;
-use open_dice_bcc_bindgen::BCC_INPUT_COMPONENT_NAME;
-use open_dice_bcc_bindgen::BCC_INPUT_COMPONENT_VERSION;
-use open_dice_bcc_bindgen::BCC_INPUT_RESETTABLE;
 
 use crate::check_result;
 use crate::Cdi;
@@ -107,57 +101,6 @@ impl<'a> Handover<'a> {
 
         Ok(size)
     }
-}
-
-/// Formats a configuration descriptor following the BCC's specification.
-///
-/// ```
-/// BccConfigDescriptor = {
-///   ? -70002 : tstr,     ; Component name
-///   ? -70003 : int,      ; Component version
-///   ? -70004 : null,     ; Resettable
-/// }
-/// ```
-pub fn format_config_descriptor(
-    buffer: &mut [u8],
-    name: Option<&CStr>,
-    version: Option<u64>,
-    resettable: bool,
-) -> Result<usize> {
-    let mut inputs = 0;
-
-    if name.is_some() {
-        inputs |= BCC_INPUT_COMPONENT_NAME;
-    }
-
-    if version.is_some() {
-        inputs |= BCC_INPUT_COMPONENT_VERSION;
-    }
-
-    if resettable {
-        inputs |= BCC_INPUT_RESETTABLE;
-    }
-
-    let values = BccConfigValues {
-        inputs,
-        component_name: name.map_or(ptr::null(), |p| p.as_ptr()),
-        component_version: version.unwrap_or(0),
-    };
-
-    let mut buffer_size = 0;
-
-    // SAFETY - The function writes to the buffer, within the given bounds, and only reads the
-    // input values. It writes its result to buffer_size.
-    check_result(unsafe {
-        BccFormatConfigDescriptor(
-            &values as *const _,
-            buffer.len(),
-            buffer.as_mut_ptr(),
-            &mut buffer_size as *mut _,
-        )
-    })?;
-
-    Ok(buffer_size)
 }
 
 fn index_from_ptr(slice: &[u8], pointer: *const u8) -> Option<usize> {
