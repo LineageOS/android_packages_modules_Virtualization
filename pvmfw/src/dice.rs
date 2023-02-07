@@ -16,8 +16,8 @@
 
 use core::ffi::CStr;
 use core::mem::size_of;
-use dice::bcc::format_config_descriptor;
 use dice::bcc::Handover;
+use dice::bcc_format_config_descriptor;
 use dice::hash;
 use dice::Config;
 use dice::DiceMode;
@@ -53,11 +53,11 @@ pub fn derive_next_bcc(
     let mode = to_dice_mode(verified_boot_data.debug_level);
     let component_name = CStr::from_bytes_with_nul(b"vm_entry\0").unwrap();
     let mut config_descriptor_buffer = [0; 128];
-    let config_descriptor_size = format_config_descriptor(
-        &mut config_descriptor_buffer,
+    let config_descriptor_size = bcc_format_config_descriptor(
         Some(component_name),
         None,  // component_version
         false, // resettable
+        &mut config_descriptor_buffer,
     )?;
     let config = &config_descriptor_buffer[..config_descriptor_size];
 
