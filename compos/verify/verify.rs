@@ -33,6 +33,7 @@ use compos_common::{
 use log::error;
 use std::fs::File;
 use std::io::Read;
+use std::num::NonZeroU32;
 use std::panic;
 use std::path::Path;
 
@@ -114,7 +115,11 @@ fn try_main() -> Result<()> {
         &idsig,
         &idsig_manifest_apk,
         &idsig_manifest_ext_apk,
-        &VmParameters { debug_mode: args.debug, ..Default::default() },
+        &VmParameters {
+            cpus: Some(NonZeroU32::new(1).unwrap()), // This VM runs very little work at boot
+            debug_mode: args.debug,
+            ..Default::default()
+        },
     )?;
 
     let service = vm_instance.connect_service()?;
