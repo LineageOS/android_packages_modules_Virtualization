@@ -1303,6 +1303,65 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void encryptedStorageIsInaccessibleToDifferentVm() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setMemoryBytes(minMemoryRequired())
+                        .setEncryptedStorageBytes(4_000_000)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setVmOutputCaptured(true)
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
+
+        TestResults testResults =
+                runVmTestService(
+                        vm,
+                        (ts, tr) -> {
+                            ts.writeToFile(
+                                    /* content= */ EXAMPLE_STRING,
+                                    /* path= */ "/mnt/encryptedstore/test_file");
+                        });
+        assertThat(testResults.mException).isNull();
+
+        // Start a different vm (this changes the vm identity)
+        VirtualMachine diff_test_vm = forceCreateNewVirtualMachine("diff_test_vm", config);
+
+        // Replace the backing storage image to the original one
+        File storageImgOrig = getVmFile("test_vm", "storage.img");
+        File storageImgNew = getVmFile("diff_test_vm", "storage.img");
+        Files.copy(storageImgOrig.toPath(), storageImgNew.toPath(), REPLACE_EXISTING);
+        assertFileContentsAreEqualInTwoVms("storage.img", "test_vm", "diff_test_vm");
+
+        CompletableFuture<Boolean> onPayloadReadyExecuted = new CompletableFuture<>();
+        CompletableFuture<Boolean> onStoppedExecuted = new CompletableFuture<>();
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        onPayloadReadyExecuted.complete(true);
+                        super.onPayloadReady(vm);
+                    }
+
+                    @Override
+                    public void onStopped(VirtualMachine vm, int reason) {
+                        onStoppedExecuted.complete(true);
+                        super.onStopped(vm, reason);
+                    }
+                };
+        listener.runToFinish(TAG, diff_test_vm);
+
+        // Assert that payload never started & logs contains encryptedstore initialization error
+        assertThat(onStoppedExecuted.getNow(false)).isTrue();
+        assertThat(onPayloadReadyExecuted.getNow(false)).isFalse();
+        assertThat(listener.getConsoleOutput()).contains("Unable to initialize encryptedstore");
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
     public void microdroidLauncherHasEmptyCapabilities() throws Exception {
         assumeSupportedKernel();
 
