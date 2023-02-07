@@ -19,10 +19,9 @@
 #![no_std]
 
 pub use diced_open_dice::{
-    check_result, Cdi, Config, DiceError, Hash, InputValues, Result, CDI_SIZE, HASH_SIZE,
-    HIDDEN_SIZE,
+    bcc_format_config_descriptor, check_result, Cdi, Config, DiceError, DiceMode, Hash,
+    InputValues, Result, CDI_SIZE, HASH_SIZE, HIDDEN_SIZE,
 };
-pub use open_dice_cbor_bindgen::DiceMode;
 
 use open_dice_cbor_bindgen::DiceHash;
 
