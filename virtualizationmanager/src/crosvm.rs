@@ -663,6 +663,24 @@ fn exit_signal(result: &Result<ExitStatus, io::Error>) -> Option<i32> {
     }
 }
 
+fn should_configure_ramdump(protected: bool) -> bool {
+    if protected {
+        // Protected VM needs ramdump configuration here.
+        // pvmfw will disable ramdump if unnecessary.
+        true
+    } else {
+        // For unprotected VM, ramdump should be handled here.
+        // ramdump wouldn't be enabled if ramdump is explicitly set to <1>.
+        if let Ok(mut file) = File::open("/proc/device-tree/avf/guest/common/ramdump") {
+            let mut ramdump: [u8; 4] = Default::default();
+            file.read_exact(&mut ramdump).map_err(|_| false).unwrap();
+            // DT spec uses big endian although Android is always little endian.
+            return u32::from_be_bytes(ramdump) == 1;
+        }
+        false
+    }
+}
+
 /// Starts an instance of `crosvm` to manage a new VM.
 fn run_vm(
     config: CrosvmConfig,
@@ -779,7 +797,10 @@ fn run_vm(
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);
 
-    command.arg("--params").arg("crashkernel=17M");
+    if should_configure_ramdump(config.protected) {
+        command.arg("--params").arg("crashkernel=17M");
+    }
+
     print_crosvm_args(&command);
 
     let result = SharedChild::spawn(&mut command)?;
