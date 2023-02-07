@@ -587,6 +587,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @Ignore("b/243630590: Temporal workaround until lab devices has flashed new DPM")
     public void testTombstonesAreGeneratedUponKernelCrash() throws Exception {
         assumeFalse("Cuttlefish is not supported", isCuttlefish());
+        assumeFalse("Skipping test because ramdump is disabled on user build", isUserBuild());
         assertThat(
                         isTombstoneGenerated(
                                 "assets/vm_config_crash.json",
