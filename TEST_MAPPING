@@ -34,7 +34,9 @@
     },
     {
       "name": "ComposBenchmarkApp"
-    },
+    }
+  ],
+  "avf-postsubmit-userdebug": [
     {
       "name": "AVFHostTestCases"
     }
