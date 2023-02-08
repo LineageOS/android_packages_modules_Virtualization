@@ -57,6 +57,10 @@ Java_android_system_virtualmachine_VirtualMachine_nativeConnectToVsockServer(
     };
 
     RpcSessionHandle session;
+    // We need a thread pool to be able to support linkToDeath, or callbacks
+    // (b/268335700). This if a fairly arbitrary number, although it happens to
+    // match the default max outgoing threads.
+    ARpcSession_setMaxIncomingThreads(session.get(), 10);
     auto client = ARpcSession_setupPreconnectedClient(session.get(), requestFunc, &args);
     return AIBinder_toJavaBinder(env, client);
 }
