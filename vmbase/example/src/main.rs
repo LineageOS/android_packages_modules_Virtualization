@@ -225,7 +225,7 @@ fn check_alloc() {
 
 fn check_dice() {
     info!("Testing DICE integration...");
-    let hash = dice::hash("hello world".as_bytes()).expect("DiceHash failed");
+    let hash = diced_open_dice::hash("hello world".as_bytes()).expect("DiceHash failed");
     assert_eq!(
         hash,
         [
