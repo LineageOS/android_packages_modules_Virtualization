@@ -46,6 +46,7 @@ fn main() -> Result<()> {
     let blkdevice = Path::new(matches.get_one::<String>("blkdevice").unwrap());
     let key = matches.get_one::<String>("key").unwrap();
     let mountpoint = Path::new(matches.get_one::<String>("mountpoint").unwrap());
+    // Note this error context is used in MicrodroidTests.
     encryptedstore_init(blkdevice, key, mountpoint).context(format!(
         "Unable to initialize encryptedstore on {:?} & mount at {:?}",
         blkdevice, mountpoint
