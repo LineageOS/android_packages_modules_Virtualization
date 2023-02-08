@@ -14,7 +14,8 @@ rust_ffi_static {
     rustlibs: [
         "libaarch64_paging",
         "libbuddy_system_allocator",
-        "libdice_nostd",
+        "libdice_nostd", // TODO(b/267575445): Remove this library once the migration is done.
+        "libdiced_open_dice_nostd",
         "libfdtpci",
         "liblibfdt",
         "liblog_rust_nostd",
