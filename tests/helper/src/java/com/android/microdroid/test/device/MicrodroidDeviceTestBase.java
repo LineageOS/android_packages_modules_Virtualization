@@ -172,7 +172,7 @@ public abstract class MicrodroidDeviceTestBase {
                 String name,
                 StringBuilder result,
                 boolean monitorEvents) {
-            mProcessedBootTimeMetrics = monitorEvents;
+            mProcessedBootTimeMetrics |= monitorEvents;
             new Thread(
                             () -> {
                                 try {
@@ -352,10 +352,6 @@ public abstract class MicrodroidDeviceTestBase {
 
         public long getUserspaceElapsedNanoTime() {
             return getPayloadStartedNanoTime() - getInitStartedNanoTime();
-        }
-
-        public boolean hasProcessedBootTimeMetrics() {
-            return processedBootTimeMetrics;
         }
 
         public OptionalLong getBootTimeMetricNanoTime(BootTimeMetric metric) {
