@@ -347,6 +347,13 @@ fn is_verified_boot() -> bool {
     !Path::new(DEBUG_MICRODROID_NO_VERIFIED_BOOT).exists()
 }
 
+fn should_export_tombstones(config: &VmPayloadConfig) -> bool {
+    match config.export_tombstones {
+        Some(b) => b,
+        None => system_properties::read_bool(DEBUGGABLE_PROP, true).unwrap_or(false),
+    }
+}
+
 fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     let metadata = load_metadata().context("Failed to load payload metadata")?;
     let dice = DiceDriver::new(Path::new("/dev/open-dice0")).context("Failed to load DICE")?;
@@ -456,7 +463,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     setup_config_sysprops(&config)?;
 
     // Start tombstone_transmit if enabled
-    if config.export_tombstones {
+    if should_export_tombstones(&config) {
         system_properties::write("tombstone_transmit.start", "1")
             .context("set tombstone_transmit.start")?;
     } else {
@@ -481,7 +488,7 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
         .context("set microdroid_manager.init_done")?;
 
     // Wait for tombstone_transmit to init
-    if config.export_tombstones {
+    if should_export_tombstones(&config) {
         wait_for_tombstone_transmit_done()?;
     }
 
@@ -813,7 +820,7 @@ fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
                 apexes: vec![],
                 extra_apks: vec![],
                 prefer_staged: false,
-                export_tombstones: false,
+                export_tombstones: None,
                 enable_authfs: false,
             })
         }
