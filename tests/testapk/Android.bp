@@ -37,20 +37,8 @@ android_test {
         "MicrodroidPrivateLinkingNativeLib",
     ],
     min_sdk_version: "33",
+    // Defined in ../vmshareapp/Android.bp
     data: [":MicrodroidVmShareApp"],
-}
-
-// Helper app to verify that we can create a VM using others app payload.
-android_test_helper_app {
-    name: "MicrodroidVmShareApp",
-    defaults: ["MicrodroidTestAppsDefaults"],
-    jni_libs: [
-        "MicrodroidPayloadInOtherAppNativeLib",
-    ],
-    min_sdk_version: "UpsideDownCake",
-    manifest: "AndroidManifest_VmShareApp.xml",
-    // The MicrodroidVmShareApp doesn't need assets.
-    asset_dirs: [],
 }
 
 // Defaults shared between MicrodroidTestNativeLib and MicrodroidPayloadInOtherAppNativeLib shared
