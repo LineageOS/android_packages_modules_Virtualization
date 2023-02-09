@@ -21,7 +21,7 @@ use android_logger::LogId;
 use anyhow::{bail, Context, Result};
 use binder::ProcessState;
 use clap::{Parser, ValueEnum};
-use compos_common::compos_client::{ComposClient, VmParameters};
+use compos_common::compos_client::{ComposClient, VmCpuTopology, VmParameters};
 use compos_common::odrefresh::{
     CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR, PENDING_ARTIFACTS_SUBDIR,
     TEST_ARTIFACTS_SUBDIR,
@@ -33,7 +33,6 @@ use compos_common::{
 use log::error;
 use std::fs::File;
 use std::io::Read;
-use std::num::NonZeroU32;
 use std::panic;
 use std::path::Path;
 
@@ -116,7 +115,7 @@ fn try_main() -> Result<()> {
         &idsig_manifest_apk,
         &idsig_manifest_ext_apk,
         &VmParameters {
-            cpus: Some(NonZeroU32::new(1).unwrap()), // This VM runs very little work at boot
+            cpu_topology: VmCpuTopology::OneCpu, // This VM runs very little work at boot
             debug_mode: args.debug,
             ..Default::default()
         },

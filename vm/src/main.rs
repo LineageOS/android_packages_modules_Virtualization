@@ -19,8 +19,8 @@ mod create_partition;
 mod run;
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
-    VirtualMachineAppConfig::DebugLevel::DebugLevel,
+    CpuTopology::CpuTopology, IVirtualizationService::IVirtualizationService,
+    PartitionType::PartitionType, VirtualMachineAppConfig::DebugLevel::DebugLevel,
 };
 use anyhow::{Context, Error};
 use binder::ProcessState;
@@ -91,9 +91,9 @@ enum Opt {
         #[clap(short, long)]
         mem: Option<u32>,
 
-        /// Number of vCPUs in the VM. If unspecified, defaults to 1.
-        #[clap(long)]
-        cpus: Option<u32>,
+        /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
+        #[clap(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
+        cpu_topology: CpuTopology,
 
         /// Comma separated list of task profile names to apply to the VM
         #[clap(long)]
@@ -146,9 +146,9 @@ enum Opt {
         #[clap(short, long)]
         mem: Option<u32>,
 
-        /// Number of vCPUs in the VM. If unspecified, defaults to 1.
-        #[clap(long)]
-        cpus: Option<u32>,
+        /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
+        #[clap(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
+        cpu_topology: CpuTopology,
 
         /// Comma separated list of task profile names to apply to the VM
         #[clap(long)]
@@ -163,9 +163,9 @@ enum Opt {
         #[clap(long)]
         name: Option<String>,
 
-        /// Number of vCPUs in the VM. If unspecified, defaults to 1.
-        #[clap(long)]
-        cpus: Option<u32>,
+        /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
+        #[clap(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
+        cpu_topology: CpuTopology,
 
         /// Comma separated list of task profile names to apply to the VM
         #[clap(long)]
@@ -222,6 +222,14 @@ fn parse_partition_type(s: &str) -> Result<PartitionType, String> {
     }
 }
 
+fn parse_cpu_topology(s: &str) -> Result<CpuTopology, String> {
+    match s {
+        "one_cpu" => Ok(CpuTopology::ONE_CPU),
+        "match_host" => Ok(CpuTopology::MATCH_HOST),
+        _ => Err(format!("Invalid cpu topology {}", s)),
+    }
+}
+
 fn main() -> Result<(), Error> {
     env_logger::init();
     let opt = Opt::parse();
@@ -248,7 +256,7 @@ fn main() -> Result<(), Error> {
             debug,
             protected,
             mem,
-            cpus,
+            cpu_topology,
             task_profiles,
             extra_idsigs,
         } => command_run_app(
@@ -266,7 +274,7 @@ fn main() -> Result<(), Error> {
             debug,
             protected,
             mem,
-            cpus,
+            cpu_topology,
             task_profiles,
             &extra_idsigs,
         ),
@@ -280,7 +288,7 @@ fn main() -> Result<(), Error> {
             debug,
             protected,
             mem,
-            cpus,
+            cpu_topology,
             task_profiles,
         } => command_run_microdroid(
             name,
@@ -293,10 +301,10 @@ fn main() -> Result<(), Error> {
             debug,
             protected,
             mem,
-            cpus,
+            cpu_topology,
             task_profiles,
         ),
-        Opt::Run { name, config, cpus, task_profiles, console, log } => {
+        Opt::Run { name, config, cpu_topology, task_profiles, console, log } => {
             command_run(
                 name,
                 service.as_ref(),
@@ -304,7 +312,7 @@ fn main() -> Result<(), Error> {
                 console.as_deref(),
                 log.as_deref(),
                 /* mem */ None,
-                cpus,
+                cpu_topology,
                 task_profiles,
             )
         }
