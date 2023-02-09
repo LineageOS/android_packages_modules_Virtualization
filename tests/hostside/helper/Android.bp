@@ -6,6 +6,7 @@ java_library_host {
     name: "MicrodroidHostTestHelper",
     srcs: ["java/**/*.java"],
     libs: [
+        "androidx.annotation_annotation",
         "compatibility-tradefed",
         "tradefed",
         "truth-prebuilt",
