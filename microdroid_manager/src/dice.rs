@@ -16,8 +16,8 @@
 
 use anyhow::{bail, Context, Error, Result};
 use byteorder::{NativeEndian, ReadBytesExt};
-use diced_open_dice_cbor::{
-    Config, ContextImpl, DiceMode, Hash, Hidden, InputValues, OpenDiceCborContext, CDI_SIZE,
+use diced_open_dice::{
+    retry_bcc_main_flow, Config, DiceMode, Hash, Hidden, InputValues, OwnedDiceArtifacts, CDI_SIZE,
 };
 use keystore2_crypto::ZVec;
 use libc::{c_void, mmap, munmap, MAP_FAILED, MAP_PRIVATE, PROT_READ};
@@ -31,10 +31,21 @@ use std::slice;
 
 /// Artifacts that are kept in the process address space after the artifacts from the driver have
 /// been consumed.
+/// TODO(b/267575445): Replace with `OwnedDiceArtifacts` from the library `diced_open_dice`.
 pub struct DiceContext {
     pub cdi_attest: [u8; CDI_SIZE],
     pub cdi_seal: [u8; CDI_SIZE],
     pub bcc: Vec<u8>,
+}
+
+impl From<OwnedDiceArtifacts> for DiceContext {
+    fn from(dice_artifacts: OwnedDiceArtifacts) -> Self {
+        Self {
+            cdi_attest: dice_artifacts.cdi_values.cdi_attest,
+            cdi_seal: dice_artifacts.cdi_values.cdi_seal,
+            bcc: dice_artifacts.bcc[..].to_vec(),
+        }
+    }
 }
 
 impl DiceContext {
@@ -68,13 +79,9 @@ impl DiceDriver<'_> {
             bail!("Strict boot requires DICE value from driver but none were found");
         } else {
             log::warn!("Using sample DICE values");
-            let (cdi_attest, cdi_seal, bcc) = diced_sample_inputs::make_sample_bcc_and_cdis()
+            let dice_artifacts = diced_sample_inputs::make_sample_bcc_and_cdis()
                 .expect("Failed to create sample dice artifacts.");
-            return Ok(Self::Fake(DiceContext {
-                cdi_attest: cdi_attest[..].try_into().unwrap(),
-                cdi_seal: cdi_seal[..].try_into().unwrap(),
-                bcc,
-            }));
+            return Ok(Self::Fake(dice_artifacts.into()));
         };
 
         let mut file = fs::File::open(driver_path)
@@ -153,8 +160,7 @@ impl DiceDriver<'_> {
             Self::Real { cdi_attest, cdi_seal, bcc, .. } => (*cdi_attest, *cdi_seal, *bcc),
             Self::Fake(fake) => (&fake.cdi_attest, &fake.cdi_seal, fake.bcc.as_slice()),
         };
-        let (cdi_attest, cdi_seal, bcc) = OpenDiceCborContext::new()
-            .bcc_main_flow(cdi_attest, cdi_seal, bcc, &input_values)
+        let dice_artifacts = retry_bcc_main_flow(cdi_attest, cdi_seal, bcc, &input_values)
             .context("DICE derive from driver")?;
         if let Self::Real { driver_path, .. } = &self {
             // Writing to the device wipes the artifacts. The string is ignored by the driver but
@@ -162,11 +168,7 @@ impl DiceDriver<'_> {
             fs::write(driver_path, "wipe")
                 .map_err(|err| Error::new(err).context("Wiping driver"))?;
         }
-        Ok(DiceContext {
-            cdi_attest: cdi_attest[..].try_into().unwrap(),
-            cdi_seal: cdi_seal[..].try_into().unwrap(),
-            bcc,
-        })
+        Ok(dice_artifacts.into())
     }
 }
 
