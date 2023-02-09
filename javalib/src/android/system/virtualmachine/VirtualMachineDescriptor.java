@@ -34,6 +34,7 @@ import android.os.Parcelable;
  *
  * @hide
  */
+// TODO(b/268613460): should implement autocloseable.
 @SystemApi
 public final class VirtualMachineDescriptor implements Parcelable {
     @NonNull private final ParcelFileDescriptor mConfigFd;
@@ -49,9 +50,9 @@ public final class VirtualMachineDescriptor implements Parcelable {
 
     @Override
     public void writeToParcel(@NonNull Parcel out, int flags) {
-        mConfigFd.writeToParcel(out, flags);
-        mInstanceImgFd.writeToParcel(out, flags);
-        if (mEncryptedStoreFd != null) mEncryptedStoreFd.writeToParcel(out, flags);
+        out.writeParcelable(mConfigFd, flags);
+        out.writeParcelable(mInstanceImgFd, flags);
+        out.writeParcelable(mEncryptedStoreFd, flags);
     }
 
     @NonNull
@@ -95,14 +96,19 @@ public final class VirtualMachineDescriptor implements Parcelable {
             @NonNull ParcelFileDescriptor configFd,
             @NonNull ParcelFileDescriptor instanceImgFd,
             @Nullable ParcelFileDescriptor encryptedStoreFd) {
-        mConfigFd = configFd;
-        mInstanceImgFd = instanceImgFd;
+        mConfigFd = requireNonNull(configFd);
+        mInstanceImgFd = requireNonNull(instanceImgFd);
         mEncryptedStoreFd = encryptedStoreFd;
     }
 
     private VirtualMachineDescriptor(Parcel in) {
-        mConfigFd = requireNonNull(in.readFileDescriptor());
-        mInstanceImgFd = requireNonNull(in.readFileDescriptor());
-        mEncryptedStoreFd = in.readFileDescriptor();
+        mConfigFd = requireNonNull(readParcelFileDescriptor(in));
+        mInstanceImgFd = requireNonNull(readParcelFileDescriptor(in));
+        mEncryptedStoreFd = readParcelFileDescriptor(in);
+    }
+
+    private ParcelFileDescriptor readParcelFileDescriptor(Parcel in) {
+        return in.readParcelable(
+                ParcelFileDescriptor.class.getClassLoader(), ParcelFileDescriptor.class);
     }
 }

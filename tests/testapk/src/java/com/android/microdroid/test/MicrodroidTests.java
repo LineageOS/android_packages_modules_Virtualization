@@ -33,6 +33,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.os.Build;
+import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
@@ -1544,6 +1545,99 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         }
 
         getVirtualMachineManager().delete("vm_from_another_app");
+    }
+
+    @Test
+    public void testVmDescriptorParcelUnparcel_noTrustedStorage() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine originalVm = forceCreateNewVirtualMachine("original_vm", config);
+        // Just start & stop the VM.
+        runVmTestService(originalVm, (ts, tr) -> {});
+
+        // Now create the descriptor and manually parcel & unparcel it.
+        VirtualMachineDescriptor vmDescriptor = toParcelFromParcel(originalVm.toDescriptor());
+
+        if (getVirtualMachineManager().get("import_vm_from_unparceled") != null) {
+            getVirtualMachineManager().delete("import_vm_from_unparceled");
+        }
+
+        VirtualMachine importVm =
+                getVirtualMachineManager()
+                        .importFromDescriptor("import_vm_from_unparceled", vmDescriptor);
+
+        assertFileContentsAreEqualInTwoVms(
+                "config.xml", "original_vm", "import_vm_from_unparceled");
+        assertFileContentsAreEqualInTwoVms(
+                "instance.img", "original_vm", "import_vm_from_unparceled");
+
+        // Check that we can start and stop imported vm as well
+        runVmTestService(importVm, (ts, tr) -> {});
+    }
+
+    @Test
+    public void testVmDescriptorParcelUnparcel_withTrustedStorage() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setEncryptedStorageBytes(1_000_000)
+                        .build();
+
+        VirtualMachine originalVm = forceCreateNewVirtualMachine("original_vm", config);
+        // Just start & stop the VM.
+        {
+            TestResults testResults =
+                    runVmTestService(
+                            originalVm,
+                            (ts, tr) -> {
+                                ts.writeToFile("not a secret!", "/mnt/encryptedstore/secret.txt");
+                            });
+            assertThat(testResults.mException).isNull();
+        }
+
+        // Now create the descriptor and manually parcel & unparcel it.
+        VirtualMachineDescriptor vmDescriptor = toParcelFromParcel(originalVm.toDescriptor());
+
+        if (getVirtualMachineManager().get("import_vm_from_unparceled") != null) {
+            getVirtualMachineManager().delete("import_vm_from_unparceled");
+        }
+
+        VirtualMachine importVm =
+                getVirtualMachineManager()
+                        .importFromDescriptor("import_vm_from_unparceled", vmDescriptor);
+
+        assertFileContentsAreEqualInTwoVms(
+                "config.xml", "original_vm", "import_vm_from_unparceled");
+        assertFileContentsAreEqualInTwoVms(
+                "instance.img", "original_vm", "import_vm_from_unparceled");
+        assertFileContentsAreEqualInTwoVms(
+                "storage.img", "original_vm", "import_vm_from_unparceled");
+
+        TestResults testResults =
+                runVmTestService(
+                        importVm,
+                        (ts, tr) -> {
+                            tr.mFileContent = ts.readFromFile("/mnt/encryptedstore/secret.txt");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        assertThat(testResults.mFileContent).isEqualTo("not a secret!");
+    }
+
+    private VirtualMachineDescriptor toParcelFromParcel(VirtualMachineDescriptor descriptor) {
+        Parcel parcel = Parcel.obtain();
+        descriptor.writeToParcel(parcel, 0);
+        parcel.setDataPosition(0);
+        return VirtualMachineDescriptor.CREATOR.createFromParcel(parcel);
     }
 
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
