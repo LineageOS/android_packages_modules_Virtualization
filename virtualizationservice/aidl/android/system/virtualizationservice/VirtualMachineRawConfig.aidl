@@ -15,6 +15,7 @@
  */
 package android.system.virtualizationservice;
 
+import android.system.virtualizationservice.CpuTopology;
 import android.system.virtualizationservice.DiskImage;
 
 /** Raw configuration for running a VM. */
@@ -49,10 +50,8 @@ parcelable VirtualMachineRawConfig {
     /** The amount of RAM to give the VM, in MiB. 0 or negative to use the default. */
     int memoryMib;
 
-    /**
-     * Number of vCPUs in the VM. Defaults to 1.
-     */
-    int numCpus = 1;
+    /** The vCPU topology that will be generated for the VM. Default to 1 vCPU. */
+    CpuTopology cpuTopology = CpuTopology.ONE_CPU;
 
     /**
      * A version or range of versions of the virtual platform that this config is compatible with.

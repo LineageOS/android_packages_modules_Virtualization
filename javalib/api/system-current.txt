@@ -57,15 +57,17 @@ package android.system.virtualmachine {
 
   public final class VirtualMachineConfig {
     method @Nullable public String getApkPath();
-    method @NonNull public int getDebugLevel();
+    method public int getCpuTopology();
+    method public int getDebugLevel();
     method @IntRange(from=0) public long getEncryptedStorageBytes();
     method @IntRange(from=0) public long getMemoryBytes();
-    method @IntRange(from=1) public int getNumCpus();
     method @Nullable public String getPayloadBinaryName();
     method public boolean isCompatibleWith(@NonNull android.system.virtualmachine.VirtualMachineConfig);
     method public boolean isEncryptedStorageEnabled();
     method public boolean isProtectedVm();
     method public boolean isVmOutputCaptured();
+    field public static final int CPU_TOPOLOGY_MATCH_HOST = 1; // 0x1
+    field public static final int CPU_TOPOLOGY_ONE_CPU = 0; // 0x0
     field public static final int DEBUG_LEVEL_FULL = 1; // 0x1
     field public static final int DEBUG_LEVEL_NONE = 0; // 0x0
   }
@@ -74,10 +76,10 @@ package android.system.virtualmachine {
     ctor public VirtualMachineConfig.Builder(@NonNull android.content.Context);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig build();
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setApkPath(@NonNull String);
+    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setCpuTopology(int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setDebugLevel(int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setEncryptedStorageBytes(@IntRange(from=1) long);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setMemoryBytes(@IntRange(from=1) long);
-    method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setNumCpus(@IntRange(from=1) int);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setPayloadBinaryName(@NonNull String);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setProtectedVm(boolean);
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setVmOutputCaptured(boolean);
