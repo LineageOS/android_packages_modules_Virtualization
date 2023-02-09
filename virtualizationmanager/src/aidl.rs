@@ -27,6 +27,7 @@ use android_system_virtualizationcommon::aidl::android::system::virtualizationco
     ErrorCode::ErrorCode,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    CpuTopology::CpuTopology,
     DiskImage::DiskImage,
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
@@ -384,6 +385,18 @@ impl VirtualizationService {
             })
             .collect::<Result<Vec<DiskFile>, _>>()?;
 
+        let (cpus, host_cpu_topology) = match config.cpuTopology {
+            CpuTopology::MATCH_HOST => (None, true),
+            CpuTopology::ONE_CPU => (NonZeroU32::new(1), false),
+            val => {
+                error!("Unexpected value of CPU topology: {:?}", val);
+                return Err(Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to parse CPU topology value: {:?}", val)),
+                ));
+            }
+        };
+
         // Creating this ramdump file unconditionally is not harmful as ramdump will be created
         // only when the VM is configured as such. `ramdump_write` is sent to crosvm and will
         // be the backing store for the /dev/hvc1 where VM will emit ramdump to. `ramdump_read`
@@ -408,7 +421,8 @@ impl VirtualizationService {
             params: config.params.to_owned(),
             protected: *is_protected,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
-            cpus: config.numCpus.try_into().ok().and_then(NonZeroU32::new),
+            cpus,
+            host_cpu_topology,
             task_profiles: config.taskProfiles.clone(),
             console_fd,
             log_fd,
@@ -567,7 +581,7 @@ fn load_app_config(
 
     vm_config.name = config.name.clone();
     vm_config.protectedVm = config.protectedVm;
-    vm_config.numCpus = config.numCpus;
+    vm_config.cpuTopology = config.cpuTopology;
     vm_config.taskProfiles = config.taskProfiles.clone();
 
     // Microdroid takes additional init ramdisk & (optionally) storage image

@@ -92,9 +92,6 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     private static final int MIN_MEM_ARM64 = 145;
     private static final int MIN_MEM_X86_64 = 196;
 
-    // Number of vCPUs for testing purpose
-    private static final int NUM_VCPUS = 3;
-
     private static final int BOOT_COMPLETE_TIMEOUT = 30000; // 30 seconds
 
     private static final Pattern sCIDPattern = Pattern.compile("with CID (\\d+)");
@@ -220,6 +217,14 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
             Thread.sleep(500);
         }
         assertThat(callable.call(), matcher);
+    }
+
+    private int getDeviceNumCpus(CommandRunner runner) throws DeviceNotAvailableException {
+        return Integer.parseInt(runner.run("nproc --all").trim());
+    }
+
+    private int getDeviceNumCpus(ITestDevice device) throws DeviceNotAvailableException {
+        return getDeviceNumCpus(new CommandRunner(device));
     }
 
     static class ActiveApexInfo {
@@ -443,7 +448,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
-                        .numCpus(NUM_VCPUS)
+                        .cpuTopology("match_host")
                         .protectedVm(protectedVm)
                         .build(getAndroidDevice());
 
@@ -554,7 +559,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
-                        .numCpus(NUM_VCPUS)
+                        .cpuTopology("match_host")
                         .build(getAndroidDevice());
         mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         mMicrodroidDevice.enableAdbRoot();
@@ -657,7 +662,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
-                        .numCpus(NUM_VCPUS)
+                        .cpuTopology("match_host")
                         .build(device);
         microdroid.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         device.shutdownMicrodroid(microdroid);
@@ -685,7 +690,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertThat(atomVmCreationRequested.getVmIdentifier()).isEqualTo("VmRunApp");
         assertThat(atomVmCreationRequested.getConfigType())
                 .isEqualTo(AtomsProto.VmCreationRequested.ConfigType.VIRTUAL_MACHINE_APP_CONFIG);
-        assertThat(atomVmCreationRequested.getNumCpus()).isEqualTo(NUM_VCPUS);
+        assertThat(atomVmCreationRequested.getNumCpus()).isEqualTo(getDeviceNumCpus(device));
         assertThat(atomVmCreationRequested.getMemoryMib()).isEqualTo(minMemorySize());
         assertThat(atomVmCreationRequested.getApexes())
                 .isEqualTo("com.android.art:com.android.compos:com.android.sdkext");
@@ -720,7 +725,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
-                        .numCpus(NUM_VCPUS)
+                        .cpuTopology("match_host")
                         .build(getAndroidDevice());
         mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         CommandRunner microdroid = new CommandRunner(mMicrodroidDevice);
@@ -749,8 +754,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", LOG_PATH)).isNull();
         assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", CONSOLE_PATH)).isNull();
 
-        assertThat(microdroid.run("cat /proc/cpuinfo | grep processor | wc -l"))
-                .isEqualTo(Integer.toString(NUM_VCPUS));
+        assertThat(getDeviceNumCpus(microdroid)).isEqualTo(getDeviceNumCpus(android));
 
         // Check that selinux is enabled
         assertThat(microdroid.run("getenforce")).isEqualTo("Enforcing");
@@ -786,7 +790,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
-                        .numCpus(NUM_VCPUS)
+                        .cpuTopology("match_host")
                         .build(getAndroidDevice());
         mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         mMicrodroidDevice.enableAdbRoot();

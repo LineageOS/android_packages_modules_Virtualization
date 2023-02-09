@@ -22,6 +22,7 @@ use crate::{
     COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    CpuTopology::CpuTopology,
     IVirtualizationService::IVirtualizationService,
     VirtualMachineAppConfig::{DebugLevel::DebugLevel, Payload::Payload, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
@@ -32,20 +33,29 @@ use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsSe
 use log::{info, warn};
 use rustutils::system_properties;
 use std::fs::{self, File};
-use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use vmclient::{DeathReason, ErrorCode, VmInstance, VmWaitError};
 
 /// This owns an instance of the CompOS VM.
 pub struct ComposClient(VmInstance);
 
+/// CPU topology configuration for a virtual machine.
+#[derive(Default, Debug, Clone)]
+pub enum VmCpuTopology {
+    /// Run VM with 1 vCPU only.
+    #[default]
+    OneCpu,
+    /// Run VM vCPU topology matching that of the host.
+    MatchHost,
+}
+
 /// Parameters to be used when creating a virtual machine instance.
 #[derive(Default, Debug, Clone)]
 pub struct VmParameters {
     /// Whether the VM should be debuggable.
     pub debug_mode: bool,
-    /// Number of vCPUs to have in the VM. If None, defaults to 1.
-    pub cpus: Option<NonZeroU32>,
+    /// CPU topology of the VM. Defaults to 1 vCPU.
+    pub cpu_topology: VmCpuTopology,
     /// List of task profiles to apply to the VM
     pub task_profiles: Vec<String>,
     /// If present, overrides the amount of RAM to give the VM
@@ -111,6 +121,11 @@ impl ComposClient {
             (Some(console_fd), Some(log_fd))
         };
 
+        let cpu_topology = match parameters.cpu_topology {
+            VmCpuTopology::OneCpu => CpuTopology::ONE_CPU,
+            VmCpuTopology::MatchHost => CpuTopology::MATCH_HOST,
+        };
+
         let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
             name: String::from("Compos"),
             apk: Some(apk_fd),
@@ -122,7 +137,7 @@ impl ComposClient {
             extraIdsigs: extra_idsigs,
             protectedVm: protected_vm,
             memoryMib: parameters.memory_mib.unwrap_or(0), // 0 means use the default
-            numCpus: parameters.cpus.map_or(1, NonZeroU32::get) as i32,
+            cpuTopology: cpu_topology,
             taskProfiles: parameters.task_profiles.clone(),
         });
 
