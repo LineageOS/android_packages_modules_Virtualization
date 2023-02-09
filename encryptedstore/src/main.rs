@@ -95,6 +95,8 @@ fn enable_crypt(data_device: &Path, key: &str, name: &str) -> Result<PathBuf> {
         .data_device(data_device, dev_size)
         .cipher(CipherType::AES256HCTR2)
         .key(&key)
+        .opt_param("sector_size:4096")
+        .opt_param("iv_large_sectors")
         .build()
         .context("Couldn't build the DMCrypt target")?;
     let dm = dm::DeviceMapper::new()?;
