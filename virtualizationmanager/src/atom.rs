@@ -19,6 +19,7 @@ use crate::crosvm::VmMetric;
 use crate::get_calling_uid;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::DeathReason::DeathReason;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    CpuTopology::CpuTopology,
     IVirtualMachine::IVirtualMachine,
     VirtualMachineAppConfig::{Payload::Payload, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
@@ -37,6 +38,8 @@ use statslog_virtualization_rust::vm_creation_requested;
 use std::thread;
 use std::time::{Duration, SystemTime};
 use zip::ZipArchive;
+
+const INVALID_NUM_CPUS: i32 = -1;
 
 fn get_apex_list(config: &VirtualMachineAppConfig) -> String {
     match &config.payload {
@@ -76,6 +79,19 @@ fn get_duration(vm_start_timestamp: Option<SystemTime>) -> Duration {
     }
 }
 
+// Returns the number of CPUs configured in the host system.
+// This matches how crosvm determines the number of logical cores.
+// For telemetry purposes only.
+pub(crate) fn get_num_cpus() -> Option<usize> {
+    // SAFETY - Only integer constants passed back and forth.
+    let ret = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_CONF) };
+    if ret > 0 {
+        ret.try_into().ok()
+    } else {
+        None
+    }
+}
+
 /// Write the stats of VMCreation to statsd
 pub fn write_vm_creation_stats(
     config: &VirtualMachineConfig,
@@ -94,21 +110,31 @@ pub fn write_vm_creation_stats(
             binder_exception_code = e.exception_code() as i32;
         }
     }
-    let (vm_identifier, config_type, num_cpus, memory_mib, apexes) = match config {
+    let (vm_identifier, config_type, cpu_topology, memory_mib, apexes) = match config {
         VirtualMachineConfig::AppConfig(config) => (
             config.name.clone(),
             vm_creation_requested::ConfigType::VirtualMachineAppConfig,
-            config.numCpus,
+            config.cpuTopology,
             config.memoryMib,
             get_apex_list(config),
         ),
         VirtualMachineConfig::RawConfig(config) => (
             config.name.clone(),
             vm_creation_requested::ConfigType::VirtualMachineRawConfig,
-            config.numCpus,
+            config.cpuTopology,
             config.memoryMib,
             String::new(),
         ),
+    };
+
+    let num_cpus: i32 = match cpu_topology {
+        CpuTopology::MATCH_HOST => {
+            get_num_cpus().and_then(|v| v.try_into().ok()).unwrap_or_else(|| {
+                warn!("Failed to determine the number of CPUs in the host");
+                INVALID_NUM_CPUS
+            })
+        }
+        _ => 1,
     };
 
     let atom = AtomVmCreationRequested {
