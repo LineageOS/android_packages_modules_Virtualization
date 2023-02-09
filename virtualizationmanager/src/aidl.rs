@@ -611,7 +611,7 @@ fn create_vm_payload_config(
         apexes: vec![],
         extra_apks: vec![],
         prefer_staged: false,
-        export_tombstones: false,
+        export_tombstones: None,
         enable_authfs: false,
     })
 }
