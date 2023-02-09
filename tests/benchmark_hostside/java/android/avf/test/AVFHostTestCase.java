@@ -95,6 +95,14 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @After
     public void tearDown() throws Exception {
+        try {
+            testIfDeviceIsCapable(getDevice());
+        } catch (Exception e) {
+            // Suppress execption here.
+            // If we throw exceptions in both setUp() and tearDown(),
+            // then test is reported as fail with org.junit.TestCouldNotBeSkippedException.
+            return;
+        }
         // Set PKVM enable and reboot to prevent previous staged session.
         if (!isCuttlefish()) {
             setPKVMStatusWithRebootToBootloader(true);
