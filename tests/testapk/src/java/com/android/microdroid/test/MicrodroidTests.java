@@ -1590,6 +1590,11 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                             mTestService =
                                     ITestService.Stub.asInterface(
                                             vm.connectToVsockServer(ITestService.SERVICE_PORT));
+                            // Make sure linkToDeath works, and include it in the log in case it's
+                            // helpful.
+                            mTestService
+                                    .asBinder()
+                                    .linkToDeath(() -> Log.i(TAG, "ITestService binder died"), 0);
                         } catch (Exception e) {
                             testResults.mException = e;
                         }
