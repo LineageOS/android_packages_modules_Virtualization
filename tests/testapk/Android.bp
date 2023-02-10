@@ -8,6 +8,10 @@ java_defaults {
         "cts",
         "general-tests",
     ],
+    static_libs: [
+        "com.android.microdroid.testservice-java",
+        "com.android.microdroid.test.vmshare_service-java",
+    ],
     sdk_version: "test_current",
     jni_uses_platform_apis: true,
     use_embedded_native_libs: true,
@@ -25,7 +29,6 @@ android_test {
         "androidx.test.ext.junit",
         "authfs_test_apk_assets",
         "cbor-java",
-        "com.android.microdroid.testservice-java",
         "truth-prebuilt",
         "compatibility-common-util-devicesidelib",
     ],

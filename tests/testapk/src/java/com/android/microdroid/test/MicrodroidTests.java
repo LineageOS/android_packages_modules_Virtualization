@@ -24,15 +24,20 @@ import static android.system.virtualmachine.VirtualMachineManager.CAPABILITY_NON
 import static android.system.virtualmachine.VirtualMachineManager.CAPABILITY_PROTECTED_VM;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assert.assertThrows;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Build;
+import android.os.IBinder;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.ParcelFileDescriptor.AutoCloseInputStream;
@@ -50,6 +55,7 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
+import com.android.microdroid.test.vmshare.IVmShareTestService;
 import com.android.microdroid.testservice.ITestService;
 
 import com.google.common.base.Strings;
@@ -86,6 +92,8 @@ import java.util.List;
 import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import co.nstant.in.cbor.CborDecoder;
@@ -1631,6 +1639,76 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         assertThat(testResults.mException).isNull();
         assertThat(testResults.mFileContent).isEqualTo("not a secret!");
+    }
+
+    @Test
+    public void testShareVmWithAnotherApp() throws Exception {
+        assumeSupportedKernel();
+
+        Context ctx = getContext();
+        Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
+
+        VirtualMachineConfig config =
+                new VirtualMachineConfig.Builder(otherAppCtx)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setProtectedVm(isProtectedVm())
+                        .setPayloadBinaryName("MicrodroidPayloadInOtherAppNativeLib.so")
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("vm_to_share", config);
+        // Just start & stop the VM.
+        runVmTestService(vm, (ts, tr) -> {});
+        // Get a descriptor that we will share with another app (VM_SHARE_APP_PACKAGE_NAME)
+        VirtualMachineDescriptor vmDesc = vm.toDescriptor();
+
+        Intent serviceIntent = new Intent();
+        serviceIntent.setComponent(
+                new ComponentName(
+                        VM_SHARE_APP_PACKAGE_NAME,
+                        "com.android.microdroid.test.sharevm.VmShareServiceImpl"));
+
+        VmShareServiceConnection connection = new VmShareServiceConnection();
+        boolean ret = ctx.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
+        assertWithMessage("Failed to bind to " + serviceIntent).that(ret).isTrue();
+
+        IVmShareTestService service = connection.waitForService();
+        assertWithMessage("Timed out connecting to " + serviceIntent).that(service).isNotNull();
+
+        try {
+            // Send the VM descriptor to the other app. When received, it will reconstruct the VM
+            // from the descriptor, start it, connect to the ITestService in it, creates a "proxy"
+            // ITestService binder that delegates all the calls to the VM, and share it with this
+            // app. It will allow us to verify assertions on the running VM in the other app.
+            ITestService testServiceProxy = service.startVm(vmDesc);
+
+            int result = testServiceProxy.addInteger(37, 73);
+            assertThat(result).isEqualTo(110);
+        } finally {
+            ctx.unbindService(connection);
+        }
+    }
+
+    private static class VmShareServiceConnection implements ServiceConnection {
+
+        private final CountDownLatch mLatch = new CountDownLatch(1);
+
+        private IVmShareTestService mVmShareTestService;
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mVmShareTestService = IVmShareTestService.Stub.asInterface(service);
+            mLatch.countDown();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {}
+
+        private IVmShareTestService waitForService() throws Exception {
+            if (!mLatch.await(1, TimeUnit.MINUTES)) {
+                return null;
+            }
+            return mVmShareTestService;
+        }
     }
 
     private VirtualMachineDescriptor toParcelFromParcel(VirtualMachineDescriptor descriptor) {
