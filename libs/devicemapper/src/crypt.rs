@@ -76,7 +76,7 @@ pub struct DmCryptTargetBuilder<'a> {
     device_path: Option<&'a Path>,
     offset: u64,
     device_size: u64,
-    // TODO(b/238179332) Extend this to include opt_params, in particular 'integrity'
+    opt_params: Vec<&'a str>,
 }
 
 impl<'a> Default for DmCryptTargetBuilder<'a> {
@@ -88,6 +88,7 @@ impl<'a> Default for DmCryptTargetBuilder<'a> {
             device_path: None,
             offset: 0,
             device_size: 0,
+            opt_params: Vec::new(),
         }
     }
 }
@@ -124,6 +125,12 @@ impl<'a> DmCryptTargetBuilder<'a> {
         self
     }
 
+    /// Add additional optional parameter
+    pub fn opt_param(&mut self, param: &'a str) -> &mut Self {
+        self.opt_params.push(param);
+        self
+    }
+
     /// Constructs a `DmCryptTarget`.
     pub fn build(&self) -> Result<DmCryptTarget> {
         // The `DmCryptTarget` struct actually is a flattened data consisting of a header and
@@ -154,6 +161,7 @@ impl<'a> DmCryptTargetBuilder<'a> {
         write!(&mut body, "{} ", self.iv_offset)?;
         write!(&mut body, "{} ", device_path)?;
         write!(&mut body, "{} ", self.offset)?;
+        write!(&mut body, "{} {} ", self.opt_params.len(), self.opt_params.join(" "))?;
         write!(&mut body, "\0")?; // null terminator
 
         let size = size_of::<DmTargetSpec>() + body.len();
