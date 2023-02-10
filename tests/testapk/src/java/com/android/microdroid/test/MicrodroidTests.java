@@ -1688,6 +1688,58 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         }
     }
 
+    @Test
+    public void testShareVmWithAnotherApp_encryptedStorage() throws Exception {
+        assumeSupportedKernel();
+
+        Context ctx = getContext();
+        Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
+
+        VirtualMachineConfig config =
+                new VirtualMachineConfig.Builder(otherAppCtx)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setProtectedVm(isProtectedVm())
+                        .setEncryptedStorageBytes(3_000_000)
+                        .setPayloadBinaryName("MicrodroidPayloadInOtherAppNativeLib.so")
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("vm_to_share", config);
+        // Just start & stop the VM.
+        runVmTestService(
+                vm,
+                (ts, tr) -> {
+                    ts.writeToFile(EXAMPLE_STRING, "/mnt/encryptedstore/private.key");
+                });
+        // Get a descriptor that we will share with another app (VM_SHARE_APP_PACKAGE_NAME)
+        VirtualMachineDescriptor vmDesc = vm.toDescriptor();
+
+        Intent serviceIntent = new Intent();
+        serviceIntent.setComponent(
+                new ComponentName(
+                        VM_SHARE_APP_PACKAGE_NAME,
+                        "com.android.microdroid.test.sharevm.VmShareServiceImpl"));
+
+        VmShareServiceConnection connection = new VmShareServiceConnection();
+        boolean ret = ctx.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
+        assertWithMessage("Failed to bind to " + serviceIntent).that(ret).isTrue();
+
+        IVmShareTestService service = connection.waitForService();
+        assertWithMessage("Timed out connecting to " + serviceIntent).that(service).isNotNull();
+
+        try {
+            // Send the VM descriptor to the other app. When received, it will reconstruct the VM
+            // from the descriptor, start it, connect to the ITestService in it, creates a "proxy"
+            // ITestService binder that delegates all the calls to the VM, and share it with this
+            // app. It will allow us to verify assertions on the running VM in the other app.
+            ITestService testServiceProxy = service.startVm(vmDesc);
+
+            String result = testServiceProxy.readFromFile("/mnt/encryptedstore/private.key");
+            assertThat(result).isEqualTo(EXAMPLE_STRING);
+        } finally {
+            ctx.unbindService(connection);
+        }
+    }
+
     private static class VmShareServiceConnection implements ServiceConnection {
 
         private final CountDownLatch mLatch = new CountDownLatch(1);

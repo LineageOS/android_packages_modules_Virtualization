@@ -226,8 +226,7 @@ public class VmShareServiceImpl extends Service {
 
         @Override
         public String readFromFile(String path) throws RemoteException {
-            // TODO(b/259384440): implement for the VM share test including trusted storage.
-            throw new UnsupportedOperationException("Not supported");
+            return mServiceInVm.readFromFile(path);
         }
 
         @Override
