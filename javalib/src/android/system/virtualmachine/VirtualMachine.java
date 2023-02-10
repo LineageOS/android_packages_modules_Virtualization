@@ -1227,8 +1227,7 @@ public class VirtualMachine implements AutoCloseable {
         if (configPath == null) {
             return Collections.emptyList();
         }
-        try {
-            ZipFile zipFile = new ZipFile(context.getPackageCodePath());
+        try (ZipFile zipFile = new ZipFile(context.getPackageCodePath())) {
             InputStream inputStream =
                     zipFile.getInputStream(zipFile.getEntry(configPath));
             List<String> apkList =
