@@ -95,6 +95,8 @@ fn enable_crypt(data_device: &Path, key: &str, name: &str) -> Result<PathBuf> {
         .data_device(data_device, dev_size)
         .cipher(CipherType::AES256HCTR2)
         .key(&key)
+        .opt_param("sector_size:4096")
+        .opt_param("iv_large_sectors")
         .build()
         .context("Couldn't build the DMCrypt target")?;
     let dm = dm::DeviceMapper::new()?;
@@ -125,6 +127,7 @@ fn format_ext4(device: &Path) -> Result<()> {
     let mkfs_options = [
         "-j",               // Create appropriate sized journal
         "-O metadata_csum", // Metadata checksum for filesystem integrity
+        "-b 4096",          // block size in the filesystem
     ];
     let mut cmd = Command::new(MK2FS_BIN);
     let status = cmd
