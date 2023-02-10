@@ -69,7 +69,6 @@ public final class VirtualMachineConfig {
     private static final String KEY_DEBUGLEVEL = "debugLevel";
     private static final String KEY_PROTECTED_VM = "protectedVm";
     private static final String KEY_MEMORY_BYTES = "memoryBytes";
-    private static final String KEY_NUM_CPUS = "numCpus";
     private static final String KEY_CPU_TOPOLOGY = "cpuTopology";
     private static final String KEY_ENCRYPTED_STORAGE_BYTES = "encryptedStorageBytes";
     private static final String KEY_VM_OUTPUT_CAPTURED = "vmOutputCaptured";
