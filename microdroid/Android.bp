@@ -85,9 +85,12 @@ android_system_image {
         "microdroid_property_contexts",
         "mke2fs.microdroid",
 
-        // TODO(b/195425111) these should be added automatically
-        "libcrypto", // used by many (init_second_stage, microdroid_manager, toybox, etc)
-        "liblzma", // used by init_second_stage
+        // Adding more libs manually for unbundled build.
+        // TODO(b/268557568) these should be added automatically.
+        "libcrypto",
+        "liblzma",
+        "libc++",
+        "libssl",
 
         "libvm_payload", // used by payload to interact with microdroid manager
 
