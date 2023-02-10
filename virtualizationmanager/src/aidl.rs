@@ -63,7 +63,7 @@ use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fs::{read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Write};
-use std::num::NonZeroU32;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::os::unix::raw::pid_t;
 use std::path::{Path, PathBuf};
@@ -299,12 +299,22 @@ impl VirtualizationService {
                 // Some features are reserved for platform apps only, even when using
                 // VirtualMachineAppConfig:
                 // - controlling CPUs;
-                // - specifying a config file in the APK.
-                !config.taskProfiles.is_empty() || matches!(config.payload, Payload::ConfigPath(_))
+                // - specifying a config file in the APK;
+                // - gdbPort is set, meaning that crosvm will start a gdb server.
+                !config.taskProfiles.is_empty()
+                    || matches!(config.payload, Payload::ConfigPath(_))
+                    || config.gdbPort > 0
             }
         };
         if is_custom {
             check_use_custom_virtual_machine()?;
+        }
+
+        let gdb_port = extract_gdb_port(config);
+
+        // Additional permission checks if caller request gdb.
+        if gdb_port.is_some() {
+            check_gdb_allowed(config)?;
         }
 
         let state = &mut *self.state.lock().unwrap();
@@ -430,6 +440,7 @@ impl VirtualizationService {
             indirect_files,
             platform_version: parse_platform_version_req(&config.platformVersion)?,
             detect_hangup: is_app_config,
+            gdb_port,
         };
         let instance = Arc::new(
             VmInstance::new(
@@ -583,6 +594,7 @@ fn load_app_config(
     vm_config.protectedVm = config.protectedVm;
     vm_config.cpuTopology = config.cpuTopology;
     vm_config.taskProfiles = config.taskProfiles.clone();
+    vm_config.gdbPort = config.gdbPort;
 
     // Microdroid takes additional init ramdisk & (optionally) storage image
     add_microdroid_system_images(config, instance_file, storage_image, &mut vm_config)?;
@@ -970,6 +982,43 @@ fn is_debuggable(config: &VirtualMachineConfig) -> bool {
     match config {
         VirtualMachineConfig::AppConfig(config) => config.debugLevel != DebugLevel::NONE,
         _ => false,
+    }
+}
+
+fn is_protected(config: &VirtualMachineConfig) -> bool {
+    match config {
+        VirtualMachineConfig::RawConfig(config) => config.protectedVm,
+        VirtualMachineConfig::AppConfig(config) => config.protectedVm,
+    }
+}
+
+fn check_gdb_allowed(config: &VirtualMachineConfig) -> binder::Result<()> {
+    if is_protected(config) {
+        return Err(Status::new_exception_str(
+            ExceptionCode::SECURITY,
+            Some("can't use gdb with protected VMs"),
+        ));
+    }
+
+    match config {
+        VirtualMachineConfig::RawConfig(_) => Ok(()),
+        VirtualMachineConfig::AppConfig(config) => {
+            if config.debugLevel != DebugLevel::FULL {
+                Err(Status::new_exception_str(
+                    ExceptionCode::SECURITY,
+                    Some("can't use gdb with non-debuggable VMs"),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
+
+fn extract_gdb_port(config: &VirtualMachineConfig) -> Option<NonZeroU16> {
+    match config {
+        VirtualMachineConfig::RawConfig(config) => NonZeroU16::new(config.gdbPort as u16),
+        VirtualMachineConfig::AppConfig(config) => NonZeroU16::new(config.gdbPort as u16),
     }
 }
 

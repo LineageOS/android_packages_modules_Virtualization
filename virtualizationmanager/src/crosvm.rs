@@ -32,7 +32,7 @@ use std::fmt;
 use std::fs::{read_to_string, File};
 use std::io::{self, Read};
 use std::mem;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -105,6 +105,7 @@ pub struct CrosvmConfig {
     pub indirect_files: Vec<File>,
     pub platform_version: VersionReq,
     pub detect_hangup: bool,
+    pub gdb_port: Option<NonZeroU16>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -744,6 +745,10 @@ fn run_vm(
 
     if !config.task_profiles.is_empty() {
         command.arg("--task-profiles").arg(config.task_profiles.join(","));
+    }
+
+    if let Some(gdb_port) = config.gdb_port {
+        command.arg("--gdb").arg(gdb_port.to_string());
     }
 
     // Keep track of what file descriptors should be mapped to the crosvm process.
