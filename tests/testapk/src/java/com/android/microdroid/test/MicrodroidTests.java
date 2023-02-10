@@ -26,15 +26,21 @@ import static android.system.virtualmachine.VirtualMachineManager.CAPABILITY_NON
 import static android.system.virtualmachine.VirtualMachineManager.CAPABILITY_PROTECTED_VM;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
 
 import static org.junit.Assert.assertThrows;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Build;
+import android.os.IBinder;
+import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.ParcelFileDescriptor.AutoCloseInputStream;
 import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
@@ -51,6 +57,7 @@ import androidx.test.core.app.ApplicationProvider;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
+import com.android.microdroid.test.vmshare.IVmShareTestService;
 import com.android.microdroid.testservice.ITestService;
 
 import com.google.common.base.Strings;
@@ -87,6 +94,8 @@ import java.util.List;
 import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import co.nstant.in.cbor.CborDecoder;
@@ -1544,6 +1553,221 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         }
 
         getVirtualMachineManager().delete("vm_from_another_app");
+    }
+
+    @Test
+    public void testVmDescriptorParcelUnparcel_noTrustedStorage() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine originalVm = forceCreateNewVirtualMachine("original_vm", config);
+        // Just start & stop the VM.
+        runVmTestService(originalVm, (ts, tr) -> {});
+
+        // Now create the descriptor and manually parcel & unparcel it.
+        VirtualMachineDescriptor vmDescriptor = toParcelFromParcel(originalVm.toDescriptor());
+
+        if (getVirtualMachineManager().get("import_vm_from_unparceled") != null) {
+            getVirtualMachineManager().delete("import_vm_from_unparceled");
+        }
+
+        VirtualMachine importVm =
+                getVirtualMachineManager()
+                        .importFromDescriptor("import_vm_from_unparceled", vmDescriptor);
+
+        assertFileContentsAreEqualInTwoVms(
+                "config.xml", "original_vm", "import_vm_from_unparceled");
+        assertFileContentsAreEqualInTwoVms(
+                "instance.img", "original_vm", "import_vm_from_unparceled");
+
+        // Check that we can start and stop imported vm as well
+        runVmTestService(importVm, (ts, tr) -> {});
+    }
+
+    @Test
+    public void testVmDescriptorParcelUnparcel_withTrustedStorage() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setEncryptedStorageBytes(1_000_000)
+                        .build();
+
+        VirtualMachine originalVm = forceCreateNewVirtualMachine("original_vm", config);
+        // Just start & stop the VM.
+        {
+            TestResults testResults =
+                    runVmTestService(
+                            originalVm,
+                            (ts, tr) -> {
+                                ts.writeToFile("not a secret!", "/mnt/encryptedstore/secret.txt");
+                            });
+            assertThat(testResults.mException).isNull();
+        }
+
+        // Now create the descriptor and manually parcel & unparcel it.
+        VirtualMachineDescriptor vmDescriptor = toParcelFromParcel(originalVm.toDescriptor());
+
+        if (getVirtualMachineManager().get("import_vm_from_unparceled") != null) {
+            getVirtualMachineManager().delete("import_vm_from_unparceled");
+        }
+
+        VirtualMachine importVm =
+                getVirtualMachineManager()
+                        .importFromDescriptor("import_vm_from_unparceled", vmDescriptor);
+
+        assertFileContentsAreEqualInTwoVms(
+                "config.xml", "original_vm", "import_vm_from_unparceled");
+        assertFileContentsAreEqualInTwoVms(
+                "instance.img", "original_vm", "import_vm_from_unparceled");
+        assertFileContentsAreEqualInTwoVms(
+                "storage.img", "original_vm", "import_vm_from_unparceled");
+
+        TestResults testResults =
+                runVmTestService(
+                        importVm,
+                        (ts, tr) -> {
+                            tr.mFileContent = ts.readFromFile("/mnt/encryptedstore/secret.txt");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        assertThat(testResults.mFileContent).isEqualTo("not a secret!");
+    }
+
+    @Test
+    public void testShareVmWithAnotherApp() throws Exception {
+        assumeSupportedKernel();
+
+        Context ctx = getContext();
+        Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
+
+        VirtualMachineConfig config =
+                new VirtualMachineConfig.Builder(otherAppCtx)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setProtectedVm(isProtectedVm())
+                        .setPayloadBinaryName("MicrodroidPayloadInOtherAppNativeLib.so")
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("vm_to_share", config);
+        // Just start & stop the VM.
+        runVmTestService(vm, (ts, tr) -> {});
+        // Get a descriptor that we will share with another app (VM_SHARE_APP_PACKAGE_NAME)
+        VirtualMachineDescriptor vmDesc = vm.toDescriptor();
+
+        Intent serviceIntent = new Intent();
+        serviceIntent.setComponent(
+                new ComponentName(
+                        VM_SHARE_APP_PACKAGE_NAME,
+                        "com.android.microdroid.test.sharevm.VmShareServiceImpl"));
+
+        VmShareServiceConnection connection = new VmShareServiceConnection();
+        boolean ret = ctx.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
+        assertWithMessage("Failed to bind to " + serviceIntent).that(ret).isTrue();
+
+        IVmShareTestService service = connection.waitForService();
+        assertWithMessage("Timed out connecting to " + serviceIntent).that(service).isNotNull();
+
+        try {
+            // Send the VM descriptor to the other app. When received, it will reconstruct the VM
+            // from the descriptor, start it, connect to the ITestService in it, creates a "proxy"
+            // ITestService binder that delegates all the calls to the VM, and share it with this
+            // app. It will allow us to verify assertions on the running VM in the other app.
+            ITestService testServiceProxy = service.startVm(vmDesc);
+
+            int result = testServiceProxy.addInteger(37, 73);
+            assertThat(result).isEqualTo(110);
+        } finally {
+            ctx.unbindService(connection);
+        }
+    }
+
+    @Test
+    public void testShareVmWithAnotherApp_encryptedStorage() throws Exception {
+        assumeSupportedKernel();
+
+        Context ctx = getContext();
+        Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
+
+        VirtualMachineConfig config =
+                new VirtualMachineConfig.Builder(otherAppCtx)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setProtectedVm(isProtectedVm())
+                        .setEncryptedStorageBytes(3_000_000)
+                        .setPayloadBinaryName("MicrodroidPayloadInOtherAppNativeLib.so")
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("vm_to_share", config);
+        // Just start & stop the VM.
+        runVmTestService(
+                vm,
+                (ts, tr) -> {
+                    ts.writeToFile(EXAMPLE_STRING, "/mnt/encryptedstore/private.key");
+                });
+        // Get a descriptor that we will share with another app (VM_SHARE_APP_PACKAGE_NAME)
+        VirtualMachineDescriptor vmDesc = vm.toDescriptor();
+
+        Intent serviceIntent = new Intent();
+        serviceIntent.setComponent(
+                new ComponentName(
+                        VM_SHARE_APP_PACKAGE_NAME,
+                        "com.android.microdroid.test.sharevm.VmShareServiceImpl"));
+
+        VmShareServiceConnection connection = new VmShareServiceConnection();
+        boolean ret = ctx.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
+        assertWithMessage("Failed to bind to " + serviceIntent).that(ret).isTrue();
+
+        IVmShareTestService service = connection.waitForService();
+        assertWithMessage("Timed out connecting to " + serviceIntent).that(service).isNotNull();
+
+        try {
+            // Send the VM descriptor to the other app. When received, it will reconstruct the VM
+            // from the descriptor, start it, connect to the ITestService in it, creates a "proxy"
+            // ITestService binder that delegates all the calls to the VM, and share it with this
+            // app. It will allow us to verify assertions on the running VM in the other app.
+            ITestService testServiceProxy = service.startVm(vmDesc);
+
+            String result = testServiceProxy.readFromFile("/mnt/encryptedstore/private.key");
+            assertThat(result).isEqualTo(EXAMPLE_STRING);
+        } finally {
+            ctx.unbindService(connection);
+        }
+    }
+
+    private static class VmShareServiceConnection implements ServiceConnection {
+
+        private final CountDownLatch mLatch = new CountDownLatch(1);
+
+        private IVmShareTestService mVmShareTestService;
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mVmShareTestService = IVmShareTestService.Stub.asInterface(service);
+            mLatch.countDown();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {}
+
+        private IVmShareTestService waitForService() throws Exception {
+            if (!mLatch.await(1, TimeUnit.MINUTES)) {
+                return null;
+            }
+            return mVmShareTestService;
+        }
+    }
+
+    private VirtualMachineDescriptor toParcelFromParcel(VirtualMachineDescriptor descriptor) {
+        Parcel parcel = Parcel.obtain();
+        descriptor.writeToParcel(parcel, 0);
+        parcel.setDataPosition(0);
+        return VirtualMachineDescriptor.CREATOR.createFromParcel(parcel);
     }
 
     private void assertFileContentsAreEqualInTwoVms(String fileName, String vmName1, String vmName2)
