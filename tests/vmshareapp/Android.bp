@@ -5,6 +5,7 @@ package {
 // Helper app to verify that we can create a VM using others app payload, and share VMs between apps
 android_test_helper_app {
     name: "MicrodroidVmShareApp",
+    srcs: ["src/java/**/*.java"],
     // Defaults are defined in ../testapk/Android.bp
     defaults: ["MicrodroidTestAppsDefaults"],
     jni_libs: [

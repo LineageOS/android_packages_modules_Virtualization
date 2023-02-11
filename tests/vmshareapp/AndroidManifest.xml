@@ -20,5 +20,13 @@
     <uses-feature android:name="android.software.virtualization_framework"
                   android:required="false" />
 
-    <application />
+    <application>
+        <service android:name="com.android.microdroid.test.sharevm.VmShareServiceImpl"
+                 android:exported="true">
+            <intent-filter>
+                <action android:name="com.android.microdroid.test.sharevm.VmShareService"/>
+            </intent-filter>
+        </service>
+    </application>
+
 </manifest>
