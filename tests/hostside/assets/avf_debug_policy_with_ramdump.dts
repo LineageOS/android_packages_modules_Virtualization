@@ -11,6 +11,9 @@
                     common {
                         ramdump = <1>;
                     };
+                    microdroid {
+                        adb = <1>; // adb is required to check VM's bootargs.
+                    };
                 };
             };
         };

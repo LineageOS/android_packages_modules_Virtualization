@@ -34,6 +34,13 @@ fn get_debug_policy_bool(path: &'static str) -> Option<bool> {
 pub fn should_prepare_console_output(debug_level: DebugLevel) -> bool {
     debug_level != DebugLevel::NONE
         || get_debug_policy_bool("/proc/device-tree/avf/guest/common/log").unwrap_or_default()
+        || get_debug_policy_bool("/proc/device-tree/avf/guest/microdroid/adb").unwrap_or_default()
+}
+
+/// Get whether debug apexes (MICRODROID_REQUIRED_APEXES_DEBUG) are required.
+pub fn should_include_debug_apexes(debug_level: DebugLevel) -> bool {
+    debug_level != DebugLevel::NONE
+        || get_debug_policy_bool("/proc/device-tree/avf/guest/microdroid/adb").unwrap_or_default()
 }
 
 /// Decision to support ramdump
