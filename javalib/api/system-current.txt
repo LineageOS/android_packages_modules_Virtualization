@@ -85,7 +85,8 @@ package android.system.virtualmachine {
     method @NonNull public android.system.virtualmachine.VirtualMachineConfig.Builder setVmOutputCaptured(boolean);
   }
 
-  public final class VirtualMachineDescriptor implements android.os.Parcelable {
+  public final class VirtualMachineDescriptor implements java.io.Closeable android.os.Parcelable {
+    method public void close() throws java.io.IOException;
     method public int describeContents();
     method public void writeToParcel(@NonNull android.os.Parcel, int);
     field @NonNull public static final android.os.Parcelable.Creator<android.system.virtualmachine.VirtualMachineDescriptor> CREATOR;
