@@ -225,6 +225,9 @@ entry:
 	adr_l x30, __stack_chk_guard
 	str x29, [x30]
 
+	/* Write a null byte to the top of the stack guard to act as a string terminator. */
+	strb wzr, [x30]
+
 	/* Call into Rust code. */
 	bl rust_entry
 
