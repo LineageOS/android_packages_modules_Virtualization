@@ -83,9 +83,12 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     private MetricsProcessor mMetricsProcessor;
     @Rule public TestMetrics mMetrics = new TestMetrics();
 
+    private boolean mNeedTearDown = false;
+
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
+        mNeedTearDown = true;
 
         getDevice().installPackage(findTestFile(APK_NAME), /* reinstall */ false);
 
@@ -94,12 +97,10 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @After
     public void tearDown() throws Exception {
-        try {
-            testIfDeviceIsCapable(getDevice());
-        } catch (Exception e) {
-            // Suppress execption here.
-            // If we throw exceptions in both setUp() and tearDown(),
-            // then test is reported as fail with org.junit.TestCouldNotBeSkippedException.
+        if (!mNeedTearDown) {
+            // If we skipped setUp, we don't need to undo it, and that avoids potential exceptions
+            // incompatible hardware. (Note that tests can change what testIfDeviceIsCapable()
+            // sees, so we can't rely on that - b/268688303.)
             return;
         }
         // Set PKVM enable and reboot to prevent previous staged session.
