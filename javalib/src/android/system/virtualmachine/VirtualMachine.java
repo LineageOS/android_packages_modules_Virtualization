@@ -393,27 +393,31 @@ public class VirtualMachine implements AutoCloseable {
             @NonNull String name,
             @NonNull VirtualMachineDescriptor vmDescriptor)
             throws VirtualMachineException {
-        VirtualMachineConfig config = VirtualMachineConfig.from(vmDescriptor.getConfigFd());
         File vmDir = createVmDir(context, name);
         try {
-            VirtualMachine vm =
-                    new VirtualMachine(context, name, config, VirtualizationService.getInstance());
-            config.serialize(vm.mConfigFilePath);
-            try {
-                vm.mInstanceFilePath.createNewFile();
-            } catch (IOException e) {
-                throw new VirtualMachineException("failed to create instance image", e);
-            }
-            vm.importInstanceFrom(vmDescriptor.getInstanceImgFd());
-
-            if (vmDescriptor.getEncryptedStoreFd() != null) {
+            VirtualMachine vm;
+            try (vmDescriptor) {
+                VirtualMachineConfig config = VirtualMachineConfig.from(vmDescriptor.getConfigFd());
+                vm = new VirtualMachine(context, name, config, VirtualizationService.getInstance());
+                config.serialize(vm.mConfigFilePath);
                 try {
-                    vm.mEncryptedStoreFilePath.createNewFile();
+                    vm.mInstanceFilePath.createNewFile();
                 } catch (IOException e) {
-                    throw new VirtualMachineException(
-                            "failed to create encrypted storage image", e);
+                    throw new VirtualMachineException("failed to create instance image", e);
                 }
-                vm.importEncryptedStoreFrom(vmDescriptor.getEncryptedStoreFd());
+                vm.importInstanceFrom(vmDescriptor.getInstanceImgFd());
+
+                if (vmDescriptor.getEncryptedStoreFd() != null) {
+                    try {
+                        vm.mEncryptedStoreFilePath.createNewFile();
+                    } catch (IOException e) {
+                        throw new VirtualMachineException(
+                                "failed to create encrypted storage image", e);
+                    }
+                    vm.importEncryptedStoreFrom(vmDescriptor.getEncryptedStoreFd());
+                }
+            } catch (IOException e) {
+                throw new VirtualMachineException(e);
             }
             return vm;
         } catch (VirtualMachineException | RuntimeException e) {
