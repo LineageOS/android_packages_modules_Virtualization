@@ -1323,7 +1323,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setMemoryBytes(minMemoryRequired())
                         .setEncryptedStorageBytes(4_000_000)
                         .setDebugLevel(DEBUG_LEVEL_FULL)
-                        .setVmOutputCaptured(true)
                         .build();
 
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
@@ -1348,7 +1347,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertFileContentsAreEqualInTwoVms("storage.img", "test_vm", "diff_test_vm");
 
         CompletableFuture<Boolean> onPayloadReadyExecuted = new CompletableFuture<>();
-        CompletableFuture<Boolean> onStoppedExecuted = new CompletableFuture<>();
+        CompletableFuture<Boolean> onErrorExecuted = new CompletableFuture<>();
+        CompletableFuture<String> errorMessage = new CompletableFuture<>();
         VmEventListener listener =
                 new VmEventListener() {
                     @Override
@@ -1358,17 +1358,18 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     }
 
                     @Override
-                    public void onStopped(VirtualMachine vm, int reason) {
-                        onStoppedExecuted.complete(true);
-                        super.onStopped(vm, reason);
+                    public void onError(VirtualMachine vm, int errorCode, String message) {
+                        onErrorExecuted.complete(true);
+                        errorMessage.complete(message);
+                        super.onError(vm, errorCode, message);
                     }
                 };
         listener.runToFinish(TAG, diff_test_vm);
 
-        // Assert that payload never started & logs contains encryptedstore initialization error
-        assertThat(onStoppedExecuted.getNow(false)).isTrue();
+        // Assert that payload never started & error message reflects storage error.
         assertThat(onPayloadReadyExecuted.getNow(false)).isFalse();
-        assertThat(listener.getConsoleOutput()).contains("Unable to initialize encryptedstore");
+        assertThat(onErrorExecuted.getNow(false)).isTrue();
+        assertThat(errorMessage.getNow("")).contains("Unable to prepare encrypted storage");
     }
 
     @Test
