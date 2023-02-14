@@ -65,6 +65,22 @@ raw_binary {
     },
 }
 
+// Provide pvmfw.bin binary regardless of the architecture for building test.
+// Note that skipping tests on unsupported device is easy
+// while configuring server configuration to make such tests to run on working
+// devices.
+prebuilt_etc {
+    name: "pvmfw_test",
+    filename: "pvmfw_test.bin",
+    target: {
+        android_arm64: {
+            src: ":pvmfw_bin",
+        },
+    },
+    src: "empty_file",
+    installable: false,
+}
+
 prebuilt_etc {
     name: "pvmfw_embedded_key",
     src: ":avb_testkey_rsa4096_pub_bin",
