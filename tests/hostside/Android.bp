@@ -2,6 +2,26 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+genrule_defaults {
+    name: "test_avf_debug_policy_overlay",
+    tools: ["dtc"],
+    cmd: "$(location dtc) -I dts -O dtb $(in) -o $(out)",
+}
+
+genrule {
+    name: "test_avf_debug_policy_with_ramdump",
+    defaults: ["test_avf_debug_policy_overlay"],
+    srcs: ["assets/avf_debug_policy_with_ramdump.dts"],
+    out: ["avf_debug_policy_with_ramdump.dtbo"],
+}
+
+genrule {
+    name: "test_avf_debug_policy_without_ramdump",
+    defaults: ["test_avf_debug_policy_overlay"],
+    srcs: ["assets/avf_debug_policy_without_ramdump.dts"],
+    out: ["avf_debug_policy_without_ramdump.dtbo"],
+}
+
 java_test_host {
     name: "MicrodroidHostTestCases",
     srcs: ["java/**/*.java"],
@@ -10,6 +30,7 @@ java_test_host {
         "general-tests",
     ],
     libs: [
+        "androidx.annotation_annotation",
         "tradefed",
     ],
     static_libs: [
@@ -23,6 +44,10 @@ java_test_host {
         ":microdroid_general_sepolicy.conf",
         ":test.com.android.virt.pem",
         ":test2.com.android.virt.pem",
+        ":pvmfw_test",
+        ":test_avf_debug_policy_with_ramdump",
+        ":test_avf_debug_policy_without_ramdump",
+        "assets/bcc.dat",
     ],
     data_native_bins: [
         "sepolicy-analyze",
