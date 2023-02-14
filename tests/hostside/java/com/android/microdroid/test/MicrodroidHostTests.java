@@ -73,6 +73,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -607,7 +608,8 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 .isTrue();
     }
 
-    private boolean isTombstoneGeneratedWithCrashPayload(boolean debuggable) throws Exception {
+    private boolean isTombstoneGeneratedWithVmRunApp(boolean debuggable, String... additionalArgs)
+            throws Exception {
         // we can't use microdroid builder as it wants ADB connection (debuggable)
         CommandRunner android = new CommandRunner(getDevice());
 
@@ -617,18 +619,25 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         final String apkPath = getPathForPackage(PACKAGE_NAME);
         final String idsigPath = TEST_ROOT + "idsig";
         final String instanceImgPath = TEST_ROOT + "instance.img";
-        android.run(
-                VIRT_APEX + "bin/vm",
-                "run-app",
-                "--payload-binary-name",
-                "MicrodroidCrashNativeLib.so",
-                "--debug",
-                debuggable ? "full" : "none",
-                apkPath,
-                idsigPath,
-                instanceImgPath);
+        List<String> cmd =
+                new ArrayList<>(
+                        Arrays.asList(
+                                VIRT_APEX + "bin/vm",
+                                "run-app",
+                                "--debug",
+                                debuggable ? "full" : "none",
+                                apkPath,
+                                idsigPath,
+                                instanceImgPath));
+        Collections.addAll(cmd, additionalArgs);
 
+        android.run(cmd.toArray(new String[0]));
         return isTombstoneReceivedFromHostLogcat();
+    }
+
+    private boolean isTombstoneGeneratedWithCrashPayload(boolean debuggable) throws Exception {
+        return isTombstoneGeneratedWithVmRunApp(
+                debuggable, "--payload-binary-name", "MicrodroidCrashNativeLib.so");
     }
 
     @Test
@@ -639,6 +648,21 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @Test
     public void testTombstonesAreNotGeneratedWithCrashPayloadWhenNonDebuggable() throws Exception {
         assertThat(isTombstoneGeneratedWithCrashPayload(false /* debuggable */)).isFalse();
+    }
+
+    private boolean isTombstoneGeneratedWithCrashConfig(boolean debuggable) throws Exception {
+        return isTombstoneGeneratedWithVmRunApp(
+                debuggable, "--config-path", "assets/vm_config_crash.json");
+    }
+
+    @Test
+    public void testTombstonesAreGeneratedWithCrashConfig() throws Exception {
+        assertThat(isTombstoneGeneratedWithCrashConfig(true /* debuggable */)).isTrue();
+    }
+
+    @Test
+    public void testTombstonesAreNotGeneratedWithCrashConfigWhenNonDebuggable() throws Exception {
+        assertThat(isTombstoneGeneratedWithCrashConfig(false /* debuggable */)).isFalse();
     }
 
     @Test
