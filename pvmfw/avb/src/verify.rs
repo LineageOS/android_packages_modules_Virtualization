@@ -22,7 +22,7 @@ use avb_bindgen::{AvbPartitionData, AvbVBMetaData};
 use core::ffi::c_char;
 
 /// Verified data returned when the payload verification succeeds.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct VerifiedBootData {
     /// DebugLevel of the VM.
     pub debug_level: DebugLevel,

@@ -18,7 +18,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use avb_bindgen::{AvbFooter, AvbVBMetaImageHeader};
-use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel};
+use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel, VerifiedBootData};
 use std::{fs, mem::size_of, ptr};
 use utils::*;
 
@@ -60,10 +60,11 @@ fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()
     )
     .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
 
-    assert_eq!(DebugLevel::None, verified_boot_data.debug_level);
-    let digest = hash(&[&hex::decode("1111")?, &fs::read(UNSIGNED_TEST_IMG_PATH)?]);
-    assert_eq!(digest, verified_boot_data.kernel_digest);
-    assert!(verified_boot_data.initrd_digest.is_none());
+    let kernel_digest = hash(&[&hex::decode("1111")?, &fs::read(UNSIGNED_TEST_IMG_PATH)?]);
+    let expected_boot_data =
+        VerifiedBootData { debug_level: DebugLevel::None, kernel_digest, initrd_digest: None };
+    assert_eq!(expected_boot_data, verified_boot_data);
+
     Ok(())
 }
 

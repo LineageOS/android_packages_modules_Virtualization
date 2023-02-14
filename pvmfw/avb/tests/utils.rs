@@ -22,7 +22,7 @@ use avb_bindgen::{
     AvbVBMetaImageHeader,
 };
 use openssl::sha;
-use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel, Digest};
+use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel, Digest, VerifiedBootData};
 use std::{
     fs,
     mem::{size_of, transmute, MaybeUninit},
@@ -106,19 +106,14 @@ pub fn assert_latest_payload_verification_passes(
     let verified_boot_data = verify_payload(&kernel, Some(initrd), &load_trusted_public_key()?)
         .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
 
-    assert_eq!(expected_debug_level, verified_boot_data.debug_level);
-
     let footer = extract_avb_footer(&kernel)?;
-    assert_eq!(
-        hash(&[&hash(&[b"bootloader"]), &kernel[..usize::try_from(footer.original_image_size)?]]),
-        verified_boot_data.kernel_digest,
-        "Kernel digest is not equal to the expected."
-    );
-    assert_eq!(
-        hash(&[&hash(&[initrd_salt]), initrd,]),
-        verified_boot_data.initrd_digest.unwrap(),
-        "initrd digest is not equal to the expected."
-    );
+    let kernel_digest =
+        hash(&[&hash(&[b"bootloader"]), &kernel[..usize::try_from(footer.original_image_size)?]]);
+    let initrd_digest = Some(hash(&[&hash(&[initrd_salt]), initrd]));
+    let expected_boot_data =
+        VerifiedBootData { debug_level: expected_debug_level, kernel_digest, initrd_digest };
+    assert_eq!(expected_boot_data, verified_boot_data);
+
     Ok(())
 }
 
