@@ -23,13 +23,15 @@ use core::ffi::c_char;
 
 /// Verified data returned when the payload verification succeeds.
 #[derive(Debug, PartialEq, Eq)]
-pub struct VerifiedBootData {
+pub struct VerifiedBootData<'a> {
     /// DebugLevel of the VM.
     pub debug_level: DebugLevel,
     /// Kernel digest.
     pub kernel_digest: Digest,
     /// Initrd digest if initrd exists.
     pub initrd_digest: Option<Digest>,
+    /// Trusted public key.
+    pub public_key: &'a [u8],
 }
 
 /// This enum corresponds to the `DebugLevel` in `VirtualMachineConfig`.
@@ -94,11 +96,11 @@ fn verify_loaded_partition_has_expected_length(
 }
 
 /// Verifies the payload (signed kernel + initrd) against the trusted public key.
-pub fn verify_payload(
+pub fn verify_payload<'a>(
     kernel: &[u8],
     initrd: Option<&[u8]>,
-    trusted_public_key: &[u8],
-) -> Result<VerifiedBootData, AvbSlotVerifyError> {
+    trusted_public_key: &'a [u8],
+) -> Result<VerifiedBootData<'a>, AvbSlotVerifyError> {
     let mut payload = Payload::new(kernel, initrd, trusted_public_key);
     let mut ops = Ops::from(&mut payload);
     let kernel_verify_result = ops.verify_partition(PartitionName::Kernel.as_cstr())?;
@@ -119,6 +121,7 @@ pub fn verify_payload(
             debug_level: DebugLevel::None,
             kernel_digest: kernel_descriptor.digest,
             initrd_digest: None,
+            public_key: trusted_public_key,
         });
     }
 
@@ -142,5 +145,6 @@ pub fn verify_payload(
         debug_level,
         kernel_digest: kernel_descriptor.digest,
         initrd_digest: Some(initrd_descriptor.digest),
+        public_key: trusted_public_key,
     })
 }

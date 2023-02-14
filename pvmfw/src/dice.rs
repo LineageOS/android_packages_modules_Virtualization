@@ -19,7 +19,7 @@ use core::ffi::c_void;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice;
-use dice::bcc::Handover;
+
 use dice::Config;
 use dice::DiceMode;
 use dice::InputValues;
@@ -42,35 +42,40 @@ fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> dice::Result<dice::Has
     hash(&digests)
 }
 
-/// Derive the VM-specific secrets and certificate through DICE.
-pub fn derive_next_bcc(
-    bcc: &Handover,
-    next_bcc: &mut [u8],
-    verified_boot_data: &VerifiedBootData,
-    authority: &[u8],
-) -> dice::Result<usize> {
-    let code_hash = to_dice_hash(verified_boot_data)?;
-    let auth_hash = hash(authority)?;
-    let mode = to_dice_mode(verified_boot_data.debug_level);
-    let component_name = CStr::from_bytes_with_nul(b"vm_entry\0").unwrap();
-    let mut config_descriptor_buffer = [0; 128];
-    let config_descriptor_size = bcc_format_config_descriptor(
-        Some(component_name),
-        None,  // component_version
-        false, // resettable
-        &mut config_descriptor_buffer,
-    )?;
-    let config = &config_descriptor_buffer[..config_descriptor_size];
+pub struct PartialInputs {
+    code_hash: dice::Hash,
+    auth_hash: dice::Hash,
+    mode: DiceMode,
+}
 
-    let input_values = InputValues::new(
-        code_hash,
-        Config::Descriptor(config),
-        auth_hash,
-        mode,
-        [0u8; HIDDEN_SIZE], // TODO(b/249723852): Get salt from instance.img (virtio-blk) and/or TRNG.
-    );
+impl PartialInputs {
+    pub fn new(data: &VerifiedBootData) -> dice::Result<Self> {
+        let code_hash = to_dice_hash(data)?;
+        let auth_hash = hash(data.public_key)?;
+        let mode = to_dice_mode(data.debug_level);
 
-    bcc.main_flow(&input_values, next_bcc)
+        Ok(Self { code_hash, auth_hash, mode })
+    }
+
+    pub fn into_input_values(self, salt: &[u8; HIDDEN_SIZE]) -> dice::Result<InputValues> {
+        let component_name = CStr::from_bytes_with_nul(b"vm_entry\0").unwrap();
+        let mut config_descriptor_buffer = [0; 128];
+        let config_descriptor_size = bcc_format_config_descriptor(
+            Some(component_name),
+            None,  // component_version
+            false, // resettable
+            &mut config_descriptor_buffer,
+        )?;
+        let config = &config_descriptor_buffer[..config_descriptor_size];
+
+        Ok(InputValues::new(
+            self.code_hash,
+            Config::Descriptor(config),
+            self.auth_hash,
+            self.mode,
+            *salt,
+        ))
+    }
 }
 
 /// Flushes data caches over the provided address range.
