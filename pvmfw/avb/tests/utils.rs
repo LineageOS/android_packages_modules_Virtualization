@@ -102,16 +102,21 @@ pub fn assert_latest_payload_verification_passes(
     initrd_salt: &[u8],
     expected_debug_level: DebugLevel,
 ) -> Result<()> {
+    let public_key = load_trusted_public_key()?;
     let kernel = load_latest_signed_kernel()?;
-    let verified_boot_data = verify_payload(&kernel, Some(initrd), &load_trusted_public_key()?)
+    let verified_boot_data = verify_payload(&kernel, Some(initrd), &public_key)
         .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
 
     let footer = extract_avb_footer(&kernel)?;
     let kernel_digest =
         hash(&[&hash(&[b"bootloader"]), &kernel[..usize::try_from(footer.original_image_size)?]]);
     let initrd_digest = Some(hash(&[&hash(&[initrd_salt]), initrd]));
-    let expected_boot_data =
-        VerifiedBootData { debug_level: expected_debug_level, kernel_digest, initrd_digest };
+    let expected_boot_data = VerifiedBootData {
+        debug_level: expected_debug_level,
+        kernel_digest,
+        initrd_digest,
+        public_key: &public_key,
+    };
     assert_eq!(expected_boot_data, verified_boot_data);
 
     Ok(())
