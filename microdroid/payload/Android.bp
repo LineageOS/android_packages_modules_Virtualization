@@ -46,6 +46,7 @@ cc_binary_host {
         "libbase",
         "libcdisk_spec",
         "libcuttlefish_fs",
+        "libcuttlefish_host_config",
         "libcuttlefish_utils",
         "libext2_uuid",
         "libimage_aggregator",
