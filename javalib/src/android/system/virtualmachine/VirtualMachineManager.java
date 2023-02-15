@@ -196,7 +196,8 @@ public class VirtualMachineManager {
      *
      * <p>NOTE: This method may block and should not be called on the main thread.
      *
-     * @throws VirtualMachineException if the VM cannot be imported.
+     * @throws VirtualMachineException if the VM cannot be imported or the {@code
+     *     VirtualMachineDescriptor} has already been closed.
      * @hide
      */
     @NonNull
