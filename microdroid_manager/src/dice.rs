@@ -14,10 +14,11 @@
 
 //! Logic for handling the DICE values and boot operations.
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use byteorder::{NativeEndian, ReadBytesExt};
 use diced_open_dice::{
-    retry_bcc_main_flow, Cdi, Config, DiceMode, Hash, Hidden, InputValues, OwnedDiceArtifacts,
+    bcc_handover_parse, retry_bcc_main_flow, BccHandover, Cdi, Config, DiceMode, Hash, Hidden,
+    InputValues, OwnedDiceArtifacts,
 };
 use keystore2_crypto::ZVec;
 use libc::{c_void, mmap, munmap, MAP_FAILED, MAP_PRIVATE, PROT_READ};
@@ -47,9 +48,7 @@ pub enum DiceDriver<'a> {
         driver_path: PathBuf,
         mmap_addr: *mut c_void,
         mmap_size: usize,
-        cdi_attest: &'a Cdi,
-        cdi_seal: &'a Cdi,
-        bcc: &'a [u8],
+        bcc_handover: BccHandover<'a>,
     },
     Fake(OwnedDiceArtifacts),
 }
@@ -86,27 +85,13 @@ impl DiceDriver<'_> {
         // accessible and not referenced from anywhere else.
         let mmap_buf =
             unsafe { slice::from_raw_parts((mmap_addr as *const u8).as_ref().unwrap(), mmap_size) };
-        // Very inflexible parsing / validation of the BccHandover data. Assumes deterministically
-        // encoded CBOR.
-        //
-        // BccHandover = {
-        //   1 : bstr .size 32,     ; CDI_Attest
-        //   2 : bstr .size 32,     ; CDI_Seal
-        //   3 : Bcc,               ; Certificate chain
-        // }
-        if mmap_buf[0..4] != [0xa3, 0x01, 0x58, 0x20]
-            || mmap_buf[36..39] != [0x02, 0x58, 0x20]
-            || mmap_buf[71] != 0x03
-        {
-            bail!("BccHandover format mismatch");
-        }
+        let bcc_handover =
+            bcc_handover_parse(mmap_buf).map_err(|_| anyhow!("Failed to parse Bcc Handover"))?;
         Ok(Self::Real {
             driver_path: driver_path.to_path_buf(),
             mmap_addr,
             mmap_size,
-            cdi_attest: mmap_buf[4..36].try_into().unwrap(),
-            cdi_seal: mmap_buf[39..71].try_into().unwrap(),
-            bcc: &mmap_buf[72..],
+            bcc_handover,
         })
     }
 
@@ -115,7 +100,7 @@ impl DiceDriver<'_> {
         // directly, so we have the chance to rotate the key if needed. A salt isn't needed as the
         // input key material is already cryptographically strong.
         let cdi_seal = match self {
-            Self::Real { cdi_seal, .. } => cdi_seal,
+            Self::Real { bcc_handover, .. } => bcc_handover.cdi_seal,
             Self::Fake(fake) => &fake.cdi_values.cdi_seal,
         };
         let salt = &[];
@@ -138,7 +123,11 @@ impl DiceDriver<'_> {
             hidden,
         );
         let (cdi_attest, cdi_seal, bcc) = match &self {
-            Self::Real { cdi_attest, cdi_seal, bcc, .. } => (*cdi_attest, *cdi_seal, *bcc),
+            Self::Real { bcc_handover, .. } => (
+                bcc_handover.cdi_attest,
+                bcc_handover.cdi_seal,
+                bcc_handover.bcc.ok_or_else(|| anyhow!("bcc is none"))?,
+            ),
             Self::Fake(fake) => {
                 (&fake.cdi_values.cdi_attest, &fake.cdi_values.cdi_seal, fake.bcc.as_slice())
             }
