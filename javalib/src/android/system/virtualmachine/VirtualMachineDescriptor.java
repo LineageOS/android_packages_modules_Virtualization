@@ -25,7 +25,6 @@ import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 
-import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -37,9 +36,8 @@ import java.io.IOException;
  *
  * @hide
  */
-// TODO(b/268613460): should implement autocloseable.
 @SystemApi
-public final class VirtualMachineDescriptor implements Parcelable, Closeable {
+public final class VirtualMachineDescriptor implements Parcelable, AutoCloseable {
     private volatile boolean mClosed = false;
     @NonNull private final ParcelFileDescriptor mConfigFd;
     @NonNull private final ParcelFileDescriptor mInstanceImgFd;
@@ -120,13 +118,21 @@ public final class VirtualMachineDescriptor implements Parcelable, Closeable {
                 ParcelFileDescriptor.class.getClassLoader(), ParcelFileDescriptor.class);
     }
 
+    /**
+     * Release any resources held by this descriptor. Calling {@code close} on an already-closed
+     * descriptor has no effect.
+     */
     @Override
-    public void close() throws IOException {
+    public void close() {
         mClosed = true;
         // Let the compiler do the work: close everything, throw if any of them fail, skipping null.
         try (mConfigFd;
                 mInstanceImgFd;
-                mEncryptedStoreFd) {}
+                mEncryptedStoreFd) {
+        } catch (IOException ignored) {
+            // PFD already swallows exceptions from closing the fd. There's no reason to propagate
+            // this to the caller.
+        }
     }
 
     private void checkNotClosed() {
