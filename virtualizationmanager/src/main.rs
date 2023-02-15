@@ -23,7 +23,7 @@ mod selinux;
 
 use crate::aidl::{GLOBAL_SERVICE, VirtualizationService};
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::IVirtualizationService::BnVirtualizationService;
-use anyhow::{bail, Context};
+use anyhow::{bail, Context, Result};
 use binder::{BinderFeatures, ProcessState};
 use lazy_static::lazy_static;
 use log::{info, Level};
@@ -33,7 +33,6 @@ use clap::Parser;
 use nix::fcntl::{fcntl, F_GETFD, F_SETFD, FdFlag};
 use nix::unistd::{Pid, Uid};
 use std::os::unix::raw::{pid_t, uid_t};
-use rustutils::system_properties;
 
 const LOG_TAG: &str = "virtmgr";
 
@@ -92,9 +91,15 @@ fn take_fd_ownership(raw_fd: RawFd, owned_fds: &mut Vec<RawFd>) -> Result<OwnedF
     Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
 }
 
-fn is_property_set(name: &str) -> bool {
-    system_properties::read_bool(name, false)
-        .unwrap_or_else(|e| panic!("Failed to read {name}: {e:?}"))
+fn check_vm_support() -> Result<()> {
+    if hypervisor_props::is_any_vm_supported()? {
+        Ok(())
+    } else {
+        // This should never happen, it indicates a misconfigured device where the virt APEX
+        // is present but VMs are not supported. If it does happen, fail fast to avoid wasting
+        // resources trying.
+        bail!("Device doesn't support protected or non-protected VMs")
+    }
 }
 
 fn main() {
@@ -105,14 +110,7 @@ fn main() {
             .with_log_id(android_logger::LogId::System),
     );
 
-    let non_protected_vm_supported = is_property_set("ro.boot.hypervisor.vm.supported");
-    let protected_vm_supported = is_property_set("ro.boot.hypervisor.protected_vm.supported");
-    if !non_protected_vm_supported && !protected_vm_supported {
-        // This should never happen, it indicates a misconfigured device where the virt APEX
-        // is present but VMs are not supported. If it does happen, fail fast to avoid wasting
-        // resources trying.
-        panic!("Device doesn't support protected or unprotected VMs");
-    }
+    check_vm_support().unwrap();
 
     let args = Args::parse();
 
