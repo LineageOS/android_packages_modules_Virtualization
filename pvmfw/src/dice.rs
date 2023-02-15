@@ -20,10 +20,9 @@ use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice;
 
-use dice::Config;
-use dice::DiceMode;
-use dice::InputValues;
-use diced_open_dice::{bcc_format_config_descriptor, hash, HIDDEN_SIZE};
+use diced_open_dice::{
+    bcc_format_config_descriptor, hash, Config, DiceMode, Hash, InputValues, HIDDEN_SIZE,
+};
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
@@ -33,7 +32,7 @@ fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
     }
 }
 
-fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> dice::Result<dice::Hash> {
+fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> diced_open_dice::Result<Hash> {
     let mut digests = [0u8; size_of::<Digest>() * 2];
     digests[..size_of::<Digest>()].copy_from_slice(&verified_boot_data.kernel_digest);
     if let Some(initrd_digest) = verified_boot_data.initrd_digest {
@@ -43,13 +42,13 @@ fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> dice::Result<dice::Has
 }
 
 pub struct PartialInputs {
-    code_hash: dice::Hash,
-    auth_hash: dice::Hash,
+    code_hash: Hash,
+    auth_hash: Hash,
     mode: DiceMode,
 }
 
 impl PartialInputs {
-    pub fn new(data: &VerifiedBootData) -> dice::Result<Self> {
+    pub fn new(data: &VerifiedBootData) -> diced_open_dice::Result<Self> {
         let code_hash = to_dice_hash(data)?;
         let auth_hash = hash(data.public_key)?;
         let mode = to_dice_mode(data.debug_level);
@@ -57,7 +56,10 @@ impl PartialInputs {
         Ok(Self { code_hash, auth_hash, mode })
     }
 
-    pub fn into_input_values(self, salt: &[u8; HIDDEN_SIZE]) -> dice::Result<InputValues> {
+    pub fn into_input_values(
+        self,
+        salt: &[u8; HIDDEN_SIZE],
+    ) -> diced_open_dice::Result<InputValues> {
         let component_name = CStr::from_bytes_with_nul(b"vm_entry\0").unwrap();
         let mut config_descriptor_buffer = [0; 128];
         let config_descriptor_size = bcc_format_config_descriptor(
