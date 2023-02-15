@@ -25,7 +25,6 @@ use crate::mmu;
 use core::arch::asm;
 use core::num::NonZeroUsize;
 use core::slice;
-use dice::bcc::Handover;
 use log::debug;
 use log::error;
 use log::info;
@@ -243,10 +242,6 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     })?;
 
     let bcc_slice = appended.get_bcc_mut();
-    let bcc = Handover::new(bcc_slice).map_err(|e| {
-        error!("Invalid BCC Handover: {e:?}");
-        RebootReason::InvalidBcc
-    })?;
 
     debug!("Activating dynamic page table...");
     // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
@@ -258,7 +253,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     let slices = MemorySlices::new(fdt, payload, payload_size, &mut memory)?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(slices.fdt, slices.kernel, slices.ramdisk, &bcc, &mut memory)?;
+    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, &mut memory)?;
 
     helpers::flushed_zeroize(bcc_slice);
     helpers::flush(slices.fdt.as_slice());
