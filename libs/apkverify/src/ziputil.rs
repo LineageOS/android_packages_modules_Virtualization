@@ -18,8 +18,11 @@
 
 use anyhow::{ensure, Result};
 use bytes::{Buf, BufMut};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek};
 use zip::ZipArchive;
+
+#[cfg(test)]
+use std::io::SeekFrom;
 
 const EOCD_SIZE_WITHOUT_COMMENT: usize = 22;
 const EOCD_CENTRAL_DIRECTORY_SIZE_FIELD_OFFSET: usize = 12;
@@ -45,7 +48,7 @@ pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<(R, ZipSections)> {
     // retrieve reader back
     reader = archive.into_inner();
     // the current position should point EOCD offset
-    let eocd_offset = reader.seek(SeekFrom::Current(0))? as u32;
+    let eocd_offset = reader.stream_position()? as u32;
     let mut eocd = vec![0u8; eocd_size];
     reader.read_exact(&mut eocd)?;
     ensure!(

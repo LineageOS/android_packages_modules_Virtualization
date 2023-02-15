@@ -90,7 +90,7 @@ fn detach_bootconfig(initrd_bc: PathBuf, initrd: PathBuf, bootconfig: PathBuf) -
 
     let initrd_size: usize = initrd_bc_size - bc_size - INITRD_FOOTER_LEN;
 
-    initrd_bc.seek(SeekFrom::Start(0))?;
+    initrd_bc.rewind()?;
     copyfile2file(&mut initrd_bc, &mut initrd, initrd_size)?;
     copyfile2file(&mut initrd_bc, &mut bootconfig, bc_size)?;
     Ok(())
