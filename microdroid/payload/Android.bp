@@ -36,6 +36,17 @@ rust_protobuf {
     ],
 }
 
+java_library_host {
+    name: "microdroid_payload_metadata",
+    srcs: [
+        "src/**/*.java",
+        "metadata.proto",
+    ],
+    proto: {
+        type: "lite",
+    },
+}
+
 cc_binary_host {
     name: "mk_payload",
     srcs: [
