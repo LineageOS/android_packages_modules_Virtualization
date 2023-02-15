@@ -32,6 +32,7 @@ rust_defaults {
         "libclap",
         "libcommand_fds",
         "libdisk",
+        "libhypervisor_props",
         "liblazy_static",
         "liblibc",
         "liblog_rust",
