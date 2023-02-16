@@ -2,9 +2,8 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_bindgen {
-    name: "libavb_bindgen",
-    host_supported: true,
+rust_defaults {
+    name: "libavb_bindgen.defaults",
     wrapper_src: "bindgen/avb.h",
     crate_name: "avb_bindgen",
     edition: "2021",
@@ -19,13 +18,28 @@ rust_bindgen {
         "--raw-line=#![no_std]",
         "--ctypes-prefix=core::ffi",
     ],
+    cflags: ["-DBORINGSSL_NO_CXX"],
+}
+
+rust_bindgen {
+    name: "libavb_bindgen",
+    defaults: ["libavb_bindgen.defaults"],
+    host_supported: true,
     static_libs: [
-        "libavb_non_debug",
+        "libavb",
     ],
     shared_libs: [
         "libcrypto",
     ],
-    cflags: ["-DBORINGSSL_NO_CXX"],
+}
+
+rust_bindgen {
+    name: "libavb_bindgen_nostd",
+    defaults: ["libavb_bindgen.defaults"],
+    static_libs: [
+        "libavb_baremetal",
+        "libcrypto_baremetal",
+    ],
 }
 
 rust_test {
