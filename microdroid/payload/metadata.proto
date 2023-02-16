@@ -18,6 +18,9 @@ syntax = "proto3";
 
 package android.microdroid;
 
+option java_package = "com.android.virt";
+option java_outer_classname = "PayloadMetadataProtos";
+
 // Metadata is the body of the "metadata" partition
 message Metadata {
   uint32 version = 1;
