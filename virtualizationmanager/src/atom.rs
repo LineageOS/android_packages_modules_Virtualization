@@ -82,7 +82,7 @@ fn get_duration(vm_start_timestamp: Option<SystemTime>) -> Duration {
 // Returns the number of CPUs configured in the host system.
 // This matches how crosvm determines the number of logical cores.
 // For telemetry purposes only.
-pub(crate) fn get_num_cpus() -> Option<usize> {
+fn get_num_cpus() -> Option<usize> {
     // SAFETY - Only integer constants passed back and forth.
     let ret = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_CONF) };
     if ret > 0 {
