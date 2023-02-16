@@ -37,6 +37,7 @@ java_test_host {
         "MicrodroidHostTestHelper",
         "compatibility-host-util",
         "cts-statsd-atom-host-test-utils",
+        "microdroid_payload_metadata",
     ],
     per_testcase_directory: true,
     data: [
@@ -57,7 +58,6 @@ java_test_host {
         "initrd_bootconfig",
         "lpmake",
         "lpunpack",
-        "mk_payload",
         "sign_virt_apex",
         "simg2img",
     ],

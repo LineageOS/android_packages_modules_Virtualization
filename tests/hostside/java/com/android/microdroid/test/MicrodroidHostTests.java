@@ -50,6 +50,7 @@ import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.FileUtil;
 import com.android.tradefed.util.RunUtil;
 import com.android.tradefed.util.xml.AbstractXmlParser;
+import com.android.virt.PayloadMetadata;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -133,42 +134,14 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     private void createPayloadMetadata(List<ActiveApexInfo> apexes, File payloadMetadata)
             throws Exception {
-        // mk_payload's config
-        File configFile = new File(payloadMetadata.getParentFile(), "payload_config.json");
-        JSONObject config = new JSONObject();
-        config.put(
-                "apk",
-                new JSONObject(Map.of("name", "microdroid-apk", "path", "", "idsig_path", "")));
-        config.put("payload_config_path", "/mnt/apk/assets/vm_config.json");
-        config.put(
-                "apexes",
-                new JSONArray(
+        PayloadMetadata.write(
+                PayloadMetadata.metadata(
+                        "/mnt/apk/assets/vm_config.json",
+                        PayloadMetadata.apk("microdroid-apk"),
                         apexes.stream()
-                                .map(apex -> new JSONObject(Map.of("name", apex.name, "path", "")))
-                                .collect(toList())));
-        FileUtil.writeToFile(config.toString(), configFile);
-
-        RunUtil runUtil = new RunUtil();
-        String command =
-                String.join(
-                        " ",
-                        findTestFile("mk_payload").getAbsolutePath(),
-                        "--metadata-only",
-                        configFile.getAbsolutePath(),
-                        payloadMetadata.getAbsolutePath());
-        // mk_payload should run fast enough
-        CommandResult result = runUtil.runTimedCmd(5000, "/bin/bash", "-c", command);
-        String out = result.getStdout();
-        String err = result.getStderr();
-        assertWithMessage(
-                        "creating payload metadata failed:\n\tout: "
-                                + out
-                                + "\n\terr: "
-                                + err
-                                + "\n")
-                .about(command_results())
-                .that(result)
-                .isSuccess();
+                                .map(apex -> PayloadMetadata.apex(apex.name))
+                                .collect(toList())),
+                payloadMetadata);
     }
 
     private void resignVirtApex(
