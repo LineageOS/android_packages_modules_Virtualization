@@ -70,6 +70,12 @@ parcelable VirtualMachineAppConfig {
     /** Debug level of the VM */
     DebugLevel debugLevel = DebugLevel.NONE;
 
+    /**
+     * Port at which crosvm will start a gdb server to debug guest kernel.
+     * If set to zero, then gdb server won't be started.
+     */
+    int gdbPort = 0;
+
     /** Whether the VM should be a protected VM. */
     boolean protectedVm;
 
