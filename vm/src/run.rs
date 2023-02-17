@@ -32,6 +32,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::num::NonZeroU16;
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::{Path, PathBuf};
 use vmclient::{ErrorCode, VmInstance};
@@ -58,6 +59,7 @@ pub fn command_run_app(
     cpu_topology: CpuTopology,
     task_profiles: Vec<String>,
     extra_idsigs: &[PathBuf],
+    gdb: Option<NonZeroU16>,
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
 
@@ -144,6 +146,7 @@ pub fn command_run_app(
         memoryMib: mem.unwrap_or(0) as i32, // 0 means use the VM default
         cpuTopology: cpu_topology,
         taskProfiles: task_profiles,
+        gdbPort: gdb.map(u16::from).unwrap_or(0) as i32, // 0 means no gdb
     });
     run(service, &config, &payload_config_str, console_path, log_path)
 }
@@ -185,6 +188,7 @@ pub fn command_run_microdroid(
     mem: Option<u32>,
     cpu_topology: CpuTopology,
     task_profiles: Vec<String>,
+    gdb: Option<NonZeroU16>,
 ) -> Result<(), Error> {
     let apk = find_empty_payload_apk_path()?;
     println!("found path {}", apk.display());
@@ -215,6 +219,7 @@ pub fn command_run_microdroid(
         cpu_topology,
         task_profiles,
         &extra_sig,
+        gdb,
     )
 }
 
@@ -229,6 +234,7 @@ pub fn command_run(
     mem: Option<u32>,
     cpu_topology: CpuTopology,
     task_profiles: Vec<String>,
+    gdb: Option<NonZeroU16>,
 ) -> Result<(), Error> {
     let config_file = File::open(config_path).context("Failed to open config file")?;
     let mut config =
@@ -240,6 +246,9 @@ pub fn command_run(
         config.name = name;
     } else {
         config.name = String::from("VmRun");
+    }
+    if let Some(gdb) = gdb {
+        config.gdbPort = gdb.get() as i32;
     }
     config.cpuTopology = cpu_topology;
     config.taskProfiles = task_profiles;
