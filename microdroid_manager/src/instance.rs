@@ -142,9 +142,9 @@ impl InstanceDisk {
         self.file.read_exact(&mut header)?;
 
         // Decrypt and authenticate the data (along with the header).
-        let key = dice.get_sealing_key(INSTANCE_KEY_IDENTIFIER)?;
-        let plaintext =
-            decrypt_aead(Cipher::aes_256_gcm(), &key, Some(&nonce), &header, &data, &tag)?;
+        let cipher = Cipher::aes_256_gcm();
+        let key = dice.get_sealing_key(INSTANCE_KEY_IDENTIFIER, cipher.key_len())?;
+        let plaintext = decrypt_aead(cipher, &key, Some(&nonce), &header, &data, &tag)?;
 
         let microdroid_data = serde_cbor::from_slice(plaintext.as_slice())?;
         Ok(Some(microdroid_data))
@@ -188,10 +188,10 @@ impl InstanceDisk {
         self.file.write_all(nonce.as_ref())?;
 
         // Then encrypt and sign the data.
-        let key = dice.get_sealing_key(INSTANCE_KEY_IDENTIFIER)?;
+        let cipher = Cipher::aes_256_gcm();
+        let key = dice.get_sealing_key(INSTANCE_KEY_IDENTIFIER, cipher.key_len())?;
         let mut tag = [0; AES_256_GCM_TAG_LENGTH];
-        let ciphertext =
-            encrypt_aead(Cipher::aes_256_gcm(), &key, Some(&nonce), &header, &data, &mut tag)?;
+        let ciphertext = encrypt_aead(cipher, &key, Some(&nonce), &header, &data, &mut tag)?;
 
         // Persist the encrypted payload data and the tag.
         self.file.write_all(&ciphertext)?;
