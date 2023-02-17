@@ -314,10 +314,7 @@ pub fn alloc_shared(size: usize) -> smccc::Result<NonNull<u8>> {
     // non-zero size.
     let buffer = unsafe { alloc_zeroed(layout) };
 
-    // TODO: Use let-else once we have Rust 1.65 in AOSP.
-    let buffer = if let Some(buffer) = NonNull::new(buffer) {
-        buffer
-    } else {
+    let Some(buffer) = NonNull::new(buffer) else {
         handle_alloc_error(layout);
     };
 
