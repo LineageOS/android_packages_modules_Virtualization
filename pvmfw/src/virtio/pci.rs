@@ -93,9 +93,7 @@ impl<'a> Iterator for VirtIOBlkIterator<'a> {
                 info, device_function, status, command
             );
 
-            let virtio_type = if let Some(t) = virtio_device_type(&info) {
-                t
-            } else {
+            let Some(virtio_type) = virtio_device_type(&info) else {
                 continue;
             };
             debug!("  VirtIO {:?}", virtio_type);
