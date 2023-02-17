@@ -267,7 +267,7 @@ impl Drop for MemoryTracker {
         for region in &self.regions {
             match region.mem_type {
                 MemoryType::ReadWrite => {
-                    // TODO: Use page table's dirty bit to only flush pages that were touched.
+                    // TODO(b/269738062): Use PT's dirty bit to only flush pages that were touched.
                     helpers::flush_region(region.range.start, region.range.len())
                 }
                 MemoryType::ReadOnly => {}
