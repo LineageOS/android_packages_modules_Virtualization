@@ -63,7 +63,7 @@ fn main(
     memory: &mut MemoryTracker,
 ) -> Result<(), RebootReason> {
     info!("pVM firmware");
-    debug!("FDT: {:?}", fdt as *const libfdt::Fdt);
+    debug!("FDT: {:?}", fdt.as_ptr());
     debug!("Signed kernel: {:?} ({:#x} bytes)", signed_kernel.as_ptr(), signed_kernel.len());
     debug!("AVB public key: addr={:?}, size={:#x} ({1})", PUBLIC_KEY.as_ptr(), PUBLIC_KEY.len());
     if let Some(rd) = ramdisk {
