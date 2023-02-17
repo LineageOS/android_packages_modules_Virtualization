@@ -614,7 +614,8 @@ impl Fdt {
         fdt_err_expect_zero(ret)
     }
 
-    fn as_ptr(&self) -> *const c_void {
+    /// Return a shared pointer to the device tree.
+    pub fn as_ptr(&self) -> *const c_void {
         self as *const _ as *const c_void
     }
 
