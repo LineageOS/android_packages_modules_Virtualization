@@ -68,6 +68,7 @@ fn test_boots() -> Result<(), Error> {
         cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
         taskProfiles: vec![],
+        gdbPort: 0, // No gdb
     });
     let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log), None)
         .context("Failed to create VM")?;
