@@ -28,6 +28,7 @@ use clap::Parser;
 use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
 use run::{command_run, command_run_app, command_run_microdroid};
+use std::num::NonZeroU16;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -101,6 +102,11 @@ enum Opt {
         /// Paths to extra idsig files.
         #[clap(long = "extra-idsig")]
         extra_idsigs: Vec<PathBuf>,
+
+        /// Port at which crosvm will start a gdb server to debug guest kernel.
+        /// Note: this is only supported on Android kernels android14-5.15 and higher.
+        #[clap(long)]
+        gdb: Option<NonZeroU16>,
     },
     /// Run a virtual machine with Microdroid inside
     RunMicrodroid {
@@ -152,6 +158,11 @@ enum Opt {
         /// Comma separated list of task profile names to apply to the VM
         #[clap(long)]
         task_profiles: Vec<String>,
+
+        /// Port at which crosvm will start a gdb server to debug guest kernel.
+        /// Note: this is only supported on Android kernels android14-5.15 and higher.
+        #[clap(long)]
+        gdb: Option<NonZeroU16>,
     },
     /// Run a virtual machine
     Run {
@@ -177,6 +188,11 @@ enum Opt {
         /// Path to file for VM log output.
         #[clap(long)]
         log: Option<PathBuf>,
+
+        /// Port at which crosvm will start a gdb server to debug guest kernel.
+        /// Note: this is only supported on Android kernels android14-5.15 and higher.
+        #[clap(long)]
+        gdb: Option<NonZeroU16>,
     },
     /// List running virtual machines
     List,
@@ -260,6 +276,7 @@ fn main() -> Result<(), Error> {
             cpu_topology,
             task_profiles,
             extra_idsigs,
+            gdb,
         } => command_run_app(
             name,
             get_service()?.as_ref(),
@@ -278,6 +295,7 @@ fn main() -> Result<(), Error> {
             cpu_topology,
             task_profiles,
             &extra_idsigs,
+            gdb,
         ),
         Opt::RunMicrodroid {
             name,
@@ -291,6 +309,7 @@ fn main() -> Result<(), Error> {
             mem,
             cpu_topology,
             task_profiles,
+            gdb,
         } => command_run_microdroid(
             name,
             get_service()?.as_ref(),
@@ -304,8 +323,9 @@ fn main() -> Result<(), Error> {
             mem,
             cpu_topology,
             task_profiles,
+            gdb,
         ),
-        Opt::Run { name, config, cpu_topology, task_profiles, console, log } => {
+        Opt::Run { name, config, cpu_topology, task_profiles, console, log, gdb } => {
             command_run(
                 name,
                 get_service()?.as_ref(),
@@ -315,6 +335,7 @@ fn main() -> Result<(), Error> {
                 /* mem */ None,
                 cpu_topology,
                 task_profiles,
+                gdb,
             )
         }
         Opt::List => command_list(get_service()?.as_ref()),

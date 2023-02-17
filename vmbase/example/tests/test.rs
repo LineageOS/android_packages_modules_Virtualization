@@ -87,6 +87,7 @@ fn test_run_example_vm() -> Result<(), Error> {
         cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
         taskProfiles: vec![],
+        gdbPort: 0, // no gdb
     });
     let console = android_log_fd()?;
     let log = android_log_fd()?;
