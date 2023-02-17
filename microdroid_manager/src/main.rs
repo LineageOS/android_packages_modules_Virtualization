@@ -40,6 +40,7 @@ use glob::glob;
 use itertools::sorted;
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
+use keystore2_crypto::ZVec;
 use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::fcntl::{fcntl, F_SETFD, FdFlag};
@@ -917,12 +918,8 @@ fn prepare_encryptedstore(dice_artifacts: &OwnedDiceArtifacts) -> Result<Child> 
         0x6F, 0xB3, 0xF9, 0x40, 0xCE, 0xDD, 0x99, 0x40, 0xAA, 0xA7, 0x0E, 0x92, 0x73, 0x90, 0x86,
         0x4A, 0x75,
     ];
-    let key = derive_sealing_key(
-        &dice_artifacts.cdi_values.cdi_seal,
-        &salt,
-        ENCRYPTEDSTORE_KEY_IDENTIFIER.as_bytes(),
-        ENCRYPTEDSTORE_KEYSIZE,
-    )?;
+    let mut key = ZVec::new(ENCRYPTEDSTORE_KEYSIZE)?;
+    derive_sealing_key(dice_artifacts, &salt, ENCRYPTEDSTORE_KEY_IDENTIFIER.as_bytes(), &mut key)?;
 
     let mut cmd = Command::new(ENCRYPTEDSTORE_BIN);
     cmd.arg("--blkdevice")
