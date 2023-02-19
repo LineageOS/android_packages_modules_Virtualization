@@ -391,7 +391,6 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    #[allow(dead_code)] // TODO(b/232900974)
     fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
         match self {
             Self::Config(ref mut cfg) => cfg.get_debug_policy(),
