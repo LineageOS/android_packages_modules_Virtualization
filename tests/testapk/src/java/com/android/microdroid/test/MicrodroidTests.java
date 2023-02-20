@@ -133,9 +133,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     private static final String VM_SHARE_APP_PACKAGE_NAME = "com.android.microdroid.vmshare_app";
 
-    @Test
-    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
-    public void createAndConnectToVm() throws Exception {
+    private void createAndConnectToVmHelper(int cpuTopology) throws Exception {
         assumeSupportedKernel();
 
         VirtualMachineConfig config =
@@ -143,6 +141,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setMemoryBytes(minMemoryRequired())
                         .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setCpuTopology(cpuTopology)
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
 
@@ -162,6 +161,18 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mSublibRunProp).isEqualTo("true");
         assertThat(testResults.mApkContentsPath).isEqualTo("/mnt/apk");
         assertThat(testResults.mEncryptedStoragePath).isEqualTo("");
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void createAndConnectToVm() throws Exception {
+        createAndConnectToVmHelper(CPU_TOPOLOGY_ONE_CPU);
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void createAndConnectToVm_HostCpuTopology() throws Exception {
+        createAndConnectToVmHelper(CPU_TOPOLOGY_MATCH_HOST);
     }
 
     @Test
