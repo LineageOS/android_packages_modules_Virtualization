@@ -57,6 +57,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -563,6 +564,68 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             } catch (Exception e) {
                 Log.e(TAG, "Error inside runVsockClientAndSendData():" + e);
                 throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @Test
+    public void testVsockRpcBinderLatency() throws Exception {
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadConfigPath("assets/vm_config_io.json")
+                        .setDebugLevel(DEBUG_LEVEL_NONE)
+                        .build();
+
+        List<Double> requestLatencies = new ArrayList<>(IO_TEST_TRIAL_COUNT);
+        for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
+            String vmName = "test_vm_request_" + i;
+            VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
+            BenchmarkVmListener.create(new VsockRpcBinderLatencyListener(requestLatencies))
+                    .runToFinish(TAG, vm);
+        }
+        reportMetrics(requestLatencies, "vsock/rpcbinder/request_latency", "ms");
+    }
+
+    private static class VsockRpcBinderLatencyListener
+            implements BenchmarkVmListener.InnerListener {
+        private static final int NUM_REQUESTS = 10000;
+        private static final int NUM_WARMUP_REQUESTS = 10;
+
+        private final List<Double> mResults;
+
+        VsockRpcBinderLatencyListener(List<Double> results) {
+            mResults = results;
+        }
+
+        @Override
+        public void onPayloadReady(VirtualMachine vm, IBenchmarkService benchmarkService)
+                throws RemoteException {
+            // Warm up a few times.
+            Random rand = new Random();
+            for (int i = 0; i < NUM_WARMUP_REQUESTS; i++) {
+                int a = rand.nextInt();
+                int b = rand.nextInt();
+                int c = benchmarkService.add(a, b);
+                assertThat(c).isEqualTo(a + b);
+            }
+
+            // Use the VM to compute Fibonnacci numbers, save timestamps between requests.
+            int a = 0;
+            int b = 1;
+            int c;
+            long timestamps[] = new long[NUM_REQUESTS + 1];
+            for (int i = 0; i < NUM_REQUESTS; i++) {
+                timestamps[i] = System.nanoTime();
+                c = benchmarkService.add(a, b);
+                a = b;
+                b = c;
+            }
+            timestamps[NUM_REQUESTS] = System.nanoTime();
+
+            // Log individual request latencies.
+            for (int i = 0; i < NUM_REQUESTS; i++) {
+                long diff = timestamps[i + 1] - timestamps[i];
+                mResults.add((double) diff / NANO_TO_MILLI);
             }
         }
     }
