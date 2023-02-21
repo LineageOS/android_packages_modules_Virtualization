@@ -242,7 +242,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
         RebootReason::InvalidConfig
     })?;
 
-    let bcc_slice = appended.get_bcc_mut();
+    let (bcc_slice, debug_policy) = appended.get_entries();
 
     debug!("Activating dynamic page table...");
     // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
@@ -266,7 +266,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
 
     // SAFETY - As we `?` the result, there is no risk of using a bad `slices.fdt`.
     unsafe {
-        handle_debug_policy(slices.fdt, appended.get_debug_policy()).map_err(|e| {
+        handle_debug_policy(slices.fdt, debug_policy).map_err(|e| {
             error!("Unexpected error when handling debug policy: {e:?}");
             RebootReason::from(e)
         })?;
@@ -397,17 +397,10 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
+    fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>) {
         match self {
-            Self::Config(ref mut cfg) => cfg.get_debug_policy(),
-            Self::LegacyBcc(_) => None,
-        }
-    }
-
-    fn get_bcc_mut(&mut self) -> &mut [u8] {
-        match self {
-            Self::LegacyBcc(ref mut bcc) => bcc,
-            Self::Config(ref mut cfg) => cfg.get_bcc_mut(),
+            Self::Config(ref mut cfg) => cfg.get_entries(),
+            Self::LegacyBcc(ref mut bcc) => (bcc, None),
         }
     }
 }
