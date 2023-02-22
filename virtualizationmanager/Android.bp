@@ -60,7 +60,6 @@ rust_defaults {
         "packagemanager_aidl-rust",
     ],
     shared_libs: [
-        "libbinder_rpc_unstable",
         "libselinux",
     ],
 }
