@@ -20,9 +20,6 @@ rust_library {
         "libvmclient",
     ],
     proc_macros: ["libnum_derive"],
-    shared_libs: [
-        "libbinder_rpc_unstable",
-    ],
     apex_available: [
         "com.android.compos",
     ],

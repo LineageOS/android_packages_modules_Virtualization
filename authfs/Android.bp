@@ -33,9 +33,6 @@ rust_defaults {
             enabled: false,
         },
     },
-    shared_libs: [
-        "libbinder_rpc_unstable",
-    ],
     defaults: ["crosvm_defaults"],
 }
 

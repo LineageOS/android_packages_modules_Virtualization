@@ -27,7 +27,6 @@ rust_defaults {
     ],
     prefer_rlib: true,
     shared_libs: [
-        "libbinder_rpc_unstable",
         "libcrypto",
     ],
 }

@@ -46,9 +46,6 @@ rust_defaults {
         "libvsock",
         "librand",
     ],
-    shared_libs: [
-        "libbinder_rpc_unstable",
-    ],
     init_rc: ["microdroid_manager.rc"],
     multilib: {
         lib32: {
