@@ -36,7 +36,10 @@ rust_bindgen {
     crate_name: "vm_payload_bindgen",
     source_stem: "bindings",
     apex_available: ["com.android.compos"],
-    visibility: ["//packages/modules/Virtualization/compos"],
+    visibility: [
+        "//packages/modules/Virtualization/compos",
+        "//packages/modules/Virtualization/service_vm/client_apk",
+    ],
     shared_libs: [
         "libvm_payload#current",
     ],

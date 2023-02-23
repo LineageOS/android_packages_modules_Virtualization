@@ -28,6 +28,7 @@ rust_binary {
         "libandroid_logger",
         "libanyhow",
         "libbinder_rs",
+        "libvmclient",
         "liblibc",
         "liblog_rust",
         "libnix",

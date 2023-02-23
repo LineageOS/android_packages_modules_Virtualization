@@ -67,4 +67,13 @@ interface IVmPayloadService {
      * @throws SecurityException if the use of test APIs is not permitted.
      */
     byte[] getDiceAttestationCdi();
+
+    /**
+     * Requests a certificate using the provided certificate signing request (CSR).
+     *
+     * TODO(b/271275206): Define the format of the CSR properly.
+     * @param csr the certificate signing request.
+     * @return the X.509 encoded certificate.
+     */
+    byte[] requestCertificate(in byte[] csr);
 }
