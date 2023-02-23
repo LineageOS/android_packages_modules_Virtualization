@@ -41,7 +41,4 @@ interface IBenchmarkService {
 
     /** Runs the vsock server on VM and receives data. */
     void runVsockServerAndReceiveData(int serverFd, int numBytesToReceive);
-
-    /** Adds two numbers and returns the result. */
-    int add(int a, int b);
 }
