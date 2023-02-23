@@ -29,6 +29,8 @@ import static com.google.common.truth.TruthJUnit.assume;
 import android.app.Instrumentation;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.os.ParcelFileDescriptor.AutoCloseInputStream;
+import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
 import android.os.Process;
 import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
@@ -40,6 +42,7 @@ import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.microdroid.test.common.ProcessUtil;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.IBenchmarkService;
+import com.android.microdroid.testservice.ITestService;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,8 +51,14 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -615,5 +624,67 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             }
         }
         reportMetrics(requestLatencies, "latency/rpcbinder", "us");
+    }
+
+    @Test
+    public void testVsockLatency() throws Exception {
+        final int NUM_WARMUPS = 10;
+        final int NUM_REQUESTS = 10_000;
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_NONE)
+                        .build();
+
+        List<Double> requestLatencies = new ArrayList<>(IO_TEST_TRIAL_COUNT * NUM_REQUESTS);
+        for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
+            VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_latency" + i, config);
+            TestResults testResults =
+                    runVmTestService(
+                            TAG,
+                            vm,
+                            (ts, tr) -> {
+                                ts.runEchoReverseServer();
+                                ParcelFileDescriptor pfd =
+                                        vm.connectVsock(ITestService.ECHO_REVERSE_PORT);
+                                try (InputStream input = new AutoCloseInputStream(pfd);
+                                        OutputStream output = new AutoCloseOutputStream(pfd)) {
+                                    BufferedReader reader =
+                                            new BufferedReader(new InputStreamReader(input));
+                                    Writer writer = new OutputStreamWriter(output);
+
+                                    // Correctness check.
+                                    writer.write("hello\n");
+                                    writer.flush();
+                                    tr.mFileContent = reader.readLine().trim();
+
+                                    // Warmup.
+                                    for (int j = 0; j < NUM_WARMUPS; ++j) {
+                                        String text = "test" + j + "\n";
+                                        writer.write(text);
+                                        writer.flush();
+                                        reader.readLine();
+                                    }
+
+                                    // Measured requests.
+                                    tr.mTimings = new long[NUM_REQUESTS];
+                                    for (int j = 0; j < NUM_REQUESTS; j++) {
+                                        String text = "test" + j + "\n";
+                                        long start = System.nanoTime();
+                                        writer.write(text);
+                                        writer.flush();
+                                        reader.readLine();
+                                        tr.mTimings[j] = System.nanoTime() - start;
+                                    }
+                                }
+                            });
+            testResults.assertNoException();
+            assertThat(testResults.mFileContent).isEqualTo("olleh");
+            for (long duration : testResults.mTimings) {
+                requestLatencies.add((double) duration / NANO_TO_MICRO);
+            }
+        }
+        reportMetrics(requestLatencies, "latency/vsock", "us");
     }
 }
