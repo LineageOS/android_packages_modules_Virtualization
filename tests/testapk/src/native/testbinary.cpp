@@ -84,28 +84,26 @@ Result<void> run_echo_reverse_server(borrowed_fd listening_fd) {
         return ErrnoError() << "Failed to fdopen";
     }
 
-    char* line = nullptr;
-    size_t size = 0;
-    if (getline(&line, &size, input) < 0) {
-        return ErrnoError() << "Failed to read";
+    // Run forever, reverse one line at a time.
+    while (true) {
+        char* line = nullptr;
+        size_t size = 0;
+        if (getline(&line, &size, input) < 0) {
+            return ErrnoError() << "Failed to read";
+        }
+
+        std::string_view original = line;
+        if (!original.empty() && original.back() == '\n') {
+            original = original.substr(0, original.size() - 1);
+        }
+
+        std::string reversed(original.rbegin(), original.rend());
+        reversed += "\n";
+
+        if (write(connect_fd, reversed.data(), reversed.size()) < 0) {
+            return ErrnoError() << "Failed to write";
+        }
     }
-
-    if (fclose(input) != 0) {
-        return ErrnoError() << "Failed to fclose";
-    }
-
-    std::string_view original = line;
-    if (!original.empty() && original.back() == '\n') {
-        original = original.substr(0, original.size() - 1);
-    }
-
-    std::string reversed(original.rbegin(), original.rend());
-
-    if (write(connect_fd, reversed.data(), reversed.size()) < 0) {
-        return ErrnoError() << "Failed to write";
-    }
-
-    return {};
 }
 
 Result<void> start_echo_reverse_server() {
