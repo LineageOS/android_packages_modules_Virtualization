@@ -1686,6 +1686,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 new ComponentName(
                         VM_SHARE_APP_PACKAGE_NAME,
                         "com.android.microdroid.test.sharevm.VmShareServiceImpl"));
+        serviceIntent.setAction("com.android.microdroid.test.sharevm.VmShareService");
 
         VmShareServiceConnection connection = new VmShareServiceConnection();
         boolean ret = ctx.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
@@ -1738,6 +1739,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 new ComponentName(
                         VM_SHARE_APP_PACKAGE_NAME,
                         "com.android.microdroid.test.sharevm.VmShareServiceImpl"));
+        serviceIntent.setAction("com.android.microdroid.test.sharevm.VmShareService");
 
         VmShareServiceConnection connection = new VmShareServiceConnection();
         boolean ret = ctx.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
