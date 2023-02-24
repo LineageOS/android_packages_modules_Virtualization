@@ -14,7 +14,7 @@
 
 //! Support for the debug policy overlay in pvmfw
 
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 use core::ffi::CStr;
 use core::fmt;
 use libfdt::FdtError;
@@ -63,12 +63,8 @@ unsafe fn apply_debug_policy(
     fdt.pack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to re-pack", e))
 }
 
-/// Dsiables ramdump by removing crashkernel from bootargs in /chosen.
-///
-/// # Safety
-///
-/// This may corrupt the input `Fdt` when error happens while editing prop value.
-unsafe fn disable_ramdump(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
+/// Disables ramdump by removing crashkernel from bootargs in /chosen.
+fn disable_ramdump(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
     let chosen_path = CStr::from_bytes_with_nul(b"/chosen\0").unwrap();
     let bootargs_name = CStr::from_bytes_with_nul(b"bootargs\0").unwrap();
 
@@ -129,6 +125,63 @@ fn is_ramdump_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
     }
 }
 
+/// Enables console output by adding kernel.printk.devkmsg and kernel.console to bootargs.
+/// This uses hardcoded console name 'hvc0' and it should be match with microdroid's bootconfig.debuggable.
+fn enable_console_output(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
+    let chosen_path = CStr::from_bytes_with_nul(b"/chosen\0").unwrap();
+    let bootargs_name = CStr::from_bytes_with_nul(b"bootargs\0").unwrap();
+
+    let chosen = match fdt
+        .node(chosen_path)
+        .map_err(|e| DebugPolicyError::Fdt("Failed to find /chosen", e))?
+    {
+        Some(node) => node,
+        None => return Ok(()),
+    };
+
+    let bootargs = match chosen
+        .getprop_str(bootargs_name)
+        .map_err(|e| DebugPolicyError::Fdt("Failed to find bootargs prop", e))?
+    {
+        Some(value) if !value.to_bytes().is_empty() => value,
+        _ => return Ok(()),
+    };
+
+    let mut new_bootargs = Vec::from(bootargs.to_bytes());
+    new_bootargs.extend_from_slice(b" printk.devkmsg=on console=hvc0\0");
+
+    // We'll set larger prop, and need to prepare some room first.
+    fdt.unpack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to unpack", e))?;
+
+    // We've checked existence of /chosen node at the beginning.
+    let mut chosen_mut = fdt.node_mut(chosen_path).unwrap().unwrap();
+    chosen_mut.setprop(bootargs_name, new_bootargs.as_slice()).map_err(|e| {
+        DebugPolicyError::OverlaidFdt("Failed to enabled console output. FDT might be corrupted", e)
+    })?;
+
+    fdt.pack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to pack", e))?;
+    Ok(())
+}
+
+/// Returns true only if fdt has log prop in the /avf/guest/common node with value <1>
+fn is_console_output_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
+    let common = match fdt
+        .node(CStr::from_bytes_with_nul(b"/avf/guest/common\0").unwrap())
+        .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find /avf/guest/common node", e))?
+    {
+        Some(node) => node,
+        None => return Ok(false),
+    };
+
+    match common
+        .getprop_u32(CStr::from_bytes_with_nul(b"log\0").unwrap())
+        .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find log prop", e))?
+    {
+        Some(1) => Ok(true),
+        _ => Ok(false),
+    }
+}
+
 /// Handles debug policies.
 ///
 /// # Safety
@@ -146,7 +199,14 @@ pub unsafe fn handle_debug_policy(
     // Handles ramdump in the debug policy
     if is_ramdump_enabled(fdt)? {
         info!("ramdump is enabled by debug policy");
-        return Ok(());
+    } else {
+        disable_ramdump(fdt)?;
     }
-    disable_ramdump(fdt)
+
+    // Handles conseole output in the debug policy
+    if is_console_output_enabled(fdt)? {
+        enable_console_output(fdt)?;
+        info!("console output is enabled by debug policy");
+    }
+    Ok(())
 }

@@ -22,6 +22,20 @@ genrule {
     out: ["avf_debug_policy_without_ramdump.dtbo"],
 }
 
+genrule {
+    name: "test_avf_debug_policy_with_console_output",
+    defaults: ["test_avf_debug_policy_overlay"],
+    srcs: ["assets/avf_debug_policy_with_console_output.dts"],
+    out: ["avf_debug_policy_with_console_output.dtbo"],
+}
+
+genrule {
+    name: "test_avf_debug_policy_without_console_output",
+    defaults: ["test_avf_debug_policy_overlay"],
+    srcs: ["assets/avf_debug_policy_without_console_output.dts"],
+    out: ["avf_debug_policy_without_console_output.dtbo"],
+}
+
 java_test_host {
     name: "MicrodroidHostTestCases",
     srcs: ["java/**/*.java"],
@@ -48,6 +62,8 @@ java_test_host {
         ":pvmfw_test",
         ":test_avf_debug_policy_with_ramdump",
         ":test_avf_debug_policy_without_ramdump",
+        ":test_avf_debug_policy_with_console_output",
+        ":test_avf_debug_policy_without_console_output",
         "assets/bcc.dat",
     ],
     data_native_bins: [

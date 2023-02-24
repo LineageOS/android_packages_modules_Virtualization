@@ -19,6 +19,7 @@ package com.android.microdroid.test;
 import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assume.assumeTrue;
 
@@ -32,6 +33,7 @@ import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.device.ITestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
+import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.FileUtil;
 
 import org.junit.After;
@@ -41,6 +43,7 @@ import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.io.FileNotFoundException;
 
 /** Tests debug policy of pvmfw.bin with custom debug policy */
@@ -50,13 +53,16 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @NonNull private static final String BCC_FILE_NAME = "bcc.dat";
     @NonNull private static final String PACKAGE_FILE_NAME = "MicrodroidTestApp.apk";
     @NonNull private static final String PACKAGE_NAME = "com.android.microdroid.test";
-    @NonNull private static final String MICRODROID_DEBUG_LEVEL = "full";
+    @NonNull private static final String MICRODROID_DEBUG_FULL = "full";
     @NonNull private static final String MICRODROID_CONFIG_PATH = "assets/vm_config_apex.json";
-    private static final int BOOT_COMPLETE_TIMEOUT = 30000; // 30 seconds
+    @NonNull private static final String MICRODROID_LOG_PATH = TEST_ROOT + "log.txt";
+    @NonNull private static final String MICRODROID_CONSOLE_PATH = TEST_ROOT + "console.txt";
+    private static final int BOOT_COMPLETE_TIMEOUT_MS = 30000; // 30 seconds
+    private static final int CONSOLE_OUTPUT_WAIT_MS = 5000; // 5 seconds
 
     @NonNull private static final String CUSTOM_PVMFW_FILE_PREFIX = "pvmfw";
     @NonNull private static final String CUSTOM_PVMFW_FILE_SUFFIX = ".bin";
-    @NonNull private static final String CUSTOM_PVMFW_IMG_PATH = TEST_ROOT + "/" + PVMFW_FILE_NAME;
+    @NonNull private static final String CUSTOM_PVMFW_IMG_PATH = TEST_ROOT + PVMFW_FILE_NAME;
     @NonNull private static final String CUSTOM_PVMFW_IMG_PATH_PROP = "hypervisor.pvmfw.path";
 
     @NonNull private static final String MICRODROID_CMDLINE_PATH = "/proc/cmdline";
@@ -162,6 +168,30 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                 .isEqualTo(HEX_STRING_ZERO);
     }
 
+    @Test
+    public void testConsoleOutput() throws Exception {
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_console_output.dtbo");
+        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+
+        CommandResult result = tryLaunchProtectedNonDebuggableVm();
+
+        assertWithMessage("Microdroid's console message should have been enabled")
+                .that(hasConsoleOutput(result))
+                .isTrue();
+    }
+
+    @Test
+    public void testNoConsoleOutput() throws Exception {
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_console_output.dtbo");
+        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+
+        CommandResult result = tryLaunchProtectedNonDebuggableVm();
+
+        assertWithMessage("Microdroid's console message shouldn't have been disabled")
+                .that(hasConsoleOutput(result))
+                .isFalse();
+    }
+
     @NonNull
     private String readMicrodroidFileAsString(@NonNull String path)
             throws DeviceNotAvailableException {
@@ -184,18 +214,50 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                 .build();
     }
 
+    @NonNull
+    private boolean hasConsoleOutput(CommandResult result) throws DeviceNotAvailableException {
+        return result.getStdout().contains("Run /init as init process");
+    }
+
     private ITestDevice launchProtectedVmAndWaitForBootCompleted()
             throws DeviceNotAvailableException {
         mMicrodroidDevice =
                 MicrodroidBuilder.fromDevicePath(
                                 getPathForPackage(PACKAGE_NAME), MICRODROID_CONFIG_PATH)
-                        .debugLevel(MICRODROID_DEBUG_LEVEL)
+                        .debugLevel(MICRODROID_DEBUG_FULL)
                         .protectedVm(/* protectedVm= */ true)
                         .addBootFile(mCustomPvmfwBinFileOnHost, PVMFW_FILE_NAME)
                         .build(mAndroidDevice);
-        assertThat(mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT)).isTrue();
+        assertThat(mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT_MS)).isTrue();
         assertThat(mMicrodroidDevice.enableAdbRoot()).isTrue();
-
         return mMicrodroidDevice;
+    }
+
+    // Try to launch protected non-debuggable VM for a while and quit.
+    // Non-debuggable VM doesn't enable adb, so there's no ITestDevice instance of it.
+    private CommandResult tryLaunchProtectedNonDebuggableVm() throws DeviceNotAvailableException {
+        // Can't use MicrodroidBuilder because it expects adb connection
+        // but non-debuggable VM doesn't enable adb.
+        CommandRunner runner = new CommandRunner(mAndroidDevice);
+        runner.run("mkdir", "-p", TEST_ROOT);
+        mAndroidDevice.pushFile(mCustomPvmfwBinFileOnHost, TEST_ROOT + PVMFW_FILE_NAME);
+
+        // This will fail because app wouldn't finish itself.
+        // But let's run the app once and get logs.
+        String command =
+                String.join(
+                        " ",
+                        "/apex/com.android.virt/bin/vm",
+                        "run-app",
+                        "--log",
+                        MICRODROID_LOG_PATH,
+                        "--protected",
+                        getPathForPackage(PACKAGE_NAME),
+                        TEST_ROOT + "idsig",
+                        TEST_ROOT + "instance.img",
+                        "--config-path",
+                        MICRODROID_CONFIG_PATH);
+        return mAndroidDevice.executeShellV2Command(
+                command, CONSOLE_OUTPUT_WAIT_MS, TimeUnit.MILLISECONDS, /* retryAttempts= */ 0);
     }
 }

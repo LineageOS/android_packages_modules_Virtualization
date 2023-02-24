@@ -18,6 +18,7 @@ mod aidl;
 mod atom;
 mod composite;
 mod crosvm;
+mod debug_config;
 mod payload;
 mod selinux;
 
