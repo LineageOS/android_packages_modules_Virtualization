@@ -51,7 +51,6 @@ import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineDescriptor;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
-import android.util.Log;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
@@ -147,6 +146,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             tr.mAddInteger = ts.addInteger(123, 456);
@@ -192,7 +192,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
 
         TestResults testResults =
-                runVmTestService(vm, (ts, tr) -> tr.mAddInteger = ts.addInteger(37, 73));
+                runVmTestService(TAG, vm, (ts, tr) -> tr.mAddInteger = ts.addInteger(37, 73));
         testResults.assertNoException();
         assertThat(testResults.mAddInteger).isEqualTo(37 + 73);
     }
@@ -375,6 +375,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (service, results) -> {
                             service.runEchoReverseServer();
@@ -687,7 +688,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 forceCreateNewVirtualMachine("test_vm_config_requires_permission", config);
 
         SecurityException e =
-                assertThrows(SecurityException.class, () -> runVmTestService(vm, (ts, tr) -> {}));
+                assertThrows(
+                        SecurityException.class, () -> runVmTestService(TAG, vm, (ts, tr) -> {}));
         assertThat(e).hasMessageThat()
                 .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
     }
@@ -772,6 +774,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             tr.mApkContentsPath = ts.getApkContentsPath();
@@ -807,6 +810,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             tr.mExtraApkTestProp =
@@ -994,6 +998,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachine vm = forceCreateNewVirtualMachine("bcc_vm", normalConfig);
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (service, results) -> {
                             results.mBcc = service.getBcc();
@@ -1279,6 +1284,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // Run something to make the instance.img different with the initialized one.
         TestResults origTestResults =
                 runVmTestService(
+                        TAG,
                         vmOrig,
                         (ts, tr) -> {
                             tr.mAddInteger = ts.addInteger(123, 456);
@@ -1305,6 +1311,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(vmImport).isEqualTo(vmm.get(vmNameImport));
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vmImport,
                         (ts, tr) -> {
                             tr.mAddInteger = ts.addInteger(123, 456);
@@ -1331,6 +1338,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             tr.mEncryptedStoragePath = ts.getEncryptedStoragePath();
@@ -1355,6 +1363,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             ts.writeToFile(
@@ -1413,6 +1422,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         final TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             tr.mEffectiveCapabilities = ts.getEffectiveCapabilities();
@@ -1437,6 +1447,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_a", config);
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             ts.writeToFile(
@@ -1449,6 +1460,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // stopped the VM
         testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (ts, tr) -> {
                             tr.mFileContent = ts.readFromFile("/mnt/encryptedstore/test_file");
@@ -1472,6 +1484,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         vm,
                         (testService, ts) -> {
                             ts.mFileContent = testService.readFromFile("/mnt/apk/assets/file.txt");
@@ -1516,7 +1529,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
         final VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_logcat", vmConfig);
 
-        runVmTestService(vm, (service, results) -> {});
+        runVmTestService(TAG, vm, (service, results) -> {});
 
         // only check logs printed after this test
         Process logcatProcess =
@@ -1565,6 +1578,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         try (VirtualMachine vm = forceCreateNewVirtualMachine("vm_from_another_app", config)) {
             TestResults results =
                     runVmTestService(
+                            TAG,
                             vm,
                             (ts, tr) -> {
                                 tr.mAddInteger = ts.addInteger(101, 303);
@@ -1587,7 +1601,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         VirtualMachine originalVm = forceCreateNewVirtualMachine("original_vm", config);
         // Just start & stop the VM.
-        runVmTestService(originalVm, (ts, tr) -> {});
+        runVmTestService(TAG, originalVm, (ts, tr) -> {});
 
         // Now create the descriptor and manually parcel & unparcel it.
         VirtualMachineDescriptor vmDescriptor = toParcelFromParcel(originalVm.toDescriptor());
@@ -1606,7 +1620,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 "instance.img", "original_vm", "import_vm_from_unparceled");
 
         // Check that we can start and stop imported vm as well
-        runVmTestService(importVm, (ts, tr) -> {});
+        runVmTestService(TAG, importVm, (ts, tr) -> {});
     }
 
     @Test
@@ -1625,6 +1639,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         {
             TestResults testResults =
                     runVmTestService(
+                            TAG,
                             originalVm,
                             (ts, tr) -> {
                                 ts.writeToFile("not a secret!", "/mnt/encryptedstore/secret.txt");
@@ -1652,6 +1667,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         TestResults testResults =
                 runVmTestService(
+                        TAG,
                         importVm,
                         (ts, tr) -> {
                             tr.mFileContent = ts.readFromFile("/mnt/encryptedstore/secret.txt");
@@ -1677,7 +1693,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         VirtualMachine vm = forceCreateNewVirtualMachine("vm_to_share", config);
         // Just start & stop the VM.
-        runVmTestService(vm, (ts, tr) -> {});
+        runVmTestService(TAG, vm, (ts, tr) -> {});
         // Get a descriptor that we will share with another app (VM_SHARE_APP_PACKAGE_NAME)
         VirtualMachineDescriptor vmDesc = vm.toDescriptor();
 
@@ -1727,6 +1743,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachine vm = forceCreateNewVirtualMachine("vm_to_share", config);
         // Just start & stop the VM.
         runVmTestService(
+                TAG,
                 vm,
                 (ts, tr) -> {
                     ts.writeToFile(EXAMPLE_STRING, "/mnt/encryptedstore/private.key");
@@ -1836,103 +1853,5 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .withMessage("Skip on 5.4 kernel. b/218303240")
                 .that(KERNEL_VERSION)
                 .isNotEqualTo("5.4");
-    }
-
-    static class TestResults {
-
-        Exception mException;
-        Integer mAddInteger;
-        String mAppRunProp;
-        String mSublibRunProp;
-        String mExtraApkTestProp;
-        String mApkContentsPath;
-        String mEncryptedStoragePath;
-        String[] mEffectiveCapabilities;
-        String mFileContent;
-        byte[] mBcc;
-
-        void assertNoException() {
-            if (mException != null) {
-                // Rethrow, wrapped in a new exception, so we get stack traces of the original
-                // failure as well as the body of the test.
-                throw new RuntimeException(mException);
-            }
-        }
-    }
-
-    private TestResults runVmTestService(VirtualMachine vm, RunTestsAgainstTestService testsToRun)
-            throws Exception {
-        CompletableFuture<Boolean> payloadStarted = new CompletableFuture<>();
-        CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
-        CompletableFuture<Boolean> payloadFinished = new CompletableFuture<>();
-        TestResults testResults = new TestResults();
-        VmEventListener listener =
-                new VmEventListener() {
-                    ITestService mTestService = null;
-
-                    private void initializeTestService(VirtualMachine vm) {
-                        try {
-                            mTestService =
-                                    ITestService.Stub.asInterface(
-                                            vm.connectToVsockServer(ITestService.SERVICE_PORT));
-                            // Make sure linkToDeath works, and include it in the log in case it's
-                            // helpful.
-                            mTestService
-                                    .asBinder()
-                                    .linkToDeath(() -> Log.i(TAG, "ITestService binder died"), 0);
-                        } catch (Exception e) {
-                            testResults.mException = e;
-                        }
-                    }
-
-                    private void testVMService(VirtualMachine vm) {
-                        try {
-                            if (mTestService == null) initializeTestService(vm);
-                            testsToRun.runTests(mTestService, testResults);
-                        } catch (Exception e) {
-                            testResults.mException = e;
-                        }
-                    }
-
-                    private void quitVMService() {
-                        try {
-                            mTestService.quit();
-                        } catch (Exception e) {
-                            testResults.mException = e;
-                        }
-                    }
-
-                    @Override
-                    public void onPayloadReady(VirtualMachine vm) {
-                        Log.i(TAG, "onPayloadReady");
-                        payloadReady.complete(true);
-                        testVMService(vm);
-                        quitVMService();
-                    }
-
-                    @Override
-                    public void onPayloadStarted(VirtualMachine vm) {
-                        Log.i(TAG, "onPayloadStarted");
-                        payloadStarted.complete(true);
-                    }
-
-                    @Override
-                    public void onPayloadFinished(VirtualMachine vm, int exitCode) {
-                        Log.i(TAG, "onPayloadFinished: " + exitCode);
-                        payloadFinished.complete(true);
-                        forceStop(vm);
-                    }
-                };
-
-        listener.runToFinish(TAG, vm);
-        assertThat(payloadStarted.getNow(false)).isTrue();
-        assertThat(payloadReady.getNow(false)).isTrue();
-        assertThat(payloadFinished.getNow(false)).isTrue();
-        return testResults;
-    }
-
-    @FunctionalInterface
-    interface RunTestsAgainstTestService {
-        void runTests(ITestService testService, TestResults testResults) throws Exception;
     }
 }

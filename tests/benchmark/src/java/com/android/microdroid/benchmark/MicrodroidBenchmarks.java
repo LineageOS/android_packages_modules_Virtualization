@@ -29,6 +29,8 @@ import static com.google.common.truth.TruthJUnit.assume;
 import android.app.Instrumentation;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.os.ParcelFileDescriptor.AutoCloseInputStream;
+import android.os.ParcelFileDescriptor.AutoCloseOutputStream;
 import android.os.Process;
 import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
@@ -40,6 +42,7 @@ import com.android.microdroid.test.common.MetricsProcessor;
 import com.android.microdroid.test.common.ProcessUtil;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.IBenchmarkService;
+import com.android.microdroid.testservice.ITestService;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,8 +51,14 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,7 +66,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -72,7 +80,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     private static final String APEX_ETC_FS = "/apex/com.android.virt/etc/fs/";
     private static final double SIZE_MB = 1024.0 * 1024.0;
-    private static final double NANO_TO_MILLI = 1000000.0;
+    private static final double NANO_TO_MILLI = 1_000_000.0;
+    private static final double NANO_TO_MICRO = 1_000.0;
     private static final String MICRODROID_IMG_PREFIX = "microdroid_";
     private static final String MICRODROID_IMG_SUFFIX = ".img";
 
@@ -569,64 +578,113 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    public void testVsockRpcBinderLatency() throws Exception {
+    public void testRpcBinderLatency() throws Exception {
+        final int NUM_WARMUPS = 10;
+        final int NUM_REQUESTS = 10_000;
+
         VirtualMachineConfig config =
                 newVmConfigBuilder()
-                        .setPayloadConfigPath("assets/vm_config_io.json")
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
 
-        List<Double> requestLatencies = new ArrayList<>(IO_TEST_TRIAL_COUNT);
+        List<Double> requestLatencies = new ArrayList<>(IO_TEST_TRIAL_COUNT * NUM_REQUESTS);
         for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
-            String vmName = "test_vm_request_" + i;
-            VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
-            BenchmarkVmListener.create(new VsockRpcBinderLatencyListener(requestLatencies))
-                    .runToFinish(TAG, vm);
+            VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_latency" + i, config);
+            TestResults testResults =
+                    runVmTestService(
+                            TAG,
+                            vm,
+                            (ts, tr) -> {
+                                // Correctness check
+                                tr.mAddInteger = ts.addInteger(123, 456);
+
+                                // Warmup
+                                for (int j = 0; j < NUM_WARMUPS; j++) {
+                                    ts.addInteger(j, j + 1);
+                                }
+
+                                // Count Fibonacci numbers, measure latency.
+                                int a = 0;
+                                int b = 1;
+                                int c;
+                                tr.mTimings = new long[NUM_REQUESTS];
+                                for (int j = 0; j < NUM_REQUESTS; j++) {
+                                    long start = System.nanoTime();
+                                    c = ts.addInteger(a, b);
+                                    tr.mTimings[j] = System.nanoTime() - start;
+                                    a = b;
+                                    b = c;
+                                }
+                            });
+            testResults.assertNoException();
+            assertThat(testResults.mAddInteger).isEqualTo(579);
+            for (long duration : testResults.mTimings) {
+                requestLatencies.add((double) duration / NANO_TO_MICRO);
+            }
         }
-        reportMetrics(requestLatencies, "vsock/rpcbinder/request_latency", "ms");
+        reportMetrics(requestLatencies, "latency/rpcbinder", "us");
     }
 
-    private static class VsockRpcBinderLatencyListener
-            implements BenchmarkVmListener.InnerListener {
-        private static final int NUM_REQUESTS = 10000;
-        private static final int NUM_WARMUP_REQUESTS = 10;
+    @Test
+    public void testVsockLatency() throws Exception {
+        final int NUM_WARMUPS = 10;
+        final int NUM_REQUESTS = 10_000;
 
-        private final List<Double> mResults;
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_NONE)
+                        .build();
 
-        VsockRpcBinderLatencyListener(List<Double> results) {
-            mResults = results;
+        List<Double> requestLatencies = new ArrayList<>(IO_TEST_TRIAL_COUNT * NUM_REQUESTS);
+        for (int i = 0; i < IO_TEST_TRIAL_COUNT; ++i) {
+            VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_latency" + i, config);
+            TestResults testResults =
+                    runVmTestService(
+                            TAG,
+                            vm,
+                            (ts, tr) -> {
+                                ts.runEchoReverseServer();
+                                ParcelFileDescriptor pfd =
+                                        vm.connectVsock(ITestService.ECHO_REVERSE_PORT);
+                                try (InputStream input = new AutoCloseInputStream(pfd);
+                                        OutputStream output = new AutoCloseOutputStream(pfd)) {
+                                    BufferedReader reader =
+                                            new BufferedReader(new InputStreamReader(input));
+                                    Writer writer = new OutputStreamWriter(output);
+
+                                    // Correctness check.
+                                    writer.write("hello\n");
+                                    writer.flush();
+                                    tr.mFileContent = reader.readLine().trim();
+
+                                    // Warmup.
+                                    for (int j = 0; j < NUM_WARMUPS; ++j) {
+                                        String text = "test" + j + "\n";
+                                        writer.write(text);
+                                        writer.flush();
+                                        reader.readLine();
+                                    }
+
+                                    // Measured requests.
+                                    tr.mTimings = new long[NUM_REQUESTS];
+                                    for (int j = 0; j < NUM_REQUESTS; j++) {
+                                        String text = "test" + j + "\n";
+                                        long start = System.nanoTime();
+                                        writer.write(text);
+                                        writer.flush();
+                                        reader.readLine();
+                                        tr.mTimings[j] = System.nanoTime() - start;
+                                    }
+                                }
+                            });
+            testResults.assertNoException();
+            assertThat(testResults.mFileContent).isEqualTo("olleh");
+            for (long duration : testResults.mTimings) {
+                requestLatencies.add((double) duration / NANO_TO_MICRO);
+            }
         }
-
-        @Override
-        public void onPayloadReady(VirtualMachine vm, IBenchmarkService benchmarkService)
-                throws RemoteException {
-            // Warm up a few times.
-            Random rand = new Random();
-            for (int i = 0; i < NUM_WARMUP_REQUESTS; i++) {
-                int a = rand.nextInt();
-                int b = rand.nextInt();
-                int c = benchmarkService.add(a, b);
-                assertThat(c).isEqualTo(a + b);
-            }
-
-            // Use the VM to compute Fibonnacci numbers, save timestamps between requests.
-            int a = 0;
-            int b = 1;
-            int c;
-            long timestamps[] = new long[NUM_REQUESTS + 1];
-            for (int i = 0; i < NUM_REQUESTS; i++) {
-                timestamps[i] = System.nanoTime();
-                c = benchmarkService.add(a, b);
-                a = b;
-                b = c;
-            }
-            timestamps[NUM_REQUESTS] = System.nanoTime();
-
-            // Log individual request latencies.
-            for (int i = 0; i < NUM_REQUESTS; i++) {
-                long diff = timestamps[i + 1] - timestamps[i];
-                mResults.add((double) diff / NANO_TO_MILLI);
-            }
-        }
+        reportMetrics(requestLatencies, "latency/vsock", "us");
     }
 }
