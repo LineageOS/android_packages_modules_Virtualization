@@ -16,6 +16,8 @@
 
 package com.android.microdroid.test.common;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,29 +43,42 @@ public final class MetricsProcessor {
      */
     public Map<String, Double> computeStats(List<? extends Number> metrics, String name,
             String unit) {
+        List<Double> values = new ArrayList<>(metrics.size());
+        for (Number metric : metrics) {
+            values.add(metric.doubleValue());
+        }
+        Collections.sort(values);
+
         double sum = 0;
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
-        for (Number metric : metrics) {
-            double d = metric.doubleValue();
+        for (Double d : values) {
             sum += d;
             if (min > d) min = d;
             if (max < d) max = d;
         }
-        double avg = sum / metrics.size();
+        double avg = sum / values.size();
         double sqSum = 0;
-        for (Number metric : metrics) {
-            double d = metric.doubleValue();
+        for (Double d : values) {
             sqSum += (d - avg) * (d - avg);
         }
-        double stdDev = Math.sqrt(sqSum / (metrics.size() - 1));
-
+        double stdDev = Math.sqrt(sqSum / (values.size() - 1));
+        double median = Double.MIN_VALUE;
+        if (values.size() > 0) {
+            int rank = values.size() / 2;
+            if (values.size() % 2 == 0) {
+                median = (values.get(rank - 1) + values.get(rank)) / 2;
+            } else {
+                median = values.get(rank);
+            }
+        }
         Map<String, Double> stats = new HashMap<String, Double>();
         String prefix = mPrefix + name;
         stats.put(prefix + "_min_" + unit, min);
         stats.put(prefix + "_max_" + unit, max);
         stats.put(prefix + "_average_" + unit, avg);
         stats.put(prefix + "_stdev_" + unit, stdDev);
+        stats.put(prefix + "_median_" + unit, median);
         return stats;
     }
 }
