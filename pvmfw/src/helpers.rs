@@ -47,6 +47,17 @@ pub const fn align_up(addr: usize, alignment: usize) -> Option<usize> {
     }
 }
 
+/// Performs an integer division rounding up.
+///
+/// Note: Returns None if den isn't a power of two.
+pub const fn ceiling_div(num: usize, den: usize) -> Option<usize> {
+    let Some(r) = align_up(num, den) else {
+        return None;
+    };
+
+    r.checked_div(den)
+}
+
 /// Aligns the given address to the given alignment, if it is a power of two.
 ///
 /// Returns `None` if the alignment isn't a power of two.
