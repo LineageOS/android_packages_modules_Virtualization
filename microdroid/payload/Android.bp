@@ -46,28 +46,3 @@ java_library_host {
         type: "lite",
     },
 }
-
-cc_binary_host {
-    name: "mk_payload",
-    srcs: [
-        "mk_payload.cc",
-    ],
-    static_libs: [
-        "lib_microdroid_metadata_proto",
-        "libbase",
-        "libcdisk_spec",
-        "libcuttlefish_fs",
-        "libcuttlefish_host_config",
-        "libcuttlefish_utils",
-        "libext2_uuid",
-        "libimage_aggregator",
-        "libjsoncpp",
-        "liblog",
-        "libprotobuf-cpp-full",
-        "libprotobuf-cpp-lite",
-        "libsparse",
-        "libxml2",
-        "libz",
-    ],
-    static_executable: true,
-}
