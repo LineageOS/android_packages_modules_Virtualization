@@ -405,6 +405,24 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)
     }
 
+    /// Create or change a flag-like empty property.
+    pub fn setprop_empty(&mut self, name: &CStr) -> Result<()> {
+        self.setprop(name, &[])
+    }
+
+    /// Delete the given property.
+    pub fn delprop(&mut self, name: &CStr) -> Result<()> {
+        // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) when the
+        // library locates the node's property. Removing the property may shift the offsets of
+        // other nodes and properties but the borrow checker should prevent this function from
+        // being called when FdtNode instances are in use.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_delprop(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
     /// Get reference to the containing device tree.
     pub fn fdt(&mut self) -> &mut Fdt {
         self.fdt
@@ -559,6 +577,11 @@ impl Fdt {
     /// Retrieve the standard /chosen node.
     pub fn chosen(&self) -> Result<Option<FdtNode>> {
         self.node(CStr::from_bytes_with_nul(b"/chosen\0").unwrap())
+    }
+
+    /// Retrieve the standard /chosen node as mutable.
+    pub fn chosen_mut(&mut self) -> Result<Option<FdtNodeMut>> {
+        self.node_mut(CStr::from_bytes_with_nul(b"/chosen\0").unwrap())
     }
 
     /// Get the root node of the tree.

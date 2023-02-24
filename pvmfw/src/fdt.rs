@@ -16,6 +16,8 @@
 
 use core::ffi::CStr;
 use core::ops::Range;
+use libfdt::Fdt;
+use libfdt::FdtError;
 
 /// Extract from /config the address range containing the pre-loaded kernel.
 pub fn kernel_range(fdt: &libfdt::Fdt) -> libfdt::Result<Option<Range<usize>>> {
@@ -49,10 +51,35 @@ pub fn initrd_range(fdt: &libfdt::Fdt) -> libfdt::Result<Option<Range<usize>>> {
     Ok(None)
 }
 
-/// Add a "google,open-dice"-compatible reserved-memory node to the tree.
-pub fn add_dice_node(fdt: &mut libfdt::Fdt, addr: usize, size: usize) -> libfdt::Result<()> {
+/// Modifies the input DT according to the fields of the configuration.
+pub fn modify_for_next_stage(
+    fdt: &mut Fdt,
+    bcc: &[u8],
+    new_instance: bool,
+    strict_boot: bool,
+) -> libfdt::Result<()> {
     fdt.unpack()?;
 
+    add_dice_node(fdt, bcc.as_ptr() as usize, bcc.len())?;
+
+    set_or_clear_chosen_flag(
+        fdt,
+        CStr::from_bytes_with_nul(b"avf,strict-boot\0").unwrap(),
+        strict_boot,
+    )?;
+    set_or_clear_chosen_flag(
+        fdt,
+        CStr::from_bytes_with_nul(b"avf,new-instance\0").unwrap(),
+        new_instance,
+    )?;
+
+    fdt.pack()?;
+
+    Ok(())
+}
+
+/// Add a "google,open-dice"-compatible reserved-memory node to the tree.
+fn add_dice_node(fdt: &mut Fdt, addr: usize, size: usize) -> libfdt::Result<()> {
     let reserved_memory = CStr::from_bytes_with_nul(b"/reserved-memory\0").unwrap();
     // We reject DTs with missing reserved-memory node as validation should have checked that the
     // "swiotlb" subnode (compatible = "restricted-dma-pool") was present.
@@ -67,10 +94,25 @@ pub fn add_dice_node(fdt: &mut libfdt::Fdt, addr: usize, size: usize) -> libfdt:
     let no_map = CStr::from_bytes_with_nul(b"no-map\0").unwrap();
     dice.appendprop(no_map, &[])?;
 
+    let addr = addr.try_into().unwrap();
+    let size = size.try_into().unwrap();
     let reg = CStr::from_bytes_with_nul(b"reg\0").unwrap();
-    dice.appendprop_addrrange(reg, addr as u64, size as u64)?;
+    dice.appendprop_addrrange(reg, addr, size)?;
 
-    fdt.pack()?;
+    Ok(())
+}
+
+fn set_or_clear_chosen_flag(fdt: &mut Fdt, flag: &CStr, value: bool) -> libfdt::Result<()> {
+    // TODO(b/249054080): Refactor to not panic if the DT doesn't contain a /chosen node.
+    let mut chosen = fdt.chosen_mut()?.unwrap();
+    if value {
+        chosen.setprop_empty(flag)?;
+    } else {
+        match chosen.delprop(flag) {
+            Ok(()) | Err(FdtError::NotFound) => (),
+            Err(e) => return Err(e),
+        }
+    }
 
     Ok(())
 }
