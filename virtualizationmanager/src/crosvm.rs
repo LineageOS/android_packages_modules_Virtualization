@@ -724,6 +724,10 @@ fn run_vm(
         // enough.
         let swiotlb_size_mib = 2 * virtio_pci_device_count;
         command.arg("--swiotlb").arg(swiotlb_size_mib.to_string());
+
+        // Workaround to keep crash_dump from trying to read protected guest memory.
+        // Context in b/238324526.
+        command.arg("--unmap-guest-memory-on-fork");
     }
 
     if let Some(memory_mib) = config.memory_mib {
