@@ -26,7 +26,7 @@
 
 	memory {
 		device_type = "memory";
-		reg = <0x00 CONFIG_SYS_SDRAM_BASE PLACEHOLDER2>;
+		reg = <0x00 0x80000000 PLACEHOLDER2>;
 	};
 
 	reserved-memory {
