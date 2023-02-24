@@ -96,11 +96,6 @@ public:
         return resultStatus(res);
     }
 
-    ndk::ScopedAStatus add(int32_t a, int32_t b, int32_t* out) override {
-        *out = a + b;
-        return ndk::ScopedAStatus::ok();
-    }
-
 private:
     /**
      * Measures the read rate for reading the given file.
