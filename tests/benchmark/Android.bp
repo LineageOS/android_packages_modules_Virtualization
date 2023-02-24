@@ -19,6 +19,7 @@ android_test {
     jni_libs: [
         "MicrodroidBenchmarkNativeLib",
         "MicrodroidIdleNativeLib",
+        "MicrodroidTestNativeLib",
         "libiovsock_host_jni",
     ],
     jni_uses_platform_apis: true,
