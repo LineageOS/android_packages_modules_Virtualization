@@ -13,6 +13,7 @@ rust_ffi_static {
     ],
     rustlibs: [
         "libaarch64_paging",
+        "libbssl_ffi_nostd",
         "libbuddy_system_allocator",
         "libdiced_open_dice_nostd",
         "libfdtpci",
