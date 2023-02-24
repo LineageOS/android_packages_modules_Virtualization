@@ -73,8 +73,8 @@ You first need to build the crash(8) tool for the target architecture, which in 
 Download the source code and build it as follows. This needs to be done only once.
 
 ```shell
-$ wget https://github.com/crash-utility/crash/archive/refs/tags/8.0.1.tar.gz -O - | tar xzvf
-$ make -C crash-8.0.1 target=ARM64
+$ wget https://github.com/crash-utility/crash/archive/refs/tags/8.0.2.tar.gz -O - | tar xzv
+$ make -j -C crash-8.0.2 target=ARM64
 ```
 
 ### Obtaining vmlinux
@@ -101,7 +101,7 @@ DON'T forget to replace `9013362` with the actual build ID of the kernel you use
 ### Running crash(8) with the RAM dump and the kernel image
 
 ```shell
-$ crash-8.0.1/crash ramdump vmlinux
+$ crash-8.0.2/crash ramdump vmlinux
 ```
 
 You can now analyze the RAM dump using the various commands that crash(8) provides. For example, `bt <pid>` command shows the stack trace of a process.
