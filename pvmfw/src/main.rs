@@ -21,32 +21,37 @@
 extern crate alloc;
 
 mod config;
+mod crypto;
 mod debug_policy;
 mod dice;
 mod entry;
 mod exceptions;
 mod fdt;
+mod gpt;
 mod heap;
 mod helpers;
 mod hvc;
+mod instance;
 mod memory;
 mod mmio_guard;
 mod mmu;
+mod rand;
 mod smccc;
 mod virtio;
 
 use alloc::boxed::Box;
 
-use crate::{
-    dice::PartialInputs,
-    entry::RebootReason,
-    fdt::add_dice_node,
-    helpers::flush,
-    helpers::GUEST_PAGE_SIZE,
-    memory::MemoryTracker,
-    virtio::pci::{self, find_virtio_devices},
-};
-use diced_open_dice::{bcc_handover_main_flow, bcc_handover_parse, HIDDEN_SIZE};
+use crate::dice::PartialInputs;
+use crate::entry::RebootReason;
+use crate::fdt::modify_for_next_stage;
+use crate::helpers::flush;
+use crate::helpers::GUEST_PAGE_SIZE;
+use crate::instance::get_or_generate_instance_salt;
+use crate::memory::MemoryTracker;
+use crate::virtio::pci;
+use diced_open_dice::bcc_handover_main_flow;
+use diced_open_dice::bcc_handover_parse;
+use diced_open_dice::DiceArtifacts;
 use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
@@ -81,7 +86,6 @@ fn main(
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
     let mut pci_root = pci::initialise(pci_info, memory)?;
-    find_virtio_devices(&mut pci_root).map_err(handle_pci_error)?;
 
     let verified_boot_data = verify_payload(signed_kernel, ramdisk, PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");
@@ -99,7 +103,14 @@ fn main(
         error!("Failed to compute partial DICE inputs: {e:?}");
         RebootReason::InternalError
     })?;
-    let salt = [0; HIDDEN_SIZE]; // TODO(b/249723852): Get from instance.img and/or TRNG.
+    let cdi_seal = DiceArtifacts::cdi_seal(&bcc_handover);
+    let (new_instance, salt) = get_or_generate_instance_salt(&mut pci_root, &dice_inputs, cdi_seal)
+        .map_err(|e| {
+            error!("Failed to get instance.img salt: {e}");
+            RebootReason::InternalError
+        })?;
+    trace!("Got salt from instance.img: {salt:x?}");
+
     let dice_inputs = dice_inputs.into_input_values(&salt).map_err(|e| {
         error!("Failed to generate DICE inputs: {e:?}");
         RebootReason::InternalError
@@ -110,8 +121,9 @@ fn main(
     })?;
     flush(next_bcc);
 
-    add_dice_node(fdt, next_bcc.as_ptr() as usize, NEXT_BCC_SIZE).map_err(|e| {
-        error!("Failed to add DICE node to device tree: {e}");
+    let strict_boot = false; // TODO(b/268307476): Flip in its own commit to isolate testing.
+    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot).map_err(|e| {
+        error!("Failed to configure device tree: {e}");
         RebootReason::InternalError
     })?;
 

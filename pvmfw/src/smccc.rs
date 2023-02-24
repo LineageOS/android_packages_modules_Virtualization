@@ -16,7 +16,7 @@ use core::{fmt, result};
 
 // TODO(b/245889995): use psci-0.1.1 crate
 #[inline(always)]
-fn hvc64(function: u32, args: [u64; 17]) -> [u64; 18] {
+pub fn hvc64(function: u32, args: [u64; 17]) -> [u64; 18] {
     #[cfg(target_arch = "aarch64")]
     unsafe {
         let mut ret = [0; 18];
