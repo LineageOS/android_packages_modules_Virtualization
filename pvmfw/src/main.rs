@@ -121,7 +121,7 @@ fn main(
     })?;
     flush(next_bcc);
 
-    let strict_boot = false; // TODO(b/268307476): Flip in its own commit to isolate testing.
+    let strict_boot = true;
     modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot).map_err(|e| {
         error!("Failed to configure device tree: {e}");
         RebootReason::InternalError
