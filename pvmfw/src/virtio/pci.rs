@@ -17,11 +17,11 @@
 use super::hal::HalImpl;
 use crate::{entry::RebootReason, memory::MemoryTracker};
 use alloc::boxed::Box;
-use fdtpci::{PciError, PciInfo};
-use log::{debug, error, info};
+use fdtpci::PciInfo;
+use log::{debug, error};
 use once_cell::race::OnceBox;
 use virtio_drivers::{
-    device::blk::VirtIOBlk,
+    device::blk,
     transport::{
         pci::{
             bus::{BusDeviceIterator, PciRoot},
@@ -69,7 +69,9 @@ fn map_mmio(pci_info: &PciInfo, memory: &mut MemoryTracker) -> Result<(), Reboot
     Ok(())
 }
 
-struct VirtIOBlkIterator<'a> {
+pub type VirtIOBlk = blk::VirtIOBlk<HalImpl, PciTransport>;
+
+pub struct VirtIOBlkIterator<'a> {
     pci_root: &'a mut PciRoot,
     bus: BusDeviceIterator,
 }
@@ -82,7 +84,7 @@ impl<'a> VirtIOBlkIterator<'a> {
 }
 
 impl<'a> Iterator for VirtIOBlkIterator<'a> {
-    type Item = VirtIOBlk<HalImpl, PciTransport>;
+    type Item = VirtIOBlk;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -111,15 +113,4 @@ impl<'a> Iterator for VirtIOBlkIterator<'a> {
             }
         }
     }
-}
-
-/// Finds VirtIO PCI devices.
-pub fn find_virtio_devices(pci_root: &mut PciRoot) -> Result<(), PciError> {
-    for mut blk in VirtIOBlkIterator::new(pci_root) {
-        info!("Found {} KiB block device.", blk.capacity() * 512 / 1024);
-        let mut data = [0; 512];
-        blk.read_block(0, &mut data).expect("Failed to read block device");
-    }
-
-    Ok(())
 }
