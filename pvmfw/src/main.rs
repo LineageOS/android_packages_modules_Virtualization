@@ -21,6 +21,7 @@
 extern crate alloc;
 
 mod config;
+mod crypto;
 mod debug_policy;
 mod dice;
 mod entry;
@@ -34,6 +35,7 @@ mod instance;
 mod memory;
 mod mmio_guard;
 mod mmu;
+mod rand;
 mod smccc;
 mod virtio;
 
@@ -49,6 +51,7 @@ use crate::memory::MemoryTracker;
 use crate::virtio::pci;
 use diced_open_dice::bcc_handover_main_flow;
 use diced_open_dice::bcc_handover_parse;
+use diced_open_dice::DiceArtifacts;
 use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
@@ -100,8 +103,9 @@ fn main(
         error!("Failed to compute partial DICE inputs: {e:?}");
         RebootReason::InternalError
     })?;
-    let (new_instance, salt) =
-        get_or_generate_instance_salt(&mut pci_root, &dice_inputs).map_err(|e| {
+    let cdi_seal = DiceArtifacts::cdi_seal(&bcc_handover);
+    let (new_instance, salt) = get_or_generate_instance_salt(&mut pci_root, &dice_inputs, cdi_seal)
+        .map_err(|e| {
             error!("Failed to get instance.img salt: {e}");
             RebootReason::InternalError
         })?;
