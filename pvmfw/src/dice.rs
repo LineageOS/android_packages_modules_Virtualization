@@ -42,9 +42,9 @@ fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> diced_open_dice::Resul
 }
 
 pub struct PartialInputs {
-    code_hash: Hash,
-    auth_hash: Hash,
-    mode: DiceMode,
+    pub code_hash: Hash,
+    pub auth_hash: Hash,
+    pub mode: DiceMode,
 }
 
 impl PartialInputs {
