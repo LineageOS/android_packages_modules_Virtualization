@@ -216,12 +216,22 @@ impl<'a> Config<'a> {
     }
 
     /// Get slice containing the platform BCC.
-    pub fn get_bcc_mut(&mut self) -> &mut [u8] {
-        &mut self.body[self.bcc_range.clone()]
-    }
+    pub fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>) {
+        let bcc_start = self.bcc_range.start;
+        let bcc_end = self.bcc_range.len();
+        let (_, rest) = self.body.split_at_mut(bcc_start);
+        let (bcc, rest) = rest.split_at_mut(bcc_end);
 
-    /// Get slice containing the platform debug policy.
-    pub fn get_debug_policy(&mut self) -> Option<&mut [u8]> {
-        self.dp_range.as_ref().map(|r| &mut self.body[r.clone()])
+        let dp = if let Some(dp_range) = &self.dp_range {
+            let dp_start = dp_range.start.checked_sub(self.bcc_range.end).unwrap();
+            let dp_end = dp_range.len();
+            let (_, rest) = rest.split_at_mut(dp_start);
+            let (dp, _) = rest.split_at_mut(dp_end);
+            Some(dp)
+        } else {
+            None
+        };
+
+        (bcc, dp)
     }
 }
