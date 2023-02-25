@@ -68,6 +68,8 @@ const CROSVM_REBOOT_STATUS: i32 = 32;
 const CROSVM_CRASH_STATUS: i32 = 33;
 /// The exit status which crosvm returns when vcpu is stalled.
 const CROSVM_WATCHDOG_REBOOT_STATUS: i32 = 36;
+/// The size of memory (in MiB) reserved for ramdump
+const RAMDUMP_RESERVED_MIB: u32 = 17;
 
 const MILLIS_PER_SEC: i64 = 1000;
 
@@ -665,22 +667,14 @@ fn exit_signal(result: &Result<ExitStatus, io::Error>) -> Option<i32> {
     }
 }
 
-fn should_configure_ramdump(protected: bool) -> bool {
-    if protected {
-        // Protected VM needs ramdump configuration here.
-        // pvmfw will disable ramdump if unnecessary.
-        true
-    } else {
-        // For unprotected VM, ramdump should be handled here.
-        // ramdump wouldn't be enabled if ramdump is explicitly set to <1>.
-        if let Ok(mut file) = File::open("/proc/device-tree/avf/guest/common/ramdump") {
-            let mut ramdump: [u8; 4] = Default::default();
-            file.read_exact(&mut ramdump).map_err(|_| false).unwrap();
-            // DT spec uses big endian although Android is always little endian.
-            return u32::from_be_bytes(ramdump) == 1;
-        }
-        false
+fn ramdump_enabled() -> bool {
+    if let Ok(mut file) = File::open("/proc/device-tree/avf/guest/common/ramdump") {
+        let mut ramdump: [u8; 4] = Default::default();
+        file.read_exact(&mut ramdump).map_err(|_| false).unwrap();
+        // DT spec uses big endian although Android is always little endian.
+        return u32::from_be_bytes(ramdump) == 1;
     }
+    false
 }
 
 /// Starts an instance of `crosvm` to manage a new VM.
@@ -722,12 +716,20 @@ fn run_vm(
         let virtio_pci_device_count = 4 + config.disks.len();
         // crosvm virtio queue has 256 entries, so 2 MiB per device (2 pages per entry) should be
         // enough.
-        let swiotlb_size_mib = 2 * virtio_pci_device_count;
+        let swiotlb_size_mib = 2 * virtio_pci_device_count as u32;
         command.arg("--swiotlb").arg(swiotlb_size_mib.to_string());
 
         // Workaround to keep crash_dump from trying to read protected guest memory.
         // Context in b/238324526.
         command.arg("--unmap-guest-memory-on-fork");
+
+        // Protected VM needs to reserve memory for ramdump here. pvmfw will drop This
+        // if ramdump should be disabled (via debug policy). Note that we reserve more
+        // memory for the restricted dma pool.
+        let ramdump_reserve = RAMDUMP_RESERVED_MIB + swiotlb_size_mib;
+        command.arg("--params").arg(format!("crashkernel={ramdump_reserve}M"));
+    } else if ramdump_enabled() {
+        command.arg("--params").arg(format!("crashkernel={RAMDUMP_RESERVED_MIB}M"));
     }
 
     if let Some(memory_mib) = config.memory_mib {
@@ -815,10 +817,6 @@ fn run_vm(
 
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);
-
-    if should_configure_ramdump(config.protected) {
-        command.arg("--params").arg("crashkernel=17M");
-    }
 
     print_crosvm_args(&command);
 
