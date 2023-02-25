@@ -14,6 +14,9 @@
 
 //! Support for reading and writing to the instance.img.
 
+use crate::crypto;
+use crate::crypto::hkdf_sh512;
+use crate::crypto::AeadCtx;
 use crate::dice::PartialInputs;
 use crate::gpt;
 use crate::gpt::Partition;
@@ -33,6 +36,10 @@ use virtio_drivers::transport::pci::bus::PciRoot;
 pub enum Error {
     /// Unexpected I/O error while accessing the underlying disk.
     FailedIo(gpt::Error),
+    /// Failed to decrypt the entry.
+    FailedOpen(crypto::ErrorIterator),
+    /// Failed to encrypt the entry.
+    FailedSeal(crypto::ErrorIterator),
     /// Impossible to create a new instance.img entry.
     InstanceImageFull,
     /// Badly formatted instance.img header block.
@@ -55,6 +62,20 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::FailedIo(e) => write!(f, "Failed I/O to disk: {e}"),
+            Self::FailedOpen(e_iter) => {
+                writeln!(f, "Failed to open the instance.img partition:")?;
+                for e in *e_iter {
+                    writeln!(f, "\t{e}")?;
+                }
+                Ok(())
+            }
+            Self::FailedSeal(e_iter) => {
+                writeln!(f, "Failed to seal the instance.img partition:")?;
+                for e in *e_iter {
+                    writeln!(f, "\t{e}")?;
+                }
+                Ok(())
+            }
             Self::InstanceImageFull => write!(f, "Failed to obtain a free instance.img partition"),
             Self::InvalidInstanceImageHeader => write!(f, "instance.img header is invalid"),
             Self::MissingInstanceImage => write!(f, "Failed to find the instance.img partition"),
@@ -72,12 +93,14 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub fn get_or_generate_instance_salt(
     pci_root: &mut PciRoot,
     dice_inputs: &PartialInputs,
+    secret: &[u8],
 ) -> Result<(bool, Hidden)> {
     let mut instance_img = find_instance_img(pci_root)?;
 
     let entry = locate_entry(&mut instance_img)?;
     trace!("Found pvmfw instance.img entry: {entry:?}");
 
+    let key = hkdf_sh512::<32>(secret, /*salt=*/ &[], b"vm-instance");
     let mut blk = [0; BLK_SIZE];
     match entry {
         PvmfwEntry::Existing { header_index, payload_size } => {
@@ -88,9 +111,13 @@ pub fn get_or_generate_instance_salt(
             let payload_index = header_index + 1;
             instance_img.read_block(payload_index, &mut blk).map_err(Error::FailedIo)?;
 
-            let payload = &blk[..payload_size]; // TODO(b/249723852): Decrypt entries.
+            let payload = &blk[..payload_size];
+            let mut entry = [0; size_of::<EntryBody>()];
+            let key = key.map_err(Error::FailedOpen)?;
+            let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedOpen)?;
+            let decrypted = aead.open(&mut entry, payload).map_err(Error::FailedOpen)?;
 
-            let body: &EntryBody = payload.as_ref();
+            let body: &EntryBody = decrypted.as_ref();
             if body.code_hash != dice_inputs.code_hash {
                 Err(Error::RecordedCodeHashMismatch)
             } else if body.auth_hash != dice_inputs.auth_hash {
@@ -105,11 +132,13 @@ pub fn get_or_generate_instance_salt(
             let salt = [0; size_of::<Hidden>()]; // TODO(b/262393451): Generate using TRNG.
             let entry_body = EntryBody::new(dice_inputs, &salt);
             let body = entry_body.as_ref();
-            // We currently only support single-blk entries.
-            assert!(body.len() < blk.len());
 
-            let payload_size = body.len();
-            blk[..payload_size].copy_from_slice(body); // TODO(b/249723852): Encrypt entries.
+            let key = key.map_err(Error::FailedSeal)?;
+            let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedSeal)?;
+            // We currently only support single-blk entries.
+            assert!(body.len() + aead.aead().unwrap().max_overhead() < blk.len());
+            let encrypted = aead.seal(&mut blk, body).map_err(Error::FailedSeal)?;
+            let payload_size = encrypted.len();
             let payload_index = header_index + 1;
             instance_img.write_block(payload_index, &blk).map_err(Error::FailedIo)?;
 
