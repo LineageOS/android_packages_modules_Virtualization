@@ -23,7 +23,6 @@ java_test_host {
         ":authfs_test_files",
         ":CtsApkVerityTestPrebuiltFiles",
         ":MicrodroidTestApp",
-        ":measure_io",
     ],
 }
 
