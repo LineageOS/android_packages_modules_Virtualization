@@ -203,7 +203,7 @@ pub unsafe fn handle_debug_policy(
         disable_ramdump(fdt)?;
     }
 
-    // Handles conseole output in the debug policy
+    // Handles console output in the debug policy
     if is_console_output_enabled(fdt)? {
         enable_console_output(fdt)?;
         info!("console output is enabled by debug policy");
