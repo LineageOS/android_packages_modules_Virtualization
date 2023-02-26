@@ -1025,13 +1025,12 @@ fn clone_or_prepare_logger_fd(
         return Ok(Some(clone_file(fd)?));
     }
 
-    if let VirtualMachineConfig::AppConfig(app_config) = config {
-        if !should_prepare_console_output(app_config.debugLevel) {
-            return Ok(None);
-        }
-    } else {
+    let VirtualMachineConfig::AppConfig(app_config) = config else {
         return Ok(None);
-    }
+    };
+    if !should_prepare_console_output(app_config.debugLevel) {
+        return Ok(None);
+    };
 
     let (raw_read_fd, raw_write_fd) = pipe().map_err(|e| {
         Status::new_service_specific_error_str(-1, Some(format!("Failed to create pipe: {:?}", e)))
