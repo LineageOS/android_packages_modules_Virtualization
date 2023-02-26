@@ -721,6 +721,9 @@ fn verify_payload(
     // Use the salt from a verified instance, or generate a salt for a new instance.
     let salt = if let Some(saved_data) = saved_data {
         saved_data.salt.clone()
+    } else if is_strict_boot() {
+        // No need to add more entropy as a previous stage must have used a new, random salt.
+        vec![0u8; 64]
     } else {
         let mut salt = vec![0u8; 64];
         salt.as_mut_slice().try_fill(&mut rand::thread_rng())?;
