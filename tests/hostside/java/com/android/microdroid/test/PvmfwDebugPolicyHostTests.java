@@ -56,7 +56,6 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @NonNull private static final String MICRODROID_DEBUG_FULL = "full";
     @NonNull private static final String MICRODROID_CONFIG_PATH = "assets/vm_config_apex.json";
     @NonNull private static final String MICRODROID_LOG_PATH = TEST_ROOT + "log.txt";
-    @NonNull private static final String MICRODROID_CONSOLE_PATH = TEST_ROOT + "console.txt";
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 30000; // 30 seconds
     private static final int CONSOLE_OUTPUT_WAIT_MS = 5000; // 5 seconds
 
