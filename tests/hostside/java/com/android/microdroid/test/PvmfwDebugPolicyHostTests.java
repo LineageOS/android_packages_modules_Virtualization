@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assume.assumeTrue;
+import static org.junit.Assume.assumeFalse;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -91,6 +92,7 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         assumeTrue(
                 "Skip if protected VMs are not supported",
                 mAndroidDevice.supportsMicrodroid(/* protectedVm= */ true));
+        assumeFalse("Test requires setprop for using custom pvmfw and adb root", isUserBuild());
 
         mAndroidDevice.enableAdbRoot();
 
