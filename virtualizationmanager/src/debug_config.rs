@@ -15,7 +15,7 @@
 //! Functions for AVF debug policy and debug level
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    VirtualMachineAppConfig::DebugLevel::DebugLevel
+    VirtualMachineAppConfig::DebugLevel::DebugLevel, VirtualMachineConfig::VirtualMachineConfig,
 };
 use std::fs::File;
 use std::io::Read;
@@ -34,4 +34,25 @@ fn get_debug_policy_bool(path: &'static str) -> Option<bool> {
 pub fn should_prepare_console_output(debug_level: DebugLevel) -> bool {
     debug_level != DebugLevel::NONE
         || get_debug_policy_bool("/proc/device-tree/avf/guest/common/log").unwrap_or_default()
+}
+
+/// Decision to support ramdump
+pub fn is_ramdump_needed(config: &VirtualMachineConfig) -> bool {
+    let enabled_in_dp =
+        get_debug_policy_bool("/proc/device-tree/avf/guest/common/ramdump").unwrap_or_default();
+    let (protected, debuggable) = match config {
+        VirtualMachineConfig::RawConfig(config) => {
+            // custom VMs are considered debuggable for flexibility
+            (config.protectedVm, true)
+        }
+        VirtualMachineConfig::AppConfig(config) => {
+            (config.protectedVm, config.debugLevel == DebugLevel::FULL)
+        }
+    };
+
+    if protected {
+        enabled_in_dp
+    } else {
+        enabled_in_dp || debuggable
+    }
 }
