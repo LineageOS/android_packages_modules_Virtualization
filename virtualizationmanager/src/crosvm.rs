@@ -667,16 +667,6 @@ fn exit_signal(result: &Result<ExitStatus, io::Error>) -> Option<i32> {
     }
 }
 
-fn ramdump_enabled() -> bool {
-    if let Ok(mut file) = File::open("/proc/device-tree/avf/guest/common/ramdump") {
-        let mut ramdump: [u8; 4] = Default::default();
-        file.read_exact(&mut ramdump).map_err(|_| false).unwrap();
-        // DT spec uses big endian although Android is always little endian.
-        return u32::from_be_bytes(ramdump) == 1;
-    }
-    false
-}
-
 /// Starts an instance of `crosvm` to manage a new VM.
 fn run_vm(
     config: CrosvmConfig,
@@ -723,12 +713,14 @@ fn run_vm(
         // Context in b/238324526.
         command.arg("--unmap-guest-memory-on-fork");
 
-        // Protected VM needs to reserve memory for ramdump here. pvmfw will drop This
-        // if ramdump should be disabled (via debug policy). Note that we reserve more
-        // memory for the restricted dma pool.
-        let ramdump_reserve = RAMDUMP_RESERVED_MIB + swiotlb_size_mib;
-        command.arg("--params").arg(format!("crashkernel={ramdump_reserve}M"));
-    } else if ramdump_enabled() {
+        if config.ramdump.is_some() {
+            // Protected VM needs to reserve memory for ramdump here. pvmfw will drop This
+            // if ramdump should be disabled (via debug policy). Note that we reserve more
+            // memory for the restricted dma pool.
+            let ramdump_reserve = RAMDUMP_RESERVED_MIB + swiotlb_size_mib;
+            command.arg("--params").arg(format!("crashkernel={ramdump_reserve}M"));
+        }
+    } else if config.ramdump.is_some() {
         command.arg("--params").arg(format!("crashkernel={RAMDUMP_RESERVED_MIB}M"));
     }
 
