@@ -827,6 +827,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assumeTrue(
                 "Protected VMs are not supported",
                 getAndroidDevice().supportsMicrodroid(/*protectedVm=*/ true));
+        assumeTrue("Test requires adb unroot", getDevice().disableAdbRoot());
         CommandRunner android = new CommandRunner(getDevice());
 
         // Pull etc/microdroid.json
