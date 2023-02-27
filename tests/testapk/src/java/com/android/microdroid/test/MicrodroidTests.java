@@ -28,6 +28,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assert.assertThrows;
 
 import com.google.common.base.Strings;
@@ -51,6 +52,7 @@ import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineDescriptor;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
+import android.util.Log;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
@@ -1517,6 +1519,22 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         }
     }
 
+    private boolean isConsoleOutputEnabledByDebugPolicy() {
+        if (isUserBuild()) {
+            Log.i(
+                    TAG,
+                    "Debug policy is inaccessible in userd build. Assumes that console output is"
+                            + " disabled");
+            return false;
+        }
+        try {
+            return getDebugPolicyBoolean("/avf/guest/common/log");
+        } catch (IOException e) {
+            Log.i(TAG, "Fail to read debug policy. Assumes false", e);
+            return false;
+        }
+    }
+
     private boolean checkVmOutputIsRedirectedToLogcat(boolean debuggable) throws Exception {
         String time =
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"));
@@ -1550,6 +1568,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void outputIsRedirectedToLogcatIfNotCaptured() throws Exception {
         assumeSupportedKernel();
+        assumeFalse(
+                "Debug policy would turn on console output. Perhapse userdebug build?",
+                isConsoleOutputEnabledByDebugPolicy());
 
         assertThat(checkVmOutputIsRedirectedToLogcat(true)).isTrue();
     }
@@ -1557,6 +1578,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void outputIsNotRedirectedToLogcatIfNotDebuggable() throws Exception {
         assumeSupportedKernel();
+        assumeFalse(
+                "Debug policy would turn on console output. Perhapse userdebug build?",
+                isConsoleOutputEnabledByDebugPolicy());
 
         assertThat(checkVmOutputIsRedirectedToLogcat(false)).isFalse();
     }

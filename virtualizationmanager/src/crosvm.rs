@@ -16,6 +16,7 @@
 
 use crate::aidl::{remove_temporary_files, Cid, VirtualMachineCallbacks};
 use crate::atom::{get_num_cpus, write_vm_exited_stats};
+use crate::debug_config::should_prepare_console_output;
 use anyhow::{anyhow, bail, Context, Error, Result};
 use command_fds::CommandFdExt;
 use lazy_static::lazy_static;
@@ -41,7 +42,10 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
 use std::thread::{self, JoinHandle};
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::DeathReason::DeathReason;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::MemoryTrimLevel::MemoryTrimLevel;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    MemoryTrimLevel::MemoryTrimLevel,
+    VirtualMachineAppConfig::DebugLevel::DebugLevel
+};
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IGlobalVmContext::IGlobalVmContext;
 use binder::Strong;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
@@ -97,6 +101,7 @@ pub struct CrosvmConfig {
     pub disks: Vec<DiskFile>,
     pub params: Option<String>,
     pub protected: bool,
+    pub debug_level: DebugLevel,
     pub memory_mib: Option<NonZeroU32>,
     pub cpus: Option<NonZeroU32>,
     pub host_cpu_topology: bool,
@@ -720,8 +725,18 @@ fn run_vm(
             let ramdump_reserve = RAMDUMP_RESERVED_MIB + swiotlb_size_mib;
             command.arg("--params").arg(format!("crashkernel={ramdump_reserve}M"));
         }
-    } else if config.ramdump.is_some() {
-        command.arg("--params").arg(format!("crashkernel={RAMDUMP_RESERVED_MIB}M"));
+    } else {
+        if config.ramdump.is_some() {
+            command.arg("--params").arg(format!("crashkernel={RAMDUMP_RESERVED_MIB}M"));
+        }
+        if config.debug_level == DebugLevel::NONE
+            && should_prepare_console_output(config.debug_level)
+        {
+            // bootconfig.normal will be used, but we need log.
+            // pvmfw will add following commands by itself, but non-protected VM should do so here.
+            command.arg("--params").arg("printk.devkmsg=on");
+            command.arg("--params").arg("console=hvc0");
+        }
     }
 
     if let Some(memory_mib) = config.memory_mib {
