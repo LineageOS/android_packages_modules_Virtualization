@@ -421,6 +421,9 @@ public final class VirtualMachineConfig {
      */
     @SystemApi
     public boolean isCompatibleWith(@NonNull VirtualMachineConfig other) {
+        if (this == other) {
+            return true;
+        }
         return this.mDebugLevel == other.mDebugLevel
                 && this.mProtectedVm == other.mProtectedVm
                 && this.mEncryptedStorageBytes == other.mEncryptedStorageBytes

@@ -1033,11 +1033,13 @@ public class VirtualMachine implements AutoCloseable {
             }
             checkStopped();
 
-            // Delete any existing file before recreating; that ensures any VirtualMachineDescriptor
-            // that refers to the old file does not see the new config.
-            mConfigFilePath.delete();
-            newConfig.serialize(mConfigFilePath);
-            mConfig = newConfig;
+            if (oldConfig != newConfig) {
+                // Delete any existing file before recreating; that ensures any
+                // VirtualMachineDescriptor that refers to the old file does not see the new config.
+                mConfigFilePath.delete();
+                newConfig.serialize(mConfigFilePath);
+                mConfig = newConfig;
+            }
             return oldConfig;
         }
     }
