@@ -36,3 +36,19 @@ cc_binary {
         "libbase",
     ],
 }
+
+// Package measure_io binary into a jar, to bundle with the MicrodroidTestApp.
+// When MicrodroidTestApp is mounted inside the Microdroid, the zipfuse will
+// add the +x permission on it.
+java_genrule {
+    name: "measure_io_as_jar",
+    out: ["measure_io.jar"],
+    srcs: [
+        ":measure_io",
+    ],
+    cmd: "out_dir=$$(dirname $(out))" +
+        "&& bin_dir=\"bin\" " +
+        "&& mkdir -p $$out_dir/$$bin_dir" +
+        "&& cp $(in) $$out_dir/$$bin_dir" +
+        "&& jar cf $(out) -C $$out_dir $$bin_dir",
+}
