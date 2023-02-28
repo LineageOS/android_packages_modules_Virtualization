@@ -18,7 +18,6 @@ package com.android.virt.fs.benchmarks;
 
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestMetrics;
 
-import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -45,7 +44,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -57,11 +55,8 @@ import java.util.Map;
 public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     private static final int TRIAL_COUNT = 5;
 
-    /** Name of the measure_io binary on host. */
-    private static final String MEASURE_IO_BIN_NAME = "measure_io";
-
     /** Path to measure_io on Microdroid. */
-    private static final String MEASURE_IO_BIN_PATH = "/data/local/tmp/measure_io";
+    private static final String MEASURE_IO_BIN_PATH = "/mnt/apk/bin/measure_io";
 
     /** fs-verity digest (sha256) of testdata/input.4m */
     private static final String DIGEST_4M =
@@ -123,7 +118,6 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     }
 
     private void readRemoteFile(String mode) throws DeviceNotAvailableException {
-        pushMeasureIoBinToMicrodroid();
         // Cache the file in memory for the host.
         mAuthFsTestRule
                 .getAndroid()
@@ -146,7 +140,6 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
     }
 
     private void writeRemoteFile(String mode) throws DeviceNotAvailableException {
-        pushMeasureIoBinToMicrodroid();
         String filePath = mAuthFsTestRule.MOUNT_DIR + "/5";
         int fileSizeMb = 8;
         String cmd = MEASURE_IO_BIN_PATH + " " + filePath + " " + fileSizeMb + " " + mode + " w";
@@ -163,14 +156,6 @@ public class AuthFsBenchmarks extends BaseHostJUnit4Test {
                     .runForResult("rm", "-rf", AuthFsTestRule.TEST_OUTPUT_DIR + "/out.file");
         }
         reportMetrics(rates, mode + "_write", "mb_per_sec");
-    }
-
-    private void pushMeasureIoBinToMicrodroid() throws DeviceNotAvailableException {
-        File measureReadBin = mAuthFsTestRule.findTestFile(getBuild(), MEASURE_IO_BIN_NAME);
-        assertThat(measureReadBin.exists()).isTrue();
-        mAuthFsTestRule.getMicrodroidDevice().pushFile(measureReadBin, MEASURE_IO_BIN_PATH);
-        assertThat(mAuthFsTestRule.getMicrodroid().run("ls " + MEASURE_IO_BIN_PATH))
-                .isEqualTo(MEASURE_IO_BIN_PATH);
     }
 
     private void reportMetrics(List<Double> metrics, String name, String unit) {
