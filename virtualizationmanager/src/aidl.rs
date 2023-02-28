@@ -325,6 +325,11 @@ impl VirtualizationService {
             None
         };
 
+        let debug_level = match config {
+            VirtualMachineConfig::AppConfig(app_config) => app_config.debugLevel,
+            _ => DebugLevel::NONE,
+        };
+
         let state = &mut *self.state.lock().unwrap();
         let console_fd =
             clone_or_prepare_logger_fd(config, console_fd, format!("Console({})", cid))?;
@@ -425,6 +430,7 @@ impl VirtualizationService {
             disks,
             params: config.params.to_owned(),
             protected: *is_protected,
+            debug_level,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
             cpus,
             host_cpu_topology,
