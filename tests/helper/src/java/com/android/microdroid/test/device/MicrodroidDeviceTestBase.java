@@ -443,6 +443,7 @@ public abstract class MicrodroidDeviceTestBase {
         public String mFileContent;
         public byte[] mBcc;
         public long[] mTimings;
+        public int mFileMode;
 
         public void assertNoException() {
             if (mException != null) {
