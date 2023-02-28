@@ -251,6 +251,18 @@ Result<void> start_test_service() {
             return ScopedAStatus::ok();
         }
 
+        ScopedAStatus getFilePermissions(const std::string& path, int32_t* out) override {
+            struct stat sb;
+            if (stat(path.c_str(), &sb) != -1) {
+                *out = sb.st_mode;
+            } else {
+                std::string msg = "stat " + path + " failed :  " + std::strerror(errno);
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   msg.c_str());
+            }
+            return ScopedAStatus::ok();
+        }
+
         ScopedAStatus quit() override { exit(0); }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();

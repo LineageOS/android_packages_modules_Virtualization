@@ -56,6 +56,9 @@ interface ITestService {
     /* get the content of the specified file. */
     String readFromFile(String path);
 
+    /* get file permissions of the give file by stat'ing it */
+    int getFilePermissions(String path);
+
     /**
      * Request the service to exit, triggering the termination of the VM. This may cause any
      * requests in flight to fail.
