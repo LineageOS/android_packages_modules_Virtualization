@@ -1816,6 +1816,34 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .isEqualTo(OsConstants.S_IRUSR | OsConstants.S_IXUSR);
     }
 
+    // Taken from bionic/libs/kernel/uapi/linux/mounth.h.
+    private static final int MS_NOEXEC = 8;
+
+    @Test
+    public void dataIsMountedWithNoExec() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig vmConfig =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_data_mount", vmConfig);
+
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            tr.mMountFlags = ts.getMountFlags("/data");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        assertWithMessage("/data should be mounted with MS_NOEXEC")
+                .that(testResults.mMountFlags & MS_NOEXEC)
+                .isEqualTo(MS_NOEXEC);
+    }
+
     private static class VmShareServiceConnection implements ServiceConnection {
 
         private final CountDownLatch mLatch = new CountDownLatch(1);
