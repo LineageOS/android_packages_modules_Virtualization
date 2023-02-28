@@ -235,6 +235,11 @@ public class VmShareServiceImpl extends Service {
         }
 
         @Override
+        public int getMountFlags(String path) throws RemoteException {
+            throw new UnsupportedOperationException("Not supported");
+        }
+
+        @Override
         public void quit() throws RemoteException {
             throw new UnsupportedOperationException("Not supported");
         }
