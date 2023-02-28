@@ -532,6 +532,9 @@ impl VmInstance {
     /// Checks if ramdump has been created. If so, send it to tombstoned.
     fn handle_ramdump(&self) -> Result<(), Error> {
         let ramdump_path = self.temporary_directory.join("ramdump");
+        if !ramdump_path.as_path().try_exists()? {
+            return Ok(());
+        }
         if std::fs::metadata(&ramdump_path)?.len() > 0 {
             Self::send_ramdump_to_tombstoned(&ramdump_path)?;
         }
