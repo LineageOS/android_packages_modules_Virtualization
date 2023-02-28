@@ -15,6 +15,8 @@
  */
 
 #include <aidl/com/android/microdroid/testservice/BnTestService.h>
+#include <aidl/com/android/microdroid/testservice/BnVmCallback.h>
+#include <aidl/com/android/microdroid/testservice/IAppCallback.h>
 #include <android-base/file.h>
 #include <android-base/properties.h>
 #include <android-base/result.h>
@@ -47,6 +49,8 @@ using android::fs_mgr::GetEntryForMountPoint;
 using android::fs_mgr::ReadFstabFromFile;
 
 using aidl::com::android::microdroid::testservice::BnTestService;
+using aidl::com::android::microdroid::testservice::BnVmCallback;
+using aidl::com::android::microdroid::testservice::IAppCallback;
 using ndk::ScopedAStatus;
 
 extern void testlib_sub();
@@ -144,7 +148,25 @@ Result<void> start_echo_reverse_server() {
 }
 
 Result<void> start_test_service() {
+    class VmCallbackImpl : public BnVmCallback {
+    private:
+        std::shared_ptr<IAppCallback> mAppCallback;
+
+    public:
+        explicit VmCallbackImpl(const std::shared_ptr<IAppCallback>& appCallback)
+              : mAppCallback(appCallback) {}
+
+        ScopedAStatus echoMessage(const std::string& message) override {
+            std::thread callback_thread{[=, appCallback = mAppCallback] {
+                appCallback->onEchoRequestReceived("Received: " + message);
+            }};
+            callback_thread.detach();
+            return ScopedAStatus::ok();
+        }
+    };
+
     class TestService : public BnTestService {
+    public:
         ScopedAStatus addInteger(int32_t a, int32_t b, int32_t* out) override {
             *out = a + b;
             return ScopedAStatus::ok();
@@ -226,7 +248,7 @@ Result<void> start_test_service() {
             return ScopedAStatus::ok();
         }
 
-        virtual ::ScopedAStatus runEchoReverseServer() override {
+        ScopedAStatus runEchoReverseServer() override {
             auto result = start_echo_reverse_server();
             if (result.ok()) {
                 return ScopedAStatus::ok();
@@ -281,6 +303,13 @@ Result<void> start_test_service() {
                                                                    msg.c_str());
             }
             *out = entry->flags;
+            return ScopedAStatus::ok();
+        }
+
+        ScopedAStatus requestCallback(const std::shared_ptr<IAppCallback>& appCallback) {
+            auto vmCallback = ndk::SharedRefBase::make<VmCallbackImpl>(appCallback);
+            std::thread callback_thread{[=] { appCallback->setVmCallback(vmCallback); }};
+            callback_thread.detach();
             return ScopedAStatus::ok();
         }
 
