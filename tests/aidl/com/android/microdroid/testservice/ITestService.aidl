@@ -59,6 +59,9 @@ interface ITestService {
     /* get file permissions of the give file by stat'ing it */
     int getFilePermissions(String path);
 
+    /** Returns flags for the given mountPoint. */
+    int getMountFlags(String mountPoint);
+
     /**
      * Request the service to exit, triggering the termination of the VM. This may cause any
      * requests in flight to fail.

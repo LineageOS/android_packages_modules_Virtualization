@@ -444,6 +444,7 @@ public abstract class MicrodroidDeviceTestBase {
         public byte[] mBcc;
         public long[] mTimings;
         public int mFileMode;
+        public int mMountFlags;
 
         public void assertNoException() {
             if (mException != null) {
