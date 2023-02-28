@@ -58,7 +58,9 @@ import android.util.Log;
 import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.test.vmshare.IVmShareTestService;
+import com.android.microdroid.testservice.IAppCallback;
 import com.android.microdroid.testservice.ITestService;
+import com.android.microdroid.testservice.IVmCallback;
 
 import org.junit.After;
 import org.junit.Before;
@@ -397,6 +399,59 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         });
         testResults.assertNoException();
         assertThat(response.get()).isEqualTo(new StringBuilder(request).reverse().toString());
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1"})
+    public void binderCallbacksWork() throws Exception {
+        assumeSupportedKernel();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setMemoryBytes(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
+
+        String request = "Hello";
+        CompletableFuture<String> response = new CompletableFuture<>();
+
+        IAppCallback appCallback =
+                new IAppCallback.Stub() {
+                    @Override
+                    public void setVmCallback(IVmCallback vmCallback) {
+                        // Do this on a separate thread to simulate an asynchronous trigger,
+                        // and to make sure it doesn't happen in the context of an inbound binder
+                        // call.
+                        new Thread() {
+                            @Override
+                            public void run() {
+                                try {
+                                    vmCallback.echoMessage(request);
+                                } catch (Exception e) {
+                                    response.completeExceptionally(e);
+                                }
+                            }
+                        }.start();
+                    }
+
+                    @Override
+                    public void onEchoRequestReceived(String message) {
+                        response.complete(message);
+                    }
+                };
+
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (service, results) -> {
+                            service.requestCallback(appCallback);
+                            response.get(10, TimeUnit.SECONDS);
+                        });
+        testResults.assertNoException();
+        assertThat(response.getNow("no response")).isEqualTo("Received: " + request);
     }
 
     @Test
