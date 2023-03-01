@@ -21,7 +21,7 @@ mod payload;
 mod swap;
 mod vm_payload_service;
 
-use crate::dice::{DiceDriver, derive_sealing_key};
+use crate::dice::{DiceDriver, derive_sealing_key, format_payload_config_descriptor};
 use crate::instance::{ApexData, ApkData, InstanceDisk, MicrodroidData, RootHash};
 use crate::vm_payload_service::register_vm_payload_service;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::ErrorCode::ErrorCode;
@@ -35,7 +35,6 @@ use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify, V4Signature};
 use binder::Strong;
 use diced_open_dice::OwnedDiceArtifacts;
-use diced_utils::cbor::{encode_header, encode_number};
 use glob::glob;
 use itertools::sorted;
 use libc::VMADDR_CID_HOST;
@@ -287,54 +286,14 @@ fn dice_derivation(
     let code_hash = code_hash_ctx.finish();
     let authority_hash = authority_hash_ctx.finish();
 
-    // {
-    //   -70002: "Microdroid payload",
-    //   ? -71000: tstr // payload_config_path
-    //   ? -71001: PayloadConfig
-    // }
-    // PayloadConfig = {
-    //   1: tstr // payload_binary_name
-    // }
-
-    let mut config_desc = vec![
-        0xa2, // map(2)
-        0x3a, 0x00, 0x01, 0x11, 0x71, // -70002
-        0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72, 0x6f, 0x69, 0x64, 0x20, 0x70, 0x61, 0x79,
-        0x6c, 0x6f, 0x61, 0x64, // "Microdroid payload"
-    ];
-
-    match payload_metadata {
-        PayloadMetadata::config_path(payload_config_path) => {
-            encode_negative_number(-71000, &mut config_desc)?;
-            encode_tstr(payload_config_path, &mut config_desc)?;
-        }
-        PayloadMetadata::config(payload_config) => {
-            encode_negative_number(-71001, &mut config_desc)?;
-            encode_header(5, 1, &mut config_desc)?; // map(1)
-            encode_number(1, &mut config_desc)?;
-            encode_tstr(&payload_config.payload_binary_name, &mut config_desc)?;
-        }
-    }
+    let config_descriptor = format_payload_config_descriptor(payload_metadata)?;
 
     // Check debuggability, conservatively assuming it is debuggable
     let debuggable = system_properties::read_bool(DEBUGGABLE_PROP, true)?;
 
     // Send the details to diced
     let hidden = verified_data.salt.clone().try_into().unwrap();
-    dice.derive(code_hash, &config_desc, authority_hash, debuggable, hidden)
-}
-
-fn encode_tstr(tstr: &str, buffer: &mut Vec<u8>) -> Result<()> {
-    let bytes = tstr.as_bytes();
-    encode_header(3, bytes.len().try_into().unwrap(), buffer)?;
-    buffer.extend_from_slice(bytes);
-    Ok(())
-}
-
-fn encode_negative_number(n: i64, buffer: &mut dyn Write) -> Result<()> {
-    ensure!(n < 0);
-    let n = -1 - n;
-    encode_header(1, n.try_into().unwrap(), buffer)
+    dice.derive(code_hash, &config_descriptor, authority_hash, debuggable, hidden)
 }
 
 fn is_strict_boot() -> bool {
