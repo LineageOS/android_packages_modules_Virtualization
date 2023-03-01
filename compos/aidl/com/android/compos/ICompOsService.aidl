@@ -87,7 +87,7 @@ interface ICompOsService {
     /**
      * Returns the attestation certificate chain of the current VM. The result is in the form of a
      * CBOR encoded Boot Certificate Chain (BCC) as defined in
-     * hardware/interfaces/security/dice/aidl/android/hardware/security/dice/Bcc.aidl.
+     * hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/ProtectedData.aidl
      */
     byte[] getAttestationChain();
 
