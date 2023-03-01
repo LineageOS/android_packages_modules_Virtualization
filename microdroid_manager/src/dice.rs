@@ -16,12 +16,14 @@
 
 use anyhow::{anyhow, bail, Context, Error, Result};
 use byteorder::{NativeEndian, ReadBytesExt};
+use ciborium::{cbor, ser};
 use diced_open_dice::{
     bcc_handover_parse, retry_bcc_main_flow, BccHandover, Config, DiceArtifacts, DiceMode, Hash,
     Hidden, InputValues, OwnedDiceArtifacts,
 };
 use keystore2_crypto::ZVec;
 use libc::{c_void, mmap, munmap, MAP_FAILED, MAP_PRIVATE, PROT_READ};
+use microdroid_metadata::PayloadMetadata;
 use openssl::hkdf::hkdf;
 use openssl::md::Md;
 use std::fs;
@@ -155,5 +157,72 @@ impl Drop for DiceDriver<'_> {
                 log::warn!("Failed to munmap ({})", ret);
             }
         }
+    }
+}
+
+/// Returns a configuration descriptor of the given payload following the BCC's specification:
+/// https://cs.android.com/android/platform/superproject/+/master:hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/ProtectedData.aidl
+/// {
+///   -70002: "Microdroid payload",
+///   ? -71000: tstr // payload_config_path
+///   ? -71001: PayloadConfig
+/// }
+/// PayloadConfig = {
+///   1: tstr // payload_binary_name
+/// }
+pub fn format_payload_config_descriptor(payload_metadata: &PayloadMetadata) -> Result<Vec<u8>> {
+    const MICRODROID_PAYLOAD_COMPONENT_NAME: &str = "Microdroid payload";
+
+    let config_descriptor_cbor_value = match payload_metadata {
+        PayloadMetadata::config_path(payload_config_path) => cbor!({
+            -70002 => MICRODROID_PAYLOAD_COMPONENT_NAME,
+            -71000 => payload_config_path
+        }),
+        PayloadMetadata::config(payload_config) => cbor!({
+            -70002 => MICRODROID_PAYLOAD_COMPONENT_NAME,
+            -71001 => {1 => payload_config.payload_binary_name}
+        }),
+    }
+    .context("Failed to build a CBOR Value from payload metadata")?;
+    let mut config_descriptor = Vec::new();
+    ser::into_writer(&config_descriptor_cbor_value, &mut config_descriptor)?;
+    Ok(config_descriptor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use microdroid_metadata::PayloadConfig;
+
+    #[test]
+    fn payload_metadata_with_path_formats_correctly() -> Result<()> {
+        let payload_metadata = PayloadMetadata::config_path("/config_path".to_string());
+        let config_descriptor = format_payload_config_descriptor(&payload_metadata)?;
+        static EXPECTED_CONFIG_DESCRIPTOR: &[u8] = &[
+            0xa2, 0x3a, 0x00, 0x01, 0x11, 0x71, 0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72,
+            0x6f, 0x69, 0x64, 0x20, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x3a, 0x00, 0x01,
+            0x15, 0x57, 0x6c, 0x2f, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x70, 0x61, 0x74,
+            0x68,
+        ];
+        assert_eq!(EXPECTED_CONFIG_DESCRIPTOR, &config_descriptor);
+        Ok(())
+    }
+
+    #[test]
+    fn payload_metadata_with_config_formats_correctly() -> Result<()> {
+        let payload_config = PayloadConfig {
+            payload_binary_name: "payload_binary".to_string(),
+            ..Default::default()
+        };
+        let payload_metadata = PayloadMetadata::config(payload_config);
+        let config_descriptor = format_payload_config_descriptor(&payload_metadata)?;
+        static EXPECTED_CONFIG_DESCRIPTOR: &[u8] = &[
+            0xa2, 0x3a, 0x00, 0x01, 0x11, 0x71, 0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72,
+            0x6f, 0x69, 0x64, 0x20, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x3a, 0x00, 0x01,
+            0x15, 0x58, 0xa1, 0x01, 0x6e, 0x70, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x62,
+            0x69, 0x6e, 0x61, 0x72, 0x79,
+        ];
+        assert_eq!(EXPECTED_CONFIG_DESCRIPTOR, &config_descriptor);
+        Ok(())
     }
 }
