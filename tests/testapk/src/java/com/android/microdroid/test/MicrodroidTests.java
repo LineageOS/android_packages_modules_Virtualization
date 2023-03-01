@@ -138,7 +138,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     private static final String VM_SHARE_APP_PACKAGE_NAME = "com.android.microdroid.vmshare_app";
 
     private void createAndConnectToVmHelper(int cpuTopology) throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -183,7 +183,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
     public void createAndRunNoDebugVm() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         // For most of our tests we use a debug VM so failures can be diagnosed.
         // But we do need non-debug VMs to work, so run one.
@@ -210,7 +210,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 "9.17/C-1-4",
             })
     public void createVmRequiresPermission() {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
 
@@ -231,7 +231,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void autoCloseVm() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -316,7 +316,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void vmLifecycleChecks() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -365,7 +365,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void connectVsock() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -404,7 +404,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void binderCallbacksWork() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -636,7 +636,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void vmmGetAndCreate() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -734,7 +734,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-4",
     })
     public void createVmWithConfigRequiresPermission() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -757,7 +757,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
     })
     public void deleteVm() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -785,7 +785,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 "9.17/C-1-1",
             })
     public void deleteVmFiles() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -818,7 +818,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-1",
     })
     public void validApkPathIsAccepted() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -855,7 +855,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-1"
     })
     public void extraApk() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig config =
@@ -923,7 +923,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     private void changeDebugLevel(int fromLevel, int toLevel) throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig.Builder builder =
                 newVmConfigBuilder()
@@ -994,7 +994,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void instancesOfSameVmHaveDifferentCdis() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig normalConfig =
@@ -1020,7 +1020,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void sameInstanceKeepsSameCdis() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
         assume().withMessage("Skip on CF. Too Slow. b/257270529").that(isCuttlefish()).isFalse();
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
@@ -1045,7 +1045,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void bccIsSuperficiallyWellFormed() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig normalConfig =
@@ -1084,7 +1084,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-1-2"
     })
     public void accessToCdisIsRestricted() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1284,7 +1284,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void importedVmAndOriginalVmHaveTheSameCdi() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
         // Arrange
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
         VirtualMachineConfig config =
@@ -1383,7 +1383,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void encryptedStorageAvailable() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1407,7 +1407,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void encryptedStorageIsInaccessibleToDifferentVm() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1468,7 +1468,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
     public void microdroidLauncherHasEmptyCapabilities() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         final VirtualMachineConfig vmConfig =
                 newVmConfigBuilder()
@@ -1493,7 +1493,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void encryptedStorageIsPersistent() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1530,7 +1530,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
     public void canReadFileFromAssets_debugFull() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1554,7 +1554,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void outputShouldBeExplicitlyCaptured() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         final VirtualMachineConfig vmConfig =
                 new VirtualMachineConfig.Builder(getContext())
@@ -1579,14 +1579,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         if (isUserBuild()) {
             Log.i(
                     TAG,
-                    "Debug policy is inaccessible in userd build. Assumes that console output is"
+                    "Debug policy is inaccessible in user build. Assumes that console output is"
                             + " disabled");
             return false;
         }
         try {
             return getDebugPolicyBoolean("/avf/guest/common/log");
         } catch (IOException e) {
-            Log.i(TAG, "Fail to read debug policy. Assumes false", e);
+            Log.w(TAG, "Fail to read debug policy. Assumes false", e);
             return false;
         }
     }
@@ -1623,9 +1623,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void outputIsRedirectedToLogcatIfNotCaptured() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
         assumeFalse(
-                "Debug policy would turn on console output. Perhapse userdebug build?",
+                "Debug policy would turn on console output. Perhaps userdebug build?",
                 isConsoleOutputEnabledByDebugPolicy());
 
         assertThat(checkVmOutputIsRedirectedToLogcat(true)).isTrue();
@@ -1633,9 +1633,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void outputIsNotRedirectedToLogcatIfNotDebuggable() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
         assumeFalse(
-                "Debug policy would turn on console output. Perhapse userdebug build?",
+                "Debug policy would turn on console output. Perhaps userdebug build?",
                 isConsoleOutputEnabledByDebugPolicy());
 
         assertThat(checkVmOutputIsRedirectedToLogcat(false)).isFalse();
@@ -1643,7 +1643,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void testStartVmWithPayloadOfAnotherApp() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         Context ctx = getContext();
         Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
@@ -1671,7 +1671,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void testVmDescriptorParcelUnparcel_noTrustedStorage() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1705,7 +1705,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void testVmDescriptorParcelUnparcel_withTrustedStorage() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -1759,7 +1759,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void testShareVmWithAnotherApp() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         Context ctx = getContext();
         Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
@@ -1807,7 +1807,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void testShareVmWithAnotherApp_encryptedStorage() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         Context ctx = getContext();
         Context otherAppCtx = ctx.createPackageContext(VM_SHARE_APP_PACKAGE_NAME, 0);
@@ -1862,7 +1862,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-5"})
     public void testFileUnderBinHasExecutePermission() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig vmConfig =
                 newVmConfigBuilder()
@@ -1900,7 +1900,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void dataIsMountedWithNoExec() throws Exception {
-        assumeSupportedKernel();
+        assumeSupportedDevice();
 
         VirtualMachineConfig vmConfig =
                 newVmConfigBuilder()
@@ -1992,10 +1992,16 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         return 0;
     }
 
-    private void assumeSupportedKernel() {
+    private void assumeSupportedDevice() {
         assume()
                 .withMessage("Skip on 5.4 kernel. b/218303240")
                 .that(KERNEL_VERSION)
                 .isNotEqualTo("5.4");
+
+        if (isProtectedVm()) {
+            assume().withMessage("Protected VMs not supported on gs101 devices. b/270841564")
+                    .that(isGs101())
+                    .isFalse();
+        }
     }
 }
