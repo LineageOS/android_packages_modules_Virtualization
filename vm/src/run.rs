@@ -152,7 +152,7 @@ pub fn command_run_app(
 }
 
 fn find_empty_payload_apk_path() -> Result<PathBuf, Error> {
-    const GLOB_PATTERN: &str = "/apex/com.android.virt/app/**/EmptyPayloadApp.apk";
+    const GLOB_PATTERN: &str = "/apex/com.android.virt/app/**/EmptyPayloadApp*.apk";
     let mut entries: Vec<PathBuf> =
         glob(GLOB_PATTERN).context("failed to glob")?.filter_map(|e| e.ok()).collect();
     if entries.len() > 1 {
