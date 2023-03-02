@@ -27,12 +27,13 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     VirtualMachineAppConfig::{DebugLevel::DebugLevel, Payload::Payload, VirtualMachineAppConfig},
     VirtualMachineConfig::VirtualMachineConfig,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use binder::{ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
+use glob::glob;
 use log::{info, warn};
 use rustutils::system_properties;
-use std::fs::{self, File};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use vmclient::{DeathReason, ErrorCode, VmInstance, VmWaitError};
 
@@ -194,15 +195,19 @@ fn locate_config_apk(apex_dir: &Path) -> Result<PathBuf> {
     // Our config APK will be in a directory under app, but the name of the directory is at the
     // discretion of the build system. So just look in each sub-directory until we find it.
     // (In practice there will be exactly one directory, so this shouldn't take long.)
-    let app_dir = apex_dir.join("app");
-    for dir in fs::read_dir(app_dir).context("Reading app dir")? {
-        let apk_file = dir?.path().join("CompOSPayloadApp.apk");
-        if apk_file.is_file() {
-            return Ok(apk_file);
-        }
+    let app_glob = apex_dir.join("app").join("**").join("CompOSPayloadApp*.apk");
+    let mut entries: Vec<PathBuf> =
+        glob(app_glob.to_str().ok_or_else(|| anyhow!("Invalid path: {}", app_glob.display()))?)
+            .context("failed to glob")?
+            .filter_map(|e| e.ok())
+            .collect();
+    if entries.len() > 1 {
+        bail!("Found more than one apk matching {}", app_glob.display());
     }
-
-    bail!("Failed to locate CompOSPayloadApp.apk")
+    match entries.pop() {
+        Some(path) => Ok(path),
+        None => Err(anyhow!("No apks match {}", app_glob.display())),
+    }
 }
 
 fn prepare_idsig(
