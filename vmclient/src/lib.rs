@@ -122,7 +122,7 @@ impl VirtualizationService {
         let session = RpcSession::new();
         session.set_file_descriptor_transport_mode(FileDescriptorTransportMode::Unix);
         session.set_max_incoming_threads(VIRTMGR_THREADS);
-        session.set_max_outgoing_threads(VIRTMGR_THREADS);
+        session.set_max_outgoing_connections(VIRTMGR_THREADS);
         session
             .setup_unix_domain_bootstrap_client(self.client_fd.as_fd())
             .map_err(|_| io::Error::from(io::ErrorKind::ConnectionRefused))

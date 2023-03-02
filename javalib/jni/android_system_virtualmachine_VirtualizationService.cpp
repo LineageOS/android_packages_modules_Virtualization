@@ -83,7 +83,7 @@ Java_android_system_virtualmachine_VirtualizationService_nativeConnect(JNIEnv* e
     ARpcSession_setFileDescriptorTransportMode(session.get(),
                                                ARpcSession_FileDescriptorTransportMode::Unix);
     ARpcSession_setMaxIncomingThreads(session.get(), VIRTMGR_THREADS);
-    ARpcSession_setMaxOutgoingThreads(session.get(), VIRTMGR_THREADS);
+    ARpcSession_setMaxOutgoingConnections(session.get(), VIRTMGR_THREADS);
     // SAFETY - ARpcSession_setupUnixDomainBootstrapClient does not take ownership of clientFd.
     auto client = ARpcSession_setupUnixDomainBootstrapClient(session.get(), clientFd);
     return AIBinder_toJavaBinder(env, client);
