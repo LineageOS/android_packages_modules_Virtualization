@@ -31,11 +31,13 @@ import android.annotation.TestApi;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.os.PersistableBundle;
 import android.sysprop.HypervisorProperties;
 import android.system.virtualizationservice.VirtualMachineAppConfig;
 import android.system.virtualizationservice.VirtualMachinePayloadConfig;
+import android.util.Log;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,6 +49,7 @@ import java.io.OutputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.Objects;
+import java.util.zip.ZipFile;
 
 /**
  * Represents a configuration of a virtual machine. A configuration consists of hardware
@@ -57,6 +60,7 @@ import java.util.Objects;
  */
 @SystemApi
 public final class VirtualMachineConfig {
+    private static final String TAG = "VirtualMachineConfig";
     private static final String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
@@ -296,8 +300,7 @@ public final class VirtualMachineConfig {
 
     /**
      * Returns the absolute path of the APK which should contain the binary payload that will
-     * execute within the VM. Returns null if no specific path has been set, so the primary APK will
-     * be used.
+     * execute within the VM. Returns null if no specific path has been set.
      *
      * @hide
      */
@@ -445,18 +448,7 @@ public final class VirtualMachineConfig {
             throws VirtualMachineException {
         VirtualMachineAppConfig vsConfig = new VirtualMachineAppConfig();
 
-        String apkPath = mApkPath;
-        if (apkPath == null) {
-            try {
-                ApplicationInfo appInfo =
-                        packageManager.getApplicationInfo(
-                                mPackageName, PackageManager.ApplicationInfoFlags.of(0));
-                // This really is the path to the APK, not a directory.
-                apkPath = appInfo.sourceDir;
-            } catch (PackageManager.NameNotFoundException e) {
-                throw new VirtualMachineException("Package not found", e);
-            }
-        }
+        String apkPath = (mApkPath != null) ? mApkPath : findPayloadApk(packageManager);
 
         try {
             vsConfig.apk = ParcelFileDescriptor.open(new File(apkPath), MODE_READ_ONLY);
@@ -493,6 +485,45 @@ public final class VirtualMachineConfig {
         // Don't allow apps to set task profiles ... at least for now.
         vsConfig.taskProfiles = EMPTY_STRING_ARRAY;
         return vsConfig;
+    }
+
+    private String findPayloadApk(PackageManager packageManager) throws VirtualMachineException {
+        ApplicationInfo appInfo;
+        try {
+            appInfo =
+                    packageManager.getApplicationInfo(
+                            mPackageName, PackageManager.ApplicationInfoFlags.of(0));
+        } catch (PackageManager.NameNotFoundException e) {
+            throw new VirtualMachineException("Package not found", e);
+        }
+
+        String[] splitApkPaths = appInfo.splitSourceDirs;
+        String[] abis = Build.SUPPORTED_64_BIT_ABIS;
+
+        // If there are split APKs, and we know the payload binary name, see if we can find a
+        // split APK containing the binary.
+        if (mPayloadBinaryName != null && splitApkPaths != null && abis.length != 0) {
+            String[] libraryNames = new String[abis.length];
+            for (int i = 0; i < abis.length; i++) {
+                libraryNames[i] = "lib/" + abis[i] + "/" + mPayloadBinaryName;
+            }
+
+            for (String path : splitApkPaths) {
+                try (ZipFile zip = new ZipFile(path)) {
+                    for (String name : libraryNames) {
+                        if (zip.getEntry(name) != null) {
+                            Log.i(TAG, "Found payload in " + path);
+                            return path;
+                        }
+                    }
+                } catch (IOException e) {
+                    Log.w(TAG, "Failed to scan split APK: " + path, e);
+                }
+            }
+        }
+
+        // This really is the path to the APK, not a directory.
+        return appInfo.sourceDir;
     }
 
     private int bytesToMebiBytes(long mMemoryBytes) {
@@ -596,7 +627,8 @@ public final class VirtualMachineConfig {
 
         /**
          * Sets the absolute path of the APK containing the binary payload that will execute within
-         * the VM. If not set explicitly, defaults to the primary APK of the context.
+         * the VM. If not set explicitly, defaults to the split APK containing the payload, if there
+         * is one, and otherwise the primary APK of the context.
          *
          * @hide
          */
