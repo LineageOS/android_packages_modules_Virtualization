@@ -1899,6 +1899,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     private static final int MS_NOEXEC = 8;
 
     @Test
+    @CddTest(requirements = {"9.17/C-1-5"})
     public void dataIsMountedWithNoExec() throws Exception {
         assumeSupportedDevice();
 
@@ -1919,6 +1920,33 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         assertThat(testResults.mException).isNull();
         assertWithMessage("/data should be mounted with MS_NOEXEC")
+                .that(testResults.mMountFlags & MS_NOEXEC)
+                .isEqualTo(MS_NOEXEC);
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-5"})
+    public void encryptedStoreIsMountedWithNoExec() throws Exception {
+        assumeSupportedDevice();
+
+        VirtualMachineConfig vmConfig =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setEncryptedStorageBytes(4_000_000)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_encstore_no_exec", vmConfig);
+
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            tr.mMountFlags = ts.getMountFlags("/mnt/encryptedstore");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        assertWithMessage("/mnt/encryptedstore should be mounted with MS_NOEXEC")
                 .that(testResults.mMountFlags & MS_NOEXEC)
                 .isEqualTo(MS_NOEXEC);
     }
