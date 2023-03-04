@@ -104,9 +104,10 @@ pub struct SigningInfo {
 }
 
 /// Version of the idsig file format
-#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, PartialEq, Eq, FromPrimitive, ToPrimitive, Default)]
 #[repr(u32)]
 pub enum Version {
+    #[default]
     /// Version 2, the only supported version.
     V2 = 2,
 }
@@ -114,12 +115,6 @@ pub enum Version {
 impl Version {
     fn from(val: u32) -> Result<Version> {
         Self::from_u32(val).ok_or_else(|| anyhow!("{} is an unsupported version", val))
-    }
-}
-
-impl Default for Version {
-    fn default() -> Self {
-        Version::V2
     }
 }
 
