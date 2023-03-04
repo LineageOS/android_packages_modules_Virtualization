@@ -204,9 +204,10 @@ pub(crate) enum ContentDigestAlgorithm {
 }
 
 /// Hash algorithms.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, FromPrimitive, ToPrimitive, Default)]
 #[repr(u32)]
 pub enum HashAlgorithm {
+    #[default]
     /// SHA-256
     SHA256 = 1,
 }
@@ -215,11 +216,5 @@ impl HashAlgorithm {
     pub(crate) fn from_read<R: Read>(read: &mut R) -> Result<Self> {
         let val = read.read_u32::<LittleEndian>()?;
         Self::from_u32(val).context(format!("Unsupported hash algorithm: {}", val))
-    }
-}
-
-impl Default for HashAlgorithm {
-    fn default() -> Self {
-        HashAlgorithm::SHA256
     }
 }
