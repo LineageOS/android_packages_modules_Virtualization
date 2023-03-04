@@ -40,19 +40,13 @@ pub fn should_prepare_console_output(debug_level: DebugLevel) -> bool {
 pub fn is_ramdump_needed(config: &VirtualMachineConfig) -> bool {
     let enabled_in_dp =
         get_debug_policy_bool("/proc/device-tree/avf/guest/common/ramdump").unwrap_or_default();
-    let (protected, debuggable) = match config {
-        VirtualMachineConfig::RawConfig(config) => {
+    let debuggable = match config {
+        VirtualMachineConfig::RawConfig(_) => {
             // custom VMs are considered debuggable for flexibility
-            (config.protectedVm, true)
+            true
         }
-        VirtualMachineConfig::AppConfig(config) => {
-            (config.protectedVm, config.debugLevel == DebugLevel::FULL)
-        }
+        VirtualMachineConfig::AppConfig(config) => config.debugLevel == DebugLevel::FULL,
     };
 
-    if protected {
-        enabled_in_dp
-    } else {
-        enabled_in_dp || debuggable
-    }
+    enabled_in_dp || debuggable
 }
