@@ -57,7 +57,7 @@ const VIRTUALIZATION_SERVICE_BINDER_SERVICE_IDENTIFIER: &str =
     "android.system.virtualizationservice";
 
 const VIRTMGR_PATH: &str = "/apex/com.android.virt/bin/virtmgr";
-const VIRTMGR_THREADS: usize = 16;
+const VIRTMGR_THREADS: usize = 2;
 
 fn posix_pipe() -> Result<(OwnedFd, OwnedFd), io::Error> {
     use nix::fcntl::OFlag;
@@ -122,7 +122,6 @@ impl VirtualizationService {
         let session = RpcSession::new();
         session.set_file_descriptor_transport_mode(FileDescriptorTransportMode::Unix);
         session.set_max_incoming_threads(VIRTMGR_THREADS);
-        session.set_max_outgoing_connections(VIRTMGR_THREADS);
         session
             .setup_unix_domain_bootstrap_client(self.client_fd.as_fd())
             .map_err(|_| io::Error::from(io::ErrorKind::ConnectionRefused))
