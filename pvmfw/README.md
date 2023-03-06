@@ -61,13 +61,27 @@ to know how to interpret or obtain the content of that region.
 
 Starting in Android T, the `PRODUCT_BUILD_PVMFW_IMAGE` build variable controls
 the generation of `pvmfw.img`, a new [ABL partition][ABL-part] containing the
-pvmfw binary and following the internal format of the [`boot`][boot-img]
-partition, intended to be verified and loaded by ABL on AVF-compatible devices.
+pvmfw binary (sometimes called "`pvmfw.bin`") and following the internal format
+of the [`boot`][boot-img] partition, intended to be verified and loaded by ABL
+on AVF-compatible devices.
+
+Once ABL has verified the `pvmfw.img` chained static partition, the contained
+[`boot.img` header][boot-img] may be used to obtain the size of the `pvmfw.bin`
+image (recorded in the `kernel_size` field), as it already does for the kernel
+itself. In accordance with the header format, the `kernel_size` bytes of the
+partition following the header will be the `pvmfw.bin` image.
+
+Note that when it gets executed in the context of a pVM, `pvmfw` expects to have
+been loaded at 4KiB-aligned intermediate physical address (IPA) so if ABL loads
+the `pvmfw.bin` image without respecting this alignment, it is the
+responsibility of the hypervisor to either reject the image or copy it into
+guest address space with the right alignment.
 
 To support pKVM, ABL is expected to describe the region using a reserved memory
 device tree node where both address and size have been properly aligned to the
-page size used by the hypervisor. For example, the following node describes a
-region of size `0x40000` at address `0x80000000`:
+page size used by the hypervisor. This single region must include both the pvmfw
+binary image and its configuration data (see below). For example, the following
+node describes a region of size `0x40000` at address `0x80000000`:
 ```
 reserved-memory {
     ...
