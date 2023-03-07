@@ -49,9 +49,6 @@
       "path": "packages/modules/Virtualization/apkdmverity"
     },
     {
-      "path": "packages/modules/Virtualization/avmd"
-    },
-    {
       "path": "packages/modules/Virtualization/encryptedstore"
     },
     {
