@@ -60,10 +60,6 @@ public abstract class MicrodroidDeviceTestBase {
         return getDeviceProperties().isCuttlefish();
     }
 
-    public static boolean isGs101() {
-        return getDeviceProperties().isGs101();
-    }
-
     public static boolean isUserBuild() {
         return getDeviceProperties().isUserBuild();
     }
