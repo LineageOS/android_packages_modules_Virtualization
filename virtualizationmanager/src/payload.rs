@@ -14,6 +14,7 @@
 
 //! Payload disk image
 
+use crate::debug_config::should_include_debug_apexes;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DiskImage::DiskImage,
     Partition::Partition,
@@ -382,7 +383,7 @@ fn collect_apex_infos<'a>(
     debug_level: DebugLevel,
 ) -> Vec<&'a ApexInfo> {
     let mut additional_apexes: Vec<&str> = MICRODROID_REQUIRED_APEXES.to_vec();
-    if debug_level != DebugLevel::NONE {
+    if should_include_debug_apexes(debug_level) {
         additional_apexes.extend(MICRODROID_REQUIRED_APEXES_DEBUG.to_vec());
     }
 
