@@ -51,6 +51,7 @@ android_system_image {
     deps: [
         "init_second_stage",
         "microdroid_build_prop",
+        "microdroid_init_debug_policy",
         "microdroid_init_rc",
         "microdroid_ueventd_rc",
         "microdroid_launcher",
