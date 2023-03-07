@@ -52,12 +52,11 @@ pub fn init() -> Result<()> {
 
 fn fill_with_entropy(s: &mut [u8]) -> Result<()> {
     const MAX_BYTES_PER_CALL: usize = size_of::<hvc::TrngRng64Entropy>();
-    let bits = usize::try_from(u8::BITS).unwrap();
 
     let (aligned, remainder) = s.split_at_mut(s.len() - s.len() % MAX_BYTES_PER_CALL);
 
     for chunk in aligned.chunks_exact_mut(MAX_BYTES_PER_CALL) {
-        let (r, s, t) = hvc::trng_rnd64((chunk.len() * bits).try_into().unwrap())?;
+        let (r, s, t) = repeat_trng_rnd(chunk.len())?;
 
         let mut words = chunk.chunks_exact_mut(size_of::<u64>());
         words.next().unwrap().clone_from_slice(&t.to_ne_bytes());
@@ -67,7 +66,7 @@ fn fill_with_entropy(s: &mut [u8]) -> Result<()> {
 
     if !remainder.is_empty() {
         let mut entropy = [0; MAX_BYTES_PER_CALL];
-        let (r, s, t) = hvc::trng_rnd64((remainder.len() * bits).try_into().unwrap())?;
+        let (r, s, t) = repeat_trng_rnd(remainder.len())?;
 
         let mut words = entropy.chunks_exact_mut(size_of::<u64>());
         words.next().unwrap().clone_from_slice(&t.to_ne_bytes());
@@ -78,6 +77,17 @@ fn fill_with_entropy(s: &mut [u8]) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn repeat_trng_rnd(n_bytes: usize) -> hvc::trng::Result<hvc::TrngRng64Entropy> {
+    let bits = usize::try_from(u8::BITS).unwrap();
+    let n_bits = (n_bytes * bits).try_into().unwrap();
+    loop {
+        match hvc::trng_rnd64(n_bits) {
+            Err(hvc::trng::Error::NoEntropy) => continue,
+            res => return res,
+        }
+    }
 }
 
 pub fn random_array<const N: usize>() -> Result<[u8; N]> {
