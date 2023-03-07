@@ -8,11 +8,8 @@
         __overlay__ {
             avf {
                 guest {
-                    common {
-                        ramdump = <0>;
-                    };
                     microdroid {
-                        adb = <1>; // adb is required to check VM's bootargs.
+                        adb = <0>;
                     };
                 };
             };
