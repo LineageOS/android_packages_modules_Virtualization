@@ -48,7 +48,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::{
         BnVirtualMachineService, IVirtualMachineService,
 };
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
 use binder::{
     self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor,
@@ -60,6 +60,7 @@ use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::unistd::pipe;
 use rpcbinder::RpcServer;
+use rustutils::system_properties;
 use semver::VersionReq;
 use std::convert::TryInto;
 use std::ffi::CStr;
@@ -111,13 +112,20 @@ fn create_or_update_idsig_file(
     if !metadata.is_file() {
         bail!("input is not a regular file");
     }
-    let mut sig = V4Signature::create(&mut input, 4096, &[], HashAlgorithm::SHA256)
-        .context("failed to create idsig")?;
+    let mut sig =
+        V4Signature::create(&mut input, get_current_sdk()?, 4096, &[], HashAlgorithm::SHA256)
+            .context("failed to create idsig")?;
 
     let mut output = clone_file(idsig_fd)?;
     output.set_len(0).context("failed to set_len on the idsig output")?;
     sig.write_into(&mut output).context("failed to write idsig")?;
     Ok(())
+}
+
+fn get_current_sdk() -> Result<u32> {
+    let current_sdk = system_properties::read("ro.build.version.sdk")?;
+    let current_sdk = current_sdk.ok_or_else(|| anyhow!("SDK version missing"))?;
+    current_sdk.parse().context("Malformed SDK version")
 }
 
 pub fn remove_temporary_files(path: &PathBuf) -> Result<()> {
