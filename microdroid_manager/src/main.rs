@@ -754,14 +754,21 @@ fn get_apk_root_hash_from_idsig<P: AsRef<Path>>(idsig_path: P) -> Result<Box<Roo
 }
 
 fn get_public_key_from_apk(apk: &str, root_hash_trustful: bool) -> Result<Box<[u8]>> {
+    let current_sdk = get_current_sdk()?;
     if !root_hash_trustful {
-        verify(apk).context(MicrodroidError::PayloadVerificationFailed(format!(
+        verify(apk, current_sdk).context(MicrodroidError::PayloadVerificationFailed(format!(
             "failed to verify {}",
             apk
         )))
     } else {
-        get_public_key_der(apk)
+        get_public_key_der(apk, current_sdk)
     }
+}
+
+fn get_current_sdk() -> Result<u32> {
+    let current_sdk = system_properties::read("ro.build.version.sdk")?;
+    let current_sdk = current_sdk.ok_or_else(|| anyhow!("SDK version missing"))?;
+    current_sdk.parse().context("Malformed SDK version")
 }
 
 fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
