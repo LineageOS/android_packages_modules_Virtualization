@@ -27,7 +27,6 @@ public final class DeviceProperties {
     }
 
     private static final String KEY_VENDOR_DEVICE = "ro.product.vendor.device";
-    private static final String KEY_BOARD_PLATFORM = "ro.board.platform";
     private static final String KEY_BUILD_TYPE = "ro.build.type";
     private static final String KEY_METRICS_TAG = "debug.hypervisor.metrics_tag";
 
@@ -51,11 +50,6 @@ public final class DeviceProperties {
     public boolean isCuttlefish() {
         String vendorDeviceName = getProperty(KEY_VENDOR_DEVICE);
         return vendorDeviceName != null && vendorDeviceName.startsWith(CUTTLEFISH_DEVICE_PREFIX);
-    }
-
-    public boolean isGs101() {
-        String platform = getProperty(KEY_BOARD_PLATFORM);
-        return "gs101".equals(platform);
     }
 
     /**
