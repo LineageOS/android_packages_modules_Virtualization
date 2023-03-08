@@ -24,7 +24,7 @@ use openssl::pkey::{self, PKey};
 use openssl::x509::X509;
 use std::fs::File;
 use std::io::{Read, Seek};
-use std::ops::Range;
+use std::ops::RangeInclusive;
 use std::path::Path;
 
 use crate::algorithms::SignatureAlgorithmID;
@@ -33,11 +33,9 @@ use crate::sigutil::*;
 
 pub const APK_SIGNATURE_SCHEME_V3_BLOCK_ID: u32 = 0xf05368c0;
 
-// TODO(b/190343842): get "ro.build.version.sdk"
-const SDK_INT: u32 = 31;
-
 type Signers = LengthPrefixed<Vec<LengthPrefixed<Signer>>>;
 
+#[derive(Debug)]
 pub(crate) struct Signer {
     signed_data: LengthPrefixed<Bytes>, // not verified yet
     min_sdk: u32,
@@ -47,8 +45,8 @@ pub(crate) struct Signer {
 }
 
 impl Signer {
-    fn sdk_range(&self) -> Range<u32> {
-        self.min_sdk..self.max_sdk
+    fn sdk_range(&self) -> RangeInclusive<u32> {
+        self.min_sdk..=self.max_sdk
     }
 }
 
@@ -62,8 +60,8 @@ struct SignedData {
 }
 
 impl SignedData {
-    fn sdk_range(&self) -> Range<u32> {
-        self.min_sdk..self.max_sdk
+    fn sdk_range(&self) -> RangeInclusive<u32> {
+        self.min_sdk..=self.max_sdk
     }
 
     fn find_digest_by_algorithm(&self, algorithm_id: SignatureAlgorithmID) -> Result<&Digest> {
@@ -92,32 +90,30 @@ type AdditionalAttributes = Bytes;
 
 /// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the public key
 /// associated with the signer in DER format.
-pub fn verify<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
+pub fn verify<P: AsRef<Path>>(apk_path: P, current_sdk: u32) -> Result<Box<[u8]>> {
     let apk = File::open(apk_path.as_ref())?;
-    let (signer, mut sections) = extract_signer_and_apk_sections(apk)?;
+    let (signer, mut sections) = extract_signer_and_apk_sections(apk, current_sdk)?;
     signer.verify(&mut sections)
 }
 
 /// Gets the public key (in DER format) that was used to sign the given APK/APEX file
-pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P) -> Result<Box<[u8]>> {
+pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P, current_sdk: u32) -> Result<Box<[u8]>> {
     let apk = File::open(apk_path.as_ref())?;
-    let (signer, _) = extract_signer_and_apk_sections(apk)?;
+    let (signer, _) = extract_signer_and_apk_sections(apk, current_sdk)?;
     Ok(signer.public_key.public_key_to_der()?.into_boxed_slice())
 }
 
 pub(crate) fn extract_signer_and_apk_sections<R: Read + Seek>(
     apk: R,
+    current_sdk: u32,
 ) -> Result<(Signer, ApkSections<R>)> {
     let mut sections = ApkSections::new(apk)?;
     let mut block = sections.find_signature(APK_SIGNATURE_SCHEME_V3_BLOCK_ID).context(
         "Fallback to v2 when v3 block not found is not yet implemented.", // b/197052981
     )?;
-    let mut supported = block
-        .read::<Signers>()?
-        .into_inner()
-        .into_iter()
-        .filter(|s| s.sdk_range().contains(&SDK_INT))
-        .collect::<Vec<_>>();
+    let signers = block.read::<Signers>()?.into_inner();
+    let mut supported =
+        signers.into_iter().filter(|s| s.sdk_range().contains(&current_sdk)).collect::<Vec<_>>();
     ensure!(
         supported.len() == 1,
         "APK Signature Scheme V3 only supports one signer: {} signers found.",
