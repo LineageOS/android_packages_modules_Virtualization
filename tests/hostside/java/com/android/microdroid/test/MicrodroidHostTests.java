@@ -56,7 +56,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -527,13 +526,14 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         return !result.trim().isEmpty();
     }
 
-    private boolean isTombstoneGeneratedWithCmd(String configPath, String... crashCommand)
-            throws Exception {
+    private boolean isTombstoneGeneratedWithCmd(
+            boolean protectedVm, String configPath, String... crashCommand) throws Exception {
         mMicrodroidDevice =
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
                         .cpuTopology("match_host")
+                        .protectedVm(protectedVm)
                         .build(getAndroidDevice());
         mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         mMicrodroidDevice.enableAdbRoot();
@@ -552,6 +552,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     public void testTombstonesAreGeneratedUponUserspaceCrash() throws Exception {
         assertThat(
                         isTombstoneGeneratedWithCmd(
+                                false,
                                 "assets/vm_config.json",
                                 "kill",
                                 "-SIGSEGV",
@@ -563,6 +564,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     public void testTombstonesAreNotGeneratedIfNotExportedUponUserspaceCrash() throws Exception {
         assertThat(
                         isTombstoneGeneratedWithCmd(
+                                false,
                                 "assets/vm_config_no_tombstone.json",
                                 "kill",
                                 "-SIGSEGV",
@@ -570,15 +572,31 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 .isFalse();
     }
 
-    @Test
-    @Ignore("b/243630590: Temporal workaround until lab devices has flashed new DPM")
-    public void testTombstonesAreGeneratedUponKernelCrash() throws Exception {
+    private void testTombstonesAreGeneratedUponKernelCrash(boolean protectedVm) throws Exception {
         assumeFalse("Cuttlefish is not supported", isCuttlefish());
         assumeFalse("Skipping test because ramdump is disabled on user build", isUserBuild());
         assertThat(
                         isTombstoneGeneratedWithCmd(
-                                "assets/vm_config.json", "echo", "c", ">", "/proc/sysrq-trigger"))
+                                protectedVm,
+                                "assets/vm_config.json",
+                                "echo",
+                                "c",
+                                ">",
+                                "/proc/sysrq-trigger"))
                 .isTrue();
+    }
+
+    @Test
+    public void testTombstonesAreGeneratedUponKernelCrashOnNonPvm() throws Exception {
+        testTombstonesAreGeneratedUponKernelCrash(false);
+    }
+
+    @Test
+    public void testTombstonesAreGeneratedUponKernelCrashOnPvm() throws Exception {
+        assumeTrue(
+                "Protected VMs are not supported",
+                getAndroidDevice().supportsMicrodroid(/*protectedVm=*/ true));
+        testTombstonesAreGeneratedUponKernelCrash(true);
     }
 
     private boolean isTombstoneGeneratedWithVmRunApp(boolean debuggable, String... additionalArgs)
