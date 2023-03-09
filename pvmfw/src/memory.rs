@@ -17,7 +17,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use crate::helpers::{self, align_down, align_up, page_4kb_of, SIZE_4KB};
-use crate::hvc::{hyp_meminfo, mem_share, mem_unshare};
+use crate::hypervisor::{hyp_meminfo, mem_share, mem_unshare};
 use crate::mmio_guard;
 use crate::mmu;
 use crate::smccc;
