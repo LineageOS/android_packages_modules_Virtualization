@@ -15,7 +15,7 @@
 //! Safe MMIO_GUARD support.
 
 use crate::helpers;
-use crate::hvc::{mmio_guard_enroll, mmio_guard_info, mmio_guard_map, mmio_guard_unmap};
+use crate::hypervisor::{mmio_guard_enroll, mmio_guard_info, mmio_guard_map, mmio_guard_unmap};
 use crate::smccc;
 use core::{fmt, result};
 

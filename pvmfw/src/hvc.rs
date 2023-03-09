@@ -38,14 +38,14 @@ const VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID: u32 = 0xc6000008;
 /// Queries the memory protection parameters for a protected virtual machine.
 ///
 /// Returns the memory protection granule size in bytes.
-pub fn hyp_meminfo() -> smccc::Result<u64> {
+pub fn kvm_hyp_meminfo() -> smccc::Result<u64> {
     let args = [0u64; 17];
     checked_hvc64(ARM_SMCCC_KVM_FUNC_HYP_MEMINFO, args)
 }
 
 /// Shares a region of memory with the KVM host, granting it read, write and execute permissions.
 /// The size of the region is equal to the memory protection granule returned by [`hyp_meminfo`].
-pub fn mem_share(base_ipa: u64) -> smccc::Result<()> {
+pub fn kvm_mem_share(base_ipa: u64) -> smccc::Result<()> {
     let mut args = [0u64; 17];
     args[0] = base_ipa;
 
@@ -55,26 +55,26 @@ pub fn mem_share(base_ipa: u64) -> smccc::Result<()> {
 /// Revokes access permission from the KVM host to a memory region previously shared with
 /// [`mem_share`]. The size of the region is equal to the memory protection granule returned by
 /// [`hyp_meminfo`].
-pub fn mem_unshare(base_ipa: u64) -> smccc::Result<()> {
+pub fn kvm_mem_unshare(base_ipa: u64) -> smccc::Result<()> {
     let mut args = [0u64; 17];
     args[0] = base_ipa;
 
     checked_hvc64_expect_zero(ARM_SMCCC_KVM_FUNC_MEM_UNSHARE, args)
 }
 
-pub fn mmio_guard_info() -> smccc::Result<u64> {
+pub fn kvm_mmio_guard_info() -> smccc::Result<u64> {
     let args = [0u64; 17];
 
     checked_hvc64(VENDOR_HYP_KVM_MMIO_GUARD_INFO_FUNC_ID, args)
 }
 
-pub fn mmio_guard_enroll() -> smccc::Result<()> {
+pub fn kvm_mmio_guard_enroll() -> smccc::Result<()> {
     let args = [0u64; 17];
 
     checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID, args)
 }
 
-pub fn mmio_guard_map(ipa: u64) -> smccc::Result<()> {
+pub fn kvm_mmio_guard_map(ipa: u64) -> smccc::Result<()> {
     let mut args = [0u64; 17];
     args[0] = ipa;
 
@@ -94,7 +94,7 @@ pub fn mmio_guard_map(ipa: u64) -> smccc::Result<()> {
     }
 }
 
-pub fn mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
+pub fn kvm_mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
     let mut args = [0u64; 17];
     args[0] = ipa;
 
