@@ -17,6 +17,7 @@
 use apkverify::{
     get_apk_digest, get_public_key_der, testing::assert_contains, verify, SignatureAlgorithmID,
 };
+use log::info;
 use std::{fs, matches, path::Path};
 
 const KEY_NAMES_DSA: &[&str] = &["1024", "2048", "3072"];
@@ -25,8 +26,19 @@ const KEY_NAMES_RSA: &[&str] = &["1024", "2048", "3072", "4096", "8192", "16384"
 
 const SDK_INT: u32 = 31;
 
+/// Make sure any logging from the code under test ends up in logcat.
+fn setup() {
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_tag("apkverify_test")
+            .with_min_level(log::Level::Info),
+    );
+    info!("Test starting");
+}
+
 #[test]
 fn test_verify_truncated_cd() {
+    setup();
     use zip::result::ZipError;
     let res = verify("tests/data/v2-only-truncated-cd.apk", SDK_INT);
     // TODO(b/190343842): consider making a helper for err assertion
@@ -38,11 +50,13 @@ fn test_verify_truncated_cd() {
 
 #[test]
 fn apex_signed_with_v3_rsa_pkcs1_sha512_is_valid() {
+    setup();
     validate_apk("tests/data/test.apex", SignatureAlgorithmID::RsaPkcs1V15WithSha512);
 }
 
 #[test]
 fn apks_signed_with_v3_dsa_sha256_are_not_supported() {
+    setup();
     for key_name in KEY_NAMES_DSA.iter() {
         let res = verify(format!("tests/data/v3-only-with-dsa-sha256-{}.apk", key_name), SDK_INT);
         assert!(res.is_err(), "DSA algorithm is not supported for verification. See b/197052981.");
@@ -52,6 +66,7 @@ fn apks_signed_with_v3_dsa_sha256_are_not_supported() {
 
 #[test]
 fn apks_signed_with_v3_ecdsa_sha256_are_valid() {
+    setup();
     for key_name in KEY_NAMES_ECDSA.iter() {
         validate_apk(
             format!("tests/data/v3-only-with-ecdsa-sha256-{}.apk", key_name),
@@ -62,6 +77,7 @@ fn apks_signed_with_v3_ecdsa_sha256_are_valid() {
 
 #[test]
 fn apks_signed_with_v3_ecdsa_sha512_are_valid() {
+    setup();
     for key_name in KEY_NAMES_ECDSA.iter() {
         validate_apk(
             format!("tests/data/v3-only-with-ecdsa-sha512-{}.apk", key_name),
@@ -72,6 +88,7 @@ fn apks_signed_with_v3_ecdsa_sha512_are_valid() {
 
 #[test]
 fn apks_signed_with_v3_rsa_pkcs1_sha256_are_valid() {
+    setup();
     for key_name in KEY_NAMES_RSA.iter() {
         validate_apk(
             format!("tests/data/v3-only-with-rsa-pkcs1-sha256-{}.apk", key_name),
@@ -82,6 +99,7 @@ fn apks_signed_with_v3_rsa_pkcs1_sha256_are_valid() {
 
 #[test]
 fn apks_signed_with_v3_rsa_pkcs1_sha512_are_valid() {
+    setup();
     for key_name in KEY_NAMES_RSA.iter() {
         validate_apk(
             format!("tests/data/v3-only-with-rsa-pkcs1-sha512-{}.apk", key_name),
@@ -91,7 +109,29 @@ fn apks_signed_with_v3_rsa_pkcs1_sha512_are_valid() {
 }
 
 #[test]
+fn test_verify_v3_sig_min_max_sdk() {
+    setup();
+    // The Signer for this APK has min_sdk=24, max_sdk=32.
+    let path = "tests/data/v31-rsa-2048_2-tgt-33-1-tgt-28.apk";
+
+    let res = verify(path, 23);
+    assert!(res.is_err());
+    assert_contains(&res.unwrap_err().to_string(), "0 signers found");
+
+    let res = verify(path, 24);
+    assert!(res.is_ok());
+
+    let res = verify(path, 32);
+    assert!(res.is_ok());
+
+    let res = verify(path, 33);
+    assert!(res.is_err());
+    assert_contains(&res.unwrap_err().to_string(), "0 signers found");
+}
+
+#[test]
 fn test_verify_v3_sig_does_not_verify() {
+    setup();
     let path_list = [
         "tests/data/v3-only-with-ecdsa-sha512-p521-sig-does-not-verify.apk",
         "tests/data/v3-only-with-rsa-pkcs1-sha256-3072-sig-does-not-verify.apk",
@@ -105,6 +145,7 @@ fn test_verify_v3_sig_does_not_verify() {
 
 #[test]
 fn test_verify_v3_digest_mismatch() {
+    setup();
     let res = verify("tests/data/v3-only-with-rsa-pkcs1-sha512-8192-digest-mismatch.apk", SDK_INT);
     assert!(res.is_err());
     assert_contains(&res.unwrap_err().to_string(), "Digest mismatch");
@@ -112,6 +153,7 @@ fn test_verify_v3_digest_mismatch() {
 
 #[test]
 fn test_verify_v3_wrong_apk_sig_block_magic() {
+    setup();
     let res =
         verify("tests/data/v3-only-with-ecdsa-sha512-p384-wrong-apk-sig-block-magic.apk", SDK_INT);
     assert!(res.is_err());
@@ -120,6 +162,7 @@ fn test_verify_v3_wrong_apk_sig_block_magic() {
 
 #[test]
 fn test_verify_v3_apk_sig_block_size_mismatch() {
+    setup();
     let res = verify(
         "tests/data/v3-only-with-rsa-pkcs1-sha512-4096-apk-sig-block-size-mismatch.apk",
         SDK_INT,
@@ -133,6 +176,7 @@ fn test_verify_v3_apk_sig_block_size_mismatch() {
 
 #[test]
 fn test_verify_v3_cert_and_public_key_mismatch() {
+    setup();
     let res = verify("tests/data/v3-only-cert-and-public-key-mismatch.apk", SDK_INT);
     assert!(res.is_err());
     assert_contains(&res.unwrap_err().to_string(), "Public key mismatch");
@@ -140,6 +184,7 @@ fn test_verify_v3_cert_and_public_key_mismatch() {
 
 #[test]
 fn test_verify_v3_empty() {
+    setup();
     let res = verify("tests/data/v3-only-empty.apk", SDK_INT);
     assert!(res.is_err());
     assert_contains(&res.unwrap_err().to_string(), "APK too small for APK Signing Block");
@@ -147,6 +192,7 @@ fn test_verify_v3_empty() {
 
 #[test]
 fn test_verify_v3_no_certs_in_sig() {
+    setup();
     let res = verify("tests/data/v3-only-no-certs-in-sig.apk", SDK_INT);
     assert!(res.is_err());
     assert_contains(&res.unwrap_err().to_string(), "No certificates listed");
@@ -154,6 +200,7 @@ fn test_verify_v3_no_certs_in_sig() {
 
 #[test]
 fn test_verify_v3_no_supported_sig_algs() {
+    setup();
     let res = verify("tests/data/v3-only-no-supported-sig-algs.apk", SDK_INT);
     assert!(res.is_err());
     assert_contains(&res.unwrap_err().to_string(), "No supported APK signatures found");
@@ -161,6 +208,7 @@ fn test_verify_v3_no_supported_sig_algs() {
 
 #[test]
 fn test_verify_v3_signatures_and_digests_block_mismatch() {
+    setup();
     let res = verify("tests/data/v3-only-signatures-and-digests-block-mismatch.apk", SDK_INT);
     assert!(res.is_err());
     assert_contains(
@@ -171,6 +219,7 @@ fn test_verify_v3_signatures_and_digests_block_mismatch() {
 
 #[test]
 fn apk_signed_with_v3_unknown_additional_attr_is_valid() {
+    setup();
     validate_apk(
         "tests/data/v3-only-unknown-additional-attr.apk",
         SignatureAlgorithmID::RsaPkcs1V15WithSha256,
@@ -179,6 +228,7 @@ fn apk_signed_with_v3_unknown_additional_attr_is_valid() {
 
 #[test]
 fn apk_signed_with_v3_unknown_pair_in_apk_sig_block_is_valid() {
+    setup();
     validate_apk(
         "tests/data/v3-only-unknown-pair-in-apk-sig-block.apk",
         SignatureAlgorithmID::RsaPkcs1V15WithSha256,
@@ -187,6 +237,7 @@ fn apk_signed_with_v3_unknown_pair_in_apk_sig_block_is_valid() {
 
 #[test]
 fn apk_signed_with_v3_ignorable_unsupported_sig_algs_is_valid() {
+    setup();
     validate_apk(
         "tests/data/v3-only-with-ignorable-unsupported-sig-algs.apk",
         SignatureAlgorithmID::RsaPkcs1V15WithSha256,
@@ -195,6 +246,7 @@ fn apk_signed_with_v3_ignorable_unsupported_sig_algs_is_valid() {
 
 #[test]
 fn apk_signed_with_v3_stamp_is_valid() {
+    setup();
     validate_apk("tests/data/v3-only-with-stamp.apk", SignatureAlgorithmID::EcdsaWithSha256);
 }
 
