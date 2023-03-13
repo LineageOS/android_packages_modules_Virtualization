@@ -45,7 +45,9 @@ rust_test {
     edition: "2021",
     test_suites: ["general-tests"],
     rustlibs: [
+        "libandroid_logger",
         "libapkverify",
+        "liblog_rust",
         "libzip",
     ],
     data: ["tests/data/*"],
