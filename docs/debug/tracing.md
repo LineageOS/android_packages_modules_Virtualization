@@ -72,4 +72,49 @@ TODO(b/271412868): Stay tuned, more docs coming soon!
 
 ## Microdroid VM tracing
 
+IMPORTANT: Tracing is only supported for debuggable Microdroid VMs.
+
+### Capturing trace in Microdroid
+
+Starting with Android U, Microdroid contains Perfetto tracing binaries, which makes it possible to
+capture traces inside Microdroid VM using Perfetto stack. The commands used to capture traces on
+Android should work for Microdroid VM as well, with a difference that Perfetto's tracing binaries
+are not enabled in Microdroid by default, so you need to manually start them by setting
+`persist.traced.enable` system property to `1`.
+
+Here is a quick example on how trace Microdroid VM:
+
+1. First start your VM. For this example we are going to use
+`adb shell /apex/com.android.virt/bin/vm run-microdroid`.
+
+2. Set up an adb connection with the running VM:
+```shell
+adb shell forward tcp:9876 vsock:${CID}:5555
+adb connect localhost:9876
+adb -s localhost:9876 root
+```
+Where `${CID}` corresponds to the running Microdroid VM that you want to establish adb connection
+with. List of running VMs can be obtained by running `adb shell /apex/com.android.virt/bin/vm list`.
+Alternatively you can use `vm_shell` utility to connect to a running VM, i.e.: `vm_shell connect`.
+
+3. Start Perfetto daemons and capture trace
+```shell
+adb -s localhost:9876 shell setprop persist.traced.enable 1
+${ANDROID_BULD_TOP}/external/perfetto/tools/record_android_trace \
+  -s localhost:9876 \
+  -o /tmp/microdroid-trace-file.pftrace \
+  -t 10s \
+  -b 32mb \
+  sched/sched_switch task/task_newtask sched/sched_process_exit
+```
+
+If you don't have Android repo checked out, then you can download the record_android_trace script by
+following the following [instructions](
+https://perfetto.dev/docs/quickstart/android-tracing#recording-a-trace-through-the-cmdline)
+
+More documentation on Perfetto's tracing on Android is available here:
+https://perfetto.dev/docs/quickstart/android-tracing
+
+### Capturing Microdroid boot trace
+
 TODO(b/271412868): Stay tuned, more docs are coming soon!
