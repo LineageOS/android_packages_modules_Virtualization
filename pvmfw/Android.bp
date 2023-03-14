@@ -54,6 +54,7 @@ cc_binary {
     // partition image. This is just to package the unstripped file into the
     // symbols zip file for debugging purpose.
     installable: true,
+    native_coverage: false,
 }
 
 raw_binary {
