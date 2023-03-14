@@ -125,6 +125,11 @@ public final class AuthFsHostTest extends VirtualizationTestCaseBase {
         ITestDevice androidDevice = testInfo.getDevice();
         sAndroid = new CommandRunner(androidDevice);
 
+        if (isCuttlefish(androidDevice)) {
+            sAssumptionFailed = true;
+            return;
+        }
+
         try {
             testIfDeviceIsCapable(androidDevice);
         } catch (AssumptionViolatedException e) {
