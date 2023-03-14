@@ -245,4 +245,11 @@
 		clock-names = "apb_pclk";
 		clocks = <&clk>;
 	};
+
+	vmwdt@3000 {
+		compatible = "qemu,vcpu-stall-detector";
+		reg = <0x00 0x3000 0x00 0x1000>;
+		clock-frequency = <10>;
+		timeout-sec = <8>;
+	};
 };
