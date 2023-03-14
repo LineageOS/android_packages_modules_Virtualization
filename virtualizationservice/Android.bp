@@ -67,5 +67,8 @@ rust_binary {
 rust_test {
     name: "virtualizationservice_device_test",
     defaults: ["virtualizationservice_defaults"],
+    rustlibs: [
+        "libtempfile",
+    ],
     test_suites: ["general-tests"],
 }
