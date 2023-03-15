@@ -23,6 +23,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assume.assumeTrue;
 import static org.junit.Assume.assumeFalse;
+import static org.junit.Assert.assertThrows;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -31,8 +32,9 @@ import com.android.microdroid.test.host.CommandRunner;
 import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
 import com.android.microdroid.test.host.Pvmfw;
 import com.android.tradefed.device.DeviceNotAvailableException;
-import com.android.tradefed.device.TestDevice;
+import com.android.tradefed.device.DeviceRuntimeException;
 import com.android.tradefed.device.ITestDevice;
+import com.android.tradefed.device.TestDevice;
 import com.android.tradefed.testtype.DeviceJUnit4ClassRunner;
 import com.android.tradefed.util.CommandStatus;
 import com.android.tradefed.util.CommandResult;
@@ -67,6 +69,9 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @NonNull private static final String CUSTOM_PVMFW_FILE_SUFFIX = ".bin";
     @NonNull private static final String CUSTOM_PVMFW_IMG_PATH = TEST_ROOT + PVMFW_FILE_NAME;
     @NonNull private static final String CUSTOM_PVMFW_IMG_PATH_PROP = "hypervisor.pvmfw.path";
+
+    @NonNull
+    private static final String AVF_DEBUG_POLICY_ADB_DT_PROP_PATH = "/avf/guest/microdroid/adb";
 
     @NonNull private static final String MICRODROID_CMDLINE_PATH = "/proc/cmdline";
     @NonNull private static final String MICRODROID_DT_ROOT_PATH = "/proc/device-tree";
@@ -173,8 +178,8 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testConsoleOutput() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_console_output.dtbo");
+    public void testLog_consoleOutput() throws Exception {
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_log.dtbo");
         pvmfw.serialize(mCustomPvmfwBinFileOnHost);
 
         CommandResult result = tryLaunchProtectedNonDebuggableVm();
@@ -185,8 +190,20 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testNoConsoleOutput() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_console_output.dtbo");
+    public void testLog_logcat() throws Exception {
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_log.dtbo");
+        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+
+        tryLaunchProtectedNonDebuggableVm();
+
+        assertWithMessage("Microdroid's logcat should have been enabled")
+                .that(hasMicrodroidLogcatOutput())
+                .isTrue();
+    }
+
+    @Test
+    public void testNoLog_noConsoleOutput() throws Exception {
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_log.dtbo");
         pvmfw.serialize(mCustomPvmfwBinFileOnHost);
 
         CommandResult result = tryLaunchProtectedNonDebuggableVm();
@@ -194,6 +211,32 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         assertWithMessage("Microdroid's console message shouldn't have been disabled")
                 .that(hasConsoleOutput(result))
                 .isFalse();
+    }
+
+    @Test
+    public void testNoLog_noLogcat() throws Exception {
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_log.dtbo");
+        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+
+        assertThrows(
+                "Microdroid shouldn't be recognized because of missing adb connection",
+                DeviceRuntimeException.class,
+                () ->
+                        launchProtectedVmAndWaitForBootCompleted(
+                                MICRODROID_DEBUG_NONE, BOOT_FAILURE_WAIT_TIME_MS));
+        assertThat(hasMicrodroidLogcatOutput()).isFalse();
+    }
+
+    @Test
+    public void testAdb_boots() throws Exception {
+        assumeTrue(
+                "Skip if host wouldn't install adbd",
+                isDebugPolicyEnabled(AVF_DEBUG_POLICY_ADB_DT_PROP_PATH));
+
+        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_adb.dtbo");
+        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+
+        launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_NONE);
     }
 
     @Test
@@ -214,13 +257,23 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_adb.dtbo");
         pvmfw.serialize(mCustomPvmfwBinFileOnHost);
 
-        try {
-            launchProtectedVmAndWaitForBootCompleted(
-                    MICRODROID_DEBUG_NONE, BOOT_FAILURE_WAIT_TIME_MS);
-            assertWithMessage("adb shouldn't be available").fail();
-        } catch (Exception e) {
-            // expected exception. passthrough.
+        assertThrows(
+                "Microdroid shouldn't be recognized because of missing adb connection",
+                DeviceRuntimeException.class,
+                () ->
+                        launchProtectedVmAndWaitForBootCompleted(
+                                MICRODROID_DEBUG_NONE, BOOT_FAILURE_WAIT_TIME_MS));
+    }
+
+    private boolean isDebugPolicyEnabled(@NonNull String dtPropertyPath)
+            throws DeviceNotAvailableException {
+        CommandRunner runner = new CommandRunner(mAndroidDevice);
+        CommandResult result =
+                runner.runForResult("xxd", "-p", "/proc/device-tree" + dtPropertyPath);
+        if (result.getStatus() == CommandStatus.SUCCESS) {
+            return HEX_STRING_ONE.equals(result.getStdout().trim());
         }
+        return false;
     }
 
     @NonNull
@@ -245,9 +298,15 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                 .build();
     }
 
-    @NonNull
-    private boolean hasConsoleOutput(CommandResult result) throws DeviceNotAvailableException {
+    private boolean hasConsoleOutput(@NonNull CommandResult result)
+            throws DeviceNotAvailableException {
         return result.getStdout().contains("Run /init as init process");
+    }
+
+    private boolean hasMicrodroidLogcatOutput() throws DeviceNotAvailableException {
+        CommandResult result =
+                new CommandRunner(mAndroidDevice).runForResult("test", "-s", MICRODROID_LOG_PATH);
+        return result.getExitCode() == 0;
     }
 
     private ITestDevice launchProtectedVmAndWaitForBootCompleted(String debugLevel)
@@ -271,10 +330,10 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     // Try to launch protected non-debuggable VM for a while and quit.
-    // Non-debuggable VM doesn't enable adb, so there's no ITestDevice instance of it.
+    // Non-debuggable VM might not enable adb, so there's no ITestDevice instance of it.
     private CommandResult tryLaunchProtectedNonDebuggableVm() throws DeviceNotAvailableException {
         // Can't use MicrodroidBuilder because it expects adb connection
-        // but non-debuggable VM doesn't enable adb.
+        // but non-debuggable VM may not enable adb.
         CommandRunner runner = new CommandRunner(mAndroidDevice);
         runner.run("mkdir", "-p", TEST_ROOT);
         mAndroidDevice.pushFile(mCustomPvmfwBinFileOnHost, TEST_ROOT + PVMFW_FILE_NAME);
