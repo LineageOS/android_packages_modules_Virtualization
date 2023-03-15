@@ -17,6 +17,7 @@ rust_ffi_static {
         "libbuddy_system_allocator",
         "libdiced_open_dice_nostd",
         "libfdtpci",
+        "libhyp",
         "liblibfdt",
         "liblog_rust_nostd",
         "libonce_cell_nostd",
