@@ -32,8 +32,15 @@ traces.
 Consider first familiarizing yourself with Perfetto documentation for recording traces on Android:
 https://perfetto.dev/docs/quickstart/android-tracing.
 
-So far it is only possible to capture hypervisor trace events by providing the full trace config
-file to Perfetto. Here is the minimal
+The [record_android_trace](
+https://cs.android.com/android/platform/superproject/+/master:external/perfetto/tools/record_android_trace)
+script supports a shortcut to capture all hypervisor events that are  known to Perfetto:
+
+```shell
+external/perfetto/tools/record_android_trace hyp -t 15s -b 32mb -o /tmp/hyp.pftrace
+```
+
+Alternatively you can use full trace config to capture hypervisor. Example usage:
 
 ```shell
 cat<<EOF>config.pbtx
@@ -66,9 +73,19 @@ https://perfetto.dev/docs/quickstart/android-tracing#recording-a-trace-through-t
 
 #### Capturing hypervisor traces on QEMU
 
-TODO(b/271412868): fill in this section
+Perfetto supports capturing traces on Linux: https://perfetto.dev/docs/quickstart/linux-tracing.
+However, since pKVM hypervisor is only supported on arm64, you will need to cross-compile Perfetto
+binaries for linux-arm64 (unless you have an arm64 workstation).
 
-TODO(b/271412868): Stay tuned, more docs coming soon!
+1. Checkout Perfetto repository: https://perfetto.dev/docs/contributing/getting-started
+2. Follow https://perfetto.dev/docs/contributing/build-instructions#cross-compiling-for-linux-arm-64
+  to compile Perfetto binaries for arm64 architecture.
+3. Copy the tracebox binary to QEMU
+4. Run `tracebox` binary on QEMU to capture traces, it's interface is very similar to the
+`record_android_trace` binary. E.g. to capture all hypervisor events run:
+```shell
+tracebox -t 15s -b 32mb hyp
+```
 
 ## Microdroid VM tracing
 
