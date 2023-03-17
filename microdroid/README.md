@@ -138,6 +138,7 @@ and then automatically execute your app (the shared library
 TEST_ROOT=/data/local/tmp/virt
 adb shell /apex/com.android.virt/bin/vm run-app \
 --log $TEST_ROOT/log.txt \
+--console $TEST_ROOT/console.txt \
 PATH_TO_YOUR_APP \
 $TEST_ROOT/MyApp.apk.idsig \
 $TEST_ROOT/instance.img \
@@ -145,9 +146,9 @@ $TEST_ROOT/instance.img \
 ```
 
 The last command lets you know the CID assigned to the VM. The console output
-from the VM is stored to `$TEST_ROOT/log.txt` file for debugging purpose. If you
-omit the `--log $TEST_ROOT/log.txt` option, it will be emitted to the current
-console.
+from the VM is stored to `$TEST_ROOT/console.txt` and logcat is stored to
+`$TEST_ROOT/log.txt` file for debugging purpose. If you omit `--log` or
+`--console` option, they will be emitted to the current console.
 
 Stopping the VM can be done as follows:
 
@@ -159,12 +160,50 @@ adb shell /apex/com.android.virt/bin/vm stop $CID
 invoked with the `--daemonize` flag. If the flag was not used, press Ctrl+C on
 the console where the `vm run-app` command was invoked.
 
-## ADB
+## Debuggable microdroid
 
-On userdebug builds, you can have an adb connection to microdroid. To do so,
-first, delete `$TEST_ROOT/instance.img`; this is because changing debug settings
-requires a new instance. Then add the `--debug=full` flag to the
-`/apex/com.android.virt/bin/vm run-app` command, and then
+### Debugging features
+Microdroid supports following debugging features:
+
+- VM log
+- console output
+- kernel output
+- logcat output
+- [ramdump](../docs/debug/ramdump.md)
+- crashdump
+- [adb](#adb)
+- [gdb](#debugging-the-payload-on-microdroid)
+
+### Enabling debugging features
+There's two ways to enable the debugging features:
+
+#### Option 1) Running microdroid on AVF debug policy configured device
+
+microdroid can be started with debugging features by debug policies from the
+host. Host bootloader may provide debug policies to host OS's device tree for
+VMs.
+
+For protected VM, such device tree will be available in microdroid. microdroid
+can check which debuging features is enabled.
+
+Here are list of device tree properties for debugging features.
+
+- `/avf/guest/common/log`: `<1>` to enable kernel log and logcat. Ignored
+  otherwise.
+- `/avf/guest/common/ramdump`: `<1>` to enable ramdump. Ignored otherwise.
+- `/avf/guest/microdroid/adb`: `<1>` to enable `adb`. Ignored otherwise.
+
+#### Option 2) Lauching microdroid with debug level.
+
+microdroid can be started with debugging features. To do so, first, delete
+`$TEST_ROOT/instance.img`; this is because changing debug settings requires a
+new instance. Then add the `--debug=full` flag to the
+`/apex/com.android.virt/bin/vm run-app` command. This will enable all debugging
+features.
+
+### ADB
+
+If `adb` connection is enabled, launch following command.
 
 ```sh
 vm_shell
@@ -175,7 +214,7 @@ Done. Now you are logged into Microdroid. Have fun!
 Once you have an adb connection with `vm_shell`, `localhost:8000` will be the
 serial of microdroid.
 
-## Debugging the payload on microdroid
+### Debugging the payload on microdroid
 
 Like a normal adb device, you can debug native processes using `lldbclient.py`
 script, either by running a new process, or attaching to an existing process.
