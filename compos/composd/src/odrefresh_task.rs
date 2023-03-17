@@ -31,6 +31,7 @@ use compos_common::odrefresh::{
     is_system_property_interesting, ExitCode, CURRENT_ARTIFACTS_SUBDIR, ODREFRESH_OUTPUT_ROOT_DIR,
     PENDING_ARTIFACTS_SUBDIR,
 };
+use compos_common::BUILD_MANIFEST_SYSTEM_EXT_APK_PATH;
 use log::{error, info, warn};
 use odsign_proto::odsign_info::OdsignInfo;
 use protobuf::Message;
@@ -178,13 +179,20 @@ fn run_in_vm(
     let output_dir_raw_fd = output_dir_fd.as_raw_fd();
     let staging_dir_raw_fd = staging_dir_fd.as_raw_fd();
 
-    // Get the /system_ext FD differently because it may not exist.
-    let (system_ext_dir_raw_fd, ro_dir_fds) =
-        if let Ok(system_ext_dir_fd) = open_dir(Path::new("/system_ext")) {
-            (system_ext_dir_fd.as_raw_fd(), vec![system_dir_fd, system_ext_dir_fd])
-        } else {
-            (-1, vec![system_dir_fd])
-        };
+    // When the VM starts, it starts with or without mouting the extra build manifest APK from
+    // /system_ext. Later on request (here), we need to pass the directory FD of /system_ext, but
+    // only if the VM is configured to need it.
+    //
+    // It is possible to plumb the information from ComposClient to here, but it's extra complexity
+    // and feel slightly weird to encode the VM's state to the task itself, as it is a request to
+    // the VM.
+    let need_system_ext = Path::new(BUILD_MANIFEST_SYSTEM_EXT_APK_PATH).exists();
+    let (system_ext_dir_raw_fd, ro_dir_fds) = if need_system_ext {
+        let system_ext_dir_fd = open_dir(Path::new("/system_ext"))?;
+        (system_ext_dir_fd.as_raw_fd(), vec![system_dir_fd, system_ext_dir_fd])
+    } else {
+        (-1, vec![system_dir_fd])
+    };
 
     // Spawn a fd_server to serve the FDs.
     let fd_server_config = FdServerConfig {
