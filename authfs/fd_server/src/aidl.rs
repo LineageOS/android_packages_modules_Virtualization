@@ -31,7 +31,6 @@ use std::os::unix::io::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 use std::sync::{Arc, RwLock};
 
-use crate::fsverity;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IVirtFdService::{
     BnVirtFdService, FsStat::FsStat, IVirtFdService, MAX_REQUESTING_DATA,
 };
