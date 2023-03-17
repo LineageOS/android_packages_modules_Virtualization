@@ -88,7 +88,7 @@ public class AuthFsTestRule extends TestLogData {
     private static CommandRunner sAndroid;
     private static CommandRunner sMicrodroid;
 
-    private final ExecutorService mThreadPool = Executors.newCachedThreadPool();
+    private ExecutorService mThreadPool;
 
     public static void setUpAndroid(TestInformation testInfo) throws Exception {
         assertNotNull(testInfo.getDevice());
@@ -242,6 +242,7 @@ public class AuthFsTestRule extends TestLogData {
     }
 
     public void setUpTest() throws Exception {
+        mThreadPool = Executors.newCachedThreadPool();
         if (sAndroid != null) {
             sAndroid.run("mkdir -p " + TEST_OUTPUT_DIR);
         }
@@ -264,5 +265,10 @@ public class AuthFsTestRule extends TestLogData {
         archiveLogThenDelete(this, getDevice(), vmRecentLog, "vm_recent.log-" + testName);
 
         sAndroid.run("rm -rf " + TEST_OUTPUT_DIR);
+
+        if (mThreadPool != null) {
+            mThreadPool.shutdownNow();
+            mThreadPool = null;
+        }
     }
 }
