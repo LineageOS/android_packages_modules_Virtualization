@@ -23,7 +23,6 @@
 //! client can then request the content of file 9 by offset and size.
 
 mod aidl;
-mod fsverity;
 
 use anyhow::{bail, Result};
 use clap::Parser;
