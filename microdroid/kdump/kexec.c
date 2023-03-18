@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -53,6 +54,20 @@ int main() {
     if (syscall(SYS_kexec_file_load, open_checked(KERNEL), open_checked(INITRD), cmdline_len,
                 CMDLINE, KEXEC_FILE_ON_CRASH) == -1) {
         fprintf(stderr, "Failed to load panic kernel: %s\n", strerror(errno));
+        if (errno == EADDRNOTAVAIL) {
+            struct stat st;
+            off_t kernel_size = 0;
+            off_t initrd_size = 0;
+
+            if (stat(KERNEL, &st) == 0) {
+                kernel_size = st.st_size;
+            }
+            if (stat(INITRD, &st) == 0) {
+                initrd_size = st.st_size;
+            }
+            fprintf(stderr, "Image size too big? %s:%ld bytes, %s:%ld bytes", KERNEL, kernel_size,
+                    INITRD, initrd_size);
+        }
         return 1;
     }
     return 0;
