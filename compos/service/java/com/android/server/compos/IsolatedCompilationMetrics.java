@@ -36,9 +36,17 @@ class IsolatedCompilationMetrics {
 
     // TODO(b/218525257): Move the definition of these enums to atoms.proto
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef({RESULT_UNKNOWN, RESULT_SUCCESS, RESULT_UNKNOWN_FAILURE, RESULT_FAILED_TO_START,
-            RESULT_JOB_CANCELED, RESULT_COMPILATION_FAILED, RESULT_UNEXPECTED_COMPILATION_RESULT,
-            RESULT_COMPOSD_DIED})
+    @IntDef({
+        RESULT_UNKNOWN,
+        RESULT_SUCCESS,
+        RESULT_UNKNOWN_FAILURE,
+        RESULT_FAILED_TO_START,
+        RESULT_JOB_CANCELED,
+        RESULT_COMPILATION_FAILED,
+        RESULT_UNEXPECTED_COMPILATION_RESULT,
+        RESULT_COMPOSD_DIED,
+        RESULT_FAILED_TO_ENABLE_FSVERITY
+    })
     public @interface CompilationResult {}
 
     // Keep this in sync with Result enum in IsolatedCompilationEnded in
@@ -59,6 +67,9 @@ class IsolatedCompilationMetrics {
             .ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_UNEXPECTED_COMPILATION_RESULT;
     public static final int RESULT_COMPOSD_DIED =
             ArtStatsLog.ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_COMPOSD_DIED;
+    public static final int RESULT_FAILED_TO_ENABLE_FSVERITY =
+            ArtStatsLog
+                    .ISOLATED_COMPILATION_ENDED__COMPILATION_RESULT__RESULT_FAILED_TO_ENABLE_FSVERITY;
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({SCHEDULING_RESULT_UNKNOWN, SCHEDULING_SUCCESS, SCHEDULING_FAILURE})
