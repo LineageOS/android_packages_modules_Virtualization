@@ -53,6 +53,7 @@ use tombstoned_client::{TombstonedConnection, DebuggerdDumpType};
 use rpcbinder::RpcServer;
 
 /// external/crosvm
+use base::AsRawDescriptor;
 use base::UnixSeqpacketListener;
 use vm_control::{BalloonControlCommand, VmRequest, VmResponse};
 
@@ -823,7 +824,9 @@ fn run_vm(
 
     let control_server_socket = UnixSeqpacketListener::bind(crosvm_control_socket_path)
         .context("failed to create control server")?;
-    command.arg("--socket").arg(add_preserved_fd(&mut preserved_fds, &control_server_socket));
+    command
+        .arg("--socket")
+        .arg(add_preserved_fd(&mut preserved_fds, &control_server_socket.as_raw_descriptor()));
 
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);
