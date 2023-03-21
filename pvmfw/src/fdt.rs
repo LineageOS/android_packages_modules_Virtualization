@@ -26,6 +26,7 @@ use libfdt::AddressRange;
 use libfdt::CellIterator;
 use libfdt::Fdt;
 use libfdt::FdtError;
+use log::debug;
 use log::error;
 use tinyvec::ArrayVec;
 
@@ -436,7 +437,7 @@ fn parse_swiotlb_nodes(fdt: &libfdt::Fdt) -> Result<SwiotlbInfo, RebootReason> {
 
 #[derive(Debug)]
 #[allow(dead_code)] // TODO: remove this
-pub struct DeviceTreeInfo {
+struct DeviceTreeInfo {
     memory_size: NonZeroUsize,
     num_cpu: NonZeroUsize,
     pci_info: PciInfo,
@@ -448,7 +449,16 @@ impl DeviceTreeInfo {
     const RAM_BASE_ADDR: u64 = 0x8000_0000;
 }
 
-pub fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> {
+pub fn sanitize_device_tree(fdt: &mut libfdt::Fdt) -> Result<(), RebootReason> {
+    let info = parse_device_tree(fdt)?;
+    debug!("Device tree info: {:?}", info);
+
+    // TODO: replace fdt with the template DT
+    // TODO: patch the replaced fdt using info
+    Ok(())
+}
+
+fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> {
     Ok(DeviceTreeInfo {
         memory_size: parse_memory_node(fdt)?,
         num_cpu: parse_cpu_nodes(fdt)?,
