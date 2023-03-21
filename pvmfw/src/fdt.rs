@@ -14,6 +14,7 @@
 
 //! High-level FDT functions.
 
+use crate::cstr;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::RebootReason;
 use core::ffi::CStr;
@@ -30,11 +31,10 @@ use tinyvec::ArrayVec;
 
 /// Extract from /config the address range containing the pre-loaded kernel.
 pub fn kernel_range(fdt: &libfdt::Fdt) -> libfdt::Result<Option<Range<usize>>> {
-    let config = CStr::from_bytes_with_nul(b"/config\0").unwrap();
-    let addr = CStr::from_bytes_with_nul(b"kernel-address\0").unwrap();
-    let size = CStr::from_bytes_with_nul(b"kernel-size\0").unwrap();
+    let addr = cstr!("kernel-address");
+    let size = cstr!("kernel-size");
 
-    if let Some(config) = fdt.node(config)? {
+    if let Some(config) = fdt.node(cstr!("/config"))? {
         if let (Some(addr), Some(size)) = (config.getprop_u32(addr)?, config.getprop_u32(size)?) {
             let addr = addr as usize;
             let size = size as usize;
@@ -48,8 +48,8 @@ pub fn kernel_range(fdt: &libfdt::Fdt) -> libfdt::Result<Option<Range<usize>>> {
 
 /// Extract from /chosen the address range containing the pre-loaded ramdisk.
 pub fn initrd_range(fdt: &libfdt::Fdt) -> libfdt::Result<Option<Range<usize>>> {
-    let start = CStr::from_bytes_with_nul(b"linux,initrd-start\0").unwrap();
-    let end = CStr::from_bytes_with_nul(b"linux,initrd-end\0").unwrap();
+    let start = cstr!("linux,initrd-start");
+    let end = cstr!("linux,initrd-end");
 
     if let Some(chosen) = fdt.chosen()? {
         if let (Some(start), Some(end)) = (chosen.getprop_u32(start)?, chosen.getprop_u32(end)?) {
@@ -106,7 +106,7 @@ fn parse_memory_node(fdt: &libfdt::Fdt) -> Result<NonZeroUsize, RebootReason> {
 /// Read the number of CPUs
 fn parse_cpu_nodes(fdt: &libfdt::Fdt) -> Result<NonZeroUsize, RebootReason> {
     let num = fdt
-        .compatible_nodes(CStr::from_bytes_with_nul(b"arm,arm-v8\0").unwrap())
+        .compatible_nodes(cstr!("arm,arm-v8"))
         .map_err(|e| {
             error!("Failed to read compatible nodes \"arm,arm-v8\" from DT: {e}");
             RebootReason::InvalidFdt
@@ -128,7 +128,7 @@ struct PciInfo {
 /// Read and validate PCI node
 fn parse_pci_nodes(fdt: &libfdt::Fdt) -> Result<PciInfo, RebootReason> {
     let node = fdt
-        .compatible_nodes(CStr::from_bytes_with_nul(b"pci-host-cam-generic\0").unwrap())
+        .compatible_nodes(cstr!("pci-host-cam-generic"))
         .map_err(|e| {
             error!("Failed to read compatible node \"pci-host-cam-generic\" from DT: {e}");
             RebootReason::InvalidFdt
@@ -230,11 +230,11 @@ fn count_and_validate_pci_irq_masks(pci_node: &libfdt::FdtNode) -> Result<usize,
     const IRQ_MASK_ANY_IRQ: u32 = 0x7;
     const EXPECTED: [u32; IRQ_MASK_CELLS] =
         [IRQ_MASK_ADDR_HI, IRQ_MASK_ADDR_ME, IRQ_MASK_ADDR_LO, IRQ_MASK_ANY_IRQ];
-    let name = CStr::from_bytes_with_nul(b"interrupt-map-mask\0").unwrap();
+
     let mut irq_count: usize = 0;
     for irq_mask in CellChunkIterator::<IRQ_MASK_CELLS>::new(
         pci_node
-            .getprop_cells(name)
+            .getprop_cells(cstr!("interrupt-map-mask"))
             .map_err(|e| {
                 error!("Failed to read interrupt-map-mask property: {e}");
                 RebootReason::InvalidFdt
@@ -266,10 +266,9 @@ fn validate_pci_irq_maps(pci_node: &libfdt::FdtNode) -> Result<(), RebootReason>
     let mut phys_hi: u32 = 0;
     let mut irq_nr = AARCH64_IRQ_BASE;
 
-    let name = CStr::from_bytes_with_nul(b"interrupt-map\0").unwrap();
     for irq_map in CellChunkIterator::<IRQ_MAP_CELLS>::new(
         pci_node
-            .getprop_cells(name)
+            .getprop_cells(cstr!("interrupt-map"))
             .map_err(|e| {
                 error!("Failed to read interrupt-map property: {e}");
                 RebootReason::InvalidFdt
@@ -350,7 +349,7 @@ impl SerialInfo {
 fn parse_serial_nodes(fdt: &libfdt::Fdt) -> Result<SerialInfo, RebootReason> {
     let mut ret: SerialInfo = Default::default();
     for (i, node) in fdt
-        .compatible_nodes(CStr::from_bytes_with_nul(b"ns16550a\0").unwrap())
+        .compatible_nodes(cstr!("ns16550a"))
         .map_err(|e| {
             error!("Failed to read compatible nodes \"ns16550a\" from DT: {e}");
             RebootReason::InvalidFdt
@@ -390,7 +389,7 @@ pub struct SwiotlbInfo {
 
 fn parse_swiotlb_nodes(fdt: &libfdt::Fdt) -> Result<SwiotlbInfo, RebootReason> {
     let node = fdt
-        .compatible_nodes(CStr::from_bytes_with_nul(b"restricted-dma-pool\0").unwrap())
+        .compatible_nodes(cstr!("restricted-dma-pool"))
         .map_err(|e| {
             error!("Failed to read compatible nodes \"restricted-dma-pool\" from DT: {e}");
             RebootReason::InvalidFdt
@@ -401,7 +400,7 @@ fn parse_swiotlb_nodes(fdt: &libfdt::Fdt) -> Result<SwiotlbInfo, RebootReason> {
             RebootReason::InvalidFdt
         })?;
     let size = node
-        .getprop_u64(CStr::from_bytes_with_nul(b"size\0").unwrap())
+        .getprop_u64(cstr!("size"))
         .map_err(|e| {
             error!("Failed to read \"size\" property of \"restricted-dma-pool\": {e}");
             RebootReason::InvalidFdt
@@ -412,7 +411,7 @@ fn parse_swiotlb_nodes(fdt: &libfdt::Fdt) -> Result<SwiotlbInfo, RebootReason> {
         })?;
 
     let align = node
-        .getprop_u64(CStr::from_bytes_with_nul(b"alignment\0").unwrap())
+        .getprop_u64(cstr!("alignment"))
         .map_err(|e| {
             error!("Failed to read \"alignment\" property of \"restricted-dma-pool\": {e}");
             RebootReason::InvalidFdt
@@ -470,16 +469,8 @@ pub fn modify_for_next_stage(
 
     add_dice_node(fdt, bcc.as_ptr() as usize, bcc.len())?;
 
-    set_or_clear_chosen_flag(
-        fdt,
-        CStr::from_bytes_with_nul(b"avf,strict-boot\0").unwrap(),
-        strict_boot,
-    )?;
-    set_or_clear_chosen_flag(
-        fdt,
-        CStr::from_bytes_with_nul(b"avf,new-instance\0").unwrap(),
-        new_instance,
-    )?;
+    set_or_clear_chosen_flag(fdt, cstr!("avf,strict-boot"), strict_boot)?;
+    set_or_clear_chosen_flag(fdt, cstr!("avf,new-instance"), new_instance)?;
 
     fdt.pack()?;
 
@@ -488,24 +479,20 @@ pub fn modify_for_next_stage(
 
 /// Add a "google,open-dice"-compatible reserved-memory node to the tree.
 fn add_dice_node(fdt: &mut Fdt, addr: usize, size: usize) -> libfdt::Result<()> {
-    let reserved_memory = CStr::from_bytes_with_nul(b"/reserved-memory\0").unwrap();
     // We reject DTs with missing reserved-memory node as validation should have checked that the
     // "swiotlb" subnode (compatible = "restricted-dma-pool") was present.
-    let mut reserved_memory = fdt.node_mut(reserved_memory)?.ok_or(libfdt::FdtError::NotFound)?;
+    let mut reserved_memory =
+        fdt.node_mut(cstr!("/reserved-memory"))?.ok_or(libfdt::FdtError::NotFound)?;
 
-    let dice = CStr::from_bytes_with_nul(b"dice\0").unwrap();
-    let mut dice = reserved_memory.add_subnode(dice)?;
+    let mut dice = reserved_memory.add_subnode(cstr!("dice"))?;
 
-    let compatible = CStr::from_bytes_with_nul(b"compatible\0").unwrap();
-    dice.appendprop(compatible, b"google,open-dice\0")?;
+    dice.appendprop(cstr!("compatible"), b"google,open-dice\0")?;
 
-    let no_map = CStr::from_bytes_with_nul(b"no-map\0").unwrap();
-    dice.appendprop(no_map, &[])?;
+    dice.appendprop(cstr!("no-map"), &[])?;
 
     let addr = addr.try_into().unwrap();
     let size = size.try_into().unwrap();
-    let reg = CStr::from_bytes_with_nul(b"reg\0").unwrap();
-    dice.appendprop_addrrange(reg, addr, size)?;
+    dice.appendprop_addrrange(cstr!("reg"), addr, size)?;
 
     Ok(())
 }
