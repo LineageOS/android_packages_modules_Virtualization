@@ -234,6 +234,10 @@ public class IsolatedCompilationJobService extends JobService {
                     result = IsolatedCompilationMetrics.RESULT_UNEXPECTED_COMPILATION_RESULT;
                     break;
 
+                case ICompilationTaskCallback.FailureReason.FailedToEnableFsverity:
+                    result = IsolatedCompilationMetrics.RESULT_FAILED_TO_ENABLE_FSVERITY;
+                    break;
+
                 default:
                     result = IsolatedCompilationMetrics.RESULT_UNKNOWN_FAILURE;
                     break;
