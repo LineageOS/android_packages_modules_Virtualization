@@ -81,7 +81,6 @@ const ENCRYPTEDSTORE_BIN: &str = "/system/bin/encryptedstore";
 const ZIPFUSE_BIN: &str = "/system/bin/zipfuse";
 
 const APEX_CONFIG_DONE_PROP: &str = "apex_config.done";
-const TOMBSTONE_TRANSMIT_DONE_PROP: &str = "tombstone_transmit.init_done";
 const DEBUGGABLE_PROP: &str = "ro.boot.microdroid.debuggable";
 
 // SYNC WITH virtualizationservice/src/crosvm.rs
@@ -423,12 +422,11 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
 
     setup_config_sysprops(&config)?;
 
-    // Start tombstone_transmit if enabled
+    // Set export_tombstones if enabled
     if should_export_tombstones(&config) {
-        system_properties::write("tombstone_transmit.start", "1")
-            .context("set tombstone_transmit.start")?;
-    } else {
-        control_service("stop", "tombstoned")?;
+        // This property is read by tombstone_handler.
+        system_properties::write("microdroid_manager.export_tombstones.enabled", "1")
+            .context("set microdroid_manager.export_tombstones.enabled")?;
     }
 
     // Wait until zipfuse has mounted the APKs so we can access the payload
@@ -448,18 +446,8 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     system_properties::write("microdroid_manager.init_done", "1")
         .context("set microdroid_manager.init_done")?;
 
-    // Wait for tombstone_transmit to init
-    if should_export_tombstones(&config) {
-        wait_for_tombstone_transmit_done()?;
-    }
-
     info!("boot completed, time to run payload");
     exec_task(task, service).context("Failed to run payload")
-}
-
-fn control_service(action: &str, service: &str) -> Result<()> {
-    system_properties::write(&format!("ctl.{}", action), service)
-        .with_context(|| format!("Failed to {} {}", action, service))
 }
 
 struct ApkDmverityArgument<'a> {
@@ -731,11 +719,6 @@ fn setup_config_sysprops(config: &VmPayloadConfig) -> Result<()> {
 // Waits until linker config is generated
 fn wait_for_apex_config_done() -> Result<()> {
     wait_for_property_true(APEX_CONFIG_DONE_PROP).context("Failed waiting for apex config done")
-}
-
-fn wait_for_tombstone_transmit_done() -> Result<()> {
-    wait_for_property_true(TOMBSTONE_TRANSMIT_DONE_PROP)
-        .context("Failed waiting for tombstone transmit done")
 }
 
 fn wait_for_property_true(property_name: &str) -> Result<()> {
