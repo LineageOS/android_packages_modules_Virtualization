@@ -25,28 +25,18 @@ Start by creating a `rust_ffi_static` rule containing your main module:
 ```soong
 rust_ffi_static {
     name: "libvmbase_example",
+    defaults: ["vmbase_ffi_defaults"],
     crate_name: "vmbase_example",
     srcs: ["src/main.rs"],
-    edition: "2021",
-    no_stdlibs: true,
-    stdlibs: [
-        "libcompiler_builtins.rust_sysroot",
-        "libcore.rust_sysroot",
-    ],
     rustlibs: [
         "libvmbase",
     ],
-    enabled: false,
-    target: {
-        android_arm64: {
-            enabled: true,
-        },
-    },
 }
 ```
 
-Note that stdlibs must be explicitly specified, as we don't want the normal set of libraries used
-for a C++ binary intended to run in Android userspace.
+`vmbase_ffi_defaults`, among other things, specifies the stdlibs including the `compiler_builtins`
+and `core` crate. These must be explicitly specified as we don't want the normal set of libraries
+used for a C++ binary intended to run in Android userspace.
 
 ### Entry point
 
@@ -139,30 +129,18 @@ to use a `cc_binary` rule:
 
 ```soong
 cc_binary {
-    name: "vmbase_example_elf",
-    stem: "vmbase_example",
+    name: "vmbase_example",
+    defaults: ["vmbase_elf_defaults"],
     srcs: [
         "idmap.S",
     ],
     static_libs: [
-        "libvmbase_entry",
         "libvmbase_example",
     ],
-    static_executable: true,
-    nocrt: true,
-    system_shared_libs: ["libc"],
-    stl: "none",
     linker_scripts: [
         "image.ld",
         ":vmbase_sections",
     ],
-    installable: false,
-    enabled: false,
-    target: {
-        android_arm64: {
-            enabled: true,
-        },
-    },
 }
 ```
 
@@ -174,9 +152,9 @@ which you can do with a `raw_binary` rule:
 
 ```soong
 raw_binary {
-    name: "vmbase_example",
-    src: ":vmbase_example_elf",
+    name: "vmbase_example_bin",
     stem: "vmbase_example.bin",
+    src: ":vmbase_example",
     enabled: false,
     target: {
         android_arm64: {
