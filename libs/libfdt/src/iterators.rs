@@ -122,7 +122,7 @@ pub struct RangesIterator<'a, A, P, S> {
 }
 
 /// An address range from the 'ranges' property of a DT node.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AddressRange<A, P, S> {
     /// The physical address of the range within the child bus's address space.
     pub addr: A,
