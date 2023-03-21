@@ -72,8 +72,6 @@ android_system_image {
         "apexd.microdroid",
         "debuggerd",
         "linker",
-        "tombstoned.microdroid",
-        "tombstone_transmit.microdroid",
         "cgroups.json",
         "task_profiles.json",
         "public.libraries.android.txt",
