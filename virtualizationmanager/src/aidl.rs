@@ -725,10 +725,11 @@ fn is_safe_app_partition(label: &str) -> bool {
 /// user devices (W^X).
 fn check_label_is_allowed(context: &SeContext) -> Result<()> {
     match context.selinux_type()? {
-        | "system_file" // immutable dm-verity protected partition
         | "apk_data_file" // APKs of an installed app
-        | "staging_data_file" // updated/staged APEX images
         | "shell_data_file" // test files created via adb shell
+        | "staging_data_file" // updated/staged APEX images
+        | "system_file" // immutable dm-verity protected partition
+        | "virtualizationservice_data_file" // files created by VS / VirtMgr
          => Ok(()),
         _ => bail!("Label {} is not allowed", context),
     }
