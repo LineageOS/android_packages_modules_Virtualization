@@ -14,6 +14,7 @@
 
 //! Support for the debug policy overlay in pvmfw
 
+use crate::cstr;
 use alloc::{vec, vec::Vec};
 use core::ffi::CStr;
 use core::fmt;
@@ -65,11 +66,8 @@ unsafe fn apply_debug_policy(
 
 /// Disables ramdump by removing crashkernel from bootargs in /chosen.
 fn disable_ramdump(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
-    let chosen_path = CStr::from_bytes_with_nul(b"/chosen\0").unwrap();
-    let bootargs_name = CStr::from_bytes_with_nul(b"bootargs\0").unwrap();
-
     let chosen = match fdt
-        .node(chosen_path)
+        .node(cstr!("/chosen"))
         .map_err(|e| DebugPolicyError::Fdt("Failed to find /chosen", e))?
     {
         Some(node) => node,
@@ -77,7 +75,7 @@ fn disable_ramdump(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
     };
 
     let bootargs = match chosen
-        .getprop_str(bootargs_name)
+        .getprop_str(cstr!("bootargs"))
         .map_err(|e| DebugPolicyError::Fdt("Failed to find bootargs prop", e))?
     {
         Some(value) if !value.to_bytes().is_empty() => value,
@@ -100,8 +98,8 @@ fn disable_ramdump(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
     new_bootargs.push(b'\0');
 
     // We've checked existence of /chosen node at the beginning.
-    let mut chosen_mut = fdt.node_mut(chosen_path).unwrap().unwrap();
-    chosen_mut.setprop(bootargs_name, new_bootargs.as_slice()).map_err(|e| {
+    let mut chosen_mut = fdt.node_mut(cstr!("/chosen")).unwrap().unwrap();
+    chosen_mut.setprop(cstr!("bootargs"), new_bootargs.as_slice()).map_err(|e| {
         DebugPolicyError::OverlaidFdt("Failed to remove crashkernel. FDT might be corrupted", e)
     })
 }
@@ -109,7 +107,7 @@ fn disable_ramdump(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
 /// Returns true only if fdt has ramdump prop in the /avf/guest/common node with value <1>
 fn is_ramdump_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
     let common = match fdt
-        .node(CStr::from_bytes_with_nul(b"/avf/guest/common\0").unwrap())
+        .node(cstr!("/avf/guest/common"))
         .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find /avf/guest/common node", e))?
     {
         Some(node) => node,
@@ -117,7 +115,7 @@ fn is_ramdump_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
     };
 
     match common
-        .getprop_u32(CStr::from_bytes_with_nul(b"ramdump\0").unwrap())
+        .getprop_u32(cstr!("ramdump"))
         .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find ramdump prop", e))?
     {
         Some(1) => Ok(true),
@@ -128,11 +126,8 @@ fn is_ramdump_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
 /// Enables console output by adding kernel.printk.devkmsg and kernel.console to bootargs.
 /// This uses hardcoded console name 'hvc0' and it should be match with microdroid's bootconfig.debuggable.
 fn enable_console_output(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
-    let chosen_path = CStr::from_bytes_with_nul(b"/chosen\0").unwrap();
-    let bootargs_name = CStr::from_bytes_with_nul(b"bootargs\0").unwrap();
-
     let chosen = match fdt
-        .node(chosen_path)
+        .node(cstr!("/chosen"))
         .map_err(|e| DebugPolicyError::Fdt("Failed to find /chosen", e))?
     {
         Some(node) => node,
@@ -140,7 +135,7 @@ fn enable_console_output(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> 
     };
 
     let bootargs = match chosen
-        .getprop_str(bootargs_name)
+        .getprop_str(cstr!("bootargs"))
         .map_err(|e| DebugPolicyError::Fdt("Failed to find bootargs prop", e))?
     {
         Some(value) if !value.to_bytes().is_empty() => value,
@@ -154,8 +149,8 @@ fn enable_console_output(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> 
     fdt.unpack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to unpack", e))?;
 
     // We've checked existence of /chosen node at the beginning.
-    let mut chosen_mut = fdt.node_mut(chosen_path).unwrap().unwrap();
-    chosen_mut.setprop(bootargs_name, new_bootargs.as_slice()).map_err(|e| {
+    let mut chosen_mut = fdt.node_mut(cstr!("/chosen")).unwrap().unwrap();
+    chosen_mut.setprop(cstr!("bootargs"), new_bootargs.as_slice()).map_err(|e| {
         DebugPolicyError::OverlaidFdt("Failed to enabled console output. FDT might be corrupted", e)
     })?;
 
@@ -166,7 +161,7 @@ fn enable_console_output(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> 
 /// Returns true only if fdt has log prop in the /avf/guest/common node with value <1>
 fn is_console_output_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
     let common = match fdt
-        .node(CStr::from_bytes_with_nul(b"/avf/guest/common\0").unwrap())
+        .node(cstr!("/avf/guest/common"))
         .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find /avf/guest/common node", e))?
     {
         Some(node) => node,
@@ -174,7 +169,7 @@ fn is_console_output_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError
     };
 
     match common
-        .getprop_u32(CStr::from_bytes_with_nul(b"log\0").unwrap())
+        .getprop_u32(cstr!("log"))
         .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find log prop", e))?
     {
         Some(1) => Ok(true),
