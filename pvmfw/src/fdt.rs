@@ -15,9 +15,12 @@
 //! High-level FDT functions.
 
 use crate::cstr;
+use crate::helpers::flatten;
 use crate::helpers::GUEST_PAGE_SIZE;
+use crate::helpers::SIZE_4KB;
 use crate::RebootReason;
 use core::ffi::CStr;
+use core::mem::size_of;
 use core::ops::Range;
 use fdtpci::PciMemoryFlags;
 use fdtpci::PciRangeType;
@@ -25,6 +28,7 @@ use libfdt::AddressRange;
 use libfdt::CellIterator;
 use libfdt::Fdt;
 use libfdt::FdtError;
+use libfdt::FdtNode;
 use log::debug;
 use log::error;
 use tinyvec::ArrayVec;
@@ -62,6 +66,16 @@ fn read_initrd_range_from(fdt: &Fdt) -> libfdt::Result<Option<Range<usize>>> {
     Ok(None)
 }
 
+fn patch_initrd_range(fdt: &mut Fdt, initrd_range: &Range<usize>) -> libfdt::Result<()> {
+    let start = u32::try_from(initrd_range.start).unwrap();
+    let end = u32::try_from(initrd_range.end).unwrap();
+
+    let mut node = fdt.chosen_mut()?.ok_or(FdtError::NotFound)?;
+    node.setprop(cstr!("linux,initrd-start"), &start.to_be_bytes())?;
+    node.setprop(cstr!("linux,initrd-end"), &end.to_be_bytes())?;
+    Ok(())
+}
+
 /// Read the first range in /memory node in DT
 fn read_memory_range_from(fdt: &Fdt) -> libfdt::Result<Range<usize>> {
     fdt.memory()?.ok_or(FdtError::NotFound)?.next().ok_or(FdtError::NotFound)
@@ -88,6 +102,14 @@ fn validate_memory_range(range: &Range<usize>) -> Result<(), RebootReason> {
     Ok(())
 }
 
+fn patch_memory_range(fdt: &mut Fdt, memory_range: &Range<usize>) -> libfdt::Result<()> {
+    let size = memory_range.len() as u64;
+    fdt.node_mut(cstr!("/memory"))?.ok_or(FdtError::NotFound)?.setprop_inplace(
+        cstr!("reg"),
+        flatten(&[DeviceTreeInfo::RAM_BASE_ADDR.to_be_bytes(), size.to_be_bytes()]),
+    )
+}
+
 /// Read the number of CPUs from DT
 fn read_num_cpus_from(fdt: &Fdt) -> libfdt::Result<usize> {
     Ok(fdt.compatible_nodes(cstr!("arm,arm-v8"))?.count())
@@ -99,11 +121,31 @@ fn validate_num_cpus(num_cpus: usize) -> Result<(), RebootReason> {
         error!("Number of CPU can't be 0");
         return Err(RebootReason::InvalidFdt);
     }
+    if DeviceTreeInfo::GIC_REDIST_SIZE_PER_CPU.checked_mul(num_cpus.try_into().unwrap()).is_none() {
+        error!("Too many CPUs for gic: {}", num_cpus);
+        return Err(RebootReason::InvalidFdt);
+    }
+    Ok(())
+}
+
+/// Patch DT by keeping `num_cpus` number of arm,arm-v8 compatible nodes, and pruning the rest.
+fn patch_num_cpus(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
+    let cpu = cstr!("arm,arm-v8");
+    let mut next = fdt.root_mut()?.next_compatible(cpu)?;
+    for _ in 0..num_cpus {
+        next = if let Some(current) = next {
+            current.next_compatible(cpu)?
+        } else {
+            return Err(FdtError::NoSpace);
+        };
+    }
+    while let Some(current) = next {
+        next = current.delete_and_next_compatible(cpu)?;
+    }
     Ok(())
 }
 
 #[derive(Debug)]
-#[allow(dead_code)] // TODO: remove this
 struct PciInfo {
     ranges: [PciAddrRange; 2],
     irq_masks: ArrayVec<[PciIrqMask; PciInfo::MAX_IRQS]>,
@@ -291,8 +333,25 @@ fn validate_pci_irq_map(irq_map: &PciIrqMap, idx: usize) -> Result<(), RebootRea
     Ok(())
 }
 
+fn patch_pci_info(fdt: &mut Fdt, pci_info: &PciInfo) -> libfdt::Result<()> {
+    let mut node = fdt
+        .root_mut()?
+        .next_compatible(cstr!("pci-host-cam-generic"))?
+        .ok_or(FdtError::NotFound)?;
+
+    let irq_masks_size = pci_info.irq_masks.len() * size_of::<PciIrqMask>();
+    node.trimprop(cstr!("interrupt-map-mask"), irq_masks_size)?;
+
+    let irq_maps_size = pci_info.irq_maps.len() * size_of::<PciIrqMap>();
+    node.trimprop(cstr!("interrupt-map"), irq_maps_size)?;
+
+    node.setprop_inplace(
+        cstr!("ranges"),
+        flatten(&[pci_info.ranges[0].to_cells(), pci_info.ranges[1].to_cells()]),
+    )
+}
+
 #[derive(Default, Debug)]
-#[allow(dead_code)] // TODO: remove this
 struct SerialInfo {
     addrs: ArrayVec<[u64; Self::MAX_SERIALS]>,
 }
@@ -310,8 +369,26 @@ fn read_serial_info_from(fdt: &Fdt) -> libfdt::Result<SerialInfo> {
     Ok(SerialInfo { addrs })
 }
 
+/// Patch the DT by deleting the ns16550a compatible nodes whose address are unknown
+fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<()> {
+    let name = cstr!("ns16550a");
+    let mut next = fdt.root_mut()?.next_compatible(name);
+    while let Some(current) = next? {
+        let reg = FdtNode::from_mut(&current)
+            .reg()?
+            .ok_or(FdtError::NotFound)?
+            .next()
+            .ok_or(FdtError::NotFound)?;
+        next = if !serial_info.addrs.contains(&reg.addr) {
+            current.delete_and_next_compatible(name)
+        } else {
+            current.next_compatible(name)
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
-#[allow(dead_code)] // TODO: remove this
 struct SwiotlbInfo {
     size: u64,
     align: u64,
@@ -341,8 +418,74 @@ fn validate_swiotlb_info(swiotlb_info: &SwiotlbInfo) -> Result<(), RebootReason>
     Ok(())
 }
 
+fn patch_swiotlb_info(fdt: &mut Fdt, swiotlb_info: &SwiotlbInfo) -> libfdt::Result<()> {
+    let mut node =
+        fdt.root_mut()?.next_compatible(cstr!("restricted-dma-pool"))?.ok_or(FdtError::NotFound)?;
+    node.setprop_inplace(cstr!("size"), &swiotlb_info.size.to_be_bytes())?;
+    node.setprop_inplace(cstr!("alignment"), &swiotlb_info.align.to_be_bytes())?;
+    Ok(())
+}
+
+fn patch_gic(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
+    let node = fdt.compatible_nodes(cstr!("arm,gic-v3"))?.next().ok_or(FdtError::NotFound)?;
+    let mut ranges = node.reg()?.ok_or(FdtError::NotFound)?;
+    let range0 = ranges.next().ok_or(FdtError::NotFound)?;
+    let mut range1 = ranges.next().ok_or(FdtError::NotFound)?;
+
+    let addr = range0.addr;
+    // SAFETY - doesn't overflow. checked in validate_num_cpus
+    let size: u64 =
+        DeviceTreeInfo::GIC_REDIST_SIZE_PER_CPU.checked_mul(num_cpus.try_into().unwrap()).unwrap();
+
+    // range1 is just below range0
+    range1.addr = addr - size;
+    range1.size = Some(size);
+
+    let range0 = range0.to_cells();
+    let range1 = range1.to_cells();
+    let value = [
+        range0.0,          // addr
+        range0.1.unwrap(), //size
+        range1.0,          // addr
+        range1.1.unwrap(), //size
+    ];
+
+    let mut node =
+        fdt.root_mut()?.next_compatible(cstr!("arm,gic-v3"))?.ok_or(FdtError::NotFound)?;
+    node.setprop_inplace(cstr!("reg"), flatten(&value))
+}
+
+fn patch_timer(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
+    const NUM_INTERRUPTS: usize = 4;
+    const CELLS_PER_INTERRUPT: usize = 3;
+    let node = fdt.compatible_nodes(cstr!("arm,armv8-timer"))?.next().ok_or(FdtError::NotFound)?;
+    let interrupts = node.getprop_cells(cstr!("interrupts"))?.ok_or(FdtError::NotFound)?;
+    let mut value: ArrayVec<[u32; NUM_INTERRUPTS * CELLS_PER_INTERRUPT]> =
+        interrupts.take(NUM_INTERRUPTS * CELLS_PER_INTERRUPT).collect();
+
+    let num_cpus: u32 = num_cpus.try_into().unwrap();
+    let cpu_mask: u32 = (((0x1 << num_cpus) - 1) & 0xff) << 8;
+    for v in value.iter_mut().skip(2).step_by(CELLS_PER_INTERRUPT) {
+        *v |= cpu_mask;
+    }
+    for v in value.iter_mut() {
+        *v = v.to_be();
+    }
+
+    // SAFETY - array size is the same
+    let value = unsafe {
+        core::mem::transmute::<
+            [u32; NUM_INTERRUPTS * CELLS_PER_INTERRUPT],
+            [u8; NUM_INTERRUPTS * CELLS_PER_INTERRUPT * size_of::<u32>()],
+        >(value.into_inner())
+    };
+
+    let mut node =
+        fdt.root_mut()?.next_compatible(cstr!("arm,armv8-timer"))?.ok_or(FdtError::NotFound)?;
+    node.setprop_inplace(cstr!("interrupts"), value.as_slice())
+}
+
 #[derive(Debug)]
-#[allow(dead_code)] // TODO: remove this
 pub struct DeviceTreeInfo {
     pub kernel_range: Option<Range<usize>>,
     pub initrd_range: Option<Range<usize>>,
@@ -355,14 +498,15 @@ pub struct DeviceTreeInfo {
 
 impl DeviceTreeInfo {
     const RAM_BASE_ADDR: u64 = 0x8000_0000;
+    const GIC_REDIST_SIZE_PER_CPU: u64 = (32 * SIZE_4KB) as u64;
 }
 
-pub fn sanitize_device_tree(fdt: &mut libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> {
+pub fn sanitize_device_tree(fdt: &mut Fdt) -> Result<DeviceTreeInfo, RebootReason> {
     let info = parse_device_tree(fdt)?;
     debug!("Device tree info: {:?}", info);
 
     // TODO: replace fdt with the template DT
-    // TODO: patch the replaced fdt using info
+    patch_device_tree(fdt, &info)?;
     Ok(info)
 }
 
@@ -415,6 +559,44 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         serial_info,
         swiotlb_info,
     })
+}
+
+fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootReason> {
+    if let Some(initrd_range) = &info.initrd_range {
+        patch_initrd_range(fdt, initrd_range).map_err(|e| {
+            error!("Failed to patch initrd range to DT: {e}");
+            RebootReason::InvalidFdt
+        })?;
+    }
+    patch_memory_range(fdt, &info.memory_range).map_err(|e| {
+        error!("Failed to patch memory range to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_num_cpus(fdt, info.num_cpus).map_err(|e| {
+        error!("Failed to patch cpus to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_pci_info(fdt, &info.pci_info).map_err(|e| {
+        error!("Failed to patch pci info to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_serial_info(fdt, &info.serial_info).map_err(|e| {
+        error!("Failed to patch serial info to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_swiotlb_info(fdt, &info.swiotlb_info).map_err(|e| {
+        error!("Failed to patch swiotlb info to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_gic(fdt, info.num_cpus).map_err(|e| {
+        error!("Failed to patch gic info to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_timer(fdt, info.num_cpus).map_err(|e| {
+        error!("Failed to patch timer info to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    Ok(())
 }
 
 /// Modifies the input DT according to the fields of the configuration.
