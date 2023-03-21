@@ -67,6 +67,8 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
 
         // remove any leftover files under test root
         android.tryRun("rm", "-rf", TEST_ROOT + "*");
+
+        android.tryRun("mkdir " + TEST_ROOT);
     }
 
     public static void cleanUpVirtualizationTestSetup(ITestDevice androidDevice)
