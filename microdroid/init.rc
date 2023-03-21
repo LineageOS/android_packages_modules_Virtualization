@@ -126,14 +126,6 @@ on post-fs-data
     mkdir /data/vendor_de 0771 root root
     mkdir /data/vendor/hardware 0771 root root
 
-    # Start tombstoned early to be able to store tombstones.
-    # microdroid doesn't have anr, but tombstoned requires it
-    mkdir /data/anr 0775 system system
-    mkdir /data/tombstones 0771 system system
-    mkdir /data/vendor/tombstones 0771 root root
-
-    start tombstoned
-
     # For security reasons, /data/local/tmp should always be empty.
     # Do not place files or directories in /data/local/tmp
     mkdir /data/local 0751 root root
@@ -145,15 +137,6 @@ on post-fs-data && property:microdroid_manager.authfs.enabled=1
 on boot
     # Mark boot completed. This will notify microdroid_manager to run payload.
     setprop dev.bootcomplete 1
-
-on property:tombstone_transmit.start=1
-    mkdir /data/tombstones 0771 system system
-    start tombstone_transmit
-
-service tombstone_transmit /system/bin/tombstone_transmit.microdroid -cid 2 -port 2000 -remove_tombstones_after_transmitting
-    user system
-    group system
-    shutdown critical
 
 service apexd-vm /system/bin/apexd --vm
     user root
