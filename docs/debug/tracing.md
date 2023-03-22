@@ -16,10 +16,12 @@ differences, e.g.:
 * Only boot clock is supported, and there is no way for user space to change the tracing_clock.
 * Hypervisor tracing periodically polls the data from the hypervisor, this is different from the
   regular ftrace instance which pushes the events into the ring buffer.
+* Resetting ring buffers (by clearing the trace file) is only supported when there are no active
+  readers. If the trace file is cleared while there are active readers, then the ring buffers will
+  be cleared after the last reader disconnects.
+* Changing the size of the ring buffer while the tracing session is active is also not supported.
 
 Note: the list above is not exhaustive.
-
-TODO(b/271412868): add more documentation on the user space interface.
 
 ### Perfetto integration
 
@@ -85,6 +87,61 @@ binaries for linux-arm64 (unless you have an arm64 workstation).
 `record_android_trace` binary. E.g. to capture all hypervisor events run:
 ```shell
 tracebox -t 15s -b 32mb hyp
+```
+
+### Analysing traces using SQL
+
+On top of visualisation, Perfetto also provides a SQL interface to analyse traces. More
+documentation is available at https://perfetto.dev/docs/quickstart/trace-analysis and
+https://perfetto.dev/docs/analysis/trace-processor.
+
+Hypervisor events can be queried via `pkvm_hypervisor_events` SQL view. You can load that view by
+calling `SELECT IMPORT("pkvm.hypervisor");`, e.g.:
+
+```sql
+SELECT IMPORT("pkvm.hypervisor");
+SELECT * FROM pkvm_hypervisor_events limit 5;
+```
+
+Below are some SQL queries that might be useful when analysing hypervisor traces.
+
+**What is the longest time CPU spent in hypervisor, grouped by the reason to enter hypervisor**
+```sql
+SELECT IMPORT("pkvm.hypervisor");
+
+SELECT
+  cpu,
+  reason,
+  ts,
+  dur
+FROM pkvm_hypervisor_events
+JOIN (
+  SELECT
+    MAX(dur) as dur2,
+    cpu as cpu2,
+    reason as reason2
+  FROM pkvm_hypervisor_events
+  GROUP BY 2, 3) AS sc
+ON
+  cpu = sc.cpu2
+  AND dur = sc.dur2
+  AND (reason = sc.reason2 OR (reason IS NULL AND sc.reason2 IS NULL))
+ORDER BY dur desc;
+```
+
+**What are the 10 longest times CPU spent in hypervisor because of host_mem_abort**
+```sql
+SELECT
+  hyp.dur as dur,
+  hyp.ts as ts,
+  EXTRACT_ARG(slices.arg_set_id, 'esr') as esr,
+  EXTRACT_ARG(slices.arg_set_id, 'addr') as addr
+FROM pkvm_hypervisor_events as hyp
+JOIN slices
+ON hyp.slice_id = slices.id
+WHERE hyp.reason = 'host_mem_abort'
+ORDER BY dur desc
+LIMIT 10;
 ```
 
 ## Microdroid VM tracing
