@@ -110,10 +110,23 @@ android_system_image {
                 "authfs",
                 "authfs_service",
                 "encryptedstore",
-                "microdroid_crashdump_kernel",
                 "microdroid_kexec",
                 "microdroid_manager",
                 "zipfuse",
+            ],
+        },
+    },
+    arch: {
+        // b/273792258: These could be in multilib.lib64 except that
+        // microdroid_crashdump_kernel doesn't exist for riscv64 yet
+        arm64: {
+            deps: [
+                "microdroid_crashdump_kernel",
+            ],
+        },
+        x86_64: {
+            deps: [
+                "microdroid_crashdump_kernel",
             ],
         },
     },
