@@ -23,17 +23,17 @@ genrule {
 }
 
 genrule {
-    name: "test_avf_debug_policy_with_console_output",
+    name: "test_avf_debug_policy_with_log.dtbo",
     defaults: ["test_avf_debug_policy_overlay"],
-    srcs: ["assets/avf_debug_policy_with_console_output.dts"],
-    out: ["avf_debug_policy_with_console_output.dtbo"],
+    srcs: ["assets/avf_debug_policy_with_log.dts"],
+    out: ["avf_debug_policy_with_log.dtbo"],
 }
 
 genrule {
-    name: "test_avf_debug_policy_without_console_output",
+    name: "test_avf_debug_policy_without_log.dtbo",
     defaults: ["test_avf_debug_policy_overlay"],
-    srcs: ["assets/avf_debug_policy_without_console_output.dts"],
-    out: ["avf_debug_policy_without_console_output.dtbo"],
+    srcs: ["assets/avf_debug_policy_without_log.dts"],
+    out: ["avf_debug_policy_without_log.dtbo"],
 }
 
 genrule {
@@ -76,8 +76,8 @@ java_test_host {
         ":pvmfw_test",
         ":test_avf_debug_policy_with_ramdump",
         ":test_avf_debug_policy_without_ramdump",
-        ":test_avf_debug_policy_with_console_output",
-        ":test_avf_debug_policy_without_console_output",
+        ":test_avf_debug_policy_with_log.dtbo",
+        ":test_avf_debug_policy_without_log.dtbo",
         ":test_avf_debug_policy_with_adb",
         ":test_avf_debug_policy_without_adb",
         "assets/bcc.dat",
