@@ -18,7 +18,7 @@ rust_defaults {
         "libminijail_rust",
         "libnix",
         "libodsign_proto_rust",
-        "libprotobuf",
+        "libprotobuf_deprecated",
         "libregex",
         "librpcbinder_rs",
         "librustutils",

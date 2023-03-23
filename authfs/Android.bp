@@ -23,7 +23,7 @@ rust_defaults {
         "liblog_rust",
         "libnix",
         "libopenssl",
-        "libprotobuf",
+        "libprotobuf_deprecated",
         "librpcbinder_rs",
         "libthiserror",
     ],
