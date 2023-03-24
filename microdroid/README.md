@@ -181,7 +181,8 @@ There's two ways to enable the debugging features:
 
 microdroid can be started with debugging features by debug policies from the
 host. Host bootloader may provide debug policies to host OS's device tree for
-VMs.
+VMs. Host bootloader MUST NOT provide debug policies for locked devices for
+security reasons.
 
 For protected VM, such device tree will be available in microdroid. microdroid
 can check which debuging features is enabled.

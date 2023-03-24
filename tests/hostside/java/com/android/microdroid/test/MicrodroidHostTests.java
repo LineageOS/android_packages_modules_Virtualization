@@ -927,6 +927,21 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         checkHashAlgorithm(virtApexEtcDir);
     }
 
+    @Test
+    @CddTest
+    public void testNoAvfDebugPolicyInLockedDevice() throws Exception {
+        ITestDevice device = getDevice();
+
+        // Check device's locked state with ro.boot.verifiedbootstate. ro.boot.flash.locked
+        // may not be set if ro.oem_unlock_supported is false.
+        String lockProp = device.getProperty("ro.boot.verifiedbootstate");
+        assumeFalse("Unlocked devices may have AVF debug policy", lockProp.equals("orange"));
+
+        // Test that AVF debug policy doesn't exist.
+        boolean hasDebugPolicy = device.doesFileExist("/sys/firmware/devicetree/base/avf");
+        assertThat(hasDebugPolicy).isFalse();
+    }
+
     private String avbInfo(String image_path) throws Exception {
         File avbtool = findTestFile("avbtool");
         List<String> command =

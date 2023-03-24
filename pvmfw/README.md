@@ -240,7 +240,10 @@ device tree node marked as [`compatible=”google,open-dice”`][dice-dt].
 Config header can provide a DTBO to be overlaid on top of the baseline device
 tree from crosvm.
 
-The DTBO may contain debug policies as follows.
+The DTBO may contain debug policies. Debug policies MUST NOT be provided for
+locked devices for security reasons.
+
+Here are an example of DTBO.
 
 ```
 / {
