@@ -635,6 +635,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
+    public void testAvfRequiresUpdatableApex() throws Exception {
+        assertWithMessage("Devices that support AVF must also support updatable APEX")
+                .that(SystemProperties.getBoolean("ro.apex.updatable", false))
+                .isTrue();
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1"})
     public void vmmGetAndCreate() throws Exception {
         assumeSupportedDevice();
 
