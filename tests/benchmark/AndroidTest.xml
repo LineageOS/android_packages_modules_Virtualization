@@ -25,6 +25,11 @@
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer">
         <option name="force-root" value="true" />
     </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
+        <option name="push" value="perf-setup.sh->/data/local/tmp/perf-setup.sh" />
+        <option name="post-push" value="chmod 755 /data/local/tmp/perf-setup.sh;/data/local/tmp/perf-setup.sh" />
+        <option name="cleanup" value="true" />
+    </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.microdroid.benchmark" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
