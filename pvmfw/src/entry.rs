@@ -109,6 +109,7 @@ impl<'a> MemorySlices<'a> {
             RebootReason::InvalidFdt
         })?;
 
+        fdt::sanitize_device_tree(fdt)?;
         debug!("Fdt passed validation!");
 
         let memory_range = fdt
