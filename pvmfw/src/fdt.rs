@@ -18,8 +18,12 @@ use crate::cstr;
 use crate::helpers::flatten;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::helpers::SIZE_4KB;
+use crate::memory::BASE_ADDR;
+use crate::memory::MAX_ADDR;
 use crate::RebootReason;
 use alloc::ffi::CString;
+use core::cmp::max;
+use core::cmp::min;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::ops::Range;
@@ -103,8 +107,8 @@ fn read_memory_range_from(fdt: &Fdt) -> libfdt::Result<Range<usize>> {
 /// Check if memory range is ok
 fn validate_memory_range(range: &Range<usize>) -> Result<(), RebootReason> {
     let base = range.start;
-    if base as u64 != DeviceTreeInfo::RAM_BASE_ADDR {
-        error!("Memory base address {:#x} is not {:#x}", base, DeviceTreeInfo::RAM_BASE_ADDR);
+    if base != BASE_ADDR {
+        error!("Memory base address {:#x} is not {:#x}", base, BASE_ADDR);
         return Err(RebootReason::InvalidFdt);
     }
 
@@ -123,10 +127,9 @@ fn validate_memory_range(range: &Range<usize>) -> Result<(), RebootReason> {
 
 fn patch_memory_range(fdt: &mut Fdt, memory_range: &Range<usize>) -> libfdt::Result<()> {
     let size = memory_range.len() as u64;
-    fdt.node_mut(cstr!("/memory"))?.ok_or(FdtError::NotFound)?.setprop_inplace(
-        cstr!("reg"),
-        flatten(&[DeviceTreeInfo::RAM_BASE_ADDR.to_be_bytes(), size.to_be_bytes()]),
-    )
+    fdt.node_mut(cstr!("/memory"))?
+        .ok_or(FdtError::NotFound)?
+        .setprop_inplace(cstr!("reg"), flatten(&[BASE_ADDR.to_be_bytes(), size.to_be_bytes()]))
 }
 
 /// Read the number of CPUs from DT
@@ -225,9 +228,9 @@ fn read_pci_info_from(fdt: &Fdt) -> libfdt::Result<PciInfo> {
     Ok(PciInfo { ranges: [range0, range1], irq_masks, irq_maps })
 }
 
-fn validate_pci_info(pci_info: &PciInfo) -> Result<(), RebootReason> {
+fn validate_pci_info(pci_info: &PciInfo, memory_range: &Range<usize>) -> Result<(), RebootReason> {
     for range in pci_info.ranges.iter() {
-        validate_pci_addr_range(range)?;
+        validate_pci_addr_range(range, memory_range)?;
     }
     for irq_mask in pci_info.irq_masks.iter() {
         validate_pci_irq_mask(irq_mask)?;
@@ -238,7 +241,10 @@ fn validate_pci_info(pci_info: &PciInfo) -> Result<(), RebootReason> {
     Ok(())
 }
 
-fn validate_pci_addr_range(range: &PciAddrRange) -> Result<(), RebootReason> {
+fn validate_pci_addr_range(
+    range: &PciAddrRange,
+    memory_range: &Range<usize>,
+) -> Result<(), RebootReason> {
     let mem_flags = PciMemoryFlags(range.addr.0);
     let range_type = mem_flags.range_type();
     let prefetchable = mem_flags.prefetchable();
@@ -260,8 +266,23 @@ fn validate_pci_addr_range(range: &PciAddrRange) -> Result<(), RebootReason> {
         return Err(RebootReason::InvalidFdt);
     }
 
-    if bus_addr.checked_add(size).is_none() {
-        error!("PCI address range size {:#x} too big", size);
+    let Some(bus_end) = bus_addr.checked_add(size) else {
+        error!("PCI address range size {:#x} overflows", size);
+        return Err(RebootReason::InvalidFdt);
+    };
+    if bus_end > MAX_ADDR.try_into().unwrap() {
+        error!("PCI address end {:#x} is outside of translatable range", bus_end);
+        return Err(RebootReason::InvalidFdt);
+    }
+
+    let memory_start = memory_range.start.try_into().unwrap();
+    let memory_end = memory_range.end.try_into().unwrap();
+
+    if max(bus_addr, memory_start) < min(bus_end, memory_end) {
+        error!(
+            "PCI address range {:#x}-{:#x} overlaps with main memory range {:#x}-{:#x}",
+            bus_addr, bus_end, memory_start, memory_end
+        );
         return Err(RebootReason::InvalidFdt);
     }
 
@@ -517,7 +538,6 @@ pub struct DeviceTreeInfo {
 }
 
 impl DeviceTreeInfo {
-    const RAM_BASE_ADDR: u64 = 0x8000_0000;
     const GIC_REDIST_SIZE_PER_CPU: u64 = (32 * SIZE_4KB) as u64;
 }
 
@@ -566,7 +586,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         error!("Failed to read pci info from DT: {e}");
         RebootReason::InvalidFdt
     })?;
-    validate_pci_info(&pci_info)?;
+    validate_pci_info(&pci_info, &memory_range)?;
 
     let serial_info = read_serial_info_from(fdt).map_err(|e| {
         error!("Failed to read serial info from DT: {e}");
