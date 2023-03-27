@@ -19,6 +19,7 @@ use crate::helpers::flatten;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::helpers::SIZE_4KB;
 use crate::RebootReason;
+use alloc::ffi::CString;
 use core::ffi::CStr;
 use core::mem::size_of;
 use core::ops::Range;
@@ -74,6 +75,24 @@ fn patch_initrd_range(fdt: &mut Fdt, initrd_range: &Range<usize>) -> libfdt::Res
     node.setprop(cstr!("linux,initrd-start"), &start.to_be_bytes())?;
     node.setprop(cstr!("linux,initrd-end"), &end.to_be_bytes())?;
     Ok(())
+}
+
+fn read_bootargs_from(fdt: &Fdt) -> libfdt::Result<Option<CString>> {
+    if let Some(chosen) = fdt.chosen()? {
+        if let Some(bootargs) = chosen.getprop_str(cstr!("bootargs"))? {
+            // We need to copy the string to heap because the original fdt will be invalidated
+            // by the templated DT
+            let copy = CString::new(bootargs.to_bytes()).map_err(|_| FdtError::BadValue)?;
+            return Ok(Some(copy));
+        }
+    }
+    Ok(None)
+}
+
+fn patch_bootargs(fdt: &mut Fdt, bootargs: &CStr) -> libfdt::Result<()> {
+    let mut node = fdt.chosen_mut()?.ok_or(FdtError::NotFound)?;
+    // TODO(b/275306568) filter out dangerous options
+    node.setprop(cstr!("bootargs"), bootargs.to_bytes_with_nul())
 }
 
 /// Read the first range in /memory node in DT
@@ -490,6 +509,7 @@ pub struct DeviceTreeInfo {
     pub kernel_range: Option<Range<usize>>,
     pub initrd_range: Option<Range<usize>>,
     pub memory_range: Range<usize>,
+    bootargs: Option<CString>,
     num_cpus: usize,
     pci_info: PciInfo,
     serial_info: SerialInfo,
@@ -505,7 +525,11 @@ pub fn sanitize_device_tree(fdt: &mut Fdt) -> Result<DeviceTreeInfo, RebootReaso
     let info = parse_device_tree(fdt)?;
     debug!("Device tree info: {:?}", info);
 
-    // TODO: replace fdt with the template DT
+    fdt.copy_from_slice(pvmfw_fdt_template::RAW).map_err(|e| {
+        error!("Failed to instantiate FDT from the template DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
     patch_device_tree(fdt, &info)?;
     Ok(info)
 }
@@ -526,6 +550,11 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         RebootReason::InvalidFdt
     })?;
     validate_memory_range(&memory_range)?;
+
+    let bootargs = read_bootargs_from(fdt).map_err(|e| {
+        error!("Failed to read bootargs from DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
 
     let num_cpus = read_num_cpus_from(fdt).map_err(|e| {
         error!("Failed to read num cpus from DT: {e}");
@@ -554,6 +583,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         kernel_range,
         initrd_range,
         memory_range,
+        bootargs,
         num_cpus,
         pci_info,
         serial_info,
@@ -562,6 +592,11 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
 }
 
 fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootReason> {
+    fdt.unpack().map_err(|e| {
+        error!("Failed to unpack DT for patching: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
     if let Some(initrd_range) = &info.initrd_range {
         patch_initrd_range(fdt, initrd_range).map_err(|e| {
             error!("Failed to patch initrd range to DT: {e}");
@@ -572,6 +607,12 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
         error!("Failed to patch memory range to DT: {e}");
         RebootReason::InvalidFdt
     })?;
+    if let Some(bootargs) = &info.bootargs {
+        patch_bootargs(fdt, bootargs.as_c_str()).map_err(|e| {
+            error!("Failed to patch bootargs to DT: {e}");
+            RebootReason::InvalidFdt
+        })?;
+    }
     patch_num_cpus(fdt, info.num_cpus).map_err(|e| {
         error!("Failed to patch cpus to DT: {e}");
         RebootReason::InvalidFdt
@@ -596,6 +637,12 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
         error!("Failed to patch timer info to DT: {e}");
         RebootReason::InvalidFdt
     })?;
+
+    fdt.pack().map_err(|e| {
+        error!("Failed to pack DT after patching: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
     Ok(())
 }
 
@@ -608,7 +655,7 @@ pub fn modify_for_next_stage(
 ) -> libfdt::Result<()> {
     fdt.unpack()?;
 
-    add_dice_node(fdt, bcc.as_ptr() as usize, bcc.len())?;
+    patch_dice_node(fdt, bcc.as_ptr() as usize, bcc.len())?;
 
     set_or_clear_chosen_flag(fdt, cstr!("avf,strict-boot"), strict_boot)?;
     set_or_clear_chosen_flag(fdt, cstr!("avf,new-instance"), new_instance)?;
@@ -618,24 +665,17 @@ pub fn modify_for_next_stage(
     Ok(())
 }
 
-/// Add a "google,open-dice"-compatible reserved-memory node to the tree.
-fn add_dice_node(fdt: &mut Fdt, addr: usize, size: usize) -> libfdt::Result<()> {
+/// Patch the "google,open-dice"-compatible reserved-memory node to point to the bcc range
+fn patch_dice_node(fdt: &mut Fdt, addr: usize, size: usize) -> libfdt::Result<()> {
     // We reject DTs with missing reserved-memory node as validation should have checked that the
     // "swiotlb" subnode (compatible = "restricted-dma-pool") was present.
-    let mut reserved_memory =
-        fdt.node_mut(cstr!("/reserved-memory"))?.ok_or(libfdt::FdtError::NotFound)?;
+    let node = fdt.node_mut(cstr!("/reserved-memory"))?.ok_or(libfdt::FdtError::NotFound)?;
 
-    let mut dice = reserved_memory.add_subnode(cstr!("dice"))?;
+    let mut node = node.next_compatible(cstr!("google,open-dice"))?.ok_or(FdtError::NotFound)?;
 
-    dice.appendprop(cstr!("compatible"), b"google,open-dice\0")?;
-
-    dice.appendprop(cstr!("no-map"), &[])?;
-
-    let addr = addr.try_into().unwrap();
-    let size = size.try_into().unwrap();
-    dice.appendprop_addrrange(cstr!("reg"), addr, size)?;
-
-    Ok(())
+    let addr: u64 = addr.try_into().unwrap();
+    let size: u64 = size.try_into().unwrap();
+    node.setprop_inplace(cstr!("reg"), flatten(&[addr.to_be_bytes(), size.to_be_bytes()]))
 }
 
 fn set_or_clear_chosen_flag(fdt: &mut Fdt, flag: &CStr, value: bool) -> libfdt::Result<()> {
