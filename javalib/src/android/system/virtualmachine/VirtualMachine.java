@@ -459,7 +459,7 @@ public class VirtualMachine implements AutoCloseable {
                 }
             }
 
-            IVirtualizationService service = vm.mVirtualizationService.connect();
+            IVirtualizationService service = vm.mVirtualizationService.getBinder();
 
             try {
                 service.initializeWritablePartition(
@@ -785,7 +785,7 @@ public class VirtualMachine implements AutoCloseable {
                 throw new VirtualMachineException("Failed to create APK signature file", e);
             }
 
-            IVirtualizationService service = mVirtualizationService.connect();
+            IVirtualizationService service = mVirtualizationService.getBinder();
 
             try {
                 if (mVmOutputCaptured) {
