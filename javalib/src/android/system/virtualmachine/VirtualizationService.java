@@ -41,6 +41,9 @@ class VirtualizationService {
      */
     private final ParcelFileDescriptor mClientFd;
 
+    /* Persistent connection to IVirtualizationService. */
+    private final IVirtualizationService mBinder;
+
     private static native int nativeSpawn();
 
     private native IBinder nativeConnect(int clientFd);
@@ -57,15 +60,18 @@ class VirtualizationService {
             throw new VirtualMachineException("Could not spawn VirtualizationService");
         }
         mClientFd = ParcelFileDescriptor.adoptFd(clientFd);
-    }
 
-    /* Connects to the VirtualizationService AIDL service. */
-    public IVirtualizationService connect() throws VirtualMachineException {
         IBinder binder = nativeConnect(mClientFd.getFd());
         if (binder == null) {
             throw new VirtualMachineException("Could not connect to VirtualizationService");
         }
-        return IVirtualizationService.Stub.asInterface(binder);
+        mBinder = IVirtualizationService.Stub.asInterface(binder);
+    }
+
+    /* Returns the IVirtualizationService binder. */
+    @NonNull
+    IVirtualizationService getBinder() {
+        return mBinder;
     }
 
     /*
