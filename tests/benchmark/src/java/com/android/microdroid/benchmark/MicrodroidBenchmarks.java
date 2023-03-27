@@ -36,6 +36,7 @@ import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineException;
+import android.system.Os;
 import android.util.Log;
 
 import com.android.microdroid.test.common.MetricsProcessor;
@@ -347,16 +348,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
         CrosvmStats(Function<String, String> shellExecutor) {
             try {
-                List<Integer> crosvmPids =
-                        ProcessUtil.getProcessMap(shellExecutor).entrySet().stream()
-                                .filter(e -> e.getValue().contains("crosvm"))
-                                .map(e -> e.getKey())
-                                .collect(java.util.stream.Collectors.toList());
-                if (crosvmPids.size() != 1) {
-                    throw new IllegalStateException(
-                            "expected to find exactly one crosvm processes, found "
-                                    + crosvmPids.size());
-                }
+                int crosvmPid = ProcessUtil.getCrosvmPid(Os.getpid(), shellExecutor);
 
                 long hostRss = 0;
                 long hostPss = 0;
@@ -364,7 +356,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 long guestPss = 0;
                 boolean hasGuestMaps = false;
                 for (ProcessUtil.SMapEntry entry :
-                        ProcessUtil.getProcessSmaps(crosvmPids.get(0), shellExecutor)) {
+                        ProcessUtil.getProcessSmaps(crosvmPid, shellExecutor)) {
                     long rss = entry.metrics.get("Rss");
                     long pss = entry.metrics.get("Pss");
                     if (entry.name.contains("crosvm_guest")) {
