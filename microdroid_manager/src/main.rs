@@ -55,8 +55,8 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::convert::TryInto;
 use std::env;
 use std::ffi::CString;
-use std::fs::{self, create_dir, OpenOptions};
-use std::io::Write;
+use std::fs::{self, create_dir, OpenOptions, File};
+use std::io::{Read, Write};
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
@@ -73,6 +73,7 @@ const EXTRA_IDSIG_PATH_PATTERN: &str = "/dev/block/by-name/extra-idsig-*";
 const DM_MOUNTED_APK_PATH: &str = "/dev/block/mapper/microdroid-apk";
 const AVF_STRICT_BOOT: &str = "/sys/firmware/devicetree/base/chosen/avf,strict-boot";
 const AVF_NEW_INSTANCE: &str = "/sys/firmware/devicetree/base/chosen/avf,new-instance";
+const AVF_DEBUG_POLICY_RAMDUMP: &str = "/sys/firmware/devicetree/base/avf/guest/common/ramdump";
 const DEBUG_MICRODROID_NO_VERIFIED_BOOT: &str =
     "/sys/firmware/devicetree/base/virtualization/guest/debug-microdroid,no-verified-boot";
 
@@ -312,6 +313,21 @@ fn should_export_tombstones(config: &VmPayloadConfig) -> bool {
         Some(b) => b,
         None => system_properties::read_bool(DEBUGGABLE_PROP, true).unwrap_or(false),
     }
+}
+
+/// Get debug policy value in bool. It's true iff the value is explicitly set to <1>.
+fn get_debug_policy_bool(path: &'static str) -> Result<Option<bool>> {
+    let mut file = match File::open(path) {
+        Ok(dp) => dp,
+        Err(e) => {
+            info!("{e:?}. Assumes <0>");
+            return Ok(Some(false));
+        }
+    };
+    let mut log: [u8; 4] = Default::default();
+    file.read_exact(&mut log).context("Malformed data in {path}")?;
+    // DT spec uses big endian although Android is always little endian.
+    Ok(Some(u32::from_be_bytes(log) == 1))
 }
 
 fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
@@ -781,16 +797,27 @@ fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
     }
 }
 
-/// Loads the crashkernel into memory using kexec if the VM is loaded with `crashkernel=' parameter
-/// in the cmdline.
+/// Loads the crashkernel into memory using kexec if debuggable or debug policy says so.
+/// The VM should be loaded with `crashkernel=' parameter in the cmdline to allocate memory
+/// for crashkernel.
 fn load_crashkernel_if_supported() -> Result<()> {
     let supported = std::fs::read_to_string("/proc/cmdline")?.contains(" crashkernel=");
     info!("ramdump supported: {}", supported);
-    if supported {
+
+    if !supported {
+        return Ok(());
+    }
+
+    let debuggable = system_properties::read_bool(DEBUGGABLE_PROP, true)?;
+    let ramdump = get_debug_policy_bool(AVF_DEBUG_POLICY_RAMDUMP)?.unwrap_or_default();
+    let requested = debuggable | ramdump;
+
+    if requested {
         let status = Command::new("/system/bin/kexec_load").status()?;
         if !status.success() {
             return Err(anyhow!("Failed to load crashkernel: {:?}", status));
         }
+        info!("ramdump is loaded: debuggable={debuggable}, ramdump={ramdump}");
     }
     Ok(())
 }

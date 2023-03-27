@@ -723,8 +723,7 @@ fn run_vm(
         command.arg("--unmap-guest-memory-on-fork");
 
         if config.ramdump.is_some() {
-            // Protected VM needs to reserve memory for ramdump here. pvmfw will drop This
-            // if ramdump should be disabled (via debug policy). Note that we reserve more
+            // Protected VM needs to reserve memory for ramdump here. Note that we reserve more
             // memory for the restricted dma pool.
             let ramdump_reserve = RAMDUMP_RESERVED_MIB + swiotlb_size_mib;
             command.arg("--params").arg(format!("crashkernel={ramdump_reserve}M"));
