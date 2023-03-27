@@ -114,6 +114,15 @@ pub fn flushed_zeroize(reg: &mut [u8]) {
     flush(reg)
 }
 
+/// Flatten [[T; N]] into &[T]
+/// TODO: use slice::flatten when it graduates from experimental
+pub fn flatten<T, const N: usize>(original: &[[T; N]]) -> &[T] {
+    // SAFETY: no overflow because original (whose size is len()*N) is already in memory
+    let len = original.len() * N;
+    // SAFETY: [T] has the same layout as [T;N]
+    unsafe { core::slice::from_raw_parts(original.as_ptr().cast(), len) }
+}
+
 /// Create &CStr out of &str literal
 #[macro_export]
 macro_rules! cstr {
