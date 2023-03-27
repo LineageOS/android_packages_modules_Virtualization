@@ -85,6 +85,31 @@ impl<'a> Iterator for RegIterator<'a> {
     }
 }
 
+// Converts two cells into bytes of the same size
+fn two_cells_to_bytes(cells: [u32; 2]) -> [u8; 2 * size_of::<u32>()] {
+    // SAFETY: the size of the two arrays are the same
+    unsafe { core::mem::transmute::<[u32; 2], [u8; 2 * size_of::<u32>()]>(cells) }
+}
+
+impl Reg<u64> {
+    const NUM_CELLS: usize = 2;
+    /// Converts addr and (optional) size to the format that is consumable by libfdt.
+    pub fn to_cells(
+        &self,
+    ) -> ([u8; Self::NUM_CELLS * size_of::<u32>()], Option<[u8; Self::NUM_CELLS * size_of::<u32>()]>)
+    {
+        let addr =
+            two_cells_to_bytes([((self.addr >> 32) as u32).to_be(), (self.addr as u32).to_be()]);
+        let size = if self.size.is_some() {
+            let size = self.size.unwrap();
+            Some(two_cells_to_bytes([((size >> 32) as u32).to_be(), (size as u32).to_be()]))
+        } else {
+            None
+        };
+        (addr, size)
+    }
+}
+
 /// Iterator over the address ranges defined by the /memory/ node.
 #[derive(Debug)]
 pub struct MemRegIterator<'a> {
@@ -122,7 +147,7 @@ pub struct RangesIterator<'a, A, P, S> {
 }
 
 /// An address range from the 'ranges' property of a DT node.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AddressRange<A, P, S> {
     /// The physical address of the range within the child bus's address space.
     pub addr: A,
@@ -200,5 +225,27 @@ impl FromSizeCells for u64 {
             SizeCells::Double => (cells.next()? as Self) << 32 | cells.next()? as Self,
             _ => panic!("Invalid size_cells {:?} for u64", cell_count),
         })
+    }
+}
+
+impl AddressRange<(u32, u64), u64, u64> {
+    const SIZE_CELLS: usize = 7;
+    /// Converts to the format that is consumable by libfdt
+    pub fn to_cells(&self) -> [u8; Self::SIZE_CELLS * size_of::<u32>()] {
+        let buf = [
+            self.addr.0.to_be(),
+            ((self.addr.1 >> 32) as u32).to_be(),
+            (self.addr.1 as u32).to_be(),
+            ((self.parent_addr >> 32) as u32).to_be(),
+            (self.parent_addr as u32).to_be(),
+            ((self.size >> 32) as u32).to_be(),
+            (self.size as u32).to_be(),
+        ];
+        // SAFETY: the size of the two arrays are the same
+        unsafe {
+            core::mem::transmute::<[u32; Self::SIZE_CELLS], [u8; Self::SIZE_CELLS * size_of::<u32>()]>(
+                buf,
+            )
+        }
     }
 }
