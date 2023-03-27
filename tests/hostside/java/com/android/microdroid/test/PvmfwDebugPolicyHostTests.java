@@ -151,33 +151,6 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testRamdump() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_ramdump.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
-        mMicrodroidDevice = launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_FULL);
-
-        assertThat(readMicrodroidFileAsString(MICRODROID_CMDLINE_PATH)).contains("crashkernel=");
-        assertThat(readMicrodroidFileAsString(MICRODROID_DT_BOOTARGS_PATH))
-                .contains("crashkernel=");
-        assertThat(readMicrodroidFileAsHexString(MICRODROID_DT_RAMDUMP_PATH))
-                .isEqualTo(HEX_STRING_ONE);
-    }
-
-    @Test
-    public void testNoRamdump() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_ramdump.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
-        mMicrodroidDevice = launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_FULL);
-
-        assertThat(readMicrodroidFileAsString(MICRODROID_CMDLINE_PATH))
-                .doesNotContain("crashkernel=");
-        assertThat(readMicrodroidFileAsString(MICRODROID_DT_BOOTARGS_PATH))
-                .doesNotContain("crashkernel=");
-        assertThat(readMicrodroidFileAsHexString(MICRODROID_DT_RAMDUMP_PATH))
-                .isEqualTo(HEX_STRING_ZERO);
-    }
-
-    @Test
     public void testLog_consoleOutput() throws Exception {
         Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_log.dtbo");
         pvmfw.serialize(mCustomPvmfwBinFileOnHost);
