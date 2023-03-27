@@ -35,6 +35,11 @@ use core::result;
 use log::error;
 use tinyvec::ArrayVec;
 
+/// Base of the system's contiguous "main" memory.
+pub const BASE_ADDR: usize = 0x8000_0000;
+/// First address that can't be translated by a level 1 TTBR0_EL1.
+pub const MAX_ADDR: usize = 1 << 40;
+
 pub type MemoryRange = Range<usize>;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -129,15 +134,11 @@ type Result<T> = result::Result<T, MemoryTrackerError>;
 impl MemoryTracker {
     const CAPACITY: usize = 5;
     const MMIO_CAPACITY: usize = 5;
-    /// Base of the system's contiguous "main" memory.
-    const BASE: usize = 0x8000_0000;
-    /// First address that can't be translated by a level 1 TTBR0_EL1.
-    const MAX_ADDR: usize = 1 << 39;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
     pub fn new(page_table: mmu::PageTable) -> Self {
         Self {
-            total: Self::BASE..Self::MAX_ADDR,
+            total: BASE_ADDR..MAX_ADDR,
             page_table,
             regions: ArrayVec::new(),
             mmio_regions: ArrayVec::new(),
