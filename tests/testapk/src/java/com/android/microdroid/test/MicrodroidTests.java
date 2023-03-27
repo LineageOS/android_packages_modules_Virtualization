@@ -30,6 +30,7 @@ import static com.google.common.truth.TruthJUnit.assume;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import com.google.common.base.Strings;
 import com.google.common.truth.BooleanSubject;
@@ -56,6 +57,7 @@ import android.system.virtualmachine.VirtualMachineManager;
 import android.util.Log;
 
 import com.android.compatibility.common.util.CddTest;
+import com.android.compatibility.common.util.VsrTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.test.vmshare.IVmShareTestService;
 import com.android.microdroid.testservice.IAppCallback;
@@ -1957,6 +1959,25 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertWithMessage("/mnt/encryptedstore should be mounted with MS_NOEXEC")
                 .that(testResults.mMountFlags & MS_NOEXEC)
                 .isEqualTo(MS_NOEXEC);
+    }
+
+    @Test
+    @VsrTest(requirements = {"VSR-7.1-001.003"})
+    public void kernelVersionRequirement() throws Exception {
+        int firstApiLevel = SystemProperties.getInt("ro.product.first_api_level", 0);
+        assume().withMessage("Skip on devices launched before Android 14 (API level 34)")
+                .that(firstApiLevel)
+                .isAtLeast(34);
+
+        String[] tokens = KERNEL_VERSION.split("\\.");
+        int major = Integer.parseInt(tokens[0]);
+        int minor = Integer.parseInt(tokens[1]);
+
+        // Check kernel version >= 5.15
+        assertTrue(major >= 5);
+        if (major == 5) {
+            assertTrue(minor >= 15);
+        }
     }
 
     private static class VmShareServiceConnection implements ServiceConnection {
