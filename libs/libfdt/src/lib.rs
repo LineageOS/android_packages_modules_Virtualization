@@ -21,6 +21,7 @@ mod iterators;
 
 pub use iterators::{AddressRange, CellIterator, MemRegIterator, RangesIterator, Reg, RegIterator};
 
+use core::cmp::max;
 use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
 use core::mem;
@@ -621,6 +622,21 @@ impl Fdt {
     /// The returned FDT might be invalid, only use on slices containing a valid DT.
     pub unsafe fn unchecked_from_mut_slice(fdt: &mut [u8]) -> &mut Self {
         mem::transmute::<&mut [u8], &mut Self>(fdt)
+    }
+
+    /// Update this FDT from a slice containing another FDT
+    pub fn copy_from_slice(&mut self, new_fdt: &[u8]) -> Result<()> {
+        if self.buffer.len() < new_fdt.len() {
+            Err(FdtError::NoSpace)
+        } else {
+            let totalsize = self.totalsize();
+            self.buffer[..new_fdt.len()].clone_from_slice(new_fdt);
+            // Zeroize the remaining part. We zeroize up to the size of the original DT because
+            // zeroizing the entire buffer (max 2MB) is not necessary and may increase the VM boot
+            // time.
+            self.buffer[new_fdt.len()..max(new_fdt.len(), totalsize)].fill(0_u8);
+            Ok(())
+        }
     }
 
     /// Make the whole slice containing the DT available to libfdt.
