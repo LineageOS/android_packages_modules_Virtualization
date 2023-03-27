@@ -196,6 +196,10 @@ pub struct FdtNode<'a> {
 }
 
 impl<'a> FdtNode<'a> {
+    /// Create immutable node from a mutable node at the same offset
+    pub fn from_mut(other: &'a FdtNodeMut) -> Self {
+        FdtNode { fdt: other.fdt, offset: other.offset }
+    }
     /// Find parent node.
     pub fn parent(&self) -> Result<Self> {
         // SAFETY - Accesses (read-only) are constrained to the DT totalsize.
@@ -285,13 +289,31 @@ impl<'a> FdtNode<'a> {
 
     /// Retrieve the value of a given property.
     pub fn getprop(&self, name: &CStr) -> Result<Option<&'a [u8]>> {
+        if let Some((prop, len)) = Self::getprop_internal(self.fdt, self.offset, name)? {
+            let offset = (prop as usize)
+                .checked_sub(self.fdt.as_ptr() as usize)
+                .ok_or(FdtError::Internal)?;
+
+            Ok(Some(self.fdt.buffer.get(offset..(offset + len)).ok_or(FdtError::Internal)?))
+        } else {
+            Ok(None) // property was not found
+        }
+    }
+
+    /// Return the pointer and size of the property named `name`, in a node at offset `offset`, in
+    /// a device tree `fdt`. The pointer is guaranteed to be non-null, in which case error returns.
+    fn getprop_internal(
+        fdt: &'a Fdt,
+        offset: c_int,
+        name: &CStr,
+    ) -> Result<Option<(*const c_void, usize)>> {
         let mut len: i32 = 0;
         // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) and the
         // function respects the passed number of characters.
         let prop = unsafe {
             libfdt_bindgen::fdt_getprop_namelen(
-                self.fdt.as_ptr(),
-                self.offset,
+                fdt.as_ptr(),
+                offset,
                 name.as_ptr(),
                 // *_namelen functions don't include the trailing nul terminator in 'len'.
                 name.to_bytes().len().try_into().map_err(|_| FdtError::BadPath)?,
@@ -308,11 +330,7 @@ impl<'a> FdtNode<'a> {
             // We expected an error code in len but still received a valid value?!
             return Err(FdtError::Internal);
         }
-
-        let offset =
-            (prop as usize).checked_sub(self.fdt.as_ptr() as usize).ok_or(FdtError::Internal)?;
-
-        Ok(Some(self.fdt.buffer.get(offset..(offset + len)).ok_or(FdtError::Internal)?))
+        Ok(Some((prop.cast::<c_void>(), len)))
     }
 
     /// Get reference to the containing device tree.
@@ -405,6 +423,23 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)
     }
 
+    /// Replace the value of the given property with the given value, and ensure that the given
+    /// value has the same length as the current value length
+    pub fn setprop_inplace(&mut self, name: &CStr, value: &[u8]) -> Result<()> {
+        // SAFETY - fdt size is not altered
+        let ret = unsafe {
+            libfdt_bindgen::fdt_setprop_inplace(
+                self.fdt.as_mut_ptr(),
+                self.offset,
+                name.as_ptr(),
+                value.as_ptr().cast::<c_void>(),
+                value.len().try_into().map_err(|_| FdtError::BadValue)?,
+            )
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
     /// Create or change a flag-like empty property.
     pub fn setprop_empty(&mut self, name: &CStr) -> Result<()> {
         self.setprop(name, &[])
@@ -418,6 +453,31 @@ impl<'a> FdtNodeMut<'a> {
         // being called when FdtNode instances are in use.
         let ret = unsafe {
             libfdt_bindgen::fdt_delprop(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
+    /// Reduce the size of the given property to new_size
+    pub fn trimprop(&mut self, name: &CStr, new_size: usize) -> Result<()> {
+        let (prop, len) =
+            FdtNode::getprop_internal(self.fdt, self.offset, name)?.ok_or(FdtError::NotFound)?;
+        if len == new_size {
+            return Ok(());
+        }
+        if new_size > len {
+            return Err(FdtError::NoSpace);
+        }
+
+        // SAFETY - new_size is smaller than the old size
+        let ret = unsafe {
+            libfdt_bindgen::fdt_setprop(
+                self.fdt.as_mut_ptr(),
+                self.offset,
+                name.as_ptr(),
+                prop.cast::<c_void>(),
+                new_size.try_into().map_err(|_| FdtError::BadValue)?,
+            )
         };
 
         fdt_err_expect_zero(ret)
@@ -443,6 +503,51 @@ impl<'a> FdtNodeMut<'a> {
         let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
 
         Ok(FdtNode { fdt: &*self.fdt, offset: fdt_err(ret)? })
+    }
+
+    /// Return the compatible node of the given name that is next to this node
+    pub fn next_compatible(self, compatible: &CStr) -> Result<Option<Self>> {
+        // SAFETY - Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_node_offset_by_compatible(
+                self.fdt.as_ptr(),
+                self.offset,
+                compatible.as_ptr(),
+            )
+        };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
+    /// Replace this node and its subtree with nop tags, effectively removing it from the tree, and
+    /// then return the next compatible node of the given name.
+    // Side note: without this, filterint out excessive compatible nodes from the DT is impossible.
+    // The reason is that libfdt ensures that the node from where the search for the next
+    // compatible node is started is always a valid one -- except for the special case of offset =
+    // -1 which is to find the first compatible node. So, we can't delete a node and then find the
+    // next compatible node from it.
+    //
+    // We can't do in the opposite direction either. If we call next_compatible to find the next
+    // node, and delete the current node, the Rust borrow checker kicks in. The next node has a
+    // mutable reference to DT, so we can't use current node (which also has a mutable reference to
+    // DT).
+    pub fn delete_and_next_compatible(self, compatible: &CStr) -> Result<Option<Self>> {
+        // SAFETY - Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_node_offset_by_compatible(
+                self.fdt.as_ptr(),
+                self.offset,
+                compatible.as_ptr(),
+            )
+        };
+        let next_offset = fdt_err_or_option(ret)?;
+
+        // SAFETY - fdt_nop_node alter only the bytes in the blob which contain the node and its
+        // properties and subnodes, and will not alter or move any other part of the tree.
+        let ret = unsafe { libfdt_bindgen::fdt_nop_node(self.fdt.as_mut_ptr(), self.offset) };
+        fdt_err_expect_zero(ret)?;
+
+        Ok(next_offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 }
 
