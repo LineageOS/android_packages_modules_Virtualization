@@ -151,56 +151,6 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testLog_consoleOutput() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_log.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
-
-        CommandResult result = tryLaunchProtectedNonDebuggableVm();
-
-        assertWithMessage("Microdroid's console message should have been enabled")
-                .that(hasConsoleOutput(result))
-                .isTrue();
-    }
-
-    @Test
-    public void testLog_logcat() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_log.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
-
-        tryLaunchProtectedNonDebuggableVm();
-
-        assertWithMessage("Microdroid's logcat should have been enabled")
-                .that(hasMicrodroidLogcatOutput())
-                .isTrue();
-    }
-
-    @Test
-    public void testNoLog_noConsoleOutput() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_log.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
-
-        CommandResult result = tryLaunchProtectedNonDebuggableVm();
-
-        assertWithMessage("Microdroid's console message shouldn't have been disabled")
-                .that(hasConsoleOutput(result))
-                .isFalse();
-    }
-
-    @Test
-    public void testNoLog_noLogcat() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_log.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
-
-        assertThrows(
-                "Microdroid shouldn't be recognized because of missing adb connection",
-                DeviceRuntimeException.class,
-                () ->
-                        launchProtectedVmAndWaitForBootCompleted(
-                                MICRODROID_DEBUG_NONE, BOOT_FAILURE_WAIT_TIME_MS));
-        assertThat(hasMicrodroidLogcatOutput()).isFalse();
-    }
-
-    @Test
     public void testAdb_boots() throws Exception {
         assumeTrue(
                 "Skip if host wouldn't install adbd",

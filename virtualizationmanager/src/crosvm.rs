@@ -732,18 +732,13 @@ fn run_vm(
             let ramdump_reserve = RAMDUMP_RESERVED_MIB + swiotlb_size_mib;
             command.arg("--params").arg(format!("crashkernel={ramdump_reserve}M"));
         }
-    } else {
-        if config.ramdump.is_some() {
-            command.arg("--params").arg(format!("crashkernel={RAMDUMP_RESERVED_MIB}M"));
-        }
-        if config.debug_level == DebugLevel::NONE
-            && should_prepare_console_output(config.debug_level)
-        {
-            // bootconfig.normal will be used, but we need log.
-            // pvmfw will add following commands by itself, but non-protected VM should do so here.
-            command.arg("--params").arg("printk.devkmsg=on");
-            command.arg("--params").arg("console=hvc0");
-        }
+    } else if config.ramdump.is_some() {
+        command.arg("--params").arg(format!("crashkernel={RAMDUMP_RESERVED_MIB}M"));
+    }
+    if config.debug_level == DebugLevel::NONE && should_prepare_console_output(config.debug_level) {
+        // bootconfig.normal will be used, but we need log.
+        command.arg("--params").arg("printk.devkmsg=on");
+        command.arg("--params").arg("console=hvc0");
     }
 
     if let Some(memory_mib) = config.memory_mib {
