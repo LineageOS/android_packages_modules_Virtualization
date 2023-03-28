@@ -15,10 +15,27 @@
 //! Functions for AVF debug policy and debug level
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    VirtualMachineAppConfig::DebugLevel::DebugLevel, VirtualMachineConfig::VirtualMachineConfig,
+    VirtualMachineAppConfig::DebugLevel::DebugLevel,
 };
 use std::fs::File;
 use std::io::Read;
+use log::info;
+use rustutils::system_properties;
+
+const DEBUG_POLICY_LOG_PATH: &str = "/proc/device-tree/avf/guest/common/log";
+const DEBUG_POLICY_RAMDUMP_PATH: &str = "/proc/device-tree/avf/guest/common/ramdump";
+const DEBUG_POLICY_ADB_PATH: &str = "/proc/device-tree/avf/guest/microdroid/adb";
+
+const SYSPROP_CUSTOM_DEBUG_POLICY_PATH: &str = "hypervisor.virtualizationmanager.debug_policy.path";
+
+/// Debug configurations for both debug level and debug policy
+#[derive(Debug)]
+pub struct DebugConfig {
+    pub debug_level: DebugLevel,
+    debug_policy_log: bool,
+    debug_policy_ramdump: bool,
+    debug_policy_adb: bool,
+}
 
 /// Get debug policy value in bool. It's true iff the value is explicitly set to <1>.
 fn get_debug_policy_bool(path: &'static str) -> Option<bool> {
@@ -29,28 +46,49 @@ fn get_debug_policy_bool(path: &'static str) -> Option<bool> {
     Some(u32::from_be_bytes(log) == 1)
 }
 
-/// Get whether console output should be configred for VM to leave console and adb log.
-/// Caller should create pipe and prepare for receiving VM log with it.
-pub fn should_prepare_console_output(debug_level: DebugLevel) -> bool {
-    debug_level != DebugLevel::NONE
-        || get_debug_policy_bool("/proc/device-tree/avf/guest/common/log").unwrap_or_default()
-        || get_debug_policy_bool("/proc/device-tree/avf/guest/microdroid/adb").unwrap_or_default()
-}
+impl DebugConfig {
+    pub fn new(debug_level: DebugLevel) -> Self {
+        match system_properties::read(SYSPROP_CUSTOM_DEBUG_POLICY_PATH).unwrap_or_default() {
+            Some(debug_policy_path) if !debug_policy_path.is_empty() => {
+                // TODO: Read debug policy file and override log, adb, ramdump for testing.
+                info!("Debug policy is disabled by sysprop");
+                Self {
+                    debug_level,
+                    debug_policy_log: false,
+                    debug_policy_ramdump: false,
+                    debug_policy_adb: false,
+                }
+            }
+            _ => {
+                let debug_config = Self {
+                    debug_level,
+                    debug_policy_log: get_debug_policy_bool(DEBUG_POLICY_LOG_PATH)
+                        .unwrap_or_default(),
+                    debug_policy_ramdump: get_debug_policy_bool(DEBUG_POLICY_RAMDUMP_PATH)
+                        .unwrap_or_default(),
+                    debug_policy_adb: get_debug_policy_bool(DEBUG_POLICY_ADB_PATH)
+                        .unwrap_or_default(),
+                };
+                info!("Loaded debug policy from host OS: {:?}", debug_config);
 
-/// Get whether debug apexes (MICRODROID_REQUIRED_APEXES_DEBUG) are required.
-pub fn should_include_debug_apexes(debug_level: DebugLevel) -> bool {
-    debug_level != DebugLevel::NONE
-        || get_debug_policy_bool("/proc/device-tree/avf/guest/microdroid/adb").unwrap_or_default()
-}
+                debug_config
+            }
+        }
+    }
 
-/// Decision to support ramdump
-pub fn is_ramdump_needed(config: &VirtualMachineConfig) -> bool {
-    let enabled_in_dp =
-        get_debug_policy_bool("/proc/device-tree/avf/guest/common/ramdump").unwrap_or_default();
-    let debuggable = match config {
-        VirtualMachineConfig::RawConfig(_) => false,
-        VirtualMachineConfig::AppConfig(config) => config.debugLevel == DebugLevel::FULL,
-    };
+    /// Get whether console output should be configred for VM to leave console and adb log.
+    /// Caller should create pipe and prepare for receiving VM log with it.
+    pub fn should_prepare_console_output(&self) -> bool {
+        self.debug_level != DebugLevel::NONE || self.debug_policy_log || self.debug_policy_adb
+    }
 
-    enabled_in_dp || debuggable
+    /// Get whether debug apexes (MICRODROID_REQUIRED_APEXES_DEBUG) are required.
+    pub fn should_include_debug_apexes(&self) -> bool {
+        self.debug_level != DebugLevel::NONE || self.debug_policy_adb
+    }
+
+    /// Decision to support ramdump
+    pub fn is_ramdump_needed(&self) -> bool {
+        self.debug_level != DebugLevel::NONE || self.debug_policy_ramdump
+    }
 }

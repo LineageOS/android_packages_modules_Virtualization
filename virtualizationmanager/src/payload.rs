@@ -14,7 +14,7 @@
 
 //! Payload disk image
 
-use crate::debug_config::should_include_debug_apexes;
+use crate::debug_config::DebugConfig;
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     DiskImage::DiskImage,
     Partition::Partition,
@@ -257,6 +257,7 @@ fn make_metadata_file(
 ///   ..
 fn make_payload_disk(
     app_config: &VirtualMachineAppConfig,
+    debug_config: &DebugConfig,
     apk_file: File,
     idsig_file: File,
     vm_payload_config: &VmPayloadConfig,
@@ -274,8 +275,7 @@ fn make_payload_disk(
     let apex_list = pm.get_apex_list(vm_payload_config.prefer_staged)?;
 
     // collect APEXes from config
-    let mut apex_infos =
-        collect_apex_infos(&apex_list, &vm_payload_config.apexes, app_config.debugLevel);
+    let mut apex_infos = collect_apex_infos(&apex_list, &vm_payload_config.apexes, debug_config);
 
     // Pass sorted list of apexes. Sorting key shouldn't use `path` because it will change after
     // reboot with prefer_staged. `last_update_seconds` is added to distinguish "samegrade"
@@ -380,10 +380,10 @@ fn find_apex_names_in_classpath(classpath_vars: &str) -> Result<HashSet<String>>
 fn collect_apex_infos<'a>(
     apex_list: &'a ApexInfoList,
     apex_configs: &[ApexConfig],
-    debug_level: DebugLevel,
+    debug_config: &DebugConfig,
 ) -> Vec<&'a ApexInfo> {
     let mut additional_apexes: Vec<&str> = MICRODROID_REQUIRED_APEXES.to_vec();
-    if should_include_debug_apexes(debug_level) {
+    if debug_config.should_include_debug_apexes() {
         additional_apexes.extend(MICRODROID_REQUIRED_APEXES_DEBUG.to_vec());
     }
 
@@ -437,6 +437,7 @@ pub fn add_microdroid_system_images(
 
 pub fn add_microdroid_payload_images(
     config: &VirtualMachineAppConfig,
+    debug_config: &DebugConfig,
     temporary_directory: &Path,
     apk_file: File,
     idsig_file: File,
@@ -445,6 +446,7 @@ pub fn add_microdroid_payload_images(
 ) -> Result<()> {
     vm_config.disks.push(make_payload_disk(
         config,
+        debug_config,
         apk_file,
         idsig_file,
         vm_payload_config,
@@ -582,7 +584,7 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
             ApexConfig { name: "{CLASSPATH}".to_string() },
         ];
         assert_eq!(
-            collect_apex_infos(&apex_info_list, &apex_configs, DebugLevel::FULL),
+            collect_apex_infos(&apex_info_list, &apex_configs, &DebugConfig::new(DebugLevel::FULL)),
             vec![
                 // Pass active/required APEXes
                 &apex_info_list.list[0],

@@ -19,8 +19,7 @@ use crate::atom::{
     write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
-use crate::debug_config::should_prepare_console_output;
-use crate::debug_config::is_ramdump_needed;
+use crate::debug_config::DebugConfig;
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
 use crate::selinux::{getfilecon, SeContext};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
@@ -327,21 +326,22 @@ impl VirtualizationService {
             check_gdb_allowed(config)?;
         }
 
-        let ramdump = if is_ramdump_needed(config) {
+        let debug_level = match config {
+            VirtualMachineConfig::AppConfig(config) => config.debugLevel,
+            _ => DebugLevel::NONE,
+        };
+        let debug_config = DebugConfig::new(debug_level);
+
+        let ramdump = if debug_config.is_ramdump_needed() {
             Some(prepare_ramdump_file(&temporary_directory)?)
         } else {
             None
         };
 
-        let debug_level = match config {
-            VirtualMachineConfig::AppConfig(app_config) => app_config.debugLevel,
-            _ => DebugLevel::NONE,
-        };
-
         let state = &mut *self.state.lock().unwrap();
         let console_fd =
-            clone_or_prepare_logger_fd(config, console_fd, format!("Console({})", cid))?;
-        let log_fd = clone_or_prepare_logger_fd(config, log_fd, format!("Log({})", cid))?;
+            clone_or_prepare_logger_fd(&debug_config, console_fd, format!("Console({})", cid))?;
+        let log_fd = clone_or_prepare_logger_fd(&debug_config, log_fd, format!("Log({})", cid))?;
 
         // Counter to generate unique IDs for temporary image files.
         let mut next_temporary_image_id = 0;
@@ -352,12 +352,13 @@ impl VirtualizationService {
         let (is_app_config, config) = match config {
             VirtualMachineConfig::RawConfig(config) => (false, BorrowedOrOwned::Borrowed(config)),
             VirtualMachineConfig::AppConfig(config) => {
-                let config = load_app_config(config, &temporary_directory).map_err(|e| {
-                    *is_protected = config.protectedVm;
-                    let message = format!("Failed to load app config: {:?}", e);
-                    error!("{}", message);
-                    Status::new_service_specific_error_str(-1, Some(message))
-                })?;
+                let config =
+                    load_app_config(config, &debug_config, &temporary_directory).map_err(|e| {
+                        *is_protected = config.protectedVm;
+                        let message = format!("Failed to load app config: {:?}", e);
+                        error!("{}", message);
+                        Status::new_service_specific_error_str(-1, Some(message))
+                    })?;
                 (true, BorrowedOrOwned::Owned(config))
             }
         };
@@ -438,7 +439,7 @@ impl VirtualizationService {
             disks,
             params: config.params.to_owned(),
             protected: *is_protected,
-            debug_level,
+            debug_config,
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
             cpus,
             host_cpu_topology,
@@ -559,6 +560,7 @@ fn assemble_disk_image(
 
 fn load_app_config(
     config: &VirtualMachineAppConfig,
+    debug_config: &DebugConfig,
     temporary_directory: &Path,
 ) -> Result<VirtualMachineRawConfig> {
     let apk_file = clone_file(config.apk.as_ref().unwrap())?;
@@ -607,6 +609,7 @@ fn load_app_config(
     // Include Microdroid payload disk (contains apks, idsigs) in vm config
     add_microdroid_payload_images(
         config,
+        debug_config,
         temporary_directory,
         apk_file,
         idsig_file,
@@ -1038,7 +1041,7 @@ fn extract_gdb_port(config: &VirtualMachineConfig) -> Option<NonZeroU16> {
 }
 
 fn clone_or_prepare_logger_fd(
-    config: &VirtualMachineConfig,
+    debug_config: &DebugConfig,
     fd: Option<&ParcelFileDescriptor>,
     tag: String,
 ) -> Result<Option<File>, Status> {
@@ -1046,10 +1049,7 @@ fn clone_or_prepare_logger_fd(
         return Ok(Some(clone_file(fd)?));
     }
 
-    let VirtualMachineConfig::AppConfig(app_config) = config else {
-        return Ok(None);
-    };
-    if !should_prepare_console_output(app_config.debugLevel) {
+    if !debug_config.should_prepare_console_output() {
         return Ok(None);
     };
 
