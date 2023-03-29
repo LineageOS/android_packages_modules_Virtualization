@@ -49,6 +49,8 @@
             value="/data/local/tmp/authfs/input.apk.fsv_sig" />
     </target_preparer>
 
+    <target_preparer class="com.android.microdroid.test.preparer.DisableMicrodroidDebugPolicyPreparer" />
+
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
         <!-- Now that the files are pushed to the device, enable fs-verity for the targeting file.
