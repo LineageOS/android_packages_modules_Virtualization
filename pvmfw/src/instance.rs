@@ -258,11 +258,11 @@ struct EntryHeader {
 
 impl EntryHeader {
     fn new(uuid: Uuid, payload_size: usize) -> Self {
-        Self { uuid: uuid.as_u128(), payload_size: u64::try_from(payload_size).unwrap().to_le() }
+        Self { uuid: uuid.to_u128_le(), payload_size: u64::try_from(payload_size).unwrap().to_le() }
     }
 
     fn uuid(&self) -> Uuid {
-        Uuid::from_u128(self.uuid)
+        Uuid::from_u128_le(self.uuid)
     }
 
     fn payload_size(&self) -> usize {
