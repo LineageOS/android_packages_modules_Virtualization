@@ -444,7 +444,25 @@ public abstract class MicrodroidDeviceTestBase {
             return stdout;
         } catch (IOException e) {
             Log.e(tag, "Error executing: " + command, e);
-            throw new RuntimeException("Failed to run the command.");
+            throw new RuntimeException("Failed to run the command.", e);
+        }
+    }
+
+    /** Execute a command. Returns the concatenation of stdout and stderr. */
+    protected String runInShellWithStderr(String tag, UiAutomation uiAutomation, String command) {
+        ParcelFileDescriptor[] files = uiAutomation.executeShellCommandRwe(command);
+        try (InputStream stdout = new ParcelFileDescriptor.AutoCloseInputStream(files[0]);
+                InputStream stderr = new ParcelFileDescriptor.AutoCloseInputStream(files[2]);
+                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            files[1].close(); // The command's stdin
+            stdout.transferTo(out);
+            stderr.transferTo(out);
+            String output = out.toString("UTF-8");
+            Log.i(tag, "Got output : " + stdout);
+            return output;
+        } catch (IOException e) {
+            Log.e(tag, "Error executing: " + command, e);
+            throw new RuntimeException("Failed to run the command.", e);
         }
     }
 
