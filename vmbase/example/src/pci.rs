@@ -20,7 +20,7 @@ use core::{mem::size_of, ptr::NonNull};
 use fdtpci::PciInfo;
 use log::{debug, info};
 use virtio_drivers::{
-    device::blk::VirtIOBlk,
+    device::{blk::VirtIOBlk, console::VirtIOConsole},
     transport::{
         pci::{bus::PciRoot, virtio_device_type, PciTransport},
         DeviceType, Transport,
@@ -53,29 +53,41 @@ pub fn check_pci(pci_root: &mut PciRoot) {
         }
     }
 
-    assert_eq!(checked_virtio_device_count, 1);
+    assert_eq!(checked_virtio_device_count, 4);
 }
 
 /// Checks the given VirtIO device, if we know how to.
 ///
 /// Returns true if the device was checked, or false if it was ignored.
 fn check_virtio_device(transport: impl Transport, device_type: DeviceType) -> bool {
-    if device_type == DeviceType::Block {
-        let mut blk = VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
-        info!("Found {} KiB block device.", blk.capacity() * SECTOR_SIZE_BYTES as u64 / 1024);
-        assert_eq!(blk.capacity(), EXPECTED_SECTOR_COUNT as u64);
-        let mut data = [0; SECTOR_SIZE_BYTES * EXPECTED_SECTOR_COUNT];
-        for i in 0..EXPECTED_SECTOR_COUNT {
-            blk.read_block(i, &mut data[i * SECTOR_SIZE_BYTES..(i + 1) * SECTOR_SIZE_BYTES])
-                .expect("Failed to read block device.");
+    match device_type {
+        DeviceType::Block => {
+            let mut blk =
+                VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
+            info!("Found {} KiB block device.", blk.capacity() * SECTOR_SIZE_BYTES as u64 / 1024);
+            assert_eq!(blk.capacity(), EXPECTED_SECTOR_COUNT as u64);
+            let mut data = [0; SECTOR_SIZE_BYTES * EXPECTED_SECTOR_COUNT];
+            for i in 0..EXPECTED_SECTOR_COUNT {
+                blk.read_block(i, &mut data[i * SECTOR_SIZE_BYTES..(i + 1) * SECTOR_SIZE_BYTES])
+                    .expect("Failed to read block device.");
+            }
+            for (i, chunk) in data.chunks(size_of::<u32>()).enumerate() {
+                assert_eq!(chunk, &(i as u32).to_le_bytes());
+            }
+            info!("Read expected data from block device.");
+            true
         }
-        for (i, chunk) in data.chunks(size_of::<u32>()).enumerate() {
-            assert_eq!(chunk, &(i as u32).to_le_bytes());
+        DeviceType::Console => {
+            let mut console = VirtIOConsole::<HalImpl, _>::new(transport)
+                .expect("Failed to create VirtIO console driver");
+            info!("Found console device: {:?}", console.info());
+            for &c in b"Hello VirtIO console\n" {
+                console.send(c).expect("Failed to send character to VirtIO console device");
+            }
+            info!("Wrote to VirtIO console.");
+            true
         }
-        info!("Read expected data from block device.");
-        true
-    } else {
-        false
+        _ => false,
     }
 }
 
