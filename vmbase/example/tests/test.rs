@@ -25,7 +25,7 @@ use anyhow::{Context, Error};
 use log::info;
 use std::{
     fs::File,
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, Read, Write},
     os::unix::io::FromRawFd,
     panic, thread,
 };
@@ -90,8 +90,8 @@ fn test_run_example_vm() -> Result<(), Error> {
         gdbPort: 0, // no gdb
     });
     let console = android_log_fd()?;
-    let log = android_log_fd()?;
-    let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log), None)
+    let (mut log_reader, log_writer) = pipe()?;
+    let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log_writer), None)
         .context("Failed to create VM")?;
     vm.start().context("Failed to start VM")?;
     info!("Started example VM.");
@@ -100,15 +100,17 @@ fn test_run_example_vm() -> Result<(), Error> {
     let death_reason = vm.wait_for_death();
     assert_eq!(death_reason, DeathReason::Shutdown);
 
+    // Check that the expected string was written to the log VirtIO console device.
+    let expected = "Hello VirtIO console\n";
+    let mut log_output = String::new();
+    assert_eq!(log_reader.read_to_string(&mut log_output)?, expected.len());
+    assert_eq!(log_output, expected);
+
     Ok(())
 }
 
 fn android_log_fd() -> io::Result<File> {
-    let (reader_fd, writer_fd) = nix::unistd::pipe()?;
-
-    // SAFETY: These are new FDs with no previous owner.
-    let reader = unsafe { File::from_raw_fd(reader_fd) };
-    let writer = unsafe { File::from_raw_fd(writer_fd) };
+    let (reader, writer) = pipe()?;
 
     thread::spawn(|| {
         for line in BufReader::new(reader).lines() {
@@ -116,4 +118,14 @@ fn android_log_fd() -> io::Result<File> {
         }
     });
     Ok(writer)
+}
+
+fn pipe() -> io::Result<(File, File)> {
+    let (reader_fd, writer_fd) = nix::unistd::pipe()?;
+
+    // SAFETY: These are new FDs with no previous owner.
+    let reader = unsafe { File::from_raw_fd(reader_fd) };
+    let writer = unsafe { File::from_raw_fd(writer_fd) };
+
+    Ok((reader, writer))
 }
