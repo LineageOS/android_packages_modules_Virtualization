@@ -19,7 +19,7 @@
 use crate::timeouts::TIMEOUTS;
 use crate::{
     get_vm_config_path, BUILD_MANIFEST_APK_PATH, BUILD_MANIFEST_SYSTEM_EXT_APK_PATH,
-    COMPOS_APEX_ROOT, COMPOS_DATA_ROOT, COMPOS_VSOCK_PORT,
+    COMPOS_APEX_ROOT, COMPOS_VSOCK_PORT,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     CpuTopology::CpuTopology,
@@ -80,7 +80,6 @@ impl ComposClient {
         let instance_fd = ParcelFileDescriptor::new(instance_image);
 
         let apex_dir = Path::new(COMPOS_APEX_ROOT);
-        let data_dir = Path::new(COMPOS_DATA_ROOT);
 
         let config_apk = locate_config_apk(apex_dir)?;
         let apk_fd = File::open(config_apk).context("Failed to open config APK file")?;
@@ -110,18 +109,6 @@ impl ComposClient {
 
         let debug_level = if parameters.debug_mode { DebugLevel::FULL } else { DebugLevel::NONE };
 
-        let (console_fd, log_fd) = if debug_level == DebugLevel::NONE {
-            (None, None)
-        } else {
-            // Console output and the system log output from the VM are redirected to file.
-            let console_fd = File::create(data_dir.join("vm_console.log"))
-                .context("Failed to create console log file")?;
-            let log_fd = File::create(data_dir.join("vm.log"))
-                .context("Failed to create system log file")?;
-            info!("Running in debug level {:?}", debug_level);
-            (Some(console_fd), Some(log_fd))
-        };
-
         let cpu_topology = match parameters.cpu_topology {
             VmCpuTopology::OneCpu => CpuTopology::ONE_CPU,
             VmCpuTopology::MatchHost => CpuTopology::MATCH_HOST,
@@ -143,6 +130,8 @@ impl ComposClient {
             gdbPort: 0, // Don't start gdb-server
         });
 
+        // Let logs go to logcat.
+        let (console_fd, log_fd) = (None, None);
         let callback = Box::new(Callback {});
         let instance = VmInstance::create(service, &config, console_fd, log_fd, Some(callback))
             .context("Failed to create VM")?;
