@@ -89,9 +89,11 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     @Before
     public void setUp() throws Exception {
-        testIfDeviceIsCapable(getDevice());
-        mNeedTearDown = true;
+        mNeedTearDown = false;
         mNeedToRestartPkvmStatus = false;
+
+        assumeDeviceIsCapable(getDevice());
+        mNeedTearDown = true;
 
         getDevice().installPackage(findTestFile(APK_NAME), /* reinstall */ false);
 
@@ -102,7 +104,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     public void tearDown() throws Exception {
         if (!mNeedTearDown) {
             // If we skipped setUp, we don't need to undo it, and that avoids potential exceptions
-            // incompatible hardware. (Note that tests can change what testIfDeviceIsCapable()
+            // incompatible hardware. (Note that tests can change what assumeDeviceIsCapable()
             // sees, so we can't rely on that - b/268688303.)
             return;
         }
