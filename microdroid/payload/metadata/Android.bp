@@ -12,7 +12,7 @@ rust_library {
     rustlibs: [
         "libanyhow",
         "libmicrodroid_metadata_proto_rust",
-        "libprotobuf",
+        "libprotobuf_deprecated",
     ],
     apex_available: [
         "com.android.virt",
