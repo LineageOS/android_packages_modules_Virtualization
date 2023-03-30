@@ -85,10 +85,13 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     private boolean mNeedTearDown = false;
 
+    private boolean mNeedToRestartPkvmStatus = false;
+
     @Before
     public void setUp() throws Exception {
         testIfDeviceIsCapable(getDevice());
         mNeedTearDown = true;
+        mNeedToRestartPkvmStatus = false;
 
         getDevice().installPackage(findTestFile(APK_NAME), /* reinstall */ false);
 
@@ -103,8 +106,8 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             // sees, so we can't rely on that - b/268688303.)
             return;
         }
-        // Set PKVM enable and reboot to prevent previous staged session.
-        if (!isCuttlefish()) {
+        // Restore PKVM status and reboot to prevent previous staged session, if switched.
+        if (mNeedToRestartPkvmStatus) {
             setPKVMStatusWithRebootToBootloader(true);
             rebootFromBootloaderAndWaitBootCompleted();
         }
@@ -422,7 +425,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     private void enableDisablePKVMTestHelper(boolean isEnable) throws Exception {
-        skipIfPKVMStatusSwitchNotSupported();
+        assumePKVMStatusSwitchSupported();
 
         List<Double> bootDmesgTime = new ArrayList<>(ROUND_COUNT);
         Map<String, List<Double>> bootloaderTime = new HashMap<>();
@@ -478,8 +481,15 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         reportMetric(bootDmesgTime, "dmesg_boot_time_" + suffix, "s");
     }
 
-    private void skipIfPKVMStatusSwitchNotSupported() throws Exception {
+    private void assumePKVMStatusSwitchSupported() throws Exception {
         assumeFalse("Skip on CF; can't reboot to bootloader", isCuttlefish());
+
+        // This is an overkill. The intention is to exclude remote_device_proxy, which uses
+        // different serial for fastboot. But there's no good way to distinguish from regular IP
+        // transport. This is currently not a problem until someone really needs to run the test
+        // over regular IP transport.
+        boolean isAdbOverIp = getDevice().getSerialNumber().contains(":");
+        assumeFalse("Skip over IP (overkill for remote_device_proxy)", isAdbOverIp);
 
         if (!getDevice().isStateBootloaderOrFastbootd()) {
             getDevice().rebootIntoBootloader();
@@ -513,6 +523,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
     }
 
     private void setPKVMStatusWithRebootToBootloader(boolean isEnable) throws Exception {
+        mNeedToRestartPkvmStatus = true;
 
         if (!getDevice().isStateBootloaderOrFastbootd()) {
             getDevice().rebootIntoBootloader();
