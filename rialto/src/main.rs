@@ -16,7 +16,6 @@
 
 #![no_main]
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 mod exceptions;
 
