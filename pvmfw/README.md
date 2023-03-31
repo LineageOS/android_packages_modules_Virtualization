@@ -197,16 +197,21 @@ next-stage secret, and a certificate chain, intended for pVM attestation. Note
 that it differs from the `BccHandover` defined by the specification in that its
 `Bcc` field is mandatory (while optional in the original).
 
-The handover expected by pvmfw can be generated as follows:
+Devices that fully implement DICE should provide a certificate rooted at the
+Unique Device Secret (UDS) in a boot stage preceding the pvmfw loader (typically
+ABL), in such a way that it would receive a valid `BccHandover`, that can be
+passed to [`BccHandoverMainFlow`][BccHandoverMainFlow] along with the inputs
+described below.
 
-- by passing a `BccHandover` received from a previous boot stage (_e.g._ Trusted
-  Firmware, ROM bootloader, ...) to
-  [`BccHandoverMainFlow`][BccHandoverMainFlow];
+Otherwise, as an intermediate step towards supporting DICE throughout the
+software stack of the device, incomplete implementations may root the BCC at the
+pvmfw loader, using an arbitrary constant as initial CDI. The pvmfw loader can
+easily do so by:
 
-- by generating a `BccHandover` (as an example, see [Trusty][Trusty-BCC]) with
-  both CDIs set to an arbitrary constant value and no `Bcc`, and pass it to
-  `BccHandoverMainFlow`, which will both derive the pvmfw CDIs and start a
-  valid certificate chain, making the pvmfw loader the root of the BCC.
+1. Building a BCC-less `BccHandover` using CBOR operations
+   ([example][Trusty-BCC]) and containing the constant CDIs
+1. Passing the resulting `BccHandover` to `BccHandoverMainFlow` as described
+   above
 
 The recommended DICE inputs at this stage are:
 
