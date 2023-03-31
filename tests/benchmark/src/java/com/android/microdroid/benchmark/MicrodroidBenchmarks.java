@@ -45,6 +45,7 @@ import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.microdroid.testservice.IBenchmarkService;
 import com.android.microdroid.testservice.ITestService;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -54,6 +55,7 @@ import org.junit.runners.Parameterized;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -97,6 +99,19 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     private Instrumentation mInstrumentation;
 
+    private boolean mTeardownDebugfs;
+
+    private void setupDebugfs() throws IOException {
+        BufferedReader reader = new BufferedReader(new FileReader("/proc/mounts"));
+
+        mTeardownDebugfs =
+                !reader.lines().filter(line -> line.startsWith("debugfs ")).findAny().isPresent();
+
+        if (mTeardownDebugfs) {
+            executeCommand("mount -t debugfs none /sys/kernel/debug");
+        }
+    }
+
     @Before
     public void setup() throws IOException {
         grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
@@ -104,6 +119,13 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         prepareTestSetup(mProtectedVm);
         setMaxPerformanceTaskProfile();
         mInstrumentation = getInstrumentation();
+    }
+
+    @After
+    public void tearDown() throws IOException {
+        if (mTeardownDebugfs) {
+            executeCommand("umount /sys/kernel/debug");
+        }
     }
 
     private boolean canBootMicrodroidWithMemory(int mem)
@@ -346,17 +368,15 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         public final long mGuestRss;
         public final long mGuestPss;
 
-        CrosvmStats(Function<String, String> shellExecutor) {
+        CrosvmStats(int vmPid, Function<String, String> shellExecutor) {
             try {
-                int crosvmPid = ProcessUtil.getCrosvmPid(Os.getpid(), shellExecutor);
-
                 long hostRss = 0;
                 long hostPss = 0;
                 long guestRss = 0;
                 long guestPss = 0;
                 boolean hasGuestMaps = false;
                 for (ProcessUtil.SMapEntry entry :
-                        ProcessUtil.getProcessSmaps(crosvmPid, shellExecutor)) {
+                        ProcessUtil.getProcessSmaps(vmPid, shellExecutor)) {
                     long rss = entry.metrics.get("Rss");
                     long pss = entry.metrics.get("Pss");
                     if (entry.name.contains("crosvm_guest")) {
@@ -383,6 +403,54 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         }
     }
 
+    private static class KvmVmStats {
+        public final long mProtectedHyp;
+        public final long mProtectedShared;
+        private final Function<String, String> mShellExecutor;
+        private static final String KVM_STATS_FS = "/sys/kernel/debug/kvm";
+
+        public static KvmVmStats createIfSupported(
+                int vmPid, Function<String, String> shellExecutor) {
+
+            if (!new File(KVM_STATS_FS + "/protected_hyp_mem").exists()) {
+                return null;
+            }
+
+            return new KvmVmStats(vmPid, shellExecutor);
+        }
+
+        KvmVmStats(int vmPid, Function<String, String> shellExecutor) {
+            mShellExecutor = shellExecutor;
+
+            try {
+                String dir = getKvmVmStatDir(vmPid);
+
+                mProtectedHyp = getKvmVmStat(dir, "protected_hyp_mem");
+                mProtectedShared = getKvmVmStat(dir, "protected_shared_mem");
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error inside onPayloadReady():" + e);
+                throw new RuntimeException(e);
+            }
+        }
+
+        private String getKvmVmStatDir(int vmPid) {
+            String output = mShellExecutor.apply("find " + KVM_STATS_FS + " -type d");
+
+            for (String line : output.split("\n")) {
+                if (line.startsWith(KVM_STATS_FS + "/" + Integer.toString(vmPid) + "-")) {
+                    return line;
+                }
+            }
+
+            throw new IllegalStateException("KVM stat folder for PID " + vmPid + " not found");
+        }
+
+        private int getKvmVmStat(String dir, String name) throws IOException {
+            return Integer.parseInt(mShellExecutor.apply("cat " + dir + "/" + name).trim());
+        }
+    }
+
     @Test
     public void testMemoryUsage() throws Exception {
         final String vmName = "test_vm_mem_usage";
@@ -394,6 +462,9 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                         .build();
         VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
         MemoryUsageListener listener = new MemoryUsageListener(this::executeCommand);
+
+        setupDebugfs();
+
         BenchmarkVmListener.create(listener).runToFinish(TAG, vm);
 
         double mem_overall = 256.0;
@@ -423,6 +494,12 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         bundle.putDouble(METRIC_NAME_PREFIX + "mem_crosvm_host_pss_MB", mem_crosvm_host_pss);
         bundle.putDouble(METRIC_NAME_PREFIX + "mem_crosvm_guest_rss_MB", mem_crosvm_guest_rss);
         bundle.putDouble(METRIC_NAME_PREFIX + "mem_crosvm_guest_pss_MB", mem_crosvm_guest_pss);
+        if (listener.mKvm != null) {
+            double mem_protected_shared = (double) listener.mKvm.mProtectedShared / 1048576.0;
+            double mem_protected_hyp = (double) listener.mKvm.mProtectedHyp / 1048576.0;
+            bundle.putDouble(METRIC_NAME_PREFIX + "mem_protected_shared_MB", mem_protected_shared);
+            bundle.putDouble(METRIC_NAME_PREFIX + "mem_protected_hyp_MB", mem_protected_hyp);
+        }
         mInstrumentation.sendStatus(0, bundle);
     }
 
@@ -441,17 +518,21 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         public long mSlab;
 
         public CrosvmStats mCrosvm;
+        public KvmVmStats mKvm;
 
         @Override
         public void onPayloadReady(VirtualMachine vm, IBenchmarkService service)
                 throws RemoteException {
+            int vmPid = ProcessUtil.getCrosvmPid(Os.getpid(), mShellExecutor);
+
             mMemTotal = service.getMemInfoEntry("MemTotal");
             mMemFree = service.getMemInfoEntry("MemFree");
             mMemAvailable = service.getMemInfoEntry("MemAvailable");
             mBuffers = service.getMemInfoEntry("Buffers");
             mCached = service.getMemInfoEntry("Cached");
             mSlab = service.getMemInfoEntry("Slab");
-            mCrosvm = new CrosvmStats(mShellExecutor);
+            mCrosvm = new CrosvmStats(vmPid, mShellExecutor);
+            mKvm = KvmVmStats.createIfSupported(vmPid, mShellExecutor);
         }
     }
 
@@ -511,10 +592,12 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         @SuppressWarnings("ReturnValueIgnored")
         public void onPayloadReady(VirtualMachine vm, IBenchmarkService service)
                 throws RemoteException {
+            int vmPid = ProcessUtil.getCrosvmPid(Os.getpid(), mShellExecutor);
+
             // Allocate 256MB of anonymous memory. This will fill all guest
             // memory and cause swapping to start.
             service.allocAnonMemory(256);
-            mPreCrosvm = new CrosvmStats(mShellExecutor);
+            mPreCrosvm = new CrosvmStats(vmPid, mShellExecutor);
             // Send a memory trim hint to cause memory reclaim.
             mShellExecutor.apply("am send-trim-memory " + Process.myPid() + " RUNNING_CRITICAL");
             // Give time for the memory reclaim to do its work.
@@ -524,7 +607,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 Log.e(TAG, "Interrupted sleep:" + e);
                 Thread.currentThread().interrupt();
             }
-            mPostCrosvm = new CrosvmStats(mShellExecutor);
+            mPostCrosvm = new CrosvmStats(vmPid, mShellExecutor);
         }
     }
 
