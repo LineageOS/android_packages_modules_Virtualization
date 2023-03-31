@@ -24,7 +24,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -82,6 +81,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @RunWith(DeviceJUnit4ClassRunner.class)
 public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
@@ -682,19 +682,24 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         microdroid.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         device.shutdownMicrodroid(microdroid);
 
+        // Try to collect atoms for 60000 milliseconds.
         List<StatsLog.EventMetricData> data = new ArrayList<>();
-        assertThatEventually(
-                10000,
-                () -> {
-                    data.addAll(ReportUtils.getEventMetricDataList(getDevice()));
-                    return data.size();
-                },
-                is(3)
-        );
+        long start = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - start < 60000) && data.size() < 3) {
+            data.addAll(ReportUtils.getEventMetricDataList(getDevice()));
+            Thread.sleep(500);
+        }
+        assertThat(
+                        data.stream()
+                                .map(x -> x.getAtom().getPushedCase().getNumber())
+                                .collect(Collectors.toList()))
+                .containsExactly(
+                        AtomsProto.Atom.VM_CREATION_REQUESTED_FIELD_NUMBER,
+                        AtomsProto.Atom.VM_BOOTED_FIELD_NUMBER,
+                        AtomsProto.Atom.VM_EXITED_FIELD_NUMBER)
+                .inOrder();
 
         // Check VmCreationRequested atom
-        assertThat(data.get(0).getAtom().getPushedCase().getNumber()).isEqualTo(
-                AtomsProto.Atom.VM_CREATION_REQUESTED_FIELD_NUMBER);
         AtomsProto.VmCreationRequested atomVmCreationRequested =
                 data.get(0).getAtom().getVmCreationRequested();
         assertThat(atomVmCreationRequested.getHypervisor())
@@ -711,14 +716,10 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 .isEqualTo("com.android.art:com.android.compos:com.android.sdkext");
 
         // Check VmBooted atom
-        assertThat(data.get(1).getAtom().getPushedCase().getNumber())
-                .isEqualTo(AtomsProto.Atom.VM_BOOTED_FIELD_NUMBER);
         AtomsProto.VmBooted atomVmBooted = data.get(1).getAtom().getVmBooted();
         assertThat(atomVmBooted.getVmIdentifier()).isEqualTo("VmRunApp");
 
         // Check VmExited atom
-        assertThat(data.get(2).getAtom().getPushedCase().getNumber())
-                .isEqualTo(AtomsProto.Atom.VM_EXITED_FIELD_NUMBER);
         AtomsProto.VmExited atomVmExited = data.get(2).getAtom().getVmExited();
         assertThat(atomVmExited.getVmIdentifier()).isEqualTo("VmRunApp");
         assertThat(atomVmExited.getDeathReason()).isEqualTo(AtomsProto.VmExited.DeathReason.KILLED);
