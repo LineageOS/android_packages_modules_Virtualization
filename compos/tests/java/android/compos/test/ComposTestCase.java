@@ -80,7 +80,7 @@ public final class ComposTestCase extends MicrodroidHostTestCaseBase {
 
     @Before
     public void setUp() throws Exception {
-        testIfDeviceIsCapable(getDevice());
+        assumeDeviceIsCapable(getDevice());
 
         String value = getDevice().getProperty(SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME);
         if (value == null) {

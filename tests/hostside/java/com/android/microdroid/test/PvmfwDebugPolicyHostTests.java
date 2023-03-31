@@ -112,7 +112,7 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                 getTestInformation().getDependencyFile(BCC_FILE_NAME, /* targetFirst= */ false);
 
         // Check device capability
-        testIfDeviceIsCapable(mAndroidDevice);
+        assumeDeviceIsCapable(mAndroidDevice);
         assumeTrue(
                 "Protected VMs are not supported",
                 mAndroidDevice.supportsMicrodroid(/*protectedVm=*/ true));
