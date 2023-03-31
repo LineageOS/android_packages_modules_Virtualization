@@ -971,7 +971,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Before
     public void setUp() throws Exception {
-        testIfDeviceIsCapable(getDevice());
+        assumeDeviceIsCapable(getDevice());
         mMetricPrefix = getMetricPrefix() + "microdroid/";
         mMicrodroidDevice = null;
 
