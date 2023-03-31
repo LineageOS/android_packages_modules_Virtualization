@@ -22,6 +22,39 @@ pub const SIZE_2MB: usize = 2 << 20;
 
 pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
 
+/// Read a value from a system register.
+#[macro_export]
+macro_rules! read_sysreg {
+    ($sysreg:literal) => {{
+        let mut r: usize;
+        // Safe because it reads a system register and does not affect Rust.
+        unsafe {
+            core::arch::asm!(
+                concat!("mrs {}, ", $sysreg),
+                out(reg) r,
+                options(nomem, nostack, preserves_flags),
+            )
+        }
+        r
+    }};
+}
+
+/// Write a value to a system register.
+#[macro_export]
+macro_rules! write_sysreg {
+    ($sysreg:literal, $val:expr) => {{
+        let value: usize = $val;
+        // Safe because it writes a system register and does not affect Rust.
+        unsafe {
+            core::arch::asm!(
+                concat!("msr ", $sysreg, ", {}"),
+                in(reg) value,
+                options(nomem, nostack, preserves_flags),
+            )
+        }
+    }};
+}
+
 /// Computes the largest multiple of the provided alignment smaller or equal to the address.
 ///
 /// Note: the result is undefined if alignment isn't a power of two.
@@ -78,9 +111,7 @@ pub const fn page_4kb_of(addr: usize) -> usize {
 fn min_dcache_line_size() -> usize {
     const DMINLINE_SHIFT: usize = 16;
     const DMINLINE_MASK: usize = 0xf;
-    let ctr_el0: usize;
-
-    unsafe { asm!("mrs {x}, ctr_el0", x = out(reg) ctr_el0) }
+    let ctr_el0 = read_sysreg!("ctr_el0");
 
     // DminLine: log2 of the number of words in the smallest cache line of all the data caches.
     let dminline = (ctr_el0 >> DMINLINE_SHIFT) & DMINLINE_MASK;
