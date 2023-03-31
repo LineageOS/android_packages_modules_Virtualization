@@ -97,7 +97,13 @@ pub fn flush_region(start: usize, size: usize) {
 
     for line in (start..end).step_by(line_size) {
         // SAFETY - Clearing cache lines shouldn't have Rust-visible side effects.
-        unsafe { asm!("dc cvau, {x}", x = in(reg) line) }
+        unsafe {
+            asm!(
+                "dc cvau, {x}",
+                x = in(reg) line,
+                options(nomem, nostack, preserves_flags),
+            )
+        }
     }
 }
 
