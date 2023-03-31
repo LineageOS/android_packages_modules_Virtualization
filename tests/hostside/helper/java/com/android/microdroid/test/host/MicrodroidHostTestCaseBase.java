@@ -97,7 +97,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
                 DeviceProperties.create(getDevice()::getProperty).getMetricsTag());
     }
 
-    public static void testIfDeviceIsCapable(ITestDevice androidDevice) throws Exception {
+    public static void assumeDeviceIsCapable(ITestDevice androidDevice) throws Exception {
         assumeTrue("Need an actual TestDevice", androidDevice instanceof TestDevice);
         TestDevice testDevice = (TestDevice) androidDevice;
         assumeTrue(
