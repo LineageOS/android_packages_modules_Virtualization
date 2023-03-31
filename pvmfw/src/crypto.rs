@@ -14,8 +14,6 @@
 
 //! Wrapper around BoringSSL/OpenSSL symbols.
 
-use crate::cstr;
-
 use core::convert::AsRef;
 use core::ffi::{c_char, c_int, CStr};
 use core::fmt;
@@ -23,6 +21,9 @@ use core::mem::MaybeUninit;
 use core::num::NonZeroU32;
 use core::ptr;
 
+use crate::cstr;
+
+use bssl_ffi::CRYPTO_library_init;
 use bssl_ffi::ERR_get_error_line;
 use bssl_ffi::ERR_lib_error_string;
 use bssl_ffi::ERR_reason_error_string;
@@ -297,4 +298,9 @@ pub fn hkdf_sh512<const N: usize>(secret: &[u8], salt: &[u8], info: &[u8]) -> Re
     } else {
         Err(ErrorIterator {})
     }
+}
+
+pub fn init() {
+    // SAFETY - Configures the internal state of the library - may be called multiple times.
+    unsafe { CRYPTO_library_init() }
 }
