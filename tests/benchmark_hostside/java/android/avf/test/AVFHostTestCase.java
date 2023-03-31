@@ -488,8 +488,7 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         // different serial for fastboot. But there's no good way to distinguish from regular IP
         // transport. This is currently not a problem until someone really needs to run the test
         // over regular IP transport.
-        boolean isAdbOverIp = getDevice().getSerialNumber().contains(":");
-        assumeFalse("Skip over IP (overkill for remote_device_proxy)", isAdbOverIp);
+        assumeFalse("Skip over IP (overkill for remote_device_proxy)", getDevice().isAdbTcp());
 
         if (!getDevice().isStateBootloaderOrFastbootd()) {
             getDevice().rebootIntoBootloader();
