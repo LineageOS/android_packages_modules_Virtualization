@@ -9,20 +9,6 @@ genrule_defaults {
 }
 
 genrule {
-    name: "test_avf_debug_policy_with_log.dtbo",
-    defaults: ["test_avf_debug_policy_overlay"],
-    srcs: ["assets/avf_debug_policy_with_log.dts"],
-    out: ["avf_debug_policy_with_log.dtbo"],
-}
-
-genrule {
-    name: "test_avf_debug_policy_without_log.dtbo",
-    defaults: ["test_avf_debug_policy_overlay"],
-    srcs: ["assets/avf_debug_policy_without_log.dts"],
-    out: ["avf_debug_policy_without_log.dtbo"],
-}
-
-genrule {
     name: "test_avf_debug_policy_with_adb",
     defaults: ["test_avf_debug_policy_overlay"],
     srcs: ["assets/avf_debug_policy_with_adb.dts"],
@@ -60,8 +46,6 @@ java_test_host {
         ":test.com.android.virt.pem",
         ":test2.com.android.virt.pem",
         ":pvmfw_test",
-        ":test_avf_debug_policy_with_log.dtbo",
-        ":test_avf_debug_policy_without_log.dtbo",
         ":test_avf_debug_policy_with_adb",
         ":test_avf_debug_policy_without_adb",
         "assets/bcc.dat",
