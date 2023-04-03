@@ -14,12 +14,8 @@
 
 //! Support for the debug policy overlay in pvmfw
 
-use crate::cstr;
-use alloc::vec::Vec;
-use core::ffi::CStr;
 use core::fmt;
 use libfdt::FdtError;
-use log::info;
 
 #[derive(Debug, Clone)]
 pub enum DebugPolicyError {
@@ -64,60 +60,6 @@ unsafe fn apply_debug_policy(
     fdt.pack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to re-pack", e))
 }
 
-/// Enables console output by adding kernel.printk.devkmsg and kernel.console to bootargs.
-/// This uses hardcoded console name 'hvc0' and it should be match with microdroid's bootconfig.debuggable.
-fn enable_console_output(fdt: &mut libfdt::Fdt) -> Result<(), DebugPolicyError> {
-    let chosen = match fdt
-        .node(cstr!("/chosen"))
-        .map_err(|e| DebugPolicyError::Fdt("Failed to find /chosen", e))?
-    {
-        Some(node) => node,
-        None => return Ok(()),
-    };
-
-    let bootargs = match chosen
-        .getprop_str(cstr!("bootargs"))
-        .map_err(|e| DebugPolicyError::Fdt("Failed to find bootargs prop", e))?
-    {
-        Some(value) if !value.to_bytes().is_empty() => value,
-        _ => return Ok(()),
-    };
-
-    let mut new_bootargs = Vec::from(bootargs.to_bytes());
-    new_bootargs.extend_from_slice(b" printk.devkmsg=on console=hvc0\0");
-
-    // We'll set larger prop, and need to prepare some room first.
-    fdt.unpack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to unpack", e))?;
-
-    // We've checked existence of /chosen node at the beginning.
-    let mut chosen_mut = fdt.node_mut(cstr!("/chosen")).unwrap().unwrap();
-    chosen_mut.setprop(cstr!("bootargs"), new_bootargs.as_slice()).map_err(|e| {
-        DebugPolicyError::OverlaidFdt("Failed to enabled console output. FDT might be corrupted", e)
-    })?;
-
-    fdt.pack().map_err(|e| DebugPolicyError::OverlaidFdt("Failed to pack", e))?;
-    Ok(())
-}
-
-/// Returns true only if fdt has log prop in the /avf/guest/common node with value <1>
-fn is_console_output_enabled(fdt: &libfdt::Fdt) -> Result<bool, DebugPolicyError> {
-    let common = match fdt
-        .node(cstr!("/avf/guest/common"))
-        .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find /avf/guest/common node", e))?
-    {
-        Some(node) => node,
-        None => return Ok(false),
-    };
-
-    match common
-        .getprop_u32(cstr!("log"))
-        .map_err(|e| DebugPolicyError::DebugPolicyFdt("Failed to find log prop", e))?
-    {
-        Some(1) => Ok(true),
-        _ => Ok(false),
-    }
-}
-
 /// Handles debug policies.
 ///
 /// # Safety
@@ -132,10 +74,5 @@ pub unsafe fn handle_debug_policy(
         apply_debug_policy(fdt, dp)?;
     }
 
-    // Handles console output in the debug policy
-    if is_console_output_enabled(fdt)? {
-        enable_console_output(fdt)?;
-        info!("console output is enabled by debug policy");
-    }
     Ok(())
 }
