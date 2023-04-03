@@ -48,11 +48,10 @@ import org.junit.runner.RunWith;
 import java.io.File;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.io.FileNotFoundException;
 
-/** Tests debug policy of pvmfw.bin with custom debug policy */
+/** Tests debug policy */
 @RunWith(DeviceJUnit4ClassRunner.class)
-public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
+public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @NonNull private static final String PVMFW_FILE_NAME = "pvmfw_test.bin";
     @NonNull private static final String BCC_FILE_NAME = "bcc.dat";
     @NonNull private static final String PACKAGE_FILE_NAME = "MicrodroidTestApp.apk";
@@ -69,6 +68,16 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @NonNull private static final String CUSTOM_PVMFW_FILE_SUFFIX = ".bin";
     @NonNull private static final String CUSTOM_PVMFW_IMG_PATH = TEST_ROOT + PVMFW_FILE_NAME;
     @NonNull private static final String CUSTOM_PVMFW_IMG_PATH_PROP = "hypervisor.pvmfw.path";
+
+    @NonNull private static final String CUSTOM_DEBUG_POLICY_FILE_NAME = "debug_policy.dtb";
+
+    @NonNull
+    private static final String CUSTOM_DEBUG_POLICY_PATH =
+            TEST_ROOT + CUSTOM_DEBUG_POLICY_FILE_NAME;
+
+    @NonNull
+    private static final String CUSTOM_DEBUG_POLICY_PATH_PROP =
+            "hypervisor.virtualizationmanager.debug_policy.path";
 
     @NonNull
     private static final String AVF_DEBUG_POLICY_ADB_DT_PROP_PATH = "/avf/guest/microdroid/adb";
@@ -93,6 +102,7 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @Nullable private TestDevice mAndroidDevice;
     @Nullable private ITestDevice mMicrodroidDevice;
     @Nullable private File mCustomPvmfwBinFileOnHost;
+    @Nullable private File mCustomDebugPolicyFileOnHost;
 
     @Before
     public void setUp() throws Exception {
@@ -114,12 +124,14 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         mBccFileOnHost =
                 getTestInformation().getDependencyFile(BCC_FILE_NAME, /* targetFirst= */ false);
 
-        // Prepare for loading pvmfw.bin
-        // File will be setup in individual test,
-        // and then pushed to device in launchProtectedVmAndWaitForBootCompleted.
+        // Prepare for system properties for custom debug policy.
+        // File will be prepared later in individual test by setupCustomDebugPolicy()
+        // and then pushed to device when launching with launchProtectedVmAndWaitForBootCompleted()
+        // or tryLaunchProtectedNonDebuggableVm().
         mCustomPvmfwBinFileOnHost =
                 FileUtil.createTempFile(CUSTOM_PVMFW_FILE_PREFIX, CUSTOM_PVMFW_FILE_SUFFIX);
         mAndroidDevice.setProperty(CUSTOM_PVMFW_IMG_PATH_PROP, CUSTOM_PVMFW_IMG_PATH);
+        mAndroidDevice.setProperty(CUSTOM_DEBUG_POLICY_PATH_PROP, CUSTOM_DEBUG_POLICY_PATH);
 
         // Prepare for launching microdroid
         mAndroidDevice.installPackage(findTestFile(PACKAGE_FILE_NAME), /* reinstall */ false);
@@ -138,7 +150,8 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         }
         mAndroidDevice.uninstallPackage(PACKAGE_NAME);
 
-        // Cleanup for custom pvmfw.bin
+        // Cleanup for custom debug policies
+        mAndroidDevice.setProperty(CUSTOM_DEBUG_POLICY_PATH_PROP, "");
         mAndroidDevice.setProperty(CUSTOM_PVMFW_IMG_PATH_PROP, "");
         FileUtil.deleteFile(mCustomPvmfwBinFileOnHost);
 
@@ -148,21 +161,15 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testAdb_boots() throws Exception {
-        assumeTrue(
-                "Skip if host wouldn't install adbd",
-                isDebugPolicyEnabled(AVF_DEBUG_POLICY_ADB_DT_PROP_PATH));
-
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_with_adb.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+    public void testAdbInDebugPolicy_withDebugLevelNone_bootWithAdbConnection() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_with_adb.dtbo");
 
         launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_NONE);
     }
 
     @Test
-    public void testNoAdb_boots() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_adb.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+    public void testNoAdbInDebugPolicy_withDebugLevelNone_boots() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_without_adb.dtbo");
 
         // VM would boot, but cannot verify directly because of no adbd in the VM.
         CommandResult result = tryLaunchProtectedNonDebuggableVm();
@@ -173,9 +180,8 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     }
 
     @Test
-    public void testNoAdb_noConnection() throws Exception {
-        Pvmfw pvmfw = createPvmfw("avf_debug_policy_without_adb.dtbo");
-        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
+    public void testNoAdbInDebugPolicy_withDebugLevelNone_noConnection() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_without_adb.dtbo");
 
         assertThrows(
                 "Microdroid shouldn't be recognized because of missing adb connection",
@@ -183,6 +189,13 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                 () ->
                         launchProtectedVmAndWaitForBootCompleted(
                                 MICRODROID_DEBUG_NONE, BOOT_FAILURE_WAIT_TIME_MS));
+    }
+
+    @Test
+    public void testNoAdbInDebugPolicy_withDebugLevelFull_bootWithAdbConnection() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_without_adb.dtbo");
+
+        launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_FULL);
     }
 
     private boolean isDebugPolicyEnabled(@NonNull String dtPropertyPath)
@@ -208,14 +221,16 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         return new CommandRunner(mMicrodroidDevice).run("xxd", "-p", path);
     }
 
-    @NonNull
-    private Pvmfw createPvmfw(@NonNull String debugPolicyFileName) throws FileNotFoundException {
-        File file =
+    private void prepareCustomDebugPolicy(@NonNull String debugPolicyFileName) throws Exception {
+        mCustomDebugPolicyFileOnHost =
                 getTestInformation()
                         .getDependencyFile(debugPolicyFileName, /* targetFirst= */ false);
-        return new Pvmfw.Builder(mPvmfwBinFileOnHost, mBccFileOnHost)
-                .setDebugPolicyOverlay(file)
-                .build();
+
+        Pvmfw pvmfw =
+                new Pvmfw.Builder(mPvmfwBinFileOnHost, mBccFileOnHost)
+                        .setDebugPolicyOverlay(mCustomDebugPolicyFileOnHost)
+                        .build();
+        pvmfw.serialize(mCustomPvmfwBinFileOnHost);
     }
 
     private boolean hasConsoleOutput(@NonNull CommandResult result)
@@ -242,6 +257,7 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                         .debugLevel(debugLevel)
                         .protectedVm(/* protectedVm= */ true)
                         .addBootFile(mCustomPvmfwBinFileOnHost, PVMFW_FILE_NAME)
+                        .addBootFile(mCustomDebugPolicyFileOnHost, CUSTOM_DEBUG_POLICY_FILE_NAME)
                         .setAdbConnectTimeoutMs(adbTimeoutMs)
                         .build(mAndroidDevice);
         assertThat(mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT_MS)).isTrue();
@@ -256,7 +272,8 @@ public class PvmfwDebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         // but non-debuggable VM may not enable adb.
         CommandRunner runner = new CommandRunner(mAndroidDevice);
         runner.run("mkdir", "-p", TEST_ROOT);
-        mAndroidDevice.pushFile(mCustomPvmfwBinFileOnHost, TEST_ROOT + PVMFW_FILE_NAME);
+        mAndroidDevice.pushFile(mCustomPvmfwBinFileOnHost, CUSTOM_PVMFW_IMG_PATH);
+        mAndroidDevice.pushFile(mCustomDebugPolicyFileOnHost, CUSTOM_DEBUG_POLICY_PATH);
 
         // This will fail because app wouldn't finish itself.
         // But let's run the app once and get logs.
