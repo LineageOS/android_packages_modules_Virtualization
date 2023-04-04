@@ -19,5 +19,5 @@ java_library_static {
         "MicrodroidTestHelper",
         "truth-prebuilt",
     ],
-    sdk_version: "system_current",
+    sdk_version: "test_current",
 }
