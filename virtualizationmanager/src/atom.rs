@@ -32,7 +32,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 };
 use anyhow::{anyhow, Result};
 use binder::ParcelFileDescriptor;
-use log::warn;
+use log::{info, warn};
 use microdroid_payload_config::VmPayloadConfig;
 use statslog_virtualization_rust::vm_creation_requested;
 use std::thread;
@@ -149,6 +149,7 @@ pub fn write_vm_creation_stats(
         apexes,
     };
 
+    info!("Writing VmCreationRequested atom into statsd.");
     thread::spawn(move || {
         GLOBAL_SERVICE.atomVmCreationRequested(&atom).unwrap_or_else(|e| {
             warn!("Failed to write VmCreationRequested atom: {e}");
@@ -172,9 +173,10 @@ pub fn write_vm_booted_stats(
         elapsedTimeMillis: duration.as_millis() as i64,
     };
 
+    info!("Writing VmBooted atom into statsd.");
     thread::spawn(move || {
         GLOBAL_SERVICE.atomVmBooted(&atom).unwrap_or_else(|e| {
-            warn!("Failed to write VmCreationRequested atom: {e}");
+            warn!("Failed to write VmBooted atom: {e}");
         });
     });
 }
@@ -204,6 +206,7 @@ pub fn write_vm_exited_stats(
         exitSignal: exit_signal.unwrap_or_default(),
     };
 
+    info!("Writing VmExited atom into statsd.");
     thread::spawn(move || {
         GLOBAL_SERVICE.atomVmExited(&atom).unwrap_or_else(|e| {
             warn!("Failed to write VmExited atom: {e}");
