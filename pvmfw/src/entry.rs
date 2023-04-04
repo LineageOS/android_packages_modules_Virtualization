@@ -15,6 +15,7 @@
 //! Low-level entry and exit points of pvmfw.
 
 use crate::config;
+use crate::crypto;
 use crate::debug_policy::{handle_debug_policy, DebugPolicyError};
 use crate::fdt;
 use crate::heap;
@@ -191,6 +192,8 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
         debug!("Failed to configure the UART: {e}");
         RebootReason::InternalError
     })?;
+
+    crypto::init();
 
     // SAFETY - We only get the appended payload from here, once. It is mapped and the linker
     // script prevents it from overlapping with other objects.
