@@ -271,6 +271,53 @@ OS's device tree and config header of `pvmfw`. Both `virtualizationmanager` and
 For details about device tree properties for debug policies, see
 [microdroid's debugging policy guide](../microdroid/README.md#option-1-running-microdroid-on-avf-debug-policy-configured-device).
 
+### Platform Requirements
+
+pvmfw is intended to run in a virtualized environment according to the `crosvm`
+[memory layout][crosvm-mem] for protected VMs and so it expects to have been
+loaded at address `0x7fc0_0000` and uses the 2MiB region at address
+`0x7fe0_0000` as scratch memory. It makes use of the virtual PCI bus to obtain a
+virtio interface to the host and prints its logs through the 16550 UART (address
+`0x3f8`).
+
+At boot, pvmfw discovers the running hypervisor in order to select the
+appropriate hypervisor calls to share/unshare memory, mark IPA regions as MMIO,
+obtain trusted true entropy, and reboot the virtual machine. In particular, it
+makes use of the following hypervisor calls:
+
+- Arm [SMC Calling Convention][smccc] v1.1 or above:
+
+    - `SMCCC_VERSION`
+    - Vendor Specific Hypervisor Service Call UID Query
+
+- Arm [Power State Coordination Interface][psci] v1.0 or above:
+
+    - `PSCI_VERSION`
+    - `PSCI_FEATURES`
+    - `PSCI_SYSTEM_RESET`
+    - `PSCI_SYSTEM_SHUTDOWN`
+
+- Arm [True Random Number Generator Firmware Interface][smccc-trng] v1.0:
+
+    - `TRNG_VERSION`
+    - `TRNG_FEATURES`
+    - `TRNG_RND`
+
+- When running under KVM, the pKVM-specific hypervisor interface must provide:
+
+    - `MEMINFO` (function ID `0xc6000002`)
+    - `MEM_SHARE` (function ID `0xc6000003`)
+    - `MEM_UNSHARE` (function ID `0xc6000004`)
+    - `MMIO_GUARD_INFO` (function ID `0xc6000005`)
+    - `MMIO_GUARD_ENROLL` (function ID `0xc6000006`)
+    - `MMIO_GUARD_MAP` (function ID `0xc6000007`)
+    - `MMIO_GUARD_UNMAP` (function ID `0xc6000008`)
+
+[crosvm-mem]: https://crosvm.dev/book/appendix/memory_layout.html
+[psci]: https://developer.arm.com/documentation/den0022
+[smccc]: https://developer.arm.com/documentation/den0028
+[smccc-trng]: https://developer.arm.com/documentation/den0098
+
 ## Booting Protected Virtual Machines
 
 ### Boot Protocol
