@@ -97,15 +97,6 @@ public abstract class MicrodroidDeviceTestBase {
         }
     }
 
-    public final boolean getDebugPolicyBoolean(String debugPolicy) throws IOException {
-        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-        UiAutomation uiAutomation = instrumentation.getUiAutomation();
-        String debugPolicyFilePath = "/proc/device-tree" + debugPolicy;
-        String cmd = "su root xxd -p " + debugPolicyFilePath;
-        String dp = runInShell(TAG, uiAutomation, cmd).trim();
-        return "00000001".equals(dp);
-    }
-
     private Context mCtx;
     private boolean mProtectedVm;
 
