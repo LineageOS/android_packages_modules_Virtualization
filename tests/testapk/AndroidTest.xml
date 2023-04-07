@@ -23,6 +23,7 @@
         <option name="test-file-name" value="MicrodroidTestApp.apk" />
         <option name="test-file-name" value="MicrodroidVmShareApp.apk" />
     </target_preparer>
+    <target_preparer class="com.android.microdroid.test.preparer.DisableMicrodroidDebugPolicyPreparer" />
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.microdroid.test" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
