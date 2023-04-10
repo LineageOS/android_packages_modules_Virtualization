@@ -28,13 +28,15 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeTrue;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.base.Strings;
 import com.google.common.truth.BooleanSubject;
 
+import android.app.Instrumentation;
+import android.app.UiAutomation;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -54,7 +56,8 @@ import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineDescriptor;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
-import android.util.Log;
+
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.compatibility.common.util.CddTest;
 import com.android.compatibility.common.util.VsrTest;
@@ -1620,11 +1623,29 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(checkVmOutputIsRedirectedToLogcat(true)).isTrue();
     }
 
+    private boolean setSystemProperties(String name, String value) {
+        Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+        UiAutomation uiAutomation = instrumentation.getUiAutomation();
+        String cmd = "setprop " + name + " " + (value.isEmpty() ? "\"\"" : value);
+        return runInShellWithStderr(TAG, uiAutomation, cmd).trim().isEmpty();
+    }
+
     @Test
     public void outputIsNotRedirectedToLogcatIfNotDebuggable() throws Exception {
         assumeSupportedDevice();
 
-        assertThat(checkVmOutputIsRedirectedToLogcat(false)).isFalse();
+        // Disable debug policy to ensure no log output.
+        String sysprop = "hypervisor.virtualizationmanager.debug_policy.path";
+        String old = SystemProperties.get(sysprop);
+        assumeTrue(
+                "Can't disable debug policy. Perhapse user build?",
+                setSystemProperties(sysprop, ""));
+
+        try {
+            assertThat(checkVmOutputIsRedirectedToLogcat(false)).isFalse();
+        } finally {
+            assertThat(setSystemProperties(sysprop, old)).isTrue();
+        }
     }
 
     @Test
