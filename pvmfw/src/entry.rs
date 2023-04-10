@@ -16,7 +16,6 @@
 
 use crate::config;
 use crate::crypto;
-use crate::debug_policy::{handle_debug_policy, DebugPolicyError};
 use crate::fdt;
 use crate::heap;
 use crate::helpers;
@@ -52,16 +51,6 @@ pub enum RebootReason {
     PayloadVerificationError,
     /// DICE layering process failed.
     SecretDerivationError,
-}
-
-impl From<DebugPolicyError> for RebootReason {
-    fn from(error: DebugPolicyError) -> Self {
-        match error {
-            DebugPolicyError::Fdt(_, _) => RebootReason::InvalidFdt,
-            DebugPolicyError::DebugPolicyFdt(_, _) => RebootReason::InvalidConfig,
-            DebugPolicyError::OverlaidFdt(_, _) => RebootReason::InternalError,
-        }
-    }
 }
 
 main!(start);
@@ -237,18 +226,10 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     })?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, &mut memory)?;
+    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, debug_policy, &mut memory)?;
 
     helpers::flushed_zeroize(bcc_slice);
     helpers::flush(slices.fdt.as_slice());
-
-    // SAFETY - As we `?` the result, there is no risk of using a bad `slices.fdt`.
-    unsafe {
-        handle_debug_policy(slices.fdt, debug_policy).map_err(|e| {
-            error!("Unexpected error when handling debug policy: {e:?}");
-            RebootReason::from(e)
-        })?;
-    }
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     memory.mmio_unmap_all().map_err(|e| {
