@@ -53,6 +53,8 @@ pub enum VmCpuTopology {
 /// Parameters to be used when creating a virtual machine instance.
 #[derive(Default, Debug, Clone)]
 pub struct VmParameters {
+    /// The name of VM for identifying.
+    pub name: String,
     /// Whether the VM should be debuggable.
     pub debug_mode: bool,
     /// CPU topology of the VM. Defaults to 1 vCPU.
@@ -115,7 +117,7 @@ impl ComposClient {
         };
 
         let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
-            name: String::from("Compos"),
+            name: parameters.name.clone(),
             apk: Some(apk_fd),
             idsig: Some(idsig_fd),
             instanceImage: Some(instance_fd),
