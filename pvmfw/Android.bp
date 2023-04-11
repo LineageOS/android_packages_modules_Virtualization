@@ -32,6 +32,13 @@ rust_ffi_static {
     ],
 }
 
+// Generates an empty file.
+genrule {
+    name: "empty_file",
+    out: ["empty_file"],
+    cmd: "touch $(out)",
+}
+
 cc_binary {
     name: "pvmfw",
     defaults: ["vmbase_elf_defaults"],
@@ -81,7 +88,7 @@ prebuilt_etc {
             src: ":pvmfw_bin",
         },
     },
-    src: "empty_file",
+    src: ":empty_file",
     installable: false,
 }
 
