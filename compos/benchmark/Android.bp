@@ -18,4 +18,6 @@ android_test {
     sdk_version: "test_current",
     use_embedded_native_libs: true,
     compile_multilib: "64",
+
+    host_required: ["MicrodroidTestPreparer"],
 }
