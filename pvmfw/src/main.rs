@@ -21,7 +21,6 @@ extern crate alloc;
 
 mod config;
 mod crypto;
-mod debug_policy;
 mod dice;
 mod entry;
 mod exceptions;
@@ -65,6 +64,7 @@ fn main(
     signed_kernel: &[u8],
     ramdisk: Option<&[u8]>,
     current_bcc_handover: &[u8],
+    debug_policy: Option<&mut [u8]>,
     memory: &mut MemoryTracker,
 ) -> Result<(), RebootReason> {
     info!("pVM firmware");
@@ -122,7 +122,7 @@ fn main(
     flush(next_bcc);
 
     let strict_boot = true;
-    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot).map_err(|e| {
+    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot, debug_policy).map_err(|e| {
         error!("Failed to configure device tree: {e}");
         RebootReason::InternalError
     })?;
