@@ -24,6 +24,7 @@ java_test_host {
         ":CtsApkVerityTestPrebuiltFiles",
         ":MicrodroidTestApp",
     ],
+    required: ["MicrodroidTestPreparer"],
 }
 
 cc_binary {
