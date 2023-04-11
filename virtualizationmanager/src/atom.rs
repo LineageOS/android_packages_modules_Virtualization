@@ -93,6 +93,7 @@ pub(crate) fn get_num_cpus() -> Option<usize> {
 }
 
 /// Write the stats of VMCreation to statsd
+/// The function creates a separate thread which waits for statsd to start to push atom
 pub fn write_vm_creation_stats(
     config: &VirtualMachineConfig,
     is_protected: bool,
@@ -158,7 +159,7 @@ pub fn write_vm_creation_stats(
 }
 
 /// Write the stats of VM boot to statsd
-/// The function creates a separate thread which waits fro statsd to start to push atom
+/// The function creates a separate thread which waits for statsd to start to push atom
 pub fn write_vm_booted_stats(
     uid: i32,
     vm_identifier: &str,
@@ -182,8 +183,7 @@ pub fn write_vm_booted_stats(
 }
 
 /// Write the stats of VM exit to statsd
-/// The function creates a separate thread which waits fro statsd to start to push atom
-pub fn write_vm_exited_stats(
+pub fn write_vm_exited_stats_sync(
     uid: i32,
     vm_identifier: &str,
     reason: DeathReason,
@@ -207,9 +207,7 @@ pub fn write_vm_exited_stats(
     };
 
     info!("Writing VmExited atom into statsd.");
-    thread::spawn(move || {
-        GLOBAL_SERVICE.atomVmExited(&atom).unwrap_or_else(|e| {
-            warn!("Failed to write VmExited atom: {e}");
-        });
+    GLOBAL_SERVICE.atomVmExited(&atom).unwrap_or_else(|e| {
+        warn!("Failed to write VmExited atom: {e}");
     });
 }
