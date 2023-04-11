@@ -75,4 +75,5 @@ java_test_host {
         "libsparse",
         "libz",
     ],
+    required: ["MicrodroidTestPreparer"],
 }
