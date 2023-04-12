@@ -279,10 +279,22 @@ pub struct MicrodroidData {
     pub apex_data: Vec<ApexData>,
 }
 
+impl MicrodroidData {
+    pub fn extra_apk_root_hash_eq(&self, i: usize, root_hash: &[u8]) -> bool {
+        self.extra_apks_data.get(i).map_or(false, |apk| apk.root_hash_eq(root_hash))
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApkData {
     pub root_hash: Box<RootHash>,
     pub pubkey: Box<[u8]>,
+}
+
+impl ApkData {
+    pub fn root_hash_eq(&self, root_hash: &[u8]) -> bool {
+        self.root_hash.as_ref() == root_hash
+    }
 }
 
 pub type RootHash = [u8];
