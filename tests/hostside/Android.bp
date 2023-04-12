@@ -38,6 +38,7 @@ java_test_host {
         "compatibility-host-util",
         "cts-statsd-atom-host-test-utils",
         "microdroid_payload_metadata",
+        "MicrodroidTestPreparer", // Workaround for sandboxed test environment to install this
     ],
     per_testcase_directory: true,
     data: [
