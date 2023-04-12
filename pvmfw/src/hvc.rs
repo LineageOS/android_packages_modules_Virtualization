@@ -78,7 +78,8 @@ pub fn kvm_mmio_guard_map(ipa: u64) -> smccc::Result<()> {
     let mut args = [0u64; 17];
     args[0] = ipa;
 
-    // TODO(b/253586500): pKVM currently returns a i32 instead of a i64.
+    // TODO(b/277859415): pKVM returns a i32 instead of a i64 in T.
+    // Drop this hack once T reaches EoL.
     let is_i32_error_code = |n| u32::try_from(n).ok().filter(|v| (*v as i32) < 0).is_some();
     match checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID, args) {
         Err(smccc::Error::Unexpected(e)) if is_i32_error_code(e) => {
@@ -98,7 +99,8 @@ pub fn kvm_mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
     let mut args = [0u64; 17];
     args[0] = ipa;
 
-    // TODO(b/251426790): pKVM currently returns NOT_SUPPORTED for SUCCESS.
+    // TODO(b/277860860): pKVM returns NOT_SUPPORTED for SUCCESS in T.
+    // Drop this hack once T reaches EoL.
     match checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID, args) {
         Err(smccc::Error::NotSupported) | Ok(_) => Ok(()),
         x => x,
