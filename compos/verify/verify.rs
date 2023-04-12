@@ -115,6 +115,7 @@ fn try_main() -> Result<()> {
         &idsig_manifest_apk,
         &idsig_manifest_ext_apk,
         &VmParameters {
+            name: String::from("ComposVerify"),
             cpu_topology: VmCpuTopology::OneCpu, // This VM runs very little work at boot
             debug_mode: args.debug,
             ..Default::default()
