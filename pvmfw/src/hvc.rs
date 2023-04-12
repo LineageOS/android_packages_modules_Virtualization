@@ -16,8 +16,8 @@
 
 pub mod trng;
 
-use crate::smccc::{self, checked_hvc64, checked_hvc64_expect_zero};
 use log::info;
+use smccc::{self, checked_hvc64, checked_hvc64_expect_zero};
 
 const ARM_SMCCC_TRNG_VERSION: u32 = 0x8400_0050;
 #[allow(dead_code)]
