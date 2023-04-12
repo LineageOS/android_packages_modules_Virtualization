@@ -11,4 +11,5 @@ service microdroid_manager /system/bin/microdroid_manager
     # CAP_SETCAP is required to allow microdroid_manager to drop capabilities
     #   before executing the payload
     capabilities AUDIT_CONTROL SYS_ADMIN SYS_BOOT SETPCAP
+    user root
     socket vm_payload_service stream 0666 system system
