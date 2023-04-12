@@ -107,7 +107,7 @@ genrule {
 prebuilt_etc {
     name: "microdroid_initrd_debuggable",
     // We don't have ramdisk for architectures other than x86_64 & arm64
-    src: "empty_file",
+    src: ":empty_file",
     arch: {
         x86_64: {
             src: ":microdroid_initrd_debuggable_x86_64",
@@ -122,7 +122,7 @@ prebuilt_etc {
 prebuilt_etc {
     name: "microdroid_initrd_normal",
     // We don't have ramdisk for architectures other than x86_64 & arm64
-    src: "empty_file",
+    src: ":empty_file",
     arch: {
         x86_64: {
             src: ":microdroid_initrd_normal_x86_64",
