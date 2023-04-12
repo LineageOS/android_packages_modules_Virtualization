@@ -16,7 +16,6 @@
 
 use crate::helpers;
 use crate::hypervisor::{mmio_guard_enroll, mmio_guard_info, mmio_guard_map, mmio_guard_unmap};
-use crate::smccc;
 use core::{fmt, result};
 
 #[derive(Debug, Clone)]
