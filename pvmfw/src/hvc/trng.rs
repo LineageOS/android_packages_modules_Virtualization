@@ -14,7 +14,6 @@
 
 use core::fmt;
 use core::result;
-use psci::smccc;
 
 /// Standard SMCCC TRNG error values as described in DEN 0098 1.0 REL0.
 #[derive(Debug, Clone)]
