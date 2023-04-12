@@ -35,7 +35,6 @@ mod memory;
 mod mmio_guard;
 mod mmu;
 mod rand;
-mod smccc;
 mod virtio;
 
 use alloc::boxed::Box;
