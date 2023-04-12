@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::smccc;
 use core::fmt;
 use core::result;
+use psci::smccc;
 
 /// Standard SMCCC TRNG error values as described in DEN 0098 1.0 REL0.
 #[derive(Debug, Clone)]
