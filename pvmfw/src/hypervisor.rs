@@ -15,7 +15,6 @@
 //! Wrappers around hypervisor back-ends.
 
 use crate::hvc;
-use crate::smccc;
 
 pub fn hyp_meminfo() -> smccc::Result<u64> {
     hvc::kvm_hyp_meminfo()
