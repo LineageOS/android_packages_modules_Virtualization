@@ -16,7 +16,8 @@
 
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
-        CpuTopology::CpuTopology, VirtualMachineConfig::VirtualMachineConfig,
+        CpuTopology::CpuTopology, DiskImage::DiskImage, Partition::Partition,
+        PartitionType::PartitionType, VirtualMachineConfig::VirtualMachineConfig,
         VirtualMachineRawConfig::VirtualMachineRawConfig,
     },
     binder::{ParcelFileDescriptor, ProcessState},
@@ -31,11 +32,28 @@ use std::thread;
 use std::time::Duration;
 use vmclient::{DeathReason, VmInstance};
 
-const RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
+const SIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
+const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
+const INSTANCE_IMG_PATH: &str = "/data/local/tmp/rialto_test/arm64/instance.img";
+const INSTANCE_IMG_SIZE: i64 = 1024 * 1024; // 1MB
 
-/// Runs the Rialto VM as a non-protected VM via VirtualizationService.
 #[test]
-fn test_boots() -> Result<(), Error> {
+fn boot_rialto_in_protected_vm_successfully() -> Result<(), Error> {
+    boot_rialto_successfully(
+        SIGNED_RIALTO_PATH,
+        true, // protected_vm
+    )
+}
+
+#[test]
+fn boot_rialto_in_unprotected_vm_successfully() -> Result<(), Error> {
+    boot_rialto_successfully(
+        UNSIGNED_RIALTO_PATH,
+        false, // protected_vm
+    )
+}
+
+fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<(), Error> {
     android_logger::init_once(
         android_logger::Config::default().with_tag("rialto").with_min_level(log::Level::Debug),
     );
@@ -52,9 +70,35 @@ fn test_boots() -> Result<(), Error> {
         vmclient::VirtualizationService::new().context("Failed to spawn VirtualizationService")?;
     let service = virtmgr.connect().context("Failed to connect to VirtualizationService")?;
 
-    let rialto = File::open(RIALTO_PATH).context("Failed to open Rialto kernel binary")?;
+    let rialto = File::open(rialto_path).context("Failed to open Rialto kernel binary")?;
     let console = android_log_fd()?;
     let log = android_log_fd()?;
+
+    let disks = if protected_vm {
+        let instance_img = File::options()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(true)
+            .open(INSTANCE_IMG_PATH)?;
+        let instance_img = ParcelFileDescriptor::new(instance_img);
+
+        service
+            .initializeWritablePartition(
+                &instance_img,
+                INSTANCE_IMG_SIZE,
+                PartitionType::ANDROID_VM_INSTANCE,
+            )
+            .context("Failed to initialize instange.img")?;
+        let writable_partitions = vec![Partition {
+            label: "vm-instance".to_owned(),
+            image: Some(instance_img),
+            writable: true,
+        }];
+        vec![DiskImage { image: None, partitions: writable_partitions, writable: true }]
+    } else {
+        vec![]
+    };
 
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
         name: String::from("RialtoTest"),
@@ -62,8 +106,8 @@ fn test_boots() -> Result<(), Error> {
         initrd: None,
         params: None,
         bootloader: Some(ParcelFileDescriptor::new(rialto)),
-        disks: vec![],
-        protectedVm: false,
+        disks,
+        protectedVm: protected_vm,
         memoryMib: 300,
         cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
