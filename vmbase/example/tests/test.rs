@@ -24,6 +24,7 @@ use android_system_virtualizationservice::{
 use anyhow::{Context, Error};
 use log::info;
 use std::{
+    collections::{HashSet, VecDeque},
     fs::File,
     io::{self, BufRead, BufReader, Read, Write},
     os::unix::io::FromRawFd,
@@ -89,7 +90,7 @@ fn test_run_example_vm() -> Result<(), Error> {
         taskProfiles: vec![],
         gdbPort: 0, // no gdb
     });
-    let console = android_log_fd()?;
+    let (handle, console) = android_log_fd()?;
     let (mut log_reader, log_writer) = pipe()?;
     let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log_writer), None)
         .context("Failed to create VM")?;
@@ -99,6 +100,7 @@ fn test_run_example_vm() -> Result<(), Error> {
     // Wait for VM to finish, and check that it shut down cleanly.
     let death_reason = vm.wait_for_death();
     assert_eq!(death_reason, DeathReason::Shutdown);
+    handle.join().unwrap();
 
     // Check that the expected string was written to the log VirtIO console device.
     let expected = "Hello VirtIO console\n";
@@ -109,15 +111,10 @@ fn test_run_example_vm() -> Result<(), Error> {
     Ok(())
 }
 
-fn android_log_fd() -> io::Result<File> {
+fn android_log_fd() -> Result<(thread::JoinHandle<()>, File), io::Error> {
     let (reader, writer) = pipe()?;
-
-    thread::spawn(|| {
-        for line in BufReader::new(reader).lines() {
-            info!("{}", line.unwrap());
-        }
-    });
-    Ok(writer)
+    let handle = thread::spawn(|| VmLogProcessor::new(reader).run().unwrap());
+    Ok((handle, writer))
 }
 
 fn pipe() -> io::Result<(File, File)> {
@@ -128,4 +125,52 @@ fn pipe() -> io::Result<(File, File)> {
     let writer = unsafe { File::from_raw_fd(writer_fd) };
 
     Ok((reader, writer))
+}
+
+struct VmLogProcessor {
+    reader: Option<File>,
+    expected: VecDeque<String>,
+    unexpected: HashSet<String>,
+    had_unexpected: bool,
+}
+
+impl VmLogProcessor {
+    fn messages() -> (VecDeque<String>, HashSet<String>) {
+        let mut expected = VecDeque::new();
+        let mut unexpected = HashSet::new();
+        for log_lvl in ["[ERROR]", "[WARN]", "[INFO]", "[DEBUG]"] {
+            expected.push_back(format!("{log_lvl} Unsuppressed message"));
+            unexpected.insert(format!("{log_lvl} Suppressed message"));
+        }
+        (expected, unexpected)
+    }
+
+    fn new(reader: File) -> Self {
+        let (expected, unexpected) = Self::messages();
+        Self { reader: Some(reader), expected, unexpected, had_unexpected: false }
+    }
+
+    fn verify(&mut self, msg: &str) {
+        if self.expected.front() == Some(&msg.to_owned()) {
+            self.expected.pop_front();
+        }
+        if !self.had_unexpected && self.unexpected.contains(msg) {
+            self.had_unexpected = true;
+        }
+    }
+
+    fn run(mut self) -> Result<(), &'static str> {
+        for line in BufReader::new(self.reader.take().unwrap()).lines() {
+            let msg = line.unwrap();
+            info!("{msg}");
+            self.verify(&msg);
+        }
+        if !self.expected.is_empty() {
+            Err("missing expected log message")
+        } else if self.had_unexpected {
+            Err("unexpected log message")
+        } else {
+            Ok(())
+        }
+    }
 }
