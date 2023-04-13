@@ -17,8 +17,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use crate::helpers::{self, align_down, align_up, page_4kb_of, SIZE_4KB};
-use crate::hypervisor::{hyp_meminfo, mem_share, mem_unshare};
-use crate::mmio_guard;
 use crate::mmu;
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
@@ -31,6 +29,7 @@ use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
 use core::result;
+use hyp::{hyp_meminfo, mem_share, mem_unshare, mmio_guard};
 use log::error;
 use tinyvec::ArrayVec;
 
