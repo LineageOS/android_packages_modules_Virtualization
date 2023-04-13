@@ -19,6 +19,7 @@
 
 extern crate alloc;
 
+mod bootargs;
 mod config;
 mod crypto;
 mod dice;
@@ -52,6 +53,7 @@ use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace};
 use pvmfw_avb::verify_payload;
+use pvmfw_avb::DebugLevel;
 use pvmfw_embedded_key::PUBLIC_KEY;
 
 const NEXT_BCC_SIZE: usize = GUEST_PAGE_SIZE;
@@ -119,10 +121,12 @@ fn main(
     flush(next_bcc);
 
     let strict_boot = true;
-    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot, debug_policy).map_err(|e| {
-        error!("Failed to configure device tree: {e}");
-        RebootReason::InternalError
-    })?;
+    let debuggable = verified_boot_data.debug_level != DebugLevel::None;
+    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot, debug_policy, debuggable)
+        .map_err(|e| {
+            error!("Failed to configure device tree: {e}");
+            RebootReason::InternalError
+        })?;
 
     info!("Starting payload...");
     Ok(())
