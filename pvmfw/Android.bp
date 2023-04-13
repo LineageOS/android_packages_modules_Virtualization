@@ -41,6 +41,20 @@ genrule {
     cmd: "touch $(out)",
 }
 
+rust_test {
+    name: "libpvmfw.bootargs.test",
+    host_supported: true,
+    // For now, only bootargs.rs is written to be conditionally compiled with std.
+    srcs: ["src/bootargs.rs"],
+    test_suites: ["general-tests"],
+    test_options: {
+        unit_test: true,
+    },
+    rustlibs: [
+        "libzeroize",
+    ],
+}
+
 cc_binary {
     name: "pvmfw",
     defaults: ["vmbase_elf_defaults"],
