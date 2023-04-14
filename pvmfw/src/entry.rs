@@ -309,7 +309,9 @@ unsafe fn get_appended_data_slice() -> &'static mut [u8] {
     // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
     let size = helpers::align_up(base, helpers::SIZE_2MB).unwrap() - base;
 
-    slice::from_raw_parts_mut(base as *mut u8, size)
+    // SAFETY: This region is mapped and the linker script prevents it from overlapping with other
+    // objects.
+    unsafe { slice::from_raw_parts_mut(base as *mut u8, size) }
 }
 
 enum AppendedConfigType {
@@ -328,8 +330,13 @@ enum AppendedPayload<'a> {
 impl<'a> AppendedPayload<'a> {
     /// SAFETY - 'data' should respect the alignment of config::Header.
     unsafe fn new(data: &'a mut [u8]) -> Option<Self> {
-        match Self::guess_config_type(data) {
-            AppendedConfigType::Valid => Some(Self::Config(config::Config::new(data).unwrap())),
+        // Safety: This fn has the same constraint as us.
+        match unsafe { Self::guess_config_type(data) } {
+            AppendedConfigType::Valid => {
+                // Safety: This fn has the same constraint as us.
+                let config = unsafe { config::Config::new(data) };
+                Some(Self::Config(config.unwrap()))
+            }
             AppendedConfigType::NotFound if cfg!(feature = "legacy") => {
                 const BCC_SIZE: usize = helpers::SIZE_4KB;
                 warn!("Assuming the appended data at {:?} to be a raw BCC", data.as_ptr());
@@ -339,11 +346,14 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
+    /// SAFETY - 'data' should respect the alignment of config::Header.
     unsafe fn guess_config_type(data: &mut [u8]) -> AppendedConfigType {
         // This function is necessary to prevent the borrow checker from getting confused
         // about the ownership of data in new(); see https://users.rust-lang.org/t/78467.
         let addr = data.as_ptr();
-        match config::Config::new(data) {
+
+        // Safety: This fn has the same constraint as us.
+        match unsafe { config::Config::new(data) } {
             Err(config::Error::InvalidMagic) => {
                 warn!("No configuration data found at {addr:?}");
                 AppendedConfigType::NotFound

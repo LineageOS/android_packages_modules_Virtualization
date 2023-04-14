@@ -8,6 +8,8 @@ rust_ffi_static {
     defaults: ["vmbase_ffi_defaults"],
     srcs: ["src/main.rs"],
     edition: "2021",
+    // Require unsafe blocks for inside unsafe functions.
+    flags: ["-Dunsafe_op_in_unsafe_fn"],
     features: [
         "legacy",
     ],
@@ -30,6 +32,7 @@ rust_ffi_static {
         "libuuid_nostd",
         "libvirtio_drivers",
         "libvmbase",
+        "libzerocopy_nostd",
         "libzeroize_nostd",
     ],
 }

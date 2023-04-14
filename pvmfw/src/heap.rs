@@ -27,15 +27,22 @@ use core::ptr::NonNull;
 
 use buddy_system_allocator::LockedHeap;
 
-#[global_allocator]
-static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
-
 /// 128 KiB
 const HEAP_SIZE: usize = 0x20000;
 static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
 
+#[global_allocator]
+static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
+
+/// SAFETY: Must be called no more than once.
 pub unsafe fn init() {
-    HEAP_ALLOCATOR.lock().init(HEAP.as_mut_ptr() as usize, HEAP.len());
+    // SAFETY: Nothing else accesses this memory, and we hand it over to the heap to manage and
+    // never touch it again. The heap is locked, so there cannot be any races.
+    let (start, size) = unsafe { (HEAP.as_mut_ptr() as usize, HEAP.len()) };
+
+    let mut heap = HEAP_ALLOCATOR.lock();
+    // SAFETY: We are supplying a valid memory range, and we only do this once.
+    unsafe { heap.init(start, size) };
 }
 
 /// Allocate an aligned but uninitialized slice of heap.
@@ -53,7 +60,7 @@ pub fn aligned_boxed_slice(size: usize, align: usize) -> Option<Box<[u8]>> {
 
 #[no_mangle]
 unsafe extern "C" fn malloc(size: usize) -> *mut c_void {
-    malloc_(size, false).map_or(ptr::null_mut(), |p| p.cast::<c_void>().as_ptr())
+    allocate(size, false).map_or(ptr::null_mut(), |p| p.cast::<c_void>().as_ptr())
 }
 
 #[no_mangle]
@@ -61,31 +68,69 @@ unsafe extern "C" fn calloc(nmemb: usize, size: usize) -> *mut c_void {
     let Some(size) = nmemb.checked_mul(size) else {
         return ptr::null_mut()
     };
-    malloc_(size, true).map_or(ptr::null_mut(), |p| p.cast::<c_void>().as_ptr())
+    allocate(size, true).map_or(ptr::null_mut(), |p| p.cast::<c_void>().as_ptr())
 }
 
 #[no_mangle]
+/// SAFETY: ptr must be null or point to a currently-allocated block returned by allocate (either
+/// directly or via malloc or calloc). Note that this function is called directly from C, so we have
+/// to trust that the C code is doing the right thing; there are checks below which will catch some
+/// errors.
 unsafe extern "C" fn free(ptr: *mut c_void) {
-    if let Some(ptr) = NonNull::new(ptr).map(|p| p.cast::<usize>().as_ptr().offset(-1)) {
-        if let Some(size) = NonZeroUsize::new(*ptr) {
-            if let Some(layout) = malloc_layout(size) {
-                HEAP_ALLOCATOR.dealloc(ptr as *mut u8, layout);
-            }
+    let Some(ptr) = NonNull::new(ptr) else { return };
+    // SAFETY: The contents of the HEAP slice may change, but the address range never does.
+    let heap_range = unsafe { HEAP.as_ptr_range() };
+    assert!(
+        heap_range.contains(&(ptr.as_ptr() as *const u8)),
+        "free() called on a pointer that is not part of the HEAP: {ptr:?}"
+    );
+    let (ptr, size) = unsafe {
+        // SAFETY: ptr is non-null and was allocated by allocate, which prepends a correctly aligned
+        // usize.
+        let ptr = ptr.cast::<usize>().as_ptr().offset(-1);
+        (ptr, *ptr)
+    };
+    let size = NonZeroUsize::new(size).unwrap();
+    let layout = malloc_layout(size).unwrap();
+    // SAFETY: If our precondition is satisfied, then this is a valid currently-allocated block.
+    unsafe { HEAP_ALLOCATOR.dealloc(ptr as *mut u8, layout) }
+}
+
+/// Allocate a block of memory suitable to return from `malloc()` etc. Returns a valid pointer
+/// to a suitable aligned region of size bytes, optionally zeroed (and otherwise uninitialized), or
+/// None if size is 0 or allocation fails. The block can be freed by passing the returned pointer to
+/// `free()`.
+fn allocate(size: usize, zeroed: bool) -> Option<NonNull<usize>> {
+    let size = NonZeroUsize::new(size)?.checked_add(mem::size_of::<usize>())?;
+    let layout = malloc_layout(size)?;
+    // SAFETY: layout is known to have non-zero size.
+    let ptr = unsafe {
+        if zeroed {
+            HEAP_ALLOCATOR.alloc_zeroed(layout)
+        } else {
+            HEAP_ALLOCATOR.alloc(layout)
         }
+    };
+    let ptr = NonNull::new(ptr)?.cast::<usize>().as_ptr();
+    // SAFETY: ptr points to a newly allocated block of memory which is properly aligned
+    // for a usize and is big enough to hold a usize as well as the requested number of
+    // bytes.
+    unsafe {
+        *ptr = size.get();
+        NonNull::new(ptr.offset(1))
     }
 }
 
-unsafe fn malloc_(size: usize, zeroed: bool) -> Option<NonNull<usize>> {
-    let size = NonZeroUsize::new(size)?.checked_add(mem::size_of::<usize>())?;
-    let layout = malloc_layout(size)?;
-    let ptr =
-        if zeroed { HEAP_ALLOCATOR.alloc_zeroed(layout) } else { HEAP_ALLOCATOR.alloc(layout) };
-    let ptr = NonNull::new(ptr)?.cast::<usize>().as_ptr();
-    *ptr = size.get();
-    NonNull::new(ptr.offset(1))
+fn malloc_layout(size: NonZeroUsize) -> Option<Layout> {
+    // We want at least 8 byte alignment, and we need to be able to store a usize.
+    const ALIGN: usize = const_max_size(mem::size_of::<usize>(), mem::size_of::<u64>());
+    Layout::from_size_align(size.get(), ALIGN).ok()
 }
 
-fn malloc_layout(size: NonZeroUsize) -> Option<Layout> {
-    const ALIGN: usize = mem::size_of::<u64>();
-    Layout::from_size_align(size.get(), ALIGN).ok()
+const fn const_max_size(a: usize, b: usize) -> usize {
+    if a > b {
+        a
+    } else {
+        b
+    }
 }

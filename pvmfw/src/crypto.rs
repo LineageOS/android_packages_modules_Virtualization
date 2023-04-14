@@ -248,13 +248,14 @@ impl AeadCtx {
 ///
 /// # Safety
 ///
-/// The caller needs to ensure that the pointer points to a valid C string and that the C lifetime
-/// of the string is compatible with a static Rust lifetime.
+/// The caller needs to ensure that the pointer is null or points to a valid C string and that the
+/// C lifetime of the string is compatible with a static Rust lifetime.
 unsafe fn as_static_cstr(p: *const c_char) -> Option<&'static CStr> {
     if p.is_null() {
         None
     } else {
-        Some(CStr::from_ptr(p))
+        // Safety: Safe given the requirements of this function.
+        Some(unsafe { CStr::from_ptr(p) })
     }
 }
 
