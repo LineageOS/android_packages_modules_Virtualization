@@ -2,6 +2,9 @@
   "avf-presubmit" : [
     {
       "name" : "libpvmfw_avb.integration_test"
+    },
+    {
+      "name" : "libpvmfw.bootargs.test"
     }
   ]
 }
