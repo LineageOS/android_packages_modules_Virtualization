@@ -186,3 +186,46 @@ macro_rules! cstr {
         core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
     }};
 }
+
+/// Executes a data synchronization barrier.
+#[macro_export]
+macro_rules! dsb {
+    ($option:literal) => {{
+        // Safe because this is just a memory barrier and does not affect Rust.
+        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        unsafe {
+            core::arch::asm!(concat!("dsb ", $option), options(nomem, nostack, preserves_flags));
+        }
+    }};
+}
+
+/// Executes an instruction synchronization barrier.
+#[macro_export]
+macro_rules! isb {
+    () => {{
+        // Safe because this is just a memory barrier and does not affect Rust.
+        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        unsafe {
+            core::arch::asm!("isb", options(nomem, nostack, preserves_flags));
+        }
+    }};
+}
+
+/// Invalidates cached leaf PTE entries by virtual address.
+#[macro_export]
+macro_rules! tlbi {
+    ($option:literal, $asid:expr, $addr:expr) => {{
+        let asid: usize = $asid;
+        let addr: usize = $addr;
+        // Safe because it invalidates TLB and doesn't affect Rust. When the address matches a
+        // block entry larger than the page size, all translations for the block are invalidated.
+        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        unsafe {
+            core::arch::asm!(
+                concat!("tlbi ", $option, ", {x}"),
+                x = in(reg) (asid << 48) | (addr >> 12),
+                options(nomem, nostack, preserves_flags)
+            );
+        }
+    }};
+}
