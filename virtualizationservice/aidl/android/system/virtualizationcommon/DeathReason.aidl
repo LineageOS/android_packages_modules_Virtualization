@@ -38,10 +38,7 @@ enum DeathReason {
     PVM_FIRMWARE_PUBLIC_KEY_MISMATCH = 7,
     /** The pVM firmware failed to verify the VM because the instance image changed. */
     PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED = 8,
-    /** The bootloader failed to verify the VM because the public key doesn't match. */
-    BOOTLOADER_PUBLIC_KEY_MISMATCH = 9,
-    /** The bootloader failed to verify the VM because the instance image changed. */
-    BOOTLOADER_INSTANCE_IMAGE_CHANGED = 10,
+    // 9 & 10 intentionally removed.
     /** The microdroid failed to connect to VirtualizationService's RPC server. */
     MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE = 11,
     /** The payload for microdroid is changed. */
