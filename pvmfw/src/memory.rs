@@ -16,9 +16,9 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{self, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
+use crate::helpers::{self, dbm_available, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
 use crate::mmu;
-use crate::{dsb, isb, tlbi};
+use crate::{dsb, isb, read_sysreg, tlbi, write_sysreg};
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
@@ -36,8 +36,8 @@ use core::ops::Range;
 use core::ptr::NonNull;
 use core::result;
 use hyp::get_hypervisor;
-use log::error;
 use log::trace;
+use log::{debug, error};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
@@ -219,9 +219,22 @@ impl MemoryTracker {
     const CAPACITY: usize = 5;
     const MMIO_CAPACITY: usize = 5;
     const PVMFW_RANGE: MemoryRange = (BASE_ADDR - SIZE_4MB)..BASE_ADDR;
+    // TCR_EL1.{HA,HD} bits controlling hardware management of access and dirty state
+    const TCR_EL1_HA_HD_BITS: usize = 3 << 39;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
-    pub fn new(page_table: mmu::PageTable) -> Self {
+    pub fn new(mut page_table: mmu::PageTable) -> Self {
+        // Activate dirty state management first, otherwise we may get permission faults immediately
+        // after activating the new page table. This has no effect before the new page table is
+        // activated because none of the entries in the initial idmap have the DBM flag.
+        Self::set_dbm_enabled(true);
+
+        debug!("Activating dynamic page table...");
+        // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
+        // aware of so activating it shouldn't have any visible effect.
+        unsafe { page_table.activate() };
+        debug!("... Success!");
+
         Self {
             total: BASE_ADDR..MAX_ADDR,
             page_table,
@@ -421,12 +434,27 @@ impl MemoryTracker {
             .modify_range(&(addr..addr + 1), &mark_dirty_block)
             .map_err(|_| MemoryTrackerError::SetPteDirtyFailed)
     }
+
+    fn set_dbm_enabled(enabled: bool) {
+        if dbm_available() {
+            let mut tcr = read_sysreg!("tcr_el1");
+            if enabled {
+                tcr |= Self::TCR_EL1_HA_HD_BITS
+            } else {
+                tcr &= !Self::TCR_EL1_HA_HD_BITS
+            };
+            // Safe because it writes to a system register and does not affect Rust.
+            unsafe { write_sysreg!("tcr_el1", tcr) }
+            isb!();
+        }
+    }
 }
 
 impl Drop for MemoryTracker {
     fn drop(&mut self) {
+        Self::set_dbm_enabled(false);
         self.flush_dirty_pages().unwrap();
-        self.unshare_all_memory()
+        self.unshare_all_memory();
     }
 }
 
