@@ -29,7 +29,7 @@ use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
 use core::result;
-use hyp::{hyp_meminfo, mem_share, mem_unshare, mmio_guard};
+use hyp::{get_hypervisor, mmio_guard};
 use log::error;
 use tinyvec::ArrayVec;
 
@@ -283,7 +283,7 @@ fn share_range(range: &MemoryRange, granule: usize) -> smccc::Result<()> {
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
     {
-        mem_share(base as u64)?;
+        get_hypervisor().mem_share(base as u64)?;
     }
     Ok(())
 }
@@ -296,7 +296,7 @@ fn unshare_range(range: &MemoryRange, granule: usize) -> smccc::Result<()> {
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
     {
-        mem_unshare(base as u64)?;
+        get_hypervisor().mem_unshare(base as u64)?;
     }
     Ok(())
 }
@@ -354,7 +354,7 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> smccc::Result<(
 /// Panics if `size` is 0.
 fn shared_buffer_layout(size: usize) -> smccc::Result<Layout> {
     assert_ne!(size, 0);
-    let granule = hyp_meminfo()? as usize;
+    let granule = get_hypervisor().memory_protection_granule()?;
     let allocated_size =
         align_up(size, granule).expect("Memory protection granule was not a power of two");
     Ok(Layout::from_size_align(allocated_size, granule).unwrap())
