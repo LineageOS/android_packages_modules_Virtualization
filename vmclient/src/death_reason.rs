@@ -37,10 +37,6 @@ pub enum DeathReason {
     PvmFirmwarePublicKeyMismatch,
     /// The pVM firmware failed to verify the VM because the instance image changed.
     PvmFirmwareInstanceImageChanged,
-    /// The bootloader failed to verify the VM because the public key doesn't match.
-    BootloaderPublicKeyMismatch,
-    /// The bootloader failed to verify the VM because the instance image changed.
-    BootloaderInstanceImageChanged,
     /// The microdroid failed to connect to VirtualizationService's RPC server.
     MicrodroidFailedToConnectToVirtualizationService,
     /// The payload for microdroid is changed.
@@ -70,10 +66,6 @@ impl From<AidlDeathReason> for DeathReason {
             AidlDeathReason::PVM_FIRMWARE_PUBLIC_KEY_MISMATCH => Self::PvmFirmwarePublicKeyMismatch,
             AidlDeathReason::PVM_FIRMWARE_INSTANCE_IMAGE_CHANGED => {
                 Self::PvmFirmwareInstanceImageChanged
-            }
-            AidlDeathReason::BOOTLOADER_PUBLIC_KEY_MISMATCH => Self::BootloaderPublicKeyMismatch,
-            AidlDeathReason::BOOTLOADER_INSTANCE_IMAGE_CHANGED => {
-                Self::BootloaderInstanceImageChanged
             }
             AidlDeathReason::MICRODROID_FAILED_TO_CONNECT_TO_VIRTUALIZATION_SERVICE => {
                 Self::MicrodroidFailedToConnectToVirtualizationService
