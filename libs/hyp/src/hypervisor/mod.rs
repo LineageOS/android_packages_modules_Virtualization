@@ -14,40 +14,27 @@
 
 //! Wrappers around hypervisor back-ends.
 
+mod common;
 mod kvm;
 
-/// Queries the memory protection parameters for a protected virtual machine.
-///
-/// Returns the memory protection granule size in bytes.
-pub fn hyp_meminfo() -> smccc::Result<u64> {
-    kvm::hyp_meminfo()
+pub use common::Hypervisor;
+use kvm::KvmHypervisor;
+
+static HYPERVISOR: HypervisorBackend = HypervisorBackend::Kvm;
+
+enum HypervisorBackend {
+    Kvm,
 }
 
-/// Shares a region of memory with the host, granting it read, write and execute permissions.
-/// The size of the region is equal to the memory protection granule returned by [`hyp_meminfo`].
-pub fn mem_share(base_ipa: u64) -> smccc::Result<()> {
-    kvm::mem_share(base_ipa)
+impl HypervisorBackend {
+    fn get_hypervisor(&self) -> &'static dyn Hypervisor {
+        match self {
+            Self::Kvm => &KvmHypervisor,
+        }
+    }
 }
 
-/// Revokes access permission from the host to a memory region previously shared with
-/// [`mem_share`]. The size of the region is equal to the memory protection granule returned by
-/// [`hyp_meminfo`].
-pub fn mem_unshare(base_ipa: u64) -> smccc::Result<()> {
-    kvm::mem_unshare(base_ipa)
-}
-
-pub(crate) fn mmio_guard_info() -> smccc::Result<u64> {
-    kvm::mmio_guard_info()
-}
-
-pub(crate) fn mmio_guard_enroll() -> smccc::Result<()> {
-    kvm::mmio_guard_enroll()
-}
-
-pub(crate) fn mmio_guard_map(ipa: u64) -> smccc::Result<()> {
-    kvm::mmio_guard_map(ipa)
-}
-
-pub(crate) fn mmio_guard_unmap(ipa: u64) -> smccc::Result<()> {
-    kvm::mmio_guard_unmap(ipa)
+/// Gets the hypervisor singleton.
+pub fn get_hypervisor() -> &'static dyn Hypervisor {
+    HYPERVISOR.get_hypervisor()
 }
