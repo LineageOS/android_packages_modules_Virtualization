@@ -8,7 +8,7 @@ rust_library_rlib {
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
-        "libsmccc",
+        "libpsci",
     ],
     no_stdlibs: true,
     stdlibs: [
