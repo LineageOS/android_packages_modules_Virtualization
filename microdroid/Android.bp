@@ -426,7 +426,7 @@ avb_gen_vbmeta_image {
 
 avb_add_hash_footer {
     name: "microdroid_kernel_signed",
-    src: "empty_kernel",
+    src: ":empty_file",
     filename: "microdroid_kernel",
     partition_name: "boot",
     private_key: ":microdroid_sign_key",
@@ -450,7 +450,7 @@ avb_add_hash_footer {
 
 prebuilt_etc {
     name: "microdroid_kernel",
-    src: "empty_kernel",
+    src: ":empty_file",
     relative_install_path: "fs",
     arch: {
         arm64: {
