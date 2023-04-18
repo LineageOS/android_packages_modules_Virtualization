@@ -13,7 +13,6 @@ rust_ffi_static {
         "libbuddy_system_allocator",
         "libhyp",
         "liblog_rust_nostd",
-        "libsmccc",
         "libvmbase",
     ],
     apex_available: ["com.android.virt"],

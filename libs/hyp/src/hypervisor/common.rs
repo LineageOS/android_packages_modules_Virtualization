@@ -14,23 +14,20 @@
 
 //! This module regroups some common traits shared by all the hypervisors.
 
-use smccc::Result;
+use crate::error::Result;
 
 /// Trait for the hypervisor.
 pub trait Hypervisor {
-    /// Returns MMIO guard granule size in bytes.
-    fn mmio_guard_granule(&self) -> Result<usize>;
-
-    /// Registers to use MMIO guard APIs.
+    /// Initializes the hypervisor by enrolling a MMIO guard and checking the memory granule size.
     /// By enrolling, all MMIO will be blocked unless allow-listed with `mmio_guard_map`.
     /// Protected VMs are auto-enrolled.
-    fn mmio_guard_enroll(&self) -> Result<()>;
+    fn mmio_guard_init(&self) -> Result<()>;
 
     /// Maps a memory address to the hypervisor MMIO guard.
-    fn mmio_guard_map(&self, ipa: u64) -> Result<()>;
+    fn mmio_guard_map(&self, addr: usize) -> Result<()>;
 
     /// Unmaps a memory address from the hypervisor MMIO guard.
-    fn mmio_guard_unmap(&self, ipa: u64) -> Result<()>;
+    fn mmio_guard_unmap(&self, addr: usize) -> Result<()>;
 
     /// Shares a region of memory with host, granting it read, write and execute permissions.
     /// The size of the region is equal to the memory protection granule returned by
