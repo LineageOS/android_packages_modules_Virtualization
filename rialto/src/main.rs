@@ -28,7 +28,7 @@ use aarch64_paging::{
     paging::{Attributes, MemoryRegion},
 };
 use buddy_system_allocator::LockedHeap;
-use hyp::mmio_guard;
+use hyp::get_hypervisor;
 use log::{debug, error, info};
 use vmbase::{main, power::reboot};
 
@@ -109,11 +109,11 @@ fn init_kernel_pgt(pgt: &mut IdMap) -> Result<()> {
 }
 
 fn try_init_logger() -> Result<()> {
-    match mmio_guard::init() {
+    match get_hypervisor().mmio_guard_init() {
         // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
-        Ok(()) => mmio_guard::map(vmbase::console::BASE_ADDRESS)?,
+        Ok(()) => get_hypervisor().mmio_guard_map(vmbase::console::BASE_ADDRESS)?,
         // MMIO guard enroll is not supported in unprotected VM.
-        Err(mmio_guard::Error::EnrollFailed(smccc::Error::NotSupported)) => {}
+        Err(hyp::Error::MmioGuardNotsupported) => {}
         Err(e) => return Err(e.into()),
     };
     vmbase::logger::init(log::LevelFilter::Debug).map_err(|_| Error::LoggerInit)

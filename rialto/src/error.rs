@@ -16,14 +16,14 @@
 
 use aarch64_paging::MapError;
 use core::{fmt, result};
-use hyp::mmio_guard::Error as MmioError;
+use hyp::Error as HypervisorError;
 
 pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Clone, Debug)]
 pub enum Error {
-    /// MMIO guard failed.
-    MmioGuard(MmioError),
+    /// Hypervisor error.
+    Hypervisor(HypervisorError),
     /// Failed when attempting to map some range in the page table.
     PageTableMapping(MapError),
     /// Failed to initialize the logger.
@@ -33,7 +33,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::MmioGuard(e) => write!(f, "MMIO guard failed: {e}."),
+            Self::Hypervisor(e) => write!(f, "MMIO guard failed: {e}."),
             Self::PageTableMapping(e) => {
                 write!(f, "Failed when attempting to map some range in the page table: {e}.")
             }
@@ -42,9 +42,9 @@ impl fmt::Display for Error {
     }
 }
 
-impl From<MmioError> for Error {
-    fn from(e: MmioError) -> Self {
-        Self::MmioGuard(e)
+impl From<HypervisorError> for Error {
+    fn from(e: HypervisorError) -> Self {
+        Self::Hypervisor(e)
     }
 }
 
