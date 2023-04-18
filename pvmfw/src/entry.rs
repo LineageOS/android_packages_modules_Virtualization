@@ -25,7 +25,7 @@ use crate::rand;
 use core::arch::asm;
 use core::num::NonZeroUsize;
 use core::slice;
-use hyp::mmio_guard;
+use hyp::get_hypervisor;
 use log::debug;
 use log::error;
 use log::info;
@@ -172,12 +172,12 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     // Use debug!() to avoid printing to the UART if we failed to configure it as only local
     // builds that have tweaked the logger::init() call will actually attempt to log the message.
 
-    mmio_guard::init().map_err(|e| {
+    get_hypervisor().mmio_guard_init().map_err(|e| {
         debug!("{e}");
         RebootReason::InternalError
     })?;
 
-    mmio_guard::map(console::BASE_ADDRESS).map_err(|e| {
+    get_hypervisor().mmio_guard_map(console::BASE_ADDRESS).map_err(|e| {
         debug!("Failed to configure the UART: {e}");
         RebootReason::InternalError
     })?;
@@ -236,7 +236,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
         error!("Failed to unshare MMIO ranges: {e}");
         RebootReason::InternalError
     })?;
-    mmio_guard::unmap(console::BASE_ADDRESS).map_err(|e| {
+    get_hypervisor().mmio_guard_unmap(console::BASE_ADDRESS).map_err(|e| {
         error!("Failed to unshare the UART: {e}");
         RebootReason::InternalError
     })?;
