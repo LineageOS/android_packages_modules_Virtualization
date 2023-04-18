@@ -25,8 +25,6 @@
         <option name="force-root" value="false"/>
     </target_preparer>
 
-    <target_preparer class="com.android.microdroid.test.preparer.DisableMicrodroidDebugPolicyPreparer" />
-
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
         <option name="jar" value="MicrodroidHostTestCases.jar" />
     </test>
