@@ -15,6 +15,11 @@
 //! Wrappers around calls to the hypervisor.
 
 pub mod trng;
+use self::trng::Error;
+use psci::smccc::{
+    error::{positive_or_error_64, success_or_error_64},
+    hvc64,
+};
 
 // TODO(b/272226230): Move all the trng functions to trng module
 const ARM_SMCCC_TRNG_VERSION: u32 = 0x8400_0050;
@@ -30,7 +35,7 @@ const ARM_SMCCC_TRNG_RND64: u32 = 0xc400_0053;
 pub fn trng_version() -> trng::Result<(u16, u16)> {
     let args = [0u64; 17];
 
-    let version = trng::hvc64(ARM_SMCCC_TRNG_VERSION, args)?[0];
+    let version = positive_or_error_64::<Error>(hvc64(ARM_SMCCC_TRNG_VERSION, args)[0])?;
     Ok(((version >> 16) as u16, version as u16))
 }
 
@@ -40,7 +45,8 @@ pub fn trng_rnd64(nbits: u64) -> trng::Result<TrngRng64Entropy> {
     let mut args = [0u64; 17];
     args[0] = nbits;
 
-    let regs = trng::hvc64_expect_zero(ARM_SMCCC_TRNG_RND64, args)?;
+    let regs = hvc64(ARM_SMCCC_TRNG_RND64, args);
+    success_or_error_64::<Error>(regs[0])?;
 
     Ok((regs[1], regs[2], regs[3]))
 }
