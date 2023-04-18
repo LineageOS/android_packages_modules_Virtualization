@@ -17,6 +17,48 @@
 use super::common::Hypervisor;
 use crate::error::{Error, Result};
 use crate::util::{page_address, SIZE_4KB};
+use core::fmt::{self, Display, Formatter};
+use psci::smccc::{
+    error::{positive_or_error_64, success_or_error_32, success_or_error_64},
+    hvc64,
+};
+
+/// Error from a KVM HVC call.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum KvmError {
+    /// The call is not supported by the implementation.
+    NotSupported,
+    /// One of the call parameters has a non-supported value.
+    InvalidParameter,
+    /// There was an unexpected return value.
+    Unknown(i64),
+}
+
+impl From<i64> for KvmError {
+    fn from(value: i64) -> Self {
+        match value {
+            -1 => KvmError::NotSupported,
+            -3 => KvmError::InvalidParameter,
+            _ => KvmError::Unknown(value),
+        }
+    }
+}
+
+impl From<i32> for KvmError {
+    fn from(value: i32) -> Self {
+        i64::from(value).into()
+    }
+}
+
+impl Display for KvmError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::NotSupported => write!(f, "KVM call not supported"),
+            Self::InvalidParameter => write!(f, "KVM call received non-supported value"),
+            Self::Unknown(e) => write!(f, "Unknown return value from KVM {} ({0:#x})", e),
+        }
+    }
+}
 
 const ARM_SMCCC_KVM_FUNC_HYP_MEMINFO: u32 = 0xc6000002;
 const ARM_SMCCC_KVM_FUNC_MEM_SHARE: u32 = 0xc6000003;
@@ -45,17 +87,8 @@ impl Hypervisor for KvmHypervisor {
 
         // TODO(b/277859415): pKVM returns a i32 instead of a i64 in T.
         // Drop this hack once T reaches EoL.
-        let is_i32_error_code = |n| u32::try_from(n).ok().filter(|v| (*v as i32) < 0).is_some();
-        match smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID, args) {
-            Err(smccc::Error::Unexpected(e)) if is_i32_error_code(e) => match e as u32 as i32 {
-                -1 => Err(smccc::Error::NotSupported),
-                -2 => Err(smccc::Error::NotRequired),
-                -3 => Err(smccc::Error::InvalidParameter),
-                ret => Err(smccc::Error::Unknown(ret as i64)),
-            },
-            res => res,
-        }
-        .map_err(|e| Error::HvcError(e, VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID))
+        success_or_error_32(hvc64(VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID, args)[0] as u32)
+            .map_err(|e| Error::KvmError(e, VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID))
     }
 
     fn mmio_guard_unmap(&self, addr: usize) -> Result<()> {
@@ -64,9 +97,9 @@ impl Hypervisor for KvmHypervisor {
 
         // TODO(b/277860860): pKVM returns NOT_SUPPORTED for SUCCESS in T.
         // Drop this hack once T reaches EoL.
-        match smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID, args) {
-            Err(smccc::Error::NotSupported) | Ok(_) => Ok(()),
-            Err(e) => Err(Error::HvcError(e, VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID)),
+        match success_or_error_64(hvc64(VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID, args)[0]) {
+            Err(KvmError::NotSupported) | Ok(_) => Ok(()),
+            Err(e) => Err(Error::KvmError(e, VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID)),
         }
     }
 
@@ -100,17 +133,17 @@ fn mmio_guard_granule() -> Result<usize> {
 
 fn mmio_guard_enroll() -> Result<()> {
     let args = [0u64; 17];
-    match smccc::checked_hvc64_expect_zero(VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID, args) {
+    match success_or_error_64(hvc64(VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID, args)[0]) {
         Ok(_) => Ok(()),
-        Err(smccc::Error::NotSupported) => Err(Error::MmioGuardNotsupported),
-        Err(e) => Err(Error::HvcError(e, VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID)),
+        Err(KvmError::NotSupported) => Err(Error::MmioGuardNotsupported),
+        Err(e) => Err(Error::KvmError(e, VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID)),
     }
 }
 
 fn checked_hvc64_expect_zero(function: u32, args: [u64; 17]) -> Result<()> {
-    smccc::checked_hvc64_expect_zero(function, args).map_err(|e| Error::HvcError(e, function))
+    success_or_error_64(hvc64(function, args)[0]).map_err(|e| Error::KvmError(e, function))
 }
 
 fn checked_hvc64(function: u32, args: [u64; 17]) -> Result<u64> {
-    smccc::checked_hvc64(function, args).map_err(|e| Error::HvcError(e, function))
+    positive_or_error_64(hvc64(function, args)[0]).map_err(|e| Error::KvmError(e, function))
 }

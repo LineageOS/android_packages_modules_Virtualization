@@ -42,23 +42,16 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<i64> for Error {
+    fn from(value: i64) -> Self {
+        match value {
+            -1 => Error::NotSupported,
+            -2 => Error::InvalidParameter,
+            -3 => Error::NoEntropy,
+            _ if value < 0 => Error::Unknown(value),
+            _ => Error::Unexpected(value as u64),
+        }
+    }
+}
+
 pub type Result<T> = result::Result<T, Error>;
-
-pub fn hvc64(function: u32, args: [u64; 17]) -> Result<[u64; 18]> {
-    let res = smccc::hvc64(function, args);
-    match res[0] as i64 {
-        ret if ret >= 0 => Ok(res),
-        -1 => Err(Error::NotSupported),
-        -2 => Err(Error::InvalidParameter),
-        -3 => Err(Error::NoEntropy),
-        ret => Err(Error::Unknown(ret)),
-    }
-}
-
-pub fn hvc64_expect_zero(function: u32, args: [u64; 17]) -> Result<[u64; 18]> {
-    let res = hvc64(function, args)?;
-    match res[0] {
-        0 => Ok(res),
-        v => Err(Error::Unexpected(v)),
-    }
-}
