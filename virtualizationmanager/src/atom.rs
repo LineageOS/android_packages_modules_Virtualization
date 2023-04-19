@@ -14,7 +14,7 @@
 
 //! Functions for creating and collecting atoms.
 
-use crate::aidl::{clone_file, GLOBAL_SERVICE};
+use crate::aidl::GLOBAL_SERVICE;
 use crate::crosvm::VmMetric;
 use crate::get_calling_uid;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::DeathReason::DeathReason;
@@ -37,6 +37,7 @@ use microdroid_payload_config::VmPayloadConfig;
 use statslog_virtualization_rust::vm_creation_requested;
 use std::thread;
 use std::time::{Duration, SystemTime};
+use vsutil::clone_file;
 use zip::ZipArchive;
 
 const INVALID_NUM_CPUS: i32 = -1;
