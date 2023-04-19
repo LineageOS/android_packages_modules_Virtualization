@@ -36,12 +36,14 @@ extern "Rust" {
 /// Example:
 ///
 /// ```rust
-/// use vmbase::main;
+/// use vmbase::{logger, main};
+/// use log::{info, LevelFilter};
 ///
 /// main!(my_main);
 ///
 /// fn my_main() {
-///     println!("Hello world");
+///     logger::init(LevelFilter::Info).unwrap();
+///     info!("Hello world");
 /// }
 /// ```
 #[macro_export]
