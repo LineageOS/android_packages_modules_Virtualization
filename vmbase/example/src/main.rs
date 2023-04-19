@@ -34,8 +34,8 @@ use buddy_system_allocator::LockedHeap;
 use core::ffi::CStr;
 use fdtpci::PciInfo;
 use libfdt::Fdt;
-use log::{debug, info, trace, LevelFilter};
-use vmbase::{logger, main, println};
+use log::{debug, error, info, trace, warn, LevelFilter};
+use vmbase::{logger, main};
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
@@ -55,7 +55,7 @@ main!(main);
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     logger::init(LevelFilter::Debug).unwrap();
 
-    println!("Hello world");
+    info!("Hello world");
     info!("x0={:#018x}, x1={:#018x}, x2={:#018x}, x3={:#018x}", arg0, arg1, arg2, arg3);
     print_addresses();
     assert_eq!(arg0, dtb_range().start.0 as u64);
@@ -127,6 +127,8 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
 
     let mut pci_root = unsafe { pci_info.make_pci_root() };
     check_pci(&mut pci_root);
+
+    emit_suppressed_log();
 }
 
 fn check_stack_guard() {
@@ -235,4 +237,22 @@ fn check_dice() {
             0xc5, 0x54, 0x2e, 0x93, 0xae, 0x9c, 0xd7, 0x6f
         ]
     );
+}
+
+macro_rules! log_all_levels {
+    ($msg:literal) => {{
+        error!($msg);
+        warn!($msg);
+        info!($msg);
+        debug!($msg);
+        trace!($msg);
+    }};
+}
+
+fn emit_suppressed_log() {
+    {
+        let _guard = logger::suppress();
+        log_all_levels!("Suppressed message");
+    }
+    log_all_levels!("Unsuppressed message");
 }

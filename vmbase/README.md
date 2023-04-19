@@ -51,12 +51,14 @@ This tells rustc that it doesn't depend on `std`, and won't have the usual `main
 entry point. Instead, `vmbase` provides a macro to specify your main function:
 
 ```rust
-use vmbase::{main, println};
+use vmbase::{logger, main};
+use log::{info, LevelFilter};
 
 main!(main);
 
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
-    println!("Hello world");
+    logger::init(LevelFilter::Info).unwrap();
+    info!("Hello world");
 }
 ```
 
