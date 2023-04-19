@@ -20,27 +20,71 @@
 
 extern crate log;
 
-use super::println;
+use crate::console::println;
+use core::sync::atomic::{AtomicBool, Ordering};
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 
-struct Logger;
-static LOGGER: Logger = Logger;
+struct Logger {
+    is_enabled: AtomicBool,
+}
+static mut LOGGER: Logger = Logger::new();
+
+impl Logger {
+    const fn new() -> Self {
+        Self { is_enabled: AtomicBool::new(true) }
+    }
+
+    fn swap_enabled(&mut self, enabled: bool) -> bool {
+        self.is_enabled.swap(enabled, Ordering::Relaxed)
+    }
+}
 
 impl Log for Logger {
     fn enabled(&self, _metadata: &Metadata) -> bool {
-        true
+        self.is_enabled.load(Ordering::Relaxed)
     }
 
     fn log(&self, record: &Record) {
-        println!("[{}] {}", record.level(), record.args());
+        if self.enabled(record.metadata()) {
+            println!("[{}] {}", record.level(), record.args());
+        }
     }
 
     fn flush(&self) {}
 }
 
+/// An RAII implementation of a log suppressor. When the instance is dropped, logging is re-enabled.
+pub struct SuppressGuard {
+    old_enabled: bool,
+}
+
+impl SuppressGuard {
+    fn new() -> Self {
+        // Safe because it modifies an atomic.
+        unsafe { Self { old_enabled: LOGGER.swap_enabled(false) } }
+    }
+}
+
+impl Drop for SuppressGuard {
+    fn drop(&mut self) {
+        // Safe because it modifies an atomic.
+        unsafe {
+            LOGGER.swap_enabled(self.old_enabled);
+        }
+    }
+}
+
 /// Initialize vmbase logger with a given max logging level.
 pub fn init(max_level: LevelFilter) -> Result<(), SetLoggerError> {
-    log::set_logger(&LOGGER)?;
+    // Safe because it only sets the global logger.
+    unsafe {
+        log::set_logger(&LOGGER)?;
+    }
     log::set_max_level(max_level);
     Ok(())
+}
+
+/// Suppress logging until the return value goes out of scope.
+pub fn suppress() -> SuppressGuard {
+    SuppressGuard::new()
 }
