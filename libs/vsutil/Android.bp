@@ -1,0 +1,26 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_library {
+    name: "libvsutil",
+    crate_name: "vsutil",
+    srcs: ["src/lib.rs"],
+    // Only build on targets which crosvm builds on.
+    enabled: false,
+    target: {
+        android64: {
+            compile_multilib: "64",
+            enabled: true,
+        },
+        linux_bionic_arm64: {
+            enabled: true,
+        },
+    },
+    rustlibs: [
+        "android.system.virtualizationservice-rust",
+        "libbinder_rs",
+        "libdisk",
+    ],
+    apex_available: ["com.android.virt"],
+}
