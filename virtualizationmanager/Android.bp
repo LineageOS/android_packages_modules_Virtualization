@@ -54,7 +54,6 @@ rust_defaults {
         "libtombstoned_client_rust",
         "libvm_control",
         "libvmconfig",
-        "libvsutil",
         "libzip",
         "libvsock",
         "liblibfdt",
