@@ -53,6 +53,7 @@ use binder::{
     self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor,
     Status, StatusCode, Strong,
 };
+use disk::QcowFile;
 use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
@@ -63,7 +64,7 @@ use semver::VersionReq;
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fs::{read_dir, remove_file, File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Write};
 use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::os::unix::raw::pid_t;
@@ -71,7 +72,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use vmconfig::VmConfig;
 use vsock::VsockStream;
-use vsutil::{clone_file, init_writable_partition};
 use zip::ZipArchive;
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
@@ -83,7 +83,18 @@ pub const BINDER_SERVICE_IDENTIFIER: &str = "android.system.virtualizationservic
 /// Gaps in composite disk images are filled with a shared zero.img.
 const ZERO_FILLER_SIZE: u64 = 4096;
 
+/// Magic string for the instance image
+const ANDROID_VM_INSTANCE_MAGIC: &str = "Android-VM-instance";
+
+/// Version of the instance image format
+const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
+
 const MICRODROID_OS_NAME: &str = "microdroid";
+
+const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
+
+/// crosvm requires all partitions to be a multiple of 4KiB.
+const PARTITION_GRANULARITY_BYTES: u64 = 4096;
 
 lazy_static! {
     pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> =
@@ -178,7 +189,45 @@ impl IVirtualizationService for VirtualizationService {
         partition_type: PartitionType,
     ) -> binder::Result<()> {
         check_manage_access()?;
-        init_writable_partition(image_fd, size_bytes, partition_type)
+        let size_bytes = size_bytes.try_into().map_err(|e| {
+            Status::new_exception_str(
+                ExceptionCode::ILLEGAL_ARGUMENT,
+                Some(format!("Invalid size {}: {:?}", size_bytes, e)),
+            )
+        })?;
+        let size_bytes = round_up(size_bytes, PARTITION_GRANULARITY_BYTES);
+        let image = clone_file(image_fd)?;
+        // initialize the file. Any data in the file will be erased.
+        image.set_len(0).map_err(|e| {
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Failed to reset a file: {:?}", e)),
+            )
+        })?;
+        let mut part = QcowFile::new(image, size_bytes).map_err(|e| {
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Failed to create QCOW2 image: {:?}", e)),
+            )
+        })?;
+
+        match partition_type {
+            PartitionType::RAW => Ok(()),
+            PartitionType::ANDROID_VM_INSTANCE => format_as_android_vm_instance(&mut part),
+            PartitionType::ENCRYPTEDSTORE => format_as_encryptedstore(&mut part),
+            _ => Err(Error::new(
+                ErrorKind::Unsupported,
+                format!("Unsupported partition type {:?}", partition_type),
+            )),
+        }
+        .map_err(|e| {
+            Status::new_service_specific_error_str(
+                -1,
+                Some(format!("Failed to initialize partition as {:?}: {:?}", partition_type, e)),
+            )
+        })?;
+
+        Ok(())
     }
 
     /// Creates or update the idsig file by digesting the input APK file.
@@ -433,6 +482,26 @@ fn write_zero_filler(zero_filler_path: &Path) -> Result<()> {
         .with_context(|| "Failed to create zero.img")?;
     file.set_len(ZERO_FILLER_SIZE)?;
     Ok(())
+}
+
+fn format_as_android_vm_instance(part: &mut dyn Write) -> std::io::Result<()> {
+    part.write_all(ANDROID_VM_INSTANCE_MAGIC.as_bytes())?;
+    part.write_all(&ANDROID_VM_INSTANCE_VERSION.to_le_bytes())?;
+    part.flush()
+}
+
+fn format_as_encryptedstore(part: &mut dyn Write) -> std::io::Result<()> {
+    part.write_all(UNFORMATTED_STORAGE_MAGIC.as_bytes())?;
+    part.flush()
+}
+
+fn round_up(input: u64, granularity: u64) -> u64 {
+    if granularity == 0 {
+        return input;
+    }
+    // If the input is absurdly large we round down instead of up; it's going to fail anyway.
+    let result = input.checked_add(granularity - 1).unwrap_or(input);
+    (result / granularity) * granularity
 }
 
 /// Given the configuration for a disk image, assembles the `DiskFile` to pass to crosvm.
@@ -884,6 +953,16 @@ fn get_state(instance: &VmInstance) -> VirtualMachineState {
         VmState::Dead => VirtualMachineState::DEAD,
         VmState::Failed => VirtualMachineState::DEAD,
     }
+}
+
+/// Converts a `&ParcelFileDescriptor` to a `File` by cloning the file.
+pub fn clone_file(file: &ParcelFileDescriptor) -> Result<File, Status> {
+    file.as_ref().try_clone().map_err(|e| {
+        Status::new_exception_str(
+            ExceptionCode::BAD_PARCELABLE,
+            Some(format!("Failed to clone File from ParcelFileDescriptor: {:?}", e)),
+        )
+    })
 }
 
 /// Converts an `&Option<ParcelFileDescriptor>` to an `Option<File>` by cloning the file.
