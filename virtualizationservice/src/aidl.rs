@@ -26,13 +26,13 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
     IVirtualizationServiceInternal::IVirtualizationServiceInternal,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use binder::{self, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong};
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
 use rustutils::system_properties;
 use std::collections::HashMap;
-use std::fs::{create_dir, read_dir, remove_dir, remove_file, set_permissions, Permissions};
+use std::fs::{create_dir, remove_dir_all, set_permissions, Permissions};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::raw::{pid_t, uid_t};
@@ -268,20 +268,10 @@ fn create_temporary_directory(path: &PathBuf, requester_uid: uid_t) -> Result<()
 /// Removes a directory owned by a different user by first changing its owner back
 /// to VirtualizationService.
 pub fn remove_temporary_dir(path: &PathBuf) -> Result<()> {
-    if !path.as_path().is_dir() {
-        bail!("Path {:?} is not a directory", path);
-    }
+    ensure!(path.as_path().is_dir(), "Path {:?} is not a directory", path);
     chown(path, Some(Uid::current()), None)?;
     set_permissions(path, Permissions::from_mode(0o700))?;
-    remove_temporary_files(path)?;
-    remove_dir(path)?;
-    Ok(())
-}
-
-pub fn remove_temporary_files(path: &PathBuf) -> Result<()> {
-    for dir_entry in read_dir(path)? {
-        remove_file(dir_entry?.path())?;
-    }
+    remove_dir_all(path)?;
     Ok(())
 }
 
