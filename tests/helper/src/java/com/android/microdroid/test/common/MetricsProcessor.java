@@ -50,8 +50,8 @@ public final class MetricsProcessor {
         Collections.sort(values);
 
         double sum = 0;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
+        double min = Double.POSITIVE_INFINITY;
+        double max = Double.NEGATIVE_INFINITY;
         for (Double d : values) {
             sum += d;
             if (min > d) min = d;
@@ -63,7 +63,7 @@ public final class MetricsProcessor {
             sqSum += (d - avg) * (d - avg);
         }
         double stdDev = Math.sqrt(sqSum / (values.size() - 1));
-        double median = Double.MIN_VALUE;
+        double median = Double.NaN;
         if (values.size() > 0) {
             int rank = values.size() / 2;
             if (values.size() % 2 == 0) {
