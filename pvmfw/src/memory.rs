@@ -16,7 +16,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{self, align_down, align_up, page_4kb_of, SIZE_4KB, SIZE_4MB};
+use crate::helpers::{self, align_down, align_up, page_4kb_of, RangeExt, SIZE_4KB, SIZE_4MB};
 use crate::mmu;
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
@@ -65,8 +65,7 @@ impl MemoryRegion {
 
     /// True if the instance is fully contained within the passed range.
     pub fn is_within(&self, range: &MemoryRange) -> bool {
-        let our: &MemoryRange = self.as_ref();
-        self.as_ref() == &(max(our.start, range.start)..min(our.end, range.end))
+        self.as_ref().is_within(range)
     }
 }
 
