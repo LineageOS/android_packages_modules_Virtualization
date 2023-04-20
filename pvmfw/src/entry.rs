@@ -19,7 +19,7 @@ use crate::crypto;
 use crate::fdt;
 use crate::heap;
 use crate::helpers;
-use crate::memory::MemoryTracker;
+use crate::memory::{MemoryTracker, MEMORY};
 use crate::mmu;
 use crate::rand;
 use core::arch::asm;
@@ -217,8 +217,8 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     unsafe { page_table.activate() };
     debug!("... Success!");
 
-    let mut memory = MemoryTracker::new(page_table);
-    let slices = MemorySlices::new(fdt, payload, payload_size, &mut memory)?;
+    MEMORY.lock().replace(MemoryTracker::new(page_table));
+    let slices = MemorySlices::new(fdt, payload, payload_size, MEMORY.lock().as_mut().unwrap())?;
 
     rand::init().map_err(|e| {
         error!("Failed to initialize rand: {e}");
@@ -226,13 +226,20 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     })?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, debug_policy, &mut memory)?;
+    crate::main(
+        slices.fdt,
+        slices.kernel,
+        slices.ramdisk,
+        bcc_slice,
+        debug_policy,
+        MEMORY.lock().as_mut().unwrap(),
+    )?;
 
     helpers::flushed_zeroize(bcc_slice);
     helpers::flush(slices.fdt.as_slice());
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
-    memory.mmio_unmap_all().map_err(|e| {
+    MEMORY.lock().as_mut().unwrap().mmio_unmap_all().map_err(|e| {
         error!("Failed to unshare MMIO ranges: {e}");
         RebootReason::InternalError
     })?;
@@ -240,6 +247,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
         error!("Failed to unshare the UART: {e}");
         RebootReason::InternalError
     })?;
+    MEMORY.lock().take().unwrap();
 
     Ok(slices.kernel.as_ptr() as usize)
 }
