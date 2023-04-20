@@ -15,56 +15,56 @@
 //! Exception handlers.
 
 use core::arch::asm;
-use vmbase::{console::emergency_write_str, eprintln, power::reboot};
+use vmbase::{eprintln, power::reboot};
 
 #[no_mangle]
 extern "C" fn sync_exception_current(_elr: u64, _spsr: u64) {
-    emergency_write_str("sync_exception_current\n");
+    eprintln!("sync_exception_current");
     print_esr();
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn irq_current(_elr: u64, _spsr: u64) {
-    emergency_write_str("irq_current\n");
+    eprintln!("irq_current");
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn fiq_current(_elr: u64, _spsr: u64) {
-    emergency_write_str("fiq_current\n");
+    eprintln!("fiq_current");
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn serr_current(_elr: u64, _spsr: u64) {
-    emergency_write_str("serr_current\n");
+    eprintln!("serr_current");
     print_esr();
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn sync_lower(_elr: u64, _spsr: u64) {
-    emergency_write_str("sync_lower\n");
+    eprintln!("sync_lower");
     print_esr();
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn irq_lower(_elr: u64, _spsr: u64) {
-    emergency_write_str("irq_lower\n");
+    eprintln!("irq_lower");
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn fiq_lower(_elr: u64, _spsr: u64) {
-    emergency_write_str("fiq_lower\n");
+    eprintln!("fiq_lower");
     reboot();
 }
 
 #[no_mangle]
 extern "C" fn serr_lower(_elr: u64, _spsr: u64) {
-    emergency_write_str("serr_lower\n");
+    eprintln!("serr_lower");
     print_esr();
     reboot();
 }
