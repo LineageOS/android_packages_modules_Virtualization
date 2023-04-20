@@ -31,6 +31,7 @@ use core::ptr::NonNull;
 use core::result;
 use hyp::get_hypervisor;
 use log::error;
+use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
 
 /// Base of the system's contiguous "main" memory.
@@ -39,6 +40,9 @@ pub const BASE_ADDR: usize = 0x8000_0000;
 pub const MAX_ADDR: usize = 1 << 40;
 
 pub type MemoryRange = Range<usize>;
+
+pub static MEMORY: SpinMutex<Option<MemoryTracker>> = SpinMutex::new(None);
+unsafe impl Send for MemoryTracker {}
 
 #[derive(Clone, Copy, Debug, Default)]
 enum MemoryType {

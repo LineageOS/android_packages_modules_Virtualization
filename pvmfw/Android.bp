@@ -31,6 +31,7 @@ rust_ffi_static {
         "libvirtio_drivers",
         "libvmbase",
         "libzeroize_nostd",
+        "libspin_nostd",
     ],
 }
 
