@@ -49,4 +49,14 @@ interface IVirtualizationServiceInternal {
 
     /** Get a list of all currently running VMs. */
     VirtualMachineDebugInfo[] debugListVms();
+
+    /**
+     * Requests a certificate using the provided certificate signing request (CSR).
+     *
+     * @param csr the certificate signing request.
+     * @param instanceImgFd The file descriptor of the instance image. The file should be open for
+     *         both reading and writing.
+     * @return the X.509 encoded certificate.
+     */
+    byte[] requestCertificate(in byte[] csr, in ParcelFileDescriptor instanceImgFd);
 }
