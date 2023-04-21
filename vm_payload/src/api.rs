@@ -14,9 +14,6 @@
 
 //! This module handles the interaction with virtual machine payload service.
 
-// We're implementing unsafe functions, but we still want warnings on unsafe usage within them.
-#![warn(unsafe_op_in_unsafe_fn)]
-
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     ENCRYPTEDSTORE_MOUNTPOINT, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME, VM_APK_CONTENTS_PATH};
 use anyhow::{ensure, bail, Context, Result};
