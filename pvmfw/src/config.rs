@@ -19,10 +19,11 @@ use core::fmt;
 use core::mem;
 use core::ops::Range;
 use core::result;
+use zerocopy::{FromBytes, LayoutVerified};
 
 /// Configuration data header.
 #[repr(C, packed)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromBytes)]
 struct Header {
     /// Magic number; must be `Header::MAGIC`.
     magic: u32,
@@ -40,6 +41,8 @@ struct Header {
 pub enum Error {
     /// Reserved region can't fit configuration header.
     BufferTooSmall,
+    /// Header has the wrong alignment
+    HeaderMisaligned,
     /// Header doesn't contain the expect magic value.
     InvalidMagic,
     /// Version of the header isn't supported.
@@ -58,6 +61,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::BufferTooSmall => write!(f, "Reserved region is smaller than config header"),
+            Self::HeaderMisaligned => write!(f, "Reserved region is misaligned"),
             Self::InvalidMagic => write!(f, "Wrong magic number"),
             Self::UnsupportedVersion(x, y) => write!(f, "Version {x}.{y} not supported"),
             Self::InvalidFlags(v) => write!(f, "Flags value {v:#x} is incorrect or reserved"),
@@ -167,7 +171,7 @@ impl Entry {
 }
 
 #[repr(packed)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, FromBytes)]
 struct HeaderEntry {
     offset: u32,
     size: u32,
@@ -187,7 +191,9 @@ impl<'a> Config<'a> {
     pub unsafe fn new(data: &'a mut [u8]) -> Result<Self> {
         let header = data.get(..Header::PADDED_SIZE).ok_or(Error::BufferTooSmall)?;
 
-        let header = &*(header.as_ptr() as *const Header);
+        let (header, _) =
+            LayoutVerified::<_, Header>::new_from_prefix(header).ok_or(Error::HeaderMisaligned)?;
+        let header = header.into_ref();
 
         if header.magic != Header::MAGIC {
             return Err(Error::InvalidMagic);
@@ -206,11 +212,13 @@ impl<'a> Config<'a> {
             header.get_body_range(Entry::Bcc)?.ok_or(Error::MissingEntry(Entry::Bcc))?;
         let dp_range = header.get_body_range(Entry::DebugPolicy)?;
 
+        let body_size = header.body_size();
+        let total_size = header.total_size();
         let body = data
             .get_mut(Header::PADDED_SIZE..)
             .ok_or(Error::BufferTooSmall)?
-            .get_mut(..header.body_size())
-            .ok_or_else(|| Error::InvalidSize(header.total_size()))?;
+            .get_mut(..body_size)
+            .ok_or(Error::InvalidSize(total_size))?;
 
         Ok(Self { body, bcc_range, dp_range })
     }

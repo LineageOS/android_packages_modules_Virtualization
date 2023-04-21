@@ -14,8 +14,6 @@
 
 //! Structs and functions relating to the descriptors.
 
-#![warn(unsafe_op_in_unsafe_fn)]
-
 use crate::error::{AvbIOError, AvbSlotVerifyError};
 use crate::partition::PartitionName;
 use crate::utils::{self, is_not_null, to_nonnull, to_usize, usize_checked_add};
