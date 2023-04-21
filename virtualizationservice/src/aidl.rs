@@ -16,8 +16,12 @@
 
 use crate::{get_calling_pid, get_calling_uid};
 use crate::atom::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom};
+use crate::rkpvm::request_certificate;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
-use android_system_virtualizationservice::aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo;
+use android_system_virtualizationservice::{
+    aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo,
+    binder::ParcelFileDescriptor,
+};
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::{
     AtomVmBooted::AtomVmBooted,
     AtomVmCreationRequested::AtomVmCreationRequested,
@@ -152,6 +156,19 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             })
             .collect();
         Ok(cids)
+    }
+
+    fn requestCertificate(
+        &self,
+        csr: &[u8],
+        instance_img_fd: &ParcelFileDescriptor,
+    ) -> binder::Result<Vec<u8>> {
+        check_manage_access()?;
+        info!("Received csr. Getting certificate...");
+        request_certificate(csr, instance_img_fd).map_err(|e| {
+            error!("Failed to get certificate. Error: {e:?}");
+            Status::new_exception_str(ExceptionCode::SERVICE_SPECIFIC, Some(e.to_string()))
+        })
     }
 }
 

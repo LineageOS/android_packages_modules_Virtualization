@@ -16,6 +16,7 @@
 
 mod aidl;
 mod atom;
+mod rkpvm;
 
 use crate::aidl::{
     remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY,
