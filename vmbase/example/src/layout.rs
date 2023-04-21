@@ -58,10 +58,9 @@ pub fn boot_stack_range() -> Range<VirtualAddress> {
     into_va_range(layout::boot_stack_range())
 }
 
-/// Writable data, including the stack.
-pub fn writable_region() -> MemoryRegion {
-    let r = layout::writable_region();
-    MemoryRegion::new(r.start, r.end)
+/// Writable data region for allocations.
+pub fn scratch_range() -> Range<VirtualAddress> {
+    into_va_range(layout::scratch_range())
 }
 
 fn data_load_address() -> VirtualAddress {
