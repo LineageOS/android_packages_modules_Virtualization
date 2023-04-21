@@ -34,6 +34,7 @@ use log::{debug, error, info};
 use vmbase::{layout, main, power::reboot};
 
 const SZ_1K: usize = 1024;
+const SZ_4K: usize = 4 * SZ_1K;
 const SZ_64K: usize = 64 * SZ_1K;
 const SZ_1M: usize = 1024 * SZ_1K;
 const SZ_1G: usize = 1024 * SZ_1M;
@@ -82,7 +83,7 @@ fn init_kernel_pgt(pgt: &mut IdMap) -> Result<()> {
     let reg_text = into_memreg(&layout::text_range());
     let reg_rodata = into_memreg(&layout::rodata_range());
     let reg_scratch = into_memreg(&layout::scratch_range());
-    let reg_stack = into_memreg(&layout::boot_stack_range());
+    let reg_stack = into_memreg(&layout::stack_range(40 * SZ_4K));
 
     debug!("Preparing kernel page table.");
     debug!("  dev:    {}-{}", reg_dev.start(), reg_dev.end());
