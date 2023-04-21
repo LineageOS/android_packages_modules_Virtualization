@@ -19,10 +19,6 @@ extern "C" {
     pub static __stack_chk_guard: u64;
     /// First byte beyond the pre-loaded binary.
     pub static bin_end: u8;
-    /// First byte of the `.stack` section.
-    pub static boot_stack_begin: u8;
-    /// First byte beyond the `.stack` section.
-    pub static boot_stack_end: u8;
     /// First byte of the `.bss` section.
     pub static bss_begin: u8;
     /// First byte beyond the `.bss` section.
@@ -37,10 +33,14 @@ extern "C" {
     pub static dtb_begin: u8;
     /// First byte beyond the `.dtb` section.
     pub static dtb_end: u8;
+    /// First byte past the region available for the stack.
+    pub static init_stack_pointer: u8;
     /// First byte of the `.rodata` section.
     pub static rodata_begin: u8;
     /// First byte beyond the `.rodata` section.
     pub static rodata_end: u8;
+    /// First byte of the region available for the stack.
+    pub static stack_limit: u8;
     /// First byte of the `.text` section.
     pub static text_begin: u8;
     /// First byte beyond the `.text` section.

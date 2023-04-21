@@ -55,7 +55,8 @@ pub fn bss_range() -> Range<VirtualAddress> {
 
 /// Writable data region for the stack.
 pub fn boot_stack_range() -> Range<VirtualAddress> {
-    into_va_range(layout::boot_stack_range())
+    const PAGE_SIZE: usize = 4 << 10;
+    into_va_range(layout::stack_range(40 * PAGE_SIZE))
 }
 
 /// Writable data region for allocations.

@@ -23,6 +23,7 @@ pub const SIZE_2MB: usize = 2 << 20;
 pub const SIZE_4MB: usize = 4 << 20;
 
 pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
+pub const PVMFW_PAGE_SIZE: usize = SIZE_4KB;
 
 /// Read a value from a system register.
 #[macro_export]

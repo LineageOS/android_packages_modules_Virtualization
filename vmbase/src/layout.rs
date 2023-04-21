@@ -62,8 +62,12 @@ pub fn bss_range() -> Range<usize> {
 }
 
 /// Writable data region for the stack.
-pub fn boot_stack_range() -> Range<usize> {
-    linker_region!(boot_stack_begin, boot_stack_end)
+pub fn stack_range(stack_size: usize) -> Range<usize> {
+    let end = linker_addr!(init_stack_pointer);
+    let start = end.checked_sub(stack_size).unwrap();
+    assert!(start >= linker_addr!(stack_limit));
+
+    start..end
 }
 
 /// All writable sections, excluding the stack.

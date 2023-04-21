@@ -91,11 +91,10 @@ SECTIONS
 		bss_end = .;
 	} >writable_data
 
+	init_stack_pointer = ORIGIN(writable_data) + LENGTH(writable_data);
 	.stack (NOLOAD) : ALIGN(4096) {
-		boot_stack_begin = .;
-		. += 40 * 4096;
-		. = ALIGN(4096);
-		boot_stack_end = .;
+		stack_limit = .;
+		. = init_stack_pointer;
 	} >writable_data
 
 	/*
