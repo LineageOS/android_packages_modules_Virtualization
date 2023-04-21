@@ -7,6 +7,8 @@ rust_defaults {
     crate_name: "pvmfw_avb",
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
+    // Require unsafe blocks for inside unsafe functions.
+    flags: ["-Dunsafe_op_in_unsafe_fn"],
     rustlibs: [
         "libavb_bindgen_nostd",
         "libtinyvec_nostd",

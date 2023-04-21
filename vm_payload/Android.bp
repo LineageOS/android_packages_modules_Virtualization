@@ -10,6 +10,8 @@ rust_ffi_static {
     srcs: ["src/*.rs"],
     include_dirs: ["include"],
     prefer_rlib: true,
+    // Require unsafe blocks for inside unsafe functions.
+    flags: ["-Dunsafe_op_in_unsafe_fn"],
     rustlibs: [
         "android.system.virtualization.payload-rust",
         "libandroid_logger",
