@@ -1184,6 +1184,31 @@ impl IVirtualMachineService for VirtualMachineService {
             ))
         }
     }
+
+    fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
+        let cid = self.cid;
+        let Some(vm) = self.state.lock().unwrap().get_vm(cid) else {
+            error!("requestCertificate is called from an unknown CID {cid}");
+            return Err(Status::new_service_specific_error_str(
+                -1,
+                Some(format!("cannot find a VM with CID {}", cid)),
+            ))
+        };
+        let instance_img_path = vm.temporary_directory.join("rkpvm_instance.img");
+        let instance_img = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(instance_img_path)
+            .map_err(|e| {
+                error!("Failed to create rkpvm_instance.img file: {:?}", e);
+                Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to create rkpvm_instance.img file: {:?}", e)),
+                )
+            })?;
+        GLOBAL_SERVICE.requestCertificate(csr, &ParcelFileDescriptor::new(instance_img))
+    }
 }
 
 impl VirtualMachineService {

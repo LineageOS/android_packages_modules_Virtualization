@@ -67,6 +67,11 @@ impl IVmPayloadService for VmPayloadService {
         self.check_restricted_apis_allowed()?;
         Ok(self.dice.cdi_attest().to_vec())
     }
+
+    fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
+        self.check_restricted_apis_allowed()?;
+        self.virtual_machine_service.requestCertificate(csr)
+    }
 }
 
 impl Interface for VmPayloadService {}
