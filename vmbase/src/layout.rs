@@ -66,9 +66,9 @@ pub fn boot_stack_range() -> Range<usize> {
     linker_region!(boot_stack_begin, boot_stack_end)
 }
 
-/// Writable data, including the stack.
-pub fn writable_region() -> Range<usize> {
-    linker_region!(data_begin, boot_stack_end)
+/// All writable sections, excluding the stack.
+pub fn scratch_range() -> Range<usize> {
+    linker_region!(data_begin, bss_end)
 }
 
 /// Read-write data (original).
