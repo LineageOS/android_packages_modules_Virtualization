@@ -92,6 +92,8 @@ apex_defaults {
         "microdroid_initrd_normal",
         "microdroid.json",
         "microdroid_kernel",
+        // rialto_bin is a prebuilt target wrapping the signed bare-metal service VM.
+        "rialto_bin",
     ],
     host_required: [
         "vm_shell",
