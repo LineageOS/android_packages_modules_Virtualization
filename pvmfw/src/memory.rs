@@ -16,7 +16,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{self, align_down, align_up, page_4kb_of, SIZE_4KB};
+use crate::helpers::{self, align_down, align_up, page_4kb_of, SIZE_4KB, SIZE_4MB};
 use crate::mmu;
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
@@ -136,6 +136,7 @@ type Result<T> = result::Result<T, MemoryTrackerError>;
 impl MemoryTracker {
     const CAPACITY: usize = 5;
     const MMIO_CAPACITY: usize = 5;
+    const PVMFW_RANGE: MemoryRange = (BASE_ADDR - SIZE_4MB)..BASE_ADDR;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
     pub fn new(page_table: mmu::PageTable) -> Self {
@@ -201,7 +202,7 @@ impl MemoryTracker {
     /// appropriately.
     pub fn map_mmio_range(&mut self, range: MemoryRange) -> Result<()> {
         // MMIO space is below the main memory region.
-        if range.end > self.total.start {
+        if range.end > self.total.start || overlaps(&Self::PVMFW_RANGE, &range) {
             return Err(MemoryTrackerError::OutOfRange);
         }
         if self.mmio_regions.iter().any(|r| overlaps(r, &range)) {
