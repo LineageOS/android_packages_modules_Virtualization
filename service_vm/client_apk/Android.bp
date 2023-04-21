@@ -1,0 +1,37 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+android_app {
+    name: "ServiceVmClientApp",
+    installable: true,
+    jni_libs: ["libservice_vm_client"],
+    jni_uses_platform_apis: true,
+    use_embedded_native_libs: true,
+    sdk_version: "system_current",
+    compile_multilib: "first",
+    apex_available: ["com.android.virt"],
+}
+
+rust_defaults {
+    name: "service_vm_client_defaults",
+    crate_name: "service_vm_client",
+    srcs: ["src/main.rs"],
+    prefer_rlib: true,
+    rustlibs: [
+        "libandroid_logger",
+        "libanyhow",
+        "liblog_rust",
+        "libvm_payload_bindgen",
+    ],
+}
+
+rust_ffi {
+    name: "libservice_vm_client",
+    defaults: ["service_vm_client_defaults"],
+    // TODO(b/250854486): Remove the sanitize section once the bug is fixed.
+    sanitize: {
+        address: false,
+        hwaddress: false,
+    },
+}
