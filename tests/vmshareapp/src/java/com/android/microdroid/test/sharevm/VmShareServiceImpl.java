@@ -145,11 +145,10 @@ public class VmShareServiceImpl extends Service {
 
         Log.i(
                 TAG,
-                "Payload is ready, connecting to the vsock service at port "
-                        + ITestService.SERVICE_PORT);
+                "Payload is ready, connecting to the vsock service at port " + ITestService.PORT);
         ITestService testService =
                 ITestService.Stub.asInterface(
-                        mVirtualMachine.connectToVsockServer(ITestService.SERVICE_PORT));
+                        mVirtualMachine.connectToVsockServer(ITestService.PORT));
         return new RemoteTestServiceDelegate(testService);
     }
 
