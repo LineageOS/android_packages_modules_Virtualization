@@ -37,6 +37,7 @@ mod rand;
 mod virtio;
 
 use alloc::boxed::Box;
+use alloc::string::ToString;
 
 use crate::dice::PartialInputs;
 use crate::entry::RebootReason;
@@ -46,6 +47,7 @@ use crate::helpers::GUEST_PAGE_SIZE;
 use crate::instance::get_or_generate_instance_salt;
 use crate::memory::MemoryTracker;
 use crate::virtio::pci;
+use ciborium::{de::from_reader, value::Value};
 use diced_open_dice::bcc_handover_main_flow;
 use diced_open_dice::bcc_handover_parse;
 use diced_open_dice::DiceArtifacts;
@@ -57,6 +59,19 @@ use pvmfw_avb::DebugLevel;
 use pvmfw_embedded_key::PUBLIC_KEY;
 
 const NEXT_BCC_SIZE: usize = GUEST_PAGE_SIZE;
+
+type CiboriumError = ciborium::de::Error<ciborium_io::EndOfFile>;
+
+/// Decodes the provided binary CBOR-encoded value and returns a
+/// ciborium::Value struct wrapped in Result.
+fn value_from_bytes(mut bytes: &[u8]) -> Result<Value, CiboriumError> {
+    let value = from_reader(&mut bytes)?;
+    // Ciborium tries to read one Value, but doesn't care if there is trailing data. We do.
+    if !bytes.is_empty() {
+        return Err(CiboriumError::Semantic(Some(0), "unexpected trailing data".to_string()));
+    }
+    Ok(value)
+}
 
 fn main(
     fdt: &mut Fdt,
@@ -80,6 +95,18 @@ fn main(
         RebootReason::InvalidBcc
     })?;
     trace!("BCC: {bcc_handover:x?}");
+
+    // Minimal BCC verification - check the BCC exists & is valid CBOR.
+    // TODO(alanstokes): Do something more useful.
+    if let Some(bytes) = bcc_handover.bcc() {
+        let _ = value_from_bytes(bytes).map_err(|e| {
+            error!("Invalid BCC: {e:?}");
+            RebootReason::InvalidBcc
+        })?;
+    } else {
+        error!("Missing BCC");
+        return Err(RebootReason::InvalidBcc);
+    }
 
     // Set up PCI bus for VirtIO devices.
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
