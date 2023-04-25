@@ -9,7 +9,21 @@ use virtio_drivers::{BufferDirection, Hal, PhysAddr, PAGE_SIZE};
 
 pub struct HalImpl;
 
-impl Hal for HalImpl {
+/// Implements the `Hal` trait for `HalImpl`.
+///
+/// # Safety
+///
+/// Callers of this implementatation must follow the safety requirements documented for the unsafe
+/// methods.
+unsafe impl Hal for HalImpl {
+    /// Allocates the given number of contiguous physical pages of DMA memory for VirtIO use.
+    ///
+    /// # Implementation Safety
+    ///
+    /// `dma_alloc` ensures the returned DMA buffer is not aliased with any other allocation or
+    ///  reference in the program until it is deallocated by `dma_dealloc` by allocating a unique
+    ///  block of memory using `alloc_shared` and returning a non-null pointer to it that is
+    ///  aligned to `PAGE_SIZE`.
     fn dma_alloc(pages: usize, _direction: BufferDirection) -> (PhysAddr, NonNull<u8>) {
         debug!("dma_alloc: pages={}", pages);
         let size = pages * PAGE_SIZE;
@@ -19,7 +33,7 @@ impl Hal for HalImpl {
         (paddr, vaddr)
     }
 
-    fn dma_dealloc(paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
+    unsafe fn dma_dealloc(paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
         debug!("dma_dealloc: paddr={:#x}, pages={}", paddr, pages);
         let size = pages * PAGE_SIZE;
         // Safe because the memory was allocated by `dma_alloc` above using the same allocator, and
@@ -30,7 +44,13 @@ impl Hal for HalImpl {
         0
     }
 
-    fn mmio_phys_to_virt(paddr: PhysAddr, size: usize) -> NonNull<u8> {
+    /// Converts a physical address used for MMIO to a virtual address which the driver can access.
+    ///
+    /// # Implementation Safety
+    ///
+    /// `mmio_phys_to_virt` satisfies the requirement by checking that the mapped memory region
+    /// is within the PCI MMIO range.
+    unsafe fn mmio_phys_to_virt(paddr: PhysAddr, size: usize) -> NonNull<u8> {
         let pci_info = PCI_INFO.get().expect("VirtIO HAL used before PCI_INFO was initialised");
         // Check that the region is within the PCI MMIO range that we read from the device tree. If
         // not, the host is probably trying to do something malicious.
@@ -48,7 +68,7 @@ impl Hal for HalImpl {
         phys_to_virt(paddr)
     }
 
-    fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> PhysAddr {
+    unsafe fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> PhysAddr {
         let size = buffer.len();
 
         // TODO: Copy to a pre-shared region rather than allocating and sharing each time.
@@ -63,7 +83,7 @@ impl Hal for HalImpl {
         virt_to_phys(copy)
     }
 
-    fn unshare(paddr: PhysAddr, buffer: NonNull<[u8]>, direction: BufferDirection) {
+    unsafe fn unshare(paddr: PhysAddr, buffer: NonNull<[u8]>, direction: BufferDirection) {
         let vaddr = phys_to_virt(paddr);
         let size = buffer.len();
         if direction == BufferDirection::DeviceToDriver {
