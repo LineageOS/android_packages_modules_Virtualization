@@ -14,53 +14,69 @@
 
 //! Memory layout.
 
-use crate::linker;
 use core::ops::Range;
 use core::ptr::addr_of;
 
+/// Get an address from a linker-defined symbol.
+#[macro_export]
+macro_rules! linker_addr {
+    ($symbol:ident) => {{
+        unsafe { addr_of!($crate::linker::$symbol) as usize }
+    }};
+}
+
+/// Get the address range between a pair of linker-defined symbols.
+#[macro_export]
+macro_rules! linker_region {
+    ($begin:ident,$end:ident) => {{
+        let start = linker_addr!($begin);
+        let end = linker_addr!($end);
+
+        start..end
+    }};
+}
+
 /// Memory reserved for the DTB.
 pub fn dtb_range() -> Range<usize> {
-    unsafe { (addr_of!(linker::dtb_begin) as usize)..(addr_of!(linker::dtb_end) as usize) }
+    linker_region!(dtb_begin, dtb_end)
 }
 
 /// Executable code.
 pub fn text_range() -> Range<usize> {
-    unsafe { (addr_of!(linker::text_begin) as usize)..(addr_of!(linker::text_end) as usize) }
+    linker_region!(text_begin, text_end)
 }
 
 /// Read-only data.
 pub fn rodata_range() -> Range<usize> {
-    unsafe { (addr_of!(linker::rodata_begin) as usize)..(addr_of!(linker::rodata_end) as usize) }
+    linker_region!(rodata_begin, rodata_end)
 }
 
 /// Initialised writable data.
 pub fn data_range() -> Range<usize> {
-    unsafe { (addr_of!(linker::data_begin) as usize)..(addr_of!(linker::data_end) as usize) }
+    linker_region!(data_begin, data_end)
 }
 
 /// Zero-initialised writable data.
 pub fn bss_range() -> Range<usize> {
-    unsafe { (addr_of!(linker::bss_begin) as usize)..(addr_of!(linker::bss_end) as usize) }
+    linker_region!(bss_begin, bss_end)
 }
 
 /// Writable data region for the stack.
 pub fn boot_stack_range() -> Range<usize> {
-    unsafe {
-        (addr_of!(linker::boot_stack_begin) as usize)..(addr_of!(linker::boot_stack_end) as usize)
-    }
+    linker_region!(boot_stack_begin, boot_stack_end)
 }
 
 /// Writable data, including the stack.
 pub fn writable_region() -> Range<usize> {
-    data_range().start..boot_stack_range().end
+    linker_region!(data_begin, boot_stack_end)
 }
 
 /// Read-write data (original).
 pub fn data_load_address() -> usize {
-    unsafe { addr_of!(linker::data_lma) as usize }
+    linker_addr!(data_lma)
 }
 
 /// End of the binary image.
 pub fn binary_end() -> usize {
-    unsafe { addr_of!(linker::bin_end) as usize }
+    linker_addr!(bin_end)
 }
