@@ -39,12 +39,10 @@ SECTIONS
 	 * Collect together the code. This is page aligned so it can be mapped
 	 * as executable-only.
 	 */
-	.init : ALIGN(4096) {
+	.text : ALIGN(4096) {
 		text_begin = .;
 		*(.init.entry)
 		*(.init.*)
-	} >image
-	.text : {
 		*(.text.*)
 	} >image
 	text_end = .;
