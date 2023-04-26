@@ -26,13 +26,14 @@ use crate::rand;
 use crate::virtio::pci::VirtIOBlkIterator;
 use core::fmt;
 use core::mem::size_of;
-use core::slice;
 use diced_open_dice::DiceMode;
 use diced_open_dice::Hash;
 use diced_open_dice::Hidden;
 use log::trace;
 use uuid::Uuid;
 use virtio_drivers::transport::pci::bus::PciRoot;
+use zerocopy::AsBytes;
+use zerocopy::FromBytes;
 
 pub enum Error {
     /// Unexpected I/O error while accessing the underlying disk.
@@ -121,7 +122,7 @@ pub fn get_or_generate_instance_salt(
             let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedOpen)?;
             let decrypted = aead.open(&mut entry, payload).map_err(Error::FailedOpen)?;
 
-            let body: &EntryBody = decrypted.as_ref();
+            let body = EntryBody::read_from(decrypted).unwrap();
             if body.code_hash != dice_inputs.code_hash {
                 Err(Error::RecordedCodeHashMismatch)
             } else if body.auth_hash != dice_inputs.auth_hash {
@@ -134,22 +135,21 @@ pub fn get_or_generate_instance_salt(
         }
         PvmfwEntry::New { header_index } => {
             let salt = rand::random_array().map_err(Error::FailedSaltGeneration)?;
-            let entry_body = EntryBody::new(dice_inputs, &salt);
-            let body = entry_body.as_ref();
+            let body = EntryBody::new(dice_inputs, &salt);
 
             let key = key.map_err(Error::FailedSeal)?;
             let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedSeal)?;
             // We currently only support single-blk entries.
-            assert!(body.len() + aead.aead().unwrap().max_overhead() < blk.len());
-            let encrypted = aead.seal(&mut blk, body).map_err(Error::FailedSeal)?;
+            let plaintext = body.as_bytes();
+            assert!(plaintext.len() + aead.aead().unwrap().max_overhead() < blk.len());
+            let encrypted = aead.seal(&mut blk, plaintext).map_err(Error::FailedSeal)?;
             let payload_size = encrypted.len();
             let payload_index = header_index + 1;
             instance_img.write_block(payload_index, &blk).map_err(Error::FailedIo)?;
 
             let header = EntryHeader::new(PvmfwEntry::UUID, payload_size);
-            let (blk_header, blk_rest) = blk.split_at_mut(size_of::<EntryHeader>());
-            blk_header.copy_from_slice(header.as_ref());
-            blk_rest.fill(0);
+            header.write_to_prefix(blk.as_mut_slice()).unwrap();
+            blk[header.as_bytes().len()..].fill(0);
             instance_img.write_block(header_index, &blk).map_err(Error::FailedIo)?;
 
             Ok((true, salt))
@@ -157,6 +157,7 @@ pub fn get_or_generate_instance_salt(
     }
 }
 
+#[derive(FromBytes)]
 #[repr(C, packed)]
 struct Header {
     magic: [u8; Header::MAGIC.len()],
@@ -173,23 +174,6 @@ impl Header {
 
     fn version(&self) -> u16 {
         u16::from_le(self.version)
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Option<&Self> {
-        let header: &Self = bytes.as_ref();
-
-        if header.is_valid() {
-            Some(header)
-        } else {
-            None
-        }
-    }
-}
-
-impl AsRef<Header> for [u8] {
-    fn as_ref(&self) -> &Header {
-        // SAFETY - Assume that the alignement and size match Header.
-        unsafe { &*self.as_ptr().cast::<Header>() }
     }
 }
 
@@ -223,12 +207,15 @@ fn locate_entry(partition: &mut Partition) -> Result<PvmfwEntry> {
     let header_index = indices.next().ok_or(Error::MissingInstanceImageHeader)?;
     partition.read_block(header_index, &mut blk).map_err(Error::FailedIo)?;
     // The instance.img header is only used for discovery/validation.
-    let _ = Header::from_bytes(&blk).ok_or(Error::InvalidInstanceImageHeader)?;
+    let header = Header::read_from_prefix(blk.as_slice()).unwrap();
+    if !header.is_valid() {
+        return Err(Error::InvalidInstanceImageHeader);
+    }
 
     while let Some(header_index) = indices.next() {
         partition.read_block(header_index, &mut blk).map_err(Error::FailedIo)?;
 
-        let header: &EntryHeader = blk[..size_of::<EntryHeader>()].as_ref();
+        let header = EntryHeader::read_from_prefix(blk.as_slice()).unwrap();
         match (header.uuid(), header.payload_size()) {
             (uuid, _) if uuid.is_nil() => return Ok(PvmfwEntry::New { header_index }),
             (PvmfwEntry::UUID, payload_size) => {
@@ -250,7 +237,8 @@ fn locate_entry(partition: &mut Partition) -> Result<PvmfwEntry> {
 /// Marks the start of an instance.img entry.
 ///
 /// Note: Virtualization/microdroid_manager/src/instance.rs uses the name "partition".
-#[repr(C)]
+#[derive(AsBytes, FromBytes)]
+#[repr(C, packed)]
 struct EntryHeader {
     uuid: u128,
     payload_size: u64,
@@ -270,22 +258,7 @@ impl EntryHeader {
     }
 }
 
-impl AsRef<EntryHeader> for [u8] {
-    fn as_ref(&self) -> &EntryHeader {
-        assert_eq!(self.len(), size_of::<EntryHeader>());
-        // SAFETY - The size of the slice was checked and any value may be considered valid.
-        unsafe { &*self.as_ptr().cast::<EntryHeader>() }
-    }
-}
-
-impl AsRef<[u8]> for EntryHeader {
-    fn as_ref(&self) -> &[u8] {
-        let s = self as *const Self;
-        // SAFETY - Transmute the (valid) bytes into a slice.
-        unsafe { slice::from_raw_parts(s.cast::<u8>(), size_of::<Self>()) }
-    }
-}
-
+#[derive(AsBytes, FromBytes)]
 #[repr(C)]
 struct EntryBody {
     code_hash: Hash,
@@ -318,21 +291,5 @@ impl EntryBody {
             3 => DiceMode::kDiceModeMaintenance,
             _ => DiceMode::kDiceModeNotInitialized,
         }
-    }
-}
-
-impl AsRef<EntryBody> for [u8] {
-    fn as_ref(&self) -> &EntryBody {
-        assert_eq!(self.len(), size_of::<EntryBody>());
-        // SAFETY - The size of the slice was checked and members are validated by accessors.
-        unsafe { &*self.as_ptr().cast::<EntryBody>() }
-    }
-}
-
-impl AsRef<[u8]> for EntryBody {
-    fn as_ref(&self) -> &[u8] {
-        let s = self as *const Self;
-        // SAFETY - Transmute the (valid) bytes into a slice.
-        unsafe { slice::from_raw_parts(s.cast::<u8>(), size_of::<Self>()) }
     }
 }
