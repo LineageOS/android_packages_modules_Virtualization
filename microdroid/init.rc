@@ -146,6 +146,7 @@ service apexd-vm /system/bin/apexd --vm
     capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER SYS_ADMIN
 
 service ueventd /system/bin/ueventd
+    user root
     class core
     critical
     seclabel u:r:ueventd:s0
@@ -161,6 +162,7 @@ service console /system/bin/sh
     setenv HOSTNAME console
 
 service init_debug_policy /system/bin/init_debug_policy
+    user root
     oneshot
     disabled
     stdio_to_kmsg
