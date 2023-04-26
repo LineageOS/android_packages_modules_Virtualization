@@ -25,6 +25,7 @@ use static_assertions::const_assert;
 use static_assertions::const_assert_eq;
 use uuid::Uuid;
 use virtio_drivers::device::blk::SECTOR_SIZE;
+use zerocopy::FromBytes;
 
 pub enum Error {
     /// VirtIO error during read operation.
@@ -101,8 +102,10 @@ impl Partitions {
     fn new(mut device: VirtIOBlk) -> Result<Self> {
         let mut blk = [0; Self::LBA_SIZE];
         device.read_block(Header::LBA, &mut blk).map_err(Error::FailedRead)?;
-        let (header_bytes, _) = blk.split_at(size_of::<Header>());
-        let header = Header::from_bytes(header_bytes).ok_or(Error::InvalidHeader)?;
+        let header = Header::read_from_prefix(blk.as_slice()).unwrap();
+        if !header.is_valid() {
+            return Err(Error::InvalidHeader);
+        }
         let entries_count = usize::try_from(header.entries_count()).unwrap();
 
         Ok(Self { device, entries_count })
@@ -151,6 +154,7 @@ impl Partitions {
 type Lba = u64;
 
 /// Structure as defined in release 2.10 of the UEFI Specification (5.3.2 GPT Header).
+#[derive(FromBytes)]
 #[repr(C, packed)]
 struct Header {
     signature: u64,
@@ -162,7 +166,7 @@ struct Header {
     backup_lba: Lba,
     first_lba: Lba,
     last_lba: Lba,
-    disk_guid: Uuid,
+    disk_guid: u128,
     entries_lba: Lba,
     entries_count: u32,
     entry_size: u32,
@@ -175,20 +179,6 @@ impl Header {
     const REVISION_1_0: u32 = 1 << 16;
     const LBA: usize = 1;
     const ENTRIES_LBA: usize = 2;
-
-    fn from_bytes(bytes: &[u8]) -> Option<&Self> {
-        let bytes = bytes.get(..size_of::<Self>())?;
-        // SAFETY - We assume that bytes is properly aligned for Header and have verified above
-        // that it holds enough bytes. All potential values of the slice will produce a valid
-        // Header.
-        let header = unsafe { &*bytes.as_ptr().cast::<Self>() };
-
-        if header.is_valid() {
-            Some(header)
-        } else {
-            None
-        }
-    }
 
     fn is_valid(&self) -> bool {
         self.signature() == Self::SIGNATURE
