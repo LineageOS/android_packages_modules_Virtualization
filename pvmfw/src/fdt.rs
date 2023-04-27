@@ -17,6 +17,7 @@
 use crate::bootargs::BootArgsIterator;
 use crate::cstr;
 use crate::helpers::flatten;
+use crate::helpers::RangeExt;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::helpers::SIZE_4KB;
 use crate::memory::BASE_ADDR;
@@ -436,39 +437,78 @@ fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<
 
 #[derive(Debug)]
 struct SwiotlbInfo {
-    size: u64,
-    align: u64,
+    addr: Option<usize>,
+    size: usize,
+    align: usize,
+}
+
+impl SwiotlbInfo {
+    pub fn fixed_range(&self) -> Option<Range<usize>> {
+        self.addr.map(|addr| addr..addr + self.size)
+    }
 }
 
 fn read_swiotlb_info_from(fdt: &Fdt) -> libfdt::Result<SwiotlbInfo> {
     let node =
         fdt.compatible_nodes(cstr!("restricted-dma-pool"))?.next().ok_or(FdtError::NotFound)?;
-    let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?;
-    let align = node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?;
-    Ok(SwiotlbInfo { size, align })
+    let align =
+        node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?.try_into().unwrap();
+
+    let (addr, size) = if let Some(mut reg) = node.reg()? {
+        let reg = reg.next().ok_or(FdtError::NotFound)?;
+        let size = reg.size.ok_or(FdtError::NotFound)?;
+        reg.addr.checked_add(size).ok_or(FdtError::BadValue)?;
+        (Some(reg.addr.try_into().unwrap()), size.try_into().unwrap())
+    } else {
+        let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?.try_into().unwrap();
+        (None, size)
+    };
+
+    Ok(SwiotlbInfo { addr, size, align })
 }
 
-fn validate_swiotlb_info(swiotlb_info: &SwiotlbInfo) -> Result<(), RebootReason> {
+fn validate_swiotlb_info(
+    swiotlb_info: &SwiotlbInfo,
+    memory: &Range<usize>,
+) -> Result<(), RebootReason> {
     let size = swiotlb_info.size;
     let align = swiotlb_info.align;
 
-    if size == 0 || (size % GUEST_PAGE_SIZE as u64) != 0 {
+    if size == 0 || (size % GUEST_PAGE_SIZE) != 0 {
         error!("Invalid swiotlb size {:#x}", size);
         return Err(RebootReason::InvalidFdt);
     }
 
-    if (align % GUEST_PAGE_SIZE as u64) != 0 {
+    if (align % GUEST_PAGE_SIZE) != 0 {
         error!("Invalid swiotlb alignment {:#x}", align);
         return Err(RebootReason::InvalidFdt);
     }
+
+    if let Some(range) = swiotlb_info.fixed_range() {
+        if !range.is_within(memory) {
+            error!("swiotlb range {range:#x?} not part of memory range {memory:#x?}");
+            return Err(RebootReason::InvalidFdt);
+        }
+    }
+
     Ok(())
 }
 
 fn patch_swiotlb_info(fdt: &mut Fdt, swiotlb_info: &SwiotlbInfo) -> libfdt::Result<()> {
     let mut node =
         fdt.root_mut()?.next_compatible(cstr!("restricted-dma-pool"))?.ok_or(FdtError::NotFound)?;
-    node.setprop_inplace(cstr!("size"), &swiotlb_info.size.to_be_bytes())?;
     node.setprop_inplace(cstr!("alignment"), &swiotlb_info.align.to_be_bytes())?;
+
+    if let Some(range) = swiotlb_info.fixed_range() {
+        node.appendprop_addrrange(
+            cstr!("reg"),
+            range.start.try_into().unwrap(),
+            range.len().try_into().unwrap(),
+        )?;
+    } else {
+        node.setprop_inplace(cstr!("size"), &swiotlb_info.size.to_be_bytes())?;
+    }
+
     Ok(())
 }
 
@@ -603,7 +643,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         error!("Failed to read swiotlb info from DT: {e}");
         RebootReason::InvalidFdt
     })?;
-    validate_swiotlb_info(&swiotlb_info)?;
+    validate_swiotlb_info(&swiotlb_info, &memory_range)?;
 
     Ok(DeviceTreeInfo {
         kernel_range,
