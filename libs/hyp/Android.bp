@@ -8,6 +8,7 @@ rust_library_rlib {
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
+        "libbitflags",
         "libonce_cell_nostd",
         "libpsci",
         "libuuid_nostd",
