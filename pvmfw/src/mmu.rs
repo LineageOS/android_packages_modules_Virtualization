@@ -47,7 +47,7 @@ fn appended_payload_range() -> Range<usize> {
 
 /// Region allocated for the stack.
 fn stack_range() -> Range<usize> {
-    const STACK_PAGES: usize = 40;
+    const STACK_PAGES: usize = 8;
 
     layout::stack_range(STACK_PAGES * PVMFW_PAGE_SIZE)
 }
