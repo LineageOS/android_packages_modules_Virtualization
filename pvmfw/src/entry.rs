@@ -25,7 +25,7 @@ use crate::rand;
 use core::arch::asm;
 use core::num::NonZeroUsize;
 use core::slice;
-use hyp::get_hypervisor;
+use hyp::{get_hypervisor, HypervisorCap};
 use log::debug;
 use log::error;
 use log::info;
@@ -108,6 +108,18 @@ impl<'a> MemorySlices<'a> {
             error!("Failed to use memory range value from DT: {memory_range:#x?}");
             RebootReason::InvalidFdt
         })?;
+
+        if !get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+            let range = info.swiotlb_info.fixed_range().ok_or_else(|| {
+                error!("Pre-shared pool range not specified in swiotlb node");
+                RebootReason::InvalidFdt
+            })?;
+
+            memory.init_shared_pool(range).map_err(|e| {
+                error!("Failed to initialize pre-shared pool {e}");
+                RebootReason::InvalidFdt
+            })?;
+        }
 
         let kernel_range = if let Some(r) = info.kernel_range {
             memory.alloc_range(&r).map_err(|e| {
