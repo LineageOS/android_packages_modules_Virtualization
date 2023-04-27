@@ -21,6 +21,9 @@ use crate::mmu;
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
 use alloc::alloc::handle_alloc_error;
+use alloc::boxed::Box;
+use buddy_system_allocator::LockedHeap;
+use core::alloc::GlobalAlloc as _;
 use core::alloc::Layout;
 use core::cmp::max;
 use core::cmp::min;
@@ -31,6 +34,7 @@ use core::ptr::NonNull;
 use core::result;
 use hyp::get_hypervisor;
 use log::error;
+use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
 
@@ -107,6 +111,8 @@ pub enum MemoryTrackerError {
     FailedToMap,
     /// Error from the interaction with the hypervisor.
     Hypervisor(hyp::Error),
+    /// Failure to set `SHARED_POOL`.
+    SharedPoolSetFailure,
 }
 
 impl fmt::Display for MemoryTrackerError {
@@ -120,6 +126,7 @@ impl fmt::Display for MemoryTrackerError {
             Self::Overlaps => write!(f, "New region overlaps with tracked regions"),
             Self::FailedToMap => write!(f, "Failed to map the new region"),
             Self::Hypervisor(e) => e.fmt(f),
+            Self::SharedPoolSetFailure => write!(f, "Failed to set SHARED_POOL"),
         }
     }
 }
@@ -131,6 +138,8 @@ impl From<hyp::Error> for MemoryTrackerError {
 }
 
 type Result<T> = result::Result<T, MemoryTrackerError>;
+
+static SHARED_POOL: OnceBox<LockedHeap<32>> = OnceBox::new();
 
 impl MemoryTracker {
     const CAPACITY: usize = 5;
@@ -263,6 +272,31 @@ impl MemoryTracker {
 
         Ok(())
     }
+
+    /// Initialize a separate heap for shared memory allocations.
+    ///
+    /// Some hypervisors such as Gunyah do not support a MemShare API for guest
+    /// to share its memory with host. Instead they allow host to designate part
+    /// of guest memory as "shared" ahead of guest starting its execution. The
+    /// shared memory region is indicated in swiotlb node. On such platforms use
+    /// a separate heap to allocate buffers that can be shared with host.
+    pub fn init_shared_pool(&mut self, range: Range<usize>) -> Result<()> {
+        let size = NonZeroUsize::new(range.len()).unwrap();
+        let range = self.alloc_mut(range.start, size)?;
+        let shared_pool = LockedHeap::<32>::new();
+
+        // SAFETY - `range` should be a valid region of memory as validated by
+        // `validate_swiotlb_info` and not used by any other rust code.
+        unsafe {
+            shared_pool.lock().init(range.start, range.len());
+        }
+
+        SHARED_POOL
+            .set(Box::new(shared_pool))
+            .map_err(|_| MemoryTrackerError::SharedPoolSetFailure)?;
+
+        Ok(())
+    }
 }
 
 impl Drop for MemoryTracker {
@@ -305,13 +339,25 @@ fn unshare_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
     Ok(())
 }
 
-/// Allocates a memory range of at least the given size from the global allocator, and shares it
-/// with the host. Returns a pointer to the buffer.
+/// Allocates a memory range of at least the given size that is shared with
+/// host. Returns a pointer to the buffer.
 ///
 /// It will be aligned to the memory sharing granule size supported by the hypervisor.
 pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
     let layout = shared_buffer_layout(size)?;
     let granule = layout.align();
+
+    if let Some(shared_pool) = SHARED_POOL.get() {
+        // Safe because `shared_buffer_layout` panics if the size is 0, so the
+        // layout must have a non-zero size.
+        let buffer = unsafe { shared_pool.alloc_zeroed(layout) };
+
+        let Some(buffer) = NonNull::new(buffer) else {
+            handle_alloc_error(layout);
+        };
+
+        return Ok(buffer);
+    }
 
     // Safe because `shared_buffer_layout` panics if the size is 0, so the layout must have a
     // non-zero size.
@@ -340,6 +386,14 @@ pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
 pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> hyp::Result<()> {
     let layout = shared_buffer_layout(size)?;
     let granule = layout.align();
+
+    if let Some(shared_pool) = SHARED_POOL.get() {
+        // Safe because the memory was allocated by `alloc_shared` above using
+        // the same allocator, and the layout is the same as was used then.
+        unsafe { shared_pool.dealloc(vaddr.as_ptr(), layout) };
+
+        return Ok(());
+    }
 
     let paddr = virt_to_phys(vaddr);
     unshare_range(&(paddr..paddr + layout.size()), granule)?;

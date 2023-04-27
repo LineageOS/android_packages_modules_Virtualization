@@ -436,7 +436,7 @@ fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<
 }
 
 #[derive(Debug)]
-struct SwiotlbInfo {
+pub struct SwiotlbInfo {
     addr: Option<usize>,
     size: usize,
     align: usize,
@@ -580,7 +580,7 @@ pub struct DeviceTreeInfo {
     num_cpus: usize,
     pci_info: PciInfo,
     serial_info: SerialInfo,
-    swiotlb_info: SwiotlbInfo,
+    pub swiotlb_info: SwiotlbInfo,
 }
 
 impl DeviceTreeInfo {
