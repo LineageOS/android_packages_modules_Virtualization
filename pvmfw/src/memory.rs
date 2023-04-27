@@ -34,6 +34,7 @@ use core::ptr::NonNull;
 use core::result;
 use hyp::get_hypervisor;
 use log::error;
+use log::trace;
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
@@ -317,6 +318,7 @@ impl Drop for MemoryTracker {
 /// is not aligned with the memory protection granule then it will be extended on either end to
 /// align.
 fn share_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
+    trace!("Sharing memory region {range:#x?}");
     for base in (align_down(range.start, granule)
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
@@ -330,6 +332,7 @@ fn share_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
 /// shared. If the range is not aligned with the memory protection granule then it will be extended
 /// on either end to align.
 fn unshare_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
+    trace!("Unsharing memory region {range:#x?}");
     for base in (align_down(range.start, granule)
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
@@ -356,6 +359,7 @@ pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
             handle_alloc_error(layout);
         };
 
+        trace!("Allocated shared buffer at {buffer:?} with {layout:?}");
         return Ok(buffer);
     }
 
@@ -372,6 +376,7 @@ pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
     // be reused while maybe still partially shared with the host.
     share_range(&(paddr..paddr + layout.size()), granule)?;
 
+    trace!("Allocated shared memory at {buffer:?} with {layout:?}");
     Ok(buffer)
 }
 
@@ -392,6 +397,7 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> hyp::Result<()>
         // the same allocator, and the layout is the same as was used then.
         unsafe { shared_pool.dealloc(vaddr.as_ptr(), layout) };
 
+        trace!("Deallocated shared buffer at {vaddr:?} with {layout:?}");
         return Ok(());
     }
 
@@ -401,6 +407,7 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> hyp::Result<()>
     // the layout is the same as was used then.
     unsafe { dealloc(vaddr.as_ptr(), layout) };
 
+    trace!("Deallocated shared memory at {vaddr:?} with {layout:?}");
     Ok(())
 }
 
