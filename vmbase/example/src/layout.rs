@@ -55,13 +55,13 @@ pub fn bss_range() -> Range<VirtualAddress> {
 
 /// Writable data region for the stack.
 pub fn boot_stack_range() -> Range<VirtualAddress> {
-    into_va_range(layout::boot_stack_range())
+    const PAGE_SIZE: usize = 4 << 10;
+    into_va_range(layout::stack_range(40 * PAGE_SIZE))
 }
 
-/// Writable data, including the stack.
-pub fn writable_region() -> MemoryRegion {
-    let r = layout::writable_region();
-    MemoryRegion::new(r.start, r.end)
+/// Writable data region for allocations.
+pub fn scratch_range() -> Range<VirtualAddress> {
+    into_va_range(layout::scratch_range())
 }
 
 fn data_load_address() -> VirtualAddress {

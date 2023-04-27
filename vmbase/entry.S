@@ -209,7 +209,7 @@ entry:
 	b 2b
 
 3:	/* Prepare the stack. */
-	adr_l x30, boot_stack_end
+	adr_l x30, init_stack_pointer
 	mov sp, x30
 
 	/* Set up exception vector. */

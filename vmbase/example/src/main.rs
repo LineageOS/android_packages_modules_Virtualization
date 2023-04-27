@@ -24,8 +24,8 @@ mod pci;
 extern crate alloc;
 
 use crate::layout::{
-    bionic_tls, dtb_range, print_addresses, rodata_range, stack_chk_guard, text_range,
-    writable_region, DEVICE_REGION,
+    bionic_tls, boot_stack_range, dtb_range, print_addresses, rodata_range, scratch_range,
+    stack_chk_guard, text_range, DEVICE_REGION,
 };
 use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::{idmap::IdMap, paging::Attributes};
@@ -100,7 +100,13 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
         .unwrap();
     idmap
         .map_range(
-            &writable_region(),
+            &scratch_range().into(),
+            Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::EXECUTE_NEVER,
+        )
+        .unwrap();
+    idmap
+        .map_range(
+            &boot_stack_range().into(),
             Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::EXECUTE_NEVER,
         )
         .unwrap();
