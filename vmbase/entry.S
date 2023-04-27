@@ -208,8 +208,14 @@ entry:
 	stp q0, q1, [x28], #32
 	b 2b
 
-3:	/* Prepare the stack. */
+3:	/* Prepare the exception handler stack (SP_EL1). */
+	adr_l x30, init_eh_stack_pointer
+	msr spsel, #1
+	mov sp, x30
+
+	/* Prepare the main thread stack (SP_EL0). */
 	adr_l x30, init_stack_pointer
+	msr spsel, #0
 	mov sp, x30
 
 	/* Set up exception vector. */
