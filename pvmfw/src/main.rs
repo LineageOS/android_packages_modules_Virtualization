@@ -38,6 +38,7 @@ mod virtio;
 
 use alloc::boxed::Box;
 use alloc::string::ToString;
+use core::ops::Range;
 
 use crate::dice::PartialInputs;
 use crate::entry::RebootReason;
@@ -80,7 +81,7 @@ fn main(
     current_bcc_handover: &[u8],
     debug_policy: Option<&mut [u8]>,
     memory: &mut MemoryTracker,
-) -> Result<(), RebootReason> {
+) -> Result<Range<usize>, RebootReason> {
     info!("pVM firmware");
     debug!("FDT: {:?}", fdt.as_ptr());
     debug!("Signed kernel: {:?} ({:#x} bytes)", signed_kernel.as_ptr(), signed_kernel.len());
@@ -156,7 +157,13 @@ fn main(
         })?;
 
     info!("Starting payload...");
-    Ok(())
+
+    let bcc_range = {
+        let r = next_bcc.as_ptr_range();
+        (r.start as usize)..(r.end as usize)
+    };
+
+    Ok(bcc_range)
 }
 
 /// Logs the given PCI error and returns the appropriate `RebootReason`.
