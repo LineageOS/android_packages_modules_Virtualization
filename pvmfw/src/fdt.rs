@@ -41,6 +41,7 @@ use libfdt::FdtNode;
 use log::debug;
 use log::error;
 use log::info;
+use log::warn;
 use tinyvec::ArrayVec;
 
 /// Extract from /config the address range containing the pre-loaded kernel. Absence of /config is
@@ -729,8 +730,9 @@ pub fn modify_for_next_stage(
     set_or_clear_chosen_flag(fdt, cstr!("avf,new-instance"), new_instance)?;
 
     if let Some(debug_policy) = debug_policy {
-        apply_debug_policy(fdt, debug_policy)?;
-        info!("Debug policy applied.");
+        if apply_debug_policy(fdt, debug_policy)? {
+            info!("Debug policy applied.");
+        }
     } else {
         info!("No debug policy found.");
     }
@@ -774,27 +776,31 @@ fn set_or_clear_chosen_flag(fdt: &mut Fdt, flag: &CStr, value: bool) -> libfdt::
     Ok(())
 }
 
-fn apply_debug_policy(fdt: &mut Fdt, debug_policy: &mut [u8]) -> libfdt::Result<()> {
+/// Apply the debug policy overlay to the guest DT.
+///
+/// Returns Ok(true) on success, Ok(false) on recovered failure and Err(_) on corruption of the DT.
+fn apply_debug_policy(fdt: &mut Fdt, debug_policy: &[u8]) -> libfdt::Result<bool> {
     let backup_fdt = Vec::from(fdt.as_slice());
 
-    let overlay = match Fdt::from_mut_slice(debug_policy) {
+    let mut debug_policy = Vec::from(debug_policy);
+    let overlay = match Fdt::from_mut_slice(debug_policy.as_mut_slice()) {
         Ok(overlay) => overlay,
         Err(e) => {
-            info!("Corrupted debug policy found: {e}. Not applying.");
-            return Ok(());
+            warn!("Corrupted debug policy found: {e}. Not applying.");
+            return Ok(false);
         }
     };
-    let backup_overlay = Vec::from(overlay.as_slice());
 
-    // SAFETY - on failure, the corrupted fdts are discarded and are restored using the backups.
+    // SAFETY - on failure, the corrupted DT is restored using the backup.
     if let Err(e) = unsafe { fdt.apply_overlay(overlay) } {
-        error!("Failed to apply debug policy: {e}. Recovering...");
+        warn!("Failed to apply debug policy: {e}. Recovering...");
         fdt.copy_from_slice(backup_fdt.as_slice())?;
-        overlay.copy_from_slice(backup_overlay.as_slice())?;
         // A successful restoration is considered success because an invalid debug policy
         // shouldn't DOS the pvmfw
+        Ok(false)
+    } else {
+        Ok(true)
     }
-    Ok(())
 }
 
 fn read_common_debug_policy(fdt: &Fdt, debug_feature_name: &CStr) -> libfdt::Result<bool> {
