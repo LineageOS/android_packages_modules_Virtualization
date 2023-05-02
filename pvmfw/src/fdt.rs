@@ -17,7 +17,7 @@
 use crate::bootargs::BootArgsIterator;
 use crate::cstr;
 use crate::helpers::flatten;
-use crate::helpers::RangeExt;
+use crate::helpers::RangeExt as _;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::helpers::SIZE_4KB;
 use crate::memory::BASE_ADDR;
