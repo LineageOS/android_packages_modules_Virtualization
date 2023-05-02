@@ -797,7 +797,7 @@ fn apply_debug_policy(fdt: &mut Fdt, debug_policy: &mut [u8]) -> libfdt::Result<
     Ok(())
 }
 
-fn read_common_debug_policy(fdt: &Fdt, debug_feature_name: &CStr) -> libfdt::Result<bool> {
+fn has_common_debug_policy(fdt: &Fdt, debug_feature_name: &CStr) -> libfdt::Result<bool> {
     if let Some(node) = fdt.node(cstr!("/avf/guest/common"))? {
         if let Some(value) = node.getprop_u32(debug_feature_name)? {
             return Ok(value == 1);
@@ -807,8 +807,8 @@ fn read_common_debug_policy(fdt: &Fdt, debug_feature_name: &CStr) -> libfdt::Res
 }
 
 fn filter_out_dangerous_bootargs(fdt: &mut Fdt, bootargs: &CStr) -> libfdt::Result<()> {
-    let has_crashkernel = read_common_debug_policy(fdt, cstr!("ramdump"))?;
-    let has_console = read_common_debug_policy(fdt, cstr!("log"))?;
+    let has_crashkernel = has_common_debug_policy(fdt, cstr!("ramdump"))?;
+    let has_console = has_common_debug_policy(fdt, cstr!("log"))?;
 
     let accepted: &[(&str, Box<dyn Fn(Option<&str>) -> bool>)] = &[
         ("panic", Box::new(|v| if let Some(v) = v { v == "=-1" } else { false })),
