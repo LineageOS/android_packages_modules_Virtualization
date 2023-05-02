@@ -112,13 +112,18 @@ impl<'a> MemorySlices<'a> {
             RebootReason::InvalidFdt
         })?;
 
-        if !get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+        if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+            memory.init_dynamic_shared_pool().map_err(|e| {
+                error!("Failed to initialize dynamically shared pool: {e}");
+                RebootReason::InternalError
+            })?;
+        } else {
             let range = info.swiotlb_info.fixed_range().ok_or_else(|| {
                 error!("Pre-shared pool range not specified in swiotlb node");
                 RebootReason::InvalidFdt
             })?;
 
-            memory.init_shared_pool(range).map_err(|e| {
+            memory.init_static_shared_pool(range).map_err(|e| {
                 error!("Failed to initialize pre-shared pool {e}");
                 RebootReason::InvalidFdt
             })?;
@@ -261,6 +266,8 @@ fn main_wrapper(
         error!("Failed to unshare MMIO ranges: {e}");
         RebootReason::InternalError
     })?;
+    // Call unshare_all_memory here (instead of relying on the dtor) while UART is still mapped.
+    MEMORY.lock().as_mut().unwrap().unshare_all_memory();
     get_hypervisor().mmio_guard_unmap(console::BASE_ADDRESS).map_err(|e| {
         error!("Failed to unshare the UART: {e}");
         RebootReason::InternalError
