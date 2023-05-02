@@ -43,6 +43,9 @@ unsafe impl Hal for HalImpl {
     fn dma_alloc(pages: usize, _direction: BufferDirection) -> (PhysAddr, NonNull<u8>) {
         let vaddr = alloc_shared(dma_layout(pages))
             .expect("Failed to allocate and share VirtIO DMA range with host");
+        // TODO(ptosi): Move this zeroing to virtio_drivers, if it silently wants a zeroed region.
+        // SAFETY - vaddr points to a region allocated for the caller so is safe to access.
+        unsafe { core::ptr::write_bytes(vaddr.as_ptr(), 0, dma_layout(pages).size()) };
         let paddr = virt_to_phys(vaddr);
         (paddr, vaddr)
     }
@@ -83,8 +86,6 @@ unsafe impl Hal for HalImpl {
     unsafe fn share(buffer: NonNull<[u8]>, direction: BufferDirection) -> PhysAddr {
         let size = buffer.len();
 
-        // TODO: Copy to a pre-shared region rather than allocating and sharing each time.
-        // Allocate a range of pages, copy the buffer if necessary, and share the new range instead.
         let bounce = alloc_shared(bb_layout(size))
             .expect("Failed to allocate and share VirtIO bounce buffer with host");
         let paddr = virt_to_phys(bounce);
