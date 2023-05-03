@@ -17,6 +17,8 @@
 use super::pci::PCI_INFO;
 use crate::helpers::RangeExt as _;
 use crate::memory::{alloc_shared, dealloc_shared, phys_to_virt, virt_to_phys};
+use core::alloc::Layout;
+use core::mem::size_of;
 use core::ptr::{copy_nonoverlapping, NonNull};
 use log::trace;
 use virtio_drivers::{BufferDirection, Hal, PhysAddr, PAGE_SIZE};
@@ -39,17 +41,15 @@ unsafe impl Hal for HalImpl {
     ///  block of memory using `alloc_shared` and returning a non-null pointer to it that is
     ///  aligned to `PAGE_SIZE`.
     fn dma_alloc(pages: usize, _direction: BufferDirection) -> (PhysAddr, NonNull<u8>) {
-        let size = pages * PAGE_SIZE;
-        let vaddr =
-            alloc_shared(size).expect("Failed to allocate and share VirtIO DMA range with host");
+        let vaddr = alloc_shared(dma_layout(pages))
+            .expect("Failed to allocate and share VirtIO DMA range with host");
         let paddr = virt_to_phys(vaddr);
         (paddr, vaddr)
     }
 
     unsafe fn dma_dealloc(_paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
-        let size = pages * PAGE_SIZE;
         // SAFETY - Memory was allocated by `dma_alloc` using `alloc_shared` with the same size.
-        unsafe { dealloc_shared(vaddr, size) }
+        unsafe { dealloc_shared(vaddr, dma_layout(pages)) }
             .expect("Failed to unshare VirtIO DMA range with host");
         0
     }
@@ -85,7 +85,7 @@ unsafe impl Hal for HalImpl {
 
         // TODO: Copy to a pre-shared region rather than allocating and sharing each time.
         // Allocate a range of pages, copy the buffer if necessary, and share the new range instead.
-        let bounce = alloc_shared(size)
+        let bounce = alloc_shared(bb_layout(size))
             .expect("Failed to allocate and share VirtIO bounce buffer with host");
         let paddr = virt_to_phys(bounce);
         if direction == BufferDirection::DriverToDevice {
@@ -109,7 +109,18 @@ unsafe impl Hal for HalImpl {
         }
 
         // SAFETY - Memory was allocated by `share` using `alloc_shared` with the same size.
-        unsafe { dealloc_shared(bounce, size) }
+        unsafe { dealloc_shared(bounce, bb_layout(size)) }
             .expect("Failed to unshare and deallocate VirtIO bounce buffer");
     }
+}
+
+fn dma_layout(pages: usize) -> Layout {
+    let size = pages.checked_mul(PAGE_SIZE).unwrap();
+    Layout::from_size_align(size, PAGE_SIZE).unwrap()
+}
+
+fn bb_layout(size: usize) -> Layout {
+    // In theory, it would be legal to align to 1-byte but use a larger alignment for good measure.
+    const VIRTIO_BOUNCE_BUFFER_ALIGN: usize = size_of::<u128>();
+    Layout::from_size_align(size, VIRTIO_BOUNCE_BUFFER_ALIGN).unwrap()
 }
