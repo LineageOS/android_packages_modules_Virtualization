@@ -255,7 +255,6 @@ fn main_wrapper(
     )?;
 
     helpers::flushed_zeroize(bcc_slice);
-    helpers::flush(slices.fdt.as_slice());
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     MEMORY.lock().as_mut().unwrap().mmio_unmap_all().map_err(|e| {
