@@ -780,11 +780,11 @@ impl Fdt {
 
     /// Return a shared pointer to the device tree.
     pub fn as_ptr(&self) -> *const c_void {
-        self as *const _ as *const c_void
+        self.buffer.as_ptr().cast::<_>()
     }
 
     fn as_mut_ptr(&mut self) -> *mut c_void {
-        self as *mut _ as *mut c_void
+        self.buffer.as_mut_ptr().cast::<_>()
     }
 
     fn capacity(&self) -> usize {
@@ -792,8 +792,9 @@ impl Fdt {
     }
 
     fn header(&self) -> &libfdt_bindgen::fdt_header {
+        let p = self.as_ptr().cast::<_>();
         // SAFETY - A valid FDT (verified by constructor) must contain a valid fdt_header.
-        unsafe { &*(&self as *const _ as *const libfdt_bindgen::fdt_header) }
+        unsafe { &*p }
     }
 
     fn totalsize(&self) -> usize {
