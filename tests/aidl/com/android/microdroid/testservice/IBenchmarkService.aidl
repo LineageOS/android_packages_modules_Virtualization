@@ -18,7 +18,7 @@ package com.android.microdroid.testservice;
 
 /** {@hide} */
 interface IBenchmarkService {
-    const int SERVICE_PORT = 5677;
+    const int PORT = 5677;
 
     /**
      * Measures the read rate for reading the given file.

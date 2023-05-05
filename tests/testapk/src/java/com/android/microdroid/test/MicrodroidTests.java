@@ -982,7 +982,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         try {
                             ITestService testService =
                                     ITestService.Stub.asInterface(
-                                            vm.connectToVsockServer(ITestService.SERVICE_PORT));
+                                            vm.connectToVsockServer(ITestService.PORT));
                             vmCdis.cdiAttest = testService.insecurelyExposeAttestationCdi();
                             vmCdis.instanceSecret = testService.insecurelyExposeVmInstanceSecret();
                         } catch (Exception e) {

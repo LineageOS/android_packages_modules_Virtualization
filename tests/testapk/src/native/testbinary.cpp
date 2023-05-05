@@ -318,7 +318,7 @@ Result<void> start_test_service() {
     auto testService = ndk::SharedRefBase::make<TestService>();
 
     auto callback = []([[maybe_unused]] void* param) { AVmPayload_notifyPayloadReady(); };
-    AVmPayload_runVsockRpcServer(testService->asBinder().get(), testService->SERVICE_PORT, callback,
+    AVmPayload_runVsockRpcServer(testService->asBinder().get(), testService->PORT, callback,
                                  nullptr);
 
     return {};
