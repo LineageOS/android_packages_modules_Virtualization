@@ -184,7 +184,7 @@ public class MainActivity extends AppCompatActivity {
                         private void testVmService(VirtualMachine vm) {
                             IBinder binder;
                             try {
-                                binder = vm.connectToVsockServer(ITestService.SERVICE_PORT);
+                                binder = vm.connectToVsockServer(ITestService.PORT);
                             } catch (Exception e) {
                                 if (!Thread.interrupted()) {
                                     mPayloadOutput.postValue(
