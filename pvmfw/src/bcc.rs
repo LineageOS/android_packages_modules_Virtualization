@@ -16,16 +16,20 @@
 
 // TODO(b/279910232): Unify this, somehow, with the similar but different code in hwtrust.
 
+use alloc::vec;
 use alloc::vec::Vec;
 use ciborium::value::Value;
 use core::fmt;
-use diced_open_dice::DiceMode;
+use core::mem::size_of;
+use diced_open_dice::{BccHandover, Cdi, DiceArtifacts, DiceMode};
 use log::trace;
 
 type Result<T> = core::result::Result<T, BccError>;
 
 pub enum BccError {
     CborDecodeError(ciborium::de::Error<ciborium_io::EndOfFile>),
+    CborEncodeError(ciborium::ser::Error<core::convert::Infallible>),
+    DiceError(diced_open_dice::DiceError),
     ExtraneousBytes,
     MalformedBcc(&'static str),
     MissingBcc,
@@ -35,6 +39,8 @@ impl fmt::Display for BccError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::CborDecodeError(e) => write!(f, "Error parsing BCC CBOR: {e:?}"),
+            Self::CborEncodeError(e) => write!(f, "Error encoding BCC CBOR: {e:?}"),
+            Self::DiceError(e) => write!(f, "Dice error: {e:?}"),
             Self::ExtraneousBytes => write!(f, "Unexpected trailing data in BCC"),
             Self::MalformedBcc(s) => {
                 write!(f, "BCC does not have the expected CBOR structure: {s}")
@@ -42,6 +48,39 @@ impl fmt::Display for BccError {
             Self::MissingBcc => write!(f, "Missing BCC"),
         }
     }
+}
+
+/// Return a new CBOR encoded BccHandover that is based on the incoming CDIs but does not chain
+/// from the received BCC.
+pub fn truncate(bcc_handover: BccHandover) -> Result<Vec<u8>> {
+    // Note: The strings here are deliberately different from those used in a normal DICE handover
+    // because we want this to not be equivalent to any valid DICE derivation.
+    let cdi_seal = taint_cdi(bcc_handover.cdi_seal(), "TaintCdiSeal")?;
+    let cdi_attest = taint_cdi(bcc_handover.cdi_attest(), "TaintCdiAttest")?;
+
+    // BccHandover = {
+    //   1 : bstr .size 32,     ; CDI_Attest
+    //   2 : bstr .size 32,     ; CDI_Seal
+    //   ? 3 : Bcc,             ; Certificate chain
+    // }
+    let bcc_handover: Vec<(Value, Value)> =
+        vec![(1.into(), cdi_attest.as_slice().into()), (2.into(), cdi_seal.as_slice().into())];
+    value_to_bytes(&bcc_handover.into())
+}
+
+fn taint_cdi(cdi: &Cdi, info: &str) -> Result<Cdi> {
+    // An arbitrary value generated randomly.
+    const SALT: [u8; 64] = [
+        0xdc, 0x0d, 0xe7, 0x40, 0x47, 0x9d, 0x71, 0xb8, 0x69, 0xd0, 0x71, 0x85, 0x27, 0x47, 0xf5,
+        0x65, 0x7f, 0x16, 0xfa, 0x59, 0x23, 0x19, 0x6a, 0x6b, 0x77, 0x41, 0x01, 0x45, 0x90, 0x3b,
+        0xfa, 0x68, 0xad, 0xe5, 0x26, 0x31, 0x5b, 0x40, 0x85, 0x71, 0x97, 0x12, 0xbd, 0x0b, 0x38,
+        0x5c, 0x98, 0xf3, 0x0e, 0xe1, 0x7c, 0x82, 0x23, 0xa4, 0x38, 0x38, 0x85, 0x84, 0x85, 0x0d,
+        0x02, 0x90, 0x60, 0xd3,
+    ];
+    let mut result = [0u8; size_of::<Cdi>()];
+    diced_open_dice::kdf(cdi.as_slice(), &SALT, info.as_bytes(), result.as_mut_slice())
+        .map_err(BccError::DiceError)?;
+    Ok(result)
 }
 
 /// Represents a (partially) decoded BCC DICE chain.
@@ -186,4 +225,11 @@ fn value_from_bytes(mut bytes: &[u8]) -> Result<Value> {
         return Err(BccError::ExtraneousBytes);
     }
     Ok(value)
+}
+
+/// Encodes a ciborium::Value into bytes.
+fn value_to_bytes(value: &Value) -> Result<Vec<u8>> {
+    let mut bytes: Vec<u8> = Vec::new();
+    ciborium::ser::into_writer(&value, &mut bytes).map_err(BccError::CborEncodeError)?;
+    Ok(bytes)
 }
