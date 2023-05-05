@@ -496,7 +496,7 @@ public abstract class MicrodroidDeviceTestBase {
                         try {
                             mTestService =
                                     ITestService.Stub.asInterface(
-                                            vm.connectToVsockServer(ITestService.SERVICE_PORT));
+                                            vm.connectToVsockServer(ITestService.PORT));
                             // Make sure linkToDeath works, and include it in the log in case it's
                             // helpful.
                             mTestService
