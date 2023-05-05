@@ -16,7 +16,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{self, align_down, align_up, page_4kb_of, RangeExt, SIZE_4KB, SIZE_4MB};
+use crate::helpers::{self, align_down, page_4kb_of, RangeExt, SIZE_4KB, SIZE_4MB};
 use crate::mmu;
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
@@ -34,6 +34,7 @@ use core::ptr::NonNull;
 use core::result;
 use hyp::get_hypervisor;
 use log::error;
+use log::trace;
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
@@ -317,6 +318,7 @@ impl Drop for MemoryTracker {
 /// is not aligned with the memory protection granule then it will be extended on either end to
 /// align.
 fn share_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
+    trace!("Sharing memory region {range:#x?}");
     for base in (align_down(range.start, granule)
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
@@ -330,6 +332,7 @@ fn share_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
 /// shared. If the range is not aligned with the memory protection granule then it will be extended
 /// on either end to align.
 fn unshare_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
+    trace!("Unsharing memory region {range:#x?}");
     for base in (align_down(range.start, granule)
         .expect("Memory protection granule was not a power of two")..range.end)
         .step_by(granule)
@@ -343,24 +346,23 @@ fn unshare_range(range: &MemoryRange, granule: usize) -> hyp::Result<()> {
 /// host. Returns a pointer to the buffer.
 ///
 /// It will be aligned to the memory sharing granule size supported by the hypervisor.
-pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
-    let layout = shared_buffer_layout(size)?;
-    let granule = layout.align();
-
+pub fn alloc_shared(layout: Layout) -> hyp::Result<NonNull<u8>> {
+    assert_ne!(layout.size(), 0);
+    let granule = get_hypervisor().memory_protection_granule()?;
+    let layout = layout.align_to(granule).unwrap().pad_to_align();
     if let Some(shared_pool) = SHARED_POOL.get() {
-        // Safe because `shared_buffer_layout` panics if the size is 0, so the
-        // layout must have a non-zero size.
+        // SAFETY - layout has a non-zero size.
         let buffer = unsafe { shared_pool.alloc_zeroed(layout) };
 
         let Some(buffer) = NonNull::new(buffer) else {
             handle_alloc_error(layout);
         };
 
+        trace!("Allocated shared buffer at {buffer:?} with {layout:?}");
         return Ok(buffer);
     }
 
-    // Safe because `shared_buffer_layout` panics if the size is 0, so the layout must have a
-    // non-zero size.
+    // SAFETY - layout has a non-zero size.
     let buffer = unsafe { alloc_zeroed(layout) };
 
     let Some(buffer) = NonNull::new(buffer) else {
@@ -372,6 +374,7 @@ pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
     // be reused while maybe still partially shared with the host.
     share_range(&(paddr..paddr + layout.size()), granule)?;
 
+    trace!("Allocated shared memory at {buffer:?} with {layout:?}");
     Ok(buffer)
 }
 
@@ -383,15 +386,15 @@ pub fn alloc_shared(size: usize) -> hyp::Result<NonNull<u8>> {
 ///
 /// The memory must have been allocated by `alloc_shared` with the same size, and not yet
 /// deallocated.
-pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> hyp::Result<()> {
-    let layout = shared_buffer_layout(size)?;
-    let granule = layout.align();
-
+pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, layout: Layout) -> hyp::Result<()> {
+    let granule = get_hypervisor().memory_protection_granule()?;
+    let layout = layout.align_to(granule).unwrap().pad_to_align();
     if let Some(shared_pool) = SHARED_POOL.get() {
         // Safe because the memory was allocated by `alloc_shared` above using
         // the same allocator, and the layout is the same as was used then.
         unsafe { shared_pool.dealloc(vaddr.as_ptr(), layout) };
 
+        trace!("Deallocated shared buffer at {vaddr:?} with {layout:?}");
         return Ok(());
     }
 
@@ -401,21 +404,8 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, size: usize) -> hyp::Result<()>
     // the layout is the same as was used then.
     unsafe { dealloc(vaddr.as_ptr(), layout) };
 
+    trace!("Deallocated shared memory at {vaddr:?} with {layout:?}");
     Ok(())
-}
-
-/// Returns the layout to use for allocating a buffer of at least the given size shared with the
-/// host.
-///
-/// It will be aligned to the memory sharing granule size supported by the hypervisor.
-///
-/// Panics if `size` is 0.
-fn shared_buffer_layout(size: usize) -> hyp::Result<Layout> {
-    assert_ne!(size, 0);
-    let granule = get_hypervisor().memory_protection_granule()?;
-    let allocated_size =
-        align_up(size, granule).expect("Memory protection granule was not a power of two");
-    Ok(Layout::from_size_align(allocated_size, granule).unwrap())
 }
 
 /// Returns an iterator which yields the base address of each 4 KiB page within the given range.
