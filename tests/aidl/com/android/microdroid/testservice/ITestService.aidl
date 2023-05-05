@@ -22,7 +22,7 @@ import com.android.microdroid.testservice.IAppCallback;
  * {@hide}
  */
 interface ITestService {
-    const long SERVICE_PORT = 5678;
+    const long PORT = 5678;
 
     const long ECHO_REVERSE_PORT = 0x80000001L; // Deliberately chosen to be > 2^31, < 2^32
 
