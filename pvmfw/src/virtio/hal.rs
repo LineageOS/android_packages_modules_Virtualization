@@ -1,10 +1,26 @@
+// Copyright 2023, The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! HAL for the virtio_drivers crate.
+
 use super::pci::PCI_INFO;
+use crate::helpers::RangeExt as _;
 use crate::memory::{alloc_shared, dealloc_shared, phys_to_virt, virt_to_phys};
-use core::{
-    ops::Range,
-    ptr::{copy_nonoverlapping, NonNull},
-};
-use log::debug;
+use core::alloc::Layout;
+use core::mem::size_of;
+use core::ptr::{copy_nonoverlapping, NonNull};
+use log::trace;
 use virtio_drivers::{BufferDirection, Hal, PhysAddr, PAGE_SIZE};
 
 pub struct HalImpl;
@@ -13,8 +29,8 @@ pub struct HalImpl;
 ///
 /// # Safety
 ///
-/// Callers of this implementatation must follow the safety requirements documented for the unsafe
-/// methods.
+/// Callers of this implementatation must follow the safety requirements documented in the `Hal`
+/// trait for the unsafe methods.
 unsafe impl Hal for HalImpl {
     /// Allocates the given number of contiguous physical pages of DMA memory for VirtIO use.
     ///
@@ -25,22 +41,16 @@ unsafe impl Hal for HalImpl {
     ///  block of memory using `alloc_shared` and returning a non-null pointer to it that is
     ///  aligned to `PAGE_SIZE`.
     fn dma_alloc(pages: usize, _direction: BufferDirection) -> (PhysAddr, NonNull<u8>) {
-        debug!("dma_alloc: pages={}", pages);
-        let size = pages * PAGE_SIZE;
-        let vaddr =
-            alloc_shared(size).expect("Failed to allocate and share VirtIO DMA range with host");
+        let vaddr = alloc_shared(dma_layout(pages))
+            .expect("Failed to allocate and share VirtIO DMA range with host");
         let paddr = virt_to_phys(vaddr);
         (paddr, vaddr)
     }
 
-    unsafe fn dma_dealloc(paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
-        debug!("dma_dealloc: paddr={:#x}, pages={}", paddr, pages);
-        let size = pages * PAGE_SIZE;
-        // Safe because the memory was allocated by `dma_alloc` above using the same allocator, and
-        // the layout is the same as was used then.
-        unsafe {
-            dealloc_shared(vaddr, size).expect("Failed to unshare VirtIO DMA range with host");
-        }
+    unsafe fn dma_dealloc(_paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
+        // SAFETY - Memory was allocated by `dma_alloc` using `alloc_shared` with the same size.
+        unsafe { dealloc_shared(vaddr, dma_layout(pages)) }
+            .expect("Failed to unshare VirtIO DMA range with host");
         0
     }
 
@@ -52,19 +62,21 @@ unsafe impl Hal for HalImpl {
     /// is within the PCI MMIO range.
     unsafe fn mmio_phys_to_virt(paddr: PhysAddr, size: usize) -> NonNull<u8> {
         let pci_info = PCI_INFO.get().expect("VirtIO HAL used before PCI_INFO was initialised");
+        let bar_range = {
+            let start = pci_info.bar_range.start.try_into().unwrap();
+            let end = pci_info.bar_range.end.try_into().unwrap();
+
+            start..end
+        };
+        let mmio_range = paddr..paddr.checked_add(size).expect("PCI MMIO region end overflowed");
+
         // Check that the region is within the PCI MMIO range that we read from the device tree. If
         // not, the host is probably trying to do something malicious.
-        if !contains_range(
-            &pci_info.bar_range,
-            &(paddr.try_into().expect("PCI MMIO region start was outside of 32-bit address space")
-                ..paddr
-                    .checked_add(size)
-                    .expect("PCI MMIO region end overflowed")
-                    .try_into()
-                    .expect("PCI MMIO region end was outside of 32-bit address space")),
-        ) {
-            panic!("PCI MMIO region was outside of expected BAR range.");
-        }
+        assert!(
+            mmio_range.is_within(&bar_range),
+            "PCI MMIO region was outside of expected BAR range.",
+        );
+
         phys_to_virt(paddr)
     }
 
@@ -73,41 +85,42 @@ unsafe impl Hal for HalImpl {
 
         // TODO: Copy to a pre-shared region rather than allocating and sharing each time.
         // Allocate a range of pages, copy the buffer if necessary, and share the new range instead.
-        let copy =
-            alloc_shared(size).expect("Failed to allocate and share VirtIO buffer with host");
+        let bounce = alloc_shared(bb_layout(size))
+            .expect("Failed to allocate and share VirtIO bounce buffer with host");
+        let paddr = virt_to_phys(bounce);
         if direction == BufferDirection::DriverToDevice {
-            unsafe {
-                copy_nonoverlapping(buffer.as_ptr() as *mut u8, copy.as_ptr(), size);
-            }
+            let src = buffer.cast::<u8>().as_ptr().cast_const();
+            trace!("VirtIO bounce buffer at {bounce:?} (PA:{paddr:#x}) initialized from {src:?}");
+            // SAFETY - Both regions are valid, properly aligned, and don't overlap.
+            unsafe { copy_nonoverlapping(src, bounce.as_ptr(), size) };
         }
-        virt_to_phys(copy)
+
+        paddr
     }
 
     unsafe fn unshare(paddr: PhysAddr, buffer: NonNull<[u8]>, direction: BufferDirection) {
-        let vaddr = phys_to_virt(paddr);
+        let bounce = phys_to_virt(paddr);
         let size = buffer.len();
         if direction == BufferDirection::DeviceToDriver {
-            debug!(
-                "Copying VirtIO buffer back from {:#x} to {:#x}.",
-                paddr,
-                buffer.as_ptr() as *mut u8 as usize
-            );
-            unsafe {
-                copy_nonoverlapping(vaddr.as_ptr(), buffer.as_ptr() as *mut u8, size);
-            }
+            let dest = buffer.cast::<u8>().as_ptr();
+            trace!("VirtIO bounce buffer at {bounce:?} (PA:{paddr:#x}) copied back to {dest:?}");
+            // SAFETY - Both regions are valid, properly aligned, and don't overlap.
+            unsafe { copy_nonoverlapping(bounce.as_ptr(), dest, size) };
         }
 
-        // Unshare and deallocate the shared copy of the buffer.
-        debug!("Unsharing VirtIO buffer {:#x}", paddr);
-        // Safe because the memory was allocated by `share` using `alloc_shared`, and the size is
-        // the same as was used then.
-        unsafe {
-            dealloc_shared(vaddr, size).expect("Failed to unshare VirtIO buffer with host");
-        }
+        // SAFETY - Memory was allocated by `share` using `alloc_shared` with the same size.
+        unsafe { dealloc_shared(bounce, bb_layout(size)) }
+            .expect("Failed to unshare and deallocate VirtIO bounce buffer");
     }
 }
 
-/// Returns true if `inner` is entirely contained within `outer`.
-fn contains_range(outer: &Range<u32>, inner: &Range<u32>) -> bool {
-    inner.start >= outer.start && inner.end <= outer.end
+fn dma_layout(pages: usize) -> Layout {
+    let size = pages.checked_mul(PAGE_SIZE).unwrap();
+    Layout::from_size_align(size, PAGE_SIZE).unwrap()
+}
+
+fn bb_layout(size: usize) -> Layout {
+    // In theory, it would be legal to align to 1-byte but use a larger alignment for good measure.
+    const VIRTIO_BOUNCE_BUFFER_ALIGN: usize = size_of::<u128>();
+    Layout::from_size_align(size, VIRTIO_BOUNCE_BUFFER_ALIGN).unwrap()
 }
