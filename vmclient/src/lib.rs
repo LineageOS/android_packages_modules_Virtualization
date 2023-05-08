@@ -112,7 +112,7 @@ impl VirtualizationService {
 
         // Wait for the child to signal that the RpcBinder server is ready
         // by closing its end of the pipe.
-        let _ = File::from(wait_fd).read(&mut [0]);
+        let _ignored = File::from(wait_fd).read(&mut [0]);
 
         Ok(VirtualizationService { client_fd })
     }
