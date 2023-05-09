@@ -1,0 +1,26 @@
+rust_library {
+    name: "libignorabletest",
+    host_supported: true,
+    crate_name: "ignorabletest",
+    cargo_env_compat: true,
+    cargo_pkg_version: "0.1.0",
+    srcs: ["src/lib.rs"],
+    edition: "2021",
+    rustlibs: [
+        "liblibtest_mimic",
+    ],
+    proc_macros: ["libpaste"],
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+}
+
+rust_defaults {
+    name: "ignorabletest.defaults",
+    test_harness: false,
+    cfgs: ["test"],
+    rustlibs: [
+        "libignorabletest",
+    ],
+}
