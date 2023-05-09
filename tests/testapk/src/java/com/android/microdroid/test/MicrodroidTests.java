@@ -24,16 +24,16 @@ import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_FUL
 import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_NONE;
 import static android.system.virtualmachine.VirtualMachineManager.CAPABILITY_NON_PROTECTED_VM;
 import static android.system.virtualmachine.VirtualMachineManager.CAPABILITY_PROTECTED_VM;
+
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-import static org.junit.Assume.assumeTrue;
+
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
-import com.google.common.base.Strings;
-import com.google.common.truth.BooleanSubject;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import android.app.Instrumentation;
 import android.app.UiAutomation;
@@ -66,6 +66,9 @@ import com.android.microdroid.test.vmshare.IVmShareTestService;
 import com.android.microdroid.testservice.IAppCallback;
 import com.android.microdroid.testservice.ITestService;
 import com.android.microdroid.testservice.IVmCallback;
+
+import com.google.common.base.Strings;
+import com.google.common.truth.BooleanSubject;
 
 import org.junit.After;
 import org.junit.Before;
@@ -1084,9 +1087,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         List<DataItem> rootArrayItems = ((Array) dataItems.get(0)).getDataItems();
         assertThat(rootArrayItems.size()).isAtLeast(2); // Public key and one certificate
         if (mProtectedVm) {
-            // When a true DICE chain is created, microdroid expects entries for: u-boot,
-            // u-boot-env, microdroid, app payload and the service process.
-            assertThat(rootArrayItems.size()).isAtLeast(5);
+            // pvmfw truncates the DICE chain it gets, so we expect exactly entries for: public key,
+            // Microdroid and app payload.
+            assertThat(rootArrayItems.size()).isEqualTo(3);
         }
     }
 
