@@ -60,13 +60,13 @@ impl PartialInputs {
     pub fn into_input_values(
         self,
         salt: &[u8; HIDDEN_SIZE],
+        config_descriptor_buffer: &mut [u8],
     ) -> diced_open_dice::Result<InputValues> {
-        let mut config_descriptor_buffer = [0; 128];
         let config_descriptor_size = bcc_format_config_descriptor(
             Some(cstr!("vm_entry")),
             None,  // component_version
             false, // resettable
-            &mut config_descriptor_buffer,
+            config_descriptor_buffer,
         )?;
         let config = &config_descriptor_buffer[..config_descriptor_size];
 
