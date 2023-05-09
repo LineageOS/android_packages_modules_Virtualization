@@ -395,10 +395,8 @@ impl Drop for MemoryTracker {
     }
 }
 
-/// Allocates a memory range of at least the given size that is shared with
-/// host. Returns a pointer to the buffer.
-///
-/// It will be aligned to the memory sharing granule size supported by the hypervisor.
+/// Allocates a memory range of at least the given size and alignment that is shared with the host.
+/// Returns a pointer to the buffer.
 pub fn alloc_shared(layout: Layout) -> hyp::Result<NonNull<u8>> {
     assert_ne!(layout.size(), 0);
     let Some(buffer) = try_shared_alloc(layout) else {
@@ -424,11 +422,11 @@ fn try_shared_alloc(layout: Layout) -> Option<NonNull<u8>> {
 
 /// Unshares and deallocates a memory range which was previously allocated by `alloc_shared`.
 ///
-/// The size passed in must be the size passed to the original `alloc_shared` call.
+/// The layout passed in must be the same layout passed to the original `alloc_shared` call.
 ///
 /// # Safety
 ///
-/// The memory must have been allocated by `alloc_shared` with the same size, and not yet
+/// The memory must have been allocated by `alloc_shared` with the same layout, and not yet
 /// deallocated.
 pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, layout: Layout) -> hyp::Result<()> {
     SHARED_POOL.get().unwrap().lock().dealloc(vaddr, layout);
