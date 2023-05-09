@@ -22,7 +22,8 @@ use core::mem::size_of;
 use core::slice;
 
 use diced_open_dice::{
-    bcc_format_config_descriptor, hash, Config, DiceMode, Hash, InputValues, HIDDEN_SIZE,
+    bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceMode, Hash,
+    InputValues, HIDDEN_SIZE,
 };
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
 
@@ -57,26 +58,30 @@ impl PartialInputs {
         Ok(Self { code_hash, auth_hash, mode })
     }
 
-    pub fn into_input_values(
+    pub fn write_next_bcc(
         self,
+        current_bcc_handover: &[u8],
         salt: &[u8; HIDDEN_SIZE],
-        config_descriptor_buffer: &mut [u8],
-    ) -> diced_open_dice::Result<InputValues> {
+        next_bcc: &mut [u8],
+    ) -> diced_open_dice::Result<()> {
+        let mut config_descriptor_buffer = [0; 128];
         let config_descriptor_size = bcc_format_config_descriptor(
             Some(cstr!("vm_entry")),
             None,  // component_version
             false, // resettable
-            config_descriptor_buffer,
+            &mut config_descriptor_buffer,
         )?;
         let config = &config_descriptor_buffer[..config_descriptor_size];
 
-        Ok(InputValues::new(
+        let dice_inputs = InputValues::new(
             self.code_hash,
             Config::Descriptor(config),
             self.auth_hash,
             self.mode,
             *salt,
-        ))
+        );
+        let _ = bcc_handover_main_flow(current_bcc_handover, &dice_inputs, next_bcc)?;
+        Ok(())
     }
 }
 
