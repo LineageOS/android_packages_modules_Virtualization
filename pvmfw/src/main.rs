@@ -48,7 +48,7 @@ use crate::memory::MemoryTracker;
 use crate::virtio::pci;
 use alloc::boxed::Box;
 use core::ops::Range;
-use diced_open_dice::{bcc_handover_main_flow, bcc_handover_parse, DiceArtifacts};
+use diced_open_dice::{bcc_handover_parse, DiceArtifacts};
 use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn};
@@ -124,13 +124,6 @@ fn main(
         })?;
     trace!("Got salt from instance.img: {salt:x?}");
 
-    let mut config_descriptor_buffer = [0; 128];
-    let dice_inputs =
-        dice_inputs.into_input_values(&salt, &mut config_descriptor_buffer).map_err(|e| {
-            error!("Failed to generate DICE inputs: {e:?}");
-            RebootReason::InternalError
-        })?;
-
     // It is possible that the DICE chain we were given is rooted in the UDS. We do not want to give
     // such a chain to the payload, or even the associated CDIs. So remove the entire chain we
     // were given and taint the CDIs. Note that the resulting CDIs are still deterministically
@@ -141,11 +134,12 @@ fn main(
         RebootReason::InternalError
     })?;
 
-    let _ = bcc_handover_main_flow(truncated_bcc_handover.as_slice(), &dice_inputs, next_bcc)
-        .map_err(|e| {
+    dice_inputs.write_next_bcc(truncated_bcc_handover.as_slice(), &salt, next_bcc).map_err(
+        |e| {
             error!("Failed to derive next-stage DICE secrets: {e:?}");
             RebootReason::SecretDerivationError
-        })?;
+        },
+    )?;
     flush(next_bcc);
 
     let strict_boot = true;
