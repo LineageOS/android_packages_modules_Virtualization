@@ -21,4 +21,4 @@ mod hypervisor;
 mod util;
 
 pub use error::{Error, Result};
-pub use hypervisor::{get_hypervisor, Hypervisor, KvmError};
+pub use hypervisor::{get_hypervisor, Hypervisor, HypervisorCap, KvmError};
