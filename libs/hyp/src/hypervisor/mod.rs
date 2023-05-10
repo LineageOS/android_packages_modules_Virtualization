@@ -22,6 +22,7 @@ mod kvm;
 use crate::error::{Error, Result};
 use alloc::boxed::Box;
 pub use common::Hypervisor;
+pub use common::HypervisorCap;
 pub use kvm::KvmError;
 use kvm::KvmHypervisor;
 use once_cell::race::OnceBox;

@@ -15,6 +15,15 @@
 //! This module regroups some common traits shared by all the hypervisors.
 
 use crate::error::Result;
+use bitflags::bitflags;
+
+bitflags! {
+    /// Capabilities that Hypervisor backends can declare support for.
+    pub struct HypervisorCap: u32 {
+        /// Capability for guest to share its memory with host at runtime.
+        const DYNAMIC_MEM_SHARE = 0b1;
+    }
+}
 
 /// Trait for the hypervisor.
 pub trait Hypervisor {
@@ -43,4 +52,7 @@ pub trait Hypervisor {
 
     /// Returns the memory protection granule size in bytes.
     fn memory_protection_granule(&self) -> Result<usize>;
+
+    /// Check if required capabilities are supported.
+    fn has_cap(&self, cap: HypervisorCap) -> bool;
 }
