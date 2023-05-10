@@ -200,7 +200,7 @@ fn set_cloexec_on_vm_payload_service_socket() -> Result<()> {
 }
 
 fn try_main() -> Result<()> {
-    let _ = kernlog::init();
+    let _ignored = kernlog::init();
     info!("started.");
 
     if let Err(e) = set_cloexec_on_vm_payload_service_socket() {
