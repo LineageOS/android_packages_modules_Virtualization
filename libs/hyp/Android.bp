@@ -8,7 +8,9 @@ rust_library_rlib {
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
+        "libonce_cell_nostd",
         "libpsci",
+        "libuuid_nostd",
     ],
     no_stdlibs: true,
     stdlibs: [

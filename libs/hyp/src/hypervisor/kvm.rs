@@ -22,6 +22,7 @@ use psci::smccc::{
     error::{positive_or_error_64, success_or_error_32, success_or_error_64},
     hvc64,
 };
+use uuid::{uuid, Uuid};
 
 /// Error from a KVM HVC call.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -70,6 +71,12 @@ const VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID: u32 = 0xc6000007;
 const VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID: u32 = 0xc6000008;
 
 pub(super) struct KvmHypervisor;
+
+impl KvmHypervisor {
+    // Based on ARM_SMCCC_VENDOR_HYP_UID_KVM_REG values listed in Linux kernel source:
+    // https://github.com/torvalds/linux/blob/master/include/linux/arm-smccc.h
+    pub(super) const UUID: Uuid = uuid!("28b46fb6-2ec5-11e9-a9ca-4b564d003a74");
+}
 
 impl Hypervisor for KvmHypervisor {
     fn mmio_guard_init(&self) -> Result<()> {
