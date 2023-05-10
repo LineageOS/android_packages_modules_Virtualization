@@ -4,9 +4,6 @@
       "name": "MicrodroidHostTestCases"
     },
     {
-      "name": "ComposHostTestCases"
-    },
-    {
       "name": "MicrodroidTestApp"
     },
     {
@@ -34,6 +31,9 @@
     },
     {
       "name": "ComposBenchmarkApp"
+    },
+    {
+      "name": "ComposHostTestCases"
     },
     {
       "name": "AVFHostTestCases"
