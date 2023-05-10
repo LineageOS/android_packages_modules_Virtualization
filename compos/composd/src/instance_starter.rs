@@ -98,17 +98,16 @@ impl InstanceStarter {
     ) -> Result<CompOsInstance> {
         info!("Creating {} CompOs instance", self.instance_name);
 
-        // Ignore failure here - the directory may already exist.
-        let _ = fs::create_dir(&self.instance_root);
+        fs::create_dir_all(&self.instance_root)?;
 
         // Overwrite any existing instance - it's unlikely to be valid with the current set
         // of APEXes, and finding out it isn't is much more expensive than creating a new one.
         self.create_instance_image(virtualization_service)?;
 
         // Delete existing idsig files. Ignore error in case idsig doesn't exist.
-        let _ = fs::remove_file(&self.idsig);
-        let _ = fs::remove_file(&self.idsig_manifest_apk);
-        let _ = fs::remove_file(&self.idsig_manifest_ext_apk);
+        let _ignored1 = fs::remove_file(&self.idsig);
+        let _ignored2 = fs::remove_file(&self.idsig_manifest_apk);
+        let _ignored3 = fs::remove_file(&self.idsig_manifest_ext_apk);
 
         let instance = self.start_vm(virtualization_service)?;
 
