@@ -33,6 +33,8 @@ extern "C" {
     pub static dtb_begin: u8;
     /// First byte beyond the `.dtb` section.
     pub static dtb_end: u8;
+    /// First byte of the region available for the exception handler stack.
+    pub static eh_stack_limit: u8;
     /// First byte past the region available for the stack.
     pub static init_stack_pointer: u8;
     /// First byte of the `.rodata` section.

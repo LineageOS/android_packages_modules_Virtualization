@@ -62,6 +62,17 @@ SECTIONS
 	} >image
 	rodata_end = .;
 
+	.eh_stack (NOLOAD) : ALIGN(4096) {
+		/*
+		 * Get stack overflow guard from the previous page being from
+		 * .rodata and mapped read-only or left unmapped.
+		 */
+		eh_stack_limit = .;
+		. += 4096;
+		. = ALIGN(4096);
+		init_eh_stack_pointer = .;
+	} >writable_data
+
 	/*
 	 * Collect together the read-write data including .bss at the end which
 	 * will be zero'd by the entry code. This is page aligned so it can be
@@ -93,6 +104,7 @@ SECTIONS
 
 	init_stack_pointer = ORIGIN(writable_data) + LENGTH(writable_data);
 	.stack (NOLOAD) : ALIGN(4096) {
+		. += 4096; /* Ensure we have one guard page for overflow. */
 		stack_limit = .;
 		. = init_stack_pointer;
 	} >writable_data
