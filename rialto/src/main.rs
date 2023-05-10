@@ -80,7 +80,6 @@ fn init_heap() {
     unsafe {
         HEAP_ALLOCATOR.lock().init(&mut HEAP as *mut u8 as usize, HEAP.len());
     }
-    info!("Initialized heap.");
 }
 
 fn init_kernel_pgt(pgt: &mut IdMap) -> Result<()> {
@@ -121,7 +120,6 @@ fn try_init_logger() -> Result<()> {
 
 fn try_main() -> Result<()> {
     info!("Welcome to Rialto!");
-    init_heap();
 
     let mut pgt = IdMap::new(PT_ASID, PT_ROOT_LEVEL);
     init_kernel_pgt(&mut pgt)?;
@@ -130,6 +128,7 @@ fn try_main() -> Result<()> {
 
 /// Entry point for Rialto.
 pub fn main(_a0: u64, _a1: u64, _a2: u64, _a3: u64) {
+    init_heap();
     if try_init_logger().is_err() {
         // Don't log anything if the logger initialization fails.
         reboot();
