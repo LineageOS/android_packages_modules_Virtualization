@@ -338,8 +338,8 @@ mod tests {
 
         scopeguard::defer! {
             loopdevice::detach(&data_device).unwrap();
-            _ = delete_device(&dm, device);
-            _ = delete_device(&dm, &device_diff);
+            let _ignored1 = delete_device(&dm, device);
+            let _ignored2 = delete_device(&dm, &device_diff);
         }
 
         let target = DmCryptTargetBuilder::default()
@@ -380,8 +380,8 @@ mod tests {
         let device_diff = device.to_owned() + "_diff";
         scopeguard::defer! {
             loopdevice::detach(&data_device).unwrap();
-            _ = delete_device(&dm, device);
-            _ = delete_device(&dm, &device_diff);
+            let _ignored1 = delete_device(&dm, device);
+            let _ignored2 = delete_device(&dm, &device_diff);
         }
 
         let target = DmCryptTargetBuilder::default()

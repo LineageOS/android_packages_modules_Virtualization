@@ -587,7 +587,7 @@ impl FileSystem for AuthFs {
 
         match delete_now {
             Ok(true) => {
-                let _ = inode_table.remove(&inode).expect("Removed an existing entry");
+                let _ignored = inode_table.remove(&inode).expect("Removed an existing entry");
             }
             Ok(false) => { /* Let the inode stay */ }
             Err(e) => {
