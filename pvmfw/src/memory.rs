@@ -23,8 +23,7 @@ use alloc::alloc::dealloc;
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use buddy_system_allocator::Heap;
-use buddy_system_allocator::LockedHeap;
+use buddy_system_allocator::{FrameAllocator, LockedFrameAllocator};
 use core::alloc::Layout;
 use core::cmp::max;
 use core::cmp::min;
@@ -144,7 +143,7 @@ impl From<hyp::Error> for MemoryTrackerError {
 
 type Result<T> = result::Result<T, MemoryTrackerError>;
 
-static SHARED_POOL: OnceBox<LockedHeap<32>> = OnceBox::new();
+static SHARED_POOL: OnceBox<LockedFrameAllocator<32>> = OnceBox::new();
 static SHARED_MEMORY: SpinMutex<Option<MemorySharer>> = SpinMutex::new(None);
 
 /// Allocates memory on the heap and shares it with the host.
@@ -164,7 +163,7 @@ impl MemorySharer {
     }
 
     /// Get from the global allocator a granule-aligned region that suits `hint` and share it.
-    pub fn refill(&mut self, pool: &mut Heap<32>, hint: Layout) {
+    pub fn refill(&mut self, pool: &mut FrameAllocator<32>, hint: Layout) {
         let layout = hint.align_to(self.granule).unwrap().pad_to_align();
         assert_ne!(layout.size(), 0);
         // SAFETY - layout has non-zero size.
@@ -181,8 +180,7 @@ impl MemorySharer {
         }
         self.shared_regions.push((base, layout));
 
-        // SAFETY - The underlying memory range is owned by self and reserved for this pool.
-        unsafe { pool.add_to_heap(base, end) };
+        pool.add_frame(base, end);
     }
 }
 
@@ -343,7 +341,7 @@ impl MemoryTracker {
         }
 
         SHARED_POOL
-            .set(Box::new(LockedHeap::empty()))
+            .set(Box::new(LockedFrameAllocator::new()))
             .map_err(|_| MemoryTrackerError::SharedPoolSetFailure)?;
 
         Ok(())
@@ -359,13 +357,9 @@ impl MemoryTracker {
     pub fn init_static_shared_pool(&mut self, range: Range<usize>) -> Result<()> {
         let size = NonZeroUsize::new(range.len()).unwrap();
         let range = self.alloc_mut(range.start, size)?;
-        let shared_pool = LockedHeap::<32>::new();
+        let shared_pool = LockedFrameAllocator::<32>::new();
 
-        // SAFETY - `range` should be a valid region of memory as validated by
-        // `validate_swiotlb_info` and not used by any other rust code.
-        unsafe {
-            shared_pool.lock().init(range.start, range.len());
-        }
+        shared_pool.lock().insert(range);
 
         SHARED_POOL
             .set(Box::new(shared_pool))
@@ -410,11 +404,11 @@ pub fn alloc_shared(layout: Layout) -> hyp::Result<NonNull<u8>> {
 fn try_shared_alloc(layout: Layout) -> Option<NonNull<u8>> {
     let mut shared_pool = SHARED_POOL.get().unwrap().lock();
 
-    if let Ok(buffer) = shared_pool.alloc(layout) {
-        Some(buffer)
+    if let Some(buffer) = shared_pool.alloc_aligned(layout) {
+        Some(NonNull::new(buffer as _).unwrap())
     } else if let Some(shared_memory) = SHARED_MEMORY.lock().as_mut() {
         shared_memory.refill(&mut shared_pool, layout);
-        shared_pool.alloc(layout).ok()
+        shared_pool.alloc_aligned(layout).map(|buffer| NonNull::new(buffer as _).unwrap())
     } else {
         None
     }
@@ -429,7 +423,7 @@ fn try_shared_alloc(layout: Layout) -> Option<NonNull<u8>> {
 /// The memory must have been allocated by `alloc_shared` with the same layout, and not yet
 /// deallocated.
 pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, layout: Layout) -> hyp::Result<()> {
-    SHARED_POOL.get().unwrap().lock().dealloc(vaddr, layout);
+    SHARED_POOL.get().unwrap().lock().dealloc_aligned(vaddr.as_ptr() as usize, layout);
 
     trace!("Deallocated shared buffer at {vaddr:?} with {layout:?}");
     Ok(())
