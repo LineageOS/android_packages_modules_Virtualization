@@ -176,7 +176,7 @@ fn wait_until_authfs_ready(child: &SharedChild, mountpoint: &OsStr) -> Result<()
             bail!("Child has exited: {}", exit_status);
         }
         if start_time.elapsed() > AUTHFS_SETUP_TIMEOUT_SEC {
-            let _ = child.kill();
+            let _ignored = child.kill();
             bail!("Time out mounting authfs");
         }
         sleep(AUTHFS_SETUP_POLL_INTERVAL_MS);

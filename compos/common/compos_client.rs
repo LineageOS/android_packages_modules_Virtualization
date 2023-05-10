@@ -164,7 +164,7 @@ impl ComposClient {
     /// relevant logs to be written.
     pub fn shutdown(self, service: Strong<dyn ICompOsService>) {
         info!("Requesting CompOS VM to shutdown");
-        let _ = service.quit(); // If this fails, the VM is probably dying anyway
+        let _ignored = service.quit(); // If this fails, the VM is probably dying anyway
         self.wait_for_shutdown();
     }
 
