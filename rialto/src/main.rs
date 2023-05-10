@@ -80,18 +80,21 @@ fn init_kernel_pgt(pgt: &mut IdMap) -> Result<()> {
     let reg_dev = MemoryRegion::new(0, SZ_1G);
     let reg_text = into_memreg(&layout::text_range());
     let reg_rodata = into_memreg(&layout::rodata_range());
-    let reg_data = into_memreg(&layout::writable_region());
+    let reg_scratch = into_memreg(&layout::scratch_range());
+    let reg_stack = into_memreg(&layout::boot_stack_range());
 
     debug!("Preparing kernel page table.");
     debug!("  dev:    {}-{}", reg_dev.start(), reg_dev.end());
     debug!("  text:   {}-{}", reg_text.start(), reg_text.end());
     debug!("  rodata: {}-{}", reg_rodata.start(), reg_rodata.end());
-    debug!("  data:   {}-{}", reg_data.start(), reg_data.end());
+    debug!("  scratch:{}-{}", reg_scratch.start(), reg_scratch.end());
+    debug!("  stack:  {}-{}", reg_stack.start(), reg_stack.end());
 
     pgt.map_range(&reg_dev, PROT_DEV)?;
     pgt.map_range(&reg_text, PROT_RX)?;
     pgt.map_range(&reg_rodata, PROT_RO)?;
-    pgt.map_range(&reg_data, PROT_RW)?;
+    pgt.map_range(&reg_scratch, PROT_RW)?;
+    pgt.map_range(&reg_stack, PROT_RW)?;
 
     pgt.activate();
     info!("Activated kernel page table.");

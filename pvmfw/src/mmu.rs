@@ -53,7 +53,8 @@ impl PageTable {
         let mut page_table = Self { idmap: IdMap::new(Self::ASID, Self::ROOT_LEVEL) };
 
         page_table.map_code(&layout::text_range())?;
-        page_table.map_data(&layout::writable_region())?;
+        page_table.map_data(&layout::scratch_range())?;
+        page_table.map_data(&layout::boot_stack_range())?;
         page_table.map_rodata(&layout::rodata_range())?;
         page_table.map_data(&appended_payload_range())?;
 
