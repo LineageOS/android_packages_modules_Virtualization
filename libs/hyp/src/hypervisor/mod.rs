@@ -17,12 +17,14 @@
 extern crate alloc;
 
 mod common;
+mod gunyah;
 mod kvm;
 
 use crate::error::{Error, Result};
 use alloc::boxed::Box;
 pub use common::Hypervisor;
 pub use common::HypervisorCap;
+use gunyah::GunyahHypervisor;
 pub use kvm::KvmError;
 use kvm::KvmHypervisor;
 use once_cell::race::OnceBox;
@@ -31,12 +33,14 @@ use uuid::Uuid;
 
 enum HypervisorBackend {
     Kvm,
+    Gunyah,
 }
 
 impl HypervisorBackend {
     fn get_hypervisor(&self) -> &'static dyn Hypervisor {
         match self {
             Self::Kvm => &KvmHypervisor,
+            Self::Gunyah => &GunyahHypervisor,
         }
     }
 }
@@ -46,6 +50,7 @@ impl TryFrom<Uuid> for HypervisorBackend {
 
     fn try_from(uuid: Uuid) -> Result<HypervisorBackend> {
         match uuid {
+            GunyahHypervisor::UUID => Ok(HypervisorBackend::Gunyah),
             KvmHypervisor::UUID => Ok(HypervisorBackend::Kvm),
             u => Err(Error::UnsupportedHypervisorUuid(u)),
         }
