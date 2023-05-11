@@ -31,7 +31,10 @@ rust_library {
 
 rust_test {
     name: "libdm_rust.test",
-    defaults: ["libdm_rust.defaults"],
+    defaults: [
+        "libdm_rust.defaults",
+        "ignorabletest.defaults",
+    ],
     test_suites: ["general-tests"],
     rustlibs: [
         "librustutils",
