@@ -19,11 +19,14 @@ use crate::crypto;
 use crate::fdt;
 use crate::heap;
 use crate::helpers;
+use crate::helpers::RangeExt as _;
 use crate::memory::{MemoryTracker, MEMORY};
 use crate::mmu;
 use crate::rand;
 use core::arch::asm;
+use core::mem::size_of;
 use core::num::NonZeroUsize;
+use core::ops::Range;
 use core::slice;
 use hyp::{get_hypervisor, HypervisorCap};
 use log::debug;
@@ -62,7 +65,7 @@ pub fn start(fdt_address: u64, payload_start: u64, payload_size: u64, _arg3: u64
     // - can't access MMIO (therefore, no logging)
 
     match main_wrapper(fdt_address as usize, payload_start as usize, payload_size as usize) {
-        Ok(entry) => jump_to_payload(fdt_address, entry.try_into().unwrap()),
+        Ok((entry, bcc)) => jump_to_payload(fdt_address, entry.try_into().unwrap(), bcc),
         Err(_) => reboot(), // TODO(b/220071963) propagate the reason back to the host.
     }
 
@@ -170,7 +173,11 @@ impl<'a> MemorySlices<'a> {
 ///
 /// Provide the abstractions necessary for start() to abort the pVM boot and for main() to run with
 /// the assumption that its environment has been properly configured.
-fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize, RebootReason> {
+fn main_wrapper(
+    fdt: usize,
+    payload: usize,
+    payload_size: usize,
+) -> Result<(usize, Range<usize>), RebootReason> {
     // Limitations in this function:
     // - only access MMIO once (and while) it has been mapped and configured
     // - only perform logging once the logger has been initialized
@@ -238,7 +245,7 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     })?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    crate::main(
+    let next_bcc = crate::main(
         slices.fdt,
         slices.kernel,
         slices.ramdisk,
@@ -261,10 +268,11 @@ fn main_wrapper(fdt: usize, payload: usize, payload_size: usize) -> Result<usize
     })?;
     MEMORY.lock().take().unwrap();
 
-    Ok(slices.kernel.as_ptr() as usize)
+    Ok((slices.kernel.as_ptr() as usize, next_bcc))
 }
 
-fn jump_to_payload(fdt_address: u64, payload_start: u64) -> ! {
+fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> ! {
+    const ASM_STP_ALIGN: usize = size_of::<u64>() * 2;
     const SCTLR_EL1_RES1: u64 = (0b11 << 28) | (0b101 << 20) | (0b1 << 11);
     // Stage 1 instruction access cacheability is unaffected.
     const SCTLR_EL1_I: u64 = 0b1 << 12;
@@ -275,12 +283,67 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64) -> ! {
 
     const SCTLR_EL1_VAL: u64 = SCTLR_EL1_RES1 | SCTLR_EL1_ITD | SCTLR_EL1_SED | SCTLR_EL1_I;
 
+    let scratch = layout::scratch_range();
+
+    assert_ne!(scratch.len(), 0, "scratch memory is empty.");
+    assert_eq!(scratch.start % ASM_STP_ALIGN, 0, "scratch memory is misaligned.");
+    assert_eq!(scratch.end % ASM_STP_ALIGN, 0, "scratch memory is misaligned.");
+
+    assert!(bcc.is_within(&scratch));
+    assert_eq!(bcc.start % ASM_STP_ALIGN, 0, "Misaligned guest BCC.");
+    assert_eq!(bcc.end % ASM_STP_ALIGN, 0, "Misaligned guest BCC.");
+
+    let stack = mmu::stack_range();
+
+    assert_ne!(stack.len(), 0, "stack region is empty.");
+    assert_eq!(stack.start % ASM_STP_ALIGN, 0, "Misaligned stack region.");
+    assert_eq!(stack.end % ASM_STP_ALIGN, 0, "Misaligned stack region.");
+
+    // Zero all memory that could hold secrets and that can't be safely written to from Rust.
     // Disable the exception vector, caches and page table and then jump to the payload at the
     // given address, passing it the given FDT pointer.
     //
     // SAFETY - We're exiting pvmfw by passing the register values we need to a noreturn asm!().
     unsafe {
         asm!(
+            "cmp {scratch}, {bcc}",
+            "b.hs 1f",
+
+            // Zero .data & .bss until BCC.
+            "0: stp xzr, xzr, [{scratch}], 16",
+            "cmp {scratch}, {bcc}",
+            "b.lo 0b",
+
+            "1:",
+            // Skip BCC.
+            "mov {scratch}, {bcc_end}",
+            "cmp {scratch}, {scratch_end}",
+            "b.hs 1f",
+
+            // Keep zeroing .data & .bss.
+            "0: stp xzr, xzr, [{scratch}], 16",
+            "cmp {scratch}, {scratch_end}",
+            "b.lo 0b",
+
+            "1:",
+            // Flush d-cache over .data & .bss (including BCC).
+            "0: dc cvau, {cache_line}",
+            "add {cache_line}, {cache_line}, {dcache_line_size}",
+            "cmp {cache_line}, {scratch_end}",
+            "b.lo 0b",
+
+            "mov {cache_line}, {stack}",
+            // Zero stack region.
+            "0: stp xzr, xzr, [{stack}], 16",
+            "cmp {stack}, {stack_end}",
+            "b.lo 0b",
+
+            // Flush d-cache over stack region.
+            "0: dc cvau, {cache_line}",
+            "add {cache_line}, {cache_line}, {dcache_line_size}",
+            "cmp {cache_line}, {stack_end}",
+            "b.lo 0b",
+
             "msr sctlr_el1, {sctlr_el1_val}",
             "isb",
             "mov x1, xzr",
@@ -313,13 +376,21 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64) -> ! {
             "mov x28, xzr",
             "mov x29, xzr",
             "msr ttbr0_el1, xzr",
-            "isb",
+            // Ensure that CMOs have completed before entering payload.
             "dsb nsh",
             "br x30",
             sctlr_el1_val = in(reg) SCTLR_EL1_VAL,
+            bcc = in(reg) u64::try_from(bcc.start).unwrap(),
+            bcc_end = in(reg) u64::try_from(bcc.end).unwrap(),
+            cache_line = in(reg) u64::try_from(scratch.start).unwrap(),
+            scratch = in(reg) u64::try_from(scratch.start).unwrap(),
+            scratch_end = in(reg) u64::try_from(scratch.end).unwrap(),
+            stack = in(reg) u64::try_from(stack.start).unwrap(),
+            stack_end = in(reg) u64::try_from(stack.end).unwrap(),
+            dcache_line_size = in(reg) u64::try_from(helpers::min_dcache_line_size()).unwrap(),
             in("x0") fdt_address,
             in("x30") payload_start,
-            options(nomem, noreturn, nostack),
+            options(noreturn),
         );
     };
 }
