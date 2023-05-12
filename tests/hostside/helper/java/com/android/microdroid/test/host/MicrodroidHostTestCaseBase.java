@@ -16,8 +16,11 @@
 
 package com.android.microdroid.test.host;
 
+import static com.android.microdroid.test.host.CommandResultSubject.assertThat;
+import static com.android.microdroid.test.host.CommandResultSubject.command_results;
 import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assume.assumeTrue;
@@ -108,13 +111,58 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         LogArchiver.archiveLogThenDelete(logs, device, remotePath, localName);
     }
 
-    // Run an arbitrary command in the host side and returns the result.
-    // Note failure is not an error.
+    // Run an arbitrary command in the host side and returns the result
+    public static String runOnHost(String... cmd) {
+        return runOnHostWithTimeout(10000, cmd);
+    }
+
+    // Same as runOnHost, but failure is not an error
     public static String tryRunOnHost(String... cmd) {
         final long timeout = 10000;
         CommandResult result = RunUtil.getDefault().runTimedCmd(timeout, cmd);
         return result.getStdout().trim();
     }
+
+    // Same as runOnHost, but with custom timeout
+    private static String runOnHostWithTimeout(long timeoutMillis, String... cmd) {
+        assertThat(timeoutMillis).isAtLeast(0);
+        CommandResult result = RunUtil.getDefault().runTimedCmd(timeoutMillis, cmd);
+        assertWithMessage("Host command `" + join(cmd) + "` did not succeed")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
+        return result.getStdout().trim();
+    }
+
+    // Run a shell command on Microdroid
+    public static String runOnMicrodroid(String... cmd) {
+        CommandResult result = runOnMicrodroidForResult(cmd);
+        assertWithMessage("Microdroid command `" + join(cmd) + "` did not succeed")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
+        return result.getStdout().trim();
+    }
+
+    // Same as runOnHost, but keeps retrying on error for maximum attempts times
+    // Each attempt with timeoutMs
+    public static String runOnHostRetryingOnFailure(long timeoutMs, int attempts, String... cmd) {
+        CommandResult result = RunUtil.getDefault()
+                .runTimedCmdRetry(timeoutMs,
+                        MICRODROID_COMMAND_RETRY_INTERVAL_MILLIS, attempts, cmd);
+        assertWithMessage("Command `" + Arrays.toString(cmd) + "` has failed")
+                .about(command_results())
+                .that(result)
+                .isSuccess();
+        return result.getStdout().trim();
+    }
+
+    public static CommandResult runOnMicrodroidForResult(String... cmd) {
+        final long timeoutMs = 30000; // 30 sec. Microdroid is extremely slow on GCE-on-CF.
+        return RunUtil.getDefault()
+                .runTimedCmd(timeoutMs, "adb", "-s", MICRODROID_SERIAL, "shell", join(cmd));
+    }
+
     private static String join(String... strs) {
         return String.join(" ", Arrays.asList(strs));
     }
@@ -146,5 +194,53 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         assertWithMessage("Package " + packageName + " not found")
                 .that(pathLine).startsWith("package:");
         return pathLine.substring("package:".length());
+    }
+
+    // Establish an adb connection to microdroid by letting Android forward the connection to
+    // microdroid. Wait until the connection is established and microdroid is booted.
+    public static void adbConnectToMicrodroid(ITestDevice androidDevice, String cid) {
+        long start = System.currentTimeMillis();
+        long timeoutMillis = MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES * 60 * 1000;
+        long elapsed = 0;
+
+        // In case there is a stale connection...
+        tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
+
+        final String serial = androidDevice.getSerialNumber();
+        final String from = "tcp:" + TEST_VM_ADB_PORT;
+        final String to = "vsock:" + cid + ":5555";
+        runOnHost("adb", "-s", serial, "forward", from, to);
+
+        boolean disconnected = true;
+        while (disconnected) {
+            elapsed = System.currentTimeMillis() - start;
+            timeoutMillis -= elapsed;
+            start = System.currentTimeMillis();
+            String ret = runOnHostWithTimeout(timeoutMillis, "adb", "connect", MICRODROID_SERIAL);
+            disconnected = ret.equals("failed to connect to " + MICRODROID_SERIAL);
+            if (disconnected) {
+                // adb demands us to disconnect if the prior connection was a failure.
+                // b/194375443: this somtimes fails, thus 'try*'.
+                tryRunOnHost("adb", "disconnect", MICRODROID_SERIAL);
+            }
+        }
+
+        elapsed = System.currentTimeMillis() - start;
+        timeoutMillis -= elapsed;
+        runOnHostWithTimeout(timeoutMillis, "adb", "-s", MICRODROID_SERIAL, "wait-for-device");
+
+        boolean dataAvailable = false;
+        while (!dataAvailable && timeoutMillis >= 0) {
+            elapsed = System.currentTimeMillis() - start;
+            timeoutMillis -= elapsed;
+            start = System.currentTimeMillis();
+            final String checkCmd = "if [ -d /data/local/tmp ]; then echo 1; fi";
+            dataAvailable = runOnMicrodroid(checkCmd).equals("1");
+        }
+
+        // Check if it actually booted by reading a sysprop.
+        assertThat(runOnMicrodroidForResult("getprop", "ro.hardware"))
+                .stdoutTrimmed()
+                .isEqualTo("microdroid");
     }
 }
