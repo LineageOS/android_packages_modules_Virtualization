@@ -61,8 +61,6 @@ pub struct loop_info64 {
 unsafe impl DataInit for loop_info64 {}
 
 bitflags! {
-    #[repr(transparent)]
-    #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
     pub struct Flag: u32 {
         const LO_FLAGS_READ_ONLY = 1 << 0;
         const LO_FLAGS_AUTOCLEAR = 1 << 2;
