@@ -470,8 +470,11 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         VmInfo vmInfo =
                 runMicrodroidWithResignedImages(
                         key, keyOverrides, /*isProtected=*/ false, /*updateBootconfigs=*/ true);
-        // Device online means that boot must have succeeded.
-        adbConnectToMicrodroid(getDevice(), vmInfo.mCid);
+        assertThatEventually(
+                100000,
+                () -> getDevice().pullFileContents(CONSOLE_PATH),
+                containsString("boot completed, time to run payload"));
+
         vmInfo.mProcess.destroy();
     }
 
