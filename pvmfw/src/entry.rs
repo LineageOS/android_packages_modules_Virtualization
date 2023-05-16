@@ -64,6 +64,9 @@ pub fn start(fdt_address: u64, payload_start: u64, payload_size: u64, _arg3: u64
     // - can't access non-pvmfw memory (only statically-mapped memory)
     // - can't access MMIO (therefore, no logging)
 
+    // SAFETY - This function should and will only be called once, here.
+    unsafe { heap::init() };
+
     match main_wrapper(fdt_address as usize, payload_start as usize, payload_size as usize) {
         Ok((entry, bcc)) => jump_to_payload(fdt_address, entry.try_into().unwrap(), bcc),
         Err(_) => reboot(), // TODO(b/220071963) propagate the reason back to the host.
@@ -187,9 +190,6 @@ fn main_wrapper(
     // - only access MMIO once (and while) it has been mapped and configured
     // - only perform logging once the logger has been initialized
     // - only access non-pvmfw memory once (and while) it has been mapped
-
-    // SAFETY - This function should and will only be called once, here.
-    unsafe { heap::init() };
 
     logger::init(LevelFilter::Info).map_err(|_| RebootReason::InternalError)?;
 
