@@ -86,7 +86,7 @@ fn handling_uart_exception(esr: Esr, far: usize) -> bool {
 }
 
 #[no_mangle]
-extern "C" fn sync_exception_current(_elr: u64, _spsr: u64) {
+extern "C" fn sync_exception_current(elr: u64, _spsr: u64) {
     // Disable logging in exception handler to prevent unsafe writes to UART.
     let _guard = logger::suppress();
     let esr: Esr = read_sysreg!("esr_el1").into();
@@ -97,7 +97,7 @@ extern "C" fn sync_exception_current(_elr: u64, _spsr: u64) {
         if !handling_uart_exception(esr, far) {
             eprintln!("sync_exception_current");
             eprintln!("{e}");
-            eprintln!("{esr}, far={far:#08x}");
+            eprintln!("{esr}, far={far:#08x}, elr={elr:#08x}");
         }
         reboot()
     }
