@@ -17,7 +17,6 @@
 use crate::cstr;
 use crate::helpers::flushed_zeroize;
 use core::ffi::c_void;
-use core::ffi::CStr;
 use core::mem::size_of;
 use core::slice;
 
