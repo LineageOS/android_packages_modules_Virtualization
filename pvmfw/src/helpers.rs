@@ -182,6 +182,6 @@ impl<T: PartialOrd> RangeExt for Range<T> {
 #[macro_export]
 macro_rules! cstr {
     ($str:literal) => {{
-        CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+        core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
     }};
 }
