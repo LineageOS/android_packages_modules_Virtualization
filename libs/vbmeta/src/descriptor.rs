@@ -14,20 +14,14 @@
 
 use avb_bindgen::{
     avb_descriptor_foreach, avb_descriptor_validate_and_byteswap,
-    avb_hashtree_descriptor_validate_and_byteswap, AvbDescriptor, AvbHashtreeDescriptor,
+    avb_hashtree_descriptor_validate_and_byteswap, AvbDescriptor, AvbDescriptorTag,
+    AvbHashtreeDescriptor,
 };
 use std::ffi::c_void;
 use std::mem::{size_of, MaybeUninit};
 use std::slice;
 
 use super::VbMetaImageParseError;
-
-// TODO: import these with bindgen
-const AVB_DESCRIPTOR_TAG_PROPERTY: u64 = 0;
-const AVB_DESCRIPTOR_TAG_HASHTREE: u64 = 1;
-const AVB_DESCRIPTOR_TAG_HASH: u64 = 2;
-const AVB_DESCRIPTOR_TAG_KERNEL_CMDLINE: u64 = 3;
-const AVB_DESCRIPTOR_TAG_CHAIN_PARTITION: u64 = 4;
 
 /// The descriptors from a VBMeta image.
 pub struct Descriptors<'a> {
@@ -72,12 +66,16 @@ impl Descriptors<'_> {
             };
             // SAFETY: this cast gets a reference to the Vec passed as the user_data below.
             let descriptors = unsafe { &mut *(user_data as *mut Vec<Descriptor>) };
-            descriptors.push(match desc.tag {
-                AVB_DESCRIPTOR_TAG_PROPERTY => Descriptor::Property(data),
-                AVB_DESCRIPTOR_TAG_HASHTREE => Descriptor::Hashtree(data),
-                AVB_DESCRIPTOR_TAG_HASH => Descriptor::Hash(data),
-                AVB_DESCRIPTOR_TAG_KERNEL_CMDLINE => Descriptor::KernelCmdline(data),
-                AVB_DESCRIPTOR_TAG_CHAIN_PARTITION => Descriptor::ChainPartition(data),
+            descriptors.push(match desc.tag.try_into() {
+                Ok(AvbDescriptorTag::AVB_DESCRIPTOR_TAG_PROPERTY) => Descriptor::Property(data),
+                Ok(AvbDescriptorTag::AVB_DESCRIPTOR_TAG_HASHTREE) => Descriptor::Hashtree(data),
+                Ok(AvbDescriptorTag::AVB_DESCRIPTOR_TAG_HASH) => Descriptor::Hash(data),
+                Ok(AvbDescriptorTag::AVB_DESCRIPTOR_TAG_KERNEL_CMDLINE) => {
+                    Descriptor::KernelCmdline(data)
+                }
+                Ok(AvbDescriptorTag::AVB_DESCRIPTOR_TAG_CHAIN_PARTITION) => {
+                    Descriptor::ChainPartition(data)
+                }
                 _ => Descriptor::Unknown,
             });
             true
