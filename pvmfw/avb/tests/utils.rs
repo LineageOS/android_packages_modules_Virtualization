@@ -116,6 +116,7 @@ pub fn assert_latest_payload_verification_passes(
         kernel_digest,
         initrd_digest,
         public_key: &public_key,
+        capabilities: vec![],
     };
     assert_eq!(expected_boot_data, verified_boot_data);
 
