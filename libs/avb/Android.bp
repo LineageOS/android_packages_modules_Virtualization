@@ -11,7 +11,9 @@ rust_defaults {
     source_stem: "bindings",
     bindgen_flags: [
         "--size_t-is-usize",
+        "--constified-enum-module AvbDescriptorTag",
         "--default-enum-style rust",
+        "--allowlist-type=AvbDescriptorTag",
         "--allowlist-function=.*",
         "--allowlist-var=AVB.*",
         "--use-core",
