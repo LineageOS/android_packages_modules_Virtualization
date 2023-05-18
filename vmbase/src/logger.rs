@@ -18,8 +18,6 @@
 //! Note: may not work if the VM is in an inconsistent state. Exception handlers
 //! should avoid using this logger and instead print with eprintln!.
 
-extern crate log;
-
 use crate::console::println;
 use core::sync::atomic::{AtomicBool, Ordering};
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
