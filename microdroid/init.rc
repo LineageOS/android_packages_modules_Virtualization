@@ -147,10 +147,11 @@ service apexd-vm /system/bin/apexd --vm
 
 service ueventd /system/bin/ueventd
     user root
+    group root
     class core
     critical
     seclabel u:r:ueventd:s0
-    capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID MKNOD NET_ADMIN SETGID SETUID SYS_MODULE SYS_RAWIO
+    capabilities CHOWN DAC_OVERRIDE DAC_READ_SEARCH FOWNER FSETID MKNOD NET_ADMIN SETGID SETUID SYS_MODULE SYS_RAWIO SYS_ADMIN
 
 service console /system/bin/sh
     class core
