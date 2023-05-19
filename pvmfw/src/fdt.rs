@@ -499,7 +499,7 @@ fn patch_swiotlb_info(fdt: &mut Fdt, swiotlb_info: &SwiotlbInfo) -> libfdt::Resu
         fdt.root_mut()?.next_compatible(cstr!("restricted-dma-pool"))?.ok_or(FdtError::NotFound)?;
 
     if let Some(range) = swiotlb_info.fixed_range() {
-        node.appendprop_addrrange(
+        node.setprop_addrrange_inplace(
             cstr!("reg"),
             range.start.try_into().unwrap(),
             range.len().try_into().unwrap(),
@@ -507,6 +507,7 @@ fn patch_swiotlb_info(fdt: &mut Fdt, swiotlb_info: &SwiotlbInfo) -> libfdt::Resu
         node.nop_property(cstr!("size"))?;
         node.nop_property(cstr!("alignment"))?;
     } else {
+        node.nop_property(cstr!("reg"))?;
         node.setprop_inplace(cstr!("size"), &swiotlb_info.size.to_be_bytes())?;
         node.setprop_inplace(cstr!("alignment"), &swiotlb_info.align.unwrap().to_be_bytes())?;
     }
