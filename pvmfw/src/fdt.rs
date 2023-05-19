@@ -440,7 +440,7 @@ fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<
 pub struct SwiotlbInfo {
     addr: Option<usize>,
     size: usize,
-    align: usize,
+    align: Option<usize>,
 }
 
 impl SwiotlbInfo {
@@ -452,17 +452,16 @@ impl SwiotlbInfo {
 fn read_swiotlb_info_from(fdt: &Fdt) -> libfdt::Result<SwiotlbInfo> {
     let node =
         fdt.compatible_nodes(cstr!("restricted-dma-pool"))?.next().ok_or(FdtError::NotFound)?;
-    let align =
-        node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?.try_into().unwrap();
 
-    let (addr, size) = if let Some(mut reg) = node.reg()? {
+    let (addr, size, align) = if let Some(mut reg) = node.reg()? {
         let reg = reg.next().ok_or(FdtError::NotFound)?;
         let size = reg.size.ok_or(FdtError::NotFound)?;
         reg.addr.checked_add(size).ok_or(FdtError::BadValue)?;
-        (Some(reg.addr.try_into().unwrap()), size.try_into().unwrap())
+        (Some(reg.addr.try_into().unwrap()), size.try_into().unwrap(), None)
     } else {
-        let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?.try_into().unwrap();
-        (None, size)
+        let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?;
+        let align = node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?;
+        (None, size.try_into().unwrap(), Some(align.try_into().unwrap()))
     };
 
     Ok(SwiotlbInfo { addr, size, align })
@@ -480,7 +479,7 @@ fn validate_swiotlb_info(
         return Err(RebootReason::InvalidFdt);
     }
 
-    if (align % GUEST_PAGE_SIZE) != 0 {
+    if let Some(align) = align.filter(|&a| a % GUEST_PAGE_SIZE != 0) {
         error!("Invalid swiotlb alignment {:#x}", align);
         return Err(RebootReason::InvalidFdt);
     }
@@ -498,7 +497,6 @@ fn validate_swiotlb_info(
 fn patch_swiotlb_info(fdt: &mut Fdt, swiotlb_info: &SwiotlbInfo) -> libfdt::Result<()> {
     let mut node =
         fdt.root_mut()?.next_compatible(cstr!("restricted-dma-pool"))?.ok_or(FdtError::NotFound)?;
-    node.setprop_inplace(cstr!("alignment"), &swiotlb_info.align.to_be_bytes())?;
 
     if let Some(range) = swiotlb_info.fixed_range() {
         node.appendprop_addrrange(
@@ -506,8 +504,11 @@ fn patch_swiotlb_info(fdt: &mut Fdt, swiotlb_info: &SwiotlbInfo) -> libfdt::Resu
             range.start.try_into().unwrap(),
             range.len().try_into().unwrap(),
         )?;
+        node.nop_property(cstr!("size"))?;
+        node.nop_property(cstr!("alignment"))?;
     } else {
         node.setprop_inplace(cstr!("size"), &swiotlb_info.size.to_be_bytes())?;
+        node.setprop_inplace(cstr!("alignment"), &swiotlb_info.align.unwrap().to_be_bytes())?;
     }
 
     Ok(())

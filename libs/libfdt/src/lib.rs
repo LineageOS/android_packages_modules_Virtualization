@@ -459,6 +459,17 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)
     }
 
+    /// Overwrite the given property with FDT_NOP, effectively removing it from the DT.
+    pub fn nop_property(&mut self, name: &CStr) -> Result<()> {
+        // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) when the
+        // library locates the node's property.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_nop_property(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
     /// Reduce the size of the given property to new_size
     pub fn trimprop(&mut self, name: &CStr, new_size: usize) -> Result<()> {
         let (prop, len) =
