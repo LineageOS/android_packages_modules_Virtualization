@@ -742,7 +742,7 @@ pub fn modify_for_next_stage(
     set_or_clear_chosen_flag(fdt, cstr!("avf,strict-boot"), strict_boot)?;
     set_or_clear_chosen_flag(fdt, cstr!("avf,new-instance"), new_instance)?;
 
-    if debuggable {
+    if !debuggable {
         if let Some(bootargs) = read_bootargs_from(fdt)? {
             filter_out_dangerous_bootargs(fdt, &bootargs)?;
         }
