@@ -14,7 +14,7 @@
 
 //! This module handles the pvmfw payload verification.
 
-use crate::descriptor::{Digest, HashDescriptors};
+use crate::descriptor::{Descriptors, Digest};
 use crate::error::AvbSlotVerifyError;
 use crate::ops::{Ops, Payload};
 use crate::partition::PartitionName;
@@ -63,9 +63,9 @@ fn verify_vbmeta_is_from_kernel_partition(
 }
 
 fn verify_vbmeta_has_only_one_hash_descriptor(
-    hash_descriptors: &HashDescriptors,
+    descriptors: &Descriptors,
 ) -> Result<(), AvbSlotVerifyError> {
-    if hash_descriptors.len() == 1 {
+    if descriptors.num_hash_descriptor() == 1 {
         Ok(())
     } else {
         Err(AvbSlotVerifyError::InvalidMetadata)
@@ -112,11 +112,11 @@ pub fn verify_payload<'a>(
     // SAFETY: It is safe because the `vbmeta_image` is collected from `AvbSlotVerifyData`,
     // which is returned by `avb_slot_verify()` when the verification succeeds. It is
     // guaranteed by libavb to be non-null and to point to a valid VBMeta structure.
-    let hash_descriptors = unsafe { HashDescriptors::from_vbmeta(vbmeta_image)? };
-    let kernel_descriptor = hash_descriptors.find(PartitionName::Kernel)?;
+    let descriptors = unsafe { Descriptors::from_vbmeta(vbmeta_image)? };
+    let kernel_descriptor = descriptors.find_hash_descriptor(PartitionName::Kernel)?;
 
     if initrd.is_none() {
-        verify_vbmeta_has_only_one_hash_descriptor(&hash_descriptors)?;
+        verify_vbmeta_has_only_one_hash_descriptor(&descriptors)?;
         return Ok(VerifiedBootData {
             debug_level: DebugLevel::None,
             kernel_digest: kernel_descriptor.digest,
@@ -140,7 +140,7 @@ pub fn verify_payload<'a>(
         initrd_partition_name,
         initrd.len(),
     )?;
-    let initrd_descriptor = hash_descriptors.find(initrd_partition_name)?;
+    let initrd_descriptor = descriptors.find_hash_descriptor(initrd_partition_name)?;
     Ok(VerifiedBootData {
         debug_level,
         kernel_digest: kernel_descriptor.digest,
