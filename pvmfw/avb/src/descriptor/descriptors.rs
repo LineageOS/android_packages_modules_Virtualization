@@ -28,11 +28,11 @@ use core::{
     slice,
 };
 
-pub(super) enum Descriptor {
-    Hash(HashDescriptor),
+pub(super) enum Descriptor<'a> {
+    Hash(HashDescriptor<'a>),
 }
 
-impl Descriptor {
+impl<'a> Descriptor<'a> {
     /// # Safety
     ///
     /// Behavior is undefined if any of the following conditions are violated:
@@ -119,22 +119,30 @@ unsafe fn get_valid_descriptor<T>(
     Ok(descriptor)
 }
 
-#[derive(Default)]
-pub(crate) struct HashDescriptor {
+pub(crate) struct HashDescriptor<'a> {
     pub(crate) partition_name: PartitionName,
-    pub(crate) digest: Digest,
+    pub(crate) digest: &'a Digest,
 }
 
-impl HashDescriptor {
-    fn new(desc: &HashDescriptorHeader, data: &[u8]) -> utils::Result<Self> {
+impl<'a> Default for HashDescriptor<'a> {
+    fn default() -> Self {
+        Self { partition_name: Default::default(), digest: &Self::EMPTY_DIGEST }
+    }
+}
+
+impl<'a> HashDescriptor<'a> {
+    const EMPTY_DIGEST: Digest = [0u8; 32];
+
+    fn new(desc: &HashDescriptorHeader, data: &'a [u8]) -> utils::Result<Self> {
         let partition_name = data
             .get(desc.partition_name_range()?)
             .ok_or(AvbIOError::RangeOutsidePartition)?
             .try_into()?;
-        let partition_digest =
-            data.get(desc.digest_range()?).ok_or(AvbIOError::RangeOutsidePartition)?;
-        let mut digest = [0u8; size_of::<Digest>()];
-        digest.copy_from_slice(partition_digest);
+        let digest = data
+            .get(desc.digest_range()?)
+            .ok_or(AvbIOError::RangeOutsidePartition)?
+            .try_into()
+            .map_err(|_| AvbIOError::InvalidValueSize)?;
         Ok(Self { partition_name, digest })
     }
 }
