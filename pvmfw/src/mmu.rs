@@ -26,8 +26,10 @@ use vmbase::layout;
 // We assume that:
 // - MAIR_EL1.Attr0 = "Device-nGnRE memory" (0b0000_0100)
 // - MAIR_EL1.Attr1 = "Normal memory, Outer & Inner WB Non-transient, R/W-Allocate" (0b1111_1111)
-const MEMORY: Attributes = Attributes::NORMAL.union(Attributes::NON_GLOBAL);
-const DEVICE: Attributes = Attributes::DEVICE_NGNRE.union(Attributes::EXECUTE_NEVER);
+const MEMORY: Attributes =
+    Attributes::NORMAL.union(Attributes::NON_GLOBAL).union(Attributes::VALID);
+const DEVICE: Attributes =
+    Attributes::DEVICE_NGNRE.union(Attributes::EXECUTE_NEVER).union(Attributes::VALID);
 const CODE: Attributes = MEMORY.union(Attributes::READ_ONLY);
 const DATA: Attributes = MEMORY.union(Attributes::EXECUTE_NEVER);
 const RODATA: Attributes = DATA.union(Attributes::READ_ONLY);
