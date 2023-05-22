@@ -32,11 +32,11 @@ pub type Digest = [u8; AVB_SHA256_DIGEST_SIZE as usize];
 /// `Descriptors` can have at most one `HashDescriptor` per known partition and at most one
 /// `PropertyDescriptor`.
 #[derive(Default)]
-pub(crate) struct Descriptors {
-    hash_descriptors: ArrayVec<[HashDescriptor; PartitionName::NUM_OF_KNOWN_PARTITIONS]>,
+pub(crate) struct Descriptors<'a> {
+    hash_descriptors: ArrayVec<[HashDescriptor<'a>; PartitionName::NUM_OF_KNOWN_PARTITIONS]>,
 }
 
-impl Descriptors {
+impl<'a> Descriptors<'a> {
     /// Builds `Descriptors` from `AvbVBMetaData`.
     /// Returns an error if the given `AvbVBMetaData` contains non-hash descriptor, hash
     /// descriptor of unknown `PartitionName` or duplicated hash descriptors.
@@ -80,13 +80,13 @@ impl Descriptors {
             .ok_or(AvbSlotVerifyError::InvalidMetadata)
     }
 
-    fn push(&mut self, descriptor: Descriptor) -> utils::Result<()> {
+    fn push(&mut self, descriptor: Descriptor<'a>) -> utils::Result<()> {
         match descriptor {
             Descriptor::Hash(d) => self.push_hash_descriptor(d),
         }
     }
 
-    fn push_hash_descriptor(&mut self, descriptor: HashDescriptor) -> utils::Result<()> {
+    fn push_hash_descriptor(&mut self, descriptor: HashDescriptor<'a>) -> utils::Result<()> {
         if self.hash_descriptors.iter().any(|d| d.partition_name == descriptor.partition_name) {
             return Err(AvbIOError::Io);
         }

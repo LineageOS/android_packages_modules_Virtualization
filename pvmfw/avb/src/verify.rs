@@ -119,7 +119,7 @@ pub fn verify_payload<'a>(
         verify_vbmeta_has_only_one_hash_descriptor(&descriptors)?;
         return Ok(VerifiedBootData {
             debug_level: DebugLevel::None,
-            kernel_digest: kernel_descriptor.digest,
+            kernel_digest: *kernel_descriptor.digest,
             initrd_digest: None,
             public_key: trusted_public_key,
         });
@@ -143,8 +143,8 @@ pub fn verify_payload<'a>(
     let initrd_descriptor = descriptors.find_hash_descriptor(initrd_partition_name)?;
     Ok(VerifiedBootData {
         debug_level,
-        kernel_digest: kernel_descriptor.digest,
-        initrd_digest: Some(initrd_descriptor.digest),
+        kernel_digest: *kernel_descriptor.digest,
+        initrd_digest: Some(*initrd_descriptor.digest),
         public_key: trusted_public_key,
     })
 }
