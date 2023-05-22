@@ -82,17 +82,23 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     check_alloc();
 
     let mut idmap = IdMap::new(ASID, ROOT_LEVEL);
-    idmap.map_range(&DEVICE_REGION, Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER).unwrap();
+    idmap
+        .map_range(
+            &DEVICE_REGION,
+            Attributes::VALID | Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER,
+        )
+        .unwrap();
     idmap
         .map_range(
             &text_range().into(),
-            Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::READ_ONLY,
+            Attributes::VALID | Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::READ_ONLY,
         )
         .unwrap();
     idmap
         .map_range(
             &rodata_range().into(),
-            Attributes::NORMAL
+            Attributes::VALID
+                | Attributes::NORMAL
                 | Attributes::NON_GLOBAL
                 | Attributes::READ_ONLY
                 | Attributes::EXECUTE_NEVER,
@@ -101,26 +107,36 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     idmap
         .map_range(
             &scratch_range().into(),
-            Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::EXECUTE_NEVER,
+            Attributes::VALID
+                | Attributes::NORMAL
+                | Attributes::NON_GLOBAL
+                | Attributes::EXECUTE_NEVER,
         )
         .unwrap();
     idmap
         .map_range(
             &boot_stack_range().into(),
-            Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::EXECUTE_NEVER,
+            Attributes::VALID
+                | Attributes::NORMAL
+                | Attributes::NON_GLOBAL
+                | Attributes::EXECUTE_NEVER,
         )
         .unwrap();
     idmap
         .map_range(
             &dtb_range().into(),
-            Attributes::NORMAL
+            Attributes::VALID
+                | Attributes::NORMAL
                 | Attributes::NON_GLOBAL
                 | Attributes::READ_ONLY
                 | Attributes::EXECUTE_NEVER,
         )
         .unwrap();
     idmap
-        .map_range(&get_bar_region(&pci_info), Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER)
+        .map_range(
+            &get_bar_region(&pci_info),
+            Attributes::VALID | Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER,
+        )
         .unwrap();
 
     info!("Activating IdMap...");
