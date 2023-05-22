@@ -44,21 +44,21 @@ const SZ_1G: usize = 1024 * SZ_1M;
 const PT_ROOT_LEVEL: usize = 1;
 const PT_ASID: usize = 1;
 
-const PROT_DEV: Attributes = Attributes::from_bits_truncate(
-    Attributes::DEVICE_NGNRE.bits() | Attributes::EXECUTE_NEVER.bits(),
-);
-const PROT_RX: Attributes = Attributes::from_bits_truncate(
-    Attributes::NORMAL.bits() | Attributes::NON_GLOBAL.bits() | Attributes::READ_ONLY.bits(),
-);
-const PROT_RO: Attributes = Attributes::from_bits_truncate(
-    Attributes::NORMAL.bits()
-        | Attributes::NON_GLOBAL.bits()
-        | Attributes::READ_ONLY.bits()
-        | Attributes::EXECUTE_NEVER.bits(),
-);
-const PROT_RW: Attributes = Attributes::from_bits_truncate(
-    Attributes::NORMAL.bits() | Attributes::NON_GLOBAL.bits() | Attributes::EXECUTE_NEVER.bits(),
-);
+const PROT_DEV: Attributes =
+    Attributes::DEVICE_NGNRE.union(Attributes::EXECUTE_NEVER).union(Attributes::VALID);
+const PROT_RX: Attributes = Attributes::NORMAL
+    .union(Attributes::NON_GLOBAL)
+    .union(Attributes::READ_ONLY)
+    .union(Attributes::VALID);
+const PROT_RO: Attributes = Attributes::NORMAL
+    .union(Attributes::NON_GLOBAL)
+    .union(Attributes::READ_ONLY)
+    .union(Attributes::EXECUTE_NEVER)
+    .union(Attributes::VALID);
+const PROT_RW: Attributes = Attributes::NORMAL
+    .union(Attributes::NON_GLOBAL)
+    .union(Attributes::EXECUTE_NEVER)
+    .union(Attributes::VALID);
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
