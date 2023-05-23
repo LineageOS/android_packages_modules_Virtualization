@@ -44,7 +44,7 @@ use crate::fdt::modify_for_next_stage;
 use crate::helpers::flush;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::instance::get_or_generate_instance_salt;
-use crate::memory::MemoryTracker;
+use crate::memory::MEMORY;
 use crate::virtio::pci;
 use alloc::boxed::Box;
 use core::ops::Range;
@@ -64,7 +64,6 @@ fn main(
     ramdisk: Option<&[u8]>,
     current_bcc_handover: &[u8],
     mut debug_policy: Option<&mut [u8]>,
-    memory: &mut MemoryTracker,
 ) -> Result<Range<usize>, RebootReason> {
     info!("pVM firmware");
     debug!("FDT: {:?}", fdt.as_ptr());
@@ -99,7 +98,7 @@ fn main(
     // Set up PCI bus for VirtIO devices.
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
-    let mut pci_root = pci::initialise(pci_info, memory)?;
+    let mut pci_root = pci::initialise(pci_info, MEMORY.lock().as_mut().unwrap())?;
 
     let verified_boot_data = verify_payload(signed_kernel, ramdisk, PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");

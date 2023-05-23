@@ -14,6 +14,7 @@
 
 //! Exception handlers.
 
+use crate::memory::{MemoryTrackerError, MEMORY};
 use crate::{helpers::page_4kb_of, read_sysreg};
 use core::fmt;
 use vmbase::console;
@@ -24,12 +25,24 @@ const UART_PAGE: usize = page_4kb_of(console::BASE_ADDRESS);
 
 #[derive(Debug)]
 enum HandleExceptionError {
+    PageTableUnavailable,
+    PageTableNotInitialized,
+    InternalError(MemoryTrackerError),
     UnknownException,
+}
+
+impl From<MemoryTrackerError> for HandleExceptionError {
+    fn from(other: MemoryTrackerError) -> Self {
+        Self::InternalError(other)
+    }
 }
 
 impl fmt::Display for HandleExceptionError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::PageTableUnavailable => write!(f, "Page table is not available."),
+            Self::PageTableNotInitialized => write!(f, "Page table is not initialized."),
+            Self::InternalError(e) => write!(f, "Error while updating page table: {e}"),
             Self::UnknownException => write!(f, "An unknown exception occurred, not handled."),
         }
     }
@@ -76,8 +89,17 @@ impl fmt::Display for Esr {
     }
 }
 
-fn handle_exception(_esr: Esr, _far: usize) -> Result<(), HandleExceptionError> {
-    Err(HandleExceptionError::UnknownException)
+fn handle_exception(esr: Esr, far: usize) -> Result<(), HandleExceptionError> {
+    // Handle all translation faults on both read and write, and MMIO guard map
+    // flagged invalid pages or blocks that caused the exception.
+    match esr {
+        Esr::DataAbortTranslationFault => {
+            let mut locked = MEMORY.try_lock().ok_or(HandleExceptionError::PageTableUnavailable)?;
+            let memory = locked.as_mut().ok_or(HandleExceptionError::PageTableNotInitialized)?;
+            Ok(memory.handle_mmio_fault(far)?)
+        }
+        _ => Err(HandleExceptionError::UnknownException),
+    }
 }
 
 #[inline]
