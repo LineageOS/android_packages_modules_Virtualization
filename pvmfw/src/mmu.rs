@@ -17,19 +17,22 @@
 use crate::helpers;
 use crate::helpers::PVMFW_PAGE_SIZE;
 use aarch64_paging::idmap::IdMap;
-use aarch64_paging::paging::Attributes;
-use aarch64_paging::paging::MemoryRegion;
+use aarch64_paging::paging::{Attributes, MemoryRegion, PteUpdater};
 use aarch64_paging::MapError;
 use core::ops::Range;
 use vmbase::layout;
+
+/// Software bit used to indicate a device that should be lazily mapped.
+pub const MMIO_LAZY_MAP_FLAG: Attributes = Attributes::SWFLAG_0;
 
 // We assume that:
 // - MAIR_EL1.Attr0 = "Device-nGnRE memory" (0b0000_0100)
 // - MAIR_EL1.Attr1 = "Normal memory, Outer & Inner WB Non-transient, R/W-Allocate" (0b1111_1111)
 const MEMORY: Attributes =
-    Attributes::NORMAL.union(Attributes::NON_GLOBAL).union(Attributes::VALID);
-const DEVICE: Attributes =
-    Attributes::DEVICE_NGNRE.union(Attributes::EXECUTE_NEVER).union(Attributes::VALID);
+    Attributes::VALID.union(Attributes::NORMAL).union(Attributes::NON_GLOBAL);
+const DEVICE_LAZY: Attributes =
+    MMIO_LAZY_MAP_FLAG.union(Attributes::DEVICE_NGNRE).union(Attributes::EXECUTE_NEVER);
+const DEVICE: Attributes = DEVICE_LAZY.union(Attributes::VALID);
 const CODE: Attributes = MEMORY.union(Attributes::READ_ONLY);
 const DATA: Attributes = MEMORY.union(Attributes::EXECUTE_NEVER);
 const RODATA: Attributes = DATA.union(Attributes::READ_ONLY);
@@ -75,6 +78,10 @@ impl PageTable {
         self.idmap.activate()
     }
 
+    pub fn map_device_lazy(&mut self, range: &Range<usize>) -> Result<(), MapError> {
+        self.map_range(range, DEVICE_LAZY)
+    }
+
     pub fn map_device(&mut self, range: &Range<usize>) -> Result<(), MapError> {
         self.map_range(range, DEVICE)
     }
@@ -93,5 +100,9 @@ impl PageTable {
 
     fn map_range(&mut self, range: &Range<usize>, attr: Attributes) -> Result<(), MapError> {
         self.idmap.map_range(&MemoryRegion::new(range.start, range.end), attr)
+    }
+
+    pub fn modify_range(&mut self, range: &Range<usize>, f: &PteUpdater) -> Result<(), MapError> {
+        self.idmap.modify_range(&MemoryRegion::new(range.start, range.end), f)
     }
 }
