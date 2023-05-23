@@ -37,6 +37,7 @@
 		ranges;
 		swiotlb: restricted_dma_reserved {
 			compatible = "restricted-dma-pool";
+			reg = <PLACEHOLDER4>;
 			size = <PLACEHOLDER2>;
 			alignment = <PLACEHOLDER2>;
 		};
