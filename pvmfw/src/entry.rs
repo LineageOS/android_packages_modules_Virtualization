@@ -250,14 +250,7 @@ fn main_wrapper(
     })?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    let next_bcc = crate::main(
-        slices.fdt,
-        slices.kernel,
-        slices.ramdisk,
-        bcc_slice,
-        debug_policy,
-        MEMORY.lock().as_mut().unwrap(),
-    )?;
+    let next_bcc = crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, debug_policy)?;
 
     helpers::flushed_zeroize(bcc_slice);
 
