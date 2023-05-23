@@ -26,6 +26,7 @@ use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
 use core::mem;
 use core::result;
+use zerocopy::AsBytes as _;
 
 /// Error type corresponding to libfdt error codes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -441,6 +442,13 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)
     }
 
+    /// Replace the value of the given (address, size) pair property with the given value, and
+    /// ensure that the given value has the same length as the current value length
+    pub fn setprop_addrrange_inplace(&mut self, name: &CStr, addr: u64, size: u64) -> Result<()> {
+        let pair = [addr.to_be(), size.to_be()];
+        self.setprop_inplace(name, pair.as_bytes())
+    }
+
     /// Create or change a flag-like empty property.
     pub fn setprop_empty(&mut self, name: &CStr) -> Result<()> {
         self.setprop(name, &[])
@@ -454,6 +462,17 @@ impl<'a> FdtNodeMut<'a> {
         // being called when FdtNode instances are in use.
         let ret = unsafe {
             libfdt_bindgen::fdt_delprop(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
+        };
+
+        fdt_err_expect_zero(ret)
+    }
+
+    /// Overwrite the given property with FDT_NOP, effectively removing it from the DT.
+    pub fn nop_property(&mut self, name: &CStr) -> Result<()> {
+        // SAFETY - Accesses are constrained to the DT totalsize (validated by ctor) when the
+        // library locates the node's property.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_nop_property(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
         };
 
         fdt_err_expect_zero(ret)
