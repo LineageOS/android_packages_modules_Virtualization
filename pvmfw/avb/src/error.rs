@@ -39,6 +39,8 @@ pub enum AvbSlotVerifyError {
     UnsupportedVersion,
     /// AVB_SLOT_VERIFY_RESULT_ERROR_VERIFICATION
     Verification,
+    /// VBMeta has invalid descriptors.
+    InvalidDescriptors(AvbIOError),
 }
 
 impl fmt::Display for AvbSlotVerifyError {
@@ -55,6 +57,9 @@ impl fmt::Display for AvbSlotVerifyError {
                 "Some of the metadata requires a newer version of libavb than what is in use."
             ),
             Self::Verification => write!(f, "Data does not verify."),
+            Self::InvalidDescriptors(e) => {
+                write!(f, "VBMeta has invalid descriptors. Error: {:?}", e)
+            }
         }
     }
 }
@@ -87,8 +92,9 @@ pub(crate) fn slot_verify_result_to_verify_payload_result(
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum AvbIOError {
+/// AVB IO Error.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AvbIOError {
     /// AVB_IO_RESULT_ERROR_OOM,
     #[allow(dead_code)]
     Oom,
