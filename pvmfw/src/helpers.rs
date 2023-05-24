@@ -187,6 +187,16 @@ macro_rules! cstr {
     }};
 }
 
+/// Returns `true` if hardware dirty state management is available.
+pub fn dbm_available() -> bool {
+    if !cfg!(feature = "cpu_feat_hafdbs") {
+        return false;
+    }
+    // Hardware dirty bit management available flag (ID_AA64MMFR1_EL1.HAFDBS[1])
+    const DBM_AVAILABLE: usize = 1 << 1;
+    read_sysreg!("id_aa64mmfr1_el1") & DBM_AVAILABLE != 0
+}
+
 /// Executes a data synchronization barrier.
 #[macro_export]
 macro_rules! dsb {
