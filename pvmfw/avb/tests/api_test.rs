@@ -18,7 +18,7 @@ mod utils;
 
 use anyhow::{anyhow, Result};
 use avb_bindgen::{AvbFooter, AvbVBMetaImageHeader};
-use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel, VerifiedBootData};
+use pvmfw_avb::{verify_payload, AvbIOError, AvbSlotVerifyError, DebugLevel, VerifiedBootData};
 use std::{fs, mem::size_of, ptr};
 use utils::*;
 
@@ -79,7 +79,7 @@ fn payload_with_non_initrd_descriptor_fails_verification_with_no_initrd() -> Res
         &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        AvbSlotVerifyError::InvalidMetadata,
+        AvbSlotVerifyError::InvalidDescriptors(AvbIOError::NoSuchPartition),
     )
 }
 
@@ -89,7 +89,7 @@ fn payload_with_non_initrd_descriptor_fails_verification_with_initrd() -> Result
         &fs::read(TEST_IMG_WITH_INITRD_AND_NON_INITRD_DESC_PATH)?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        AvbSlotVerifyError::InvalidMetadata,
+        AvbSlotVerifyError::InvalidDescriptors(AvbIOError::NoSuchPartition),
     )
 }
 
@@ -99,7 +99,7 @@ fn payload_with_prop_descriptor_fails_verification_with_no_initrd() -> Result<()
         &fs::read(TEST_IMG_WITH_PROP_DESC_PATH)?,
         /*initrd=*/ None,
         &load_trusted_public_key()?,
-        AvbSlotVerifyError::InvalidMetadata,
+        AvbSlotVerifyError::InvalidDescriptors(AvbIOError::NoSuchValue),
     )
 }
 
