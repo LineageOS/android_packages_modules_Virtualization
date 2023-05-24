@@ -12,6 +12,7 @@ rust_ffi_static {
     flags: ["-Dunsafe_op_in_unsafe_fn"],
     features: [
         "legacy",
+        "cpu_feat_hafdbs",
     ],
     rustlibs: [
         "libaarch64_paging",
