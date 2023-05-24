@@ -24,7 +24,7 @@ use crate::memory::{MemoryTracker, MEMORY};
 use crate::mmu;
 use crate::rand;
 use core::arch::asm;
-use core::mem::size_of;
+use core::mem::{drop, size_of};
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::slice;
@@ -208,8 +208,6 @@ fn main_wrapper(
     // script prevents it from overlapping with other objects.
     let appended_data = unsafe { get_appended_data_slice() };
 
-    // Up to this point, we were using the built-in static (from .rodata) page tables.
-
     let mut page_table = mmu::PageTable::from_static_layout().map_err(|e| {
         error!("Failed to set up the dynamic page tables: {e}");
         RebootReason::InternalError
@@ -231,13 +229,9 @@ fn main_wrapper(
 
     let (bcc_slice, debug_policy) = appended.get_entries();
 
-    debug!("Activating dynamic page table...");
-    // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
-    // aware of so activating it shouldn't have any visible effect.
-    unsafe { page_table.activate() };
-    debug!("... Success!");
-
+    // Up to this point, we were using the built-in static (from .rodata) page tables.
     MEMORY.lock().replace(MemoryTracker::new(page_table));
+
     let slices = MemorySlices::new(fdt, payload, payload_size)?;
 
     rand::init().map_err(|e| {
@@ -262,7 +256,9 @@ fn main_wrapper(
         error!("Failed to unshare the UART: {e}");
         RebootReason::InternalError
     })?;
-    MEMORY.lock().take().unwrap();
+
+    // Drop MemoryTracker and deactivate page table.
+    drop(MEMORY.lock().take());
 
     Ok((slices.kernel.as_ptr() as usize, next_bcc))
 }
