@@ -31,4 +31,18 @@ rust_fuzz {
     },
 }
 
-// TODO(b/260574387): Add avb_kernel_with_footer_verify_fuzzer
+rust_fuzz {
+    name: "avb_kernel_with_footer_verify_fuzzer",
+    srcs: ["with_footer_verify_fuzzer.rs"],
+    rustlibs: [
+        "libpvmfw_avb_nostd",
+        "libavb_bindgen_nostd",
+    ],
+    fuzz_config: {
+        cc: [
+            "android-kvm@google.com",
+        ],
+        fuzz_on_haiku_device: true,
+        fuzz_on_haiku_host: true,
+    },
+}
