@@ -104,24 +104,23 @@ unsafe extern "C" fn check_and_save_descriptor(
     descriptor: *const AvbDescriptor,
     user_data: *mut c_void,
 ) -> bool {
-    let res = user_data as *mut Result<Descriptors, AvbIOError>;
     // SAFETY: It is safe because the caller ensures that `user_data` points to a valid struct and
     // is initialized.
-    let Some(Ok(descriptors)) = (unsafe { res.as_mut() }) else {
+    let Some(res) = (unsafe { (user_data as *mut Result<Descriptors, AvbIOError>).as_mut() }) else {
+        return false;
+    };
+    let Ok(descriptors) = res else {
         return false;
     };
     // SAFETY: It is safe because the caller ensures that the `descriptor` pointer is non-null
     // and valid.
-    if let Err(e) = unsafe { try_check_and_save_descriptor(descriptor, descriptors) } {
-        // SAFETY: It is safe because the caller ensures that `user_data` points to a valid
-        // `Result<Descriptors, AvbIOError>` struct and has no other user when this is called.
-        unsafe {
+    unsafe { try_check_and_save_descriptor(descriptor, descriptors) }.map_or_else(
+        |e| {
             *res = Err(e);
-        }
-        false
-    } else {
-        true
-    }
+            false
+        },
+        |_| true,
+    )
 }
 
 /// # Safety
