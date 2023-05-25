@@ -23,6 +23,7 @@ use binder::{Interface, BinderFeatures, ExceptionCode, Status, Strong};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
 use log::{error, info};
 use rpcbinder::RpcServer;
+use std::os::unix::io::OwnedFd;
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
@@ -101,16 +102,14 @@ pub(crate) fn register_vm_payload_service(
     allow_restricted_apis: bool,
     vm_service: Strong<dyn IVirtualMachineService>,
     dice: OwnedDiceArtifacts,
+    vm_payload_service_fd: OwnedFd,
 ) -> Result<()> {
     let vm_payload_binder = BnVmPayloadService::new_binder(
         VmPayloadService::new(allow_restricted_apis, vm_service, dice),
         BinderFeatures::default(),
     );
 
-    let server = RpcServer::new_init_unix_domain(
-        vm_payload_binder.as_binder(),
-        VM_PAYLOAD_SERVICE_SOCKET_NAME,
-    )?;
+    let server = RpcServer::new_bound_socket(vm_payload_binder.as_binder(), vm_payload_service_fd)?;
     info!("The RPC server '{}' is running.", VM_PAYLOAD_SERVICE_SOCKET_NAME);
 
     // Move server reference into a background thread and run it forever.
