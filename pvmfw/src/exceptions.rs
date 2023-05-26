@@ -14,11 +14,12 @@
 
 //! Exception handlers.
 
+use crate::helpers::page_4kb_of;
 use crate::memory::{MemoryTrackerError, MEMORY};
-use crate::{helpers::page_4kb_of, read_sysreg};
 use core::fmt;
 use vmbase::console;
 use vmbase::logger;
+use vmbase::read_sysreg;
 use vmbase::{eprintln, power::reboot};
 
 const UART_PAGE: usize = page_4kb_of(console::BASE_ADDRESS);
