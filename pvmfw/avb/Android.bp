@@ -42,6 +42,10 @@ rust_test {
         ":test_image_with_non_initrd_hashdesc",
         ":test_image_with_initrd_and_non_initrd_desc",
         ":test_image_with_prop_desc",
+        ":test_image_with_service_vm_prop",
+        ":test_image_with_unknown_vm_type_prop",
+        ":test_image_with_multiple_props",
+        ":test_image_with_duplicated_capability",
         ":unsigned_test_image",
     ],
     prefer_rlib: true,
@@ -122,6 +126,66 @@ avb_add_hash_footer {
         {
             name: "mock_prop",
             value: "3333",
+        },
+    ],
+}
+
+avb_add_hash_footer {
+    name: "test_image_with_service_vm_prop",
+    src: ":unsigned_test_image",
+    partition_name: "boot",
+    private_key: ":pvmfw_sign_key",
+    salt: "2131",
+    props: [
+        {
+            name: "com.android.virt.cap",
+            value: "remote_attest",
+        },
+    ],
+}
+
+avb_add_hash_footer {
+    name: "test_image_with_unknown_vm_type_prop",
+    src: ":unsigned_test_image",
+    partition_name: "boot",
+    private_key: ":pvmfw_sign_key",
+    salt: "2132",
+    props: [
+        {
+            name: "com.android.virt.cap",
+            value: "foo",
+        },
+    ],
+}
+
+avb_add_hash_footer {
+    name: "test_image_with_multiple_props",
+    src: ":unsigned_test_image",
+    partition_name: "boot",
+    private_key: ":pvmfw_sign_key",
+    salt: "2133",
+    props: [
+        {
+            name: "com.android.virt.cap",
+            value: "remote_attest",
+        },
+        {
+            name: "another_vm_type",
+            value: "foo_vm",
+        },
+    ],
+}
+
+avb_add_hash_footer {
+    name: "test_image_with_duplicated_capability",
+    src: ":unsigned_test_image",
+    partition_name: "boot",
+    private_key: ":pvmfw_sign_key",
+    salt: "2134",
+    props: [
+        {
+            name: "com.android.virt.cap",
+            value: "remote_attest|remote_attest|remote_attest",
         },
     ],
 }
