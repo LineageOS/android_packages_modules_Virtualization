@@ -41,6 +41,8 @@ pub enum AvbSlotVerifyError {
     Verification,
     /// VBMeta has invalid descriptors.
     InvalidDescriptors(AvbIOError),
+    /// Unknown vbmeta property
+    UnknownVbmetaProperty,
 }
 
 impl fmt::Display for AvbSlotVerifyError {
@@ -60,6 +62,7 @@ impl fmt::Display for AvbSlotVerifyError {
             Self::InvalidDescriptors(e) => {
                 write!(f, "VBMeta has invalid descriptors. Error: {:?}", e)
             }
+            Self::UnknownVbmetaProperty => write!(f, "Unknown vbmeta property"),
         }
     }
 }
