@@ -149,20 +149,39 @@ prebuilt_etc {
     installable: false,
 }
 
-// platform.dts is passed to clang for macro preprocessing, and then compiled to dtbo using dtc.
-// The raw content of the dtbo file is then written as a Rust byte array.
+// We need to rename *.dts into *.cpp as cc_object doesn't accept *.dts as an
+// input
 genrule {
-    name: "pvmfw_fdt_template_rs",
-    srcs: [
-        "platform.dts",
-        ":arm_dt_bindings_headers", // implicit dependency
+    name: "pvmfw_platform.dts.renamed",
+    srcs: ["platform.dts"],
+    out: ["out.cpp"],
+    cmd: "cp $(in) $(out)",
+    visibility: ["//visibility:private"],
+}
+
+// Then run the macro processor to replace symbols like GIC_SPI into actual
+// numbers defined in the ARM DT binding headers
+cc_object {
+    name: "pvmfw_platform.dts.preprocessed",
+    header_libs: ["arm_dt_bindings_headers"],
+    host_supported: true,
+    srcs: [":pvmfw_platform.dts.renamed"],
+    cflags: [
+        "-E",
+        "-P",
+        "-xassembler-with-cpp", // allow C preprocessor directives
     ],
+    visibility: ["//visibility:private"],
+}
+
+// Compile the preprocessed dts into binary and create a rust library source
+// having the binary.
+cc_genrule {
+    name: "pvmfw_fdt_template_rs",
+    srcs: [":pvmfw_platform.dts.preprocessed"],
     out: ["lib.rs"],
     tools: ["dtc"],
-    cmd: "prebuilts/clang/host/linux-x86/clang-r487747c/bin/clang " + // UGLY!!!
-        "-E -P -x assembler-with-cpp -I external/arm-trusted-firmware/include " +
-        "-o $(genDir)/preprocessed.dts $(location platform.dts) && " +
-        "$(location dtc) -I dts -O dtb -o $(genDir)/compiled.dtbo $(genDir)/preprocessed.dts && " +
+    cmd: "$(location dtc) -I dts -O dtb -o $(genDir)/compiled.dtbo $(in) && " +
         "(" +
         "    echo '#![no_std]';" +
         "    echo '#![allow(missing_docs)]';" +
@@ -170,6 +189,7 @@ genrule {
         "    xxd -i < $(genDir)/compiled.dtbo;" +
         "    echo '];';" +
         ") > $(out)",
+    visibility: ["//visibility:private"],
 }
 
 rust_library_rlib {
