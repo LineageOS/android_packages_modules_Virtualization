@@ -53,6 +53,7 @@ use fdtpci::{PciError, PciInfo};
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn};
 use pvmfw_avb::verify_payload;
+use pvmfw_avb::Capability;
 use pvmfw_avb::DebugLevel;
 use pvmfw_embedded_key::PUBLIC_KEY;
 
@@ -104,6 +105,10 @@ fn main(
         error!("Failed to verify the payload: {e}");
         RebootReason::PayloadVerificationError
     })?;
+
+    if verified_boot_data.capabilities.contains(&Capability::RemoteAttest) {
+        info!("Service VM capable of remote attestation detected");
+    }
 
     let next_bcc = heap::aligned_boxed_slice(NEXT_BCC_SIZE, GUEST_PAGE_SIZE).ok_or_else(|| {
         error!("Failed to allocate the next-stage BCC");

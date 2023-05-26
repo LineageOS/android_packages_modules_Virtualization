@@ -17,6 +17,7 @@
 mod collection;
 mod common;
 mod hash;
+mod property;
 
 pub(crate) use collection::Descriptors;
 pub use hash::Digest;
