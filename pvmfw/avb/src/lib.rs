@@ -16,6 +16,8 @@
 
 #![cfg_attr(not(test), no_std)]
 
+extern crate alloc;
+
 mod descriptor;
 mod error;
 mod ops;
@@ -25,4 +27,4 @@ mod verify;
 
 pub use descriptor::Digest;
 pub use error::{AvbIOError, AvbSlotVerifyError};
-pub use verify::{verify_payload, DebugLevel, VerifiedBootData};
+pub use verify::{verify_payload, Capability, DebugLevel, VerifiedBootData};
