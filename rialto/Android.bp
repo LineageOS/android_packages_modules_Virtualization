@@ -12,6 +12,8 @@ rust_ffi_static {
         "libaarch64_paging",
         "libbuddy_system_allocator",
         "libhyp",
+        "libfdtpci",
+        "liblibfdt",
         "liblog_rust_nostd",
         "libvmbase",
     ],
