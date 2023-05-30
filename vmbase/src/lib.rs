@@ -16,6 +16,7 @@
 
 #![no_std]
 
+pub mod arch;
 mod bionic;
 pub mod console;
 mod entry;
