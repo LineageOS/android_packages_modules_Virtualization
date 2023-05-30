@@ -106,14 +106,14 @@ impl<'a> Iterator for BootArgsIterator<'a> {
 }
 
 #[cfg(test)]
-#[allow(dead_code)]
-mod helpers;
-
-#[cfg(test)]
 mod tests {
-
     use super::*;
-    use crate::cstr;
+
+    macro_rules! cstr {
+        ($str:literal) => {{
+            core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+        }};
+    }
 
     fn check(raw: &CStr, expected: Result<&[(&str, Option<&str>)], ()>) {
         let actual = BootArgsIterator::new(raw);

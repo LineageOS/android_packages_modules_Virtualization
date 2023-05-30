@@ -18,7 +18,6 @@
 
 use crate::helpers::{self, dbm_available, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
 use crate::mmu;
-use crate::{dsb, isb, read_sysreg, tlbi, write_sysreg};
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
@@ -41,6 +40,7 @@ use log::{debug, error};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
+use vmbase::{dsb, isb, read_sysreg, tlbi, write_sysreg};
 
 /// Base of the system's contiguous "main" memory.
 pub const BASE_ADDR: usize = 0x8000_0000;
