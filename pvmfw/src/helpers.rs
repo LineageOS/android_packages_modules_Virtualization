@@ -16,6 +16,7 @@
 
 use core::arch::asm;
 use core::ops::Range;
+use vmbase::read_sysreg;
 use zeroize::Zeroize;
 
 pub const SIZE_4KB: usize = 4 << 10;
@@ -24,41 +25,6 @@ pub const SIZE_4MB: usize = 4 << 20;
 
 pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
 pub const PVMFW_PAGE_SIZE: usize = SIZE_4KB;
-
-/// Read a value from a system register.
-#[macro_export]
-macro_rules! read_sysreg {
-    ($sysreg:literal) => {{
-        let mut r: usize;
-        // Safe because it reads a system register and does not affect Rust.
-        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
-        unsafe {
-            core::arch::asm!(
-                concat!("mrs {}, ", $sysreg),
-                out(reg) r,
-                options(nomem, nostack, preserves_flags),
-            )
-        }
-        r
-    }};
-}
-
-/// Write a value to a system register.
-///
-/// # Safety
-///
-/// Callers must ensure that side effects of updating the system register are properly handled.
-#[macro_export]
-macro_rules! write_sysreg {
-    ($sysreg:literal, $val:expr) => {{
-        let value: usize = $val;
-        core::arch::asm!(
-            concat!("msr ", $sysreg, ", {}"),
-            in(reg) value,
-            options(nomem, nostack, preserves_flags),
-        )
-    }};
-}
 
 /// Computes the largest multiple of the provided alignment smaller or equal to the address.
 ///
@@ -195,47 +161,4 @@ pub fn dbm_available() -> bool {
     // Hardware dirty bit management available flag (ID_AA64MMFR1_EL1.HAFDBS[1])
     const DBM_AVAILABLE: usize = 1 << 1;
     read_sysreg!("id_aa64mmfr1_el1") & DBM_AVAILABLE != 0
-}
-
-/// Executes a data synchronization barrier.
-#[macro_export]
-macro_rules! dsb {
-    ($option:literal) => {{
-        // Safe because this is just a memory barrier and does not affect Rust.
-        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
-        unsafe {
-            core::arch::asm!(concat!("dsb ", $option), options(nomem, nostack, preserves_flags));
-        }
-    }};
-}
-
-/// Executes an instruction synchronization barrier.
-#[macro_export]
-macro_rules! isb {
-    () => {{
-        // Safe because this is just a memory barrier and does not affect Rust.
-        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
-        unsafe {
-            core::arch::asm!("isb", options(nomem, nostack, preserves_flags));
-        }
-    }};
-}
-
-/// Invalidates cached leaf PTE entries by virtual address.
-#[macro_export]
-macro_rules! tlbi {
-    ($option:literal, $asid:expr, $addr:expr) => {{
-        let asid: usize = $asid;
-        let addr: usize = $addr;
-        // Safe because it invalidates TLB and doesn't affect Rust. When the address matches a
-        // block entry larger than the page size, all translations for the block are invalidated.
-        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
-        unsafe {
-            core::arch::asm!(
-                concat!("tlbi ", $option, ", {x}"),
-                x = in(reg) (asid << 48) | (addr >> 12),
-                options(nomem, nostack, preserves_flags)
-            );
-        }
-    }};
 }
