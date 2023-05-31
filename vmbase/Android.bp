@@ -70,6 +70,9 @@ rust_library_rlib {
     whole_static_libs: [
         "librust_baremetal",
     ],
+    features: [
+        "cpu_feat_hafdbs",
+    ],
     apex_available: ["com.android.virt"],
 }
 
