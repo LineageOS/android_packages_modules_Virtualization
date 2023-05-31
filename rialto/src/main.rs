@@ -23,16 +23,13 @@ mod exceptions;
 extern crate alloc;
 
 use crate::error::{Error, Result};
-use aarch64_paging::{
-    idmap::IdMap,
-    paging::{Attributes, MemoryRegion},
-};
+use aarch64_paging::idmap::IdMap;
 use buddy_system_allocator::LockedHeap;
-use core::{ops::Range, slice};
+use core::slice;
 use fdtpci::PciInfo;
 use hyp::get_hypervisor;
 use log::{debug, error, info};
-use vmbase::{layout, main, power::reboot};
+use vmbase::{layout, main, memory::PageTable, power::reboot};
 
 const SZ_1K: usize = 1024;
 const SZ_4K: usize = 4 * SZ_1K;
@@ -45,30 +42,10 @@ const SZ_1G: usize = 1024 * SZ_1M;
 const PT_ROOT_LEVEL: usize = 1;
 const PT_ASID: usize = 1;
 
-const PROT_DEV: Attributes =
-    Attributes::DEVICE_NGNRE.union(Attributes::EXECUTE_NEVER).union(Attributes::VALID);
-const PROT_RX: Attributes = Attributes::NORMAL
-    .union(Attributes::NON_GLOBAL)
-    .union(Attributes::READ_ONLY)
-    .union(Attributes::VALID);
-const PROT_RO: Attributes = Attributes::NORMAL
-    .union(Attributes::NON_GLOBAL)
-    .union(Attributes::READ_ONLY)
-    .union(Attributes::EXECUTE_NEVER)
-    .union(Attributes::VALID);
-const PROT_RW: Attributes = Attributes::NORMAL
-    .union(Attributes::NON_GLOBAL)
-    .union(Attributes::EXECUTE_NEVER)
-    .union(Attributes::VALID);
-
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
 
 static mut HEAP: [u8; SZ_64K] = [0; SZ_64K];
-
-fn into_memreg(r: &Range<usize>) -> MemoryRegion {
-    MemoryRegion::new(r.start, r.end)
-}
 
 fn init_heap() {
     // SAFETY: Allocator set to otherwise unused, static memory.
@@ -77,28 +54,19 @@ fn init_heap() {
     }
 }
 
-fn init_kernel_pgt(pgt: &mut IdMap) -> Result<()> {
+fn init_page_table() -> Result<()> {
+    let mut page_table: PageTable = IdMap::new(PT_ASID, PT_ROOT_LEVEL).into();
+
     // The first 1 GiB of address space is used by crosvm for MMIO.
-    let reg_dev = MemoryRegion::new(0, SZ_1G);
-    let reg_text = into_memreg(&layout::text_range());
-    let reg_rodata = into_memreg(&layout::rodata_range());
-    let reg_scratch = into_memreg(&layout::scratch_range());
-    let reg_stack = into_memreg(&layout::stack_range(40 * SZ_4K));
+    page_table.map_device(&(0..SZ_1G))?;
+    page_table.map_data(&layout::scratch_range())?;
+    page_table.map_data(&layout::stack_range(40 * SZ_4K))?;
+    page_table.map_code(&layout::text_range())?;
+    page_table.map_rodata(&layout::rodata_range())?;
 
-    debug!("Preparing kernel page table.");
-    debug!("  dev:    {}-{}", reg_dev.start(), reg_dev.end());
-    debug!("  text:   {}-{}", reg_text.start(), reg_text.end());
-    debug!("  rodata: {}-{}", reg_rodata.start(), reg_rodata.end());
-    debug!("  scratch:{}-{}", reg_scratch.start(), reg_scratch.end());
-    debug!("  stack:  {}-{}", reg_stack.start(), reg_stack.end());
-
-    pgt.map_range(&reg_dev, PROT_DEV)?;
-    pgt.map_range(&reg_text, PROT_RX)?;
-    pgt.map_range(&reg_rodata, PROT_RO)?;
-    pgt.map_range(&reg_scratch, PROT_RW)?;
-    pgt.map_range(&reg_stack, PROT_RW)?;
-
-    pgt.activate();
+    // SAFETY: It is safe to activate the page table by setting `TTBR0_EL1` to point to
+    // it as this is the first time we activate the page table.
+    unsafe { page_table.activate() }
     info!("Activated kernel page table.");
     Ok(())
 }
@@ -126,8 +94,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {:#x?}", pci_info);
 
-    let mut pgt = IdMap::new(PT_ASID, PT_ROOT_LEVEL);
-    init_kernel_pgt(&mut pgt)?;
+    init_page_table()?;
     Ok(())
 }
 
