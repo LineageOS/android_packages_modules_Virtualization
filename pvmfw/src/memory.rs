@@ -17,8 +17,10 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use crate::helpers::{self, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
-use crate::mmu;
+use crate::mmu::{PageTable, MMIO_LAZY_MAP_FLAG};
+use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
+use aarch64_paging::MapError;
 use alloc::alloc::alloc_zeroed;
 use alloc::alloc::dealloc;
 use alloc::alloc::handle_alloc_error;
@@ -40,12 +42,15 @@ use log::{debug, error};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
-use vmbase::{dsb, isb, memory::set_dbm_enabled, tlbi};
+use vmbase::{dsb, isb, layout, memory::set_dbm_enabled, tlbi};
 
 /// Base of the system's contiguous "main" memory.
 pub const BASE_ADDR: usize = 0x8000_0000;
 /// First address that can't be translated by a level 1 TTBR0_EL1.
 pub const MAX_ADDR: usize = 1 << 40;
+
+const PT_ROOT_LEVEL: usize = 1;
+const PT_ASID: usize = 1;
 
 pub type MemoryRange = Range<usize>;
 
@@ -91,7 +96,7 @@ fn overlaps<T: Copy + Ord>(a: &Range<T>, b: &Range<T>) -> bool {
 /// Tracks non-overlapping slices of main memory.
 pub struct MemoryTracker {
     total: MemoryRange,
-    page_table: mmu::PageTable,
+    page_table: PageTable,
     regions: ArrayVec<[MemoryRegion; MemoryTracker::CAPACITY]>,
     mmio_regions: ArrayVec<[MemoryRange; MemoryTracker::MMIO_CAPACITY]>,
 }
@@ -221,7 +226,7 @@ impl MemoryTracker {
     const PVMFW_RANGE: MemoryRange = (BASE_ADDR - SIZE_4MB)..BASE_ADDR;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
-    pub fn new(mut page_table: mmu::PageTable) -> Self {
+    pub fn new(mut page_table: PageTable) -> Self {
         // Activate dirty state management first, otherwise we may get permission faults immediately
         // after activating the new page table. This has no effect before the new page table is
         // activated because none of the entries in the initial idmap have the DBM flag.
@@ -230,7 +235,7 @@ impl MemoryTracker {
         debug!("Activating dynamic page table...");
         // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
         // aware of so activating it shouldn't have any visible effect.
-        unsafe { page_table.activate() };
+        unsafe { page_table.activate() }
         debug!("... Success!");
 
         Self {
@@ -274,7 +279,7 @@ impl MemoryTracker {
     pub fn alloc_range_mut(&mut self, range: &MemoryRange) -> Result<MemoryRange> {
         let region = MemoryRegion { range: range.clone(), mem_type: MemoryType::ReadWrite };
         self.check(&region)?;
-        self.page_table.map_data(range).map_err(|e| {
+        self.page_table.map_data_dbm(range).map_err(|e| {
             error!("Error during mutable range allocation: {e}");
             MemoryTrackerError::FailedToMap
         })?;
@@ -411,7 +416,7 @@ impl MemoryTracker {
         // Collect memory ranges for which dirty state is tracked.
         let writable_regions =
             self.regions.iter().filter(|r| r.mem_type == MemoryType::ReadWrite).map(|r| &r.range);
-        let payload_range = mmu::PageTable::appended_payload_range();
+        let payload_range = appended_payload_range();
         // Execute a barrier instruction to ensure all hardware updates to the page table have been
         // observed before reading PTE flags to determine dirty state.
         dsb!("ish");
@@ -519,7 +524,7 @@ fn verify_lazy_mapped_block(
     if !is_leaf_pte(&flags, level) {
         return Ok(()); // Skip table PTEs as they aren't tagged with MMIO_LAZY_MAP_FLAG.
     }
-    if flags.contains(mmu::MMIO_LAZY_MAP_FLAG) && !flags.contains(Attributes::VALID) {
+    if flags.contains(MMIO_LAZY_MAP_FLAG) && !flags.contains(Attributes::VALID) {
         Ok(())
     } else {
         Err(())
@@ -542,7 +547,7 @@ fn mmio_guard_unmap_page(
     // mapped anyway.
     if flags.contains(Attributes::VALID) {
         assert!(
-            flags.contains(mmu::MMIO_LAZY_MAP_FLAG),
+            flags.contains(MMIO_LAZY_MAP_FLAG),
             "Attempting MMIO guard unmap for non-device pages"
         );
         assert_eq!(
@@ -598,11 +603,40 @@ fn mark_dirty_block(
         // An ISB instruction is required to ensure the effects of completed TLB maintenance
         // instructions are visible to instructions fetched afterwards.
         // See ARM ARM E2.3.10, and G5.9.
-        tlbi!("vale1", mmu::PageTable::ASID, va_range.start().0);
+        tlbi!("vale1", PT_ASID, va_range.start().0);
         dsb!("ish");
         isb!();
         Ok(())
     } else {
         Err(())
     }
+}
+
+/// Returns memory range reserved for the appended payload.
+pub fn appended_payload_range() -> Range<usize> {
+    let start = helpers::align_up(layout::binary_end(), helpers::SIZE_4KB).unwrap();
+    // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
+    let end = helpers::align_up(start, helpers::SIZE_2MB).unwrap();
+    start..end
+}
+
+/// Region allocated for the stack.
+pub fn stack_range() -> Range<usize> {
+    const STACK_PAGES: usize = 8;
+
+    layout::stack_range(STACK_PAGES * PVMFW_PAGE_SIZE)
+}
+
+pub fn init_page_table() -> result::Result<PageTable, MapError> {
+    let mut page_table: PageTable = IdMap::new(PT_ASID, PT_ROOT_LEVEL).into();
+
+    // Stack and scratch ranges are explicitly zeroed and flushed before jumping to payload,
+    // so dirty state management can be omitted.
+    page_table.map_data(&layout::scratch_range())?;
+    page_table.map_data(&stack_range())?;
+    page_table.map_code(&layout::text_range())?;
+    page_table.map_rodata(&layout::rodata_range())?;
+    page_table.map_data_dbm(&appended_payload_range())?;
+
+    Ok(page_table)
 }
