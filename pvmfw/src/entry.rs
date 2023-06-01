@@ -20,8 +20,7 @@ use crate::fdt;
 use crate::heap;
 use crate::helpers;
 use crate::helpers::RangeExt as _;
-use crate::memory::{MemoryTracker, MEMORY};
-use crate::mmu;
+use crate::memory::{self, MemoryTracker, MEMORY};
 use crate::rand;
 use core::arch::asm;
 use core::mem::{drop, size_of};
@@ -208,7 +207,7 @@ fn main_wrapper(
     // script prevents it from overlapping with other objects.
     let appended_data = unsafe { get_appended_data_slice() };
 
-    let mut page_table = mmu::PageTable::from_static_layout().map_err(|e| {
+    let mut page_table = memory::init_page_table().map_err(|e| {
         error!("Failed to set up the dynamic page tables: {e}");
         RebootReason::InternalError
     })?;
@@ -285,7 +284,7 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> !
     assert_eq!(bcc.start % ASM_STP_ALIGN, 0, "Misaligned guest BCC.");
     assert_eq!(bcc.end % ASM_STP_ALIGN, 0, "Misaligned guest BCC.");
 
-    let stack = mmu::stack_range();
+    let stack = memory::stack_range();
 
     assert_ne!(stack.len(), 0, "stack region is empty.");
     assert_eq!(stack.start % ASM_STP_ALIGN, 0, "Misaligned stack region.");
@@ -388,7 +387,7 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> !
 }
 
 unsafe fn get_appended_data_slice() -> &'static mut [u8] {
-    let range = mmu::PageTable::appended_payload_range();
+    let range = memory::appended_payload_range();
     // SAFETY: This region is mapped and the linker script prevents it from overlapping with other
     // objects.
     unsafe { slice::from_raw_parts_mut(range.start as *mut u8, range.len()) }
