@@ -18,7 +18,7 @@ use super::common::{Hypervisor, HypervisorCap};
 use crate::error::{Error, Result};
 use crate::util::{page_address, SIZE_4KB};
 use core::fmt::{self, Display, Formatter};
-use psci::smccc::{
+use smccc::{
     error::{positive_or_error_64, success_or_error_32, success_or_error_64},
     hvc64,
 };

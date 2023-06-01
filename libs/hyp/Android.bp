@@ -10,12 +10,18 @@ rust_library_rlib {
     rustlibs: [
         "libbitflags",
         "libonce_cell_nostd",
-        "libpsci",
+        "libsmccc",
         "libuuid_nostd",
     ],
     no_stdlibs: true,
     stdlibs: [
         "libcore.rust_sysroot",
     ],
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
     apex_available: ["com.android.virt"],
 }

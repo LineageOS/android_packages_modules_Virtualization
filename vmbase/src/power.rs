@@ -14,13 +14,16 @@
 
 //! Functions for shutting down the VM.
 
-use psci::{system_off, system_reset};
+use smccc::{
+    psci::{system_off, system_reset},
+    Hvc,
+};
 
 /// Makes a `PSCI_SYSTEM_OFF` call to shutdown the VM.
 ///
 /// Panics if it returns an error.
 pub fn shutdown() -> ! {
-    system_off().unwrap();
+    system_off::<Hvc>().unwrap();
     #[allow(clippy::empty_loop)]
     loop {}
 }
@@ -29,7 +32,7 @@ pub fn shutdown() -> ! {
 ///
 /// Panics if it returns an error.
 pub fn reboot() -> ! {
-    system_reset().unwrap();
+    system_reset::<Hvc>().unwrap();
     #[allow(clippy::empty_loop)]
     loop {}
 }
