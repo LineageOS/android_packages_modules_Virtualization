@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Memory management.
+//! Page table management.
 
-use crate::helpers;
-use crate::helpers::PVMFW_PAGE_SIZE;
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, MemoryRegion, PteUpdater};
 use aarch64_paging::MapError;
-use core::ops::Range;
-use vmbase::layout;
+use core::{ops::Range, result};
 
 /// Software bit used to indicate a device that should be lazily mapped.
 pub const MMIO_LAZY_MAP_FLAG: Attributes = Attributes::SWFLAG_0;
@@ -38,74 +35,76 @@ const DATA: Attributes = MEMORY.union(Attributes::EXECUTE_NEVER);
 const RODATA: Attributes = DATA.union(Attributes::READ_ONLY);
 const DATA_DBM: Attributes = RODATA.union(Attributes::DBM);
 
+type Result<T> = result::Result<T, MapError>;
+
 /// High-level API for managing MMU mappings.
 pub struct PageTable {
     idmap: IdMap,
 }
 
-/// Region allocated for the stack.
-pub fn stack_range() -> Range<usize> {
-    const STACK_PAGES: usize = 8;
-
-    layout::stack_range(STACK_PAGES * PVMFW_PAGE_SIZE)
+impl From<IdMap> for PageTable {
+    fn from(idmap: IdMap) -> Self {
+        Self { idmap }
+    }
 }
 
 impl PageTable {
-    pub const ASID: usize = 1;
-    const ROOT_LEVEL: usize = 1;
-
-    /// Returns memory range reserved for the appended payload.
-    pub fn appended_payload_range() -> Range<usize> {
-        let start = helpers::align_up(layout::binary_end(), helpers::SIZE_4KB).unwrap();
-        // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
-        let end = helpers::align_up(start, helpers::SIZE_2MB).unwrap();
-        start..end
-    }
-
-    /// Creates an instance pre-populated with pvmfw's binary layout.
-    pub fn from_static_layout() -> Result<Self, MapError> {
-        let mut page_table = Self { idmap: IdMap::new(Self::ASID, Self::ROOT_LEVEL) };
-
-        // Stack and scratch ranges are explicitly zeroed and flushed before jumping to payload,
-        // so dirty state management can be omitted.
-        page_table.map_range(&layout::scratch_range(), DATA)?;
-        page_table.map_range(&stack_range(), DATA)?;
-        page_table.map_code(&layout::text_range())?;
-        page_table.map_rodata(&layout::rodata_range())?;
-        page_table.map_data(&Self::appended_payload_range())?;
-
-        Ok(page_table)
-    }
-
+    /// Activates the page table.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the PageTable instance has valid and identical mappings for the
+    /// code being currently executed. Otherwise, the Rust execution model (on which the borrow
+    /// checker relies) would be violated.
     pub unsafe fn activate(&mut self) {
         self.idmap.activate()
     }
 
-    pub fn map_device_lazy(&mut self, range: &Range<usize>) -> Result<(), MapError> {
+    /// Maps the given range of virtual addresses to the physical addresses as lazily mapped
+    /// nGnRE device memory.
+    pub fn map_device_lazy(&mut self, range: &Range<usize>) -> Result<()> {
         self.map_range(range, DEVICE_LAZY)
     }
 
-    pub fn map_device(&mut self, range: &Range<usize>) -> Result<(), MapError> {
+    /// Maps the given range of virtual addresses to the physical addresses as valid device
+    /// nGnRE device memory.
+    pub fn map_device(&mut self, range: &Range<usize>) -> Result<()> {
         self.map_range(range, DEVICE)
     }
 
-    pub fn map_data(&mut self, range: &Range<usize>) -> Result<(), MapError> {
+    /// Maps the given range of virtual addresses to the physical addresses as non-executable
+    /// and writable normal memory.
+    pub fn map_data(&mut self, range: &Range<usize>) -> Result<()> {
+        self.map_range(range, DATA)
+    }
+
+    /// Maps the given range of virtual addresses to the physical addresses as non-executable,
+    /// read-only and writable-clean normal memory.
+    pub fn map_data_dbm(&mut self, range: &Range<usize>) -> Result<()> {
         self.map_range(range, DATA_DBM)
     }
 
-    pub fn map_code(&mut self, range: &Range<usize>) -> Result<(), MapError> {
+    /// Maps the given range of virtual addresses to the physical addresses as read-only
+    /// normal memory.
+    pub fn map_code(&mut self, range: &Range<usize>) -> Result<()> {
         self.map_range(range, CODE)
     }
 
-    pub fn map_rodata(&mut self, range: &Range<usize>) -> Result<(), MapError> {
+    /// Maps the given range of virtual addresses to the physical addresses as non-executable
+    /// and read-only normal memory.
+    pub fn map_rodata(&mut self, range: &Range<usize>) -> Result<()> {
         self.map_range(range, RODATA)
     }
 
-    fn map_range(&mut self, range: &Range<usize>, attr: Attributes) -> Result<(), MapError> {
+    /// Maps the given range of virtual addresses to the physical addresses with the given
+    /// attributes.
+    fn map_range(&mut self, range: &Range<usize>, attr: Attributes) -> Result<()> {
         self.idmap.map_range(&MemoryRegion::new(range.start, range.end), attr)
     }
 
-    pub fn modify_range(&mut self, range: &Range<usize>, f: &PteUpdater) -> Result<(), MapError> {
+    /// Applies the provided updater function to a number of PTEs corresponding to a given memory
+    /// range.
+    pub fn modify_range(&mut self, range: &Range<usize>, f: &PteUpdater) -> Result<()> {
         self.idmap.modify_range(&MemoryRegion::new(range.start, range.end), f)
     }
 }
