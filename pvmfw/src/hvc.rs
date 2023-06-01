@@ -16,7 +16,7 @@
 
 pub mod trng;
 use self::trng::Error;
-use psci::smccc::{
+use smccc::{
     error::{positive_or_error_64, success_or_error_64},
     hvc64,
 };
