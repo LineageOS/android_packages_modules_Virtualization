@@ -640,6 +640,9 @@ pub fn init_page_table() -> result::Result<PageTable, MapError> {
     page_table.map_code(&layout::text_range())?;
     page_table.map_rodata(&layout::rodata_range())?;
     page_table.map_data_dbm(&appended_payload_range())?;
-
+    if let Err(e) = page_table.map_device(&layout::console_uart_range()) {
+        error!("Failed to remap the UART as a dynamic page table entry: {e}");
+        return Err(e);
+    }
     Ok(page_table)
 }
