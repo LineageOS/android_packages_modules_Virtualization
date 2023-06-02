@@ -17,7 +17,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use crate::helpers::{self, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
-use crate::mmu::{PageTable, MMIO_LAZY_MAP_FLAG};
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use aarch64_paging::MapError;
@@ -42,7 +41,11 @@ use log::{debug, error};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
-use vmbase::{dsb, isb, layout, memory::set_dbm_enabled, tlbi};
+use vmbase::{
+    dsb, isb, layout,
+    memory::{set_dbm_enabled, PageTable, MMIO_LAZY_MAP_FLAG},
+    tlbi,
+};
 
 /// Base of the system's contiguous "main" memory.
 pub const BASE_ADDR: usize = 0x8000_0000;
