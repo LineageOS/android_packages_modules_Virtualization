@@ -16,6 +16,8 @@
 
 #![no_std]
 
+extern crate alloc;
+
 pub mod arch;
 mod bionic;
 pub mod console;
