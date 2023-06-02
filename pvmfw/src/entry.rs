@@ -207,18 +207,10 @@ fn main_wrapper(
     // script prevents it from overlapping with other objects.
     let appended_data = unsafe { get_appended_data_slice() };
 
-    let mut page_table = memory::init_page_table().map_err(|e| {
+    let page_table = memory::init_page_table().map_err(|e| {
         error!("Failed to set up the dynamic page tables: {e}");
         RebootReason::InternalError
     })?;
-
-    const CONSOLE_LEN: usize = 1; // vmbase::uart::Uart only uses one u8 register.
-    let uart_range = console::BASE_ADDRESS..(console::BASE_ADDRESS + CONSOLE_LEN);
-    page_table.map_device(&uart_range).map_err(|e| {
-        error!("Failed to remap the UART as a dynamic page table entry: {e}");
-        RebootReason::InternalError
-    })?;
-
     // SAFETY - We only get the appended payload from here, once. It is statically mapped and the
     // linker script prevents it from overlapping with other objects.
     let mut appended = unsafe { AppendedPayload::new(appended_data) }.ok_or_else(|| {
