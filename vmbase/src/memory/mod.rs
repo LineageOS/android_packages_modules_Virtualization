@@ -15,5 +15,7 @@
 //! Memory management.
 
 mod dbm;
+mod page_table;
 
 pub use dbm::set_dbm_enabled;
+pub use page_table::{PageTable, MMIO_LAZY_MAP_FLAG};
