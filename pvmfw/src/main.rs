@@ -33,7 +33,6 @@ mod helpers;
 mod hvc;
 mod instance;
 mod memory;
-mod mmu;
 mod rand;
 mod virtio;
 
