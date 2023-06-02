@@ -63,6 +63,7 @@ fn init_page_table() -> Result<()> {
     page_table.map_data(&layout::stack_range(40 * SZ_4K))?;
     page_table.map_code(&layout::text_range())?;
     page_table.map_rodata(&layout::rodata_range())?;
+    page_table.map_device(&layout::console_uart_range())?;
 
     // SAFETY: It is safe to activate the page table by setting `TTBR0_EL1` to point to
     // it as this is the first time we activate the page table.

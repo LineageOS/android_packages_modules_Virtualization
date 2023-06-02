@@ -14,6 +14,7 @@
 
 //! Memory layout.
 
+use crate::console::BASE_ADDRESS;
 use core::ops::Range;
 use core::ptr::addr_of;
 
@@ -73,6 +74,13 @@ pub fn stack_range(stack_size: usize) -> Range<usize> {
 /// All writable sections, excluding the stack.
 pub fn scratch_range() -> Range<usize> {
     linker_region!(eh_stack_limit, bss_end)
+}
+
+/// UART console range.
+pub fn console_uart_range() -> Range<usize> {
+    const CONSOLE_LEN: usize = 1; // `uart::Uart` only uses one u8 register.
+
+    BASE_ADDRESS..(BASE_ADDRESS + CONSOLE_LEN)
 }
 
 /// Read-write data (original).
