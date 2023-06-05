@@ -33,7 +33,11 @@ use log::error;
 use log::info;
 use log::warn;
 use log::LevelFilter;
-use vmbase::{console, layout, logger, main, power::reboot};
+use vmbase::{
+    console, layout, logger, main,
+    memory::{SIZE_2MB, SIZE_4KB},
+    power::reboot,
+};
 use zeroize::Zeroize;
 
 #[derive(Debug, Clone)]
@@ -84,7 +88,7 @@ struct MemorySlices<'a> {
 impl<'a> MemorySlices<'a> {
     fn new(fdt: usize, kernel: usize, kernel_size: usize) -> Result<Self, RebootReason> {
         // SAFETY - SIZE_2MB is non-zero.
-        const FDT_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(helpers::SIZE_2MB) };
+        const FDT_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(SIZE_2MB) };
         // TODO - Only map the FDT as read-only, until we modify it right before jump_to_payload()
         // e.g. by generating a DTBO for a template DT in main() and, on return, re-map DT as RW,
         // overwrite with the template DT and apply the DTBO.
@@ -409,7 +413,7 @@ impl<'a> AppendedPayload<'a> {
                 Some(Self::Config(config.unwrap()))
             }
             AppendedConfigType::NotFound if cfg!(feature = "legacy") => {
-                const BCC_SIZE: usize = helpers::SIZE_4KB;
+                const BCC_SIZE: usize = SIZE_4KB;
                 warn!("Assuming the appended data at {:?} to be a raw BCC", data.as_ptr());
                 Some(Self::LegacyBcc(&mut data[..BCC_SIZE]))
             }
