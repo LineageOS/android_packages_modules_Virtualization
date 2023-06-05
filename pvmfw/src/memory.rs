@@ -20,12 +20,9 @@ use crate::helpers::{self, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use aarch64_paging::MapError;
-use alloc::alloc::alloc_zeroed;
-use alloc::alloc::dealloc;
 use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
-use alloc::vec::Vec;
-use buddy_system_allocator::{FrameAllocator, LockedFrameAllocator};
+use buddy_system_allocator::LockedFrameAllocator;
 use core::alloc::Layout;
 use core::cmp::max;
 use core::cmp::min;
@@ -43,7 +40,7 @@ use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
 use vmbase::{
     dsb, isb, layout,
-    memory::{set_dbm_enabled, PageTable, MMIO_LAZY_MAP_FLAG},
+    memory::{set_dbm_enabled, MemorySharer, PageTable, MMIO_LAZY_MAP_FLAG},
     tlbi,
 };
 
@@ -168,60 +165,6 @@ type Result<T> = result::Result<T, MemoryTrackerError>;
 
 static SHARED_POOL: OnceBox<LockedFrameAllocator<32>> = OnceBox::new();
 static SHARED_MEMORY: SpinMutex<Option<MemorySharer>> = SpinMutex::new(None);
-
-/// Allocates memory on the heap and shares it with the host.
-///
-/// Unshares all pages when dropped.
-pub struct MemorySharer {
-    granule: usize,
-    shared_regions: Vec<(usize, Layout)>,
-}
-
-impl MemorySharer {
-    const INIT_CAP: usize = 10;
-
-    pub fn new(granule: usize) -> Self {
-        assert!(granule.is_power_of_two());
-        Self { granule, shared_regions: Vec::with_capacity(Self::INIT_CAP) }
-    }
-
-    /// Get from the global allocator a granule-aligned region that suits `hint` and share it.
-    pub fn refill(&mut self, pool: &mut FrameAllocator<32>, hint: Layout) {
-        let layout = hint.align_to(self.granule).unwrap().pad_to_align();
-        assert_ne!(layout.size(), 0);
-        // SAFETY - layout has non-zero size.
-        let Some(shared) = NonNull::new(unsafe { alloc_zeroed(layout) }) else {
-            handle_alloc_error(layout);
-        };
-
-        let base = shared.as_ptr() as usize;
-        let end = base.checked_add(layout.size()).unwrap();
-        trace!("Sharing memory region {:#x?}", base..end);
-        for vaddr in (base..end).step_by(self.granule) {
-            let vaddr = NonNull::new(vaddr as *mut _).unwrap();
-            get_hypervisor().mem_share(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
-        }
-        self.shared_regions.push((base, layout));
-
-        pool.add_frame(base, end);
-    }
-}
-
-impl Drop for MemorySharer {
-    fn drop(&mut self) {
-        while let Some((base, layout)) = self.shared_regions.pop() {
-            let end = base.checked_add(layout.size()).unwrap();
-            trace!("Unsharing memory region {:#x?}", base..end);
-            for vaddr in (base..end).step_by(self.granule) {
-                let vaddr = NonNull::new(vaddr as *mut _).unwrap();
-                get_hypervisor().mem_unshare(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
-            }
-
-            // SAFETY - The region was obtained from alloc_zeroed() with the recorded layout.
-            unsafe { dealloc(base as *mut _, layout) };
-        }
-    }
-}
 
 impl MemoryTracker {
     const CAPACITY: usize = 5;
@@ -363,8 +306,10 @@ impl MemoryTracker {
 
     /// Initialize the shared heap to dynamically share memory from the global allocator.
     pub fn init_dynamic_shared_pool(&mut self) -> Result<()> {
+        const INIT_CAP: usize = 10;
+
         let granule = get_hypervisor().memory_protection_granule()?;
-        let previous = SHARED_MEMORY.lock().replace(MemorySharer::new(granule));
+        let previous = SHARED_MEMORY.lock().replace(MemorySharer::new(granule, INIT_CAP));
         if previous.is_some() {
             return Err(MemoryTrackerError::SharedMemorySetFailure);
         }
@@ -488,22 +433,6 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, layout: Layout) -> hyp::Result<
 
     trace!("Deallocated shared buffer at {vaddr:?} with {layout:?}");
     Ok(())
-}
-
-/// Returns the intermediate physical address corresponding to the given virtual address.
-///
-/// As we use identity mapping for everything, this is just a cast, but it's useful to use it to be
-/// explicit about where we are converting from virtual to physical address.
-pub fn virt_to_phys(vaddr: NonNull<u8>) -> usize {
-    vaddr.as_ptr() as _
-}
-
-/// Returns a pointer for the virtual address corresponding to the given non-zero intermediate
-/// physical address.
-///
-/// Panics if `paddr` is 0.
-pub fn phys_to_virt(paddr: usize) -> NonNull<u8> {
-    NonNull::new(paddr as _).unwrap()
 }
 
 /// Checks whether a PTE at given level is a page or block descriptor.
