@@ -16,7 +16,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{self, page_4kb_of, RangeExt, PVMFW_PAGE_SIZE, SIZE_4MB};
+use crate::helpers::{self, RangeExt, PVMFW_PAGE_SIZE};
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use aarch64_paging::MapError;
@@ -40,8 +40,12 @@ use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
 use vmbase::{
     dsb, isb, layout,
-    memory::{set_dbm_enabled, MemorySharer, PageTable, MMIO_LAZY_MAP_FLAG},
+    memory::{
+        page_4kb_of, set_dbm_enabled, MemorySharer, PageTable, MMIO_LAZY_MAP_FLAG, SIZE_2MB,
+        SIZE_4KB, SIZE_4MB,
+    },
     tlbi,
+    util::align_up,
 };
 
 /// Base of the system's contiguous "main" memory.
@@ -546,9 +550,9 @@ fn mark_dirty_block(
 
 /// Returns memory range reserved for the appended payload.
 pub fn appended_payload_range() -> Range<usize> {
-    let start = helpers::align_up(layout::binary_end(), helpers::SIZE_4KB).unwrap();
+    let start = align_up(layout::binary_end(), SIZE_4KB).unwrap();
     // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
-    let end = helpers::align_up(start, helpers::SIZE_2MB).unwrap();
+    let end = align_up(start, SIZE_2MB).unwrap();
     start..end
 }
 
