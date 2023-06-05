@@ -64,6 +64,8 @@ rust_library_rlib {
     srcs: ["src/lib.rs"],
     rustlibs: [
         "libaarch64_paging",
+        "libbuddy_system_allocator",
+        "libhyp",
         "liblog_rust_nostd",
         "libsmccc",
         "libspin_nostd",
