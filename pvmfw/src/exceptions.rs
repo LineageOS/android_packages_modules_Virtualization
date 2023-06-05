@@ -14,11 +14,11 @@
 
 //! Exception handlers.
 
-use crate::helpers::page_4kb_of;
 use crate::memory::{MemoryTrackerError, MEMORY};
 use core::fmt;
 use vmbase::console;
 use vmbase::logger;
+use vmbase::memory::page_4kb_of;
 use vmbase::read_sysreg;
 use vmbase::{eprintln, power::reboot};
 

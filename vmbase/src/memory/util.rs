@@ -14,7 +14,20 @@
 
 //! Utility functions for memory management.
 
+use crate::util::unchecked_align_down;
 use core::ptr::NonNull;
+
+/// The size of a 4KB memory in bytes.
+pub const SIZE_4KB: usize = 4 << 10;
+/// The size of a 2MB memory in bytes.
+pub const SIZE_2MB: usize = 2 << 20;
+/// The size of a 4MB memory in bytes.
+pub const SIZE_4MB: usize = 4 << 20;
+
+/// Computes the address of the 4KiB page containing a given address.
+pub const fn page_4kb_of(addr: usize) -> usize {
+    unchecked_align_down(addr, SIZE_4KB)
+}
 
 /// Returns the intermediate physical address corresponding to the given virtual address.
 ///
