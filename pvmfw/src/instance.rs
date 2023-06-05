@@ -21,7 +21,6 @@ use crate::dice::PartialInputs;
 use crate::gpt;
 use crate::gpt::Partition;
 use crate::gpt::Partitions;
-use crate::helpers::ceiling_div;
 use crate::rand;
 use crate::virtio::pci::VirtIOBlkIterator;
 use core::fmt;
@@ -32,6 +31,7 @@ use diced_open_dice::Hidden;
 use log::trace;
 use uuid::Uuid;
 use virtio_drivers::transport::pci::bus::PciRoot;
+use vmbase::util::ceiling_div;
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 

@@ -22,4 +22,4 @@ mod util;
 pub use dbm::set_dbm_enabled;
 pub use page_table::{PageTable, MMIO_LAZY_MAP_FLAG};
 pub use shared::MemorySharer;
-pub use util::{phys_to_virt, virt_to_phys};
+pub use util::{page_4kb_of, phys_to_virt, virt_to_phys, SIZE_2MB, SIZE_4KB, SIZE_4MB};

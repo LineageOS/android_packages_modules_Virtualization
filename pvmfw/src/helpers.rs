@@ -16,68 +16,13 @@
 
 use core::arch::asm;
 use core::ops::Range;
+use vmbase::memory::SIZE_4KB;
 use vmbase::read_sysreg;
+use vmbase::util::unchecked_align_down;
 use zeroize::Zeroize;
-
-pub const SIZE_4KB: usize = 4 << 10;
-pub const SIZE_2MB: usize = 2 << 20;
-pub const SIZE_4MB: usize = 4 << 20;
 
 pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
 pub const PVMFW_PAGE_SIZE: usize = SIZE_4KB;
-
-/// Computes the largest multiple of the provided alignment smaller or equal to the address.
-///
-/// Note: the result is undefined if alignment isn't a power of two.
-pub const fn unchecked_align_down(addr: usize, alignment: usize) -> usize {
-    addr & !(alignment - 1)
-}
-
-/// Computes the smallest multiple of the provided alignment larger or equal to the address.
-///
-/// Note: the result is undefined if alignment isn't a power of two and may wrap to 0.
-pub const fn unchecked_align_up(addr: usize, alignment: usize) -> usize {
-    unchecked_align_down(addr + alignment - 1, alignment)
-}
-
-/// Safe wrapper around unchecked_align_up() that validates its assumptions and doesn't wrap.
-pub const fn align_up(addr: usize, alignment: usize) -> Option<usize> {
-    if !alignment.is_power_of_two() {
-        None
-    } else if let Some(s) = addr.checked_add(alignment - 1) {
-        Some(unchecked_align_down(s, alignment))
-    } else {
-        None
-    }
-}
-
-/// Performs an integer division rounding up.
-///
-/// Note: Returns None if den isn't a power of two.
-pub const fn ceiling_div(num: usize, den: usize) -> Option<usize> {
-    let Some(r) = align_up(num, den) else {
-        return None;
-    };
-
-    r.checked_div(den)
-}
-
-/// Aligns the given address to the given alignment, if it is a power of two.
-///
-/// Returns `None` if the alignment isn't a power of two.
-#[allow(dead_code)] // Currently unused but might be needed again.
-pub const fn align_down(addr: usize, alignment: usize) -> Option<usize> {
-    if !alignment.is_power_of_two() {
-        None
-    } else {
-        Some(unchecked_align_down(addr, alignment))
-    }
-}
-
-/// Computes the address of the 4KiB page containing a given address.
-pub const fn page_4kb_of(addr: usize) -> usize {
-    unchecked_align_down(addr, SIZE_4KB)
-}
 
 #[inline]
 /// Read the number of words in the smallest cache line of all the data caches and unified caches.
@@ -122,15 +67,6 @@ pub fn flush(reg: &[u8]) {
 pub fn flushed_zeroize(reg: &mut [u8]) {
     reg.zeroize();
     flush(reg)
-}
-
-/// Flatten [[T; N]] into &[T]
-/// TODO: use slice::flatten when it graduates from experimental
-pub fn flatten<T, const N: usize>(original: &[[T; N]]) -> &[T] {
-    // SAFETY: no overflow because original (whose size is len()*N) is already in memory
-    let len = original.len() * N;
-    // SAFETY: [T] has the same layout as [T;N]
-    unsafe { core::slice::from_raw_parts(original.as_ptr().cast(), len) }
 }
 
 /// Trait to check containment of one range within another.
