@@ -203,17 +203,16 @@ fn main_wrapper(
 
     crypto::init();
 
-    // SAFETY - We only get the appended payload from here, once. It is mapped and the linker
-    // script prevents it from overlapping with other objects.
-    let appended_data = unsafe { get_appended_data_slice() };
-
     let page_table = memory::init_page_table().map_err(|e| {
         error!("Failed to set up the dynamic page tables: {e}");
         RebootReason::InternalError
     })?;
-    // SAFETY - We only get the appended payload from here, once. It is statically mapped and the
-    // linker script prevents it from overlapping with other objects.
-    let mut appended = unsafe { AppendedPayload::new(appended_data) }.ok_or_else(|| {
+
+    // SAFETY - We only get the appended payload from here, once. The region was statically mapped,
+    // then remapped by `init_page_table()`.
+    let appended_data = unsafe { get_appended_data_slice() };
+
+    let mut appended = AppendedPayload::new(appended_data).ok_or_else(|| {
         error!("No valid configuration found");
         RebootReason::InvalidConfig
     })?;
@@ -378,6 +377,10 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> !
     };
 }
 
+/// # Safety
+///
+/// This must only be called once, since we are returning a mutable reference.
+/// The appended data region must be mapped.
 unsafe fn get_appended_data_slice() -> &'static mut [u8] {
     let range = memory::appended_payload_range();
     // SAFETY: This region is mapped and the linker script prevents it from overlapping with other
@@ -399,13 +402,10 @@ enum AppendedPayload<'a> {
 }
 
 impl<'a> AppendedPayload<'a> {
-    /// SAFETY - 'data' should respect the alignment of config::Header.
-    unsafe fn new(data: &'a mut [u8]) -> Option<Self> {
-        // Safety: This fn has the same constraint as us.
-        match unsafe { Self::guess_config_type(data) } {
+    fn new(data: &'a mut [u8]) -> Option<Self> {
+        match Self::guess_config_type(data) {
             AppendedConfigType::Valid => {
-                // Safety: This fn has the same constraint as us.
-                let config = unsafe { config::Config::new(data) };
+                let config = config::Config::new(data);
                 Some(Self::Config(config.unwrap()))
             }
             AppendedConfigType::NotFound if cfg!(feature = "legacy") => {
@@ -417,14 +417,12 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    /// SAFETY - 'data' should respect the alignment of config::Header.
-    unsafe fn guess_config_type(data: &mut [u8]) -> AppendedConfigType {
+    fn guess_config_type(data: &mut [u8]) -> AppendedConfigType {
         // This function is necessary to prevent the borrow checker from getting confused
         // about the ownership of data in new(); see https://users.rust-lang.org/t/78467.
         let addr = data.as_ptr();
 
-        // Safety: This fn has the same constraint as us.
-        match unsafe { config::Config::new(data) } {
+        match config::Config::new(data) {
             Err(config::Error::InvalidMagic) => {
                 warn!("No configuration data found at {addr:?}");
                 AppendedConfigType::NotFound

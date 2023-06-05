@@ -186,9 +186,7 @@ pub struct Config<'a> {
 
 impl<'a> Config<'a> {
     /// Take ownership of a pvmfw configuration consisting of its header and following entries.
-    ///
-    /// SAFETY - 'data' should respect the alignment of Header.
-    pub unsafe fn new(data: &'a mut [u8]) -> Result<Self> {
+    pub fn new(data: &'a mut [u8]) -> Result<Self> {
         let header = data.get(..Header::PADDED_SIZE).ok_or(Error::BufferTooSmall)?;
 
         let (header, _) =
