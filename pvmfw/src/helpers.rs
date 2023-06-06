@@ -24,11 +24,18 @@ pub const PVMFW_PAGE_SIZE: usize = SIZE_4KB;
 pub(crate) trait RangeExt {
     /// Returns true if `self` is contained within the `other` range.
     fn is_within(&self, other: &Self) -> bool;
+
+    /// Returns true if `self` overlaps with the `other` range.
+    fn overlaps(&self, other: &Self) -> bool;
 }
 
 impl<T: PartialOrd> RangeExt for Range<T> {
     fn is_within(&self, other: &Self) -> bool {
         self.start >= other.start && self.end <= other.end
+    }
+
+    fn overlaps(&self, other: &Self) -> bool {
+        self.start < other.end && other.start < self.end
     }
 }
 
