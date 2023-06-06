@@ -18,7 +18,6 @@ use crate::config;
 use crate::crypto;
 use crate::fdt;
 use crate::heap;
-use crate::helpers;
 use crate::helpers::RangeExt as _;
 use crate::memory::{self, MemoryTracker, MEMORY};
 use crate::rand;
@@ -35,7 +34,7 @@ use log::warn;
 use log::LevelFilter;
 use vmbase::{
     console, layout, logger, main,
-    memory::{SIZE_2MB, SIZE_4KB},
+    memory::{min_dcache_line_size, SIZE_2MB, SIZE_4KB},
     power::reboot,
 };
 use zeroize::Zeroize;
@@ -373,7 +372,7 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> !
             scratch_end = in(reg) u64::try_from(scratch.end).unwrap(),
             stack = in(reg) u64::try_from(stack.start).unwrap(),
             stack_end = in(reg) u64::try_from(stack.end).unwrap(),
-            dcache_line_size = in(reg) u64::try_from(helpers::min_dcache_line_size()).unwrap(),
+            dcache_line_size = in(reg) u64::try_from(min_dcache_line_size()).unwrap(),
             in("x0") fdt_address,
             in("x30") payload_start,
             options(noreturn),

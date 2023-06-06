@@ -14,7 +14,10 @@
 
 //! Hardware management of the access flag and dirty state.
 
+use super::page_table::is_leaf_pte;
+use super::util::flush_region;
 use crate::{isb, read_sysreg, write_sysreg};
+use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion};
 
 /// Sets whether the hardware management of access and dirty state is enabled with
 /// the given boolean.
@@ -44,4 +47,24 @@ fn dbm_available() -> bool {
     // Hardware dirty bit management available flag (ID_AA64MMFR1_EL1.HAFDBS[1])
     const DBM_AVAILABLE: usize = 1 << 1;
     read_sysreg!("id_aa64mmfr1_el1") & DBM_AVAILABLE != 0
+}
+
+/// Flushes a memory range the descriptor refers to, if the descriptor is in writable-dirty state.
+/// As the return type is required by the crate `aarch64_paging`, we cannot address the lint
+/// issue `clippy::result_unit_err`.
+#[allow(clippy::result_unit_err)]
+pub fn flush_dirty_range(
+    va_range: &MemoryRegion,
+    desc: &mut Descriptor,
+    level: usize,
+) -> Result<(), ()> {
+    // Only flush ranges corresponding to dirty leaf PTEs.
+    let flags = desc.flags().ok_or(())?;
+    if !is_leaf_pte(&flags, level) {
+        return Ok(());
+    }
+    if !flags.contains(Attributes::READ_ONLY) {
+        flush_region(va_range.start().0, va_range.len());
+    }
+    Ok(())
 }
