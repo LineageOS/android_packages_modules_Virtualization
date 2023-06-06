@@ -14,6 +14,8 @@
 
 //! Memory layout.
 
+pub mod crosvm;
+
 use crate::console::BASE_ADDRESS;
 use core::ops::Range;
 use core::ptr::addr_of;
