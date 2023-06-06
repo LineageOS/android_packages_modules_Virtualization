@@ -27,6 +27,9 @@ pub const SIZE_2MB: usize = 2 << 20;
 /// The size of a 4MB memory in bytes.
 pub const SIZE_4MB: usize = 4 << 20;
 
+/// The page size in bytes assumed by vmbase - 4 KiB.
+pub const PAGE_SIZE: usize = SIZE_4KB;
+
 /// Reads the number of words in the smallest cache line of all the data caches and unified caches.
 #[inline]
 pub fn min_dcache_line_size() -> usize {
