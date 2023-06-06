@@ -19,7 +19,10 @@ mod page_table;
 mod shared;
 mod util;
 
-pub use dbm::set_dbm_enabled;
-pub use page_table::{PageTable, MMIO_LAZY_MAP_FLAG};
+pub use dbm::{flush_dirty_range, set_dbm_enabled};
+pub use page_table::{is_leaf_pte, PageTable, MMIO_LAZY_MAP_FLAG};
 pub use shared::MemorySharer;
-pub use util::{page_4kb_of, phys_to_virt, virt_to_phys, SIZE_2MB, SIZE_4KB, SIZE_4MB};
+pub use util::{
+    flush, flushed_zeroize, min_dcache_line_size, page_4kb_of, phys_to_virt, virt_to_phys,
+    SIZE_2MB, SIZE_4KB, SIZE_4MB,
+};

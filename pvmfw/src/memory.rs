@@ -16,7 +16,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{self, RangeExt, PVMFW_PAGE_SIZE};
+use crate::helpers::{RangeExt, PVMFW_PAGE_SIZE};
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use aarch64_paging::MapError;
@@ -41,8 +41,8 @@ use tinyvec::ArrayVec;
 use vmbase::{
     dsb, isb, layout,
     memory::{
-        page_4kb_of, set_dbm_enabled, MemorySharer, PageTable, MMIO_LAZY_MAP_FLAG, SIZE_2MB,
-        SIZE_4KB, SIZE_4MB,
+        flush_dirty_range, is_leaf_pte, page_4kb_of, set_dbm_enabled, MemorySharer, PageTable,
+        MMIO_LAZY_MAP_FLAG, SIZE_2MB, SIZE_4KB, SIZE_4MB,
     },
     tlbi,
     util::align_up,
@@ -439,17 +439,6 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, layout: Layout) -> hyp::Result<
     Ok(())
 }
 
-/// Checks whether a PTE at given level is a page or block descriptor.
-#[inline]
-fn is_leaf_pte(flags: &Attributes, level: usize) -> bool {
-    const LEAF_PTE_LEVEL: usize = 3;
-    if flags.contains(Attributes::TABLE_OR_PAGE) {
-        level == LEAF_PTE_LEVEL
-    } else {
-        level < LEAF_PTE_LEVEL
-    }
-}
-
 /// Checks whether block flags indicate it should be MMIO guard mapped.
 fn verify_lazy_mapped_block(
     _range: &VaRange,
@@ -499,23 +488,6 @@ fn mmio_guard_unmap_page(
         get_hypervisor().mmio_guard_unmap(page_base).map_err(|e| {
             error!("Error MMIO guard unmapping: {e}");
         })?;
-    }
-    Ok(())
-}
-
-/// Flushes a memory range the descriptor refers to, if the descriptor is in writable-dirty state.
-fn flush_dirty_range(
-    va_range: &VaRange,
-    desc: &mut Descriptor,
-    level: usize,
-) -> result::Result<(), ()> {
-    // Only flush ranges corresponding to dirty leaf PTEs.
-    let flags = desc.flags().ok_or(())?;
-    if !is_leaf_pte(&flags, level) {
-        return Ok(());
-    }
-    if !flags.contains(Attributes::READ_ONLY) {
-        helpers::flush_region(va_range.start().0, va_range.len());
     }
     Ok(())
 }
