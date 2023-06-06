@@ -24,6 +24,7 @@ import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_NON
 import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.TruthJUnit.assume;
 
 import android.app.Instrumentation;
@@ -467,6 +468,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
         BenchmarkVmListener.create(listener).runToFinish(TAG, vm);
 
+        assertWithMessage("VM failed to start").that(listener.mCrosvm).isNotNull();
+
         double mem_overall = 256.0;
         double mem_total = (double) listener.mMemTotal / 1024.0;
         double mem_free = (double) listener.mMemFree / 1024.0;
@@ -548,6 +551,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         VirtualMachine vm = forceCreateNewVirtualMachine(vmName, config);
         MemoryReclaimListener listener = new MemoryReclaimListener(this::executeCommand);
         BenchmarkVmListener.create(listener).runToFinish(TAG, vm);
+        assertWithMessage("VM failed to start").that(listener.mPreCrosvm).isNotNull();
+        assertWithMessage("Post trim stats not available").that(listener.mPostCrosvm).isNotNull();
 
         double mem_pre_crosvm_host_rss = (double) listener.mPreCrosvm.mHostRss / 1024.0;
         double mem_pre_crosvm_host_pss = (double) listener.mPreCrosvm.mHostPss / 1024.0;
