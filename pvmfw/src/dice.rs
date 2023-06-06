@@ -15,10 +15,10 @@
 //! Support for DICE derivation and BCC generation.
 
 use crate::cstr;
-use crate::helpers::flushed_zeroize;
 use core::ffi::c_void;
 use core::mem::size_of;
 use core::slice;
+use vmbase::memory::flushed_zeroize;
 
 use diced_open_dice::{
     bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceMode, Hash,

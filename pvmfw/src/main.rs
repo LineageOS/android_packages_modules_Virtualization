@@ -40,7 +40,6 @@ use crate::bcc::Bcc;
 use crate::dice::PartialInputs;
 use crate::entry::RebootReason;
 use crate::fdt::modify_for_next_stage;
-use crate::helpers::flush;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::instance::get_or_generate_instance_salt;
 use crate::memory::MEMORY;
@@ -55,6 +54,7 @@ use pvmfw_avb::verify_payload;
 use pvmfw_avb::Capability;
 use pvmfw_avb::DebugLevel;
 use pvmfw_embedded_key::PUBLIC_KEY;
+use vmbase::memory::flush;
 
 const NEXT_BCC_SIZE: usize = GUEST_PAGE_SIZE;
 
