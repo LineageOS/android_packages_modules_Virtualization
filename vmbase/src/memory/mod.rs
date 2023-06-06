@@ -24,5 +24,5 @@ pub use page_table::{is_leaf_pte, PageTable, MMIO_LAZY_MAP_FLAG};
 pub use shared::MemorySharer;
 pub use util::{
     flush, flushed_zeroize, min_dcache_line_size, page_4kb_of, phys_to_virt, virt_to_phys,
-    SIZE_2MB, SIZE_4KB, SIZE_4MB,
+    PAGE_SIZE, SIZE_2MB, SIZE_4KB, SIZE_4MB,
 };
