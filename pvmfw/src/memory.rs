@@ -24,8 +24,6 @@ use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use buddy_system_allocator::LockedFrameAllocator;
 use core::alloc::Layout;
-use core::cmp::max;
-use core::cmp::min;
 use core::fmt;
 use core::iter::once;
 use core::num::NonZeroUsize;
@@ -72,29 +70,6 @@ enum MemoryType {
 struct MemoryRegion {
     range: MemoryRange,
     mem_type: MemoryType,
-}
-
-impl MemoryRegion {
-    /// True if the instance overlaps with the passed range.
-    pub fn overlaps(&self, range: &MemoryRange) -> bool {
-        overlaps(&self.range, range)
-    }
-
-    /// True if the instance is fully contained within the passed range.
-    pub fn is_within(&self, range: &MemoryRange) -> bool {
-        self.as_ref().is_within(range)
-    }
-}
-
-impl AsRef<MemoryRange> for MemoryRegion {
-    fn as_ref(&self) -> &MemoryRange {
-        &self.range
-    }
-}
-
-/// Returns true if one range overlaps with the other at all.
-fn overlaps<T: Copy + Ord>(a: &Range<T>, b: &Range<T>) -> bool {
-    max(a.start, b.start) < min(a.end, b.end)
 }
 
 /// Tracks non-overlapping slices of main memory.
@@ -206,7 +181,7 @@ impl MemoryTracker {
         if self.total.end < range.end {
             return Err(MemoryTrackerError::SizeTooLarge);
         }
-        if !self.regions.iter().all(|r| r.is_within(range)) {
+        if !self.regions.iter().all(|r| r.range.is_within(range)) {
             return Err(MemoryTrackerError::SizeTooSmall);
         }
 
@@ -250,10 +225,10 @@ impl MemoryTracker {
     /// appropriately.
     pub fn map_mmio_range(&mut self, range: MemoryRange) -> Result<()> {
         // MMIO space is below the main memory region.
-        if range.end > self.total.start || overlaps(&Self::PVMFW_RANGE, &range) {
+        if range.end > self.total.start || range.overlaps(&Self::PVMFW_RANGE) {
             return Err(MemoryTrackerError::OutOfRange);
         }
-        if self.mmio_regions.iter().any(|r| overlaps(r, &range)) {
+        if self.mmio_regions.iter().any(|r| range.overlaps(r)) {
             return Err(MemoryTrackerError::Overlaps);
         }
         if self.mmio_regions.len() == self.mmio_regions.capacity() {
@@ -276,10 +251,10 @@ impl MemoryTracker {
     /// with any other previously allocated regions, and that the regions ArrayVec has capacity to
     /// add it.
     fn check(&self, region: &MemoryRegion) -> Result<()> {
-        if !region.is_within(&self.total) {
+        if !region.range.is_within(&self.total) {
             return Err(MemoryTrackerError::OutOfRange);
         }
-        if self.regions.iter().any(|r| r.overlaps(&region.range)) {
+        if self.regions.iter().any(|r| region.range.overlaps(&r.range)) {
             return Err(MemoryTrackerError::Overlaps);
         }
         if self.regions.len() == self.regions.capacity() {
@@ -293,7 +268,7 @@ impl MemoryTracker {
             return Err(MemoryTrackerError::Full);
         }
 
-        Ok(self.regions.last().unwrap().as_ref().clone())
+        Ok(self.regions.last().unwrap().range.clone())
     }
 
     /// Unmaps all tracked MMIO regions from the MMIO guard.
