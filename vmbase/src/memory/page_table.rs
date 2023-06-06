@@ -108,3 +108,14 @@ impl PageTable {
         self.idmap.modify_range(&MemoryRegion::new(range.start, range.end), f)
     }
 }
+
+/// Checks whether a PTE at given level is a page or block descriptor.
+#[inline]
+pub fn is_leaf_pte(flags: &Attributes, level: usize) -> bool {
+    const LEAF_PTE_LEVEL: usize = 3;
+    if flags.contains(Attributes::TABLE_OR_PAGE) {
+        level == LEAF_PTE_LEVEL
+    } else {
+        level < LEAF_PTE_LEVEL
+    }
+}
