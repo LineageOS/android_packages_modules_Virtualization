@@ -37,7 +37,8 @@ use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
 use vmbase::{
-    dsb, isb, layout,
+    dsb, isb,
+    layout::{self, crosvm::MEM_START},
     memory::{
         flush_dirty_range, is_leaf_pte, page_4kb_of, set_dbm_enabled, MemorySharer, PageTable,
         MMIO_LAZY_MAP_FLAG, SIZE_2MB, SIZE_4KB, SIZE_4MB,
@@ -46,8 +47,6 @@ use vmbase::{
     util::align_up,
 };
 
-/// Base of the system's contiguous "main" memory.
-pub const BASE_ADDR: usize = 0x8000_0000;
 /// First address that can't be translated by a level 1 TTBR0_EL1.
 pub const MAX_ADDR: usize = 1 << 40;
 
@@ -148,7 +147,7 @@ static SHARED_MEMORY: SpinMutex<Option<MemorySharer>> = SpinMutex::new(None);
 impl MemoryTracker {
     const CAPACITY: usize = 5;
     const MMIO_CAPACITY: usize = 5;
-    const PVMFW_RANGE: MemoryRange = (BASE_ADDR - SIZE_4MB)..BASE_ADDR;
+    const PVMFW_RANGE: MemoryRange = (MEM_START - SIZE_4MB)..MEM_START;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
     pub fn new(mut page_table: PageTable) -> Self {
@@ -164,7 +163,7 @@ impl MemoryTracker {
         debug!("... Success!");
 
         Self {
-            total: BASE_ADDR..MAX_ADDR,
+            total: MEM_START..MAX_ADDR,
             page_table,
             regions: ArrayVec::new(),
             mmio_regions: ArrayVec::new(),
