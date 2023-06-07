@@ -20,7 +20,7 @@ mod shared;
 mod util;
 
 pub use dbm::{flush_dirty_range, set_dbm_enabled};
-pub use page_table::{is_leaf_pte, PageTable, MMIO_LAZY_MAP_FLAG};
+pub use page_table::{is_leaf_pte, PageTable, MMIO_LAZY_MAP_FLAG, PT_ASID};
 pub use shared::MemorySharer;
 pub use util::{
     flush, flushed_zeroize, min_dcache_line_size, page_4kb_of, phys_to_virt, virt_to_phys,
