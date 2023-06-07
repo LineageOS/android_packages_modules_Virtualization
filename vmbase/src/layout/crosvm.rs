@@ -16,5 +16,10 @@
 //!
 //! https://crosvm.dev/book/appendix/memory_layout.html#common-layout
 
+/// The start address of MMIO space.
+pub const MMIO_START: usize = 0x0;
+/// The end address of MMIO space.
+pub const MMIO_END: usize = 0x4000_0000;
+
 /// The start of the system's contiguous "main" memory.
 pub const MEM_START: usize = 0x8000_0000;

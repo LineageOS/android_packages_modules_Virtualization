@@ -33,7 +33,9 @@ use log::warn;
 use log::LevelFilter;
 use vmbase::util::RangeExt as _;
 use vmbase::{
-    console, layout, logger, main,
+    console,
+    layout::{self, crosvm},
+    logger, main,
     memory::{min_dcache_line_size, SIZE_2MB, SIZE_4KB},
     power::reboot,
 };
@@ -223,7 +225,11 @@ fn main_wrapper(
     let (bcc_slice, debug_policy) = appended.get_entries();
 
     // Up to this point, we were using the built-in static (from .rodata) page tables.
-    MEMORY.lock().replace(MemoryTracker::new(page_table));
+    MEMORY.lock().replace(MemoryTracker::new(
+        page_table,
+        crosvm::MEM_START..memory::MAX_ADDR,
+        crosvm::MMIO_START..crosvm::MMIO_END,
+    ));
 
     let slices = MemorySlices::new(fdt, payload, payload_size)?;
 
