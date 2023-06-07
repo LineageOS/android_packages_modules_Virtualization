@@ -23,7 +23,6 @@ mod exceptions;
 extern crate alloc;
 
 use crate::error::{Error, Result};
-use aarch64_paging::idmap::IdMap;
 use buddy_system_allocator::LockedHeap;
 use core::slice;
 use fdtpci::PciInfo;
@@ -40,11 +39,6 @@ const SZ_64K: usize = 64 * SZ_1K;
 const SZ_1M: usize = 1024 * SZ_1K;
 const SZ_1G: usize = 1024 * SZ_1M;
 
-// Root level is given by the value of TCR_EL1.TG0 and TCR_EL1.T0SZ, set in
-// entry.S. For 4KB granule and 39-bit VA, the root level is 1.
-const PT_ROOT_LEVEL: usize = 1;
-const PT_ASID: usize = 1;
-
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
 
@@ -58,7 +52,7 @@ fn init_heap() {
 }
 
 fn init_page_table() -> Result<()> {
-    let mut page_table: PageTable = IdMap::new(PT_ASID, PT_ROOT_LEVEL).into();
+    let mut page_table = PageTable::default();
 
     // The first 1 GiB of address space is used by crosvm for MMIO.
     page_table.map_device(&(0..SZ_1G))?;
