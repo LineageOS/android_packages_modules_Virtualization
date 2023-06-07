@@ -309,10 +309,12 @@ impl VirtualizationService {
                 // VirtualMachineAppConfig:
                 // - controlling CPUs;
                 // - specifying a config file in the APK;
-                // - gdbPort is set, meaning that crosvm will start a gdb server.
+                // - gdbPort is set, meaning that crosvm will start a gdb server;
+                // - using anything other than the default kernel.
                 !config.taskProfiles.is_empty()
                     || matches!(config.payload, Payload::ConfigPath(_))
                     || config.gdbPort > 0
+                    || config.customKernelImage.as_ref().is_some()
             }
         };
         if is_custom {
@@ -592,6 +594,10 @@ fn load_app_config(
     let vm_config_path = PathBuf::from(format!("/apex/com.android.virt/etc/{}.json", os_name));
     let vm_config_file = File::open(vm_config_path)?;
     let mut vm_config = VmConfig::load(&vm_config_file)?.to_parcelable()?;
+
+    if let Some(file) = config.customKernelImage.as_ref() {
+        vm_config.kernel = Some(ParcelFileDescriptor::new(clone_file(file)?))
+    }
 
     if config.memoryMib > 0 {
         vm_config.memoryMib = config.memoryMib;
