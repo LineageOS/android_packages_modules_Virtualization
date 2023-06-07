@@ -16,7 +16,6 @@
 
 use crate::bootargs::BootArgsIterator;
 use crate::cstr;
-use crate::helpers::RangeExt as _;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::memory::MAX_ADDR;
 use crate::Box;
@@ -43,6 +42,7 @@ use tinyvec::ArrayVec;
 use vmbase::layout::crosvm::MEM_START;
 use vmbase::memory::SIZE_4KB;
 use vmbase::util::flatten;
+use vmbase::util::RangeExt as _;
 
 /// Extract from /config the address range containing the pre-loaded kernel. Absence of /config is
 /// not an error.

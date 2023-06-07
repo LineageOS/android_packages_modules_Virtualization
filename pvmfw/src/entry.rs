@@ -18,7 +18,6 @@ use crate::config;
 use crate::crypto;
 use crate::fdt;
 use crate::heap;
-use crate::helpers::RangeExt as _;
 use crate::memory::{self, MemoryTracker, MEMORY};
 use crate::rand;
 use core::arch::asm;
@@ -32,6 +31,7 @@ use log::error;
 use log::info;
 use log::warn;
 use log::LevelFilter;
+use vmbase::util::RangeExt as _;
 use vmbase::{
     console, layout, logger, main,
     memory::{min_dcache_line_size, SIZE_2MB, SIZE_4KB},
