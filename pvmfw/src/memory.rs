@@ -37,11 +37,10 @@ use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
 use tinyvec::ArrayVec;
 use vmbase::{
-    dsb, isb,
-    layout::{self, crosvm::MEM_START},
+    dsb, isb, layout,
     memory::{
         flush_dirty_range, is_leaf_pte, page_4kb_of, set_dbm_enabled, MemorySharer, PageTable,
-        MMIO_LAZY_MAP_FLAG, SIZE_2MB, SIZE_4KB, SIZE_4MB,
+        MMIO_LAZY_MAP_FLAG, SIZE_2MB, SIZE_4KB,
     },
     tlbi,
     util::{align_up, RangeExt as _},
@@ -77,6 +76,7 @@ pub struct MemoryTracker {
     page_table: PageTable,
     regions: ArrayVec<[MemoryRegion; MemoryTracker::CAPACITY]>,
     mmio_regions: ArrayVec<[MemoryRange; MemoryTracker::MMIO_CAPACITY]>,
+    mmio_range: MemoryRange,
 }
 
 /// Errors for MemoryTracker operations.
@@ -147,10 +147,14 @@ static SHARED_MEMORY: SpinMutex<Option<MemorySharer>> = SpinMutex::new(None);
 impl MemoryTracker {
     const CAPACITY: usize = 5;
     const MMIO_CAPACITY: usize = 5;
-    const PVMFW_RANGE: MemoryRange = (MEM_START - SIZE_4MB)..MEM_START;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
-    pub fn new(mut page_table: PageTable) -> Self {
+    pub fn new(mut page_table: PageTable, total: MemoryRange, mmio_range: MemoryRange) -> Self {
+        assert!(
+            !total.overlaps(&mmio_range),
+            "MMIO space should not overlap with the main memory region."
+        );
+
         // Activate dirty state management first, otherwise we may get permission faults immediately
         // after activating the new page table. This has no effect before the new page table is
         // activated because none of the entries in the initial idmap have the DBM flag.
@@ -163,10 +167,11 @@ impl MemoryTracker {
         debug!("... Success!");
 
         Self {
-            total: MEM_START..MAX_ADDR,
+            total,
             page_table,
             regions: ArrayVec::new(),
             mmio_regions: ArrayVec::new(),
+            mmio_range,
         }
     }
 
@@ -223,8 +228,7 @@ impl MemoryTracker {
     /// Checks that the given range of addresses is within the MMIO region, and then maps it
     /// appropriately.
     pub fn map_mmio_range(&mut self, range: MemoryRange) -> Result<()> {
-        // MMIO space is below the main memory region.
-        if range.end > self.total.start || range.overlaps(&Self::PVMFW_RANGE) {
+        if !range.is_within(&self.mmio_range) {
             return Err(MemoryTrackerError::OutOfRange);
         }
         if self.mmio_regions.iter().any(|r| range.overlaps(r)) {
