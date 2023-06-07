@@ -16,7 +16,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use crate::helpers::{RangeExt, PVMFW_PAGE_SIZE};
+use crate::helpers::PVMFW_PAGE_SIZE;
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use aarch64_paging::MapError;
@@ -44,7 +44,7 @@ use vmbase::{
         MMIO_LAZY_MAP_FLAG, SIZE_2MB, SIZE_4KB, SIZE_4MB,
     },
     tlbi,
-    util::align_up,
+    util::{align_up, RangeExt as _},
 };
 
 /// First address that can't be translated by a level 1 TTBR0_EL1.
