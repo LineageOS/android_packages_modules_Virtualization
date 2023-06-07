@@ -35,6 +35,12 @@ const DATA: Attributes = MEMORY.union(Attributes::EXECUTE_NEVER);
 const RODATA: Attributes = DATA.union(Attributes::READ_ONLY);
 const DATA_DBM: Attributes = RODATA.union(Attributes::DBM);
 
+/// Root level is given by the value of TCR_EL1.TG0 and TCR_EL1.T0SZ, set in
+/// entry.S. For 4KB granule and 39-bit VA, the root level is 1.
+const PT_ROOT_LEVEL: usize = 1;
+/// Page table ASID.
+pub const PT_ASID: usize = 1;
+
 type Result<T> = result::Result<T, MapError>;
 
 /// High-level API for managing MMU mappings.
@@ -45,6 +51,12 @@ pub struct PageTable {
 impl From<IdMap> for PageTable {
     fn from(idmap: IdMap) -> Self {
         Self { idmap }
+    }
+}
+
+impl Default for PageTable {
+    fn default() -> Self {
+        IdMap::new(PT_ASID, PT_ROOT_LEVEL).into()
     }
 }
 
