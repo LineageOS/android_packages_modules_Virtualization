@@ -229,6 +229,7 @@ fn main_wrapper(
         page_table,
         crosvm::MEM_START..memory::MAX_ADDR,
         crosvm::MMIO_START..crosvm::MMIO_END,
+        memory::appended_payload_range(),
     ));
 
     let slices = MemorySlices::new(fdt, payload, payload_size)?;
