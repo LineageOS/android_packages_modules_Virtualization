@@ -77,6 +77,7 @@ pub struct MemoryTracker {
     regions: ArrayVec<[MemoryRegion; MemoryTracker::CAPACITY]>,
     mmio_regions: ArrayVec<[MemoryRange; MemoryTracker::MMIO_CAPACITY]>,
     mmio_range: MemoryRange,
+    payload_range: MemoryRange,
 }
 
 /// Errors for MemoryTracker operations.
@@ -149,7 +150,12 @@ impl MemoryTracker {
     const MMIO_CAPACITY: usize = 5;
 
     /// Create a new instance from an active page table, covering the maximum RAM size.
-    pub fn new(mut page_table: PageTable, total: MemoryRange, mmio_range: MemoryRange) -> Self {
+    pub fn new(
+        mut page_table: PageTable,
+        total: MemoryRange,
+        mmio_range: MemoryRange,
+        payload_range: MemoryRange,
+    ) -> Self {
         assert!(
             !total.overlaps(&mmio_range),
             "MMIO space should not overlap with the main memory region."
@@ -172,6 +178,7 @@ impl MemoryTracker {
             regions: ArrayVec::new(),
             mmio_regions: ArrayVec::new(),
             mmio_range,
+            payload_range,
         }
     }
 
@@ -346,12 +353,11 @@ impl MemoryTracker {
         // Collect memory ranges for which dirty state is tracked.
         let writable_regions =
             self.regions.iter().filter(|r| r.mem_type == MemoryType::ReadWrite).map(|r| &r.range);
-        let payload_range = appended_payload_range();
         // Execute a barrier instruction to ensure all hardware updates to the page table have been
         // observed before reading PTE flags to determine dirty state.
         dsb!("ish");
         // Now flush writable-dirty pages in those regions.
-        for range in writable_regions.chain(once(&payload_range)) {
+        for range in writable_regions.chain(once(&self.payload_range)) {
             self.page_table
                 .modify_range(range, &flush_dirty_range)
                 .map_err(|_| MemoryTrackerError::FlushRegionFailed)?;
@@ -499,7 +505,7 @@ fn mark_dirty_block(
 }
 
 /// Returns memory range reserved for the appended payload.
-pub fn appended_payload_range() -> Range<usize> {
+pub fn appended_payload_range() -> MemoryRange {
     let start = align_up(layout::binary_end(), SIZE_4KB).unwrap();
     // pvmfw is contained in a 2MiB region so the payload can't be larger than the 2MiB alignment.
     let end = align_up(start, SIZE_2MB).unwrap();
@@ -507,7 +513,7 @@ pub fn appended_payload_range() -> Range<usize> {
 }
 
 /// Region allocated for the stack.
-pub fn stack_range() -> Range<usize> {
+pub fn stack_range() -> MemoryRange {
     const STACK_PAGES: usize = 8;
 
     layout::stack_range(STACK_PAGES * PVMFW_PAGE_SIZE)
