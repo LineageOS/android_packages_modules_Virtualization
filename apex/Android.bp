@@ -11,8 +11,14 @@ soong_config_module_type {
     name: "virt_apex",
     module_type: "apex",
     config_namespace: "ANDROID",
-    bool_variables: ["avf_enabled"],
-    properties: ["defaults"],
+    bool_variables: [
+        "avf_enabled",
+        "avf_kernel_modules_enabled",
+    ],
+    properties: [
+        "defaults",
+        "prebuilts",
+    ],
 }
 
 virt_apex {
@@ -23,6 +29,9 @@ virt_apex {
             conditions_default: {
                 defaults: ["com.android.virt_avf_disabled"],
             },
+        },
+        avf_kernel_modules_enabled: {
+            prebuilts: ["microdroid_kernel_with_modules"],
         },
     },
 }
