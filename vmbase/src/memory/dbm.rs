@@ -14,7 +14,7 @@
 
 //! Hardware management of the access flag and dirty state.
 
-use super::page_table::{is_leaf_pte, PT_ASID};
+use super::page_table::{is_leaf_pte, PageTable};
 use super::util::flush_region;
 use crate::{dsb, isb, read_sysreg, tlbi, write_sysreg};
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion};
@@ -91,7 +91,7 @@ pub fn mark_dirty_block(
         // An ISB instruction is required to ensure the effects of completed TLB maintenance
         // instructions are visible to instructions fetched afterwards.
         // See ARM ARM E2.3.10, and G5.9.
-        tlbi!("vale1", PT_ASID, va_range.start().0);
+        tlbi!("vale1", PageTable::ASID, va_range.start().0);
         dsb!("ish");
         isb!();
         Ok(())
