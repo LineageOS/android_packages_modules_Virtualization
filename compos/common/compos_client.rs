@@ -130,6 +130,7 @@ impl ComposClient {
             cpuTopology: cpu_topology,
             taskProfiles: parameters.task_profiles.clone(),
             gdbPort: 0, // Don't start gdb-server
+            customKernelImage: None,
         });
 
         // Let logs go to logcat.
