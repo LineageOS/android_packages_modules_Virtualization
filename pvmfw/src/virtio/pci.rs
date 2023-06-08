@@ -15,7 +15,7 @@
 //! Functions to scan the PCI bus for VirtIO devices.
 
 use super::hal::HalImpl;
-use crate::{entry::RebootReason, memory::MemoryTracker};
+use crate::entry::RebootReason;
 use alloc::boxed::Box;
 use fdtpci::PciInfo;
 use log::{debug, error};
@@ -30,6 +30,7 @@ use virtio_drivers::{
         DeviceType, Transport,
     },
 };
+use vmbase::memory::MemoryTracker;
 
 pub(super) static PCI_INFO: OnceBox<PciInfo> = OnceBox::new();
 
