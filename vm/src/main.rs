@@ -107,6 +107,10 @@ enum Opt {
         /// Note: this is only supported on Android kernels android14-5.15 and higher.
         #[clap(long)]
         gdb: Option<NonZeroU16>,
+
+        /// Path to custom kernel image to use when booting Microdroid.
+        #[clap(long)]
+        kernel: Option<PathBuf>,
     },
     /// Run a virtual machine with Microdroid inside
     RunMicrodroid {
@@ -163,6 +167,10 @@ enum Opt {
         /// Note: this is only supported on Android kernels android14-5.15 and higher.
         #[clap(long)]
         gdb: Option<NonZeroU16>,
+
+        /// Path to custom kernel image to use when booting Microdroid.
+        #[clap(long)]
+        kernel: Option<PathBuf>,
     },
     /// Run a virtual machine
     Run {
@@ -277,6 +285,7 @@ fn main() -> Result<(), Error> {
             task_profiles,
             extra_idsigs,
             gdb,
+            kernel,
         } => command_run_app(
             name,
             get_service()?.as_ref(),
@@ -296,6 +305,7 @@ fn main() -> Result<(), Error> {
             task_profiles,
             &extra_idsigs,
             gdb,
+            kernel.as_deref(),
         ),
         Opt::RunMicrodroid {
             name,
@@ -310,6 +320,7 @@ fn main() -> Result<(), Error> {
             cpu_topology,
             task_profiles,
             gdb,
+            kernel,
         } => command_run_microdroid(
             name,
             get_service()?.as_ref(),
@@ -324,6 +335,7 @@ fn main() -> Result<(), Error> {
             cpu_topology,
             task_profiles,
             gdb,
+            kernel.as_deref(),
         ),
         Opt::Run { name, config, cpu_topology, task_profiles, console, log, gdb } => {
             command_run(
