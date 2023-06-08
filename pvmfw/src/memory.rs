@@ -22,7 +22,6 @@ use alloc::alloc::handle_alloc_error;
 use alloc::boxed::Box;
 use buddy_system_allocator::LockedFrameAllocator;
 use core::alloc::Layout;
-use core::fmt;
 use core::iter::once;
 use core::num::NonZeroUsize;
 use core::ops::Range;
@@ -38,7 +37,7 @@ use vmbase::{
     dsb, layout,
     memory::{
         flush_dirty_range, mark_dirty_block, mmio_guard_unmap_page, page_4kb_of, set_dbm_enabled,
-        verify_lazy_mapped_block, MemorySharer, PageTable, SIZE_2MB, SIZE_4KB,
+        verify_lazy_mapped_block, MemorySharer, MemoryTrackerError, PageTable, SIZE_2MB, SIZE_4KB,
     },
     util::{align_up, RangeExt as _},
 };
@@ -72,66 +71,6 @@ pub struct MemoryTracker {
     mmio_regions: ArrayVec<[MemoryRange; MemoryTracker::MMIO_CAPACITY]>,
     mmio_range: MemoryRange,
     payload_range: MemoryRange,
-}
-
-/// Errors for MemoryTracker operations.
-#[derive(Debug, Clone)]
-pub enum MemoryTrackerError {
-    /// Tried to modify the memory base address.
-    DifferentBaseAddress,
-    /// Tried to shrink to a larger memory size.
-    SizeTooLarge,
-    /// Tracked regions would not fit in memory size.
-    SizeTooSmall,
-    /// Reached limit number of tracked regions.
-    Full,
-    /// Region is out of the tracked memory address space.
-    OutOfRange,
-    /// New region overlaps with tracked regions.
-    Overlaps,
-    /// Region couldn't be mapped.
-    FailedToMap,
-    /// Region couldn't be unmapped.
-    FailedToUnmap,
-    /// Error from the interaction with the hypervisor.
-    Hypervisor(hyp::Error),
-    /// Failure to set `SHARED_MEMORY`.
-    SharedMemorySetFailure,
-    /// Failure to set `SHARED_POOL`.
-    SharedPoolSetFailure,
-    /// Invalid page table entry.
-    InvalidPte,
-    /// Failed to flush memory region.
-    FlushRegionFailed,
-    /// Failed to set PTE dirty state.
-    SetPteDirtyFailed,
-}
-
-impl fmt::Display for MemoryTrackerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::DifferentBaseAddress => write!(f, "Received different base address"),
-            Self::SizeTooLarge => write!(f, "Tried to shrink to a larger memory size"),
-            Self::SizeTooSmall => write!(f, "Tracked regions would not fit in memory size"),
-            Self::Full => write!(f, "Reached limit number of tracked regions"),
-            Self::OutOfRange => write!(f, "Region is out of the tracked memory address space"),
-            Self::Overlaps => write!(f, "New region overlaps with tracked regions"),
-            Self::FailedToMap => write!(f, "Failed to map the new region"),
-            Self::FailedToUnmap => write!(f, "Failed to unmap the new region"),
-            Self::Hypervisor(e) => e.fmt(f),
-            Self::SharedMemorySetFailure => write!(f, "Failed to set SHARED_MEMORY"),
-            Self::SharedPoolSetFailure => write!(f, "Failed to set SHARED_POOL"),
-            Self::InvalidPte => write!(f, "Page table entry is not valid"),
-            Self::FlushRegionFailed => write!(f, "Failed to flush memory region"),
-            Self::SetPteDirtyFailed => write!(f, "Failed to set PTE dirty state"),
-        }
-    }
-}
-
-impl From<hyp::Error> for MemoryTrackerError {
-    fn from(e: hyp::Error) -> Self {
-        Self::Hypervisor(e)
-    }
 }
 
 type Result<T> = result::Result<T, MemoryTrackerError>;
