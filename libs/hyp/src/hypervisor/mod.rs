@@ -24,6 +24,7 @@ use crate::error::{Error, Result};
 use alloc::boxed::Box;
 pub use common::Hypervisor;
 pub use common::HypervisorCap;
+pub use common::MMIO_GUARD_GRANULE_SIZE;
 use gunyah::GunyahHypervisor;
 pub use kvm::KvmError;
 use kvm::KvmHypervisor;
