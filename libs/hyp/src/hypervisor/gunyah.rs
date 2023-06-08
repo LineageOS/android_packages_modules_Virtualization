@@ -1,6 +1,5 @@
-use super::common::{Hypervisor, HypervisorCap};
+use super::common::{Hypervisor, HypervisorCap, MMIO_GUARD_GRANULE_SIZE};
 use crate::error::Result;
-use crate::util::SIZE_4KB;
 use uuid::{uuid, Uuid};
 
 pub(super) struct GunyahHypervisor;
@@ -31,7 +30,7 @@ impl Hypervisor for GunyahHypervisor {
     }
 
     fn memory_protection_granule(&self) -> Result<usize> {
-        Ok(SIZE_4KB)
+        Ok(MMIO_GUARD_GRANULE_SIZE)
     }
 
     fn has_cap(&self, _cap: HypervisorCap) -> bool {

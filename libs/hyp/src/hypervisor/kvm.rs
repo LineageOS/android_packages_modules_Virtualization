@@ -14,9 +14,9 @@
 
 //! Wrappers around calls to the KVM hypervisor.
 
-use super::common::{Hypervisor, HypervisorCap};
+use super::common::{Hypervisor, HypervisorCap, MMIO_GUARD_GRANULE_SIZE};
 use crate::error::{Error, Result};
-use crate::util::{page_address, SIZE_4KB};
+use crate::util::page_address;
 use core::fmt::{self, Display, Formatter};
 use smccc::{
     error::{positive_or_error_64, success_or_error_32, success_or_error_64},
@@ -83,7 +83,7 @@ impl Hypervisor for KvmHypervisor {
     fn mmio_guard_init(&self) -> Result<()> {
         mmio_guard_enroll()?;
         let mmio_granule = mmio_guard_granule()?;
-        if mmio_granule != SIZE_4KB {
+        if mmio_granule != MMIO_GUARD_GRANULE_SIZE {
             return Err(Error::UnsupportedMmioGuardGranule(mmio_granule));
         }
         Ok(())
