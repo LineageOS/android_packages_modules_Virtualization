@@ -20,7 +20,7 @@ use aarch64_paging::MapError;
 use core::{ops::Range, result};
 
 /// Software bit used to indicate a device that should be lazily mapped.
-pub const MMIO_LAZY_MAP_FLAG: Attributes = Attributes::SWFLAG_0;
+pub(super) const MMIO_LAZY_MAP_FLAG: Attributes = Attributes::SWFLAG_0;
 
 // We assume that:
 // - MAIR_EL1.Attr0 = "Device-nGnRE memory" (0b0000_0100)
@@ -39,7 +39,7 @@ const DATA_DBM: Attributes = RODATA.union(Attributes::DBM);
 /// entry.S. For 4KB granule and 39-bit VA, the root level is 1.
 const PT_ROOT_LEVEL: usize = 1;
 /// Page table ASID.
-pub const PT_ASID: usize = 1;
+pub(super) const PT_ASID: usize = 1;
 
 type Result<T> = result::Result<T, MapError>;
 
@@ -123,7 +123,7 @@ impl PageTable {
 
 /// Checks whether a PTE at given level is a page or block descriptor.
 #[inline]
-pub fn is_leaf_pte(flags: &Attributes, level: usize) -> bool {
+pub(super) fn is_leaf_pte(flags: &Attributes, level: usize) -> bool {
     const LEAF_PTE_LEVEL: usize = 3;
     if flags.contains(Attributes::TABLE_OR_PAGE) {
         level == LEAF_PTE_LEVEL
