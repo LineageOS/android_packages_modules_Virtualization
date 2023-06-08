@@ -69,15 +69,19 @@ fn init_page_table() -> Result<()> {
     Ok(())
 }
 
-fn try_init_logger() -> Result<()> {
-    match get_hypervisor().mmio_guard_init() {
+fn try_init_logger() -> Result<bool> {
+    let mmio_guard_supported = match get_hypervisor().mmio_guard_init() {
         // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
-        Ok(()) => get_hypervisor().mmio_guard_map(vmbase::console::BASE_ADDRESS)?,
+        Ok(()) => {
+            get_hypervisor().mmio_guard_map(vmbase::console::BASE_ADDRESS)?;
+            true
+        }
         // MMIO guard enroll is not supported in unprotected VM.
-        Err(hyp::Error::MmioGuardNotsupported) => {}
+        Err(hyp::Error::MmioGuardNotsupported) => false,
         Err(e) => return Err(e.into()),
     };
-    vmbase::logger::init(log::LevelFilter::Debug).map_err(|_| Error::LoggerInit)
+    vmbase::logger::init(log::LevelFilter::Debug).map_err(|_| Error::LoggerInit)?;
+    Ok(mmio_guard_supported)
 }
 
 /// # Safety
@@ -96,19 +100,39 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     Ok(())
 }
 
+fn try_unshare_all_memory(mmio_guard_supported: bool) -> Result<()> {
+    if !mmio_guard_supported {
+        return Ok(());
+    }
+    info!("Starting unsharing memory...");
+
+    // TODO(b/284462758): Unshare all the memory here.
+
+    // No logging after unmapping UART.
+    get_hypervisor().mmio_guard_unmap(vmbase::console::BASE_ADDRESS)?;
+    Ok(())
+}
+
+fn unshare_all_memory(mmio_guard_supported: bool) {
+    if let Err(e) = try_unshare_all_memory(mmio_guard_supported) {
+        error!("Failed to unshare the memory: {e}");
+    }
+}
+
 /// Entry point for Rialto.
 pub fn main(fdt_addr: u64, _a1: u64, _a2: u64, _a3: u64) {
     init_heap();
-    if try_init_logger().is_err() {
+    let Ok(mmio_guard_supported) = try_init_logger() else {
         // Don't log anything if the logger initialization fails.
         reboot();
-    }
+    };
     // SAFETY: `fdt_addr` is supposed to be a valid pointer and points to
     // a valid `Fdt`.
     match unsafe { try_main(fdt_addr as usize) } {
-        Ok(()) => info!("Rialto ends successfully."),
+        Ok(()) => unshare_all_memory(mmio_guard_supported),
         Err(e) => {
             error!("Rialto failed with {e}");
+            unshare_all_memory(mmio_guard_supported);
             reboot()
         }
     }
