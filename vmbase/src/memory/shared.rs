@@ -15,7 +15,7 @@
 //! Shared memory management.
 
 use super::page_table::{is_leaf_pte, MMIO_LAZY_MAP_FLAG};
-use super::util::{virt_to_phys, PAGE_SIZE};
+use super::util::virt_to_phys;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange};
 use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error};
 use alloc::vec::Vec;
@@ -23,7 +23,7 @@ use buddy_system_allocator::FrameAllocator;
 use core::alloc::Layout;
 use core::ptr::NonNull;
 use core::result;
-use hyp::get_hypervisor;
+use hyp::{get_hypervisor, MMIO_GUARD_GRANULE_SIZE};
 use log::{error, trace};
 
 /// Allocates memory on the heap and shares it with the host.
@@ -124,11 +124,11 @@ pub fn mmio_guard_unmap_page(
         );
         assert_eq!(
             va_range.len(),
-            PAGE_SIZE,
+            MMIO_GUARD_GRANULE_SIZE,
             "Failed to break down block mapping before MMIO guard mapping"
         );
         let page_base = va_range.start().0;
-        assert_eq!(page_base % PAGE_SIZE, 0);
+        assert_eq!(page_base % MMIO_GUARD_GRANULE_SIZE, 0);
         // Since mmio_guard_map takes IPAs, if pvmfw moves non-ID address mapping, page_base
         // should be converted to IPA. However, since 0x0 is a valid MMIO address, we don't use
         // virt_to_phys here, and just pass page_base instead.
