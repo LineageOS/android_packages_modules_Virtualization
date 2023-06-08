@@ -14,9 +14,9 @@
 
 //! Hardware management of the access flag and dirty state.
 
-use super::page_table::is_leaf_pte;
+use super::page_table::{is_leaf_pte, PT_ASID};
 use super::util::flush_region;
-use crate::{isb, read_sysreg, write_sysreg};
+use crate::{dsb, isb, read_sysreg, tlbi, write_sysreg};
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion};
 
 /// Sets whether the hardware management of access and dirty state is enabled with
@@ -67,4 +67,35 @@ pub fn flush_dirty_range(
         flush_region(va_range.start().0, va_range.len());
     }
     Ok(())
+}
+
+/// Clears read-only flag on a PTE, making it writable-dirty. Used when dirty state is managed
+/// in software to handle permission faults on read-only descriptors.
+/// As the return type is required by the crate `aarch64_paging`, we cannot address the lint
+/// issue `clippy::result_unit_err`.
+#[allow(clippy::result_unit_err)]
+pub fn mark_dirty_block(
+    va_range: &MemoryRegion,
+    desc: &mut Descriptor,
+    level: usize,
+) -> Result<(), ()> {
+    let flags = desc.flags().ok_or(())?;
+    if !is_leaf_pte(&flags, level) {
+        return Ok(());
+    }
+    if flags.contains(Attributes::DBM) {
+        assert!(flags.contains(Attributes::READ_ONLY), "unexpected PTE writable state");
+        desc.modify_flags(Attributes::empty(), Attributes::READ_ONLY);
+        // Updating the read-only bit of a PTE requires TLB invalidation.
+        // A TLB maintenance instruction is only guaranteed to be complete after a DSB instruction.
+        // An ISB instruction is required to ensure the effects of completed TLB maintenance
+        // instructions are visible to instructions fetched afterwards.
+        // See ARM ARM E2.3.10, and G5.9.
+        tlbi!("vale1", PT_ASID, va_range.start().0);
+        dsb!("ish");
+        isb!();
+        Ok(())
+    } else {
+        Err(())
+    }
 }
