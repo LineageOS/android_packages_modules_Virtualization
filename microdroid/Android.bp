@@ -461,3 +461,34 @@ prebuilt_etc {
         },
     },
 }
+
+avb_add_hash_footer {
+    name: "microdroid_kernel_with_modules_signed",
+    src: ":empty_file",
+    filename: "microdroid_kernel_with_modules",
+    partition_name: "boot",
+    private_key: ":microdroid_sign_key",
+    salt: bootloader_salt,
+    enabled: false,
+    arch: {
+        arm64: {
+            src: ":microdroid_kernel_with_modules_prebuilts-6.1-arm64",
+            enabled: true,
+        },
+    },
+    include_descriptors_from_images: [
+        ":microdroid_initrd_normal_hashdesc",
+        ":microdroid_initrd_debug_hashdesc",
+    ],
+}
+
+prebuilt_etc {
+    name: "microdroid_kernel_with_modules",
+    src: ":empty_file",
+    relative_install_path: "fs",
+    arch: {
+        arm64: {
+            src: ":microdroid_kernel_with_modules_signed",
+        },
+    },
+}
