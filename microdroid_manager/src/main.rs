@@ -58,6 +58,7 @@ use std::fs::{self, create_dir, OpenOptions, File};
 use std::io::{Read, Write};
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
+use std::os::unix::io::{FromRawFd, OwnedFd};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::str;
@@ -190,23 +191,36 @@ fn main() -> Result<()> {
     })
 }
 
-fn prepare_vm_payload_service_socket() -> Result<()> {
-    android_get_control_socket(VM_PAYLOAD_SERVICE_SOCKET_NAME)?;
+/// Prepares a socket file descriptor for the vm payload service.
+///
+/// # Safety requirement
+///
+/// The caller must ensure that this function is the only place that claims ownership
+/// of the file descriptor and it is called only once.
+unsafe fn prepare_vm_payload_service_socket() -> Result<OwnedFd> {
+    let raw_fd = android_get_control_socket(VM_PAYLOAD_SERVICE_SOCKET_NAME)?;
 
-    // TODO(b/275729094): Convert the obtained file descriptor to `OwnedFd`
-    //  and use it to set the `RpcServer`.
-    Ok(())
+    // Creating OwnedFd for stdio FDs is not safe.
+    if [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO].contains(&raw_fd) {
+        bail!("File descriptor {raw_fd} is standard I/O descriptor");
+    }
+    // SAFETY: Initializing OwnedFd for a RawFd created by the init.
+    // We checked that the integer value corresponds to a valid FD and that the caller
+    // ensures that this is the only place to claim its ownership.
+    Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
 }
 
 fn try_main() -> Result<()> {
     let _ignored = kernlog::init();
     info!("started.");
 
+    // SAFETY: This is the only place we take the ownership of the fd of the vm payload service.
+    //
     // To ensure that the CLOEXEC flag is set on the file descriptor as early as possible,
     // it is necessary to fetch the socket corresponding to vm_payload_service at the
     // very beginning, as android_get_control_socket() sets the CLOEXEC flag on the file
     // descriptor.
-    prepare_vm_payload_service_socket()?;
+    let vm_payload_service_fd = unsafe { prepare_vm_payload_service_socket()? };
 
     load_crashkernel_if_supported().context("Failed to load crashkernel")?;
 
@@ -217,7 +231,7 @@ fn try_main() -> Result<()> {
         .context("cannot connect to VirtualMachineService")
         .map_err(|e| MicrodroidError::FailedToConnectToVirtualizationService(e.to_string()))?;
 
-    match try_run_payload(&service) {
+    match try_run_payload(&service, vm_payload_service_fd) {
         Ok(code) => {
             if code == 0 {
                 info!("task successfully finished");
@@ -331,7 +345,10 @@ fn get_debug_policy_bool(path: &'static str) -> Result<Option<bool>> {
     Ok(Some(u32::from_be_bytes(log) == 1))
 }
 
-fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
+fn try_run_payload(
+    service: &Strong<dyn IVirtualMachineService>,
+    vm_payload_service_fd: OwnedFd,
+) -> Result<i32> {
     let metadata = load_metadata().context("Failed to load payload metadata")?;
     let dice = DiceDriver::new(Path::new("/dev/open-dice0")).context("Failed to load DICE")?;
 
@@ -448,7 +465,12 @@ fn try_run_payload(service: &Strong<dyn IVirtualMachineService>) -> Result<i32> 
     // Wait until zipfuse has mounted the APKs so we can access the payload
     zipfuse.wait_until_done()?;
 
-    register_vm_payload_service(allow_restricted_apis, service.clone(), dice_artifacts)?;
+    register_vm_payload_service(
+        allow_restricted_apis,
+        service.clone(),
+        dice_artifacts,
+        vm_payload_service_fd,
+    )?;
 
     // Wait for encryptedstore to finish mounting the storage (if enabled) before setting
     // microdroid_manager.init_done. Reason is init stops uneventd after that.
