@@ -15,7 +15,11 @@
 //! This module regroups some common traits shared by all the hypervisors.
 
 use crate::error::Result;
+use crate::util::SIZE_4KB;
 use bitflags::bitflags;
+
+/// Expected MMIO guard granule size, validated during MMIO guard initialization.
+pub const MMIO_GUARD_GRANULE_SIZE: usize = SIZE_4KB;
 
 bitflags! {
     /// Capabilities that Hypervisor backends can declare support for.
