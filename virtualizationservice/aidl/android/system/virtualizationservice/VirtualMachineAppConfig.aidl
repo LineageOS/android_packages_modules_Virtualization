@@ -73,6 +73,10 @@ parcelable VirtualMachineAppConfig {
     /**
      * Port at which crosvm will start a gdb server to debug guest kernel.
      * If set to zero, then gdb server won't be started.
+     *
+     * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
+     *
+     * TODO(b/286225150): move to a separate struct
      */
     int gdbPort = 0;
 
@@ -92,6 +96,17 @@ parcelable VirtualMachineAppConfig {
      * List of task profile names to apply for the VM
      *
      * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
+     *
+     * TODO(b/286225150): move to a separate struct
      */
     String[] taskProfiles;
+
+    /**
+     * If specified, boot Microdroid VM with the given kernel.
+     *
+     * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
+     *
+     * TODO(b/286225150): move to a separate struct
+     */
+    @nullable ParcelFileDescriptor customKernelImage;
 }
