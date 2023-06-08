@@ -98,7 +98,10 @@ fn main(
     // Set up PCI bus for VirtIO devices.
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
-    let mut pci_root = pci::initialise(pci_info, MEMORY.lock().as_mut().unwrap())?;
+    let mut pci_root = pci::initialise(pci_info, MEMORY.lock().as_mut().unwrap()).map_err(|e| {
+        error!("Failed to initialise PCI: {e}");
+        RebootReason::InternalError
+    })?;
 
     let verified_boot_data = verify_payload(signed_kernel, ramdisk, PUBLIC_KEY).map_err(|e| {
         error!("Failed to verify the payload: {e}");
