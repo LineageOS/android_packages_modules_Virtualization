@@ -15,11 +15,13 @@
 //! Memory management.
 
 mod dbm;
+mod error;
 mod page_table;
 mod shared;
 mod util;
 
 pub use dbm::{flush_dirty_range, mark_dirty_block, set_dbm_enabled};
+pub use error::MemoryTrackerError;
 pub use page_table::PageTable;
 pub use shared::{mmio_guard_unmap_page, verify_lazy_mapped_block, MemorySharer};
 pub use util::{
