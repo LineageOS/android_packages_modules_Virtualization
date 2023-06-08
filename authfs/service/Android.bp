@@ -17,6 +17,7 @@ rust_binary {
         "liblog_rust",
         "libnix",
         "librpcbinder_rs",
+        "librustutils",
         "libshared_child",
     ],
     prefer_rlib: true,
