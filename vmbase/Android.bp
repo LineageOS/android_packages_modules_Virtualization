@@ -67,8 +67,10 @@ rust_library_rlib {
         "libbuddy_system_allocator",
         "libhyp",
         "liblog_rust_nostd",
+        "libonce_cell_nostd",
         "libsmccc",
         "libspin_nostd",
+        "libtinyvec_nostd",
         "libzeroize_nostd",
     ],
     whole_static_libs: [

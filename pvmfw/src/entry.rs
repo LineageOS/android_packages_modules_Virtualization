@@ -18,7 +18,7 @@ use crate::config;
 use crate::crypto;
 use crate::fdt;
 use crate::heap;
-use crate::memory::{self, MemoryTracker, MEMORY};
+use crate::memory;
 use crate::rand;
 use core::arch::asm;
 use core::mem::{drop, size_of};
@@ -36,7 +36,7 @@ use vmbase::{
     console,
     layout::{self, crosvm},
     logger, main,
-    memory::{min_dcache_line_size, SIZE_2MB, SIZE_4KB},
+    memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_2MB, SIZE_4KB},
     power::reboot,
 };
 use zeroize::Zeroize;
