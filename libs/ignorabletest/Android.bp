@@ -8,6 +8,7 @@ rust_library {
     edition: "2021",
     rustlibs: [
         "liblibtest_mimic",
+        "liblinkme",
     ],
     proc_macros: ["libpaste"],
     apex_available: [
@@ -22,5 +23,12 @@ rust_defaults {
     cfgs: ["test"],
     rustlibs: [
         "libignorabletest",
+        "liblinkme",
+    ],
+    // Without this flag we get linker errors saying to add it. See
+    // https://github.com/dtolnay/linkme/issues/49 and related issues.
+    ld_flags: [
+        "-z",
+        "nostart-stop-gc",
     ],
 }

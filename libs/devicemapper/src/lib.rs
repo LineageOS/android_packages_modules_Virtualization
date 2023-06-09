@@ -233,13 +233,13 @@ fn uuid(node_id: &[u8]) -> Result<String> {
 }
 
 #[cfg(test)]
-ignorabletest::test_main!(tests::all_tests());
+ignorabletest::test_main!();
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crypt::{CipherType, DmCryptTargetBuilder};
-    use ignorabletest::{list_tests, test};
+    use ignorabletest::test;
     use rustutils::system_properties;
     use std::fs::{read, File, OpenOptions};
     use std::io::Write;
@@ -261,13 +261,6 @@ mod tests {
         key: b"thirtytwobyteslongreallylongword",
         different_key: b"drowgnolyllaergnolsetybowtytriht",
     };
-
-    list_tests! {all_tests: [
-        mapping_again_keeps_data_xts,
-        mapping_again_keeps_data_hctr2,
-        data_inaccessible_with_diff_key_xts,
-        data_inaccessible_with_diff_key_hctr2,
-    ]}
 
     // Create a file in given temp directory with given size
     fn prepare_tmpfile(test_dir: &Path, filename: &str, sz: u64) -> PathBuf {
