@@ -15,13 +15,12 @@
 //! HAL for the virtio_drivers crate.
 
 use super::pci::PCI_INFO;
-use crate::memory::{alloc_shared, dealloc_shared};
 use core::alloc::Layout;
 use core::mem::size_of;
 use core::ptr::{copy_nonoverlapping, NonNull};
 use log::trace;
 use virtio_drivers::{BufferDirection, Hal, PhysAddr, PAGE_SIZE};
-use vmbase::memory::{phys_to_virt, virt_to_phys};
+use vmbase::memory::{alloc_shared, dealloc_shared, phys_to_virt, virt_to_phys};
 use vmbase::util::RangeExt as _;
 
 /// The alignment to use for the temporary buffers allocated by `HalImpl::share`. There doesn't seem
