@@ -15,6 +15,7 @@
 //! Functions to scan the PCI bus for VirtIO devices.
 
 use super::hal::HalImpl;
+use crate::memory::{MemoryTracker, MemoryTrackerError};
 use alloc::boxed::Box;
 use core::fmt;
 use fdtpci::PciInfo;
@@ -30,7 +31,6 @@ use virtio_drivers::{
         DeviceType, Transport,
     },
 };
-use vmbase::memory::{MemoryTracker, MemoryTrackerError};
 
 pub(super) static PCI_INFO: OnceBox<PciInfo> = OnceBox::new();
 
@@ -78,14 +78,17 @@ pub fn initialise(pci_info: PciInfo, memory: &mut MemoryTracker) -> Result<PciRo
     Ok(unsafe { pci_info.make_pci_root() })
 }
 
+/// Virtio Block device.
 pub type VirtIOBlk = blk::VirtIOBlk<HalImpl, PciTransport>;
 
+/// Virtio Block device iterator.
 pub struct VirtIOBlkIterator<'a> {
     pci_root: &'a mut PciRoot,
     bus: BusDeviceIterator,
 }
 
 impl<'a> VirtIOBlkIterator<'a> {
+    /// Creates a new iterator.
     pub fn new(pci_root: &'a mut PciRoot) -> Self {
         let bus = pci_root.enumerate_bus(0);
         Self { pci_root, bus }
