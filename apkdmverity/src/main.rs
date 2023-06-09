@@ -153,27 +153,16 @@ fn enable_verity<P: AsRef<Path> + Debug>(
 }
 
 #[cfg(test)]
-ignorabletest::test_main!(tests::all_tests());
+ignorabletest::test_main!();
 
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use ignorabletest::{list_tests, test};
+    use ignorabletest::test;
     use std::fs::{File, OpenOptions};
     use std::io::Write;
     use std::ops::Deref;
     use std::os::unix::fs::FileExt;
-
-    list_tests! {all_tests: [
-        correct_inputs,
-        incorrect_apk,
-        incorrect_merkle_tree,
-        tampered_apk,
-        tampered_idsig,
-        inputs_are_block_devices,
-        correct_custom_roothash,
-        verify_command,
-    ]}
 
     struct TestContext<'a> {
         data_backing_file: &'a Path,
