@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.os.RemoteException;
 import android.system.virtualmachine.VirtualMachine;
+import android.system.virtualmachine.VirtualMachineException;
 import android.util.Log;
 
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase.VmEventListener;
@@ -31,6 +32,8 @@ import com.android.microdroid.testservice.IBenchmarkService;
  */
 class BenchmarkVmListener extends VmEventListener {
     private static final String TAG = "BenchmarkVm";
+
+    private boolean mPayloadReady;
 
     interface InnerListener {
         /** This is invoked when both the payload and {@link IBenchmarkService} are ready. */
@@ -46,6 +49,7 @@ class BenchmarkVmListener extends VmEventListener {
 
     @Override
     public final void onPayloadReady(VirtualMachine vm) {
+        mPayloadReady = true;
         try {
             IBenchmarkService benchmarkService =
                     IBenchmarkService.Stub.asInterface(
@@ -60,7 +64,20 @@ class BenchmarkVmListener extends VmEventListener {
         forceStop(vm);
     }
 
+    @Override
+    public void onError(VirtualMachine vm, int errorCode, String message) {
+        throw new RuntimeException("Error while benchmark (" + errorCode + "): " + message);
+    }
+
     static BenchmarkVmListener create(InnerListener listener) {
         return new BenchmarkVmListener(listener);
+    }
+
+    @Override
+    public void runToFinish(String logTag, VirtualMachine vm)
+            throws VirtualMachineException, InterruptedException {
+        mPayloadReady = false;
+        super.runToFinish(logTag, vm);
+        assertThat(mPayloadReady).isTrue();
     }
 }
