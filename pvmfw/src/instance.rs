@@ -22,7 +22,6 @@ use crate::gpt;
 use crate::gpt::Partition;
 use crate::gpt::Partitions;
 use crate::rand;
-use crate::virtio::pci::VirtIOBlkIterator;
 use core::fmt;
 use core::mem::size_of;
 use diced_open_dice::DiceMode;
@@ -32,6 +31,7 @@ use log::trace;
 use uuid::Uuid;
 use virtio_drivers::transport::pci::bus::PciRoot;
 use vmbase::util::ceiling_div;
+use vmbase::virtio::pci::VirtIOBlkIterator;
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 

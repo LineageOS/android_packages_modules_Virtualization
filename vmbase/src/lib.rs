@@ -29,6 +29,7 @@ pub mod memory;
 pub mod power;
 pub mod uart;
 pub mod util;
+pub mod virtio;
 
 pub use bionic::STACK_CHK_GUARD;
 
