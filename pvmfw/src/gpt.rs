@@ -14,7 +14,6 @@
 
 //! Support for parsing GUID partition tables.
 
-use crate::virtio::pci::VirtIOBlk;
 use core::cmp::min;
 use core::fmt;
 use core::mem::size_of;
@@ -25,6 +24,7 @@ use static_assertions::const_assert_eq;
 use uuid::Uuid;
 use virtio_drivers::device::blk::SECTOR_SIZE;
 use vmbase::util::ceiling_div;
+use vmbase::virtio::pci::VirtIOBlk;
 use zerocopy::FromBytes;
 
 pub enum Error {
