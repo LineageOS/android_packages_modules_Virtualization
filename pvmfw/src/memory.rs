@@ -26,9 +26,6 @@ use vmbase::{
     util::align_up,
 };
 
-/// First address that can't be translated by a level 1 TTBR0_EL1.
-pub const MAX_ADDR: usize = 1 << 40;
-
 /// Returns memory range reserved for the appended payload.
 pub fn appended_payload_range() -> MemoryRange {
     let start = align_up(layout::binary_end(), SIZE_4KB).unwrap();
