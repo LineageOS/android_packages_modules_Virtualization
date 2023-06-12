@@ -20,6 +20,9 @@ use crate::console::BASE_ADDRESS;
 use core::ops::Range;
 use core::ptr::addr_of;
 
+/// First address that can't be translated by a level 1 TTBR0_EL1.
+pub const MAX_VIRT_ADDR: usize = 1 << 40;
+
 /// Get an address from a linker-defined symbol.
 #[macro_export]
 macro_rules! linker_addr {
