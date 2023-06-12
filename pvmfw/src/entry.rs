@@ -227,7 +227,7 @@ fn main_wrapper(
     // Up to this point, we were using the built-in static (from .rodata) page tables.
     MEMORY.lock().replace(MemoryTracker::new(
         page_table,
-        crosvm::MEM_START..memory::MAX_ADDR,
+        crosvm::MEM_START..layout::MAX_VIRT_ADDR,
         crosvm::MMIO_RANGE,
         Some(memory::appended_payload_range()),
     ));
