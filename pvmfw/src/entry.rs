@@ -36,7 +36,7 @@ use vmbase::{
     console,
     layout::{self, crosvm},
     logger, main,
-    memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_2MB, SIZE_4KB},
+    memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_4KB},
     power::reboot,
 };
 use zeroize::Zeroize;
@@ -89,7 +89,7 @@ struct MemorySlices<'a> {
 impl<'a> MemorySlices<'a> {
     fn new(fdt: usize, kernel: usize, kernel_size: usize) -> Result<Self, RebootReason> {
         // SAFETY - SIZE_2MB is non-zero.
-        const FDT_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(SIZE_2MB) };
+        const FDT_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(crosvm::FDT_MAX_SIZE) };
         // TODO - Only map the FDT as read-only, until we modify it right before jump_to_payload()
         // e.g. by generating a DTBO for a template DT in main() and, on return, re-map DT as RW,
         // overwrite with the template DT and apply the DTBO.
