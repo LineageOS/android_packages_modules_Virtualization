@@ -228,7 +228,7 @@ fn main_wrapper(
     MEMORY.lock().replace(MemoryTracker::new(
         page_table,
         crosvm::MEM_START..memory::MAX_ADDR,
-        crosvm::MMIO_START..crosvm::MMIO_END,
+        crosvm::MMIO_RANGE,
         Some(memory::appended_payload_range()),
     ));
 
