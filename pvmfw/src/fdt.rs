@@ -17,7 +17,6 @@
 use crate::bootargs::BootArgsIterator;
 use crate::cstr;
 use crate::helpers::GUEST_PAGE_SIZE;
-use crate::memory::MAX_ADDR;
 use crate::Box;
 use crate::RebootReason;
 use alloc::ffi::CString;
@@ -39,7 +38,7 @@ use log::error;
 use log::info;
 use log::warn;
 use tinyvec::ArrayVec;
-use vmbase::layout::crosvm::MEM_START;
+use vmbase::layout::{crosvm::MEM_START, MAX_VIRT_ADDR};
 use vmbase::memory::SIZE_4KB;
 use vmbase::util::flatten;
 use vmbase::util::RangeExt as _;
@@ -278,7 +277,7 @@ fn validate_pci_addr_range(
         error!("PCI address range size {:#x} overflows", size);
         return Err(RebootReason::InvalidFdt);
     };
-    if bus_end > MAX_ADDR.try_into().unwrap() {
+    if bus_end > MAX_VIRT_ADDR.try_into().unwrap() {
         error!("PCI address end {:#x} is outside of translatable range", bus_end);
         return Err(RebootReason::InvalidFdt);
     }
