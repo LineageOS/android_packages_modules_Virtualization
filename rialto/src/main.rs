@@ -31,7 +31,7 @@ use log::{debug, error, info};
 use vmbase::{
     layout::{self, crosvm},
     main,
-    memory::{PageTable, PAGE_SIZE},
+    memory::{MemoryTracker, PageTable, MEMORY, PAGE_SIZE},
     power::reboot,
 };
 
@@ -50,7 +50,7 @@ fn init_heap() {
     }
 }
 
-fn init_page_table() -> Result<()> {
+fn new_page_table() -> Result<PageTable> {
     let mut page_table = PageTable::default();
 
     page_table.map_device(&crosvm::MMIO_RANGE)?;
@@ -60,11 +60,7 @@ fn init_page_table() -> Result<()> {
     page_table.map_rodata(&layout::rodata_range())?;
     page_table.map_device(&layout::console_uart_range())?;
 
-    // SAFETY: It is safe to activate the page table by setting `TTBR0_EL1` to point to
-    // it as this is the first time we activate the page table.
-    unsafe { page_table.activate() }
-    info!("Activated kernel page table.");
-    Ok(())
+    Ok(page_table)
 }
 
 fn try_init_logger() -> Result<bool> {
@@ -94,20 +90,26 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {:#x?}", pci_info);
 
-    init_page_table()?;
+    let page_table = new_page_table()?;
+
+    MEMORY.lock().replace(MemoryTracker::new(
+        page_table,
+        crosvm::MEM_START..layout::MAX_VIRT_ADDR,
+        crosvm::MMIO_RANGE,
+        None, // Rialto doesn't have any payload for now.
+    ));
     Ok(())
 }
 
 fn try_unshare_all_memory(mmio_guard_supported: bool) -> Result<()> {
-    if !mmio_guard_supported {
-        return Ok(());
-    }
     info!("Starting unsharing memory...");
 
-    // TODO(b/284462758): Unshare all the memory here.
-
     // No logging after unmapping UART.
-    get_hypervisor().mmio_guard_unmap(vmbase::console::BASE_ADDRESS)?;
+    if mmio_guard_supported {
+        get_hypervisor().mmio_guard_unmap(vmbase::console::BASE_ADDRESS)?;
+    }
+    // Unshares all memory and deactivates page table.
+    drop(MEMORY.lock().take());
     Ok(())
 }
 
