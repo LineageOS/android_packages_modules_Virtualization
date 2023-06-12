@@ -44,3 +44,25 @@ rust_library_rlib {
     ],
     apex_available: ["com.android.virt"],
 }
+
+rust_test {
+    name: "liblibfdt.integration_test",
+    crate_name: "libfdt_test",
+    srcs: ["tests/*.rs"],
+    test_suites: ["general-tests"],
+    data: [
+        ":fdt_data_test_tree1_dtb",
+    ],
+    prefer_rlib: true,
+    rustlibs: [
+        "liblibfdt",
+    ],
+}
+
+genrule {
+    name: "fdt_data_test_tree1_dtb",
+    tools: ["dtc"],
+    srcs: ["tests/data/test_tree1.dts"],
+    out: ["data/test_tree1.dtb"],
+    cmd: "$(location dtc) -O dtb -I dts -o $(out) $(in)",
+}
