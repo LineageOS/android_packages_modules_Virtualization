@@ -26,7 +26,6 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use buddy_system_allocator::{FrameAllocator, LockedFrameAllocator};
 use core::alloc::Layout;
-use core::iter::once;
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
@@ -67,7 +66,7 @@ pub struct MemoryTracker {
     regions: ArrayVec<[MemoryRegion; MemoryTracker::CAPACITY]>,
     mmio_regions: ArrayVec<[MemoryRange; MemoryTracker::MMIO_CAPACITY]>,
     mmio_range: MemoryRange,
-    payload_range: MemoryRange,
+    payload_range: Option<MemoryRange>,
 }
 
 unsafe impl Send for MemoryTracker {}
@@ -81,7 +80,7 @@ impl MemoryTracker {
         mut page_table: PageTable,
         total: MemoryRange,
         mmio_range: MemoryRange,
-        payload_range: MemoryRange,
+        payload_range: Option<MemoryRange>,
     ) -> Self {
         assert!(
             !total.overlaps(&mmio_range),
@@ -284,7 +283,7 @@ impl MemoryTracker {
         // observed before reading PTE flags to determine dirty state.
         dsb!("ish");
         // Now flush writable-dirty pages in those regions.
-        for range in writable_regions.chain(once(&self.payload_range)) {
+        for range in writable_regions.chain(self.payload_range.as_ref().into_iter()) {
             self.page_table
                 .modify_range(range, &flush_dirty_range)
                 .map_err(|_| MemoryTrackerError::FlushRegionFailed)?;
