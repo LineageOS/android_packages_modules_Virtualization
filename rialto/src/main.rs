@@ -29,7 +29,8 @@ use fdtpci::PciInfo;
 use hyp::get_hypervisor;
 use log::{debug, error, info};
 use vmbase::{
-    layout, main,
+    layout::{self, crosvm},
+    main,
     memory::{PageTable, PAGE_SIZE},
     power::reboot,
 };
@@ -37,7 +38,6 @@ use vmbase::{
 const SZ_1K: usize = 1024;
 const SZ_64K: usize = 64 * SZ_1K;
 const SZ_1M: usize = 1024 * SZ_1K;
-const SZ_1G: usize = 1024 * SZ_1M;
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
@@ -54,8 +54,7 @@ fn init_heap() {
 fn init_page_table() -> Result<()> {
     let mut page_table = PageTable::default();
 
-    // The first 1 GiB of address space is used by crosvm for MMIO.
-    page_table.map_device(&(0..SZ_1G))?;
+    page_table.map_device(&crosvm::MMIO_RANGE)?;
     page_table.map_data(&layout::scratch_range())?;
     page_table.map_data(&layout::stack_range(40 * PAGE_SIZE))?;
     page_table.map_code(&layout::text_range())?;
