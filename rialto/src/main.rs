@@ -37,7 +37,6 @@ use vmbase::{
 
 const SZ_1K: usize = 1024;
 const SZ_64K: usize = 64 * SZ_1K;
-const SZ_1M: usize = 1024 * SZ_1K;
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
@@ -90,7 +89,7 @@ fn try_init_logger() -> Result<bool> {
 unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     info!("Welcome to Rialto!");
     // SAFETY: The caller ensures that `fdt_addr` is valid.
-    let fdt = unsafe { slice::from_raw_parts(fdt_addr as *mut u8, SZ_1M) };
+    let fdt = unsafe { slice::from_raw_parts(fdt_addr as *mut u8, crosvm::FDT_MAX_SIZE) };
     let fdt = libfdt::Fdt::from_slice(fdt)?;
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {:#x?}", pci_info);
