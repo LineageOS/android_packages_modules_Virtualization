@@ -1,0 +1,7 @@
+{
+  "avf-presubmit": [
+    {
+      "name": "liblibfdt.integration_test"
+    }
+  ]
+}
