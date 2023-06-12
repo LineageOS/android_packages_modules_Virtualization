@@ -191,7 +191,7 @@ impl TryFrom<c_int> for SizeCells {
 }
 
 /// DT node.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct FdtNode<'a> {
     fdt: &'a Fdt,
     offset: c_int,
@@ -599,6 +599,7 @@ impl<'a> Iterator for CompatibleIterator<'a> {
 }
 
 /// Wrapper around low-level libfdt functions.
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Fdt {
     buffer: [u8],
