@@ -106,11 +106,6 @@ fn patch_bootargs(fdt: &mut Fdt, bootargs: &CStr) -> libfdt::Result<()> {
     node.setprop(cstr!("bootargs"), bootargs.to_bytes_with_nul())
 }
 
-/// Read the first range in /memory node in DT
-fn read_memory_range_from(fdt: &Fdt) -> libfdt::Result<Range<usize>> {
-    fdt.memory()?.ok_or(FdtError::NotFound)?.next().ok_or(FdtError::NotFound)
-}
-
 /// Check if memory range is ok
 fn validate_memory_range(range: &Range<usize>) -> Result<(), RebootReason> {
     let base = range.start;
@@ -613,7 +608,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         RebootReason::InvalidFdt
     })?;
 
-    let memory_range = read_memory_range_from(fdt).map_err(|e| {
+    let memory_range = fdt.first_memory_range().map_err(|e| {
         error!("Failed to read memory range from DT: {e}");
         RebootReason::InvalidFdt
     })?;

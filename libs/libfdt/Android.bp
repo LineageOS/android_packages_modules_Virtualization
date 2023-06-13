@@ -51,7 +51,10 @@ rust_test {
     srcs: ["tests/*.rs"],
     test_suites: ["general-tests"],
     data: [
-        ":fdt_data_test_tree1_dtb",
+        ":fdt_test_tree_one_memory_range_dtb",
+        ":fdt_test_tree_multiple_memory_ranges_dtb",
+        ":fdt_test_tree_empty_memory_range_dtb",
+        ":fdt_test_tree_no_memory_node_dtb",
     ],
     prefer_rlib: true,
     rustlibs: [
@@ -60,9 +63,29 @@ rust_test {
 }
 
 genrule {
-    name: "fdt_data_test_tree1_dtb",
-    tools: ["dtc"],
-    srcs: ["tests/data/test_tree1.dts"],
-    out: ["data/test_tree1.dtb"],
-    cmd: "$(location dtc) -O dtb -I dts -o $(out) $(in)",
+    name: "fdt_test_tree_one_memory_range_dtb",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["tests/data/test_tree_one_memory_range.dts"],
+    out: ["data/test_tree_one_memory_range.dtb"],
+}
+
+genrule {
+    name: "fdt_test_tree_multiple_memory_ranges_dtb",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["tests/data/test_tree_multiple_memory_ranges.dts"],
+    out: ["data/test_tree_multiple_memory_ranges.dtb"],
+}
+
+genrule {
+    name: "fdt_test_tree_empty_memory_range_dtb",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["tests/data/test_tree_empty_memory_range.dts"],
+    out: ["data/test_tree_empty_memory_range.dtb"],
+}
+
+genrule {
+    name: "fdt_test_tree_no_memory_node_dtb",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["tests/data/test_tree_no_memory_node.dts"],
+    out: ["data/test_tree_no_memory_node.dtb"],
 }

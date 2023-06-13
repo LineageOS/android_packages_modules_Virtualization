@@ -3,21 +3,21 @@ package {
 }
 
 genrule_defaults {
-    name: "test_avf_debug_policy_overlay",
+    name: "test_avf_dts_to_dtb",
     tools: ["dtc"],
     cmd: "$(location dtc) -I dts -O dtb $(in) -o $(out)",
 }
 
 genrule {
     name: "test_avf_debug_policy_with_adb",
-    defaults: ["test_avf_debug_policy_overlay"],
+    defaults: ["test_avf_dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_with_adb.dts"],
     out: ["avf_debug_policy_with_adb.dtbo"],
 }
 
 genrule {
     name: "test_avf_debug_policy_without_adb",
-    defaults: ["test_avf_debug_policy_overlay"],
+    defaults: ["test_avf_dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_without_adb.dts"],
     out: ["avf_debug_policy_without_adb.dtbo"],
 }
