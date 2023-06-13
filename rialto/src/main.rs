@@ -24,6 +24,7 @@ extern crate alloc;
 
 use crate::error::{Error, Result};
 use buddy_system_allocator::LockedHeap;
+use core::num::NonZeroUsize;
 use core::slice;
 use fdtpci::PciInfo;
 use hyp::get_hypervisor;
@@ -84,12 +85,6 @@ fn try_init_logger() -> Result<bool> {
 /// * The `fdt_addr` must be a valid pointer and points to a valid `Fdt`.
 unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     info!("Welcome to Rialto!");
-    // SAFETY: The caller ensures that `fdt_addr` is valid.
-    let fdt = unsafe { slice::from_raw_parts(fdt_addr as *mut u8, crosvm::FDT_MAX_SIZE) };
-    let fdt = libfdt::Fdt::from_slice(fdt)?;
-    let pci_info = PciInfo::from_fdt(fdt)?;
-    debug!("PCI: {:#x?}", pci_info);
-
     let page_table = new_page_table()?;
 
     MEMORY.lock().replace(MemoryTracker::new(
@@ -98,6 +93,18 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
         crosvm::MMIO_RANGE,
         None, // Rialto doesn't have any payload for now.
     ));
+
+    let fdt_range = MEMORY
+        .lock()
+        .as_mut()
+        .unwrap()
+        .alloc(fdt_addr, NonZeroUsize::new(crosvm::FDT_MAX_SIZE).unwrap())?;
+    // SAFETY: The tracker validated the range to be in main memory, mapped, and not overlap.
+    let fdt = unsafe { slice::from_raw_parts(fdt_range.start as *mut u8, fdt_range.len()) };
+    let fdt = libfdt::Fdt::from_slice(fdt)?;
+    let pci_info = PciInfo::from_fdt(fdt)?;
+    debug!("PCI: {pci_info:#x?}");
+
     Ok(())
 }
 
