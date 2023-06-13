@@ -19,6 +19,7 @@ use core::{fmt, result};
 use fdtpci::PciError;
 use hyp::Error as HypervisorError;
 use libfdt::FdtError;
+use vmbase::memory::MemoryTrackerError;
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -34,6 +35,8 @@ pub enum Error {
     InvalidFdt(FdtError),
     /// Invalid PCI.
     InvalidPci(PciError),
+    /// Failed memory operation.
+    MemoryOperationFailed(MemoryTrackerError),
 }
 
 impl fmt::Display for Error {
@@ -46,6 +49,7 @@ impl fmt::Display for Error {
             Self::LoggerInit => write!(f, "Failed to initialize the logger."),
             Self::InvalidFdt(e) => write!(f, "Invalid FDT: {e}"),
             Self::InvalidPci(e) => write!(f, "Invalid PCI: {e}"),
+            Self::MemoryOperationFailed(e) => write!(f, "Failed memory operation: {e}"),
         }
     }
 }
@@ -71,5 +75,11 @@ impl From<FdtError> for Error {
 impl From<PciError> for Error {
     fn from(e: PciError) -> Self {
         Self::InvalidPci(e)
+    }
+}
+
+impl From<MemoryTrackerError> for Error {
+    fn from(e: MemoryTrackerError) -> Self {
+        Self::MemoryOperationFailed(e)
     }
 }
