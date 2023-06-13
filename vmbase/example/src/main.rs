@@ -195,7 +195,7 @@ fn check_data() {
 }
 
 fn check_fdt(reader: &Fdt) {
-    for reg in reader.memory().unwrap().unwrap() {
+    for reg in reader.memory().unwrap() {
         info!("memory @ {reg:#x?}");
     }
 
