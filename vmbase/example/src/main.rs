@@ -31,11 +31,10 @@ use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::{idmap::IdMap, paging::Attributes};
 use alloc::{vec, vec::Vec};
 use buddy_system_allocator::LockedHeap;
-use core::ffi::CStr;
 use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use vmbase::{logger, main};
+use vmbase::{cstr, logger, main};
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
@@ -199,7 +198,7 @@ fn check_fdt(reader: &Fdt) {
         info!("memory @ {reg:#x?}");
     }
 
-    let compatible = CStr::from_bytes_with_nul(b"ns16550a\0").unwrap();
+    let compatible = cstr!("ns16550a");
 
     for c in reader.compatible_nodes(compatible).unwrap() {
         let reg = c.reg().unwrap().unwrap().next().unwrap();
@@ -211,17 +210,17 @@ fn modify_fdt(writer: &mut Fdt) {
     writer.unpack().unwrap();
     info!("FDT successfully unpacked.");
 
-    let path = CStr::from_bytes_with_nul(b"/memory\0").unwrap();
+    let path = cstr!("/memory");
     let mut node = writer.node_mut(path).unwrap().unwrap();
-    let name = CStr::from_bytes_with_nul(b"child\0").unwrap();
+    let name = cstr!("child");
     let mut child = node.add_subnode(name).unwrap();
     info!("Created subnode '{}/{}'.", path.to_str().unwrap(), name.to_str().unwrap());
 
-    let name = CStr::from_bytes_with_nul(b"str-property\0").unwrap();
+    let name = cstr!("str-property");
     child.appendprop(name, b"property-value\0").unwrap();
     info!("Appended property '{}'.", name.to_str().unwrap());
 
-    let name = CStr::from_bytes_with_nul(b"pair-property\0").unwrap();
+    let name = cstr!("pair-property");
     let addr = 0x0123_4567u64;
     let size = 0x89ab_cdefu64;
     child.appendprop_addrrange(name, addr, size).unwrap();
