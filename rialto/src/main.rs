@@ -101,10 +101,16 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
         .alloc(fdt_addr, NonZeroUsize::new(crosvm::FDT_MAX_SIZE).unwrap())?;
     // SAFETY: The tracker validated the range to be in main memory, mapped, and not overlap.
     let fdt = unsafe { slice::from_raw_parts(fdt_range.start as *mut u8, fdt_range.len()) };
+    // We do not need to validate the DT since it is already validated in pvmfw.
     let fdt = libfdt::Fdt::from_slice(fdt)?;
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {pci_info:#x?}");
 
+    let memory_range = fdt.first_memory_range()?;
+    MEMORY.lock().as_mut().unwrap().shrink(&memory_range).map_err(|e| {
+        error!("Failed to use memory range value from DT: {memory_range:#x?}");
+        e
+    })?;
     Ok(())
 }
 
