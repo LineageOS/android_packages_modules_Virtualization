@@ -29,9 +29,9 @@ use diced_open_dice::Hash;
 use diced_open_dice::Hidden;
 use log::trace;
 use uuid::Uuid;
-use virtio_drivers::transport::pci::bus::PciRoot;
+use virtio_drivers::transport::{pci::bus::PciRoot, DeviceType, Transport};
 use vmbase::util::ceiling_div;
-use vmbase::virtio::pci::VirtIOBlkIterator;
+use vmbase::virtio::pci::{PciTransportIterator, VirtIOBlk};
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 
@@ -60,6 +60,8 @@ pub enum Error {
     RecordedDiceModeMismatch,
     /// Size of the instance.img entry being read or written is not supported.
     UnsupportedEntrySize(usize),
+    /// Failed to create VirtIO Block device.
+    VirtIOBlkCreationFailed(virtio_drivers::Error),
 }
 
 impl fmt::Display for Error {
@@ -89,6 +91,9 @@ impl fmt::Display for Error {
             Self::RecordedCodeHashMismatch => write!(f, "Recorded code hash doesn't match"),
             Self::RecordedDiceModeMismatch => write!(f, "Recorded DICE mode doesn't match"),
             Self::UnsupportedEntrySize(sz) => write!(f, "Invalid entry size: {sz}"),
+            Self::VirtIOBlkCreationFailed(e) => {
+                write!(f, "Failed to create VirtIO Block device: {e}")
+            }
         }
     }
 }
@@ -178,7 +183,10 @@ impl Header {
 }
 
 fn find_instance_img(pci_root: &mut PciRoot) -> Result<Partition> {
-    for device in VirtIOBlkIterator::new(pci_root) {
+    for transport in
+        PciTransportIterator::new(pci_root).filter(|t| DeviceType::Block == t.device_type())
+    {
+        let device = VirtIOBlk::new(transport).map_err(Error::VirtIOBlkCreationFailed)?;
         match Partition::get_by_name(device, "vm-instance") {
             Ok(Some(p)) => return Ok(p),
             Ok(None) => {}
