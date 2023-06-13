@@ -15,7 +15,6 @@
 //! High-level FDT functions.
 
 use crate::bootargs::BootArgsIterator;
-use crate::cstr;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::Box;
 use crate::RebootReason;
@@ -38,6 +37,8 @@ use log::error;
 use log::info;
 use log::warn;
 use tinyvec::ArrayVec;
+use vmbase::cstr;
+use vmbase::fdt::SwiotlbInfo;
 use vmbase::layout::{crosvm::MEM_START, MAX_VIRT_ADDR};
 use vmbase::memory::SIZE_4KB;
 use vmbase::util::flatten;
@@ -428,36 +429,6 @@ fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<
         }
     }
     Ok(())
-}
-
-#[derive(Debug)]
-pub struct SwiotlbInfo {
-    addr: Option<usize>,
-    size: usize,
-    align: Option<usize>,
-}
-
-impl SwiotlbInfo {
-    /// Creates a `SwiotlbInfo` struct from the given device tree.
-    pub fn new_from_fdt(fdt: &Fdt) -> libfdt::Result<SwiotlbInfo> {
-        let node =
-            fdt.compatible_nodes(cstr!("restricted-dma-pool"))?.next().ok_or(FdtError::NotFound)?;
-
-        let (addr, size, align) = if let Some(mut reg) = node.reg()? {
-            let reg = reg.next().ok_or(FdtError::NotFound)?;
-            let size = reg.size.ok_or(FdtError::NotFound)?;
-            (Some(reg.addr.try_into().unwrap()), size.try_into().unwrap(), None)
-        } else {
-            let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?;
-            let align = node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?;
-            (None, size.try_into().unwrap(), Some(align.try_into().unwrap()))
-        };
-        Ok(Self { addr, size, align })
-    }
-
-    pub fn fixed_range(&self) -> Option<Range<usize>> {
-        self.addr.map(|addr| addr..addr + self.size)
-    }
 }
 
 fn validate_swiotlb_info(
