@@ -79,6 +79,7 @@ android_system_image {
         "microdroid_event-log-tags",
         "microdroid_file_contexts",
         "microdroid_manifest",
+        "microdroid_plat_sepolicy_and_mapping.sha256",
         "microdroid_property_contexts",
         "mke2fs.microdroid",
         "microdroid_fstab",
@@ -99,8 +100,9 @@ android_system_image {
                 // non-updatable & mandatory apexes
                 "com.android.runtime",
 
+                "microdroid_plat_sepolicy.cil",
+                "microdroid_plat_mapping_file",
                 "microdroid_crashdump_initrd",
-                "microdroid_precompiled_sepolicy",
             ],
         },
         lib64: {
@@ -206,11 +208,23 @@ genrule {
         "echo ro.product.cpu.abi=arm64-v8a) > $(out)",
 }
 
-// TODO(b/285855150): remove.
 android_filesystem {
     name: "microdroid_vendor",
     partition_name: "vendor",
     use_avb: true,
+    deps: [
+        "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
+    ],
+    multilib: {
+        common: {
+            deps: [
+                "microdroid_vendor_sepolicy.cil",
+                "microdroid_plat_pub_versioned.cil",
+                "microdroid_plat_sepolicy_vers.txt",
+                "microdroid_precompiled_sepolicy",
+            ],
+        },
+    },
     avb_private_key: ":microdroid_sign_key",
     avb_algorithm: "SHA256_RSA4096",
     avb_hash_algorithm: "sha256",
