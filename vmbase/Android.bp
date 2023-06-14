@@ -67,6 +67,7 @@ rust_library_rlib {
         "libbuddy_system_allocator",
         "libfdtpci",
         "libhyp",
+        "liblibfdt",
         "liblog_rust_nostd",
         "libonce_cell_nostd",
         "libsmccc",
