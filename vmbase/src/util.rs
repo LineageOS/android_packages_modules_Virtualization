@@ -16,6 +16,14 @@
 
 use core::ops::Range;
 
+/// Create &CStr out of &str literal
+#[macro_export]
+macro_rules! cstr {
+    ($str:literal) => {{
+        core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+    }};
+}
+
 /// Flatten [[T; N]] into &[T]
 /// TODO: use slice::flatten when it graduates from experimental
 pub fn flatten<T, const N: usize>(original: &[[T; N]]) -> &[T] {
