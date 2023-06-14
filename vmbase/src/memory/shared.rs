@@ -220,10 +220,9 @@ impl MemoryTracker {
     }
 
     /// Initialize the shared heap to dynamically share memory from the global allocator.
-    pub fn init_dynamic_shared_pool(&mut self) -> Result<()> {
+    pub fn init_dynamic_shared_pool(&mut self, granule: usize) -> Result<()> {
         const INIT_CAP: usize = 10;
 
-        let granule = get_hypervisor().memory_protection_granule()?;
         let previous = SHARED_MEMORY.lock().replace(MemorySharer::new(granule, INIT_CAP));
         if previous.is_some() {
             return Err(MemoryTrackerError::SharedMemorySetFailure);
