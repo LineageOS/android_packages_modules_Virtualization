@@ -21,8 +21,6 @@ use core::mem::MaybeUninit;
 use core::num::NonZeroU32;
 use core::ptr;
 
-use crate::cstr;
-
 use bssl_ffi::CRYPTO_library_init;
 use bssl_ffi::ERR_get_error_line;
 use bssl_ffi::ERR_lib_error_string;
@@ -37,6 +35,7 @@ use bssl_ffi::EVP_sha512;
 use bssl_ffi::EVP_AEAD;
 use bssl_ffi::EVP_AEAD_CTX;
 use bssl_ffi::HKDF;
+use vmbase::cstr;
 
 #[derive(Debug)]
 pub struct Error {
