@@ -214,6 +214,8 @@ android_filesystem {
     use_avb: true,
     deps: [
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
+        "microdroid_vendor_manifest",
+        "microdroid_vendor_compatibility_matrix",
     ],
     multilib: {
         common: {
@@ -339,6 +341,22 @@ vbmeta {
 prebuilt_etc {
     name: "microdroid.json",
     src: "microdroid.json",
+}
+
+prebuilt_etc {
+    name: "microdroid_vendor_manifest",
+    src: "microdroid_vendor_manifest.xml",
+    filename: "manifest.xml",
+    relative_install_path: "vintf",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_vendor_compatibility_matrix",
+    src: "microdroid_vendor_compatibility_matrix.xml",
+    filename: "compatibility_matrix.xml",
+    relative_install_path: "vintf",
+    installable: false,
 }
 
 prebuilt_etc {
