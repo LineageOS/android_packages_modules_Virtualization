@@ -29,9 +29,4 @@ rust_defaults {
 rust_ffi {
     name: "libservice_vm_client",
     defaults: ["service_vm_client_defaults"],
-    // TODO(b/250854486): Remove the sanitize section once the bug is fixed.
-    sanitize: {
-        address: false,
-        hwaddress: false,
-    },
 }
