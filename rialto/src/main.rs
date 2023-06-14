@@ -25,11 +25,14 @@ extern crate alloc;
 use crate::error::{Error, Result};
 use buddy_system_allocator::LockedHeap;
 use core::num::NonZeroUsize;
+use core::result;
 use core::slice;
 use fdtpci::PciInfo;
-use hyp::get_hypervisor;
+use hyp::{get_hypervisor, HypervisorCap, KvmError};
+use libfdt::FdtError;
 use log::{debug, error, info};
 use vmbase::{
+    fdt::SwiotlbInfo,
     layout::{self, crosvm},
     main,
     memory::{MemoryTracker, PageTable, MEMORY, PAGE_SIZE},
@@ -111,7 +114,33 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
         error!("Failed to use memory range value from DT: {memory_range:#x?}");
         e
     })?;
+
+    if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+        let granule = memory_protection_granule()?;
+        MEMORY.lock().as_mut().unwrap().init_dynamic_shared_pool(granule).map_err(|e| {
+            error!("Failed to initialize dynamically shared pool.");
+            e
+        })?;
+    } else {
+        let range = SwiotlbInfo::new_from_fdt(fdt)?.fixed_range().ok_or_else(|| {
+            error!("Pre-shared pool range not specified in swiotlb node");
+            Error::from(FdtError::BadValue)
+        })?;
+        MEMORY.lock().as_mut().unwrap().init_static_shared_pool(range).map_err(|e| {
+            error!("Failed to initialize pre-shared pool.");
+            e
+        })?;
+    }
     Ok(())
+}
+
+fn memory_protection_granule() -> result::Result<usize, hyp::Error> {
+    match get_hypervisor().memory_protection_granule() {
+        Ok(granule) => Ok(granule),
+        // Take the default page size when KVM call is not supported in non-protected VMs.
+        Err(hyp::Error::KvmError(KvmError::NotSupported, _)) => Ok(PAGE_SIZE),
+        Err(e) => Err(e),
+    }
 }
 
 fn try_unshare_all_memory(mmio_guard_supported: bool) -> Result<()> {

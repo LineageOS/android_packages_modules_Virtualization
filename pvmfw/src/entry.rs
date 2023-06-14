@@ -116,7 +116,11 @@ impl<'a> MemorySlices<'a> {
         })?;
 
         if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
-            MEMORY.lock().as_mut().unwrap().init_dynamic_shared_pool().map_err(|e| {
+            let granule = get_hypervisor().memory_protection_granule().map_err(|e| {
+                error!("Failed to get memory protection granule: {e}");
+                RebootReason::InternalError
+            })?;
+            MEMORY.lock().as_mut().unwrap().init_dynamic_shared_pool(granule).map_err(|e| {
                 error!("Failed to initialize dynamically shared pool: {e}");
                 RebootReason::InternalError
             })?;
