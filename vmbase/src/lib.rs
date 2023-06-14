@@ -22,6 +22,7 @@ pub mod arch;
 mod bionic;
 pub mod console;
 mod entry;
+pub mod fdt;
 pub mod layout;
 mod linker;
 pub mod logger;

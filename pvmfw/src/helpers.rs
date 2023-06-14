@@ -18,11 +18,3 @@ use vmbase::memory::{PAGE_SIZE, SIZE_4KB};
 
 pub const GUEST_PAGE_SIZE: usize = SIZE_4KB;
 pub const PVMFW_PAGE_SIZE: usize = PAGE_SIZE;
-
-/// Create &CStr out of &str literal
-#[macro_export]
-macro_rules! cstr {
-    ($str:literal) => {{
-        core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
-    }};
-}
