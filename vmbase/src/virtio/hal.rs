@@ -42,13 +42,14 @@ unsafe impl Hal for HalImpl {
     /// `dma_alloc` ensures the returned DMA buffer is not aliased with any other allocation or
     /// reference in the program until it is deallocated by `dma_dealloc` by allocating a unique
     /// block of memory using `alloc_shared`, which is guaranteed to allocate valid and unique
-    /// memory. We request an alignment of at least `PAGE_SIZE` from `alloc_shared`.
+    /// memory. We request an alignment of at least `PAGE_SIZE` from `alloc_shared`. We zero the
+    /// buffer before returning it.
     fn dma_alloc(pages: usize, _direction: BufferDirection) -> (PhysAddr, NonNull<u8>) {
-        let vaddr = alloc_shared(dma_layout(pages))
-            .expect("Failed to allocate and share VirtIO DMA range with host");
-        // TODO(ptosi): Move this zeroing to virtio_drivers, if it silently wants a zeroed region.
+        let layout = dma_layout(pages);
+        let vaddr =
+            alloc_shared(layout).expect("Failed to allocate and share VirtIO DMA range with host");
         // SAFETY - vaddr points to a region allocated for the caller so is safe to access.
-        unsafe { core::ptr::write_bytes(vaddr.as_ptr(), 0, dma_layout(pages).size()) };
+        unsafe { core::ptr::write_bytes(vaddr.as_ptr(), 0, layout.size()) };
         let paddr = virt_to_phys(vaddr);
         (paddr, vaddr)
     }
