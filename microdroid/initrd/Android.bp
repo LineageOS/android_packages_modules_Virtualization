@@ -32,7 +32,7 @@ genrule {
     name: "microdroid_initrd_gen",
     srcs: [
         ":microdroid_ramdisk",
-        ":microdroid_fstab_ramdisk",
+        ":microdroid_vendor_ramdisk",
     ],
     out: ["microdroid_initrd.img"],
     cmd: "cat $(in) > $(out)",
