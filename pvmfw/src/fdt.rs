@@ -450,27 +450,26 @@ pub struct SwiotlbInfo {
 }
 
 impl SwiotlbInfo {
+    /// Creates a `SwiotlbInfo` struct from the given device tree.
+    pub fn new_from_fdt(fdt: &Fdt) -> libfdt::Result<SwiotlbInfo> {
+        let node =
+            fdt.compatible_nodes(cstr!("restricted-dma-pool"))?.next().ok_or(FdtError::NotFound)?;
+
+        let (addr, size, align) = if let Some(mut reg) = node.reg()? {
+            let reg = reg.next().ok_or(FdtError::NotFound)?;
+            let size = reg.size.ok_or(FdtError::NotFound)?;
+            (Some(reg.addr.try_into().unwrap()), size.try_into().unwrap(), None)
+        } else {
+            let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?;
+            let align = node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?;
+            (None, size.try_into().unwrap(), Some(align.try_into().unwrap()))
+        };
+        Ok(Self { addr, size, align })
+    }
+
     pub fn fixed_range(&self) -> Option<Range<usize>> {
         self.addr.map(|addr| addr..addr + self.size)
     }
-}
-
-fn read_swiotlb_info_from(fdt: &Fdt) -> libfdt::Result<SwiotlbInfo> {
-    let node =
-        fdt.compatible_nodes(cstr!("restricted-dma-pool"))?.next().ok_or(FdtError::NotFound)?;
-
-    let (addr, size, align) = if let Some(mut reg) = node.reg()? {
-        let reg = reg.next().ok_or(FdtError::NotFound)?;
-        let size = reg.size.ok_or(FdtError::NotFound)?;
-        reg.addr.checked_add(size).ok_or(FdtError::BadValue)?;
-        (Some(reg.addr.try_into().unwrap()), size.try_into().unwrap(), None)
-    } else {
-        let size = node.getprop_u64(cstr!("size"))?.ok_or(FdtError::NotFound)?;
-        let align = node.getprop_u64(cstr!("alignment"))?.ok_or(FdtError::NotFound)?;
-        (None, size.try_into().unwrap(), Some(align.try_into().unwrap()))
-    };
-
-    Ok(SwiotlbInfo { addr, size, align })
 }
 
 fn validate_swiotlb_info(
@@ -490,6 +489,12 @@ fn validate_swiotlb_info(
         return Err(RebootReason::InvalidFdt);
     }
 
+    if let Some(addr) = swiotlb_info.addr {
+        if addr.checked_add(size).is_none() {
+            error!("Invalid swiotlb range: addr:{addr:#x} size:{size:#x}");
+            return Err(RebootReason::InvalidFdt);
+        }
+    }
     if let Some(range) = swiotlb_info.fixed_range() {
         if !range.is_within(memory) {
             error!("swiotlb range {range:#x?} not part of memory range {memory:#x?}");
@@ -654,7 +659,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         RebootReason::InvalidFdt
     })?;
 
-    let swiotlb_info = read_swiotlb_info_from(fdt).map_err(|e| {
+    let swiotlb_info = SwiotlbInfo::new_from_fdt(fdt).map_err(|e| {
         error!("Failed to read swiotlb info from DT: {e}");
         RebootReason::InvalidFdt
     })?;
