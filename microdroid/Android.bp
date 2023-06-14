@@ -16,6 +16,7 @@ microdroid_rootdirs = [
     "sys",
 
     "system",
+    "vendor",
     "debug_ramdisk",
     "mnt",
     "data",
@@ -78,9 +79,9 @@ android_system_image {
         "microdroid_event-log-tags",
         "microdroid_file_contexts",
         "microdroid_manifest",
+        "microdroid_plat_sepolicy_and_mapping.sha256",
         "microdroid_property_contexts",
         "mke2fs.microdroid",
-        "microdroid_fstab",
 
         "libvm_payload", // used by payload to interact with microdroid manager
 
@@ -98,8 +99,9 @@ android_system_image {
                 // non-updatable & mandatory apexes
                 "com.android.runtime",
 
+                "microdroid_plat_sepolicy.cil",
+                "microdroid_plat_mapping_file",
                 "microdroid_crashdump_initrd",
-                "microdroid_precompiled_sepolicy",
             ],
         },
         lib64: {
@@ -205,6 +207,36 @@ genrule {
         "echo ro.product.cpu.abi=arm64-v8a) > $(out)",
 }
 
+android_filesystem {
+    name: "microdroid_vendor",
+    partition_name: "vendor",
+    use_avb: true,
+    deps: [
+        "microdroid_fstab",
+        "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
+        "microdroid_vendor_manifest",
+        "microdroid_vendor_compatibility_matrix",
+    ],
+    multilib: {
+        common: {
+            deps: [
+                "microdroid_vendor_sepolicy.cil",
+                "microdroid_plat_pub_versioned.cil",
+                "microdroid_plat_sepolicy_vers.txt",
+                "microdroid_precompiled_sepolicy",
+            ],
+        },
+    },
+    avb_private_key: ":microdroid_sign_key",
+    avb_algorithm: "SHA256_RSA4096",
+    avb_hash_algorithm: "sha256",
+    file_contexts: ":microdroid_vendor_file_contexts.gen",
+    // For deterministic output, use fake_timestamp, hard-coded uuid
+    fake_timestamp: "1611569676",
+    // python -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, 'www.android.com/avf/microdroid/vendor'))"
+    uuid: "156d40d7-8d8e-5c99-8913-ec82de549a70",
+}
+
 logical_partition {
     name: "microdroid_super",
     sparse: true,
@@ -213,6 +245,10 @@ logical_partition {
         {
             name: "system_a",
             filesystem: ":microdroid",
+        },
+        {
+            name: "vendor_a",
+            filesystem: ":microdroid_vendor",
         },
     ],
 }
@@ -236,7 +272,7 @@ android_filesystem {
 }
 
 android_filesystem {
-    name: "microdroid_fstab_ramdisk",
+    name: "microdroid_vendor_ramdisk",
     deps: [
         "microdroid_fstab",
     ],
@@ -297,6 +333,7 @@ vbmeta {
     partition_name: "vbmeta",
     private_key: ":microdroid_sign_key",
     partitions: [
+        "microdroid_vendor",
         "microdroid",
     ],
 }
@@ -304,6 +341,22 @@ vbmeta {
 prebuilt_etc {
     name: "microdroid.json",
     src: "microdroid.json",
+}
+
+prebuilt_etc {
+    name: "microdroid_vendor_manifest",
+    src: "microdroid_vendor_manifest.xml",
+    filename: "manifest.xml",
+    relative_install_path: "vintf",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_vendor_compatibility_matrix",
+    src: "microdroid_vendor_compatibility_matrix.xml",
+    filename: "compatibility_matrix.xml",
+    relative_install_path: "vintf",
+    installable: false,
 }
 
 prebuilt_etc {
