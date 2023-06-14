@@ -82,7 +82,6 @@ android_system_image {
         "microdroid_plat_sepolicy_and_mapping.sha256",
         "microdroid_property_contexts",
         "mke2fs.microdroid",
-        "microdroid_fstab",
 
         "libvm_payload", // used by payload to interact with microdroid manager
 
@@ -213,6 +212,7 @@ android_filesystem {
     partition_name: "vendor",
     use_avb: true,
     deps: [
+        "microdroid_fstab",
         "microdroid_precompiled_sepolicy.plat_sepolicy_and_mapping.sha256",
         "microdroid_vendor_manifest",
         "microdroid_vendor_compatibility_matrix",
@@ -272,7 +272,7 @@ android_filesystem {
 }
 
 android_filesystem {
-    name: "microdroid_fstab_ramdisk",
+    name: "microdroid_vendor_ramdisk",
     deps: [
         "microdroid_fstab",
     ],
