@@ -427,23 +427,21 @@ def SignVirtApex(args):
 
     # unpacked files (will be unpacked from super.img below)
     system_a_img = os.path.join(unpack_dir.name, 'system_a.img')
-    vendor_a_img = os.path.join(unpack_dir.name, 'vendor_a.img')
 
     # re-sign super.img
     # 1. unpack super.img
-    # 2. resign system and vendor
-    # 3. repack super.img out of resigned system and vendor
+    # 2. resign system
+    # 3. repack super.img out of resigned system
     UnpackSuperImg(args, files['super.img'], unpack_dir.name)
     system_a_f = Async(AddHashTreeFooter, args, key, system_a_img)
-    vendor_a_f = Async(AddHashTreeFooter, args, key, vendor_a_img)
-    partitions = {"system_a": system_a_img, "vendor_a": vendor_a_img}
+    partitions = {"system_a": system_a_img}
     Async(MakeSuperImage, args, partitions,
-          files['super.img'], wait=[system_a_f, vendor_a_f])
+          files['super.img'], wait=[system_a_f])
 
-    # re-generate vbmeta from re-signed {system_a, vendor_a}.img
+    # re-generate vbmeta from re-signed system_a.img
     vbmeta_f = Async(MakeVbmetaImage, args, key, files['vbmeta.img'],
-                     images=[system_a_img, vendor_a_img],
-                     wait=[system_a_f, vendor_a_f])
+                     images=[system_a_img],
+                     wait=[system_a_f])
 
     vbmeta_bc_f = None
     if not args.do_not_update_bootconfigs:
@@ -475,7 +473,6 @@ def VerifyVirtApex(args):
     # unpacked files
     UnpackSuperImg(args, files['super.img'], unpack_dir.name)
     system_a_img = os.path.join(unpack_dir.name, 'system_a.img')
-    vendor_a_img = os.path.join(unpack_dir.name, 'vendor_a.img')
 
     # Read pubkey digest from the input key
     with tempfile.NamedTemporaryFile() as pubkey_file:
@@ -495,7 +492,6 @@ def VerifyVirtApex(args):
             continue
         if f == files['super.img']:
             Async(check_avb_pubkey, system_a_img)
-            Async(check_avb_pubkey, vendor_a_img)
         else:
             # Check pubkey for other files using avbtool
             Async(check_avb_pubkey, f)
