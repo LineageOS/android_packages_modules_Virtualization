@@ -33,6 +33,7 @@ use libfdt::CellIterator;
 use libfdt::Fdt;
 use libfdt::FdtError;
 use libfdt::FdtNode;
+use libfdt::FdtNodeMut;
 use log::debug;
 use log::error;
 use log::info;
@@ -729,9 +730,10 @@ pub fn modify_for_next_stage(
 
     patch_dice_node(fdt, bcc.as_ptr() as usize, bcc.len())?;
 
-    set_or_clear_chosen_flag(fdt, cstr!("avf,strict-boot"), strict_boot)?;
-    set_or_clear_chosen_flag(fdt, cstr!("avf,new-instance"), new_instance)?;
-
+    if let Some(mut chosen) = fdt.chosen_mut()? {
+        empty_or_delete_prop(&mut chosen, cstr!("avf,strict-boot"), strict_boot)?;
+        empty_or_delete_prop(&mut chosen, cstr!("avf,new-instance"), new_instance)?;
+    };
     if !debuggable {
         if let Some(bootargs) = read_bootargs_from(fdt)? {
             filter_out_dangerous_bootargs(fdt, &bootargs)?;
@@ -756,19 +758,18 @@ fn patch_dice_node(fdt: &mut Fdt, addr: usize, size: usize) -> libfdt::Result<()
     node.setprop_inplace(cstr!("reg"), flatten(&[addr.to_be_bytes(), size.to_be_bytes()]))
 }
 
-fn set_or_clear_chosen_flag(fdt: &mut Fdt, flag: &CStr, value: bool) -> libfdt::Result<()> {
-    // TODO(b/249054080): Refactor to not panic if the DT doesn't contain a /chosen node.
-    let mut chosen = fdt.chosen_mut()?.unwrap();
-    if value {
-        chosen.setprop_empty(flag)?;
+fn empty_or_delete_prop(
+    fdt_node: &mut FdtNodeMut,
+    prop_name: &CStr,
+    keep_prop: bool,
+) -> libfdt::Result<()> {
+    if keep_prop {
+        fdt_node.setprop_empty(prop_name)
     } else {
-        match chosen.delprop(flag) {
-            Ok(()) | Err(FdtError::NotFound) => (),
-            Err(e) => return Err(e),
-        }
+        fdt_node
+            .delprop(prop_name)
+            .or_else(|e| if e == FdtError::NotFound { Ok(()) } else { Err(e) })
     }
-
-    Ok(())
 }
 
 /// Apply the debug policy overlay to the guest DT.
