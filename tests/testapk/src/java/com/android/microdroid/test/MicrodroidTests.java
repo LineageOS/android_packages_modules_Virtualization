@@ -1251,7 +1251,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         assertThat(payloadStarted.getNow(false)).isTrue();
         assertThat(exitCodeFuture.getNow(0)).isNotEqualTo(0);
-        assertThat(listener.getConsoleOutput()).contains(reason);
+        assertThat(listener.getLogOutput()).contains(reason);
     }
 
     @Test
@@ -1609,7 +1609,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .command(
                                 "logcat",
                                 "-e",
-                                "virtualizationmanager::aidl: Console.*executing main task",
+                                "virtualizationmanager::aidl: Log.*executing main task",
                                 "-t",
                                 time)
                         .start();

@@ -211,7 +211,11 @@ unsafe fn prepare_vm_payload_service_socket() -> Result<OwnedFd> {
 }
 
 fn try_main() -> Result<()> {
-    let _ignored = kernlog::init();
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_tag("microdroid_manager")
+            .with_min_level(log::Level::Info),
+    );
     info!("started.");
 
     // SAFETY: This is the only place we take the ownership of the fd of the vm payload service.
