@@ -51,7 +51,7 @@ static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
 /// # Safety
 ///
 /// Must be called no more than once.
-pub unsafe fn init() {
+pub(crate) unsafe fn init() {
     // SAFETY: Nothing else accesses this memory, and we hand it over to the heap to manage and
     // never touch it again. The heap is locked, so there cannot be any races.
     let (start, size) = unsafe { (HEAP.as_mut_ptr() as usize, HEAP.len()) };

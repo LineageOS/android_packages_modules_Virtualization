@@ -33,7 +33,7 @@ use alloc::{vec, vec::Vec};
 use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use vmbase::{configure_global_allocator_size, cstr, heap, logger, main, memory::SIZE_64KB};
+use vmbase::{configure_global_allocator_size, cstr, logger, main, memory::SIZE_64KB};
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
@@ -68,9 +68,6 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     debug!("Found PCI CAM at {:#x}-{:#x}", pci_info.cam_range.start, pci_info.cam_range.end);
 
     modify_fdt(fdt);
-
-    // SAFETY - Only called once, from here.
-    unsafe { heap::init() };
 
     check_alloc();
 

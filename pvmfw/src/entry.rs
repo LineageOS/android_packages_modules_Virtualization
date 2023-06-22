@@ -31,7 +31,7 @@ use log::warn;
 use log::LevelFilter;
 use vmbase::util::RangeExt as _;
 use vmbase::{
-    configure_global_allocator_size, console, heap,
+    configure_global_allocator_size, console,
     layout::{self, crosvm},
     logger, main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},
@@ -68,9 +68,6 @@ pub fn start(fdt_address: u64, payload_start: u64, payload_size: u64, _arg3: u64
     // Limitations in this function:
     // - can't access non-pvmfw memory (only statically-mapped memory)
     // - can't access MMIO (therefore, no logging)
-
-    // SAFETY - This function should and will only be called once, here.
-    unsafe { heap::init() };
 
     match main_wrapper(fdt_address as usize, payload_start as usize, payload_size as usize) {
         Ok((entry, bcc)) => jump_to_payload(fdt_address, entry.try_into().unwrap(), bcc),
