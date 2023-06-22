@@ -21,7 +21,6 @@ use smccc::{
     hvc64,
 };
 
-// TODO(b/272226230): Move all the trng functions to trng module
 const ARM_SMCCC_TRNG_VERSION: u32 = 0x8400_0050;
 #[allow(dead_code)]
 const ARM_SMCCC_TRNG_FEATURES: u32 = 0x8400_0051;
