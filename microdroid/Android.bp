@@ -48,7 +48,7 @@ android_system_image {
     avb_hash_algorithm: "sha256",
     partition_name: "system",
     deps: [
-        "init_second_stage",
+        "init_second_stage.microdroid",
         "microdroid_build_prop",
         "microdroid_init_debug_policy",
         "microdroid_init_rc",
@@ -220,7 +220,7 @@ logical_partition {
 android_filesystem {
     name: "microdroid_ramdisk",
     deps: [
-        "init_first_stage",
+        "init_first_stage.microdroid",
     ],
     dirs: [
         "dev",
