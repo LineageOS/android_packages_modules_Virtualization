@@ -42,6 +42,12 @@ impl fmt::Display for Error {
     }
 }
 
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
 /// Configure the source of entropy.
 pub fn init() -> Result<()> {
     match hvc::trng_version()? {
@@ -105,5 +111,5 @@ extern "C" fn CRYPTO_sysrand_for_seed(out: *mut u8, req: usize) {
 extern "C" fn CRYPTO_sysrand(out: *mut u8, req: usize) {
     // SAFETY - We need to assume that out points to valid memory of size req.
     let s = unsafe { core::slice::from_raw_parts_mut(out, req) };
-    let _ = fill_with_entropy(s);
+    fill_with_entropy(s).unwrap()
 }
