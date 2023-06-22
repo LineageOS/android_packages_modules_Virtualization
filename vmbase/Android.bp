@@ -76,6 +76,7 @@ rust_library_rlib {
         "libvirtio_drivers",
         "libzeroize_nostd",
     ],
+    no_stdlibs: true,
     whole_static_libs: [
         "librust_baremetal",
     ],
