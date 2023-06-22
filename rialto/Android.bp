@@ -10,7 +10,6 @@ rust_ffi_static {
     defaults: ["vmbase_ffi_defaults"],
     rustlibs: [
         "libaarch64_paging",
-        "libbuddy_system_allocator",
         "libhyp",
         "libfdtpci",
         "liblibfdt",

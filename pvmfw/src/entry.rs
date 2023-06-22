@@ -15,10 +15,8 @@
 //! Low-level entry and exit points of pvmfw.
 
 use crate::config;
-use crate::configure_global_allocator_size;
 use crate::crypto;
 use crate::fdt;
-use crate::heap;
 use crate::memory;
 use core::arch::asm;
 use core::mem::{drop, size_of};
@@ -33,7 +31,7 @@ use log::warn;
 use log::LevelFilter;
 use vmbase::util::RangeExt as _;
 use vmbase::{
-    console,
+    configure_global_allocator_size, console, heap,
     layout::{self, crosvm},
     logger, main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},
