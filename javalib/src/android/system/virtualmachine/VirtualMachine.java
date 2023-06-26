@@ -804,7 +804,8 @@ public class VirtualMachine implements AutoCloseable {
                         android.system.virtualizationservice.VirtualMachineConfig.appConfig(
                                 appConfig);
 
-                mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, mLogWriter);
+                // TODO(b/263360203): use consoleInFd also in Java (via private APIs)
+                mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, /* consoleInFd */ null, mLogWriter);
                 mVirtualMachine.registerCallback(new CallbackTranslator(service));
                 mContext.registerComponentCallbacks(mMemoryManagementCallbacks);
                 mVirtualMachine.start();

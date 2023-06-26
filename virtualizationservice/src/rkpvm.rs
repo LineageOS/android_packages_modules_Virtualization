@@ -79,7 +79,7 @@ pub(crate) fn request_certificate(
         taskProfiles: vec![],
         gdbPort: 0, // No gdb
     });
-    let vm = VmInstance::create(service.as_ref(), &config, None, None, None)
+    let vm = VmInstance::create(service.as_ref(), &config, None, None, None, None)
         .context("Failed to create service VM")?;
 
     info!("service_vm: Starting Service VM...");

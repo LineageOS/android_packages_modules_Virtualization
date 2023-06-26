@@ -107,7 +107,8 @@ pub struct CrosvmConfig {
     pub cpus: Option<NonZeroU32>,
     pub host_cpu_topology: bool,
     pub task_profiles: Vec<String>,
-    pub console_fd: Option<File>,
+    pub console_out_fd: Option<File>,
+    pub console_in_fd: Option<File>,
     pub log_fd: Option<File>,
     pub ramdump: Option<File>,
     pub indirect_files: Vec<File>,
@@ -776,21 +777,29 @@ fn run_vm(
     //
     // When [console|log]_fd is not specified, the devices are attached to sink, which means what's
     // written there is discarded.
-    let console_arg = format_serial_arg(&mut preserved_fds, &config.console_fd);
-    let log_arg = format_serial_arg(&mut preserved_fds, &config.log_fd);
+    let console_out_arg = format_serial_out_arg(&mut preserved_fds, &config.console_out_fd);
+    let console_in_arg = config
+        .console_in_fd
+        .as_ref()
+        .map(|fd| format!(",input={}", add_preserved_fd(&mut preserved_fds, fd)))
+        .unwrap_or_default();
+    let log_arg = format_serial_out_arg(&mut preserved_fds, &config.log_fd);
     let failure_serial_path = add_preserved_fd(&mut preserved_fds, &failure_pipe_write);
-    let ramdump_arg = format_serial_arg(&mut preserved_fds, &config.ramdump);
+    let ramdump_arg = format_serial_out_arg(&mut preserved_fds, &config.ramdump);
 
     // Warning: Adding more serial devices requires you to shift the PCI device ID of the boot
     // disks in bootconfig.x86_64. This is because x86 crosvm puts serial devices and the block
     // devices in the same PCI bus and serial devices comes before the block devices. Arm crosvm
     // doesn't have the issue.
     // /dev/ttyS0
-    command.arg(format!("--serial={},hardware=serial,num=1", &console_arg));
+    command.arg(format!("--serial={}{},hardware=serial,num=1", &console_out_arg, &console_in_arg));
     // /dev/ttyS1
     command.arg(format!("--serial=type=file,path={},hardware=serial,num=2", &failure_serial_path));
     // /dev/hvc0
-    command.arg(format!("--serial={},hardware=virtio-console,num=1", &console_arg));
+    command.arg(format!(
+        "--serial={}{},hardware=virtio-console,num=1",
+        &console_out_arg, &console_in_arg
+    ));
     // /dev/hvc1
     command.arg(format!("--serial={},hardware=virtio-console,num=2", &ramdump_arg));
     // /dev/hvc2
@@ -890,7 +899,7 @@ fn add_preserved_fd(preserved_fds: &mut Vec<RawFd>, file: &dyn AsRawFd) -> Strin
 
 /// Adds the file descriptor for `file` (if any) to `preserved_fds`, and returns the appropriate
 /// string for a crosvm `--serial` flag. If `file` is none, creates a dummy sink device.
-fn format_serial_arg(preserved_fds: &mut Vec<RawFd>, file: &Option<File>) -> String {
+fn format_serial_out_arg(preserved_fds: &mut Vec<RawFd>, file: &Option<File>) -> String {
     if let Some(file) = file {
         format!("type=file,path={}", add_preserved_fd(preserved_fds, file))
     } else {

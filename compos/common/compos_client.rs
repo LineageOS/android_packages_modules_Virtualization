@@ -136,8 +136,15 @@ impl ComposClient {
         // Let logs go to logcat.
         let (console_fd, log_fd) = (None, None);
         let callback = Box::new(Callback {});
-        let instance = VmInstance::create(service, &config, console_fd, log_fd, Some(callback))
-            .context("Failed to create VM")?;
+        let instance = VmInstance::create(
+            service,
+            &config,
+            console_fd,
+            /*console_in_fd */ None,
+            log_fd,
+            Some(callback),
+        )
+        .context("Failed to create VM")?;
 
         instance.start()?;
 

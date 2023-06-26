@@ -51,7 +51,8 @@ pub fn command_run_app(
     storage_size: Option<u64>,
     config_path: Option<String>,
     payload_binary_name: Option<String>,
-    console_path: Option<&Path>,
+    console_out_path: Option<&Path>,
+    console_in_path: Option<&Path>,
     log_path: Option<&Path>,
     debug_level: DebugLevel,
     protected: bool,
@@ -152,7 +153,7 @@ pub fn command_run_app(
         gdbPort: gdb.map(u16::from).unwrap_or(0) as i32, // 0 means no gdb
         customKernelImage: kernel,
     });
-    run(service, &config, &payload_config_str, console_path, log_path)
+    run(service, &config, &payload_config_str, console_out_path, console_in_path, log_path)
 }
 
 fn find_empty_payload_apk_path() -> Result<PathBuf, Error> {
@@ -185,7 +186,8 @@ pub fn command_run_microdroid(
     work_dir: Option<PathBuf>,
     storage: Option<&Path>,
     storage_size: Option<u64>,
-    console_path: Option<&Path>,
+    console_out_path: Option<&Path>,
+    console_in_path: Option<&Path>,
     log_path: Option<&Path>,
     debug_level: DebugLevel,
     protected: bool,
@@ -216,7 +218,8 @@ pub fn command_run_microdroid(
         storage_size,
         /* config_path= */ None,
         Some(payload_binary_name.to_owned()),
-        console_path,
+        console_out_path,
+        console_in_path,
         log_path,
         debug_level,
         protected,
@@ -235,7 +238,8 @@ pub fn command_run(
     name: Option<String>,
     service: &dyn IVirtualizationService,
     config_path: &Path,
-    console_path: Option<&Path>,
+    console_out_path: Option<&Path>,
+    console_in_path: Option<&Path>,
     log_path: Option<&Path>,
     mem: Option<u32>,
     cpu_topology: CpuTopology,
@@ -262,7 +266,8 @@ pub fn command_run(
         service,
         &VirtualMachineConfig::RawConfig(config),
         &format!("{:?}", config_path),
-        console_path,
+        console_out_path,
+        console_in_path,
         log_path,
     )
 }
@@ -283,28 +288,35 @@ fn run(
     service: &dyn IVirtualizationService,
     config: &VirtualMachineConfig,
     payload_config: &str,
-    console_path: Option<&Path>,
+    console_out_path: Option<&Path>,
+    console_in_path: Option<&Path>,
     log_path: Option<&Path>,
 ) -> Result<(), Error> {
-    let console = if let Some(console_path) = console_path {
-        Some(
-            File::create(console_path)
-                .with_context(|| format!("Failed to open console file {:?}", console_path))?,
-        )
+    let console_out = if let Some(console_out_path) = console_out_path {
+        Some(File::create(console_out_path).with_context(|| {
+            format!("Failed to open console output file {:?}", console_out_path)
+        })?)
     } else {
-        Some(duplicate_stdout()?)
+        Some(duplicate_fd(io::stdout())?)
     };
+    let console_in =
+        if let Some(console_in_path) = console_in_path {
+            Some(File::create(console_in_path).with_context(|| {
+                format!("Failed to open console input file {:?}", console_in_path)
+            })?)
+        } else {
+            Some(duplicate_fd(io::stdin())?)
+        };
     let log = if let Some(log_path) = log_path {
         Some(
             File::create(log_path)
                 .with_context(|| format!("Failed to open log file {:?}", log_path))?,
         )
     } else {
-        Some(duplicate_stdout()?)
+        Some(duplicate_fd(io::stdout())?)
     };
-
     let callback = Box::new(Callback {});
-    let vm = VmInstance::create(service, config, console, log, Some(callback))
+    let vm = VmInstance::create(service, config, console_out, console_in, log, Some(callback))
         .context("Failed to create VM")?;
     vm.start().context("Failed to start VM")?;
 
@@ -349,12 +361,12 @@ impl vmclient::VmCallback for Callback {
     }
 }
 
-/// Safely duplicate the standard output file descriptor.
-fn duplicate_stdout() -> io::Result<File> {
-    let stdout_fd = io::stdout().as_raw_fd();
+/// Safely duplicate the file descriptor.
+fn duplicate_fd<T: AsRawFd>(file: T) -> io::Result<File> {
+    let fd = file.as_raw_fd();
     // Safe because this just duplicates a file descriptor which we know to be valid, and we check
     // for an error.
-    let dup_fd = unsafe { libc::dup(stdout_fd) };
+    let dup_fd = unsafe { libc::dup(fd) };
     if dup_fd < 0 {
         Err(io::Error::last_os_error())
     } else {
