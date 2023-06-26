@@ -35,6 +35,8 @@ use vmclient::{DeathReason, VmInstance};
 const VMBASE_EXAMPLE_PATH: &str =
     "/data/local/tmp/vmbase_example.integration_test/arm64/vmbase_example.bin";
 const TEST_DISK_IMAGE_PATH: &str = "/data/local/tmp/vmbase_example.integration_test/test_disk.img";
+const EMPTY_DISK_IMAGE_PATH: &str =
+    "/data/local/tmp/vmbase_example.integration_test/empty_disk.img";
 
 /// Runs the vmbase_example VM as an unprotected VM via VirtualizationService.
 #[test]
@@ -76,13 +78,25 @@ fn test_run_example_vm() -> Result<(), Error> {
     let test_image = ParcelFileDescriptor::new(test_image);
     let disk_image = DiskImage { image: Some(test_image), writable: false, partitions: vec![] };
 
+    // Make file for empty test disk image.
+    let empty_image = File::options()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(true)
+        .open(EMPTY_DISK_IMAGE_PATH)
+        .with_context(|| format!("Failed to open empty disk image {}", EMPTY_DISK_IMAGE_PATH))?;
+    let empty_image = ParcelFileDescriptor::new(empty_image);
+    let empty_disk_image =
+        DiskImage { image: Some(empty_image), writable: false, partitions: vec![] };
+
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
         name: String::from("VmBaseTest"),
         kernel: None,
         initrd: None,
         params: None,
         bootloader: Some(bootloader),
-        disks: vec![disk_image],
+        disks: vec![disk_image, empty_disk_image],
         protectedVm: false,
         memoryMib: 300,
         cpuTopology: CpuTopology::ONE_CPU,

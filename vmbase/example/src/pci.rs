@@ -25,7 +25,7 @@ use virtio_drivers::{
         pci::{bus::PciRoot, virtio_device_type, PciTransport},
         DeviceType, Transport,
     },
-    BufferDirection, Hal, PhysAddr, PAGE_SIZE,
+    BufferDirection, Error, Hal, PhysAddr, PAGE_SIZE,
 };
 
 /// The standard sector size of a VirtIO block device, in bytes.
@@ -36,6 +36,7 @@ const EXPECTED_SECTOR_COUNT: usize = 4;
 
 pub fn check_pci(pci_root: &mut PciRoot) {
     let mut checked_virtio_device_count = 0;
+    let mut block_device_count = 0;
     for (device_function, info) in pci_root.enumerate_bus(0) {
         let (status, command) = pci_root.get_status_command(device_function);
         info!("Found {} at {}, status {:?} command {:?}", info, device_function, status, command);
@@ -47,24 +48,31 @@ pub fn check_pci(pci_root: &mut PciRoot) {
                 transport.device_type(),
                 transport.read_device_features(),
             );
-            if check_virtio_device(transport, virtio_type) {
-                checked_virtio_device_count += 1;
+            match virtio_type {
+                DeviceType::Block => {
+                    check_virtio_block_device(transport, block_device_count);
+                    block_device_count += 1;
+                    checked_virtio_device_count += 1;
+                }
+                DeviceType::Console => {
+                    check_virtio_console_device(transport);
+                    checked_virtio_device_count += 1;
+                }
+                _ => {}
             }
         }
     }
 
-    assert_eq!(checked_virtio_device_count, 4);
+    assert_eq!(checked_virtio_device_count, 5);
+    assert_eq!(block_device_count, 2);
 }
 
-/// Checks the given VirtIO device, if we know how to.
-///
-/// Returns true if the device was checked, or false if it was ignored.
-fn check_virtio_device(transport: impl Transport, device_type: DeviceType) -> bool {
-    match device_type {
-        DeviceType::Block => {
-            let mut blk =
-                VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
-            info!("Found {} KiB block device.", blk.capacity() * SECTOR_SIZE_BYTES as u64 / 1024);
+/// Checks the given VirtIO block device.
+fn check_virtio_block_device(transport: impl Transport, index: usize) {
+    let mut blk = VirtIOBlk::<HalImpl, _>::new(transport).expect("failed to create blk driver");
+    info!("Found {} KiB block device.", blk.capacity() * SECTOR_SIZE_BYTES as u64 / 1024);
+    match index {
+        0 => {
             assert_eq!(blk.capacity(), EXPECTED_SECTOR_COUNT as u64);
             let mut data = [0; SECTOR_SIZE_BYTES * EXPECTED_SECTOR_COUNT];
             for i in 0..EXPECTED_SECTOR_COUNT {
@@ -75,20 +83,25 @@ fn check_virtio_device(transport: impl Transport, device_type: DeviceType) -> bo
                 assert_eq!(chunk, &(i as u32).to_le_bytes());
             }
             info!("Read expected data from block device.");
-            true
         }
-        DeviceType::Console => {
-            let mut console = VirtIOConsole::<HalImpl, _>::new(transport)
-                .expect("Failed to create VirtIO console driver");
-            info!("Found console device: {:?}", console.info());
-            for &c in b"Hello VirtIO console\n" {
-                console.send(c).expect("Failed to send character to VirtIO console device");
-            }
-            info!("Wrote to VirtIO console.");
-            true
+        1 => {
+            assert_eq!(blk.capacity(), 0);
+            let mut data = [0; SECTOR_SIZE_BYTES];
+            assert_eq!(blk.read_block(0, &mut data), Err(Error::IoError));
         }
-        _ => false,
+        _ => panic!("Unexpected VirtIO block device index {}.", index),
     }
+}
+
+/// Checks the given VirtIO console device.
+fn check_virtio_console_device(transport: impl Transport) {
+    let mut console = VirtIOConsole::<HalImpl, _>::new(transport)
+        .expect("Failed to create VirtIO console driver");
+    info!("Found console device: {:?}", console.info());
+    for &c in b"Hello VirtIO console\n" {
+        console.send(c).expect("Failed to send character to VirtIO console device");
+    }
+    info!("Wrote to VirtIO console.");
 }
 
 /// Gets the memory region in which BARs are allocated.
