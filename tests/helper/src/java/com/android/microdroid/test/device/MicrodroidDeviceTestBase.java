@@ -160,7 +160,7 @@ public abstract class MicrodroidDeviceTestBase {
         private StringBuilder mLogOutput = new StringBuilder();
         private boolean mProcessedBootTimeMetrics = false;
 
-        private void processBootTimeMetrics(String log) {
+        private synchronized void processBootTimeMetrics(String log) {
             if (!mVcpuStartedNanoTime.isPresent()) {
                 mVcpuStartedNanoTime = OptionalLong.of(System.nanoTime());
             }
@@ -177,12 +177,8 @@ public abstract class MicrodroidDeviceTestBase {
         }
 
         private void logVmOutputAndMonitorBootTimeMetrics(
-                String tag,
-                InputStream vmOutputStream,
-                String name,
-                StringBuilder result,
-                boolean monitorEvents) {
-            mProcessedBootTimeMetrics |= monitorEvents;
+                String tag, InputStream vmOutputStream, String name, StringBuilder result) {
+            mProcessedBootTimeMetrics = true;
             new Thread(
                             () -> {
                                 try {
@@ -192,7 +188,7 @@ public abstract class MicrodroidDeviceTestBase {
                                     String line;
                                     while ((line = reader.readLine()) != null
                                             && !Thread.interrupted()) {
-                                        if (monitorEvents) processBootTimeMetrics(line);
+                                        processBootTimeMetrics(line);
                                         Log.i(tag, name + ": " + line);
                                         result.append(line + "\n");
                                     }
@@ -203,17 +199,6 @@ public abstract class MicrodroidDeviceTestBase {
                     .start();
         }
 
-        private void logVmOutputAndMonitorBootTimeMetrics(
-                String tag, InputStream vmOutputStream, String name, StringBuilder result) {
-            logVmOutputAndMonitorBootTimeMetrics(tag, vmOutputStream, name, result, true);
-        }
-
-        /** Copy output from the VM to logcat. This is helpful when things go wrong. */
-        protected void logVmOutput(
-                String tag, InputStream vmOutputStream, String name, StringBuilder result) {
-            logVmOutputAndMonitorBootTimeMetrics(tag, vmOutputStream, name, result, false);
-        }
-
         public void runToFinish(String logTag, VirtualMachine vm)
                 throws VirtualMachineException, InterruptedException {
             vm.setCallback(mExecutorService, this);
@@ -221,7 +206,7 @@ public abstract class MicrodroidDeviceTestBase {
             if (vm.getConfig().isVmOutputCaptured()) {
                 logVmOutputAndMonitorBootTimeMetrics(
                         logTag, vm.getConsoleOutput(), "Console", mConsoleOutput);
-                logVmOutput(logTag, vm.getLogOutput(), "Log", mLogOutput);
+                logVmOutputAndMonitorBootTimeMetrics(logTag, vm.getLogOutput(), "Log", mLogOutput);
             }
             mExecutorService.awaitTermination(300, TimeUnit.SECONDS);
         }
