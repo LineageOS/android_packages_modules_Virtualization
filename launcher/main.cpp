@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    android::base::InitLogging(argv, &android::base::KernelLogger);
+    android::base::InitLogging(argv);
 
     const char* libname = argv[1];
     auto handle = load(libname);
