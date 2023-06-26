@@ -76,11 +76,13 @@ import com.android.internal.annotations.GuardedBy;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.channels.FileChannel;
@@ -294,6 +296,8 @@ public class VirtualMachine implements AutoCloseable {
 
     private final boolean mVmOutputCaptured;
 
+    private final boolean mVmConsoleInputSupported;
+
     /** The configuration that is currently associated with this VM. */
     @GuardedBy("mLock")
     @NonNull
@@ -306,11 +310,19 @@ public class VirtualMachine implements AutoCloseable {
 
     @GuardedBy("mLock")
     @Nullable
-    private ParcelFileDescriptor mConsoleReader;
+    private ParcelFileDescriptor mConsoleOutReader;
 
     @GuardedBy("mLock")
     @Nullable
-    private ParcelFileDescriptor mConsoleWriter;
+    private ParcelFileDescriptor mConsoleOutWriter;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ParcelFileDescriptor mConsoleInReader;
+
+    @GuardedBy("mLock")
+    @Nullable
+    private ParcelFileDescriptor mConsoleInWriter;
 
     @GuardedBy("mLock")
     @Nullable
@@ -372,6 +384,7 @@ public class VirtualMachine implements AutoCloseable {
                         : null;
 
         mVmOutputCaptured = config.isVmOutputCaptured();
+        mVmConsoleInputSupported = config.isVmConsoleInputSupported();
     }
 
     /**
@@ -787,7 +800,11 @@ public class VirtualMachine implements AutoCloseable {
 
             try {
                 if (mVmOutputCaptured) {
-                    createVmPipes();
+                    createVmOutputPipes();
+                }
+
+                if (mVmConsoleInputSupported) {
+                    createVmInputPipes();
                 }
 
                 VirtualMachineAppConfig appConfig =
@@ -804,8 +821,9 @@ public class VirtualMachine implements AutoCloseable {
                         android.system.virtualizationservice.VirtualMachineConfig.appConfig(
                                 appConfig);
 
-                // TODO(b/263360203): use consoleInFd also in Java (via private APIs)
-                mVirtualMachine = service.createVm(vmConfigParcel, mConsoleWriter, /* consoleInFd */ null, mLogWriter);
+                mVirtualMachine =
+                        service.createVm(
+                                vmConfigParcel, mConsoleOutWriter, mConsoleInReader, mLogWriter);
                 mVirtualMachine.registerCallback(new CallbackTranslator(service));
                 mContext.registerComponentCallbacks(mMemoryManagementCallbacks);
                 mVirtualMachine.start();
@@ -844,12 +862,12 @@ public class VirtualMachine implements AutoCloseable {
     }
 
     @GuardedBy("mLock")
-    private void createVmPipes() throws VirtualMachineException {
+    private void createVmOutputPipes() throws VirtualMachineException {
         try {
-            if (mConsoleReader == null || mConsoleWriter == null) {
+            if (mConsoleOutReader == null || mConsoleOutWriter == null) {
                 ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
-                mConsoleReader = pipe[0];
-                mConsoleWriter = pipe[1];
+                mConsoleOutReader = pipe[0];
+                mConsoleOutWriter = pipe[1];
             }
 
             if (mLogReader == null || mLogWriter == null) {
@@ -858,7 +876,20 @@ public class VirtualMachine implements AutoCloseable {
                 mLogWriter = pipe[1];
             }
         } catch (IOException e) {
-            throw new VirtualMachineException("Failed to create stream for VM", e);
+            throw new VirtualMachineException("Failed to create output stream for VM", e);
+        }
+    }
+
+    @GuardedBy("mLock")
+    private void createVmInputPipes() throws VirtualMachineException {
+        try {
+            if (mConsoleInReader == null || mConsoleInWriter == null) {
+                ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
+                mConsoleInReader = pipe[0];
+                mConsoleInWriter = pipe[1];
+            }
+        } catch (IOException e) {
+            throw new VirtualMachineException("Failed to create input stream for VM", e);
         }
     }
 
@@ -884,10 +915,35 @@ public class VirtualMachine implements AutoCloseable {
             throw new VirtualMachineException("Capturing vm outputs is turned off");
         }
         synchronized (mLock) {
-            createVmPipes();
-            return new FileInputStream(mConsoleReader.getFileDescriptor());
+            createVmOutputPipes();
+            return new FileInputStream(mConsoleOutReader.getFileDescriptor());
         }
     }
+
+    /**
+     * Returns the stream object representing the console input to the virtual machine. The console
+     * input is only available if the {@link VirtualMachineConfig} specifies that it should be
+     * {@linkplain VirtualMachineConfig#isVmConsoleInputSupported supported}.
+     *
+     * <p>NOTE: This method may block and should not be called on the main thread.
+     *
+     * @throws VirtualMachineException if the stream could not be created, or console input is not
+     *     supported.
+     * @hide
+     */
+    @TestApi
+    @WorkerThread
+    @NonNull
+    public OutputStream getConsoleInput() throws VirtualMachineException {
+        if (!mVmConsoleInputSupported) {
+            throw new VirtualMachineException("VM console input is not supported");
+        }
+        synchronized (mLock) {
+            createVmInputPipes();
+            return new FileOutputStream(mConsoleInWriter.getFileDescriptor());
+        }
+    }
+
 
     /**
      * Returns the stream object representing the log output from the virtual machine. The log
@@ -911,7 +967,7 @@ public class VirtualMachine implements AutoCloseable {
             throw new VirtualMachineException("Capturing vm outputs is turned off");
         }
         synchronized (mLock) {
-            createVmPipes();
+            createVmOutputPipes();
             return new FileInputStream(mLogReader.getFileDescriptor());
         }
     }

@@ -76,6 +76,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_CPU_TOPOLOGY = "cpuTopology";
     private static final String KEY_ENCRYPTED_STORAGE_BYTES = "encryptedStorageBytes";
     private static final String KEY_VM_OUTPUT_CAPTURED = "vmOutputCaptured";
+    private static final String KEY_VM_CONSOLE_INPUT_SUPPORTED = "vmConsoleInputSupported";
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
@@ -164,6 +165,9 @@ public final class VirtualMachineConfig {
     /** Whether the app can read console and log output. */
     private final boolean mVmOutputCaptured;
 
+    /** Whether the app can write console input to the VM */
+    private final boolean mVmConsoleInputSupported;
+
     private VirtualMachineConfig(
             @Nullable String packageName,
             @Nullable String apkPath,
@@ -174,7 +178,8 @@ public final class VirtualMachineConfig {
             long memoryBytes,
             @CpuTopology int cpuTopology,
             long encryptedStorageBytes,
-            boolean vmOutputCaptured) {
+            boolean vmOutputCaptured,
+            boolean vmConsoleInputSupported) {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
         mApkPath = apkPath;
@@ -186,6 +191,7 @@ public final class VirtualMachineConfig {
         mCpuTopology = cpuTopology;
         mEncryptedStorageBytes = encryptedStorageBytes;
         mVmOutputCaptured = vmOutputCaptured;
+        mVmConsoleInputSupported = vmConsoleInputSupported;
     }
 
     /** Loads a config from a file. */
@@ -260,6 +266,7 @@ public final class VirtualMachineConfig {
             builder.setEncryptedStorageBytes(encryptedStorageBytes);
         }
         builder.setVmOutputCaptured(b.getBoolean(KEY_VM_OUTPUT_CAPTURED));
+        builder.setVmConsoleInputSupported(b.getBoolean(KEY_VM_CONSOLE_INPUT_SUPPORTED));
 
         return builder.build();
     }
@@ -295,6 +302,7 @@ public final class VirtualMachineConfig {
             b.putLong(KEY_ENCRYPTED_STORAGE_BYTES, mEncryptedStorageBytes);
         }
         b.putBoolean(KEY_VM_OUTPUT_CAPTURED, mVmOutputCaptured);
+        b.putBoolean(KEY_VM_CONSOLE_INPUT_SUPPORTED, mVmConsoleInputSupported);
         b.writeToStream(output);
     }
 
@@ -413,6 +421,17 @@ public final class VirtualMachineConfig {
     }
 
     /**
+     * Returns whether the app can write to the VM console.
+     *
+     * @see Builder#setVmConsoleInputSupported
+     * @hide
+     */
+    @TestApi
+    public boolean isVmConsoleInputSupported() {
+        return mVmConsoleInputSupported;
+    }
+
+    /**
      * Tests if this config is compatible with other config. Being compatible means that the configs
      * can be interchangeably used for the same virtual machine; they do not change the VM identity
      * or secrets. Such changes include varying the number of CPUs or the size of the RAM. Changes
@@ -431,6 +450,7 @@ public final class VirtualMachineConfig {
                 && this.mProtectedVm == other.mProtectedVm
                 && this.mEncryptedStorageBytes == other.mEncryptedStorageBytes
                 && this.mVmOutputCaptured == other.mVmOutputCaptured
+                && this.mVmConsoleInputSupported == other.mVmConsoleInputSupported
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
                 && Objects.equals(this.mPackageName, other.mPackageName)
@@ -554,6 +574,7 @@ public final class VirtualMachineConfig {
         @CpuTopology private int mCpuTopology = CPU_TOPOLOGY_ONE_CPU;
         private long mEncryptedStorageBytes;
         private boolean mVmOutputCaptured = false;
+        private boolean mVmConsoleInputSupported = false;
 
         /**
          * Creates a builder for the given context.
@@ -612,6 +633,10 @@ public final class VirtualMachineConfig {
                 throw new IllegalStateException("debug level must be FULL to capture output");
             }
 
+            if (mVmConsoleInputSupported && mDebugLevel != DEBUG_LEVEL_FULL) {
+                throw new IllegalStateException("debug level must be FULL to use console input");
+            }
+
             return new VirtualMachineConfig(
                     packageName,
                     apkPath,
@@ -622,7 +647,8 @@ public final class VirtualMachineConfig {
                     mMemoryBytes,
                     mCpuTopology,
                     mEncryptedStorageBytes,
-                    mVmOutputCaptured);
+                    mVmOutputCaptured,
+                    mVmConsoleInputSupported);
         }
 
         /**
@@ -820,6 +846,24 @@ public final class VirtualMachineConfig {
         @NonNull
         public Builder setVmOutputCaptured(boolean captured) {
             mVmOutputCaptured = captured;
+            return this;
+        }
+
+        /**
+         * Sets whether to allow the app to write to the VM console. Default is {@code false}.
+         *
+         * <p>Setting this as {@code true} will allow the app to directly write into {@linkplain
+         * VirtualMachine#getConsoleInput console input}.
+         *
+         * <p>The {@linkplain #setDebugLevel debug level} must be {@link #DEBUG_LEVEL_FULL} to be
+         * set as true.
+         *
+         * @hide
+         */
+        @TestApi
+        @NonNull
+        public Builder setVmConsoleInputSupported(boolean supported) {
+            mVmConsoleInputSupported = supported;
             return this;
         }
     }

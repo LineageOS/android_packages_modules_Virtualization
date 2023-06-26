@@ -471,6 +471,7 @@ public abstract class MicrodroidDeviceTestBase {
         public long[] mTimings;
         public int mFileMode;
         public int mMountFlags;
+        public String mConsoleInput;
 
         public void assertNoException() {
             if (mException != null) {
