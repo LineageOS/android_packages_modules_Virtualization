@@ -55,10 +55,8 @@ android_system_image {
         "microdroid_ueventd_rc",
         "microdroid_launcher",
 
-        "libbinder",
         "libbinder_ndk",
         "libstdc++",
-        "secilc",
 
         // "com.android.adbd" requires these,
         "libadbd_auth",
