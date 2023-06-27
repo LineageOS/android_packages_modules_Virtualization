@@ -17,6 +17,7 @@
 extern crate alloc;
 
 mod common;
+mod geniezone;
 mod gunyah;
 mod kvm;
 
@@ -25,6 +26,8 @@ use alloc::boxed::Box;
 pub use common::Hypervisor;
 pub use common::HypervisorCap;
 pub use common::MMIO_GUARD_GRANULE_SIZE;
+pub use geniezone::GeniezoneError;
+use geniezone::GeniezoneHypervisor;
 use gunyah::GunyahHypervisor;
 pub use kvm::KvmError;
 use kvm::KvmHypervisor;
@@ -35,6 +38,7 @@ use uuid::Uuid;
 enum HypervisorBackend {
     Kvm,
     Gunyah,
+    Geniezone,
 }
 
 impl HypervisorBackend {
@@ -42,6 +46,7 @@ impl HypervisorBackend {
         match self {
             Self::Kvm => &KvmHypervisor,
             Self::Gunyah => &GunyahHypervisor,
+            Self::Geniezone => &GeniezoneHypervisor,
         }
     }
 }
@@ -51,6 +56,7 @@ impl TryFrom<Uuid> for HypervisorBackend {
 
     fn try_from(uuid: Uuid) -> Result<HypervisorBackend> {
         match uuid {
+            GeniezoneHypervisor::UUID => Ok(HypervisorBackend::Geniezone),
             GunyahHypervisor::UUID => Ok(HypervisorBackend::Gunyah),
             KvmHypervisor::UUID => Ok(HypervisorBackend::Kvm),
             u => Err(Error::UnsupportedHypervisorUuid(u)),
