@@ -14,6 +14,7 @@
 
 //! Error and Result types for hypervisor.
 
+use crate::GeniezoneError;
 use crate::KvmError;
 use core::{fmt, result};
 use uuid::Uuid;
@@ -28,7 +29,9 @@ pub enum Error {
     MmioGuardNotsupported,
     /// Failed to invoke a certain KVM HVC function.
     KvmError(KvmError, u32),
-    /// Unsupported Hypervisor.
+    /// Failed to invoke GenieZone HVC function.
+    GeniezoneError(GeniezoneError, u32),
+    /// Unsupported Hypervisor
     UnsupportedHypervisorUuid(Uuid),
     /// The MMIO_GUARD granule used by the hypervisor is not supported.
     UnsupportedMmioGuardGranule(usize),
@@ -40,6 +43,12 @@ impl fmt::Display for Error {
             Self::MmioGuardNotsupported => write!(f, "MMIO guard is not supported"),
             Self::KvmError(e, function_id) => {
                 write!(f, "Failed to invoke the HVC function with function ID {function_id}: {e}")
+            }
+            Self::GeniezoneError(e, function_id) => {
+                write!(
+                    f,
+                    "Failed to invoke GenieZone HVC function with function ID {function_id}: {e}"
+                )
             }
             Self::UnsupportedHypervisorUuid(u) => {
                 write!(f, "Unsupported Hypervisor UUID {u}")
