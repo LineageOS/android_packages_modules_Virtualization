@@ -22,6 +22,8 @@ use zeroize::Zeroize;
 
 /// The size of a 4KB memory in bytes.
 pub const SIZE_4KB: usize = 4 << 10;
+/// The size of a 128KB memory in bytes.
+pub const SIZE_128KB: usize = 128 << 10;
 /// The size of a 2MB memory in bytes.
 pub const SIZE_2MB: usize = 2 << 20;
 /// The size of a 4MB memory in bytes.
