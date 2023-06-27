@@ -116,6 +116,20 @@ fn create_or_update_idsig_file(
             .context("failed to create idsig")?;
 
     let mut output = clone_file(idsig_fd)?;
+
+    // Optimization. We don't have to update idsig file whenever a VM is started. Don't update it,
+    // if the idsig file already has the same APK digest.
+    if output.metadata()?.len() > 0 {
+        if let Ok(out_sig) = V4Signature::from_idsig(&mut output) {
+            if out_sig.signing_info.apk_digest == sig.signing_info.apk_digest {
+                debug!("idsig {:?} is up-to-date with apk {:?}.", output, input);
+                return Ok(());
+            }
+        }
+        // if we fail to read v4signature from output, that's fine. User can pass a random file.
+        // We will anyway overwrite the file to the v4signature generated from input_fd.
+    }
+
     output.set_len(0).context("failed to set_len on the idsig output")?;
     sig.write_into(&mut output).context("failed to write idsig")?;
     Ok(())
@@ -236,9 +250,6 @@ impl IVirtualizationService for VirtualizationService {
         input_fd: &ParcelFileDescriptor,
         idsig_fd: &ParcelFileDescriptor,
     ) -> binder::Result<()> {
-        // TODO(b/193504400): do this only when (1) idsig_fd is empty or (2) the APK digest in
-        // idsig_fd is different from APK digest in input_fd
-
         check_manage_access()?;
 
         create_or_update_idsig_file(input_fd, idsig_fd)
@@ -1298,6 +1309,32 @@ mod tests {
             &ParcelFileDescriptor::new(idsig),
         );
         assert!(ret.is_err(), "should fail");
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_or_update_idsig_does_not_update_if_already_valid() -> Result<()> {
+        use std::io::Seek;
+
+        // Pick any APK
+        let mut apk = File::open("/system/priv-app/Shell/Shell.apk").unwrap();
+        let mut idsig = tempfile::tempfile().unwrap();
+
+        create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk.try_clone()?),
+            &ParcelFileDescriptor::new(idsig.try_clone()?),
+        )?;
+        let modified_orig = idsig.metadata()?.modified()?;
+        apk.rewind()?;
+        idsig.rewind()?;
+
+        // Call the function again
+        create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk.try_clone()?),
+            &ParcelFileDescriptor::new(idsig.try_clone()?),
+        )?;
+        let modified_new = idsig.metadata()?.modified()?;
+        assert!(modified_orig == modified_new, "idsig file was updated unnecessarily");
         Ok(())
     }
 }
