@@ -845,44 +845,6 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         }
     }
 
-    @Ignore("b/288467613#comment9")
-    @Test
-    public void testCustomVirtualMachinePermission() throws Exception {
-        assumeTrue(
-                "Protected VMs are not supported",
-                getAndroidDevice().supportsMicrodroid(/*protectedVm=*/ true));
-        assumeTrue("Test requires adb unroot", getDevice().disableAdbRoot());
-        CommandRunner android = new CommandRunner(getDevice());
-
-        // Pull etc/microdroid.json
-        File virtApexDir = FileUtil.createTempDir("virt_apex");
-        File microdroidConfigFile = new File(virtApexDir, "microdroid.json");
-        assertThat(getDevice().pullFile(VIRT_APEX + "etc/microdroid.json", microdroidConfigFile))
-                .isTrue();
-        JSONObject config = new JSONObject(FileUtil.readStringFromFile(microdroidConfigFile));
-
-        // USE_CUSTOM_VIRTUAL_MACHINE is enforced only on protected mode
-        config.put("protected", true);
-
-        // Write updated config
-        final String configPath = TEST_ROOT + "raw_config.json";
-        getDevice().pushString(config.toString(), configPath);
-
-        // temporarily revoke the permission
-        android.run(
-                "pm",
-                "revoke",
-                SHELL_PACKAGE_NAME,
-                "android.permission.USE_CUSTOM_VIRTUAL_MACHINE");
-        final String ret =
-                android.runForResult(VIRT_APEX + "bin/vm run", configPath).getStderr().trim();
-
-        assertThat(ret)
-                .contains(
-                        "does not have the android.permission.USE_CUSTOM_VIRTUAL_MACHINE"
-                                + " permission");
-    }
-
     @Test
     public void testPathToBinaryIsRejected() throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
