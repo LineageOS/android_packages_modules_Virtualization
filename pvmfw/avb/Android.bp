@@ -2,8 +2,8 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_defaults {
-    name: "libpvmfw_avb_nostd_defaults",
+rust_library_rlib {
+    name: "libpvmfw_avb_nostd",
     crate_name: "pvmfw_avb",
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
@@ -16,11 +16,6 @@ rust_defaults {
     whole_static_libs: [
         "libavb_baremetal",
     ],
-}
-
-rust_library_rlib {
-    name: "libpvmfw_avb_nostd",
-    defaults: ["libpvmfw_avb_nostd_defaults"],
     no_stdlibs: true,
     stdlibs: [
         "libcore.rust_sysroot",
