@@ -27,14 +27,30 @@ use core::ptr::NonNull;
 
 use buddy_system_allocator::LockedHeap;
 
-/// 128 KiB
-const HEAP_SIZE: usize = 0x20000;
-static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
+/// Configures the size of the global allocator.
+#[macro_export]
+macro_rules! configure_global_allocator_size {
+    ($len:expr) => {
+        static mut __HEAP_ARRAY: [u8; $len] = [0; $len];
+        #[export_name = "HEAP"]
+        // SAFETY - HEAP will only be accessed once as mut, from init().
+        static mut __HEAP: &'static mut [u8] = unsafe { &mut __HEAP_ARRAY };
+    };
+}
+
+extern "Rust" {
+    /// Slice used by the global allocator, configured using configure_global_allocator_size!().
+    static mut HEAP: &'static mut [u8];
+}
 
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
 
-/// SAFETY: Must be called no more than once.
+/// Initialize the global allocator.
+///
+/// # Safety
+///
+/// Must be called no more than once.
 pub unsafe fn init() {
     // SAFETY: Nothing else accesses this memory, and we hand it over to the heap to manage and
     // never touch it again. The heap is locked, so there cannot be any races.
