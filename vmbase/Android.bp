@@ -92,7 +92,6 @@ rust_library_rlib {
     features: [
         "cpu_feat_hafdbs",
     ],
-    apex_available: ["com.android.virt"],
 }
 
 cc_library_static {
@@ -103,7 +102,6 @@ cc_library_static {
         "exceptions.S",
         "exceptions_panic.S",
     ],
-    apex_available: ["com.android.virt"],
 }
 
 filegroup {
