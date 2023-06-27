@@ -20,7 +20,6 @@ use crate::crypto;
 use crate::fdt;
 use crate::heap;
 use crate::memory;
-use crate::rand;
 use core::arch::asm;
 use core::mem::{drop, size_of};
 use core::num::NonZeroUsize;
@@ -39,6 +38,7 @@ use vmbase::{
     logger, main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},
     power::reboot,
+    rand,
 };
 use zeroize::Zeroize;
 
