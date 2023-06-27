@@ -9,6 +9,8 @@ rust_library {
     rustlibs: [
         "liblibtest_mimic",
         "liblinkme",
+        "liblog_rust",
+        "liblogger",
     ],
     proc_macros: ["libpaste"],
     apex_available: [
