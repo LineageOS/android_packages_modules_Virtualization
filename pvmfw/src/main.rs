@@ -30,10 +30,8 @@ mod fdt;
 mod gpt;
 mod heap;
 mod helpers;
-mod hvc;
 mod instance;
 mod memory;
-mod rand;
 
 use crate::bcc::Bcc;
 use crate::dice::PartialInputs;
