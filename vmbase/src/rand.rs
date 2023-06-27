@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Functions and drivers for obtaining true entropy.
+
 use crate::hvc;
 use core::fmt;
 use core::mem::size_of;
 
+/// Error type for rand operations.
 pub enum Error {
     /// Error during SMCCC TRNG call.
     Trng(hvc::trng::Error),
@@ -29,6 +32,7 @@ impl From<hvc::trng::Error> for Error {
     }
 }
 
+/// Result type for rand operations.
 pub type Result<T> = core::result::Result<T, Error>;
 
 impl fmt::Display for Error {
@@ -96,6 +100,7 @@ fn repeat_trng_rnd(n_bytes: usize) -> hvc::trng::Result<hvc::TrngRng64Entropy> {
     }
 }
 
+/// Generate an array of fixed-size initialized with true-random bytes.
 pub fn random_array<const N: usize>() -> Result<[u8; N]> {
     let mut arr = [0; N];
     fill_with_entropy(&mut arr)?;
