@@ -10,7 +10,6 @@ rust_defaults {
     visibility: ["//packages/modules/Virtualization:__subpackages__"],
     source_stem: "bindings",
     bindgen_flags: [
-        "--size_t-is-usize",
         "--constified-enum-module AvbDescriptorTag",
         "--default-enum-style rust",
         "--allowlist-type=AvbDescriptorTag",
