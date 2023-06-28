@@ -45,6 +45,8 @@ parcelable VirtualMachineAppConfig {
     union Payload {
         /**
          * Path to a JSON file in an APK containing the configuration.
+         *
+         * <p>Setting this field requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE
          */
         @utf8InCpp String configPath;
 
@@ -70,16 +72,6 @@ parcelable VirtualMachineAppConfig {
     /** Debug level of the VM */
     DebugLevel debugLevel = DebugLevel.NONE;
 
-    /**
-     * Port at which crosvm will start a gdb server to debug guest kernel.
-     * If set to zero, then gdb server won't be started.
-     *
-     * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
-     *
-     * TODO(b/286225150): move to a separate struct
-     */
-    int gdbPort = 0;
-
     /** Whether the VM should be a protected VM. */
     boolean protectedVm;
 
@@ -93,20 +85,28 @@ parcelable VirtualMachineAppConfig {
     CpuTopology cpuTopology = CpuTopology.ONE_CPU;
 
     /**
-     * List of task profile names to apply for the VM
-     *
-     * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
-     *
-     * TODO(b/286225150): move to a separate struct
+     * Encapsulates parameters that require android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
      */
-    String[] taskProfiles;
+    parcelable CustomConfig {
+        /**
+         * If specified, boot Microdroid VM with the given kernel.
+         *
+         */
+        @nullable ParcelFileDescriptor customKernelImage;
 
-    /**
-     * If specified, boot Microdroid VM with the given kernel.
-     *
-     * Note: Specifying a value here requires android.permission.USE_CUSTOM_VIRTUAL_MACHINE.
-     *
-     * TODO(b/286225150): move to a separate struct
-     */
-    @nullable ParcelFileDescriptor customKernelImage;
+        /**
+         * Port at which crosvm will start a gdb server to debug guest kernel.
+         * If set to zero, then gdb server won't be started.
+         *
+         */
+        int gdbPort = 0;
+
+        /**
+         * List of task profile names to apply for the VM
+         */
+        String[] taskProfiles;
+    }
+
+    /** Configuration parameters guarded by android.permission.USE_CUSTOM_VIRTUAL_MACHINE */
+    @nullable CustomConfig customConfig;
 }
