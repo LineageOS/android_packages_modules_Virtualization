@@ -7,7 +7,6 @@ rust_ffi_static {
     defaults: ["vmbase_ffi_defaults"],
     crate_name: "vmbase_example",
     srcs: ["src/main.rs"],
-    edition: "2021",
     rustlibs: [
         "libaarch64_paging",
         "libbuddy_system_allocator",
