@@ -6,7 +6,6 @@ rust_ffi_static {
     name: "librialto",
     crate_name: "rialto",
     srcs: ["src/main.rs"],
-    edition: "2021",
     defaults: ["vmbase_ffi_defaults"],
     rustlibs: [
         "libaarch64_paging",
@@ -29,7 +28,6 @@ cc_binary {
     ],
     static_libs: [
         "librialto",
-        "libvmbase_entry",
     ],
     linker_scripts: [
         "image.ld",
