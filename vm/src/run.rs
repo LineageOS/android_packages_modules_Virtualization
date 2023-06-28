@@ -315,8 +315,13 @@ fn run(
         .context("Failed to create VM")?;
     vm.start().context("Failed to start VM")?;
 
+    let debug_level = match config {
+        VirtualMachineConfig::AppConfig(config) => config.debugLevel,
+        _ => DebugLevel::NONE,
+    };
     println!(
-        "Created VM from {} with CID {}, state is {}.",
+        "Created {} from {} with CID {}, state is {}.",
+        if debug_level == DebugLevel::FULL { "debuggable VM" } else { "VM" },
         payload_config,
         vm.cid(),
         state_to_str(vm.state()?)
