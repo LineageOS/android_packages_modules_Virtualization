@@ -61,7 +61,6 @@ import java.util.zip.ZipFile;
 @SystemApi
 public final class VirtualMachineConfig {
     private static final String TAG = "VirtualMachineConfig";
-    private static final String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
     private static final int VERSION = 6;
@@ -482,8 +481,6 @@ public final class VirtualMachineConfig {
                 vsConfig.cpuTopology = android.system.virtualizationservice.CpuTopology.ONE_CPU;
                 break;
         }
-        // Don't allow apps to set task profiles ... at least for now.
-        vsConfig.taskProfiles = EMPTY_STRING_ARRAY;
         return vsConfig;
     }
 
