@@ -398,6 +398,18 @@ fn collect_apex_infos<'a>(
         .collect()
 }
 
+pub fn add_microdroid_vendor_image(vendor_image: File, vm_config: &mut VirtualMachineRawConfig) {
+    vm_config.disks.push(DiskImage {
+        image: None,
+        writable: false,
+        partitions: vec![Partition {
+            label: "microdroid-vendor".to_owned(),
+            image: Some(ParcelFileDescriptor::new(vendor_image)),
+            writable: false,
+        }],
+    })
+}
+
 pub fn add_microdroid_system_images(
     config: &VirtualMachineAppConfig,
     instance_file: File,

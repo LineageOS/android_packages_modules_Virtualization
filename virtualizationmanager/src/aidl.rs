@@ -20,7 +20,7 @@ use crate::atom::{
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
 use crate::debug_config::DebugConfig;
-use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images};
+use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images, add_microdroid_vendor_image};
 use crate::selinux::{getfilecon, SeContext};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::{
@@ -620,6 +620,10 @@ fn load_app_config(
         }
         vm_config.taskProfiles = custom_config.taskProfiles.clone();
         vm_config.gdbPort = custom_config.gdbPort;
+
+        if let Some(file) = custom_config.vendorImage.as_ref() {
+            add_microdroid_vendor_image(clone_file(file)?, &mut vm_config)
+        }
     }
 
     if config.memoryMib > 0 {
