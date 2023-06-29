@@ -136,7 +136,6 @@ rust_library_rlib {
     defaults: ["vmbase_rlib_defaults"],
     srcs: [":pvmfw_embedded_key_rs"],
     crate_name: "pvmfw_embedded_key",
-    apex_available: ["com.android.virt"],
 }
 
 prebuilt_etc {
