@@ -30,11 +30,10 @@ use crate::layout::{
 use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::{idmap::IdMap, paging::Attributes};
 use alloc::{vec, vec::Vec};
-use buddy_system_allocator::LockedHeap;
 use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use vmbase::{cstr, logger, main};
+use vmbase::{configure_heap, cstr, logger, main, memory::SIZE_64KB};
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
@@ -43,12 +42,8 @@ static mut MUTABLE_DATA: [u32; 4] = [1, 2, 3, 4];
 const ASID: usize = 1;
 const ROOT_LEVEL: usize = 1;
 
-#[global_allocator]
-static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::<32>::new();
-
-static mut HEAP: [u8; 65536] = [0; 65536];
-
 main!(main);
+configure_heap!(SIZE_64KB);
 
 /// Entry point for VM bootloader.
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
@@ -73,10 +68,6 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     debug!("Found PCI CAM at {:#x}-{:#x}", pci_info.cam_range.start, pci_info.cam_range.end);
 
     modify_fdt(fdt);
-
-    unsafe {
-        HEAP_ALLOCATOR.lock().init(HEAP.as_mut_ptr() as usize, HEAP.len());
-    }
 
     check_alloc();
 
@@ -164,7 +155,6 @@ fn check_data() {
     unsafe {
         info!("ZEROED_DATA: {:?}", ZEROED_DATA.as_ptr());
         info!("MUTABLE_DATA: {:?}", MUTABLE_DATA.as_ptr());
-        info!("HEAP: {:?}", HEAP.as_ptr());
     }
 
     assert_eq!(INITIALISED_DATA[0], 1);
