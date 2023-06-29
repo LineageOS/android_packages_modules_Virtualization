@@ -76,7 +76,8 @@ impl KvmHypervisor {
     // Based on ARM_SMCCC_VENDOR_HYP_UID_KVM_REG values listed in Linux kernel source:
     // https://github.com/torvalds/linux/blob/master/include/linux/arm-smccc.h
     pub(super) const UUID: Uuid = uuid!("28b46fb6-2ec5-11e9-a9ca-4b564d003a74");
-    const CAPABILITIES: HypervisorCap = HypervisorCap::DYNAMIC_MEM_SHARE;
+    const CAPABILITIES: HypervisorCap =
+        HypervisorCap::DYNAMIC_MEM_SHARE.union(HypervisorCap::MMIO_GUARD);
 }
 
 impl Hypervisor for KvmHypervisor {
