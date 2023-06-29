@@ -31,7 +31,7 @@ use hyp::{get_hypervisor, HypervisorCap, KvmError};
 use libfdt::FdtError;
 use log::{debug, error, info};
 use vmbase::{
-    configure_global_allocator_size,
+    configure_heap,
     fdt::SwiotlbInfo,
     layout::{self, crosvm},
     main,
@@ -165,4 +165,4 @@ pub fn main(fdt_addr: u64, _a1: u64, _a2: u64, _a3: u64) {
 }
 
 main!(main);
-configure_global_allocator_size!(SIZE_64KB);
+configure_heap!(SIZE_64KB);

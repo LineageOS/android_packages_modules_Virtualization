@@ -33,7 +33,7 @@ use alloc::{vec, vec::Vec};
 use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use vmbase::{configure_global_allocator_size, cstr, logger, main, memory::SIZE_64KB};
+use vmbase::{configure_heap, cstr, logger, main, memory::SIZE_64KB};
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
@@ -43,7 +43,7 @@ const ASID: usize = 1;
 const ROOT_LEVEL: usize = 1;
 
 main!(main);
-configure_global_allocator_size!(SIZE_64KB);
+configure_heap!(SIZE_64KB);
 
 /// Entry point for VM bootloader.
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {

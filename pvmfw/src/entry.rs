@@ -31,7 +31,7 @@ use log::warn;
 use log::LevelFilter;
 use vmbase::util::RangeExt as _;
 use vmbase::{
-    configure_global_allocator_size, console,
+    configure_heap, console,
     layout::{self, crosvm},
     logger, main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},
@@ -61,7 +61,7 @@ pub enum RebootReason {
 }
 
 main!(start);
-configure_global_allocator_size!(SIZE_128KB);
+configure_heap!(SIZE_128KB);
 
 /// Entry point for pVM firmware.
 pub fn start(fdt_address: u64, payload_start: u64, payload_size: u64, _arg3: u64) {
