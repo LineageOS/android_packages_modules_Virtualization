@@ -20,7 +20,7 @@
 
 use crate::console::println;
 use core::sync::atomic::{AtomicBool, Ordering};
-use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{Log, Metadata, Record, SetLoggerError};
 
 struct Logger {
     is_enabled: AtomicBool,
@@ -70,9 +70,8 @@ impl Drop for SuppressGuard {
 }
 
 /// Initialize vmbase logger with a given max logging level.
-pub fn init(max_level: LevelFilter) -> Result<(), SetLoggerError> {
+pub(crate) fn init() -> Result<(), SetLoggerError> {
     log::set_logger(&LOGGER)?;
-    log::set_max_level(max_level);
     Ok(())
 }
 
