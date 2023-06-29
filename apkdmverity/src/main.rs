@@ -153,12 +153,12 @@ fn enable_verity<P: AsRef<Path> + Debug>(
 }
 
 #[cfg(test)]
-ignorabletest::test_main!();
+rdroidtest::test_main!();
 
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use ignorabletest::test;
+    use rdroidtest::test;
     use std::fs::{File, OpenOptions};
     use std::io::Write;
     use std::ops::Deref;
