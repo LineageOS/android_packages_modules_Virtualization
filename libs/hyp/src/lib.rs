@@ -21,6 +21,8 @@ mod hypervisor;
 mod util;
 
 pub use error::{Error, Result};
-pub use hypervisor::{get_hypervisor, Hypervisor, HypervisorCap, KvmError, MMIO_GUARD_GRANULE_SIZE};
+pub use hypervisor::{
+    get_hypervisor, Hypervisor, HypervisorCap, KvmError, MMIO_GUARD_GRANULE_SIZE,
+};
 
 use hypervisor::GeniezoneError;
