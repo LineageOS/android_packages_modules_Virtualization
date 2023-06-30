@@ -23,8 +23,35 @@ use core::str;
 
 use crate::console;
 use crate::eprintln;
+use crate::read_sysreg;
 
 const EOF: c_int = -1;
+
+/// Bionic thread-local storage.
+#[repr(C)]
+pub struct Tls {
+    /// Unused.
+    _unused: [u8; 40],
+    /// Use by the compiler as stack canary value.
+    pub stack_guard: u64,
+}
+
+/// Bionic TLS.
+///
+/// Provides the TLS used by Bionic code. This is unique as vmbase only supports one thread.
+///
+/// Note that the linker script re-exports __bionic_tls.stack_guard as __stack_chk_guard for
+/// compatibility with non-Bionic LLVM.
+#[link_section = ".data.stack_protector"]
+#[export_name = "__bionic_tls"]
+pub static mut TLS: Tls = Tls { _unused: [0; 40], stack_guard: 0 };
+
+/// Gets a reference to the TLS from the dedicated system register.
+pub fn __get_tls() -> &'static mut Tls {
+    let tpidr = read_sysreg!("tpidr_el0");
+    // SAFETY: The register is currently only written to once, from entry.S, with a valid value.
+    unsafe { &mut *(tpidr as *mut Tls) }
+}
 
 #[no_mangle]
 extern "C" fn __stack_chk_fail() -> ! {
