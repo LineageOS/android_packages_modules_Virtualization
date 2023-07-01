@@ -1652,6 +1652,35 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void testConsoleInputSupported() throws Exception {
+        assumeSupportedDevice();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setVmConsoleInputSupported(true)
+                        .setVmOutputCaptured(true)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_console_in", config);
+
+        final String TYPED = "this is a console input\n";
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            OutputStreamWriter consoleIn =
+                                    new OutputStreamWriter(vm.getConsoleInput());
+                            consoleIn.write(TYPED);
+                            consoleIn.close();
+                            tr.mConsoleInput = ts.readLineFromConsole();
+                        });
+        testResults.assertNoException();
+        assertThat(testResults.mConsoleInput).isEqualTo(TYPED);
+    }
+
+    @Test
     public void testStartVmWithPayloadOfAnotherApp() throws Exception {
         assumeSupportedDevice();
 

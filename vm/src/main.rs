@@ -74,6 +74,10 @@ enum Opt {
         #[clap(long)]
         console: Option<PathBuf>,
 
+        /// Path to file for VM console input.
+        #[clap(long)]
+        console_in: Option<PathBuf>,
+
         /// Path to file for VM log output.
         #[clap(long)]
         log: Option<PathBuf>,
@@ -138,6 +142,10 @@ enum Opt {
         #[clap(long)]
         console: Option<PathBuf>,
 
+        /// Path to file for VM console input.
+        #[clap(long)]
+        console_in: Option<PathBuf>,
+
         /// Path to file for VM log output.
         #[clap(long)]
         log: Option<PathBuf>,
@@ -192,6 +200,10 @@ enum Opt {
         /// Path to file for VM console output.
         #[clap(long)]
         console: Option<PathBuf>,
+
+        /// Path to file for VM console input.
+        #[clap(long)]
+        console_in: Option<PathBuf>,
 
         /// Path to file for VM log output.
         #[clap(long)]
@@ -277,6 +289,7 @@ fn main() -> Result<(), Error> {
             config_path,
             payload_binary_name,
             console,
+            console_in,
             log,
             debug,
             protected,
@@ -297,6 +310,7 @@ fn main() -> Result<(), Error> {
             config_path,
             payload_binary_name,
             console.as_deref(),
+            console_in.as_deref(),
             log.as_deref(),
             debug,
             protected,
@@ -313,6 +327,7 @@ fn main() -> Result<(), Error> {
             storage,
             storage_size,
             console,
+            console_in,
             log,
             debug,
             protected,
@@ -328,6 +343,7 @@ fn main() -> Result<(), Error> {
             storage.as_deref(),
             storage_size,
             console.as_deref(),
+            console_in.as_deref(),
             log.as_deref(),
             debug,
             protected,
@@ -337,12 +353,13 @@ fn main() -> Result<(), Error> {
             gdb,
             kernel.as_deref(),
         ),
-        Opt::Run { name, config, cpu_topology, task_profiles, console, log, gdb } => {
+        Opt::Run { name, config, cpu_topology, task_profiles, console, console_in, log, gdb } => {
             command_run(
                 name,
                 get_service()?.as_ref(),
                 &config,
                 console.as_deref(),
+                console_in.as_deref(),
                 log.as_deref(),
                 /* mem */ None,
                 cpu_topology,
