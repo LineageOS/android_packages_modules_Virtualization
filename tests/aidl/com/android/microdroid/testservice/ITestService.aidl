@@ -70,6 +70,9 @@ interface ITestService {
     /** Requests the VM to asynchronously call appCallback.setVmCallback() */
     void requestCallback(IAppCallback appCallback);
 
+    /** Read a line from /dev/console */
+    String readLineFromConsole();
+
     /**
      * Request the service to exit, triggering the termination of the VM. This may cause any
      * requests in flight to fail.

@@ -23,12 +23,14 @@ import android.system.virtualizationservice.VirtualMachineDebugInfo;
 interface IVirtualizationService {
     /**
      * Create the VM with the given config file, and return a handle to it ready to start it. If
-     * `consoleFd` is provided then console output from the VM will be sent to it. If `osLogFd` is
+     * `consoleOutFd` is provided then console output from the VM will be sent to it. If
+     * `consoleInFd` is provided then console input to the VM will be read from it. If `osLogFd` is
      * provided then the OS-level logs will be sent to it. `osLogFd` is supported only when the OS
      * running in the VM has the logging system. In case of Microdroid, the logging system is logd.
      */
     IVirtualMachine createVm(in VirtualMachineConfig config,
-            in @nullable ParcelFileDescriptor consoleFd,
+            in @nullable ParcelFileDescriptor consoleOutFd,
+            in @nullable ParcelFileDescriptor consoleInFd,
             in @nullable ParcelFileDescriptor osLogFd);
 
     /**
