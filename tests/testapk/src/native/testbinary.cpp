@@ -313,6 +313,26 @@ Result<void> start_test_service() {
             return ScopedAStatus::ok();
         }
 
+        ScopedAStatus readLineFromConsole(std::string* out) {
+            FILE* f = fopen("/dev/console", "r");
+            if (f == nullptr) {
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   "failed to open /dev/console");
+            }
+            char* line = nullptr;
+            size_t len = 0;
+            ssize_t nread = getline(&line, &len, f);
+
+            if (nread == -1) {
+                free(line);
+                return ScopedAStatus::fromExceptionCodeWithMessage(EX_SERVICE_SPECIFIC,
+                                                                   "failed to read /dev/console");
+            }
+            out->append(line, nread);
+            free(line);
+            return ScopedAStatus::ok();
+        }
+
         ScopedAStatus quit() override { exit(0); }
     };
     auto testService = ndk::SharedRefBase::make<TestService>();
