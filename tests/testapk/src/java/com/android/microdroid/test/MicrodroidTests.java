@@ -2016,6 +2016,30 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         }
     }
 
+    @Test
+    public void configuringVendorDiskImageRequiresCustomPermission() throws Exception {
+        assumeSupportedDevice();
+
+        File vendorDiskImage =
+                new File("/data/local/tmp/cts/microdroid/test_microdroid_vendor_image.img");
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setVendorDiskImage(vendorDiskImage)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine vm =
+                forceCreateNewVirtualMachine("test_vendor_image_req_custom_permission", config);
+
+        SecurityException e =
+                assertThrows(
+                        SecurityException.class, () -> runVmTestService(TAG, vm, (ts, tr) -> {}));
+        assertThat(e)
+                .hasMessageThat()
+                .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
+    }
+
     private static class VmShareServiceConnection implements ServiceConnection {
 
         private final CountDownLatch mLatch = new CountDownLatch(1);
