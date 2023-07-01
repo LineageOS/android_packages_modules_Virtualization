@@ -114,8 +114,15 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<(),
         taskProfiles: vec![],
         gdbPort: 0, // No gdb
     });
-    let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log), None)
-        .context("Failed to create VM")?;
+    let vm = VmInstance::create(
+        service.as_ref(),
+        &config,
+        Some(console),
+        /* consoleIn */ None,
+        Some(log),
+        None,
+    )
+    .context("Failed to create VM")?;
 
     vm.start().context("Failed to start VM")?;
 
