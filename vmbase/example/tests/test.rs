@@ -106,8 +106,15 @@ fn test_run_example_vm() -> Result<(), Error> {
     });
     let (handle, console) = android_log_fd()?;
     let (mut log_reader, log_writer) = pipe()?;
-    let vm = VmInstance::create(service.as_ref(), &config, Some(console), Some(log_writer), None)
-        .context("Failed to create VM")?;
+    let vm = VmInstance::create(
+        service.as_ref(),
+        &config,
+        Some(console),
+        /* consoleIn */ None,
+        Some(log_writer),
+        None,
+    )
+    .context("Failed to create VM")?;
     vm.start().context("Failed to start VM")?;
     info!("Started example VM.");
 
