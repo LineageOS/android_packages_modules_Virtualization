@@ -186,11 +186,18 @@ impl IVirtualizationService for VirtualizationService {
     fn createVm(
         &self,
         config: &VirtualMachineConfig,
-        console_fd: Option<&ParcelFileDescriptor>,
+        console_out_fd: Option<&ParcelFileDescriptor>,
+        console_in_fd: Option<&ParcelFileDescriptor>,
         log_fd: Option<&ParcelFileDescriptor>,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let mut is_protected = false;
-        let ret = self.create_vm_internal(config, console_fd, log_fd, &mut is_protected);
+        let ret = self.create_vm_internal(
+            config,
+            console_out_fd,
+            console_in_fd,
+            log_fd,
+            &mut is_protected,
+        );
         write_vm_creation_stats(config, is_protected, &ret);
         ret
     }
@@ -303,7 +310,8 @@ impl VirtualizationService {
     fn create_vm_internal(
         &self,
         config: &VirtualMachineConfig,
-        console_fd: Option<&ParcelFileDescriptor>,
+        console_out_fd: Option<&ParcelFileDescriptor>,
+        console_in_fd: Option<&ParcelFileDescriptor>,
         log_fd: Option<&ParcelFileDescriptor>,
         is_protected: &mut bool,
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
@@ -350,8 +358,9 @@ impl VirtualizationService {
         };
 
         let state = &mut *self.state.lock().unwrap();
-        let console_fd =
-            clone_or_prepare_logger_fd(&debug_config, console_fd, format!("Console({})", cid))?;
+        let console_out_fd =
+            clone_or_prepare_logger_fd(&debug_config, console_out_fd, format!("Console({})", cid))?;
+        let console_in_fd = console_in_fd.map(clone_file).transpose()?;
         let log_fd = clone_or_prepare_logger_fd(&debug_config, log_fd, format!("Log({})", cid))?;
 
         // Counter to generate unique IDs for temporary image files.
@@ -455,7 +464,8 @@ impl VirtualizationService {
             cpus,
             host_cpu_topology,
             task_profiles: config.taskProfiles.clone(),
-            console_fd,
+            console_out_fd,
+            console_in_fd,
             log_fd,
             ramdump,
             indirect_files,
