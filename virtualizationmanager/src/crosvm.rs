@@ -792,7 +792,7 @@ fn run_vm(
     // devices in the same PCI bus and serial devices comes before the block devices. Arm crosvm
     // doesn't have the issue.
     // /dev/ttyS0
-    command.arg(format!("--serial={}{},hardware=serial,num=1", &console_out_arg, &console_in_arg));
+    command.arg(format!("--serial={},hardware=serial,num=1", &console_out_arg));
     // /dev/ttyS1
     command.arg(format!("--serial=type=file,path={},hardware=serial,num=2", &failure_serial_path));
     // /dev/hvc0
