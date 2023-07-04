@@ -117,7 +117,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
 
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {pci_info:#x?}");
-    let pci_root = pci::initialise(pci_info, MEMORY.lock().as_mut().unwrap())
+    let pci_root = pci::initialize(pci_info, MEMORY.lock().as_mut().unwrap())
         .map_err(Error::PciInitializationFailed)?;
     debug!("PCI root: {pci_root:#x?}");
     Ok(())
