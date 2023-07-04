@@ -170,21 +170,23 @@ impl Drop for DiceDriver<'_> {
 /// PayloadConfig = {
 ///   1: tstr // payload_binary_name
 /// }
-pub fn format_payload_config_descriptor(payload_metadata: &PayloadMetadata) -> Result<Vec<u8>> {
+pub fn format_payload_config_descriptor(payload: &PayloadMetadata) -> Result<Vec<u8>> {
     const MICRODROID_PAYLOAD_COMPONENT_NAME: &str = "Microdroid payload";
 
-    let config_descriptor_cbor_value = match payload_metadata {
-        PayloadMetadata::config_path(payload_config_path) => cbor!({
+    let config_descriptor_cbor_value = match payload {
+        PayloadMetadata::ConfigPath(payload_config_path) => cbor!({
             -70002 => MICRODROID_PAYLOAD_COMPONENT_NAME,
             -71000 => payload_config_path
         }),
-        PayloadMetadata::config(payload_config) => cbor!({
+        PayloadMetadata::Config(payload_config) => cbor!({
             -70002 => MICRODROID_PAYLOAD_COMPONENT_NAME,
             -71001 => {1 => payload_config.payload_binary_name}
         }),
+        _ => bail!("Failed to match the payload against a config type: {:?}", payload),
     }
     .context("Failed to build a CBOR Value from payload metadata")?;
     let mut config_descriptor = Vec::new();
+
     ser::into_writer(&config_descriptor_cbor_value, &mut config_descriptor)?;
     Ok(config_descriptor)
 }
@@ -196,7 +198,7 @@ mod tests {
 
     #[test]
     fn payload_metadata_with_path_formats_correctly() -> Result<()> {
-        let payload_metadata = PayloadMetadata::config_path("/config_path".to_string());
+        let payload_metadata = PayloadMetadata::ConfigPath("/config_path".to_string());
         let config_descriptor = format_payload_config_descriptor(&payload_metadata)?;
         static EXPECTED_CONFIG_DESCRIPTOR: &[u8] = &[
             0xa2, 0x3a, 0x00, 0x01, 0x11, 0x71, 0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72,
@@ -214,7 +216,7 @@ mod tests {
             payload_binary_name: "payload_binary".to_string(),
             ..Default::default()
         };
-        let payload_metadata = PayloadMetadata::config(payload_config);
+        let payload_metadata = PayloadMetadata::Config(payload_config);
         let config_descriptor = format_payload_config_descriptor(&payload_metadata)?;
         static EXPECTED_CONFIG_DESCRIPTOR: &[u8] = &[
             0xa2, 0x3a, 0x00, 0x01, 0x11, 0x71, 0x72, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x64, 0x72,
