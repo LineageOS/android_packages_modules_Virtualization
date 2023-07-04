@@ -51,7 +51,7 @@ pub(crate) fn write_args(format_args: Arguments) {
     write(CONSOLE.lock().as_mut().unwrap(), format_args).unwrap();
 }
 
-/// Reinitialises the UART driver and writes a string to it.
+/// Reinitializes the UART driver and writes a string to it.
 ///
 /// This is intended for use in situations where the UART may be in an unknown state or the global
 /// instance may be locked, such as in an exception handler or panic handler.
@@ -60,7 +60,7 @@ pub fn emergency_write_str(s: &str) {
     let _ = uart.write_str(s);
 }
 
-/// Reinitialises the UART driver and writes a formatted string to it.
+/// Reinitializes the UART driver and writes a formatted string to it.
 ///
 /// This is intended for use in situations where the UART may be in an unknown state or the global
 /// instance may be locked, such as in an exception handler or panic handler.
@@ -71,7 +71,7 @@ pub fn emergency_write_args(format_args: Arguments) {
 
 /// Prints the given formatted string to the console, followed by a newline.
 ///
-/// Panics if the console has not yet been initialised. May hang if used in an exception context;
+/// Panics if the console has not yet been initialized. May hang if used in an exception context;
 /// use `eprintln!` instead.
 macro_rules! println {
     () => ($crate::console::write_str("\n"));

@@ -62,7 +62,7 @@ pub fn data_range() -> Range<usize> {
     linker_region!(data_begin, data_end)
 }
 
-/// Zero-initialised writable data.
+/// Zero-initialized writable data.
 pub fn bss_range() -> Range<usize> {
     linker_region!(bss_begin, bss_end)
 }
