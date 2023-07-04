@@ -13,6 +13,7 @@ rust_ffi_static {
         "libfdtpci",
         "liblibfdt",
         "liblog_rust_nostd",
+        "libvirtio_drivers",
         "libvmbase",
     ],
 }
