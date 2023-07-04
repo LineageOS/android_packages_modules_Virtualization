@@ -22,7 +22,7 @@ rust_binary {
         "liblibc",
         "liblog_rust",
         "libodsign_proto_rust",
-        "libprotobuf_deprecated",
+        "libprotobuf",
         "librustutils",
         "libshared_child",
         "libvmclient",
