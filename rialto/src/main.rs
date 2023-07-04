@@ -37,6 +37,7 @@ use vmbase::{
     main,
     memory::{MemoryTracker, PageTable, MEMORY, PAGE_SIZE, SIZE_64KB},
     power::reboot,
+    virtio::pci,
 };
 
 fn new_page_table() -> Result<PageTable> {
@@ -91,8 +92,6 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     let fdt = unsafe { slice::from_raw_parts(fdt_range.start as *mut u8, fdt_range.len()) };
     // We do not need to validate the DT since it is already validated in pvmfw.
     let fdt = libfdt::Fdt::from_slice(fdt)?;
-    let pci_info = PciInfo::from_fdt(fdt)?;
-    debug!("PCI: {pci_info:#x?}");
 
     let memory_range = fdt.first_memory_range()?;
     MEMORY.lock().as_mut().unwrap().shrink(&memory_range).map_err(|e| {
@@ -116,6 +115,12 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
             e
         })?;
     }
+
+    let pci_info = PciInfo::from_fdt(fdt)?;
+    debug!("PCI: {pci_info:#x?}");
+    let pci_root = pci::initialise(pci_info, MEMORY.lock().as_mut().unwrap())
+        .map_err(Error::PciInitializationFailed)?;
+    debug!("PCI root: {pci_root:#x?}");
     Ok(())
 }
 
