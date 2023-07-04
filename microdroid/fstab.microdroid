@@ -1,1 +1,7 @@
 system /system ext4 noatime,ro,errors=panic wait,slotselect,avb=vbmeta,first_stage_mount,logical
+# This is a temporary solution to unblock other devs that depend on /vendor partition in Microdroid
+# The /vendor partition will only be mounted if the kernel cmdline contains
+# androidboot.microdroid.mount_vendor=1.
+# TODO(b/285855430): this should probably be defined in the DT
+# TODO(b/285855436): should be mounted on top of dm-verity device
+/dev/block/by-name/microdroid-vendor /vendor ext4 noatime,ro,errors=panic wait,first_stage_mount

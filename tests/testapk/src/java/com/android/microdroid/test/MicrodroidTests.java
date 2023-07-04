@@ -1941,8 +1941,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .isEqualTo(OsConstants.S_IRUSR | OsConstants.S_IXUSR);
     }
 
-    // Taken from bionic/libs/kernel/uapi/linux/mounth.h.
+    // Taken from bionic/libc/kernel/uapi/linux/mount.h
+    private static final int MS_RDONLY = 1;
     private static final int MS_NOEXEC = 8;
+    private static final int MS_NOATIME = 1024;
 
     @Test
     @CddTest(requirements = {"9.17/C-1-5"})
@@ -2038,6 +2040,36 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(e)
                 .hasMessageThat()
                 .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
+    }
+
+    @Test
+    public void bootsWithVendorPartition() throws Exception {
+        assumeSupportedDevice();
+
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+
+        File vendorDiskImage =
+                new File("/data/local/tmp/cts/microdroid/test_microdroid_vendor_image.img");
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setVendorDiskImage(vendorDiskImage)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_boot_with_vendor", config);
+
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            tr.mMountFlags = ts.getMountFlags("/vendor");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        int expectedFlags = MS_NOATIME | MS_RDONLY;
+        assertThat(testResults.mMountFlags & expectedFlags).isEqualTo(expectedFlags);
     }
 
     private static class VmShareServiceConnection implements ServiceConnection {

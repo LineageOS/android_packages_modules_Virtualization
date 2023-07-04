@@ -579,6 +579,15 @@ fn assemble_disk_image(
     Ok(DiskFile { image, writable: disk.writable })
 }
 
+fn append_kernel_param(param: &str, vm_config: &mut VirtualMachineRawConfig) {
+    if let Some(ref mut params) = vm_config.params {
+        params.push(' ');
+        params.push_str(param)
+    } else {
+        vm_config.params = Some(param.to_owned())
+    }
+}
+
 fn load_app_config(
     config: &VirtualMachineAppConfig,
     debug_config: &DebugConfig,
@@ -622,7 +631,8 @@ fn load_app_config(
         vm_config.gdbPort = custom_config.gdbPort;
 
         if let Some(file) = custom_config.vendorImage.as_ref() {
-            add_microdroid_vendor_image(clone_file(file)?, &mut vm_config)
+            add_microdroid_vendor_image(clone_file(file)?, &mut vm_config);
+            append_kernel_param("androidboot.microdroid.mount_vendor=1", &mut vm_config)
         }
     }
 
@@ -1352,5 +1362,20 @@ mod tests {
         let modified_new = idsig.metadata()?.modified()?;
         assert!(modified_orig == modified_new, "idsig file was updated unnecessarily");
         Ok(())
+    }
+
+    #[test]
+    fn test_append_kernel_param_first_param() {
+        let mut vm_config = VirtualMachineRawConfig { ..Default::default() };
+        append_kernel_param("foo=1", &mut vm_config);
+        assert_eq!(vm_config.params, Some("foo=1".to_owned()))
+    }
+
+    #[test]
+    fn test_append_kernel_param() {
+        let mut vm_config =
+            VirtualMachineRawConfig { params: Some("foo=5".to_owned()), ..Default::default() };
+        append_kernel_param("bar=42", &mut vm_config);
+        assert_eq!(vm_config.params, Some("foo=5 bar=42".to_owned()))
     }
 }

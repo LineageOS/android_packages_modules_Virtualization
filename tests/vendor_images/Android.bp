@@ -5,4 +5,5 @@ package {
 android_filesystem {
     name: "test_microdroid_vendor_image",
     type: "ext4",
+    file_contexts: ":microdroid_vendor_file_contexts.gen",
 }
