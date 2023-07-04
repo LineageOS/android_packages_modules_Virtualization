@@ -124,8 +124,24 @@ fn patch_bootargs(fdt: &mut Fdt, bootargs: &CStr) -> libfdt::Result<()> {
     node.setprop(cstr!("bootargs"), bootargs.to_bytes_with_nul())
 }
 
-/// Check if memory range is ok
-fn validate_memory_range(range: &Range<usize>) -> Result<(), RebootReason> {
+/// Reads and validates the memory range in the DT.
+///
+/// Only one memory range is expected with the crosvm setup for now.
+fn read_and_validate_memory_range(fdt: &Fdt) -> Result<Range<usize>, RebootReason> {
+    let mut memory = fdt.memory().map_err(|e| {
+        error!("Failed to read memory range from DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    let range = memory.next().ok_or_else(|| {
+        error!("The /memory node in the DT contains no range.");
+        RebootReason::InvalidFdt
+    })?;
+    if memory.next().is_some() {
+        warn!(
+            "The /memory node in the DT contains more than one memory range, \
+             while only one is expected."
+        );
+    }
     let base = range.start;
     if base != MEM_START {
         error!("Memory base address {:#x} is not {:#x}", base, MEM_START);
@@ -142,7 +158,7 @@ fn validate_memory_range(range: &Range<usize>) -> Result<(), RebootReason> {
         error!("Memory size is 0");
         return Err(RebootReason::InvalidFdt);
     }
-    Ok(())
+    Ok(range)
 }
 
 fn patch_memory_range(fdt: &mut Fdt, memory_range: &Range<usize>) -> libfdt::Result<()> {
@@ -600,11 +616,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         RebootReason::InvalidFdt
     })?;
 
-    let memory_range = fdt.first_memory_range().map_err(|e| {
-        error!("Failed to read memory range from DT: {e}");
-        RebootReason::InvalidFdt
-    })?;
-    validate_memory_range(&memory_range)?;
+    let memory_range = read_and_validate_memory_range(fdt)?;
 
     let bootargs = read_bootargs_from(fdt).map_err(|e| {
         error!("Failed to read bootargs from DT: {e}");
