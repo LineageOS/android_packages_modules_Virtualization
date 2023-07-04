@@ -42,7 +42,6 @@ use vmbase::{
 fn new_page_table() -> Result<PageTable> {
     let mut page_table = PageTable::default();
 
-    page_table.map_device(&crosvm::MMIO_RANGE)?;
     page_table.map_data(&layout::scratch_range())?;
     page_table.map_data(&layout::stack_range(40 * PAGE_SIZE))?;
     page_table.map_code(&layout::text_range())?;
