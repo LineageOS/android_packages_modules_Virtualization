@@ -527,7 +527,7 @@ impl VmInstance {
                 }
             }
             Ok(VmResponse::Err(e)) => {
-                // ENOTSUP is returned when the balloon protocol is not initialised. This
+                // ENOTSUP is returned when the balloon protocol is not initialized. This
                 // can occur for numerous reasons: Guest is still booting, guest doesn't
                 // support ballooning, host doesn't support ballooning. We don't log or
                 // raise an error in this case: trim is just a hint and we can ignore it.

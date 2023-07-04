@@ -48,7 +48,7 @@ pub fn data_range() -> Range<VirtualAddress> {
     into_va_range(layout::data_range())
 }
 
-/// Zero-initialised writable data.
+/// Zero-initialized writable data.
 pub fn bss_range() -> Range<VirtualAddress> {
     into_va_range(layout::bss_range())
 }

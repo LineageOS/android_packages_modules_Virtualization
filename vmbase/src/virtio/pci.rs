@@ -63,7 +63,7 @@ impl fmt::Display for PciError {
 /// 3. Creates and returns a `PciRoot`.
 ///
 /// This must only be called once; it will panic if it is called a second time.
-pub fn initialise(pci_info: PciInfo, memory: &mut MemoryTracker) -> Result<PciRoot, PciError> {
+pub fn initialize(pci_info: PciInfo, memory: &mut MemoryTracker) -> Result<PciRoot, PciError> {
     PCI_INFO.set(Box::new(pci_info.clone())).map_err(|_| PciError::DuplicateInitialization)?;
 
     memory.map_mmio_range(pci_info.cam_range.clone()).map_err(PciError::CamMapFailed)?;
