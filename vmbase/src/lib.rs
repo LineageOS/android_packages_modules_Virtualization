@@ -24,6 +24,7 @@ pub mod arch;
 mod bionic;
 pub mod console;
 mod entry;
+pub mod exceptions;
 pub mod fdt;
 pub mod heap;
 mod hvc;

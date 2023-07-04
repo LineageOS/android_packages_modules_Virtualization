@@ -19,6 +19,7 @@ use super::error::MemoryTrackerError;
 use super::page_table::{is_leaf_pte, PageTable, MMIO_LAZY_MAP_FLAG};
 use super::util::{page_4kb_of, virt_to_phys};
 use crate::dsb;
+use crate::exceptions::HandleExceptionError;
 use crate::util::RangeExt as _;
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange, VirtualAddress};
 use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error};
@@ -270,7 +271,7 @@ impl MemoryTracker {
 
     /// Handles translation fault for blocks flagged for lazy MMIO mapping by enabling the page
     /// table entry and MMIO guard mapping the block. Breaks apart a block entry if required.
-    pub fn handle_mmio_fault(&mut self, addr: VirtualAddress) -> Result<()> {
+    fn handle_mmio_fault(&mut self, addr: VirtualAddress) -> Result<()> {
         let page_start = VirtualAddress(page_4kb_of(addr.0));
         let page_range: VaRange = (page_start..page_start + MMIO_GUARD_GRANULE_SIZE).into();
         self.page_table
@@ -301,7 +302,7 @@ impl MemoryTracker {
     /// Handles permission fault for read-only blocks by setting writable-dirty state.
     /// In general, this should be called from the exception handler when hardware dirty
     /// state management is disabled or unavailable.
-    pub fn handle_permission_fault(&mut self, addr: VirtualAddress) -> Result<()> {
+    fn handle_permission_fault(&mut self, addr: VirtualAddress) -> Result<()> {
         self.page_table
             .modify_range(&(addr..addr + 1).into(), &mark_dirty_block)
             .map_err(|_| MemoryTrackerError::SetPteDirtyFailed)
@@ -461,4 +462,20 @@ fn mmio_guard_unmap_page(
         })?;
     }
     Ok(())
+}
+
+/// Handles a translation fault with the given fault address register (FAR).
+#[inline]
+pub fn handle_translation_fault(far: VirtualAddress) -> result::Result<(), HandleExceptionError> {
+    let mut guard = MEMORY.try_lock().ok_or(HandleExceptionError::PageTableUnavailable)?;
+    let memory = guard.as_mut().ok_or(HandleExceptionError::PageTableNotInitialized)?;
+    Ok(memory.handle_mmio_fault(far)?)
+}
+
+/// Handles a permission fault with the given fault address register (FAR).
+#[inline]
+pub fn handle_permission_fault(far: VirtualAddress) -> result::Result<(), HandleExceptionError> {
+    let mut guard = MEMORY.try_lock().ok_or(HandleExceptionError::PageTableUnavailable)?;
+    let memory = guard.as_mut().ok_or(HandleExceptionError::PageTableNotInitialized)?;
+    Ok(memory.handle_permission_fault(far)?)
 }
