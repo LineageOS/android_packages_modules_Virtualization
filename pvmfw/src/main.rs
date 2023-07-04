@@ -95,8 +95,8 @@ fn main(
     // Set up PCI bus for VirtIO devices.
     let pci_info = PciInfo::from_fdt(fdt).map_err(handle_pci_error)?;
     debug!("PCI: {:#x?}", pci_info);
-    let mut pci_root = pci::initialise(pci_info, MEMORY.lock().as_mut().unwrap()).map_err(|e| {
-        error!("Failed to initialise PCI: {e}");
+    let mut pci_root = pci::initialize(pci_info, MEMORY.lock().as_mut().unwrap()).map_err(|e| {
+        error!("Failed to initialize PCI: {e}");
         RebootReason::InternalError
     })?;
 

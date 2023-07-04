@@ -68,7 +68,7 @@ unsafe impl Hal for HalImpl {
     /// range. It can't alias any other allocations because we previously validated in
     /// `map_mmio_range` that the PCI MMIO range didn't overlap with any other memory ranges.
     unsafe fn mmio_phys_to_virt(paddr: PhysAddr, size: usize) -> NonNull<u8> {
-        let pci_info = PCI_INFO.get().expect("VirtIO HAL used before PCI_INFO was initialised");
+        let pci_info = PCI_INFO.get().expect("VirtIO HAL used before PCI_INFO was initialized");
         let bar_range = {
             let start = pci_info.bar_range.start.try_into().unwrap();
             let end = pci_info.bar_range.end.try_into().unwrap();

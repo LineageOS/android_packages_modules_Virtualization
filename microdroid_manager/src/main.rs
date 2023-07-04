@@ -228,7 +228,7 @@ fn try_main() -> Result<()> {
 
     load_crashkernel_if_supported().context("Failed to load crashkernel")?;
 
-    swap::init_swap().context("Failed to initialise swap")?;
+    swap::init_swap().context("Failed to initialize swap")?;
     info!("swap enabled.");
 
     let service = get_vms_rpc_binder()

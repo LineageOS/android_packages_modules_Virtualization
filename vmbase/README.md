@@ -6,7 +6,7 @@ firmware, a VM bootloader or kernel.
 
 In particular it provides:
 
-- An [entry point](entry.S) that initialises the MMU with a hard-coded identity mapping, enables the
+- An [entry point](entry.S) that initializes the MMU with a hard-coded identity mapping, enables the
   cache, prepares the image and allocates a stack.
 - An [exception vector](exceptions.S) to call your exception handlers.
 - A UART driver and `println!` macro for early console logging.
@@ -62,7 +62,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
 }
 ```
 
-vmbase adds a wrapper around your main function to initialise the console driver first (with the
+vmbase adds a wrapper around your main function to initialize the console driver first (with the
 UART at base address `0x3f8`, the first UART allocated by crosvm), and make a PSCI `SYSTEM_OFF` call
 to shutdown the VM if your main function ever returns.
 
@@ -93,7 +93,7 @@ extern "C" fn sync_exception_current() {
 
 The `println!` macro shouldn't be used in exception handlers, because it relies on a global instance
 of the UART driver which might be locked when the exception happens, which would result in deadlock.
-Instead you can use `emergency_write_str` and `eprintln!`, which will re-initialise the UART every
+Instead you can use `emergency_write_str` and `eprintln!`, which will re-initialize the UART every
 time to ensure that it can be used. This should still be used with care, as it may interfere with
 whatever the rest of the program is doing with the UART.
 
