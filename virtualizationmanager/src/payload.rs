@@ -194,12 +194,12 @@ fn make_metadata_file(
     temporary_directory: &Path,
 ) -> Result<ParcelFileDescriptor> {
     let payload_metadata = match &app_config.payload {
-        Payload::PayloadConfig(payload_config) => PayloadMetadata::config(PayloadConfig {
+        Payload::PayloadConfig(payload_config) => PayloadMetadata::Config(PayloadConfig {
             payload_binary_name: payload_config.payloadBinaryName.clone(),
             ..Default::default()
         }),
         Payload::ConfigPath(config_path) => {
-            PayloadMetadata::config_path(format!("/mnt/apk/{}", config_path))
+            PayloadMetadata::ConfigPath(format!("/mnt/apk/{}", config_path))
         }
     };
 

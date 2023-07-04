@@ -63,7 +63,7 @@ impl<'a> ArtifactSigner<'a> {
     /// with accompanying sigature file.
     pub fn write_info_and_signature(self, info_path: &Path) -> Result<()> {
         let mut info = OdsignInfo::new();
-        info.mut_file_hashes().extend(self.file_digests.into_iter());
+        info.file_hashes.extend(self.file_digests.into_iter());
         let bytes = info.write_to_bytes()?;
 
         let signature = compos_key::sign(&bytes)?;
