@@ -32,6 +32,7 @@ use virtio_drivers::transport::{pci::bus::PciRoot, DeviceType, Transport};
 use vmbase::rand;
 use vmbase::util::ceiling_div;
 use vmbase::virtio::pci::{PciTransportIterator, VirtIOBlk};
+use vmbase::virtio::HalImpl;
 use zerocopy::AsBytes;
 use zerocopy::FromBytes;
 
@@ -183,10 +184,11 @@ impl Header {
 }
 
 fn find_instance_img(pci_root: &mut PciRoot) -> Result<Partition> {
-    for transport in
-        PciTransportIterator::new(pci_root).filter(|t| DeviceType::Block == t.device_type())
+    for transport in PciTransportIterator::<HalImpl>::new(pci_root)
+        .filter(|t| DeviceType::Block == t.device_type())
     {
-        let device = VirtIOBlk::new(transport).map_err(Error::VirtIOBlkCreationFailed)?;
+        let device =
+            VirtIOBlk::<HalImpl>::new(transport).map_err(Error::VirtIOBlkCreationFailed)?;
         match Partition::get_by_name(device, "vm-instance") {
             Ok(Some(p)) => return Ok(p),
             Ok(None) => {}
