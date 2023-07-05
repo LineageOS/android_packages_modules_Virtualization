@@ -38,8 +38,8 @@ impl Uart {
 
     /// Writes a single byte to the UART.
     pub fn write_byte(&self, byte: u8) {
-        // Safe because we know that the base address points to the control registers of an UART
-        // device which is appropriately mapped.
+        // SAFETY: We know that the base address points to the control registers of a UART device
+        // which is appropriately mapped.
         unsafe {
             write_volatile(self.base_address, byte);
         }
@@ -55,5 +55,5 @@ impl Write for Uart {
     }
 }
 
-// Safe because it just contains a pointer to device memory, which can be accessed from any context.
+// SAFETY: `Uart` just contains a pointer to device memory, which can be accessed from any context.
 unsafe impl Send for Uart {}

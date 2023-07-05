@@ -32,10 +32,8 @@ const SHARED_BUFFER_ALIGNMENT: usize = size_of::<u128>();
 /// HAL implementation for the virtio_drivers crate.
 pub struct HalImpl;
 
-/// # Safety
-///
-/// See the 'Implementation Safety' comments on methods below for how they fulfill the safety
-/// requirements of the unsafe `Hal` trait.
+/// SAFETY: See the 'Implementation Safety' comments on methods below for how they fulfill the
+/// safety requirements of the unsafe `Hal` trait.
 unsafe impl Hal for HalImpl {
     /// # Implementation Safety
     ///
@@ -48,14 +46,14 @@ unsafe impl Hal for HalImpl {
         let layout = dma_layout(pages);
         let vaddr =
             alloc_shared(layout).expect("Failed to allocate and share VirtIO DMA range with host");
-        // SAFETY - vaddr points to a region allocated for the caller so is safe to access.
+        // SAFETY: vaddr points to a region allocated for the caller so is safe to access.
         unsafe { core::ptr::write_bytes(vaddr.as_ptr(), 0, layout.size()) };
         let paddr = virt_to_phys(vaddr);
         (paddr, vaddr)
     }
 
     unsafe fn dma_dealloc(_paddr: PhysAddr, vaddr: NonNull<u8>, pages: usize) -> i32 {
-        // SAFETY - Memory was allocated by `dma_alloc` using `alloc_shared` with the same layout.
+        // SAFETY: Memory was allocated by `dma_alloc` using `alloc_shared` with the same layout.
         unsafe { dealloc_shared(vaddr, dma_layout(pages)) }
             .expect("Failed to unshare VirtIO DMA range with host");
         0
@@ -96,7 +94,7 @@ unsafe impl Hal for HalImpl {
         if direction == BufferDirection::DriverToDevice {
             let src = buffer.cast::<u8>().as_ptr().cast_const();
             trace!("VirtIO bounce buffer at {bounce:?} (PA:{paddr:#x}) initialized from {src:?}");
-            // SAFETY - Both regions are valid, properly aligned, and don't overlap.
+            // SAFETY: Both regions are valid, properly aligned, and don't overlap.
             unsafe { copy_nonoverlapping(src, bounce.as_ptr(), size) };
         }
 
@@ -109,11 +107,11 @@ unsafe impl Hal for HalImpl {
         if direction == BufferDirection::DeviceToDriver {
             let dest = buffer.cast::<u8>().as_ptr();
             trace!("VirtIO bounce buffer at {bounce:?} (PA:{paddr:#x}) copied back to {dest:?}");
-            // SAFETY - Both regions are valid, properly aligned, and don't overlap.
+            // SAFETY: Both regions are valid, properly aligned, and don't overlap.
             unsafe { copy_nonoverlapping(bounce.as_ptr(), dest, size) };
         }
 
-        // SAFETY - Memory was allocated by `share` using `alloc_shared` with the same layout.
+        // SAFETY: Memory was allocated by `share` using `alloc_shared` with the same layout.
         unsafe { dealloc_shared(bounce, bb_layout(size)) }
             .expect("Failed to unshare and deallocate VirtIO bounce buffer");
     }
