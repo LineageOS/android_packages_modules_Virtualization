@@ -19,7 +19,6 @@ use core::arch::asm;
 use core::ops::Range;
 use log::info;
 use vmbase::layout;
-use vmbase::STACK_CHK_GUARD;
 
 /// The first 1 GiB of memory are used for MMIO.
 pub const DEVICE_REGION: MemoryRegion = MemoryRegion::new(0, 0x40000000);
@@ -107,9 +106,4 @@ pub fn bionic_tls(off: usize) -> u64 {
         let ptr = (base + off) as *const u64;
         *ptr
     }
-}
-
-/// Value of __stack_chk_guard.
-pub fn stack_chk_guard() -> u64 {
-    *STACK_CHK_GUARD
 }
