@@ -548,6 +548,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setVmOutputCaptured(true);
         e = assertThrows(IllegalStateException.class, () -> captureOutputOnNonDebuggable.build());
         assertThat(e).hasMessageThat().contains("debug level must be FULL to capture output");
+
+        VirtualMachineConfig.Builder captureInputOnNonDebuggable =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("binary.so")
+                        .setDebugLevel(VirtualMachineConfig.DEBUG_LEVEL_NONE)
+                        .setVmConsoleInputSupported(true);
+        e = assertThrows(IllegalStateException.class, () -> captureInputOnNonDebuggable.build());
+        assertThat(e).hasMessageThat().contains("debug level must be FULL to use console input");
     }
 
     @Test
@@ -586,6 +594,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 newBaselineBuilder().setDebugLevel(DEBUG_LEVEL_FULL);
         VirtualMachineConfig debuggable = debuggableBuilder.build();
         assertConfigCompatible(debuggable, debuggableBuilder.setVmOutputCaptured(true)).isFalse();
+        assertConfigCompatible(debuggable, debuggableBuilder.setVmOutputCaptured(false)).isTrue();
+        assertConfigCompatible(debuggable, debuggableBuilder.setVmConsoleInputSupported(true))
+                .isFalse();
 
         VirtualMachineConfig currentContextConfig =
                 new VirtualMachineConfig.Builder(getContext())
@@ -1575,6 +1586,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setProtectedVm(mProtectedVm)
                         .setPayloadBinaryName("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setVmConsoleInputSupported(true) // even if console input is supported
                         .build();
         final VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_forward_log", vmConfig);
         vm.run();
@@ -1584,6 +1596,28 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     () -> vm.getConsoleOutput(), "Capturing vm outputs is turned off");
             assertThrowsVmExceptionContaining(
                     () -> vm.getLogOutput(), "Capturing vm outputs is turned off");
+        } finally {
+            vm.stop();
+        }
+    }
+
+    @Test
+    public void inputShouldBeExplicitlyAllowed() throws Exception {
+        assumeSupportedDevice();
+
+        final VirtualMachineConfig vmConfig =
+                new VirtualMachineConfig.Builder(getContext())
+                        .setProtectedVm(mProtectedVm)
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setVmOutputCaptured(true) // even if output is captured
+                        .build();
+        final VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_forward_log", vmConfig);
+        vm.run();
+
+        try {
+            assertThrowsVmExceptionContaining(
+                    () -> vm.getConsoleInput(), "VM console input is not supported");
         } finally {
             vm.stop();
         }
