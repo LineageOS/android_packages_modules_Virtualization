@@ -38,6 +38,7 @@ const EXPECTED_SECTOR_COUNT: usize = 4;
 pub fn check_pci(pci_root: &mut PciRoot) {
     let mut checked_virtio_device_count = 0;
     let mut block_device_count = 0;
+    let mut socket_device_count = 0;
     for mut transport in PciTransportIterator::<HalImpl>::new(pci_root) {
         info!(
             "Detected virtio PCI device with device type {:?}, features {:#018x}",
@@ -54,12 +55,18 @@ pub fn check_pci(pci_root: &mut PciRoot) {
                 check_virtio_console_device(transport);
                 checked_virtio_device_count += 1;
             }
+            DeviceType::Socket => {
+                check_virtio_socket_device(transport);
+                socket_device_count += 1;
+                checked_virtio_device_count += 1;
+            }
             _ => {}
         }
     }
 
-    assert_eq!(checked_virtio_device_count, 5);
+    assert_eq!(checked_virtio_device_count, 6);
     assert_eq!(block_device_count, 2);
+    assert_eq!(socket_device_count, 1);
 }
 
 /// Checks the given VirtIO block device.
@@ -86,6 +93,13 @@ fn check_virtio_block_device(transport: PciTransport, index: usize) {
         }
         _ => panic!("Unexpected VirtIO block device index {}.", index),
     }
+}
+
+/// Checks the given VirtIO socket device.
+fn check_virtio_socket_device(transport: PciTransport) {
+    let socket = pci::VirtIOSocket::<HalImpl>::new(transport)
+        .expect("Failed to create VirtIO socket driver");
+    info!("Found socket device: guest_cid={}", socket.guest_cid());
 }
 
 /// Checks the given VirtIO console device.
