@@ -17,6 +17,7 @@
 pub mod crosvm;
 
 use crate::console::BASE_ADDRESS;
+use crate::linker::__stack_chk_guard;
 use core::ops::Range;
 use core::ptr::addr_of;
 
@@ -96,4 +97,12 @@ pub fn data_load_address() -> usize {
 /// End of the binary image.
 pub fn binary_end() -> usize {
     linker_addr!(bin_end)
+}
+
+/// Value of __stack_chk_guard.
+pub fn stack_chk_guard() -> u64 {
+    // SAFETY: __stack_chk_guard shouldn't have any mutable aliases unless the stack overflows. If
+    // it does, then there could be undefined behaviour all over the program, but we want to at
+    // least have a chance at catching it.
+    unsafe { addr_of!(__stack_chk_guard).read_volatile() }
 }

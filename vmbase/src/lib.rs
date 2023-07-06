@@ -35,8 +35,6 @@ pub mod uart;
 pub mod util;
 pub mod virtio;
 
-pub use bionic::STACK_CHK_GUARD;
-
 use core::panic::PanicInfo;
 use power::reboot;
 
