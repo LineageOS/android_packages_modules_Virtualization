@@ -55,7 +55,7 @@ pub(super) fn flush_region(start: usize, size: usize) {
     let start = unchecked_align_down(start, line_size);
 
     for line in (start..end).step_by(line_size) {
-        // SAFETY - Clearing cache lines shouldn't have Rust-visible side effects.
+        // SAFETY: Clearing cache lines shouldn't have Rust-visible side effects.
         unsafe {
             asm!(
                 "dc cvau, {x}",
