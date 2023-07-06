@@ -23,17 +23,19 @@ mod pci;
 
 extern crate alloc;
 
-use crate::layout::{
-    bionic_tls, boot_stack_range, dtb_range, print_addresses, rodata_range, scratch_range,
-    text_range, DEVICE_REGION,
-};
+use crate::layout::{bionic_tls, boot_stack_range, print_addresses, DEVICE_REGION};
 use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::{idmap::IdMap, paging::Attributes};
 use alloc::{vec, vec::Vec};
 use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
-use vmbase::{configure_heap, cstr, layout::stack_chk_guard, logger, main, memory::SIZE_64KB};
+use vmbase::{
+    configure_heap, cstr,
+    layout::{dtb_range, rodata_range, scratch_range, stack_chk_guard, text_range},
+    logger, main,
+    memory::SIZE_64KB,
+};
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
