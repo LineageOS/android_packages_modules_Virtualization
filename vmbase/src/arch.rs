@@ -19,8 +19,8 @@
 macro_rules! read_sysreg {
     ($sysreg:literal) => {{
         let mut r: usize;
-        // Safe because it reads a system register and does not affect Rust.
         #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        // SAFETY: Reading a system register does not affect memory.
         unsafe {
             core::arch::asm!(
                 concat!("mrs {}, ", $sysreg),
@@ -53,8 +53,8 @@ macro_rules! write_sysreg {
 #[macro_export]
 macro_rules! isb {
     () => {{
-        // Safe because this is just a memory barrier and does not affect Rust.
         #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        // SAFETY: memory barriers do not affect Rust's memory model.
         unsafe {
             core::arch::asm!("isb", options(nomem, nostack, preserves_flags));
         }
@@ -65,8 +65,8 @@ macro_rules! isb {
 #[macro_export]
 macro_rules! dsb {
     ($option:literal) => {{
-        // Safe because this is just a memory barrier and does not affect Rust.
         #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        // SAFETY: memory barriers do not affect Rust's memory model.
         unsafe {
             core::arch::asm!(concat!("dsb ", $option), options(nomem, nostack, preserves_flags));
         }
@@ -79,9 +79,9 @@ macro_rules! tlbi {
     ($option:literal, $asid:expr, $addr:expr) => {{
         let asid: usize = $asid;
         let addr: usize = $addr;
-        // Safe because it invalidates TLB and doesn't affect Rust. When the address matches a
-        // block entry larger than the page size, all translations for the block are invalidated.
         #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
+        // SAFETY: Invalidating the TLB doesn't affect Rust. When the address matches a
+        // block entry larger than the page size, all translations for the block are invalidated.
         unsafe {
             core::arch::asm!(
                 concat!("tlbi ", $option, ", {x}"),
