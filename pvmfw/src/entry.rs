@@ -278,19 +278,19 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> !
 
     let scratch = layout::scratch_range();
 
-    assert_ne!(scratch.len(), 0, "scratch memory is empty.");
-    assert_eq!(scratch.start % ASM_STP_ALIGN, 0, "scratch memory is misaligned.");
-    assert_eq!(scratch.end % ASM_STP_ALIGN, 0, "scratch memory is misaligned.");
+    assert_ne!(scratch.end - scratch.start, 0, "scratch memory is empty.");
+    assert_eq!(scratch.start.0 % ASM_STP_ALIGN, 0, "scratch memory is misaligned.");
+    assert_eq!(scratch.end.0 % ASM_STP_ALIGN, 0, "scratch memory is misaligned.");
 
-    assert!(bcc.is_within(&scratch));
+    assert!(bcc.is_within(&(scratch.start.0..scratch.end.0)));
     assert_eq!(bcc.start % ASM_STP_ALIGN, 0, "Misaligned guest BCC.");
     assert_eq!(bcc.end % ASM_STP_ALIGN, 0, "Misaligned guest BCC.");
 
     let stack = memory::stack_range();
 
-    assert_ne!(stack.len(), 0, "stack region is empty.");
-    assert_eq!(stack.start % ASM_STP_ALIGN, 0, "Misaligned stack region.");
-    assert_eq!(stack.end % ASM_STP_ALIGN, 0, "Misaligned stack region.");
+    assert_ne!(stack.end - stack.start, 0, "stack region is empty.");
+    assert_eq!(stack.start.0 % ASM_STP_ALIGN, 0, "Misaligned stack region.");
+    assert_eq!(stack.end.0 % ASM_STP_ALIGN, 0, "Misaligned stack region.");
 
     // Zero all memory that could hold secrets and that can't be safely written to from Rust.
     // Disable the exception vector, caches and page table and then jump to the payload at the
@@ -375,11 +375,11 @@ fn jump_to_payload(fdt_address: u64, payload_start: u64, bcc: Range<usize>) -> !
             sctlr_el1_val = in(reg) SCTLR_EL1_VAL,
             bcc = in(reg) u64::try_from(bcc.start).unwrap(),
             bcc_end = in(reg) u64::try_from(bcc.end).unwrap(),
-            cache_line = in(reg) u64::try_from(scratch.start).unwrap(),
-            scratch = in(reg) u64::try_from(scratch.start).unwrap(),
-            scratch_end = in(reg) u64::try_from(scratch.end).unwrap(),
-            stack = in(reg) u64::try_from(stack.start).unwrap(),
-            stack_end = in(reg) u64::try_from(stack.end).unwrap(),
+            cache_line = in(reg) u64::try_from(scratch.start.0).unwrap(),
+            scratch = in(reg) u64::try_from(scratch.start.0).unwrap(),
+            scratch_end = in(reg) u64::try_from(scratch.end.0).unwrap(),
+            stack = in(reg) u64::try_from(stack.start.0).unwrap(),
+            stack_end = in(reg) u64::try_from(stack.end.0).unwrap(),
             dcache_line_size = in(reg) u64::try_from(min_dcache_line_size()).unwrap(),
             in("x0") fdt_address,
             in("x30") payload_start,
@@ -396,7 +396,7 @@ unsafe fn get_appended_data_slice() -> &'static mut [u8] {
     let range = memory::appended_payload_range();
     // SAFETY: This region is mapped and the linker script prevents it from overlapping with other
     // objects.
-    unsafe { slice::from_raw_parts_mut(range.start as *mut u8, range.len()) }
+    unsafe { slice::from_raw_parts_mut(range.start.0 as *mut u8, range.end - range.start) }
 }
 
 enum AppendedConfigType {

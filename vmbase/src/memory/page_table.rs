@@ -18,7 +18,7 @@ use crate::read_sysreg;
 use aarch64_paging::idmap::IdMap;
 use aarch64_paging::paging::{Attributes, MemoryRegion, PteUpdater};
 use aarch64_paging::MapError;
-use core::{ops::Range, result};
+use core::result;
 
 /// Software bit used to indicate a device that should be lazily mapped.
 pub(super) const MMIO_LAZY_MAP_FLAG: Attributes = Attributes::SWFLAG_0;
@@ -88,50 +88,44 @@ impl PageTable {
 
     /// Maps the given range of virtual addresses to the physical addresses as lazily mapped
     /// nGnRE device memory.
-    pub fn map_device_lazy(&mut self, range: &Range<usize>) -> Result<()> {
-        self.map_range(range, DEVICE_LAZY)
+    pub fn map_device_lazy(&mut self, range: &MemoryRegion) -> Result<()> {
+        self.idmap.map_range(range, DEVICE_LAZY)
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as valid device
     /// nGnRE device memory.
-    pub fn map_device(&mut self, range: &Range<usize>) -> Result<()> {
-        self.map_range(range, DEVICE)
+    pub fn map_device(&mut self, range: &MemoryRegion) -> Result<()> {
+        self.idmap.map_range(range, DEVICE)
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as non-executable
     /// and writable normal memory.
-    pub fn map_data(&mut self, range: &Range<usize>) -> Result<()> {
-        self.map_range(range, DATA)
+    pub fn map_data(&mut self, range: &MemoryRegion) -> Result<()> {
+        self.idmap.map_range(range, DATA)
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as non-executable,
     /// read-only and writable-clean normal memory.
-    pub fn map_data_dbm(&mut self, range: &Range<usize>) -> Result<()> {
-        self.map_range(range, DATA_DBM)
+    pub fn map_data_dbm(&mut self, range: &MemoryRegion) -> Result<()> {
+        self.idmap.map_range(range, DATA_DBM)
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as read-only
     /// normal memory.
-    pub fn map_code(&mut self, range: &Range<usize>) -> Result<()> {
-        self.map_range(range, CODE)
+    pub fn map_code(&mut self, range: &MemoryRegion) -> Result<()> {
+        self.idmap.map_range(range, CODE)
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as non-executable
     /// and read-only normal memory.
-    pub fn map_rodata(&mut self, range: &Range<usize>) -> Result<()> {
-        self.map_range(range, RODATA)
-    }
-
-    /// Maps the given range of virtual addresses to the physical addresses with the given
-    /// attributes.
-    fn map_range(&mut self, range: &Range<usize>, attr: Attributes) -> Result<()> {
-        self.idmap.map_range(&MemoryRegion::new(range.start, range.end), attr)
+    pub fn map_rodata(&mut self, range: &MemoryRegion) -> Result<()> {
+        self.idmap.map_range(range, RODATA)
     }
 
     /// Applies the provided updater function to a number of PTEs corresponding to a given memory
     /// range.
-    pub fn modify_range(&mut self, range: &Range<usize>, f: &PteUpdater) -> Result<()> {
-        self.idmap.modify_range(&MemoryRegion::new(range.start, range.end), f)
+    pub fn modify_range(&mut self, range: &MemoryRegion, f: &PteUpdater) -> Result<()> {
+        self.idmap.modify_range(range, f)
     }
 }
 
