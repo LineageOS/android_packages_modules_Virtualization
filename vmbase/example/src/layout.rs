@@ -23,44 +23,10 @@ use vmbase::layout;
 /// The first 1 GiB of memory are used for MMIO.
 pub const DEVICE_REGION: MemoryRegion = MemoryRegion::new(0, 0x40000000);
 
-fn into_va_range(r: Range<usize>) -> Range<VirtualAddress> {
-    VirtualAddress(r.start)..VirtualAddress(r.end)
-}
-
-/// Memory reserved for the DTB.
-pub fn dtb_range() -> Range<VirtualAddress> {
-    into_va_range(layout::dtb_range())
-}
-
-/// Executable code.
-pub fn text_range() -> Range<VirtualAddress> {
-    into_va_range(layout::text_range())
-}
-
-/// Read-only data.
-pub fn rodata_range() -> Range<VirtualAddress> {
-    into_va_range(layout::rodata_range())
-}
-
-/// Initialised writable data.
-pub fn data_range() -> Range<VirtualAddress> {
-    into_va_range(layout::data_range())
-}
-
-/// Zero-initialized writable data.
-pub fn bss_range() -> Range<VirtualAddress> {
-    into_va_range(layout::bss_range())
-}
-
 /// Writable data region for the stack.
 pub fn boot_stack_range() -> Range<VirtualAddress> {
     const PAGE_SIZE: usize = 4 << 10;
-    into_va_range(layout::stack_range(40 * PAGE_SIZE))
-}
-
-/// Writable data region for allocations.
-pub fn scratch_range() -> Range<VirtualAddress> {
-    into_va_range(layout::scratch_range())
+    layout::stack_range(40 * PAGE_SIZE)
 }
 
 fn data_load_address() -> VirtualAddress {
@@ -72,14 +38,14 @@ fn binary_end() -> VirtualAddress {
 }
 
 pub fn print_addresses() {
-    let dtb = dtb_range();
+    let dtb = layout::dtb_range();
     info!("dtb:        {}..{} ({} bytes)", dtb.start, dtb.end, dtb.end - dtb.start);
-    let text = text_range();
+    let text = layout::text_range();
     info!("text:       {}..{} ({} bytes)", text.start, text.end, text.end - text.start);
-    let rodata = rodata_range();
+    let rodata = layout::rodata_range();
     info!("rodata:     {}..{} ({} bytes)", rodata.start, rodata.end, rodata.end - rodata.start);
     info!("binary end: {}", binary_end());
-    let data = data_range();
+    let data = layout::data_range();
     info!(
         "data:       {}..{} ({} bytes, loaded at {})",
         data.start,
@@ -87,7 +53,7 @@ pub fn print_addresses() {
         data.end - data.start,
         data_load_address(),
     );
-    let bss = bss_range();
+    let bss = layout::bss_range();
     info!("bss:        {}..{} ({} bytes)", bss.start, bss.end, bss.end - bss.start);
     let boot_stack = boot_stack_range();
     info!(
