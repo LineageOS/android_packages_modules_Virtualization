@@ -2072,6 +2072,31 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(testResults.mMountFlags & expectedFlags).isEqualTo(expectedFlags);
     }
 
+    @Test
+    public void systemPartitionMountFlags() throws Exception {
+        assumeSupportedDevice();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_system_mount_flags", config);
+
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            tr.mMountFlags = ts.getMountFlags("/");
+                        });
+
+        assertThat(testResults.mException).isNull();
+        int expectedFlags = MS_NOATIME | MS_RDONLY;
+        assertThat(testResults.mMountFlags & expectedFlags).isEqualTo(expectedFlags);
+    }
+
     private static class VmShareServiceConnection implements ServiceConnection {
 
         private final CountDownLatch mLatch = new CountDownLatch(1);
