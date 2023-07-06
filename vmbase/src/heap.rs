@@ -33,7 +33,7 @@ macro_rules! configure_heap {
     ($len:expr) => {
         static mut __HEAP_ARRAY: [u8; $len] = [0; $len];
         #[export_name = "HEAP"]
-        // SAFETY - HEAP will only be accessed once as mut, from init().
+        // SAFETY: HEAP will only be accessed once as mut, from init().
         static mut __HEAP: &'static mut [u8] = unsafe { &mut __HEAP_ARRAY };
     };
 }
@@ -65,12 +65,12 @@ pub(crate) unsafe fn init() {
 pub fn aligned_boxed_slice(size: usize, align: usize) -> Option<Box<[u8]>> {
     let size = NonZeroUsize::new(size)?.get();
     let layout = Layout::from_size_align(size, align).ok()?;
-    // SAFETY - We verify that `size` and the returned `ptr` are non-null.
+    // SAFETY: We verify that `size` and the returned `ptr` are non-null.
     let ptr = unsafe { alloc(layout) };
     let ptr = NonNull::new(ptr)?.as_ptr();
     let slice_ptr = ptr::slice_from_raw_parts_mut(ptr, size);
 
-    // SAFETY - The memory was allocated using the proper layout by our global_allocator.
+    // SAFETY: The memory was allocated using the proper layout by our global_allocator.
     Some(unsafe { Box::from_raw(slice_ptr) })
 }
 
@@ -100,9 +100,9 @@ unsafe extern "C" fn free(ptr: *mut c_void) {
         heap_range.contains(&(ptr.as_ptr() as *const u8)),
         "free() called on a pointer that is not part of the HEAP: {ptr:?}"
     );
+    // SAFETY: ptr is non-null and was allocated by allocate, which prepends a correctly aligned
+    // usize.
     let (ptr, size) = unsafe {
-        // SAFETY: ptr is non-null and was allocated by allocate, which prepends a correctly aligned
-        // usize.
         let ptr = ptr.cast::<usize>().as_ptr().offset(-1);
         (ptr, *ptr)
     };
