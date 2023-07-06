@@ -25,7 +25,8 @@ extern crate alloc;
 
 use crate::layout::{bionic_tls, boot_stack_range, print_addresses, DEVICE_REGION};
 use crate::pci::{check_pci, get_bar_region};
-use aarch64_paging::{idmap::IdMap, paging::Attributes};
+use aarch64_paging::paging::MemoryRegion;
+use aarch64_paging::MapError;
 use alloc::{vec, vec::Vec};
 use fdtpci::PciInfo;
 use libfdt::Fdt;
@@ -34,18 +35,37 @@ use vmbase::{
     configure_heap, cstr,
     layout::{dtb_range, rodata_range, scratch_range, stack_chk_guard, text_range},
     logger, main,
-    memory::SIZE_64KB,
+    memory::{PageTable, SIZE_64KB},
 };
 
 static INITIALISED_DATA: [u32; 4] = [1, 2, 3, 4];
 static mut ZEROED_DATA: [u32; 10] = [0; 10];
 static mut MUTABLE_DATA: [u32; 4] = [1, 2, 3, 4];
 
-const ASID: usize = 1;
-const ROOT_LEVEL: usize = 1;
-
 main!(main);
 configure_heap!(SIZE_64KB);
+
+fn init_page_table(pci_bar_range: &MemoryRegion) -> Result<(), MapError> {
+    let mut page_table = PageTable::default();
+
+    page_table.map_device(&DEVICE_REGION)?;
+    page_table.map_code(&text_range().into())?;
+    page_table.map_rodata(&rodata_range().into())?;
+    page_table.map_data(&scratch_range().into())?;
+    page_table.map_data(&boot_stack_range().into())?;
+    page_table.map_rodata(&dtb_range().into())?;
+    page_table.map_device(pci_bar_range)?;
+
+    info!("Activating IdMap...");
+    // SAFETY: page_table duplicates the static mappings for everything that the Rust code is
+    // aware of so activating it shouldn't have any visible effect.
+    unsafe {
+        page_table.activate();
+    }
+    info!("Activated.");
+
+    Ok(())
+}
 
 /// Entry point for VM bootloader.
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
@@ -73,68 +93,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
 
     check_alloc();
 
-    let mut idmap = IdMap::new(ASID, ROOT_LEVEL);
-    idmap
-        .map_range(
-            &DEVICE_REGION,
-            Attributes::VALID | Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER,
-        )
-        .unwrap();
-    idmap
-        .map_range(
-            &text_range().into(),
-            Attributes::VALID | Attributes::NORMAL | Attributes::NON_GLOBAL | Attributes::READ_ONLY,
-        )
-        .unwrap();
-    idmap
-        .map_range(
-            &rodata_range().into(),
-            Attributes::VALID
-                | Attributes::NORMAL
-                | Attributes::NON_GLOBAL
-                | Attributes::READ_ONLY
-                | Attributes::EXECUTE_NEVER,
-        )
-        .unwrap();
-    idmap
-        .map_range(
-            &scratch_range().into(),
-            Attributes::VALID
-                | Attributes::NORMAL
-                | Attributes::NON_GLOBAL
-                | Attributes::EXECUTE_NEVER,
-        )
-        .unwrap();
-    idmap
-        .map_range(
-            &boot_stack_range().into(),
-            Attributes::VALID
-                | Attributes::NORMAL
-                | Attributes::NON_GLOBAL
-                | Attributes::EXECUTE_NEVER,
-        )
-        .unwrap();
-    idmap
-        .map_range(
-            &dtb_range().into(),
-            Attributes::VALID
-                | Attributes::NORMAL
-                | Attributes::NON_GLOBAL
-                | Attributes::READ_ONLY
-                | Attributes::EXECUTE_NEVER,
-        )
-        .unwrap();
-    idmap
-        .map_range(
-            &get_bar_region(&pci_info),
-            Attributes::VALID | Attributes::DEVICE_NGNRE | Attributes::EXECUTE_NEVER,
-        )
-        .unwrap();
-
-    info!("Activating IdMap...");
-    trace!("{:?}", idmap);
-    idmap.activate();
-    info!("Activated.");
+    init_page_table(&get_bar_region(&pci_info)).unwrap();
 
     check_data();
     check_dice();
