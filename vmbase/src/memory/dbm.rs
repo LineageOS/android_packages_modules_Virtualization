@@ -34,7 +34,7 @@ pub(super) fn set_dbm_enabled(enabled: bool) {
     } else {
         tcr &= !TCR_EL1_HA_HD_BITS
     };
-    // Safe because it writes to a system register and does not affect Rust.
+    // SAFETY: Changing this bit in TCR doesn't affect Rust's view of memory.
     unsafe { write_sysreg!("tcr_el1", tcr) }
     isb!();
 }
