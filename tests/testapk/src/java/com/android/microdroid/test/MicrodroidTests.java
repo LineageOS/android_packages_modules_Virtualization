@@ -128,6 +128,13 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void setup() {
         grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         prepareTestSetup(mProtectedVm);
+        // USE_CUSTOM_VIRTUAL_MACHINE permission has protection level signature|development, meaning
+        // that it will be automatically granted when test apk is installed. We have some tests
+        // checking the behavior when caller doesn't have this permission (e.g.
+        // createVmWithConfigRequiresPermission). Proactively revoke the permission so that such
+        // tests can pass when ran by itself, e.g.:
+        // atest com.android.microdroid.test.MicrodroidTests#createVmWithConfigRequiresPermission
+        revokePermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
     }
 
     @After
