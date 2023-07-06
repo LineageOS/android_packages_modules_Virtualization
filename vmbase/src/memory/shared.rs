@@ -69,6 +69,8 @@ pub struct MemoryTracker {
     payload_range: Option<MemoryRange>,
 }
 
+// TODO: Remove this once aarch64-paging crate is updated.
+// SAFETY: Only `PageTable` doesn't implement Send, but it should.
 unsafe impl Send for MemoryTracker {}
 
 impl MemoryTracker {
@@ -93,7 +95,7 @@ impl MemoryTracker {
         set_dbm_enabled(true);
 
         debug!("Activating dynamic page table...");
-        // SAFETY - page_table duplicates the static mappings for everything that the Rust code is
+        // SAFETY: page_table duplicates the static mappings for everything that the Rust code is
         // aware of so activating it shouldn't have any visible effect.
         unsafe { page_table.activate() }
         debug!("... Success!");
@@ -368,7 +370,7 @@ impl MemorySharer {
     fn refill(&mut self, pool: &mut FrameAllocator<32>, hint: Layout) {
         let layout = hint.align_to(self.granule).unwrap().pad_to_align();
         assert_ne!(layout.size(), 0);
-        // SAFETY - layout has non-zero size.
+        // SAFETY: layout has non-zero size.
         let Some(shared) = NonNull::new(unsafe { alloc_zeroed(layout) }) else {
             handle_alloc_error(layout);
         };
@@ -396,7 +398,7 @@ impl Drop for MemorySharer {
                 get_hypervisor().mem_unshare(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
             }
 
-            // SAFETY - The region was obtained from alloc_zeroed() with the recorded layout.
+            // SAFETY: The region was obtained from alloc_zeroed() with the recorded layout.
             unsafe { dealloc(base as *mut _, layout) };
         }
     }
