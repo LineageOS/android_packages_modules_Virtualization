@@ -19,9 +19,11 @@ use crate::{console, heap, power::shutdown};
 /// This is the entry point to the Rust code, called from the binary entry point in `entry.S`.
 #[no_mangle]
 extern "C" fn rust_entry(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
-    // SAFETY - Only called once, from here, and inaccessible to client code.
+    // SAFETY: Only called once, from here, and inaccessible to client code.
     unsafe { heap::init() };
     console::init();
+    // SAFETY: `main` is provided by the application using the `main!` macro, and we make sure it
+    // has the right type.
     unsafe {
         main(x0, x1, x2, x3);
     }

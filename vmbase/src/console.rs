@@ -25,7 +25,7 @@ static CONSOLE: SpinMutex<Option<Uart>> = SpinMutex::new(None);
 
 /// Initialises a new instance of the UART driver and returns it.
 fn create() -> Uart {
-    // Safe because BASE_ADDRESS is the base of the MMIO region for a UART and is mapped as device
+    // SAFETY: BASE_ADDRESS is the base of the MMIO region for a UART and is mapped as device
     // memory.
     unsafe { Uart::new(BASE_ADDRESS) }
 }

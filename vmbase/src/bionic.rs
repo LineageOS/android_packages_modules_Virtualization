@@ -42,11 +42,13 @@ pub static mut ERRNO: c_int = 0;
 
 #[no_mangle]
 unsafe extern "C" fn __errno() -> *mut c_int {
-    &mut ERRNO as *mut _
+    // SAFETY: C functions which call this are only called from the main thread, not from exception
+    // handlers.
+    unsafe { &mut ERRNO as *mut _ }
 }
 
 fn set_errno(value: c_int) {
-    // SAFETY - vmbase is currently single-threaded.
+    // SAFETY: vmbase is currently single-threaded.
     unsafe { ERRNO = value };
 }
 
@@ -54,15 +56,15 @@ fn set_errno(value: c_int) {
 ///
 /// # Safety
 ///
-/// Input strings `prefix` and `format` must be properly NULL-terminated.
+/// Input strings `prefix` and `format` must be valid and properly NUL-terminated.
 ///
 /// # Note
 ///
 /// This Rust functions is missing the last argument of its C/C++ counterpart, a va_list.
 #[no_mangle]
 unsafe extern "C" fn async_safe_fatal_va_list(prefix: *const c_char, format: *const c_char) {
-    let prefix = CStr::from_ptr(prefix);
-    let format = CStr::from_ptr(format);
+    // SAFETY: The caller guaranteed that both strings were valid and NUL-terminated.
+    let (prefix, format) = unsafe { (CStr::from_ptr(prefix), CStr::from_ptr(format)) };
 
     if let (Ok(prefix), Ok(format)) = (prefix.to_str(), format.to_str()) {
         // We don't bother with printf formatting.
@@ -96,7 +98,7 @@ static stderr: File = File::Stderr;
 
 #[no_mangle]
 extern "C" fn fputs(c_str: *const c_char, stream: usize) -> c_int {
-    // SAFETY - Just like libc, we need to assume that `s` is a valid NULL-terminated string.
+    // SAFETY: Just like libc, we need to assume that `s` is a valid NULL-terminated string.
     let c_str = unsafe { CStr::from_ptr(c_str) };
 
     if let (Ok(s), Ok(_)) = (c_str.to_str(), File::try_from(stream)) {
@@ -112,7 +114,7 @@ extern "C" fn fputs(c_str: *const c_char, stream: usize) -> c_int {
 extern "C" fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: usize) -> usize {
     let length = size.saturating_mul(nmemb);
 
-    // SAFETY - Just like libc, we need to assume that `ptr` is valid.
+    // SAFETY: Just like libc, we need to assume that `ptr` is valid.
     let bytes = unsafe { slice::from_raw_parts(ptr as *const u8, length) };
 
     if let (Ok(s), Ok(_)) = (str::from_utf8(bytes), File::try_from(stream)) {

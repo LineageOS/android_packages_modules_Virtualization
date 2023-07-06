@@ -28,6 +28,8 @@ pub const MAX_VIRT_ADDR: usize = 1 << 40;
 #[macro_export]
 macro_rules! linker_addr {
     ($symbol:ident) => {{
+        // SAFETY: We're just getting the address of an extern static symbol provided by the linker,
+        // not dereferencing it.
         unsafe { addr_of!($crate::linker::$symbol) as usize }
     }};
 }
