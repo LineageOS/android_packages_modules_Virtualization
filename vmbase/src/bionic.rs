@@ -23,12 +23,8 @@ use core::str;
 
 use crate::console;
 use crate::eprintln;
-use crate::linker;
 
 const EOF: c_int = -1;
-
-/// Reference to __stack_chk_guard.
-pub static STACK_CHK_GUARD: &u64 = unsafe { &linker::__stack_chk_guard };
 
 #[no_mangle]
 extern "C" fn __stack_chk_fail() -> ! {
