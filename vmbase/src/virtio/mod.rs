@@ -16,3 +16,5 @@
 
 mod hal;
 pub mod pci;
+
+pub use hal::HalImpl;
