@@ -31,7 +31,8 @@ macro_rules! linker_addr {
     ($symbol:ident) => {{
         // SAFETY: We're just getting the address of an extern static symbol provided by the linker,
         // not dereferencing it.
-        unsafe { addr_of!($crate::linker::$symbol) as usize }
+        let addr = unsafe { addr_of!($crate::linker::$symbol) as usize };
+        VirtualAddress(addr)
     }};
 }
 
@@ -42,7 +43,7 @@ macro_rules! linker_region {
         let start = linker_addr!($begin);
         let end = linker_addr!($end);
 
-        VirtualAddress(start)..VirtualAddress(end)
+        start..end
     }};
 }
 
@@ -74,10 +75,10 @@ pub fn bss_range() -> Range<VirtualAddress> {
 /// Writable data region for the stack.
 pub fn stack_range(stack_size: usize) -> Range<VirtualAddress> {
     let end = linker_addr!(init_stack_pointer);
-    let start = end.checked_sub(stack_size).unwrap();
+    let start = VirtualAddress(end.0.checked_sub(stack_size).unwrap());
     assert!(start >= linker_addr!(stack_limit));
 
-    VirtualAddress(start)..VirtualAddress(end)
+    start..end
 }
 
 /// All writable sections, excluding the stack.
@@ -93,12 +94,12 @@ pub fn console_uart_range() -> Range<VirtualAddress> {
 }
 
 /// Read-write data (original).
-pub fn data_load_address() -> usize {
+pub fn data_load_address() -> VirtualAddress {
     linker_addr!(data_lma)
 }
 
 /// End of the binary image.
-pub fn binary_end() -> usize {
+pub fn binary_end() -> VirtualAddress {
     linker_addr!(bin_end)
 }
 
