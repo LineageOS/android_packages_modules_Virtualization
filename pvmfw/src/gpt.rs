@@ -24,8 +24,10 @@ use static_assertions::const_assert_eq;
 use uuid::Uuid;
 use virtio_drivers::device::blk::SECTOR_SIZE;
 use vmbase::util::ceiling_div;
-use vmbase::virtio::pci::VirtIOBlk;
+use vmbase::virtio::{pci, HalImpl};
 use zerocopy::FromBytes;
+
+type VirtIOBlk = pci::VirtIOBlk<HalImpl>;
 
 pub enum Error {
     /// VirtIO error during read operation.
