@@ -14,8 +14,7 @@
 
 //! Exception handlers.
 
-use core::arch::asm;
-use vmbase::{console::emergency_write_str, eprintln, power::reboot};
+use vmbase::{console::emergency_write_str, eprintln, power::reboot, read_sysreg};
 
 #[no_mangle]
 extern "C" fn sync_exception_current() {
@@ -71,9 +70,6 @@ extern "C" fn serr_lower() {
 
 #[inline]
 fn print_esr() {
-    let mut esr: u64;
-    unsafe {
-        asm!("mrs {esr}, esr_el1", esr = out(reg) esr);
-    }
+    let esr = read_sysreg!("esr_el1");
     eprintln!("esr={:#08x}", esr);
 }
