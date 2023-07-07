@@ -26,6 +26,8 @@ bitflags! {
     pub struct HypervisorCap: u32 {
         /// Capability for guest to share its memory with host at runtime.
         const DYNAMIC_MEM_SHARE = 0b1;
+        /// The hypervisor expects MMIO ranges to be "mapped" by the guest before being accessed.
+        const MMIO_GUARD = 0b10;
     }
 }
 
