@@ -115,7 +115,7 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
                 mAndroidDevice.supportsMicrodroid(/* protectedVm= */ true));
         assumeFalse("Test requires setprop for using custom pvmfw and adb root", isUserBuild());
 
-        mAndroidDevice.enableAdbRoot();
+        assumeTrue("Skip if adb root fails", mAndroidDevice.enableAdbRoot());
 
         // tradefed copies the test artfacts under /tmp when running tests,
         // so we should *find* the artifacts with the file name.
