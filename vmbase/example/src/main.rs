@@ -123,34 +123,34 @@ fn check_stack_guard() {
 
 fn check_data() {
     info!("INITIALISED_DATA: {:?}", INITIALISED_DATA.as_ptr());
-    unsafe {
-        info!("ZEROED_DATA: {:?}", ZEROED_DATA.as_ptr());
-        info!("MUTABLE_DATA: {:?}", MUTABLE_DATA.as_ptr());
-    }
+    info!("ZEROED_DATA: {:?}", unsafe { ZEROED_DATA.as_ptr() });
+    info!("MUTABLE_DATA: {:?}", unsafe { MUTABLE_DATA.as_ptr() });
 
     assert_eq!(INITIALISED_DATA[0], 1);
     assert_eq!(INITIALISED_DATA[1], 2);
     assert_eq!(INITIALISED_DATA[2], 3);
     assert_eq!(INITIALISED_DATA[3], 4);
 
-    unsafe {
-        for element in ZEROED_DATA.iter() {
-            assert_eq!(*element, 0);
-        }
-        ZEROED_DATA[0] = 13;
-        assert_eq!(ZEROED_DATA[0], 13);
-        ZEROED_DATA[0] = 0;
-        assert_eq!(ZEROED_DATA[0], 0);
+    let zeroed_data = unsafe { &mut ZEROED_DATA };
+    let mutable_data = unsafe { &mut MUTABLE_DATA };
 
-        assert_eq!(MUTABLE_DATA[0], 1);
-        assert_eq!(MUTABLE_DATA[1], 2);
-        assert_eq!(MUTABLE_DATA[2], 3);
-        assert_eq!(MUTABLE_DATA[3], 4);
-        MUTABLE_DATA[0] += 41;
-        assert_eq!(MUTABLE_DATA[0], 42);
-        MUTABLE_DATA[0] -= 41;
-        assert_eq!(MUTABLE_DATA[0], 1);
+    for element in zeroed_data.iter() {
+        assert_eq!(*element, 0);
     }
+    zeroed_data[0] = 13;
+    assert_eq!(zeroed_data[0], 13);
+    zeroed_data[0] = 0;
+    assert_eq!(zeroed_data[0], 0);
+
+    assert_eq!(mutable_data[0], 1);
+    assert_eq!(mutable_data[1], 2);
+    assert_eq!(mutable_data[2], 3);
+    assert_eq!(mutable_data[3], 4);
+    mutable_data[0] += 41;
+    assert_eq!(mutable_data[0], 42);
+    mutable_data[0] -= 41;
+    assert_eq!(mutable_data[0], 1);
+
     info!("Data looks good");
 }
 
