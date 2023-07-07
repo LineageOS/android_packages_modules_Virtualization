@@ -24,10 +24,9 @@ extern crate alloc;
 
 use crate::error::{Error, Result};
 use core::num::NonZeroUsize;
-use core::result;
 use core::slice;
 use fdtpci::PciInfo;
-use hyp::{get_mem_sharer, get_mmio_guard, KvmError};
+use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
 use vmbase::{
@@ -52,23 +51,14 @@ fn new_page_table() -> Result<PageTable> {
     Ok(page_table)
 }
 
-fn try_init_logger() -> Result<bool> {
-    let mmio_guard_supported = if let Some(mmio_guard) = get_mmio_guard() {
-        match mmio_guard.init() {
-            // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
-            Ok(()) => {
-                mmio_guard.map(vmbase::console::BASE_ADDRESS)?;
-                true
-            }
-            // MMIO guard enroll is not supported in unprotected VM.
-            Err(hyp::Error::MmioGuardNotsupported) => false,
-            Err(e) => return Err(e.into()),
-        }
-    } else {
-        false
-    };
+fn try_init_logger() -> Result<()> {
+    if let Some(mmio_guard) = get_mmio_guard() {
+        mmio_guard.init()?;
+        // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
+        mmio_guard.map(vmbase::console::BASE_ADDRESS)?;
+    }
     vmbase::logger::init(log::LevelFilter::Debug).map_err(|_| Error::LoggerInit)?;
-    Ok(mmio_guard_supported)
+    Ok(())
 }
 
 /// # Safety
@@ -102,8 +92,8 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
         e
     })?;
 
-    if get_mem_sharer().is_some() {
-        let granule = memory_protection_granule()?;
+    if let Some(mem_sharer) = get_mem_sharer() {
+        let granule = mem_sharer.granule()?;
         MEMORY.lock().as_mut().unwrap().init_dynamic_shared_pool(granule).map_err(|e| {
             error!("Failed to initialize dynamically shared pool.");
             e
@@ -133,49 +123,37 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     Ok(())
 }
 
-fn memory_protection_granule() -> result::Result<usize, hyp::Error> {
-    let Some(mem_sharer) = get_mem_sharer() else {
-        return Ok(PAGE_SIZE);
-    };
-    match mem_sharer.granule() {
-        Ok(granule) => Ok(granule),
-        // Take the default page size when KVM call is not supported in non-protected VMs.
-        Err(hyp::Error::KvmError(KvmError::NotSupported, _)) => Ok(PAGE_SIZE),
-        Err(e) => Err(e),
-    }
-}
-
-fn try_unshare_all_memory(mmio_guard_supported: bool) -> Result<()> {
+fn try_unshare_all_memory() -> Result<()> {
     info!("Starting unsharing memory...");
 
     // No logging after unmapping UART.
-    if mmio_guard_supported {
-        get_mmio_guard().unwrap().unmap(vmbase::console::BASE_ADDRESS)?;
+    if let Some(mmio_guard) = get_mmio_guard() {
+        mmio_guard.unmap(vmbase::console::BASE_ADDRESS)?;
     }
     // Unshares all memory and deactivates page table.
     drop(MEMORY.lock().take());
     Ok(())
 }
 
-fn unshare_all_memory(mmio_guard_supported: bool) {
-    if let Err(e) = try_unshare_all_memory(mmio_guard_supported) {
+fn unshare_all_memory() {
+    if let Err(e) = try_unshare_all_memory() {
         error!("Failed to unshare the memory: {e}");
     }
 }
 
 /// Entry point for Rialto.
 pub fn main(fdt_addr: u64, _a1: u64, _a2: u64, _a3: u64) {
-    let Ok(mmio_guard_supported) = try_init_logger() else {
+    if try_init_logger().is_err() {
         // Don't log anything if the logger initialization fails.
         reboot();
     };
     // SAFETY: `fdt_addr` is supposed to be a valid pointer and points to
     // a valid `Fdt`.
     match unsafe { try_main(fdt_addr as usize) } {
-        Ok(()) => unshare_all_memory(mmio_guard_supported),
+        Ok(()) => unshare_all_memory(),
         Err(e) => {
             error!("Rialto failed with {e}");
-            unshare_all_memory(mmio_guard_supported);
+            unshare_all_memory();
             reboot()
         }
     }
