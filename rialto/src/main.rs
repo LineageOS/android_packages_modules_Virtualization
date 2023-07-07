@@ -29,14 +29,21 @@ use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
+use virtio_drivers::{
+    transport::{pci::bus::PciRoot, DeviceType, Transport},
+    Hal,
+};
 use vmbase::{
     configure_heap,
     fdt::SwiotlbInfo,
     layout::{self, crosvm},
     main,
-    memory::{MemoryTracker, PageTable, MEMORY, PAGE_SIZE, SIZE_64KB},
+    memory::{MemoryTracker, PageTable, MEMORY, PAGE_SIZE, SIZE_128KB},
     power::reboot,
-    virtio::pci,
+    virtio::{
+        pci::{self, PciTransportIterator, VirtIOSocket},
+        HalImpl,
+    },
 };
 
 fn new_page_table() -> Result<PageTable> {
@@ -107,10 +114,21 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
 
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {pci_info:#x?}");
-    let pci_root = pci::initialize(pci_info, MEMORY.lock().as_mut().unwrap())
+    let mut pci_root = pci::initialize(pci_info, MEMORY.lock().as_mut().unwrap())
         .map_err(Error::PciInitializationFailed)?;
     debug!("PCI root: {pci_root:#x?}");
+    let socket_device = find_socket_device::<HalImpl>(&mut pci_root)?;
+    debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
     Ok(())
+}
+
+fn find_socket_device<T: Hal>(pci_root: &mut PciRoot) -> Result<VirtIOSocket<T>> {
+    PciTransportIterator::<T>::new(pci_root)
+        .find(|t| DeviceType::Socket == t.device_type())
+        .map(VirtIOSocket::<T>::new)
+        .transpose()
+        .map_err(Error::VirtIOSocketCreationFailed)?
+        .ok_or(Error::MissingVirtIOSocketDevice)
 }
 
 fn try_unshare_all_memory() -> Result<()> {
@@ -147,4 +165,4 @@ pub fn main(fdt_addr: u64, _a1: u64, _a2: u64, _a3: u64) {
 }
 
 main!(main);
-configure_heap!(SIZE_64KB);
+configure_heap!(SIZE_128KB);
