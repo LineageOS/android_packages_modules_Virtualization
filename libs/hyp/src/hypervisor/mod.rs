@@ -29,23 +29,25 @@ pub use geniezone::GeniezoneError;
 use geniezone::GeniezoneHypervisor;
 use gunyah::GunyahHypervisor;
 pub use kvm::KvmError;
-use kvm::KvmHypervisor;
+use kvm::{ProtectedKvmHypervisor, RegularKvmHypervisor};
 use once_cell::race::OnceBox;
 use smccc::hvc64;
 use uuid::Uuid;
 
 enum HypervisorBackend {
-    Kvm,
+    RegularKvm,
     Gunyah,
     Geniezone,
+    ProtectedKvm,
 }
 
 impl HypervisorBackend {
     fn get_hypervisor(&self) -> &'static dyn Hypervisor {
         match self {
-            Self::Kvm => &KvmHypervisor,
+            Self::RegularKvm => &RegularKvmHypervisor,
             Self::Gunyah => &GunyahHypervisor,
             Self::Geniezone => &GeniezoneHypervisor,
+            Self::ProtectedKvm => &ProtectedKvmHypervisor,
         }
     }
 }
@@ -57,7 +59,16 @@ impl TryFrom<Uuid> for HypervisorBackend {
         match uuid {
             GeniezoneHypervisor::UUID => Ok(HypervisorBackend::Geniezone),
             GunyahHypervisor::UUID => Ok(HypervisorBackend::Gunyah),
-            KvmHypervisor::UUID => Ok(HypervisorBackend::Kvm),
+            RegularKvmHypervisor::UUID => {
+                // Protected KVM has the same UUID so differentiate based on MEM_SHARE.
+                match ProtectedKvmHypervisor.as_mem_sharer().unwrap().granule() {
+                    Ok(_) => Ok(HypervisorBackend::ProtectedKvm),
+                    Err(Error::KvmError(KvmError::NotSupported, _)) => {
+                        Ok(HypervisorBackend::RegularKvm)
+                    }
+                    Err(e) => Err(e),
+                }
+            }
             u => Err(Error::UnsupportedHypervisorUuid(u)),
         }
     }
