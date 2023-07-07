@@ -36,7 +36,6 @@ use vmbase::{
     main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},
     power::reboot,
-    rand,
 };
 use zeroize::Zeroize;
 
@@ -220,11 +219,6 @@ fn main_wrapper(
     ));
 
     let slices = MemorySlices::new(fdt, payload, payload_size)?;
-
-    rand::init().map_err(|e| {
-        error!("Failed to initialize rand: {e}");
-        RebootReason::InternalError
-    })?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
     let next_bcc = crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, debug_policy)?;
