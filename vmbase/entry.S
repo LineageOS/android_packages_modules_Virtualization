@@ -73,14 +73,6 @@
 .set .L_SMCCC_VERSION_1_1, 0x0101
 .set .L_SMCCC_TRNG_VERSION_1_0, 0x0100
 
-/* Bionic-compatible stack protector */
-.section .data.stack_protector, "aw"
-__bionic_tls:
-	.zero	40
-.global __stack_chk_guard
-__stack_chk_guard:
-	.quad	0
-
 /**
  * This macro stores a random value into a register.
  * If a TRNG backed is not present or if an error occurs, the value remains unchanged.
@@ -222,7 +214,14 @@ entry:
 	adr x30, vector_table_el1
 	msr vbar_el1, x30
 
-	/* Set up Bionic-compatible thread-local storage. */
+	/*
+	 * Set up Bionic-compatible thread-local storage.
+	 *
+	 * Note that TPIDR_EL0 can't be configured from rust_entry because the
+	 * compiler will dereference it during function entry to access
+	 * __stack_chk_guard and Rust doesn't support LLVM's
+	 * __attribute__((no_stack_protector)).
+	 */
 	adr_l x30, __bionic_tls
 	msr tpidr_el0, x30
 
