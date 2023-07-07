@@ -30,11 +30,11 @@ const ARM_SMCCC_TRNG_RND32: u32 = 0x8400_0053;
 pub const ARM_SMCCC_TRNG_RND64: u32 = 0xc400_0053;
 
 /// Returns the (major, minor) version tuple, as defined by the SMCCC TRNG.
-pub fn trng_version() -> trng::Result<(u16, u16)> {
+pub fn trng_version() -> trng::Result<trng::Version> {
     let args = [0u64; 17];
 
     let version = positive_or_error_64::<Error>(hvc64(ARM_SMCCC_TRNG_VERSION, args)[0])?;
-    Ok(((version >> 16) as u16, version as u16))
+    (version as u32 as i32).try_into()
 }
 
 pub type TrngRng64Entropy = (u64, u64, u64);
