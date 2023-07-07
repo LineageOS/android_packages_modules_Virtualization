@@ -105,6 +105,9 @@ parcelable VirtualMachineAppConfig {
          * List of task profile names to apply for the VM
          */
         String[] taskProfiles;
+
+        /** A disk image containing vendor specific modules. */
+        @nullable ParcelFileDescriptor vendorImage;
     }
 
     /** Configuration parameters guarded by android.permission.USE_CUSTOM_VIRTUAL_MACHINE */

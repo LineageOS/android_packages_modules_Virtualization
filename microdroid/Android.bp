@@ -23,6 +23,10 @@ microdroid_rootdirs = [
     "apex",
     "linkerconfig",
     "second_stage_resources",
+
+    // Ideally we should only create the /vendor for Microdroid VMs that will mount /vendor, but
+    // for the time being we will just create it unconditionally.
+    "vendor",
 ]
 
 microdroid_symlinks = [
