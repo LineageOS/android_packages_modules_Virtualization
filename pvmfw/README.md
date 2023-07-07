@@ -174,10 +174,12 @@ The header format itself is agnostic of the internal format of the individual
 blos it refers to. In version 1.0, it describes two blobs:
 
 - entry 0 must point to a valid BCC Handover (see below)
-- entry 1 may point to a [DTBO] to be applied to the pVM device tree
+- entry 1 may point to a [DTBO] to be applied to the pVM device tree. See
+  [debug policy][debug_policy] for an example.
 
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/master/Documentation/dt-object-internal.txt
+[debug_policy]: ../docs/debug/README.md#debug-policy
 
 #### Virtual Platform Boot Certificate Chain Handover
 
@@ -239,37 +241,6 @@ device tree node marked as [`compatible=”google,open-dice”`][dice-dt].
 [dice-dt]: https://www.kernel.org/doc/Documentation/devicetree/bindings/reserved-memory/google%2Copen-dice.yaml
 [Layering]: https://pigweed.googlesource.com/open-dice/+/refs/heads/main/docs/specification.md#layering-details
 [Trusty-BCC]: https://android.googlesource.com/trusty/lib/+/1696be0a8f3a7103/lib/hwbcc/common/swbcc.c#554
-
-#### pVM Device Tree Overlay
-
-Config header can provide a DTBO to be overlaid on top of the baseline device
-tree from crosvm.
-
-The DTBO may contain debug policies. Debug policies MUST NOT be provided for
-locked devices for security reasons.
-
-Here are an example of DTBO.
-
-```
-/ {
-    fragment@avf {
-        target-path = "/";
-
-        __overlay__ {
-            avf {
-                /* your debug policy here */
-            };
-        };
-    };
-}; /* end of avf */
-```
-
-For specifying DTBO, host bootloader should apply the DTBO to both host
-OS's device tree and config header of `pvmfw`. Both `virtualizationmanager` and
-`pvmfw` will prepare for debugging features.
-
-For details about device tree properties for debug policies, see
-[microdroid's debugging policy guide](../microdroid/README.md#option-1-running-microdroid-on-avf-debug-policy-configured-device).
 
 ### Platform Requirements
 
