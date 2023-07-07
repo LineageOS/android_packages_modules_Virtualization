@@ -27,7 +27,7 @@ use core::num::NonZeroUsize;
 use core::result;
 use core::slice;
 use fdtpci::PciInfo;
-use hyp::{get_hypervisor, HypervisorCap, KvmError};
+use hyp::{get_mem_sharer, get_mmio_guard, KvmError};
 use libfdt::FdtError;
 use log::{debug, error, info};
 use vmbase::{
@@ -53,11 +53,11 @@ fn new_page_table() -> Result<PageTable> {
 }
 
 fn try_init_logger() -> Result<bool> {
-    let mmio_guard_supported = if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
-        match get_hypervisor().mmio_guard_init() {
+    let mmio_guard_supported = if let Some(mmio_guard) = get_mmio_guard() {
+        match mmio_guard.init() {
             // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
             Ok(()) => {
-                get_hypervisor().mmio_guard_map(vmbase::console::BASE_ADDRESS)?;
+                mmio_guard.map(vmbase::console::BASE_ADDRESS)?;
                 true
             }
             // MMIO guard enroll is not supported in unprotected VM.
@@ -102,7 +102,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
         e
     })?;
 
-    if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+    if get_mem_sharer().is_some() {
         let granule = memory_protection_granule()?;
         MEMORY.lock().as_mut().unwrap().init_dynamic_shared_pool(granule).map_err(|e| {
             error!("Failed to initialize dynamically shared pool.");
@@ -134,7 +134,10 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
 }
 
 fn memory_protection_granule() -> result::Result<usize, hyp::Error> {
-    match get_hypervisor().memory_protection_granule() {
+    let Some(mem_sharer) = get_mem_sharer() else {
+        return Ok(PAGE_SIZE);
+    };
+    match mem_sharer.granule() {
         Ok(granule) => Ok(granule),
         // Take the default page size when KVM call is not supported in non-protected VMs.
         Err(hyp::Error::KvmError(KvmError::NotSupported, _)) => Ok(PAGE_SIZE),
@@ -147,7 +150,7 @@ fn try_unshare_all_memory(mmio_guard_supported: bool) -> Result<()> {
 
     // No logging after unmapping UART.
     if mmio_guard_supported {
-        get_hypervisor().mmio_guard_unmap(vmbase::console::BASE_ADDRESS)?;
+        get_mmio_guard().unwrap().unmap(vmbase::console::BASE_ADDRESS)?;
     }
     // Unshares all memory and deactivates page table.
     drop(MEMORY.lock().take());
