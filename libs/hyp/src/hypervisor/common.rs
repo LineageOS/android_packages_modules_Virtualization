@@ -16,49 +16,49 @@
 
 use crate::error::Result;
 use crate::util::SIZE_4KB;
-use bitflags::bitflags;
 
 /// Expected MMIO guard granule size, validated during MMIO guard initialization.
 pub const MMIO_GUARD_GRANULE_SIZE: usize = SIZE_4KB;
 
-bitflags! {
-    /// Capabilities that Hypervisor backends can declare support for.
-    pub struct HypervisorCap: u32 {
-        /// Capability for guest to share its memory with host at runtime.
-        const DYNAMIC_MEM_SHARE = 0b1;
-        /// The hypervisor expects MMIO ranges to be "mapped" by the guest before being accessed.
-        const MMIO_GUARD = 0b10;
+/// Trait for the hypervisor.
+pub trait Hypervisor {
+    /// Returns the hypervisor's MMIO_GUARD implementation, if any.
+    fn as_mmio_guard(&self) -> Option<&dyn MmioGuardedHypervisor> {
+        None
+    }
+
+    /// Returns the hypervisor's dynamic memory sharing implementation, if any.
+    fn as_mem_sharer(&self) -> Option<&dyn MemSharingHypervisor> {
+        None
     }
 }
 
-/// Trait for the hypervisor.
-pub trait Hypervisor {
+pub trait MmioGuardedHypervisor {
     /// Initializes the hypervisor by enrolling a MMIO guard and checking the memory granule size.
     /// By enrolling, all MMIO will be blocked unless allow-listed with `mmio_guard_map`.
     /// Protected VMs are auto-enrolled.
-    fn mmio_guard_init(&self) -> Result<()>;
+    fn init(&self) -> Result<()>;
 
     /// Maps a page containing the given memory address to the hypervisor MMIO guard.
     /// The page size corresponds to the MMIO guard granule size.
-    fn mmio_guard_map(&self, addr: usize) -> Result<()>;
+    fn map(&self, addr: usize) -> Result<()>;
 
     /// Unmaps a page containing the given memory address from the hypervisor MMIO guard.
     /// The page size corresponds to the MMIO guard granule size.
-    fn mmio_guard_unmap(&self, addr: usize) -> Result<()>;
+    fn unmap(&self, addr: usize) -> Result<()>;
+}
 
+pub trait MemSharingHypervisor {
     /// Shares a region of memory with host, granting it read, write and execute permissions.
     /// The size of the region is equal to the memory protection granule returned by
     /// [`hyp_meminfo`].
-    fn mem_share(&self, base_ipa: u64) -> Result<()>;
+    fn share(&self, base_ipa: u64) -> Result<()>;
 
     /// Revokes access permission from host to a memory region previously shared with
     /// [`mem_share`]. The size of the region is equal to the memory protection granule returned by
     /// [`hyp_meminfo`].
-    fn mem_unshare(&self, base_ipa: u64) -> Result<()>;
+    fn unshare(&self, base_ipa: u64) -> Result<()>;
 
     /// Returns the memory protection granule size in bytes.
-    fn memory_protection_granule(&self) -> Result<usize>;
-
-    /// Check if required capabilities are supported.
-    fn has_cap(&self, cap: HypervisorCap) -> bool;
+    fn granule(&self) -> Result<usize>;
 }

@@ -14,7 +14,9 @@
 
 //! Wrappers around calls to the GenieZone hypervisor.
 
-use super::common::{Hypervisor, HypervisorCap, MMIO_GUARD_GRANULE_SIZE};
+use super::common::{
+    Hypervisor, MemSharingHypervisor, MmioGuardedHypervisor, MMIO_GUARD_GRANULE_SIZE,
+};
 use crate::error::{Error, Result};
 use crate::util::page_address;
 use core::fmt::{self, Display, Formatter};
@@ -40,8 +42,6 @@ impl GeniezoneHypervisor {
     // and share the same identification along with guest VMs.
     // The previous uuid was removed due to duplication elsewhere.
     pub const UUID: Uuid = uuid!("7e134ed0-3b82-488d-8cee-69c19211dbe7");
-    const CAPABILITIES: HypervisorCap =
-        HypervisorCap::DYNAMIC_MEM_SHARE.union(HypervisorCap::MMIO_GUARD);
 }
 
 /// Error from a GenieZone HVC call.
@@ -86,7 +86,17 @@ impl Display for GeniezoneError {
 }
 
 impl Hypervisor for GeniezoneHypervisor {
-    fn mmio_guard_init(&self) -> Result<()> {
+    fn as_mmio_guard(&self) -> Option<&dyn MmioGuardedHypervisor> {
+        Some(self)
+    }
+
+    fn as_mem_sharer(&self) -> Option<&dyn MemSharingHypervisor> {
+        Some(self)
+    }
+}
+
+impl MmioGuardedHypervisor for GeniezoneHypervisor {
+    fn init(&self) -> Result<()> {
         mmio_guard_enroll()?;
         let mmio_granule = mmio_guard_granule()?;
         if mmio_granule != MMIO_GUARD_GRANULE_SIZE {
@@ -95,42 +105,40 @@ impl Hypervisor for GeniezoneHypervisor {
         Ok(())
     }
 
-    fn mmio_guard_map(&self, addr: usize) -> Result<()> {
+    fn map(&self, addr: usize) -> Result<()> {
         let mut args = [0u64; 17];
         args[0] = page_address(addr);
 
         checked_hvc64_expect_zero(VENDOR_HYP_GZVM_MMIO_GUARD_MAP_FUNC_ID, args)
     }
 
-    fn mmio_guard_unmap(&self, addr: usize) -> Result<()> {
+    fn unmap(&self, addr: usize) -> Result<()> {
         let mut args = [0u64; 17];
         args[0] = page_address(addr);
 
         checked_hvc64_expect_zero(VENDOR_HYP_GZVM_MMIO_GUARD_UNMAP_FUNC_ID, args)
     }
+}
 
-    fn mem_share(&self, base_ipa: u64) -> Result<()> {
+impl MemSharingHypervisor for GeniezoneHypervisor {
+    fn share(&self, base_ipa: u64) -> Result<()> {
         let mut args = [0u64; 17];
         args[0] = base_ipa;
 
         checked_hvc64_expect_zero(ARM_SMCCC_GZVM_FUNC_MEM_SHARE, args)
     }
 
-    fn mem_unshare(&self, base_ipa: u64) -> Result<()> {
+    fn unshare(&self, base_ipa: u64) -> Result<()> {
         let mut args = [0u64; 17];
         args[0] = base_ipa;
 
         checked_hvc64_expect_zero(ARM_SMCCC_GZVM_FUNC_MEM_UNSHARE, args)
     }
 
-    fn memory_protection_granule(&self) -> Result<usize> {
+    fn granule(&self) -> Result<usize> {
         let args = [0u64; 17];
         let granule = checked_hvc64(ARM_SMCCC_GZVM_FUNC_HYP_MEMINFO, args)?;
         Ok(granule.try_into().unwrap())
-    }
-
-    fn has_cap(&self, cap: HypervisorCap) -> bool {
-        Self::CAPABILITIES.contains(cap)
     }
 }
 
