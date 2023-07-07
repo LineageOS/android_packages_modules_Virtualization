@@ -22,8 +22,7 @@
     <queries>
         <package android:name="com.android.microdroid.vmshare_app" />
     </queries>
-    <application>
-    </application>
+    <application />
     <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
         android:targetPackage="com.android.microdroid.test"
         android:label="Microdroid Test" />
