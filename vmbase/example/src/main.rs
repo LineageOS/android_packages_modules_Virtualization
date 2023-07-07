@@ -109,6 +109,8 @@ fn check_stack_guard() {
     // SAFETY: No concurrency issue should occur when running these tests.
     let stack_guard = unsafe { bionic::TLS.stack_guard };
     assert_ne!(stack_guard, 0);
+    // Check that a NULL-terminating value is added for C functions consuming strings from stack.
+    assert_eq!(stack_guard.to_ne_bytes().last(), Some(&0));
     // Check that the TLS and guard are properly accessible from the dedicated register.
     assert_eq!(stack_guard, bionic::__get_tls().stack_guard);
     // Check that the LLVM __stack_chk_guard alias is also properly set up.
