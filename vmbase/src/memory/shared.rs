@@ -26,6 +26,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use buddy_system_allocator::{FrameAllocator, LockedFrameAllocator};
 use core::alloc::Layout;
+use core::mem::size_of;
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
@@ -261,6 +262,19 @@ impl MemoryTracker {
             .map_err(|_| MemoryTrackerError::SharedPoolSetFailure)?;
 
         Ok(())
+    }
+
+    /// Initialize the shared heap to use heap memory directly.
+    ///
+    /// When running on "non-protected" hypervisors which permit host direct accesses to guest
+    /// memory, there is no need to perform any memory sharing and/or allocate buffers from a
+    /// dedicated region so this function instructs the shared pool to use the global allocator.
+    pub fn init_heap_shared_pool(&mut self) -> Result<()> {
+        // As MemorySharer only calls MEM_SHARE methods if the hypervisor supports them, internally
+        // using init_dynamic_shared_pool() on a non-protected platform will make use of the heap
+        // without any actual "dynamic memory sharing" taking place and, as such, the granule may
+        // be set to the one of the global_allocator i.e. a byte.
+        self.init_dynamic_shared_pool(size_of::<u8>())
     }
 
     /// Unshares any memory that may have been shared.
