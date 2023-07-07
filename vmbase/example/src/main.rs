@@ -23,7 +23,7 @@ mod pci;
 
 extern crate alloc;
 
-use crate::layout::{bionic_tls, boot_stack_range, print_addresses, DEVICE_REGION};
+use crate::layout::{boot_stack_range, print_addresses, DEVICE_REGION};
 use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::paging::MemoryRegion;
 use aarch64_paging::MapError;
@@ -32,9 +32,9 @@ use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use vmbase::{
-    configure_heap, cstr,
-    layout::{dtb_range, rodata_range, scratch_range, stack_chk_guard, text_range},
-    logger, main,
+    bionic, configure_heap, cstr,
+    layout::{dtb_range, rodata_range, scratch_range, text_range},
+    linker, logger, main,
     memory::{PageTable, SIZE_64KB},
 };
 
@@ -105,10 +105,18 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
 }
 
 fn check_stack_guard() {
-    const BIONIC_TLS_STACK_GRD_OFF: usize = 40;
-
     info!("Testing stack guard");
-    assert_eq!(bionic_tls(BIONIC_TLS_STACK_GRD_OFF), stack_chk_guard());
+    // SAFETY: No concurrency issue should occur when running these tests.
+    let stack_guard = unsafe { bionic::TLS.stack_guard };
+    assert_ne!(stack_guard, 0);
+    // Check that the TLS and guard are properly accessible from the dedicated register.
+    assert_eq!(stack_guard, bionic::__get_tls().stack_guard);
+    // Check that the LLVM __stack_chk_guard alias is also properly set up.
+    assert_eq!(
+        stack_guard,
+        // SAFETY: No concurrency issue should occur when running these tests.
+        unsafe { linker::__stack_chk_guard },
+    );
 }
 
 fn check_data() {
