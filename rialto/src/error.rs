@@ -37,6 +37,10 @@ pub enum Error {
     MemoryOperationFailed(MemoryTrackerError),
     /// Failed to initialize PCI.
     PciInitializationFailed(pci::PciError),
+    /// Failed to create VirtIO Socket device.
+    VirtIOSocketCreationFailed(virtio_drivers::Error),
+    /// Missing socket device.
+    MissingVirtIOSocketDevice,
 }
 
 impl fmt::Display for Error {
@@ -50,6 +54,10 @@ impl fmt::Display for Error {
             Self::InvalidPci(e) => write!(f, "Invalid PCI: {e}"),
             Self::MemoryOperationFailed(e) => write!(f, "Failed memory operation: {e}"),
             Self::PciInitializationFailed(e) => write!(f, "Failed to initialize PCI: {e}"),
+            Self::VirtIOSocketCreationFailed(e) => {
+                write!(f, "Failed to create VirtIO Socket device: {e}")
+            }
+            Self::MissingVirtIOSocketDevice => write!(f, "Missing VirtIO Socket device."),
         }
     }
 }
