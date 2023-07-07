@@ -30,7 +30,7 @@ use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
 use core::result;
-use hyp::{get_hypervisor, MMIO_GUARD_GRANULE_SIZE};
+use hyp::{get_hypervisor, HypervisorCap, MMIO_GUARD_GRANULE_SIZE};
 use log::{debug, error, trace};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
@@ -361,7 +361,7 @@ pub unsafe fn dealloc_shared(vaddr: NonNull<u8>, layout: Layout) -> hyp::Result<
 /// Unshares all pages when dropped.
 struct MemorySharer {
     granule: usize,
-    shared_regions: Vec<(usize, Layout)>,
+    frames: Vec<(usize, Layout)>,
 }
 
 impl MemorySharer {
@@ -369,7 +369,7 @@ impl MemorySharer {
     /// `granule` must be a power of 2.
     fn new(granule: usize, capacity: usize) -> Self {
         assert!(granule.is_power_of_two());
-        Self { granule, shared_regions: Vec::with_capacity(capacity) }
+        Self { granule, frames: Vec::with_capacity(capacity) }
     }
 
     /// Gets from the global allocator a granule-aligned region that suits `hint` and share it.
@@ -383,25 +383,30 @@ impl MemorySharer {
 
         let base = shared.as_ptr() as usize;
         let end = base.checked_add(layout.size()).unwrap();
-        trace!("Sharing memory region {:#x?}", base..end);
-        for vaddr in (base..end).step_by(self.granule) {
-            let vaddr = NonNull::new(vaddr as *mut _).unwrap();
-            get_hypervisor().mem_share(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
-        }
-        self.shared_regions.push((base, layout));
 
+        if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+            trace!("Sharing memory region {:#x?}", base..end);
+            for vaddr in (base..end).step_by(self.granule) {
+                let vaddr = NonNull::new(vaddr as *mut _).unwrap();
+                get_hypervisor().mem_share(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
+            }
+        }
+
+        self.frames.push((base, layout));
         pool.add_frame(base, end);
     }
 }
 
 impl Drop for MemorySharer {
     fn drop(&mut self) {
-        while let Some((base, layout)) = self.shared_regions.pop() {
-            let end = base.checked_add(layout.size()).unwrap();
-            trace!("Unsharing memory region {:#x?}", base..end);
-            for vaddr in (base..end).step_by(self.granule) {
-                let vaddr = NonNull::new(vaddr as *mut _).unwrap();
-                get_hypervisor().mem_unshare(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
+        while let Some((base, layout)) = self.frames.pop() {
+            if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+                let end = base.checked_add(layout.size()).unwrap();
+                trace!("Unsharing memory region {:#x?}", base..end);
+                for vaddr in (base..end).step_by(self.granule) {
+                    let vaddr = NonNull::new(vaddr as *mut _).unwrap();
+                    get_hypervisor().mem_unshare(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
+                }
             }
 
             // SAFETY: The region was obtained from alloc_zeroed() with the recorded layout.
