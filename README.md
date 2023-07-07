@@ -26,3 +26,4 @@ How-Tos:
 * [Building and running a demo app in Java](demo/README.md)
 * [Building and running a demo app in C++](demo_native/README.md)
 * [Debugging](docs/debug)
+* [Using custom VM](docs/custom_vm.md)

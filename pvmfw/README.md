@@ -433,3 +433,25 @@ the signing described above is recommended to be done through an
 kernel][soong-udroid]).
 
 [soong-udroid]: https://cs.android.com/android/platform/superproject/+/master:packages/modules/Virtualization/microdroid/Android.bp;l=427;drc=ca0049be4d84897b8c9956924cfae506773103eb
+
+## Development
+
+For faster iteration, you can build pvmfw, adb-push it to the device, and use
+it directly for a new pVM, without having to flash it to the physical
+partition. To do that, set the system property `hypervisor.pvmfw.path` to point
+to the pvmfw image you pushed as shown below:
+
+```shell
+m pvmfw_img
+adb push out/target/product/generic_arm64/system/etc/pvmfw.img /data/local/tmp/pvmfw.img
+adb root
+adb shell setprop hypervisor.pvmfw.path /data/local/tmp/pvmfw.img
+```
+
+Then run a protected VM, for example:
+
+```shell
+adb shell /apex/com.android.virt/bin/vm run-microdroid --protected
+```
+
+Note: `adb root` is required to set the system property.
