@@ -23,6 +23,14 @@
         <option name="test-file-name" value="MicrodroidTestApp.apk" />
         <option name="test-file-name" value="MicrodroidVmShareApp.apk" />
     </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="run-command" value="mkdir -p /data/local/tmp/cts/microdroid" />
+        <option name="teardown-command" value="rm -rf /data/local/tmp/cts/microdroid" />
+    </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="push" value="test_microdroid_vendor_image.img->/data/local/tmp/cts/microdroid/test_microdroid_vendor_image.img" />
+    </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.microdroid.test" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />

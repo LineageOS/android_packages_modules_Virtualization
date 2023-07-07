@@ -43,7 +43,10 @@ android_test {
     ],
     min_sdk_version: "33",
     // Defined in ../vmshareapp/Android.bp
-    data: [":MicrodroidVmShareApp"],
+    data: [
+        ":MicrodroidVmShareApp",
+        ":test_microdroid_vendor_image",
+    ],
 }
 
 // Defaults shared between MicrodroidTestNativeLib and MicrodroidPayloadInOtherAppNativeLib shared

@@ -76,6 +76,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_ENCRYPTED_STORAGE_BYTES = "encryptedStorageBytes";
     private static final String KEY_VM_OUTPUT_CAPTURED = "vmOutputCaptured";
     private static final String KEY_VM_CONSOLE_INPUT_SUPPORTED = "vmConsoleInputSupported";
+    private static final String KEY_VENDOR_DISK_IMAGE_PATH = "vendorDiskImagePath";
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
@@ -167,6 +168,8 @@ public final class VirtualMachineConfig {
     /** Whether the app can write console input to the VM */
     private final boolean mVmConsoleInputSupported;
 
+    @Nullable private final File mVendorDiskImage;
+
     private VirtualMachineConfig(
             @Nullable String packageName,
             @Nullable String apkPath,
@@ -178,7 +181,8 @@ public final class VirtualMachineConfig {
             @CpuTopology int cpuTopology,
             long encryptedStorageBytes,
             boolean vmOutputCaptured,
-            boolean vmConsoleInputSupported) {
+            boolean vmConsoleInputSupported,
+            @Nullable File vendorDiskImage) {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
         mApkPath = apkPath;
@@ -191,6 +195,7 @@ public final class VirtualMachineConfig {
         mEncryptedStorageBytes = encryptedStorageBytes;
         mVmOutputCaptured = vmOutputCaptured;
         mVmConsoleInputSupported = vmConsoleInputSupported;
+        mVendorDiskImage = vendorDiskImage;
     }
 
     /** Loads a config from a file. */
@@ -267,6 +272,11 @@ public final class VirtualMachineConfig {
         builder.setVmOutputCaptured(b.getBoolean(KEY_VM_OUTPUT_CAPTURED));
         builder.setVmConsoleInputSupported(b.getBoolean(KEY_VM_CONSOLE_INPUT_SUPPORTED));
 
+        String vendorDiskImagePath = b.getString(KEY_VENDOR_DISK_IMAGE_PATH);
+        if (vendorDiskImagePath != null) {
+            builder.setVendorDiskImage(new File(vendorDiskImagePath));
+        }
+
         return builder.build();
     }
 
@@ -302,6 +312,9 @@ public final class VirtualMachineConfig {
         }
         b.putBoolean(KEY_VM_OUTPUT_CAPTURED, mVmOutputCaptured);
         b.putBoolean(KEY_VM_CONSOLE_INPUT_SUPPORTED, mVmConsoleInputSupported);
+        if (mVendorDiskImage != null) {
+            b.putString(KEY_VENDOR_DISK_IMAGE_PATH, mVendorDiskImage.getAbsolutePath());
+        }
         b.writeToStream(output);
     }
 
@@ -501,6 +514,20 @@ public final class VirtualMachineConfig {
                 vsConfig.cpuTopology = android.system.virtualizationservice.CpuTopology.ONE_CPU;
                 break;
         }
+        if (mVendorDiskImage != null) {
+            VirtualMachineAppConfig.CustomConfig customConfig =
+                    new VirtualMachineAppConfig.CustomConfig();
+            customConfig.taskProfiles = new String[0];
+            try {
+                customConfig.vendorImage =
+                        ParcelFileDescriptor.open(mVendorDiskImage, MODE_READ_ONLY);
+            } catch (FileNotFoundException e) {
+                throw new VirtualMachineException(
+                        "Failed to open vendor disk image " + mVendorDiskImage.getAbsolutePath(),
+                        e);
+            }
+            vsConfig.customConfig = customConfig;
+        }
         return vsConfig;
     }
 
@@ -572,6 +599,7 @@ public final class VirtualMachineConfig {
         private long mEncryptedStorageBytes;
         private boolean mVmOutputCaptured = false;
         private boolean mVmConsoleInputSupported = false;
+        @Nullable private File mVendorDiskImage;
 
         /**
          * Creates a builder for the given context.
@@ -645,7 +673,8 @@ public final class VirtualMachineConfig {
                     mCpuTopology,
                     mEncryptedStorageBytes,
                     mVmOutputCaptured,
-                    mVmConsoleInputSupported);
+                    mVmConsoleInputSupported,
+                    mVendorDiskImage);
         }
 
         /**
@@ -861,6 +890,19 @@ public final class VirtualMachineConfig {
         @NonNull
         public Builder setVmConsoleInputSupported(boolean supported) {
             mVmConsoleInputSupported = supported;
+            return this;
+        }
+
+        /**
+         * Sets the path to the disk image with vendor-specific modules.
+         *
+         * @hide
+         */
+        @TestApi
+        @RequiresPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
+        @NonNull
+        public Builder setVendorDiskImage(@NonNull File vendorDiskImage) {
+            mVendorDiskImage = vendorDiskImage;
             return this;
         }
     }
