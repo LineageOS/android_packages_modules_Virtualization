@@ -29,14 +29,6 @@ pub fn boot_stack_range() -> Range<VirtualAddress> {
     layout::stack_range(40 * PAGE_SIZE)
 }
 
-fn data_load_address() -> VirtualAddress {
-    VirtualAddress(layout::data_load_address())
-}
-
-fn binary_end() -> VirtualAddress {
-    VirtualAddress(layout::binary_end())
-}
-
 pub fn print_addresses() {
     let dtb = layout::dtb_range();
     info!("dtb:        {}..{} ({} bytes)", dtb.start, dtb.end, dtb.end - dtb.start);
@@ -44,14 +36,14 @@ pub fn print_addresses() {
     info!("text:       {}..{} ({} bytes)", text.start, text.end, text.end - text.start);
     let rodata = layout::rodata_range();
     info!("rodata:     {}..{} ({} bytes)", rodata.start, rodata.end, rodata.end - rodata.start);
-    info!("binary end: {}", binary_end());
+    info!("binary end: {}", layout::binary_end());
     let data = layout::data_range();
     info!(
         "data:       {}..{} ({} bytes, loaded at {})",
         data.start,
         data.end,
         data.end - data.start,
-        data_load_address(),
+        layout::data_load_address(),
     );
     let bss = layout::bss_range();
     info!("bss:        {}..{} ({} bytes)", bss.start, bss.end, bss.end - bss.start);
