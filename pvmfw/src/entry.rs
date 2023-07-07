@@ -23,7 +23,7 @@ use core::mem::{drop, size_of};
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::slice;
-use hyp::{get_hypervisor, HypervisorCap};
+use hyp::{get_mem_sharer, get_mmio_guard};
 use log::debug;
 use log::error;
 use log::info;
@@ -112,8 +112,8 @@ impl<'a> MemorySlices<'a> {
             RebootReason::InvalidFdt
         })?;
 
-        if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
-            let granule = get_hypervisor().memory_protection_granule().map_err(|e| {
+        if let Some(mem_sharer) = get_mem_sharer() {
+            let granule = mem_sharer.granule().map_err(|e| {
                 error!("Failed to get memory protection granule: {e}");
                 RebootReason::InternalError
             })?;
@@ -197,13 +197,13 @@ fn main_wrapper(
     // Use debug!() to avoid printing to the UART if we failed to configure it as only local
     // builds that have tweaked the logger::init() call will actually attempt to log the message.
 
-    if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
-        get_hypervisor().mmio_guard_init().map_err(|e| {
+    if let Some(mmio_guard) = get_mmio_guard() {
+        mmio_guard.init().map_err(|e| {
             debug!("{e}");
             RebootReason::InternalError
         })?;
 
-        get_hypervisor().mmio_guard_map(console::BASE_ADDRESS).map_err(|e| {
+        mmio_guard.map(console::BASE_ADDRESS).map_err(|e| {
             debug!("Failed to configure the UART: {e}");
             RebootReason::InternalError
         })?;
@@ -255,8 +255,8 @@ fn main_wrapper(
     })?;
     // Call unshare_all_memory here (instead of relying on the dtor) while UART is still mapped.
     MEMORY.lock().as_mut().unwrap().unshare_all_memory();
-    if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
-        get_hypervisor().mmio_guard_unmap(console::BASE_ADDRESS).map_err(|e| {
+    if let Some(mmio_guard) = get_mmio_guard() {
+        mmio_guard.unmap(console::BASE_ADDRESS).map_err(|e| {
             error!("Failed to unshare the UART: {e}");
             RebootReason::InternalError
         })?;

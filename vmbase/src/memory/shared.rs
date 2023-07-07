@@ -31,7 +31,7 @@ use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
 use core::result;
-use hyp::{get_hypervisor, HypervisorCap, MMIO_GUARD_GRANULE_SIZE};
+use hyp::{get_mem_sharer, get_mmio_guard, MMIO_GUARD_GRANULE_SIZE};
 use log::{debug, error, trace};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
@@ -179,7 +179,7 @@ impl MemoryTracker {
             return Err(MemoryTrackerError::Full);
         }
 
-        if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
+        if get_mmio_guard().is_some() {
             self.page_table.map_device_lazy(&get_va_range(&range)).map_err(|e| {
                 error!("Error during lazy MMIO device mapping: {e}");
                 MemoryTrackerError::FailedToMap
@@ -226,7 +226,7 @@ impl MemoryTracker {
     ///
     /// Note that they are not unmapped from the page table.
     pub fn mmio_unmap_all(&mut self) -> Result<()> {
-        if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
+        if get_mmio_guard().is_some() {
             for range in &self.mmio_regions {
                 self.page_table
                     .modify_range(&get_va_range(range), &mmio_guard_unmap_page)
@@ -296,11 +296,11 @@ impl MemoryTracker {
     pub fn handle_mmio_fault(&mut self, addr: VirtualAddress) -> Result<()> {
         let page_start = VirtualAddress(page_4kb_of(addr.0));
         let page_range: VaRange = (page_start..page_start + MMIO_GUARD_GRANULE_SIZE).into();
-        assert!(get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD));
+        let mmio_guard = get_mmio_guard().unwrap();
         self.page_table
             .modify_range(&page_range, &verify_lazy_mapped_block)
             .map_err(|_| MemoryTrackerError::InvalidPte)?;
-        get_hypervisor().mmio_guard_map(page_start.0)?;
+        mmio_guard.map(page_start.0)?;
         // Maps a single device page, breaking up block mappings if necessary.
         self.page_table.map_device(&page_range).map_err(|_| MemoryTrackerError::FailedToMap)
     }
@@ -408,11 +408,11 @@ impl MemorySharer {
         let base = shared.as_ptr() as usize;
         let end = base.checked_add(layout.size()).unwrap();
 
-        if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+        if let Some(mem_sharer) = get_mem_sharer() {
             trace!("Sharing memory region {:#x?}", base..end);
             for vaddr in (base..end).step_by(self.granule) {
                 let vaddr = NonNull::new(vaddr as *mut _).unwrap();
-                get_hypervisor().mem_share(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
+                mem_sharer.share(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
             }
         }
 
@@ -424,12 +424,12 @@ impl MemorySharer {
 impl Drop for MemorySharer {
     fn drop(&mut self) {
         while let Some((base, layout)) = self.frames.pop() {
-            if get_hypervisor().has_cap(HypervisorCap::DYNAMIC_MEM_SHARE) {
+            if let Some(mem_sharer) = get_mem_sharer() {
                 let end = base.checked_add(layout.size()).unwrap();
                 trace!("Unsharing memory region {:#x?}", base..end);
                 for vaddr in (base..end).step_by(self.granule) {
                     let vaddr = NonNull::new(vaddr as *mut _).unwrap();
-                    get_hypervisor().mem_unshare(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
+                    mem_sharer.unshare(virt_to_phys(vaddr).try_into().unwrap()).unwrap();
                 }
             }
 
@@ -485,8 +485,7 @@ fn mmio_guard_unmap_page(
         // Since mmio_guard_map takes IPAs, if pvmfw moves non-ID address mapping, page_base
         // should be converted to IPA. However, since 0x0 is a valid MMIO address, we don't use
         // virt_to_phys here, and just pass page_base instead.
-        assert!(get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD));
-        get_hypervisor().mmio_guard_unmap(page_base).map_err(|e| {
+        get_mmio_guard().unwrap().unmap(page_base).map_err(|e| {
             error!("Error MMIO guard unmapping: {e}");
         })?;
     }
