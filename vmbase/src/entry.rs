@@ -15,9 +15,11 @@
 //! Rust entry point.
 
 use crate::{
-    console, heap, logger,
+    bionic, console, heap, logger,
     power::{reboot, shutdown},
+    rand,
 };
+use core::mem::size_of;
 use hyp::{self, get_mmio_guard};
 
 fn try_console_init() -> Result<(), hyp::Error> {
@@ -44,6 +46,18 @@ extern "C" fn rust_entry(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
 
     logger::init().expect("Failed to initialize the logger");
     // We initialize the logger to Off (like the log crate) and clients should log::set_max_level.
+
+    const SIZE_OF_STACK_GUARD: usize = size_of::<u64>();
+    let mut stack_guard = [0u8; SIZE_OF_STACK_GUARD];
+    // We keep a null byte at the top of the stack guard to act as a string terminator.
+    let random_guard = &mut stack_guard[..(SIZE_OF_STACK_GUARD - 1)];
+
+    rand::init().expect("Failed to initialize a source of entropy");
+    rand::fill_with_entropy(random_guard).expect("Failed to get stack canary entropy");
+    bionic::__get_tls().stack_guard = u64::from_ne_bytes(stack_guard);
+
+    // Note: If rust_entry ever returned (which it shouldn't by being -> !), the compiler-injected
+    // stack guard comparison would detect a mismatch and call __stack_chk_fail.
 
     // SAFETY: `main` is provided by the application using the `main!` macro, and we make sure it
     // has the right type.
