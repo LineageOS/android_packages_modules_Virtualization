@@ -104,13 +104,19 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
             error!("Failed to initialize dynamically shared pool.");
             e
         })?;
-    } else {
-        let range = SwiotlbInfo::new_from_fdt(fdt)?.fixed_range().ok_or_else(|| {
+    } else if let Ok(swiotlb_info) = SwiotlbInfo::new_from_fdt(fdt) {
+        let range = swiotlb_info.fixed_range().ok_or_else(|| {
             error!("Pre-shared pool range not specified in swiotlb node");
             Error::from(FdtError::BadValue)
         })?;
         MEMORY.lock().as_mut().unwrap().init_static_shared_pool(range).map_err(|e| {
             error!("Failed to initialize pre-shared pool.");
+            e
+        })?;
+    } else {
+        info!("No MEM_SHARE capability detected or swiotlb found: allocating buffers from heap.");
+        MEMORY.lock().as_mut().unwrap().init_heap_shared_pool().map_err(|e| {
+            error!("Failed to initialize heap-based pseudo-shared pool.");
             e
         })?;
     }
