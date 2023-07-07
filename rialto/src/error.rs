@@ -29,8 +29,6 @@ pub enum Error {
     Hypervisor(HypervisorError),
     /// Failed when attempting to map some range in the page table.
     PageTableMapping(MapError),
-    /// Failed to initialize the logger.
-    LoggerInit,
     /// Invalid FDT.
     InvalidFdt(FdtError),
     /// Invalid PCI.
@@ -48,7 +46,6 @@ impl fmt::Display for Error {
             Self::PageTableMapping(e) => {
                 write!(f, "Failed when attempting to map some range in the page table: {e}.")
             }
-            Self::LoggerInit => write!(f, "Failed to initialize the logger."),
             Self::InvalidFdt(e) => write!(f, "Invalid FDT: {e}"),
             Self::InvalidPci(e) => write!(f, "Invalid PCI: {e}"),
             Self::MemoryOperationFailed(e) => write!(f, "Failed memory operation: {e}"),
