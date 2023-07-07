@@ -15,7 +15,6 @@
 //! Memory layout.
 
 use aarch64_paging::paging::{MemoryRegion, VirtualAddress};
-use core::arch::asm;
 use core::ops::Range;
 use log::info;
 use vmbase::layout;
@@ -54,14 +53,4 @@ pub fn print_addresses() {
         boot_stack.end,
         boot_stack.end - boot_stack.start
     );
-}
-
-/// Bionic-compatible thread-local storage entry, at the given offset from TPIDR_EL0.
-pub fn bionic_tls(off: usize) -> u64 {
-    let mut base: usize;
-    unsafe {
-        asm!("mrs {base}, tpidr_el0", base = out(reg) base);
-        let ptr = (base + off) as *const u64;
-        *ptr
-    }
 }
