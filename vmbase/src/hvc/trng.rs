@@ -55,3 +55,40 @@ impl From<i64> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+/// A version of the SMCCC TRNG interface.
+#[derive(Copy, Clone, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Version {
+    pub major: u16,
+    pub minor: u16,
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}.{}", self.major, self.minor)
+    }
+}
+
+impl fmt::Debug for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl TryFrom<i32> for Version {
+    type Error = Error;
+
+    fn try_from(value: i32) -> core::result::Result<Self, Error> {
+        if value < 0 {
+            Err((value as i64).into())
+        } else {
+            Ok(Self { major: (value >> 16) as u16, minor: value as u16 })
+        }
+    }
+}
+
+impl From<Version> for u32 {
+    fn from(version: Version) -> Self {
+        (u32::from(version.major) << 16) | u32::from(version.minor)
+    }
+}
