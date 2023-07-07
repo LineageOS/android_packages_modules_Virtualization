@@ -23,9 +23,8 @@ mod kvm;
 
 use crate::error::{Error, Result};
 use alloc::boxed::Box;
-pub use common::Hypervisor;
-pub use common::HypervisorCap;
-pub use common::MMIO_GUARD_GRANULE_SIZE;
+use common::Hypervisor;
+pub use common::{MemSharingHypervisor, MmioGuardedHypervisor, MMIO_GUARD_GRANULE_SIZE};
 pub use geniezone::GeniezoneError;
 use geniezone::GeniezoneHypervisor;
 use gunyah::GunyahHypervisor;
@@ -95,8 +94,18 @@ fn detect_hypervisor() -> HypervisorBackend {
 }
 
 /// Gets the hypervisor singleton.
-pub fn get_hypervisor() -> &'static dyn Hypervisor {
+fn get_hypervisor() -> &'static dyn Hypervisor {
     static HYPERVISOR: OnceBox<HypervisorBackend> = OnceBox::new();
 
     HYPERVISOR.get_or_init(|| Box::new(detect_hypervisor())).get_hypervisor()
+}
+
+/// Gets the MMIO_GUARD hypervisor singleton, if any.
+pub fn get_mmio_guard() -> Option<&'static dyn MmioGuardedHypervisor> {
+    get_hypervisor().as_mmio_guard()
+}
+
+/// Gets the dynamic memory sharing hypervisor singleton, if any.
+pub fn get_mem_sharer() -> Option<&'static dyn MemSharingHypervisor> {
+    get_hypervisor().as_mem_sharer()
 }
