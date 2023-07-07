@@ -51,16 +51,6 @@ fn new_page_table() -> Result<PageTable> {
     Ok(page_table)
 }
 
-fn try_init_logger() -> Result<()> {
-    if let Some(mmio_guard) = get_mmio_guard() {
-        mmio_guard.init()?;
-        // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
-        mmio_guard.map(vmbase::console::BASE_ADDRESS)?;
-    }
-    vmbase::logger::init(log::LevelFilter::Debug).map_err(|_| Error::LoggerInit)?;
-    Ok(())
-}
-
 /// # Safety
 ///
 /// Behavior is undefined if any of the following conditions are violated:
@@ -143,10 +133,7 @@ fn unshare_all_memory() {
 
 /// Entry point for Rialto.
 pub fn main(fdt_addr: u64, _a1: u64, _a2: u64, _a3: u64) {
-    if try_init_logger().is_err() {
-        // Don't log anything if the logger initialization fails.
-        reboot();
-    };
+    log::set_max_level(log::LevelFilter::Debug);
     // SAFETY: `fdt_addr` is supposed to be a valid pointer and points to
     // a valid `Fdt`.
     match unsafe { try_main(fdt_addr as usize) } {
