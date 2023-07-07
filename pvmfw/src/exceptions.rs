@@ -14,95 +14,14 @@
 
 //! Exception handlers.
 
-use aarch64_paging::paging::VirtualAddress;
-use core::fmt;
-use vmbase::console;
-use vmbase::logger;
-use vmbase::memory::{page_4kb_of, MemoryTrackerError, MEMORY};
-use vmbase::read_sysreg;
-use vmbase::{eprintln, power::reboot};
-
-const UART_PAGE: usize = page_4kb_of(console::BASE_ADDRESS);
-
-#[derive(Debug)]
-enum HandleExceptionError {
-    PageTableUnavailable,
-    PageTableNotInitialized,
-    InternalError(MemoryTrackerError),
-    UnknownException,
-}
-
-impl From<MemoryTrackerError> for HandleExceptionError {
-    fn from(other: MemoryTrackerError) -> Self {
-        Self::InternalError(other)
-    }
-}
-
-impl fmt::Display for HandleExceptionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::PageTableUnavailable => write!(f, "Page table is not available."),
-            Self::PageTableNotInitialized => write!(f, "Page table is not initialized."),
-            Self::InternalError(e) => write!(f, "Error while updating page table: {e}"),
-            Self::UnknownException => write!(f, "An unknown exception occurred, not handled."),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Copy, Clone)]
-enum Esr {
-    DataAbortTranslationFault,
-    DataAbortPermissionFault,
-    DataAbortSyncExternalAbort,
-    Unknown(usize),
-}
-
-impl Esr {
-    const EXT_DABT_32BIT: usize = 0x96000010;
-    const TRANSL_FAULT_BASE_32BIT: usize = 0x96000004;
-    const TRANSL_FAULT_ISS_MASK_32BIT: usize = !0x143;
-    const PERM_FAULT_BASE_32BIT: usize = 0x9600004C;
-    const PERM_FAULT_ISS_MASK_32BIT: usize = !0x103;
-}
-
-impl From<usize> for Esr {
-    fn from(esr: usize) -> Self {
-        if esr == Self::EXT_DABT_32BIT {
-            Self::DataAbortSyncExternalAbort
-        } else if esr & Self::TRANSL_FAULT_ISS_MASK_32BIT == Self::TRANSL_FAULT_BASE_32BIT {
-            Self::DataAbortTranslationFault
-        } else if esr & Self::PERM_FAULT_ISS_MASK_32BIT == Self::PERM_FAULT_BASE_32BIT {
-            Self::DataAbortPermissionFault
-        } else {
-            Self::Unknown(esr)
-        }
-    }
-}
-
-impl fmt::Display for Esr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::DataAbortSyncExternalAbort => write!(f, "Synchronous external abort"),
-            Self::DataAbortTranslationFault => write!(f, "Translation fault"),
-            Self::DataAbortPermissionFault => write!(f, "Permission fault"),
-            Self::Unknown(v) => write!(f, "Unknown exception esr={v:#08x}"),
-        }
-    }
-}
-
-#[inline]
-fn handle_translation_fault(far: VirtualAddress) -> Result<(), HandleExceptionError> {
-    let mut guard = MEMORY.try_lock().ok_or(HandleExceptionError::PageTableUnavailable)?;
-    let memory = guard.as_mut().ok_or(HandleExceptionError::PageTableNotInitialized)?;
-    Ok(memory.handle_mmio_fault(far)?)
-}
-
-#[inline]
-fn handle_permission_fault(far: VirtualAddress) -> Result<(), HandleExceptionError> {
-    let mut guard = MEMORY.try_lock().ok_or(HandleExceptionError::PageTableUnavailable)?;
-    let memory = guard.as_mut().ok_or(HandleExceptionError::PageTableNotInitialized)?;
-    Ok(memory.handle_permission_fault(far)?)
-}
+use vmbase::{
+    eprintln,
+    exceptions::{ArmException, Esr, HandleExceptionError},
+    logger,
+    memory::{handle_permission_fault, handle_translation_fault},
+    power::reboot,
+    read_sysreg,
+};
 
 fn handle_exception(exception: &ArmException) -> Result<(), HandleExceptionError> {
     // Handle all translation faults on both read and write, and MMIO guard map
@@ -112,45 +31,6 @@ fn handle_exception(exception: &ArmException) -> Result<(), HandleExceptionError
         Esr::DataAbortTranslationFault => handle_translation_fault(exception.far),
         Esr::DataAbortPermissionFault => handle_permission_fault(exception.far),
         _ => Err(HandleExceptionError::UnknownException),
-    }
-}
-
-/// A struct representing an Armv8 exception.
-struct ArmException {
-    /// The value of the exception syndrome register.
-    esr: Esr,
-    /// The faulting virtual address read from the fault address register.
-    far: VirtualAddress,
-}
-
-impl fmt::Display for ArmException {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ArmException: esr={}, far={}", self.esr, self.far)
-    }
-}
-
-impl ArmException {
-    /// Reads the values of the EL1 exception syndrome register (`esr_el1`)
-    /// and fault address register (`far_el1`) and returns a new instance of
-    /// `ArmException` with these values.
-    fn from_el1_regs() -> Self {
-        let esr: Esr = read_sysreg!("esr_el1").into();
-        let far = read_sysreg!("far_el1");
-        Self { esr, far: VirtualAddress(far) }
-    }
-
-    /// Prints the details of an obj and the exception, excluding UART exceptions.
-    fn print<T: fmt::Display>(&self, exception_name: &str, obj: T, elr: u64) {
-        // Don't print to the UART if we are handling an exception it could raise.
-        if !self.is_uart_exception() {
-            eprintln!("{exception_name}");
-            eprintln!("{obj}");
-            eprintln!("{}, elr={:#08x}", self, elr);
-        }
-    }
-
-    fn is_uart_exception(&self) -> bool {
-        self.esr == Esr::DataAbortSyncExternalAbort && page_4kb_of(self.far.0) == UART_PAGE
     }
 }
 
