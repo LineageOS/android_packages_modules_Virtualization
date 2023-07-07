@@ -33,7 +33,7 @@ use vmbase::util::RangeExt as _;
 use vmbase::{
     configure_heap, console,
     layout::{self, crosvm},
-    logger, main,
+    main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},
     power::reboot,
     rand,
@@ -192,23 +192,7 @@ fn main_wrapper(
     // - only perform logging once the logger has been initialized
     // - only access non-pvmfw memory once (and while) it has been mapped
 
-    logger::init(LevelFilter::Info).map_err(|_| RebootReason::InternalError)?;
-
-    // Use debug!() to avoid printing to the UART if we failed to configure it as only local
-    // builds that have tweaked the logger::init() call will actually attempt to log the message.
-
-    if let Some(mmio_guard) = get_mmio_guard() {
-        mmio_guard.init().map_err(|e| {
-            debug!("{e}");
-            RebootReason::InternalError
-        })?;
-
-        mmio_guard.map(console::BASE_ADDRESS).map_err(|e| {
-            debug!("Failed to configure the UART: {e}");
-            RebootReason::InternalError
-        })?;
-    }
-
+    log::set_max_level(LevelFilter::Info);
     crypto::init();
 
     let page_table = memory::init_page_table().map_err(|e| {
