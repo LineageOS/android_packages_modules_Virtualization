@@ -107,6 +107,9 @@ SECTIONS
 		. = init_stack_pointer;
 	} >writable_data
 
+	/* Make our Bionic stack protector compatible with mainline LLVM */
+	__stack_chk_guard = __bionic_tls + 40;
+
 	/*
 	 * Remove unused sections from the image.
 	 */
