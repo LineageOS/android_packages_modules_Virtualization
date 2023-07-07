@@ -8,7 +8,7 @@ Visit [our public doc site](https://source.android.com/docs/core/virtualization)
 what AVF is, what it is for, and how it is structured. This repository contains source code for
 userspace components of AVF.
 
-If you want a quick start, see the [getting started guideline](docs/getting_started/index.md)
+If you want a quick start, see the [getting started guideline](docs/getting_started.md)
 and follow the steps there.
 
 For in-depth explanations about individual topics and components, visit the following links.
