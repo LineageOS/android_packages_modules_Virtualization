@@ -197,15 +197,17 @@ fn main_wrapper(
     // Use debug!() to avoid printing to the UART if we failed to configure it as only local
     // builds that have tweaked the logger::init() call will actually attempt to log the message.
 
-    get_hypervisor().mmio_guard_init().map_err(|e| {
-        debug!("{e}");
-        RebootReason::InternalError
-    })?;
+    if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
+        get_hypervisor().mmio_guard_init().map_err(|e| {
+            debug!("{e}");
+            RebootReason::InternalError
+        })?;
 
-    get_hypervisor().mmio_guard_map(console::BASE_ADDRESS).map_err(|e| {
-        debug!("Failed to configure the UART: {e}");
-        RebootReason::InternalError
-    })?;
+        get_hypervisor().mmio_guard_map(console::BASE_ADDRESS).map_err(|e| {
+            debug!("Failed to configure the UART: {e}");
+            RebootReason::InternalError
+        })?;
+    }
 
     crypto::init();
 
@@ -253,10 +255,12 @@ fn main_wrapper(
     })?;
     // Call unshare_all_memory here (instead of relying on the dtor) while UART is still mapped.
     MEMORY.lock().as_mut().unwrap().unshare_all_memory();
-    get_hypervisor().mmio_guard_unmap(console::BASE_ADDRESS).map_err(|e| {
-        error!("Failed to unshare the UART: {e}");
-        RebootReason::InternalError
-    })?;
+    if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
+        get_hypervisor().mmio_guard_unmap(console::BASE_ADDRESS).map_err(|e| {
+            error!("Failed to unshare the UART: {e}");
+            RebootReason::InternalError
+        })?;
+    }
 
     // Drop MemoryTracker and deactivate page table.
     drop(MEMORY.lock().take());

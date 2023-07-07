@@ -40,7 +40,8 @@ impl GeniezoneHypervisor {
     // and share the same identification along with guest VMs.
     // The previous uuid was removed due to duplication elsewhere.
     pub const UUID: Uuid = uuid!("7e134ed0-3b82-488d-8cee-69c19211dbe7");
-    const CAPABILITIES: HypervisorCap = HypervisorCap::DYNAMIC_MEM_SHARE;
+    const CAPABILITIES: HypervisorCap =
+        HypervisorCap::DYNAMIC_MEM_SHARE.union(HypervisorCap::MMIO_GUARD);
 }
 
 /// Error from a GenieZone HVC call.

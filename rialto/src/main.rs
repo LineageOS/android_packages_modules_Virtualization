@@ -53,15 +53,19 @@ fn new_page_table() -> Result<PageTable> {
 }
 
 fn try_init_logger() -> Result<bool> {
-    let mmio_guard_supported = match get_hypervisor().mmio_guard_init() {
-        // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
-        Ok(()) => {
-            get_hypervisor().mmio_guard_map(vmbase::console::BASE_ADDRESS)?;
-            true
+    let mmio_guard_supported = if get_hypervisor().has_cap(HypervisorCap::MMIO_GUARD) {
+        match get_hypervisor().mmio_guard_init() {
+            // pKVM blocks MMIO by default, we need to enable MMIO guard to support logging.
+            Ok(()) => {
+                get_hypervisor().mmio_guard_map(vmbase::console::BASE_ADDRESS)?;
+                true
+            }
+            // MMIO guard enroll is not supported in unprotected VM.
+            Err(hyp::Error::MmioGuardNotsupported) => false,
+            Err(e) => return Err(e.into()),
         }
-        // MMIO guard enroll is not supported in unprotected VM.
-        Err(hyp::Error::MmioGuardNotsupported) => false,
-        Err(e) => return Err(e.into()),
+    } else {
+        false
     };
     vmbase::logger::init(log::LevelFilter::Debug).map_err(|_| Error::LoggerInit)?;
     Ok(mmio_guard_supported)
