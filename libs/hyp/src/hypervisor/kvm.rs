@@ -72,15 +72,19 @@ const VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID: u32 = 0xc6000006;
 const VENDOR_HYP_KVM_MMIO_GUARD_MAP_FUNC_ID: u32 = 0xc6000007;
 const VENDOR_HYP_KVM_MMIO_GUARD_UNMAP_FUNC_ID: u32 = 0xc6000008;
 
-pub(super) struct KvmHypervisor;
+pub(super) struct RegularKvmHypervisor;
 
-impl KvmHypervisor {
+impl RegularKvmHypervisor {
     // Based on ARM_SMCCC_VENDOR_HYP_UID_KVM_REG values listed in Linux kernel source:
     // https://github.com/torvalds/linux/blob/master/include/linux/arm-smccc.h
     pub(super) const UUID: Uuid = uuid!("28b46fb6-2ec5-11e9-a9ca-4b564d003a74");
 }
 
-impl Hypervisor for KvmHypervisor {
+impl Hypervisor for RegularKvmHypervisor {}
+
+pub(super) struct ProtectedKvmHypervisor;
+
+impl Hypervisor for ProtectedKvmHypervisor {
     fn as_mmio_guard(&self) -> Option<&dyn MmioGuardedHypervisor> {
         Some(self)
     }
@@ -90,7 +94,7 @@ impl Hypervisor for KvmHypervisor {
     }
 }
 
-impl MmioGuardedHypervisor for KvmHypervisor {
+impl MmioGuardedHypervisor for ProtectedKvmHypervisor {
     fn init(&self) -> Result<()> {
         mmio_guard_enroll()?;
         let mmio_granule = mmio_guard_granule()?;
@@ -123,7 +127,7 @@ impl MmioGuardedHypervisor for KvmHypervisor {
     }
 }
 
-impl MemSharingHypervisor for KvmHypervisor {
+impl MemSharingHypervisor for ProtectedKvmHypervisor {
     fn share(&self, base_ipa: u64) -> Result<()> {
         let mut args = [0u64; 17];
         args[0] = base_ipa;
