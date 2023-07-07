@@ -84,12 +84,11 @@ struct MemorySlices<'a> {
 
 impl<'a> MemorySlices<'a> {
     fn new(fdt: usize, kernel: usize, kernel_size: usize) -> Result<Self, RebootReason> {
-        // SAFETY - SIZE_2MB is non-zero.
-        const FDT_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(crosvm::FDT_MAX_SIZE) };
+        let fdt_size = NonZeroUsize::new(crosvm::FDT_MAX_SIZE).unwrap();
         // TODO - Only map the FDT as read-only, until we modify it right before jump_to_payload()
         // e.g. by generating a DTBO for a template DT in main() and, on return, re-map DT as RW,
         // overwrite with the template DT and apply the DTBO.
-        let range = MEMORY.lock().as_mut().unwrap().alloc_mut(fdt, FDT_SIZE).map_err(|e| {
+        let range = MEMORY.lock().as_mut().unwrap().alloc_mut(fdt, fdt_size).map_err(|e| {
             error!("Failed to allocate the FDT range: {e}");
             RebootReason::InternalError
         })?;
