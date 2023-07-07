@@ -69,7 +69,7 @@ fn init_page_table(pci_bar_range: &MemoryRegion) -> Result<(), MapError> {
 
 /// Entry point for VM bootloader.
 pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
-    logger::init(LevelFilter::Debug).unwrap();
+    log::set_max_level(LevelFilter::Debug);
 
     info!("Hello world");
     info!("x0={:#018x}, x1={:#018x}, x2={:#018x}, x3={:#018x}", arg0, arg1, arg2, arg3);
