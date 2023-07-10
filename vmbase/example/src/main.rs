@@ -16,6 +16,8 @@
 
 #![no_main]
 #![no_std]
+#![deny(unsafe_op_in_unsafe_fn)]
+#![deny(clippy::undocumented_unsafe_blocks)]
 
 mod exceptions;
 mod layout;
@@ -80,8 +82,9 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
 
     info!("Checking FDT...");
     let fdt = dtb_range();
-    let fdt =
-        unsafe { core::slice::from_raw_parts_mut(fdt.start.0 as *mut u8, fdt.end.0 - fdt.start.0) };
+    let fdt_size = fdt.end.0 - fdt.start.0;
+    // SAFETY: The DTB range is valid, writable memory, and we don't construct any aliases to it.
+    let fdt = unsafe { core::slice::from_raw_parts_mut(fdt.start.0 as *mut u8, fdt_size) };
     let fdt = Fdt::from_mut_slice(fdt).unwrap();
     info!("FDT passed verification.");
     check_fdt(fdt);
@@ -98,6 +101,7 @@ pub fn main(arg0: u64, arg1: u64, arg2: u64, arg3: u64) {
     check_data();
     check_dice();
 
+    // SAFETY: This is the only place where `make_pci_root` is called.
     let mut pci_root = unsafe { pci_info.make_pci_root() };
     check_pci(&mut pci_root);
 
@@ -123,7 +127,9 @@ fn check_stack_guard() {
 
 fn check_data() {
     info!("INITIALISED_DATA: {:?}", INITIALISED_DATA.as_ptr());
+    // SAFETY: We only print the addresses of the static mutable variable, not actually access it.
     info!("ZEROED_DATA: {:?}", unsafe { ZEROED_DATA.as_ptr() });
+    // SAFETY: We only print the addresses of the static mutable variable, not actually access it.
     info!("MUTABLE_DATA: {:?}", unsafe { MUTABLE_DATA.as_ptr() });
 
     assert_eq!(INITIALISED_DATA[0], 1);
@@ -131,7 +137,11 @@ fn check_data() {
     assert_eq!(INITIALISED_DATA[2], 3);
     assert_eq!(INITIALISED_DATA[3], 4);
 
+    // SAFETY: Nowhere else in the program accesses this static mutable variable, so there is no
+    // chance of concurrent access.
     let zeroed_data = unsafe { &mut ZEROED_DATA };
+    // SAFETY: Nowhere else in the program accesses this static mutable variable, so there is no
+    // chance of concurrent access.
     let mutable_data = unsafe { &mut MUTABLE_DATA };
 
     for element in zeroed_data.iter() {
