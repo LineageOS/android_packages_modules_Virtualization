@@ -559,7 +559,7 @@ fn patch_timer(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
         *v = v.to_be();
     }
 
-    // SAFETY - array size is the same
+    // SAFETY: array size is the same
     let value = unsafe {
         core::mem::transmute::<
             [u32; NUM_INTERRUPTS * CELLS_PER_INTERRUPT],
@@ -801,7 +801,7 @@ fn apply_debug_policy(
         }
     };
 
-    // SAFETY - on failure, the corrupted DT is restored using the backup.
+    // SAFETY: on failure, the corrupted DT is restored using the backup.
     if let Err(e) = unsafe { fdt.apply_overlay(overlay) } {
         warn!("Failed to apply debug policy: {e}. Recovering...");
         fdt.copy_from_slice(backup_fdt.as_slice())?;
