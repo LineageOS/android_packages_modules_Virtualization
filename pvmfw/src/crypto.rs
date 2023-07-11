@@ -46,17 +46,14 @@ pub struct Error {
 
 impl Error {
     fn get() -> Option<Self> {
-        let mut file = MaybeUninit::uninit();
-        let mut line = MaybeUninit::uninit();
-        // SAFETY - The function writes to the provided pointers, validated below.
-        let packed = unsafe { ERR_get_error_line(file.as_mut_ptr(), line.as_mut_ptr()) };
-        // SAFETY - Any possible value returned could be considered a valid *const c_char.
-        let file = unsafe { file.assume_init() };
-        // SAFETY - Any possible value returned could be considered a valid c_int.
-        let line = unsafe { line.assume_init() };
+        let mut file = ptr::null();
+        let mut line = 0;
+        // SAFETY: The function writes to the provided pointers, which are valid because they come
+        // from references. It doesn't retain them after it returns.
+        let packed = unsafe { ERR_get_error_line(&mut file, &mut line) };
 
         let packed = packed.try_into().ok()?;
-        // SAFETY - Any non-NULL result is expected to point to a global const C string.
+        // SAFETY: Any non-NULL result is expected to point to a global const C string.
         let file = unsafe { as_static_cstr(file) };
 
         Some(Self { packed, file, line })
@@ -67,16 +64,16 @@ impl Error {
     }
 
     fn library_name(&self) -> Option<&'static CStr> {
-        // SAFETY - Call to a pure function.
+        // SAFETY: Call to a pure function.
         let name = unsafe { ERR_lib_error_string(self.packed_value()) };
-        // SAFETY - Any non-NULL result is expected to point to a global const C string.
+        // SAFETY: Any non-NULL result is expected to point to a global const C string.
         unsafe { as_static_cstr(name) }
     }
 
     fn reason(&self) -> Option<&'static CStr> {
-        // SAFETY - Call to a pure function.
+        // SAFETY: Call to a pure function.
         let reason = unsafe { ERR_reason_error_string(self.packed_value()) };
-        // SAFETY - Any non-NULL result is expected to point to a global const C string.
+        // SAFETY: Any non-NULL result is expected to point to a global const C string.
         unsafe { as_static_cstr(reason) }
     }
 }
@@ -111,18 +108,18 @@ pub struct Aead(EVP_AEAD);
 
 impl Aead {
     pub fn aes_256_gcm_randnonce() -> Option<&'static Self> {
-        // SAFETY - Returned pointer is checked below.
+        // SAFETY: Returned pointer is checked below.
         let aead = unsafe { EVP_aead_aes_256_gcm_randnonce() };
         if aead.is_null() {
             None
         } else {
-            // SAFETY - We assume that the non-NULL value points to a valid and static EVP_AEAD.
+            // SAFETY: We assume that the non-NULL value points to a valid and static EVP_AEAD.
             Some(unsafe { &*(aead as *const _) })
         }
     }
 
     pub fn max_overhead(&self) -> usize {
-        // SAFETY - Function should only read from self.
+        // SAFETY: Function should only read from self.
         unsafe { EVP_AEAD_max_overhead(self.as_ref() as *const _) }
     }
 }
@@ -141,7 +138,7 @@ impl AeadCtx {
         const DEFAULT_TAG_LENGTH: usize = 0;
         let engine = ptr::null_mut(); // Use default implementation.
         let mut ctx = MaybeUninit::zeroed();
-        // SAFETY - Initialize the EVP_AEAD_CTX with const pointers to the AEAD and key.
+        // SAFETY: Initialize the EVP_AEAD_CTX with const pointers to the AEAD and key.
         let result = unsafe {
             EVP_AEAD_CTX_init(
                 ctx.as_mut_ptr(),
@@ -154,7 +151,7 @@ impl AeadCtx {
         };
 
         if result == 1 {
-            // SAFETY - We assume that the non-NULL value points to a valid and static EVP_AEAD.
+            // SAFETY: We assume that the non-NULL value points to a valid and static EVP_AEAD.
             Ok(Self(unsafe { ctx.assume_init() }))
         } else {
             Err(ErrorIterator {})
@@ -162,12 +159,12 @@ impl AeadCtx {
     }
 
     pub fn aead(&self) -> Option<&'static Aead> {
-        // SAFETY - The function should only read from self.
+        // SAFETY: The function should only read from self.
         let aead = unsafe { EVP_AEAD_CTX_aead(self.as_ref() as *const _) };
         if aead.is_null() {
             None
         } else {
-            // SAFETY - We assume that the non-NULL value points to a valid and static EVP_AEAD.
+            // SAFETY: We assume that the non-NULL value points to a valid and static EVP_AEAD.
             Some(unsafe { &*(aead as *const _) })
         }
     }
@@ -178,7 +175,7 @@ impl AeadCtx {
         let ad = ptr::null_mut();
         let ad_len = 0;
         let mut out_len = MaybeUninit::uninit();
-        // SAFETY - The function should only read from self and write to out (at most the provided
+        // SAFETY: The function should only read from self and write to out (at most the provided
         // number of bytes) and out_len while reading from data (at most the provided number of
         // bytes), ignoring any NULL input.
         let result = unsafe {
@@ -197,7 +194,7 @@ impl AeadCtx {
         };
 
         if result == 1 {
-            // SAFETY - Any value written to out_len could be a valid usize. The value itself is
+            // SAFETY: Any value written to out_len could be a valid usize. The value itself is
             // validated as being a proper slice length by panicking in the following indexing
             // otherwise.
             let out_len = unsafe { out_len.assume_init() };
@@ -213,7 +210,7 @@ impl AeadCtx {
         let ad = ptr::null_mut();
         let ad_len = 0;
         let mut out_len = MaybeUninit::uninit();
-        // SAFETY - The function should only read from self and write to out (at most the provided
+        // SAFETY: The function should only read from self and write to out (at most the provided
         // number of bytes) while reading from data (at most the provided number of bytes),
         // ignoring any NULL input.
         let result = unsafe {
@@ -232,7 +229,7 @@ impl AeadCtx {
         };
 
         if result == 1 {
-            // SAFETY - Any value written to out_len could be a valid usize. The value itself is
+            // SAFETY: Any value written to out_len could be a valid usize. The value itself is
             // validated as being a proper slice length by panicking in the following indexing
             // otherwise.
             let out_len = unsafe { out_len.assume_init() };
@@ -272,12 +269,12 @@ impl AsRef<EVP_AEAD_CTX> for AeadCtx {
 
 pub fn hkdf_sh512<const N: usize>(secret: &[u8], salt: &[u8], info: &[u8]) -> Result<[u8; N]> {
     let mut key = [0; N];
-    // SAFETY - The function shouldn't access any Rust variable and the returned value is accepted
+    // SAFETY: The function shouldn't access any Rust variable and the returned value is accepted
     // as a potentially NULL pointer.
     let digest = unsafe { EVP_sha512() };
 
     assert!(!digest.is_null());
-    // SAFETY - Only reads from/writes to the provided slices and supports digest was checked not
+    // SAFETY: Only reads from/writes to the provided slices and supports digest was checked not
     // be NULL.
     let result = unsafe {
         HKDF(
@@ -301,6 +298,6 @@ pub fn hkdf_sh512<const N: usize>(secret: &[u8], salt: &[u8], info: &[u8]) -> Re
 }
 
 pub fn init() {
-    // SAFETY - Configures the internal state of the library - may be called multiple times.
+    // SAFETY: Configures the internal state of the library - may be called multiple times.
     unsafe { CRYPTO_library_init() }
 }
