@@ -592,7 +592,7 @@ fn get_guest_time(pid: u32) -> Result<i64> {
     }
 
     let guest_time_ticks = data_list[42].parse::<i64>()?;
-    // SAFETY : It just returns an integer about CPU tick information.
+    // SAFETY: It just returns an integer about CPU tick information.
     let ticks_per_sec = unsafe { sysconf(_SC_CLK_TCK) };
     Ok(guest_time_ticks * MILLIS_PER_SEC / ticks_per_sec)
 }
@@ -910,8 +910,9 @@ fn format_serial_out_arg(preserved_fds: &mut Vec<RawFd>, file: &Option<File>) ->
 /// Creates a new pipe with the `O_CLOEXEC` flag set, and returns the read side and write side.
 fn create_pipe() -> Result<(File, File), Error> {
     let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC)?;
-    // SAFETY: We are the sole owners of these fds as they were just created.
+    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
     let read_fd = unsafe { File::from_raw_fd(raw_read) };
+    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
     let write_fd = unsafe { File::from_raw_fd(raw_write) };
     Ok((read_fd, write_fd))
 }

@@ -95,7 +95,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         let pid = get_calling_pid();
         let lim = libc::rlimit { rlim_cur: libc::RLIM_INFINITY, rlim_max: libc::RLIM_INFINITY };
 
-        // SAFETY - borrowing the new limit struct only
+        // SAFETY: borrowing the new limit struct only
         let ret = unsafe { libc::prlimit(pid, libc::RLIMIT_MEMLOCK, &lim, std::ptr::null_mut()) };
 
         match ret {
