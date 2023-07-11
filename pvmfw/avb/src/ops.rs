@@ -320,8 +320,8 @@ impl AvbSlotVerifyDataWrap {
     pub(crate) fn vbmeta_images(&self) -> Result<&[AvbVBMetaData], AvbSlotVerifyError> {
         let data = self.as_ref();
         is_not_null(data.vbmeta_images).map_err(|_| AvbSlotVerifyError::Io)?;
-        // SAFETY: It is safe as the raw pointer `data.vbmeta_images` is a nonnull pointer.
         let vbmeta_images =
+        // SAFETY: It is safe as the raw pointer `data.vbmeta_images` is a nonnull pointer.
             unsafe { slice::from_raw_parts(data.vbmeta_images, data.num_vbmeta_images) };
         Ok(vbmeta_images)
     }
@@ -329,10 +329,10 @@ impl AvbSlotVerifyDataWrap {
     pub(crate) fn loaded_partitions(&self) -> Result<&[AvbPartitionData], AvbSlotVerifyError> {
         let data = self.as_ref();
         is_not_null(data.loaded_partitions).map_err(|_| AvbSlotVerifyError::Io)?;
+        let loaded_partitions =
         // SAFETY: It is safe as the raw pointer `data.loaded_partitions` is a nonnull pointer and
         // is guaranteed by libavb to point to a valid `AvbPartitionData` array as part of the
         // `AvbSlotVerifyData` struct.
-        let loaded_partitions =
             unsafe { slice::from_raw_parts(data.loaded_partitions, data.num_loaded_partitions) };
         Ok(loaded_partitions)
     }
