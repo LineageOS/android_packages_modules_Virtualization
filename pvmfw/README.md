@@ -174,10 +174,12 @@ The header format itself is agnostic of the internal format of the individual
 blos it refers to. In version 1.0, it describes two blobs:
 
 - entry 0 must point to a valid BCC Handover (see below)
-- entry 1 may point to a [DTBO] to be applied to the pVM device tree
+- entry 1 may point to a [DTBO] to be applied to the pVM device tree. See
+  [debug policy][debug_policy] for an example.
 
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/master/Documentation/dt-object-internal.txt
+[debug_policy]: ../docs/debug/README.md#debug-policy
 
 #### Virtual Platform Boot Certificate Chain Handover
 
@@ -239,37 +241,6 @@ device tree node marked as [`compatible=”google,open-dice”`][dice-dt].
 [dice-dt]: https://www.kernel.org/doc/Documentation/devicetree/bindings/reserved-memory/google%2Copen-dice.yaml
 [Layering]: https://pigweed.googlesource.com/open-dice/+/refs/heads/main/docs/specification.md#layering-details
 [Trusty-BCC]: https://android.googlesource.com/trusty/lib/+/1696be0a8f3a7103/lib/hwbcc/common/swbcc.c#554
-
-#### pVM Device Tree Overlay
-
-Config header can provide a DTBO to be overlaid on top of the baseline device
-tree from crosvm.
-
-The DTBO may contain debug policies. Debug policies MUST NOT be provided for
-locked devices for security reasons.
-
-Here are an example of DTBO.
-
-```
-/ {
-    fragment@avf {
-        target-path = "/";
-
-        __overlay__ {
-            avf {
-                /* your debug policy here */
-            };
-        };
-    };
-}; /* end of avf */
-```
-
-For specifying DTBO, host bootloader should apply the DTBO to both host
-OS's device tree and config header of `pvmfw`. Both `virtualizationmanager` and
-`pvmfw` will prepare for debugging features.
-
-For details about device tree properties for debug policies, see
-[microdroid's debugging policy guide](../microdroid/README.md#option-1-running-microdroid-on-avf-debug-policy-configured-device).
 
 ### Platform Requirements
 
@@ -433,3 +404,25 @@ the signing described above is recommended to be done through an
 kernel][soong-udroid]).
 
 [soong-udroid]: https://cs.android.com/android/platform/superproject/+/master:packages/modules/Virtualization/microdroid/Android.bp;l=427;drc=ca0049be4d84897b8c9956924cfae506773103eb
+
+## Development
+
+For faster iteration, you can build pvmfw, adb-push it to the device, and use
+it directly for a new pVM, without having to flash it to the physical
+partition. To do that, set the system property `hypervisor.pvmfw.path` to point
+to the pvmfw image you pushed as shown below:
+
+```shell
+m pvmfw_img
+adb push out/target/product/generic_arm64/system/etc/pvmfw.img /data/local/tmp/pvmfw.img
+adb root
+adb shell setprop hypervisor.pvmfw.path /data/local/tmp/pvmfw.img
+```
+
+Then run a protected VM, for example:
+
+```shell
+adb shell /apex/com.android.virt/bin/vm run-microdroid --protected
+```
+
+Note: `adb root` is required to set the system property.
