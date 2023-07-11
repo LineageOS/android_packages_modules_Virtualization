@@ -130,7 +130,7 @@ impl Partitions {
         for i in Header::ENTRIES_LBA..Header::ENTRIES_LBA.checked_add(num_blocks).unwrap() {
             self.read_block(i, &mut blk)?;
             let entries = blk.as_ptr().cast::<Entry>();
-            // SAFETY - blk is assumed to be properly aligned for Entry and its size is assert-ed
+            // SAFETY: blk is assumed to be properly aligned for Entry and its size is assert-ed
             // above. All potential values of the slice will produce valid Entry values.
             let entries = unsafe { slice::from_raw_parts(entries, min(rem, entries_per_blk)) };
             for entry in entries {
