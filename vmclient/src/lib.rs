@@ -67,7 +67,7 @@ fn posix_pipe() -> Result<(OwnedFd, OwnedFd), io::Error> {
     // file descriptors (expected by SharedChild).
     let (raw1, raw2) = pipe2(OFlag::O_CLOEXEC)?;
 
-    // SAFETY - Taking ownership of brand new FDs.
+    // SAFETY: Taking ownership of brand new FDs.
     unsafe { Ok((OwnedFd::from_raw_fd(raw1), OwnedFd::from_raw_fd(raw2))) }
 }
 
@@ -80,7 +80,7 @@ fn posix_socketpair() -> Result<(OwnedFd, OwnedFd), io::Error> {
     let (raw1, raw2) =
         socketpair(AddressFamily::Unix, SockType::Stream, None, SockFlag::SOCK_CLOEXEC)?;
 
-    // SAFETY - Taking ownership of brand new FDs.
+    // SAFETY: Taking ownership of brand new FDs.
     unsafe { Ok((OwnedFd::from_raw_fd(raw1), OwnedFd::from_raw_fd(raw2))) }
 }
 

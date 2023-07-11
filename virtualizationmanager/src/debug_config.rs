@@ -42,7 +42,7 @@ impl DPPath {
     }
 
     fn to_path(&self) -> PathBuf {
-        // SAFETY -- unwrap() is safe for to_str() because node_path and prop_name were &str.
+        // unwrap() is safe for to_str() because node_path and prop_name were &str.
         PathBuf::from(
             [
                 "/sys/firmware/devicetree/base",
@@ -129,7 +129,7 @@ impl OwnedFdt {
                 .map_err(Error::msg)
                 .with_context(|| "Malformed {overlay_file_path:?}")?;
 
-            // SAFETY - Return immediately if error happens. Damaged fdt_buf and fdt are discarded.
+            // SAFETY: Return immediately if error happens. Damaged fdt_buf and fdt are discarded.
             unsafe {
                 fdt.apply_overlay(overlay_fdt).map_err(Error::msg).with_context(|| {
                     "Failed to overlay {overlay_file_path:?} onto empty device tree"
@@ -141,7 +141,7 @@ impl OwnedFdt {
     }
 
     fn as_fdt(&self) -> &Fdt {
-        // SAFETY - Checked validity of buffer when instantiate.
+        // SAFETY: Checked validity of buffer when instantiate.
         unsafe { Fdt::unchecked_from_slice(&self.buffer) }
     }
 }
