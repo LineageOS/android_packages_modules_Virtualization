@@ -170,9 +170,9 @@ impl<'a> Descriptor<'a> {
     /// Behavior is undefined if any of the following conditions are violated:
     /// * The `descriptor` pointer must be non-null and point to a valid `AvbDescriptor`.
     unsafe fn from_descriptor_ptr(descriptor: *const AvbDescriptor) -> utils::Result<Self> {
+        let avb_descriptor =
         // SAFETY: It is safe as the raw pointer `descriptor` is non-null and points to
         // a valid `AvbDescriptor`.
-        let avb_descriptor =
             unsafe { get_valid_descriptor(descriptor, avb_descriptor_validate_and_byteswap)? };
         let len = usize_checked_add(
             size_of::<AvbDescriptor>(),
@@ -189,9 +189,9 @@ impl<'a> Descriptor<'a> {
                 Ok(Self::Hash(descriptor))
             }
             Ok(AvbDescriptorTag::AVB_DESCRIPTOR_TAG_PROPERTY) => {
+                let descriptor =
                 // SAFETY: It is safe because the caller ensures that `descriptor` is a non-null
                 // pointer pointing to a valid struct.
-                let descriptor =
                     unsafe { PropertyDescriptor::from_descriptor_ptr(descriptor, data)? };
                 Ok(Self::Property(descriptor))
             }

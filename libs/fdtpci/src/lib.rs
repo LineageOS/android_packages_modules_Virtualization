@@ -119,7 +119,9 @@ impl PciInfo {
     /// method must only be called once, and there must be no other `PciRoot` constructed using the
     /// same CAM.
     pub unsafe fn make_pci_root(&self) -> PciRoot {
-        PciRoot::new(self.cam_range.start as *mut u8, Cam::MmioCam)
+        // SAFETY: We trust that the FDT gave us a valid MMIO base address for the CAM. The caller
+        // guarantees to only call us once, so there are no other references to it.
+        unsafe { PciRoot::new(self.cam_range.start as *mut u8, Cam::MmioCam) }
     }
 }
 
