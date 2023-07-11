@@ -1100,8 +1100,9 @@ fn clone_or_prepare_logger_fd(
         Status::new_service_specific_error_str(-1, Some(format!("Failed to create pipe: {:?}", e)))
     })?;
 
-    // SAFETY: We are the sole owners of these fds as they were just created.
+    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
     let mut reader = BufReader::new(unsafe { File::from_raw_fd(raw_read_fd) });
+    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
     let write_fd = unsafe { File::from_raw_fd(raw_write_fd) };
 
     std::thread::spawn(move || loop {

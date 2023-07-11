@@ -382,14 +382,14 @@ impl vmclient::VmCallback for Callback {
 /// Safely duplicate the file descriptor.
 fn duplicate_fd<T: AsRawFd>(file: T) -> io::Result<File> {
     let fd = file.as_raw_fd();
-    // Safe because this just duplicates a file descriptor which we know to be valid, and we check
-    // for an error.
+    // SAFETY: This just duplicates a file descriptor which we know to be valid, and we check for an
+    // an error.
     let dup_fd = unsafe { libc::dup(fd) };
     if dup_fd < 0 {
         Err(io::Error::last_os_error())
     } else {
-        // Safe because we have just duplicated the file descriptor so we own it, and `from_raw_fd`
-        // takes ownership of it.
+        // SAFETY: We have just duplicated the file descriptor so we own it, and `from_raw_fd` takes
+        // ownership of it.
         Ok(unsafe { File::from_raw_fd(dup_fd) })
     }
 }
