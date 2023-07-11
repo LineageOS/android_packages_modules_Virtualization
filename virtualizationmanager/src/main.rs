@@ -86,7 +86,7 @@ fn take_fd_ownership(raw_fd: RawFd, owned_fds: &mut Vec<RawFd>) -> Result<OwnedF
     }
     owned_fds.push(raw_fd);
 
-    // SAFETY - Initializing OwnedFd for a RawFd provided in cmdline arguments.
+    // SAFETY: Initializing OwnedFd for a RawFd provided in cmdline arguments.
     // We checked that the integer value corresponds to a valid FD and that this
     // is the first argument to claim its ownership.
     Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
