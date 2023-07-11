@@ -14,7 +14,7 @@
 
 //! This module regroups some common traits shared by all the hypervisors.
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::util::SIZE_4KB;
 
 /// Expected MMIO guard granule size, validated during MMIO guard initialization.
@@ -34,10 +34,9 @@ pub trait Hypervisor {
 }
 
 pub trait MmioGuardedHypervisor {
-    /// Initializes the hypervisor by enrolling a MMIO guard and checking the memory granule size.
-    /// By enrolling, all MMIO will be blocked unless allow-listed with `mmio_guard_map`.
-    /// Protected VMs are auto-enrolled.
-    fn init(&self) -> Result<()>;
+    /// Enrolls with the MMIO guard so that all MMIO will be blocked unless allow-listed with
+    /// `MmioGuardedHypervisor::map`.
+    fn enroll(&self) -> Result<()>;
 
     /// Maps a page containing the given memory address to the hypervisor MMIO guard.
     /// The page size corresponds to the MMIO guard granule size.
@@ -46,6 +45,18 @@ pub trait MmioGuardedHypervisor {
     /// Unmaps a page containing the given memory address from the hypervisor MMIO guard.
     /// The page size corresponds to the MMIO guard granule size.
     fn unmap(&self, addr: usize) -> Result<()>;
+
+    /// Returns the MMIO guard granule size in bytes.
+    fn granule(&self) -> Result<usize>;
+
+    // TODO(ptosi): Fully move granule validation to client code.
+    /// Validates the MMIO guard granule size.
+    fn validate_granule(&self) -> Result<()> {
+        match self.granule()? {
+            MMIO_GUARD_GRANULE_SIZE => Ok(()),
+            granule => Err(Error::UnsupportedMmioGuardGranule(granule)),
+        }
+    }
 }
 
 pub trait MemSharingHypervisor {

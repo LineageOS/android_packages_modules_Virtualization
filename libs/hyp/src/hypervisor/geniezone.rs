@@ -14,9 +14,7 @@
 
 //! Wrappers around calls to the GenieZone hypervisor.
 
-use super::common::{
-    Hypervisor, MemSharingHypervisor, MmioGuardedHypervisor, MMIO_GUARD_GRANULE_SIZE,
-};
+use super::common::{Hypervisor, MemSharingHypervisor, MmioGuardedHypervisor};
 use crate::error::{Error, Result};
 use crate::util::page_address;
 use core::fmt::{self, Display, Formatter};
@@ -96,13 +94,15 @@ impl Hypervisor for GeniezoneHypervisor {
 }
 
 impl MmioGuardedHypervisor for GeniezoneHypervisor {
-    fn init(&self) -> Result<()> {
-        mmio_guard_enroll()?;
-        let mmio_granule = mmio_guard_granule()?;
-        if mmio_granule != MMIO_GUARD_GRANULE_SIZE {
-            return Err(Error::UnsupportedMmioGuardGranule(mmio_granule));
+    fn enroll(&self) -> Result<()> {
+        let args = [0u64; 17];
+        match success_or_error_64(hvc64(VENDOR_HYP_GZVM_MMIO_GUARD_ENROLL_FUNC_ID, args)[0]) {
+            Ok(()) => Ok(()),
+            Err(GeniezoneError::NotSupported) | Err(GeniezoneError::NotRequired) => {
+                Err(Error::MmioGuardNotSupported)
+            }
+            Err(e) => Err(Error::GeniezoneError(e, VENDOR_HYP_GZVM_MMIO_GUARD_ENROLL_FUNC_ID)),
         }
-        Ok(())
     }
 
     fn map(&self, addr: usize) -> Result<()> {
@@ -117,6 +117,12 @@ impl MmioGuardedHypervisor for GeniezoneHypervisor {
         args[0] = page_address(addr);
 
         checked_hvc64_expect_zero(VENDOR_HYP_GZVM_MMIO_GUARD_UNMAP_FUNC_ID, args)
+    }
+
+    fn granule(&self) -> Result<usize> {
+        let args = [0u64; 17];
+        let granule = checked_hvc64(VENDOR_HYP_GZVM_MMIO_GUARD_INFO_FUNC_ID, args)?;
+        Ok(granule.try_into().unwrap())
     }
 }
 
@@ -139,24 +145,6 @@ impl MemSharingHypervisor for GeniezoneHypervisor {
         let args = [0u64; 17];
         let granule = checked_hvc64(ARM_SMCCC_GZVM_FUNC_HYP_MEMINFO, args)?;
         Ok(granule.try_into().unwrap())
-    }
-}
-
-fn mmio_guard_granule() -> Result<usize> {
-    let args = [0u64; 17];
-
-    let granule = checked_hvc64(VENDOR_HYP_GZVM_MMIO_GUARD_INFO_FUNC_ID, args)?;
-    Ok(granule.try_into().unwrap())
-}
-
-fn mmio_guard_enroll() -> Result<()> {
-    let args = [0u64; 17];
-    match success_or_error_64(hvc64(VENDOR_HYP_GZVM_MMIO_GUARD_ENROLL_FUNC_ID, args)[0]) {
-        Ok(_) => Ok(()),
-        Err(GeniezoneError::NotSupported) | Err(GeniezoneError::NotRequired) => {
-            Err(Error::MmioGuardNotSupported)
-        }
-        Err(e) => Err(Error::GeniezoneError(e, VENDOR_HYP_GZVM_MMIO_GUARD_ENROLL_FUNC_ID)),
     }
 }
 
