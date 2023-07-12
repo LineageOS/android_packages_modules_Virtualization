@@ -160,7 +160,7 @@ fn mmio_guard_enroll() -> Result<()> {
     let args = [0u64; 17];
     match success_or_error_64(hvc64(VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID, args)[0]) {
         Ok(_) => Ok(()),
-        Err(KvmError::NotSupported) => Err(Error::MmioGuardNotsupported),
+        Err(KvmError::NotSupported) => Err(Error::MmioGuardNotSupported),
         Err(e) => Err(Error::KvmError(e, VENDOR_HYP_KVM_MMIO_GUARD_ENROLL_FUNC_ID)),
     }
 }

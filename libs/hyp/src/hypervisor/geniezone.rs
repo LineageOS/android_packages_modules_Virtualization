@@ -153,8 +153,9 @@ fn mmio_guard_enroll() -> Result<()> {
     let args = [0u64; 17];
     match success_or_error_64(hvc64(VENDOR_HYP_GZVM_MMIO_GUARD_ENROLL_FUNC_ID, args)[0]) {
         Ok(_) => Ok(()),
-        Err(GeniezoneError::NotSupported) => Err(Error::MmioGuardNotsupported),
-        Err(GeniezoneError::NotRequired) => Err(Error::MmioGuardNotsupported),
+        Err(GeniezoneError::NotSupported) | Err(GeniezoneError::NotRequired) => {
+            Err(Error::MmioGuardNotSupported)
+        }
         Err(e) => Err(Error::GeniezoneError(e, VENDOR_HYP_GZVM_MMIO_GUARD_ENROLL_FUNC_ID)),
     }
 }
