@@ -37,7 +37,7 @@ pub fn trng_version() -> trng::Result<trng::Version> {
     (version as u32 as i32).try_into()
 }
 
-pub type TrngRng64Entropy = (u64, u64, u64);
+pub type TrngRng64Entropy = [u64; 3];
 
 pub fn trng_rnd64(nbits: u64) -> trng::Result<TrngRng64Entropy> {
     let mut args = [0u64; 17];
@@ -46,7 +46,7 @@ pub fn trng_rnd64(nbits: u64) -> trng::Result<TrngRng64Entropy> {
     let regs = hvc64(ARM_SMCCC_TRNG_RND64, args);
     success_or_error_64::<Error>(regs[0])?;
 
-    Ok((regs[1], regs[2], regs[3]))
+    Ok([regs[1], regs[2], regs[3]])
 }
 
 pub fn trng_features(fid: u32) -> trng::Result<u64> {
