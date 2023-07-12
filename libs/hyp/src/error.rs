@@ -26,7 +26,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Debug, Clone)]
 pub enum Error {
     /// MMIO guard is not supported.
-    MmioGuardNotsupported,
+    MmioGuardNotSupported,
     /// Failed to invoke a certain KVM HVC function.
     KvmError(KvmError, u32),
     /// Failed to invoke GenieZone HVC function.
@@ -40,7 +40,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::MmioGuardNotsupported => write!(f, "MMIO guard is not supported"),
+            Self::MmioGuardNotSupported => write!(f, "MMIO guard is not supported"),
             Self::KvmError(e, function_id) => {
                 write!(f, "Failed to invoke the HVC function with function ID {function_id}: {e}")
             }
