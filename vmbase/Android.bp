@@ -84,6 +84,7 @@ rust_library_rlib {
         "libspin_nostd",
         "libtinyvec_nostd",
         "libvirtio_drivers",
+        "libzerocopy_nostd",
         "libzeroize_nostd",
     ],
     whole_static_libs: [

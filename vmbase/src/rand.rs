@@ -14,10 +14,13 @@
 
 //! Functions and drivers for obtaining true entropy.
 
-use crate::hvc::{self, TrngRng64Entropy};
+use crate::hvc;
 use core::fmt;
 use core::mem::size_of;
 use smccc::{self, Hvc};
+use zerocopy::AsBytes as _;
+
+type Entropy = [u8; size_of::<u64>() * 3];
 
 /// Error type for rand operations.
 pub enum Error {
@@ -95,44 +98,53 @@ pub(crate) fn init() -> Result<()> {
 
 /// Fills a slice of bytes with true entropy.
 pub fn fill_with_entropy(s: &mut [u8]) -> Result<()> {
-    const MAX_BYTES_PER_CALL: usize = size_of::<TrngRng64Entropy>();
+    const MAX_BYTES_PER_CALL: usize = size_of::<Entropy>();
 
-    let (aligned, remainder) = s.split_at_mut(s.len() - s.len() % MAX_BYTES_PER_CALL);
-
-    for chunk in aligned.chunks_exact_mut(MAX_BYTES_PER_CALL) {
-        let (r, s, t) = repeat_trng_rnd(chunk.len())?;
-
-        let mut words = chunk.chunks_exact_mut(size_of::<u64>());
-        words.next().unwrap().clone_from_slice(&t.to_ne_bytes());
-        words.next().unwrap().clone_from_slice(&s.to_ne_bytes());
-        words.next().unwrap().clone_from_slice(&r.to_ne_bytes());
-    }
-
-    if !remainder.is_empty() {
-        let mut entropy = [0; MAX_BYTES_PER_CALL];
-        let (r, s, t) = repeat_trng_rnd(remainder.len())?;
-
-        let mut words = entropy.chunks_exact_mut(size_of::<u64>());
-        words.next().unwrap().clone_from_slice(&t.to_ne_bytes());
-        words.next().unwrap().clone_from_slice(&s.to_ne_bytes());
-        words.next().unwrap().clone_from_slice(&r.to_ne_bytes());
-
-        remainder.clone_from_slice(&entropy[..remainder.len()]);
+    for chunk in s.chunks_mut(MAX_BYTES_PER_CALL) {
+        let entropy = repeat_trng_rnd(chunk.len())?;
+        chunk.clone_from_slice(&entropy[..chunk.len()]);
     }
 
     Ok(())
 }
 
-fn repeat_trng_rnd(n_bytes: usize) -> Result<TrngRng64Entropy> {
-    let bits = usize::try_from(u8::BITS).unwrap();
-    let n_bits = (n_bytes * bits).try_into().unwrap();
+/// Returns an array where the first `n_bytes` bytes hold entropy.
+///
+/// The rest of the array should be ignored.
+fn repeat_trng_rnd(n_bytes: usize) -> Result<Entropy> {
     loop {
-        match hvc::trng_rnd64(n_bits) {
-            Ok(entropy) => return Ok(entropy),
-            Err(hvc::trng::Error::NoEntropy) => (),
-            Err(e) => return Err(e.into()),
+        if let Some(entropy) = rnd64(n_bytes)? {
+            return Ok(entropy);
         }
     }
+}
+
+/// Returns an array where the first `n_bytes` bytes hold entropy, if available.
+///
+/// The rest of the array should be ignored.
+fn rnd64(n_bytes: usize) -> Result<Option<Entropy>> {
+    let bits = usize::try_from(u8::BITS).unwrap();
+    let result = hvc::trng_rnd64((n_bytes * bits).try_into().unwrap());
+    let entropy = if matches!(result, Err(hvc::trng::Error::NoEntropy)) {
+        None
+    } else {
+        let r = result?;
+        // From the SMCCC TRNG:
+        //
+        //     A MAX_BITS-bits wide value (Entropy) is returned across X1 to X3.
+        //     The requested conditioned entropy is returned in Entropy[N-1:0].
+        //
+        //             X1     Entropy[191:128]
+        //             X2     Entropy[127:64]
+        //             X3     Entropy[63:0]
+        //
+        //     The bits in Entropy[MAX_BITS-1:N] are 0.
+        let reordered = [r[2].to_le(), r[1].to_le(), r[0].to_le()];
+
+        Some(reordered.as_bytes().try_into().unwrap())
+    };
+
+    Ok(entropy)
 }
 
 /// Generate an array of fixed-size initialized with true-random bytes.
