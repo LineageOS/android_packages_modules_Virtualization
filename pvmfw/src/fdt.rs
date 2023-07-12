@@ -721,6 +721,7 @@ pub fn modify_for_next_stage(
     strict_boot: bool,
     debug_policy: Option<&mut [u8]>,
     debuggable: bool,
+    kaslr_seed: u64,
 ) -> libfdt::Result<()> {
     if let Some(debug_policy) = debug_policy {
         let backup = Vec::from(fdt.as_slice());
@@ -741,6 +742,7 @@ pub fn modify_for_next_stage(
 
     set_or_clear_chosen_flag(fdt, cstr!("avf,strict-boot"), strict_boot)?;
     set_or_clear_chosen_flag(fdt, cstr!("avf,new-instance"), new_instance)?;
+    fdt.chosen_mut()?.unwrap().setprop_inplace(cstr!("kaslr-seed"), &kaslr_seed.to_be_bytes())?;
 
     if !debuggable {
         if let Some(bootargs) = read_bootargs_from(fdt)? {
