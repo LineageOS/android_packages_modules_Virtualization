@@ -248,14 +248,22 @@ fn read_pci_info_from(fdt: &Fdt) -> libfdt::Result<PciInfo> {
     let range1 = ranges.next().ok_or(FdtError::NotFound)?;
 
     let irq_masks = node.getprop_cells(cstr!("interrupt-map-mask"))?.ok_or(FdtError::NotFound)?;
-    let irq_masks = CellChunkIterator::<{ PciInfo::IRQ_MASK_CELLS }>::new(irq_masks);
-    let irq_masks: ArrayVec<[PciIrqMask; PciInfo::MAX_IRQS]> =
-        irq_masks.take(PciInfo::MAX_IRQS).collect();
+    let mut chunks = CellChunkIterator::<{ PciInfo::IRQ_MASK_CELLS }>::new(irq_masks);
+    let irq_masks = (&mut chunks).take(PciInfo::MAX_IRQS).collect();
+
+    if chunks.next().is_some() {
+        warn!("Input DT has more than {} PCI entries!", PciInfo::MAX_IRQS);
+        return Err(FdtError::NoSpace);
+    }
 
     let irq_maps = node.getprop_cells(cstr!("interrupt-map"))?.ok_or(FdtError::NotFound)?;
-    let irq_maps = CellChunkIterator::<{ PciInfo::IRQ_MAP_CELLS }>::new(irq_maps);
-    let irq_maps: ArrayVec<[PciIrqMap; PciInfo::MAX_IRQS]> =
-        irq_maps.take(PciInfo::MAX_IRQS).collect();
+    let mut chunks = CellChunkIterator::<{ PciInfo::IRQ_MAP_CELLS }>::new(irq_maps);
+    let irq_maps = (&mut chunks).take(PciInfo::MAX_IRQS).collect();
+
+    if chunks.next().is_some() {
+        warn!("Input DT has more than {} PCI entries!", PciInfo::MAX_IRQS);
+        return Err(FdtError::NoSpace);
+    }
 
     Ok(PciInfo { ranges: [range0, range1], irq_masks, irq_maps })
 }
