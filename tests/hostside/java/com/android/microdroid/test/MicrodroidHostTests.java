@@ -410,10 +410,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
     public void protectedVmRunsPvmfw() throws Exception {
         // Arrange
-        boolean protectedVm = true;
-        assumeTrue(
-                "Skip if protected VMs are not supported",
-                getAndroidDevice().supportsMicrodroid(protectedVm));
+        assumeProtectedVmSupported();
         final String configPath = "assets/vm_config_apex.json";
 
         // Act
@@ -422,7 +419,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         .debugLevel("full")
                         .memoryMib(minMemorySize())
                         .cpuTopology("match_host")
-                        .protectedVm(protectedVm)
+                        .protectedVm(true)
                         .build(getAndroidDevice());
 
         // Assert
@@ -441,16 +438,16 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @CddTest(requirements = {"9.17/C-2-1", "9.17/C-2-2", "9.17/C-2-6"})
     public void protectedVmWithImageSignedWithDifferentKeyRunsPvmfw() throws Exception {
         // Arrange
-        boolean protectedVm = true;
-        assumeTrue(
-                "Skip if protected VMs are not supported",
-                getAndroidDevice().supportsMicrodroid(protectedVm));
+        assumeProtectedVmSupported();
         File key = findTestFile("test.com.android.virt.pem");
 
         // Act
         VmInfo vmInfo =
                 runMicrodroidWithResignedImages(
-                        key, /*keyOverrides=*/ Map.of(), protectedVm, /*updateBootconfigs=*/ true);
+                        key,
+                        /*keyOverrides=*/ Map.of(),
+                        /* protectedVm=*/ true,
+                        /*updateBootconfigs=*/ true);
 
         // Assert
         vmInfo.mProcess.waitFor(5L, TimeUnit.SECONDS);
@@ -465,6 +462,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @CddTest(requirements = {"9.17/C-2-2", "9.17/C-2-6"})
     public void testBootSucceedsWhenNonProtectedVmStartsWithImagesSignedWithDifferentKey()
             throws Exception {
+        assumeNonProtectedVmSupported();
         File key = findTestFile("test.com.android.virt.pem");
         Map<String, File> keyOverrides = Map.of();
         VmInfo vmInfo =
@@ -481,6 +479,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @Test
     @CddTest(requirements = {"9.17/C-2-2", "9.17/C-2-6"})
     public void testBootFailsWhenVbMetaDigestDoesNotMatchBootconfig() throws Exception {
+        assumeNonProtectedVmSupported();
         // Sign everything with key1 except vbmeta
         File key = findTestFile("test.com.android.virt.pem");
         // To be able to stop it, it should be a daemon.
@@ -553,6 +552,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testTombstonesAreGeneratedUponUserspaceCrash() throws Exception {
+        assumeNonProtectedVmSupported();
         assertThat(
                         isTombstoneGeneratedWithCmd(
                                 false,
@@ -565,6 +565,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testTombstonesAreNotGeneratedIfNotExportedUponUserspaceCrash() throws Exception {
+        assumeNonProtectedVmSupported();
         assertThat(
                         isTombstoneGeneratedWithCmd(
                                 false,
@@ -591,19 +592,19 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testTombstonesAreGeneratedUponKernelCrashOnNonPvm() throws Exception {
-        testTombstonesAreGeneratedUponKernelCrash(false);
+        assumeNonProtectedVmSupported();
+        testTombstonesAreGeneratedUponKernelCrash(/* protectedVm=*/ false);
     }
 
     @Test
     public void testTombstonesAreGeneratedUponKernelCrashOnPvm() throws Exception {
-        assumeTrue(
-                "Protected VMs are not supported",
-                getAndroidDevice().supportsMicrodroid(/*protectedVm=*/ true));
-        testTombstonesAreGeneratedUponKernelCrash(true);
+        assumeProtectedVmSupported();
+        testTombstonesAreGeneratedUponKernelCrash(/* protectedVm=*/ true);
     }
 
     private boolean isTombstoneGeneratedWithVmRunApp(boolean debuggable, String... additionalArgs)
             throws Exception {
+        assumeNonProtectedVmSupported();
         // we can't use microdroid builder as it wants ADB connection (debuggable)
         CommandRunner android = new CommandRunner(getDevice());
 
@@ -661,6 +662,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testTelemetryPushedAtoms() throws Exception {
+        assumeNonProtectedVmSupported();
         // Reset statsd config and report before the test
         ConfigUtils.removeConfig(getDevice());
         ReportUtils.clearReports(getDevice());
@@ -737,6 +739,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-1-2", "9.17/C/1-3"})
     public void testMicrodroidBoots() throws Exception {
+        assumeNonProtectedVmSupported();
         CommandRunner android = new CommandRunner(getDevice());
 
         final String configPath = "assets/vm_config.json"; // path inside the APK
@@ -804,6 +807,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testMicrodroidRamUsage() throws Exception {
+        assumeNonProtectedVmSupported();
         final String configPath = "assets/vm_config.json";
         mMicrodroidDevice =
                 MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
@@ -1021,6 +1025,18 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         "grant",
                         SHELL_PACKAGE_NAME,
                         "android.permission.USE_CUSTOM_VIRTUAL_MACHINE");
+    }
+
+    private void assumeProtectedVmSupported() throws Exception {
+        assumeTrue(
+                "Test skipped because protected VMs are not supported",
+                getAndroidDevice().supportsMicrodroid(true));
+    }
+
+    private void assumeNonProtectedVmSupported() throws Exception {
+        assumeTrue(
+                "Test skipped because non-protected VMs are not supported",
+                getAndroidDevice().supportsMicrodroid(false));
     }
 
     private TestDevice getAndroidDevice() {
