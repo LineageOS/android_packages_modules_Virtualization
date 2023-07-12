@@ -60,8 +60,10 @@ impl TryFrom<Uuid> for HypervisorBackend {
             GeniezoneHypervisor::UUID => Ok(HypervisorBackend::Geniezone),
             GunyahHypervisor::UUID => Ok(HypervisorBackend::Gunyah),
             RegularKvmHypervisor::UUID => {
-                // Protected KVM has the same UUID so differentiate based on MEM_SHARE.
-                match ProtectedKvmHypervisor.as_mem_sharer().unwrap().granule() {
+                // Protected KVM has the same UUID as "regular" KVM so issue an HVC that is assumed
+                // to only be supported by pKVM: if it returns SUCCESS, deduce that this is pKVM
+                // and if it returns NOT_SUPPORTED assume that it is "regular" KVM.
+                match ProtectedKvmHypervisor.as_mmio_guard().unwrap().granule() {
                     Ok(_) => Ok(HypervisorBackend::ProtectedKvm),
                     Err(Error::KvmError(KvmError::NotSupported, _)) => {
                         Ok(HypervisorBackend::RegularKvm)
@@ -101,7 +103,7 @@ fn query_vendor_hyp_call_uid() -> Uuid {
 }
 
 fn detect_hypervisor() -> HypervisorBackend {
-    query_vendor_hyp_call_uid().try_into().expect("Unknown hypervisor")
+    query_vendor_hyp_call_uid().try_into().expect("Failed to detect hypervisor")
 }
 
 /// Gets the hypervisor singleton.

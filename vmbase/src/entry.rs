@@ -26,7 +26,8 @@ fn try_console_init() -> Result<(), hyp::Error> {
     console::init();
 
     if let Some(mmio_guard) = get_mmio_guard() {
-        mmio_guard.init()?;
+        mmio_guard.enroll()?;
+        mmio_guard.validate_granule()?;
         mmio_guard.map(console::BASE_ADDRESS)?;
     }
 
