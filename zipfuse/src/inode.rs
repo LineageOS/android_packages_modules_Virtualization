@@ -210,7 +210,7 @@ impl InodeTable {
                     parent = found;
                     // Update the mode if this is a directory leaf.
                     if !is_file && is_leaf {
-                        let mut inode = table.get_mut(parent).unwrap();
+                        let inode = table.get_mut(parent).unwrap();
                         inode.mode = file.unix_mode().unwrap_or(DEFAULT_DIR_MODE);
                     }
                     continue;
