@@ -82,8 +82,8 @@ enum Opt {
         #[clap(long)]
         log: Option<PathBuf>,
 
-        /// Debug level of the VM. Supported values: "none" (default), and "full".
-        #[clap(long, default_value = "none", value_parser = parse_debug_level)]
+        /// Debug level of the VM. Supported values: "full" (default), and "none".
+        #[clap(long, default_value = "full", value_parser = parse_debug_level)]
         debug: DebugLevel,
 
         /// Run VM in protected mode.
@@ -154,7 +154,7 @@ enum Opt {
         #[clap(long)]
         log: Option<PathBuf>,
 
-        /// Debug level of the VM. Supported values: "none" (default), and "full".
+        /// Debug level of the VM. Supported values: "full" (default), and "none".
         #[clap(long, default_value = "full", value_parser = parse_debug_level)]
         debug: DebugLevel,
 
