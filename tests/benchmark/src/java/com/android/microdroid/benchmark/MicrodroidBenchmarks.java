@@ -78,6 +78,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidBenchmarks";
     private static final String METRIC_NAME_PREFIX = getMetricPrefix() + "microdroid/";
     private static final int IO_TEST_TRIAL_COUNT = 5;
+    private static final int TEST_TRIAL_COUNT = 5;
     private static final long ONE_MEBI = 1024 * 1024;
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
@@ -766,5 +767,36 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             }
         }
         reportMetrics(requestLatencies, "latency/vsock", "us");
+    }
+
+    @Test
+    public void testVmKillTime() throws Exception {
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadConfigPath("assets/vm_config_io.json")
+                        .setDebugLevel(DEBUG_LEVEL_NONE)
+                        .build();
+        List<Double> vmKillTime = new ArrayList<>(TEST_TRIAL_COUNT);
+
+        for (int i = 0; i < TEST_TRIAL_COUNT; ++i) {
+            VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_kill_time" + i, config);
+            VmEventListener listener =
+                    new VmEventListener() {
+                        @Override
+                        public void onPayloadReady(VirtualMachine vm) {
+                            long start = System.nanoTime();
+                            try {
+                                vm.stop();
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error in vm.stop():" + e);
+                                throw new RuntimeException(e);
+                            }
+                            vmKillTime.add((double) (System.nanoTime() - start) / NANO_TO_MICRO);
+                            super.onPayloadReady(vm);
+                        }
+                    };
+            listener.runToFinish(TAG, vm);
+        }
+        reportMetrics(vmKillTime, "vm_kill_time", "microsecond");
     }
 }
