@@ -27,6 +27,7 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use buddy_system_allocator::{FrameAllocator, LockedFrameAllocator};
 use core::alloc::Layout;
+use core::cmp::max;
 use core::mem::size_of;
 use core::num::NonZeroUsize;
 use core::ops::Range;
@@ -354,6 +355,11 @@ pub fn alloc_shared(layout: Layout) -> hyp::Result<NonNull<u8>> {
 }
 
 fn try_shared_alloc(layout: Layout) -> Option<NonNull<u8>> {
+    // Adjusts the layout size to the max of the next power of two and the alignment,
+    // as this is the actual size of the memory allocated in `alloc_aligned()`.
+    let size = max(layout.size().next_power_of_two(), layout.align());
+    let layout = Layout::from_size_align(size, layout.align()).unwrap();
+
     let mut shared_pool = SHARED_POOL.get().unwrap().lock();
 
     if let Some(buffer) = shared_pool.alloc_aligned(layout) {
