@@ -23,10 +23,12 @@ mod util;
 pub use error::MemoryTrackerError;
 pub use page_table::PageTable;
 pub use shared::{
-    alloc_shared, dealloc_shared, handle_permission_fault, handle_translation_fault, MemoryRange,
-    MemoryTracker, MEMORY,
+    handle_permission_fault, handle_translation_fault, MemoryRange, MemoryTracker, MEMORY,
 };
 pub use util::{
-    flush, flushed_zeroize, min_dcache_line_size, page_4kb_of, phys_to_virt, virt_to_phys,
-    PAGE_SIZE, SIZE_128KB, SIZE_2MB, SIZE_4KB, SIZE_4MB, SIZE_64KB,
+    flush, flushed_zeroize, min_dcache_line_size, page_4kb_of, PAGE_SIZE, SIZE_128KB, SIZE_2MB,
+    SIZE_4KB, SIZE_4MB, SIZE_64KB,
 };
+
+pub(crate) use shared::{alloc_shared, dealloc_shared};
+pub(crate) use util::{phys_to_virt, virt_to_phys};
