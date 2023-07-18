@@ -88,7 +88,7 @@ pub const fn page_4kb_of(addr: usize) -> usize {
 ///
 /// As we use identity mapping for everything, this is just a cast, but it's useful to use it to be
 /// explicit about where we are converting from virtual to physical address.
-pub fn virt_to_phys(vaddr: NonNull<u8>) -> usize {
+pub(crate) fn virt_to_phys(vaddr: NonNull<u8>) -> usize {
     vaddr.as_ptr() as _
 }
 
@@ -96,6 +96,6 @@ pub fn virt_to_phys(vaddr: NonNull<u8>) -> usize {
 /// physical address.
 ///
 /// Panics if `paddr` is 0.
-pub fn phys_to_virt(paddr: usize) -> NonNull<u8> {
+pub(crate) fn phys_to_virt(paddr: usize) -> NonNull<u8> {
     NonNull::new(paddr as _).unwrap()
 }
