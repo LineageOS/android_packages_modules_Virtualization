@@ -233,13 +233,13 @@ fn uuid(node_id: &[u8]) -> Result<String> {
 }
 
 #[cfg(test)]
-ignorabletest::test_main!();
+rdroidtest::test_main!();
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crypt::{CipherType, DmCryptTargetBuilder};
-    use ignorabletest::test;
+    use rdroidtest::test;
     use rustutils::system_properties;
     use std::fs::{read, File, OpenOptions};
     use std::io::Write;
