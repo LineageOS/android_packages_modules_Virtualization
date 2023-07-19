@@ -18,6 +18,9 @@ cc_binary {
     static_executable: true,
     installable: false,
     compile_multilib: "64",
+    sanitize: {
+        hwaddress: false, // HWASAN setup fails when run as init process
+    },
 }
 
 android_filesystem {
