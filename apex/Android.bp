@@ -106,6 +106,7 @@ apex_defaults {
     ],
     host_required: [
         "vm_shell",
+        "prepare_device_vfio",
     ],
     apps: [
         "EmptyPayloadApp",
@@ -134,6 +135,12 @@ prebuilt_etc {
     src: "virtualizationservice.rc",
     filename: "init.rc",
     installable: false,
+}
+
+sh_binary_host {
+    name: "prepare_device_vfio",
+    src: "prepare_device_vfio.sh",
+    filename: "prepare_device_vfio.sh",
 }
 
 // Virt apex needs a custom signer for its payload
