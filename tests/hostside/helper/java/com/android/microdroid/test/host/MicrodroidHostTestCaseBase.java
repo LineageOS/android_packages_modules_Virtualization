@@ -89,6 +89,10 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         return DeviceProperties.create(getDevice()::getProperty).isCuttlefish();
     }
 
+    protected boolean isHwasan() {
+        return DeviceProperties.create(getDevice()::getProperty).isHwasan();
+    }
+
     protected String getMetricPrefix() {
         return MetricsProcessor.getMetricPrefix(
                 DeviceProperties.create(getDevice()::getProperty).getMetricsTag());
