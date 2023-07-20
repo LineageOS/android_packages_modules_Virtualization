@@ -386,7 +386,8 @@ fn check_access_mode(flags: u32, mode: libc::c_int) -> io::Result<()> {
 }
 
 cfg_if::cfg_if! {
-    if #[cfg(all(target_arch = "aarch64", target_pointer_width = "64"))] {
+    if #[cfg(all(any(target_arch = "aarch64", target_arch = "riscv64"),
+                 target_pointer_width = "64"))] {
         fn blk_size() -> libc::c_int { CHUNK_SIZE as libc::c_int }
     } else {
         fn blk_size() -> libc::c_long { CHUNK_SIZE as libc::c_long }
