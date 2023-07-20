@@ -50,18 +50,13 @@
         <option name="push-file" key="input.4m.fsv_meta.bad_merkle"
             value="/data/local/tmp/authfs/input.4m.fsv_meta.bad_merkle" />
 
-        <!-- Just pick a file with signature that can be trused on the device. -->
-        <option name="push-file" key="CtsApkVerityTestAppPrebuilt.apk"
-            value="/data/local/tmp/authfs/input.apk" />
-        <option name="push-file" key="CtsApkVerityTestAppPrebuilt.apk.fsv_sig"
-            value="/data/local/tmp/authfs/input.apk.fsv_sig" />
+        <option name="push-file" key="input.4m" value="/data/local/tmp/authfs/input.file" />
     </target_preparer>
 
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="throw-if-cmd-fail" value="true" />
-        <!-- Now that the files are pushed to the device, enable fs-verity for the targeting file.
-             It works because the signature is trusted on all CTS compatible devices. -->
-        <option name="run-command" value="cd /data/local/tmp/authfs; ../fsverity enable input.apk --signature=input.apk.fsv_sig" />
+        <!-- Now that the files are pushed to the device, enable fs-verity for the targeting file. -->
+        <option name="run-command" value="cd /data/local/tmp/authfs; ../fsverity enable input.file" />
     </target_preparer>
 
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
