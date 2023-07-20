@@ -145,17 +145,17 @@ public final class AuthFsHostTest extends BaseHostJUnit4Test {
 
     @Test
     public void testReadWithFsverityVerification_FdServerUsesRealFsverityData() throws Exception {
-        // Setup (fs-verity is enabled for input.apk in AndroidTest.xml)
-        runFdServerOnAndroid("--open-ro 3:input.apk", "--ro-fds 3");
-        String expectedDigest = sAndroid.run(
-                FSVERITY_BIN + " digest --compact " + TEST_DIR + "/input.apk");
+        // Setup (fs-verity is enabled for input.file in AndroidTest.xml)
+        runFdServerOnAndroid("--open-ro 3:input.file", "--ro-fds 3");
+        String expectedDigest =
+                sAndroid.run(FSVERITY_BIN + " digest --compact " + TEST_DIR + "/input.file");
         runAuthFsOnMicrodroid("--remote-ro-file 3:sha256-" + expectedDigest);
 
         // Action
         String actualHash = computeFileHash(sMicrodroid, MOUNT_DIR + "/3");
 
         // Verify
-        String expectedHash = computeFileHash(sAndroid, TEST_DIR + "/input.apk");
+        String expectedHash = computeFileHash(sAndroid, TEST_DIR + "/input.file");
         assertEquals("Inconsistent hash from /authfs/3: ", expectedHash, actualHash);
     }
 
