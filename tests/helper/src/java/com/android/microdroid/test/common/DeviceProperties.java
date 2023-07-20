@@ -28,10 +28,12 @@ public final class DeviceProperties {
 
     private static final String KEY_VENDOR_DEVICE = "ro.product.vendor.device";
     private static final String KEY_BUILD_TYPE = "ro.build.type";
+    private static final String KEY_PRODUCT_NAME = "ro.product.name";
     private static final String KEY_METRICS_TAG = "debug.hypervisor.metrics_tag";
 
     private static final String CUTTLEFISH_DEVICE_PREFIX = "vsoc_";
     private static final String USER_BUILD_TYPE = "user";
+    private static final String HWASAN_SUFFIX = "_hwasan";
 
     private final PropertyGetter mPropertyGetter;
 
@@ -50,6 +52,14 @@ public final class DeviceProperties {
     public boolean isCuttlefish() {
         String vendorDeviceName = getProperty(KEY_VENDOR_DEVICE);
         return vendorDeviceName != null && vendorDeviceName.startsWith(CUTTLEFISH_DEVICE_PREFIX);
+    }
+
+    /**
+     * @return whether the build is HWASAN.
+     */
+    public boolean isHwasan() {
+        String productName = getProperty(KEY_PRODUCT_NAME);
+        return productName != null && productName.contains(HWASAN_SUFFIX);
     }
 
     /**
