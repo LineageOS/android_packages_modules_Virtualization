@@ -77,10 +77,6 @@ pub struct MemoryTracker {
     payload_range: Option<MemoryRange>,
 }
 
-// TODO: Remove this once aarch64-paging crate is updated.
-// SAFETY: Only `PageTable` doesn't implement Send, but it should.
-unsafe impl Send for MemoryTracker {}
-
 impl MemoryTracker {
     const CAPACITY: usize = 5;
     const MMIO_CAPACITY: usize = 5;
