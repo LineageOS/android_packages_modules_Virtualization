@@ -992,8 +992,8 @@ impl FileSystem for AuthFs {
     fn statfs(&self, _ctx: Context, _inode: Self::Inode) -> io::Result<libc::statvfs64> {
         let remote_stat = self.remote_fs_stats_reader.statfs()?;
 
-        // Safe because we are zero-initializing a struct with only POD fields. Not all fields
-        // matter to FUSE. See also:
+        // SAFETY: We are zero-initializing a struct with only POD fields. Not all fields matter to
+        // FUSE. See also:
         // https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/fs/fuse/inode.c?h=v5.15#n460
         let mut st: libc::statvfs64 = unsafe { zeroed() };
 
