@@ -32,16 +32,6 @@ use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::slice;
 
-/// Derives a sealing key from the DICE sealing CDI.
-pub fn derive_sealing_key(
-    dice_artifacts: &dyn DiceArtifacts,
-    salt: &[u8],
-    info: &[u8],
-    key: &mut [u8],
-) -> Result<()> {
-    Ok(hkdf(key, Md::sha256(), dice_artifacts.cdi_seal(), salt, info)?)
-}
-
 /// Artifacts that are mapped into the process address space from the driver.
 pub enum DiceDriver<'a> {
     Real {
@@ -109,7 +99,7 @@ impl DiceDriver<'_> {
         // input key material is already cryptographically strong.
         let mut key = ZVec::new(key_length)?;
         let salt = &[];
-        derive_sealing_key(self.dice_artifacts(), salt, identifier, &mut key)?;
+        hkdf(&mut key, Md::sha256(), self.dice_artifacts().cdi_seal(), salt, identifier)?;
         Ok(key)
     }
 
