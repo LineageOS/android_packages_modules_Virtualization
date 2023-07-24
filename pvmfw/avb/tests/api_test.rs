@@ -243,10 +243,15 @@ fn kernel_footer_with_vbmeta_offset_overwritten_fails_verification() -> Result<(
     let total_len = kernel.len() as u64;
     let footer = extract_avb_footer(&kernel)?;
     assert!(footer.vbmeta_offset < total_len);
+    // TODO: use core::mem::offset_of once stable.
+    let footer_addr = ptr::addr_of!(footer) as *const u8;
     let vbmeta_offset_addr = ptr::addr_of!(footer.vbmeta_offset) as *const u8;
     let vbmeta_offset_start =
-    // SAFETY: It is safe as both raw pointers `vbmeta_offset_addr` and `footer` are not null.
-        unsafe { vbmeta_offset_addr.offset_from(ptr::addr_of!(footer) as *const u8) };
+        // SAFETY:
+        // - both raw pointers `vbmeta_offset_addr` and `footer_addr` are not null;
+        // - they are both derived from the `footer` object;
+        // - the offset is known from the struct definition to be a small positive number of bytes.
+        unsafe { vbmeta_offset_addr.offset_from(footer_addr) };
     let footer_start = kernel.len() - size_of::<AvbFooter>();
     let vbmeta_offset_start = footer_start + usize::try_from(vbmeta_offset_start)?;
 
