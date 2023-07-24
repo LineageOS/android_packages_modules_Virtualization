@@ -22,15 +22,21 @@ use android_system_virtualizationservice::{
     },
     binder::{ParcelFileDescriptor, ProcessState},
 };
-use anyhow::{anyhow, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use log::info;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::io::FromRawFd;
 use std::panic;
 use std::thread;
 use std::time::Duration;
 use vmclient::{DeathReason, VmInstance};
+use vsock::{VsockListener, VMADDR_CID_HOST};
+
+// TODO(b/291732060): Move the port numbers to the common library shared between the host
+// and rialto.
+const PROTECTED_VM_PORT: u32 = 5679;
+const NON_PROTECTED_VM_PORT: u32 = 5680;
 
 const SIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
 const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
@@ -124,6 +130,9 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<(),
     )
     .context("Failed to create VM")?;
 
+    let port = if protected_vm { PROTECTED_VM_PORT } else { NON_PROTECTED_VM_PORT };
+    let check_socket_handle = thread::spawn(move || try_check_socket_connection(port).unwrap());
+
     vm.start().context("Failed to start VM")?;
 
     // Wait for VM to finish, and check that it shut down cleanly.
@@ -132,6 +141,15 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<(),
         .ok_or_else(|| anyhow!("Timed out waiting for VM exit"))?;
     assert_eq!(death_reason, DeathReason::Shutdown);
 
+    match check_socket_handle.join() {
+        Ok(_) => {
+            info!(
+                "Received the echoed message. \
+                   The socket connection between the host and the service VM works correctly."
+            )
+        }
+        Err(_) => bail!("The socket connection check failed."),
+    }
     Ok(())
 }
 
@@ -149,4 +167,29 @@ fn android_log_fd() -> io::Result<File> {
         }
     });
     Ok(writer)
+}
+
+fn try_check_socket_connection(port: u32) -> Result<(), Error> {
+    info!("Setting up the listening socket on port {port}...");
+    let listener = VsockListener::bind_with_cid_port(VMADDR_CID_HOST, port)?;
+    info!("Listening on port {port}...");
+
+    let Some(Ok(mut vsock_stream)) = listener.incoming().next() else {
+        bail!("Failed to get vsock_stream");
+    };
+    info!("Accepted connection {:?}", vsock_stream);
+
+    let message = "Hello from host";
+    vsock_stream.write_all(message.as_bytes())?;
+    vsock_stream.flush()?;
+    info!("Sent message: {:?}.", message);
+
+    let mut buffer = vec![0u8; 30];
+    vsock_stream.set_read_timeout(Some(Duration::from_millis(1_000)))?;
+    let len = vsock_stream.read(&mut buffer)?;
+
+    assert_eq!(message.len(), len);
+    buffer[..len].reverse();
+    assert_eq!(message.as_bytes(), &buffer[..len]);
+    Ok(())
 }

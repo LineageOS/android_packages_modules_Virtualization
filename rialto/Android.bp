@@ -101,6 +101,7 @@ rust_test {
         "liblog_rust",
         "libnix",
         "libvmclient",
+        "libvsock",
     ],
     data: [
         ":rialto_bin",
