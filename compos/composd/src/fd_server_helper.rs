@@ -107,8 +107,9 @@ impl Drop for FdServer {
 
 fn create_pipe() -> Result<(File, File)> {
     let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC)?;
-    // SAFETY: We are the sole owners of these fds as they were just created.
+    // SAFETY: We are the sole owner of raw_read and it is valid as it was just created.
     let read_fd = unsafe { File::from_raw_fd(raw_read) };
+    // SAFETY: We are the sole owner of raw_write and it is valid as it was just created.
     let write_fd = unsafe { File::from_raw_fd(raw_write) };
     Ok((read_fd, write_fd))
 }

@@ -50,11 +50,11 @@ fn try_main() -> Result<()> {
     debug!("compsvc is starting as a rpc service.");
     let param = ptr::null_mut();
     let mut service = compsvc::new_binder()?.as_binder();
+    let service = service.as_native_mut() as *mut AIBinder;
+    // SAFETY: We hold a strong pointer, so the raw pointer remains valid. The bindgen AIBinder
+    // is the same type as sys::AIBinder. It is safe for on_ready to be invoked at any time, with
+    // any parameter.
     unsafe {
-        // SAFETY: We hold a strong pointer, so the raw pointer remains valid. The bindgen AIBinder
-        // is the same type as sys::AIBinder.
-        let service = service.as_native_mut() as *mut AIBinder;
-        // SAFETY: It is safe for on_ready to be invoked at any time, with any parameter.
         AVmPayload_runVsockRpcServer(service, COMPOS_VSOCK_PORT, Some(on_ready), param);
     }
     Ok(())

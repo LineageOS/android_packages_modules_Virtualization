@@ -48,7 +48,7 @@ fn mkswap(dev: &str) -> Result<()> {
         .checked_mul(512)
         .ok_or_else(|| anyhow!("sysfs_size too large"))?;
 
-    // safe because we give a constant and known-valid sysconf parameter
+    // SAFETY: We give a constant and known-valid sysconf parameter.
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) as u64 };
 
     let mut f = OpenOptions::new().read(false).write(true).open(format!("/dev/{}", dev))?;
@@ -75,7 +75,7 @@ fn mkswap(dev: &str) -> Result<()> {
 /// Simple "swapon", using libc:: wrapper.
 fn swapon(dev: &str) -> Result<()> {
     let swapon_arg = std::ffi::CString::new(format!("/dev/{}", dev))?;
-    // safe because we give a nul-terminated string and check the result
+    // SAFETY: We give a nul-terminated string and check the result.
     let res = unsafe { libc::swapon(swapon_arg.as_ptr(), 0) };
     if res != 0 {
         return Err(anyhow!("Failed to swapon: {}", Error::last_os_error()));
