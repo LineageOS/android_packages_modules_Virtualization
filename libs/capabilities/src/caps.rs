@@ -26,8 +26,8 @@ use nix::errno::Errno;
 /// Removes inheritable capabilities set for this process.
 /// See: https://man7.org/linux/man-pages/man7/capabilities.7.html
 pub fn drop_inheritable_caps() -> Result<()> {
+    // SAFETY: we do not manipulate memory handled by libcap.
     unsafe {
-        // SAFETY: we do not manipulate memory handled by libcap.
         let caps = cap_get_proc();
         scopeguard::defer! {
             cap_free(caps as *mut std::os::raw::c_void);
@@ -49,8 +49,8 @@ pub fn drop_inheritable_caps() -> Result<()> {
 pub fn drop_bounding_set() -> Result<()> {
     let mut cap_id: cap_value_t = 0;
     while cap_id <= CAP_LAST_CAP.try_into().unwrap() {
+        // SAFETY: we do not manipulate memory handled by libcap.
         unsafe {
-            // SAFETY: we do not manipulate memory handled by libcap.
             if cap_drop_bound(cap_id) == -1 {
                 let e = Errno::last();
                 bail!("cap_drop_bound failed for {}: {:?}", cap_id, e);

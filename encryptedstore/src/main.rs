@@ -153,6 +153,9 @@ fn mount(source: &Path, mountpoint: &Path) -> Result<()> {
     let mountpoint = CString::new(mountpoint.as_os_str().as_bytes())?;
     let fstype = CString::new("ext4").unwrap();
 
+    // SAFETY: The source, target and filesystemtype are valid C strings. For ext4, data is expected
+    // to be a C string as well, which it is. None of these pointers are retained after mount
+    // returns.
     let ret = unsafe {
         libc::mount(
             source.as_ptr(),
