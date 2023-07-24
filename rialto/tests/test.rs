@@ -140,6 +140,7 @@ fn android_log_fd() -> io::Result<File> {
 
     // SAFETY: These are new FDs with no previous owner.
     let reader = unsafe { File::from_raw_fd(reader_fd) };
+    // SAFETY: These are new FDs with no previous owner.
     let writer = unsafe { File::from_raw_fd(writer_fd) };
 
     thread::spawn(|| {
