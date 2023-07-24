@@ -31,7 +31,7 @@ use std::ffi::{CStr, CString};
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::io::Read;
-use std::mem::size_of;
+use std::mem::{size_of, MaybeUninit};
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
@@ -192,7 +192,8 @@ impl ZipFuse {
     #[allow(clippy::useless_conversion)]
     fn stat_from(&self, inode: Inode) -> io::Result<libc::stat64> {
         let inode_data = self.find_inode(inode)?;
-        let mut st = unsafe { std::mem::MaybeUninit::<libc::stat64>::zeroed().assume_init() };
+        // SAFETY: All fields of stat64 are valid for zero byte patterns.
+        let mut st = unsafe { MaybeUninit::<libc::stat64>::zeroed().assume_init() };
         st.st_dev = 0;
         st.st_nlink = if let Some(directory) = inode_data.get_directory() {
             (2 + directory.len() as libc::nlink_t).into()

@@ -193,7 +193,7 @@ fn main() -> Result<()> {
 
 /// Prepares a socket file descriptor for the vm payload service.
 ///
-/// # Safety requirement
+/// # Safety
 ///
 /// The caller must ensure that this function is the only place that claims ownership
 /// of the file descriptor and it is called only once.
@@ -267,6 +267,8 @@ fn post_payload_work() -> Result<()> {
     if Path::new(ENCRYPTEDSTORE_BACKING_DEVICE).exists() {
         let mountpoint = CString::new(ENCRYPTEDSTORE_MOUNTPOINT).unwrap();
 
+        // SAFETY: `mountpoint` is a valid C string. `syncfs` and `close` are safe for any parameter
+        // values.
         let ret = unsafe {
             let dirfd = libc::open(
                 mountpoint.as_ptr(),
