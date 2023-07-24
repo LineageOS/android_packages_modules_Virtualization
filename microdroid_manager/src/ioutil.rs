@@ -28,6 +28,10 @@ use std::time::{Duration, Instant};
 const SLEEP_DURATION: Duration = Duration::from_millis(5);
 
 /// waits for a file with a timeout and returns it
+///
+/// WARNING: This only guarantees file creation. When there's another thread
+///   writing a file and you're waiting for the file, reading the file should be
+///   synchronized with other mechanism than just waiting for the creation.
 pub fn wait_for_file<P: AsRef<Path> + Debug>(path: P, timeout: Duration) -> Result<File> {
     debug!("waiting for {:?}...", path);
     let begin = Instant::now();
@@ -64,15 +68,21 @@ pub fn blkflsbuf(f: &mut File) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::rename;
     use std::io::{Read, Write};
 
     #[test]
     fn test_wait_for_file() -> Result<()> {
         let test_dir = tempfile::TempDir::new().unwrap();
         let test_file = test_dir.path().join("test.txt");
+        let temp_file = test_dir.path().join("test.txt~");
         thread::spawn(move || -> io::Result<()> {
+            // Sleep to ensure that `wait_for_file` actually waits
             thread::sleep(Duration::from_secs(1));
-            File::create(test_file)?.write_all(b"test")
+            // Write to a temp file and then rename it to avoid the race between
+            // write and read.
+            File::create(&temp_file)?.write_all(b"test")?;
+            rename(temp_file, test_file)
         });
 
         let test_file = test_dir.path().join("test.txt");
