@@ -41,6 +41,10 @@ pub enum Error {
     VirtIOSocketCreationFailed(virtio_drivers::Error),
     /// Missing socket device.
     MissingVirtIOSocketDevice,
+    /// Failed VirtIO driver operation.
+    VirtIODriverOperationFailed(virtio_drivers::Error),
+    /// Failed to receive data.
+    ReceivingDataFailed(virtio_drivers::Error),
 }
 
 impl fmt::Display for Error {
@@ -58,6 +62,10 @@ impl fmt::Display for Error {
                 write!(f, "Failed to create VirtIO Socket device: {e}")
             }
             Self::MissingVirtIOSocketDevice => write!(f, "Missing VirtIO Socket device."),
+            Self::VirtIODriverOperationFailed(e) => {
+                write!(f, "Failed VirtIO driver operation: {e}")
+            }
+            Self::ReceivingDataFailed(e) => write!(f, "Failed to receive data: {e}"),
         }
     }
 }
@@ -89,5 +97,11 @@ impl From<PciError> for Error {
 impl From<MemoryTrackerError> for Error {
     fn from(e: MemoryTrackerError) -> Self {
         Self::MemoryOperationFailed(e)
+    }
+}
+
+impl From<virtio_drivers::Error> for Error {
+    fn from(e: virtio_drivers::Error) -> Self {
+        Self::VirtIODriverOperationFailed(e)
     }
 }
