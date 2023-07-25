@@ -23,6 +23,8 @@ import static com.android.tradefed.testtype.DeviceJUnit4ClassRunner.TestLogData;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
+import static org.junit.Assume.assumeFalse;
+
 import android.platform.test.annotations.RootPermissionTest;
 
 import com.android.microdroid.test.host.CommandRunner;
@@ -81,6 +83,8 @@ public final class ComposTestCase extends MicrodroidHostTestCaseBase {
     @Before
     public void setUp() throws Exception {
         assumeDeviceIsCapable(getDevice());
+        // Test takes too long to run on Cuttlefish (b/292824951).
+        assumeFalse("Skipping test on Cuttlefish", isCuttlefish());
 
         String value = getDevice().getProperty(SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME);
         if (value == null) {
