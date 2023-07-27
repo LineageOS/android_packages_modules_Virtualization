@@ -19,6 +19,7 @@ use crate::atom::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_e
 use crate::rkpvm::request_certificate;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationservice::{
+    aidl::android::system::virtualizationservice::AssignableDevice::AssignableDevice,
     aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo,
     binder::ParcelFileDescriptor,
 };
@@ -169,6 +170,16 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             error!("Failed to get certificate. Error: {e:?}");
             Status::new_exception_str(ExceptionCode::SERVICE_SPECIFIC, Some(e.to_string()))
         })
+    }
+
+    fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
+        check_use_custom_virtual_machine()?;
+
+        // TODO(b/291191362): read VM DTBO to find assignable devices.
+        Ok(vec![AssignableDevice {
+            kind: "eh".to_owned(),
+            node: "/sys/bus/platform/devices/16d00000.eh".to_owned(),
+        }])
     }
 }
 
@@ -392,4 +403,9 @@ fn check_debug_access() -> binder::Result<()> {
 /// Check whether the caller of the current Binder method is allowed to manage VMs
 fn check_manage_access() -> binder::Result<()> {
     check_permission("android.permission.MANAGE_VIRTUAL_MACHINE")
+}
+
+/// Check whether the caller of the current Binder method is allowed to use custom VMs
+fn check_use_custom_virtual_machine() -> binder::Result<()> {
+    check_permission("android.permission.USE_CUSTOM_VIRTUAL_MACHINE")
 }
