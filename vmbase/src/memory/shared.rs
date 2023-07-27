@@ -341,11 +341,7 @@ impl Drop for MemoryTracker {
 /// Allocates a memory range of at least the given size and alignment that is shared with the host.
 /// Returns a pointer to the buffer.
 pub(crate) fn alloc_shared(layout: Layout) -> hyp::Result<NonNull<u8>> {
-    // TODO(b/291586508): We have temporarily removed the non-zero check for layout.size() to
-    // enable the Rialto socket device to connect or shut down, as the socket driver adds empty
-    // buffers in these scenarios.
-    // We will add the check back once this issue is fixed in the driver.
-
+    assert_ne!(layout.size(), 0);
     let Some(buffer) = try_shared_alloc(layout) else {
         handle_alloc_error(layout);
     };
