@@ -15,6 +15,7 @@
  */
 package android.system.virtualizationservice;
 
+import android.system.virtualizationservice.AssignableDevice;
 import android.system.virtualizationservice.IVirtualMachine;
 import android.system.virtualizationservice.PartitionType;
 import android.system.virtualizationservice.VirtualMachineConfig;
@@ -55,4 +56,9 @@ interface IVirtualizationService {
      * and as such is only permitted from the shell user.
      */
     VirtualMachineDebugInfo[] debugListVms();
+
+    /**
+     * Get a list of assignable device types.
+     */
+    AssignableDevice[] getAssignableDevices();
 }
