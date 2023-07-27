@@ -78,7 +78,7 @@ fn check_virtio_block_device(transport: PciTransport, index: usize) {
             assert_eq!(blk.capacity(), EXPECTED_SECTOR_COUNT as u64);
             let mut data = [0; SECTOR_SIZE_BYTES * EXPECTED_SECTOR_COUNT];
             for i in 0..EXPECTED_SECTOR_COUNT {
-                blk.read_block(i, &mut data[i * SECTOR_SIZE_BYTES..(i + 1) * SECTOR_SIZE_BYTES])
+                blk.read_blocks(i, &mut data[i * SECTOR_SIZE_BYTES..(i + 1) * SECTOR_SIZE_BYTES])
                     .expect("Failed to read block device.");
             }
             for (i, chunk) in data.chunks(size_of::<u32>()).enumerate() {
@@ -89,7 +89,7 @@ fn check_virtio_block_device(transport: PciTransport, index: usize) {
         1 => {
             assert_eq!(blk.capacity(), 0);
             let mut data = [0; SECTOR_SIZE_BYTES];
-            assert_eq!(blk.read_block(0, &mut data), Err(Error::IoError));
+            assert_eq!(blk.read_blocks(0, &mut data), Err(Error::IoError));
         }
         _ => panic!("Unexpected VirtIO block device index {}.", index),
     }
