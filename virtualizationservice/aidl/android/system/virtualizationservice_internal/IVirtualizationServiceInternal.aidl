@@ -15,6 +15,7 @@
  */
 package android.system.virtualizationservice_internal;
 
+import android.system.virtualizationservice.AssignableDevice;
 import android.system.virtualizationservice.VirtualMachineDebugInfo;
 import android.system.virtualizationservice_internal.AtomVmBooted;
 import android.system.virtualizationservice_internal.AtomVmCreationRequested;
@@ -59,4 +60,9 @@ interface IVirtualizationServiceInternal {
      * @return the X.509 encoded certificate.
      */
     byte[] requestCertificate(in byte[] csr, in ParcelFileDescriptor instanceImgFd);
+
+    /**
+     * Get a list of assignable devices.
+     */
+    AssignableDevice[] getAssignableDevices();
 }
