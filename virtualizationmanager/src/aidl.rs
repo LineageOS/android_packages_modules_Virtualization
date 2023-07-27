@@ -28,6 +28,7 @@ use android_system_virtualizationcommon::aidl::android::system::virtualizationco
     ErrorCode::ErrorCode,
 };
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
+    AssignableDevice::AssignableDevice,
     CpuTopology::CpuTopology,
     DiskImage::DiskImage,
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
@@ -269,6 +270,12 @@ impl IVirtualizationService for VirtualizationService {
     fn debugListVms(&self) -> binder::Result<Vec<VirtualMachineDebugInfo>> {
         // Delegate to the global service, including checking the debug permission.
         GLOBAL_SERVICE.debugListVms()
+    }
+
+    /// Get a list of assignable device types.
+    fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
+        // Delegate to the global service, including checking the permission.
+        GLOBAL_SERVICE.getAssignableDevices()
     }
 }
 
@@ -1236,7 +1243,7 @@ impl IVirtualMachineService for VirtualMachineService {
             return Err(Status::new_service_specific_error_str(
                 -1,
                 Some(format!("cannot find a VM with CID {}", cid)),
-            ))
+            ));
         };
         let instance_img_path = vm.temporary_directory.join("rkpvm_instance.img");
         let instance_img = OpenOptions::new()
