@@ -20,6 +20,7 @@
 mod communication;
 mod error;
 mod exceptions;
+mod requests;
 
 extern crate alloc;
 
@@ -31,7 +32,6 @@ use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
-use service_vm_comm::{Request, Response};
 use virtio_drivers::{
     device::socket::VsockAddr,
     transport::{pci::bus::PciRoot, DeviceType, Transport},
@@ -139,9 +139,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
-    let response = match vsock_stream.read_request()? {
-        Request::Reverse(v) => Response::Reverse(v.into_iter().rev().collect()),
-    };
+    let response = requests::process_request(vsock_stream.read_request()?);
     vsock_stream.write_response(&response)?;
     vsock_stream.shutdown()?;
 
