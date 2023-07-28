@@ -65,4 +65,12 @@ interface IVirtualizationServiceInternal {
      * Get a list of assignable devices.
      */
     AssignableDevice[] getAssignableDevices();
+
+    /**
+     * Bind given devices to vfio driver.
+     *
+     * @param devices paths of sysfs nodes of devices to assign.
+     * @return a file descriptor containing DTBO for VM.
+     */
+    ParcelFileDescriptor bindDevicesToVfioDriver(in String[] devices);
 }
