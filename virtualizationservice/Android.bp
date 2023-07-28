@@ -36,6 +36,7 @@ rust_binary {
         "libstatslog_virtualization_rust",
         "libtombstoned_client_rust",
         "libvsock",
+        "liblazy_static",
     ],
     apex_available: ["com.android.virt"],
 }
