@@ -74,12 +74,14 @@ device tree overlay like below to the Pixel-specific partition `dpm`.
 
         __overlay__ {
             avf {
-                common {
-                    log = <1>; // Enable kernel log and logcat
-                    ramdump = <1>; // Enable ramdump
-                }
-                microdroid {
-                    adb = <1>; // Enable ADB connection
+                guest {
+                    common {
+                        log = <1>; // Enable kernel log and logcat
+                        ramdump = <1>; // Enable ramdump
+                    }
+                    microdroid {
+                        adb = <1>; // Enable ADB connection
+                    }
                 }
             };
         };
