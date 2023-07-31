@@ -24,9 +24,11 @@ use core::str;
 use crate::console;
 use crate::cstr;
 use crate::eprintln;
+use crate::rand::fill_with_entropy;
 use crate::read_sysreg;
 
 const EOF: c_int = -1;
+const EIO: c_int = 5;
 
 /// Bionic thread-local storage.
 #[repr(C)]
@@ -83,6 +85,21 @@ fn set_errno(value: c_int) {
 fn get_errno() -> c_int {
     // SAFETY: vmbase is currently single-threaded.
     unsafe { ERRNO }
+}
+
+#[no_mangle]
+extern "C" fn getentropy(buffer: *mut c_void, length: usize) -> c_int {
+    if length > 256 {
+        // The maximum permitted value for the length argument is 256.
+        set_errno(EIO);
+        return -1;
+    }
+
+    // SAFETY: Just like libc, we need to assume that `ptr` is valid.
+    let buffer = unsafe { slice::from_raw_parts_mut(buffer.cast::<u8>(), length) };
+    fill_with_entropy(buffer).unwrap();
+
+    0
 }
 
 /// Reports a fatal error detected by Bionic.

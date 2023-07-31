@@ -153,15 +153,3 @@ pub fn random_array<const N: usize>() -> Result<[u8; N]> {
     fill_with_entropy(&mut arr)?;
     Ok(arr)
 }
-
-#[no_mangle]
-extern "C" fn CRYPTO_sysrand_for_seed(out: *mut u8, req: usize) {
-    CRYPTO_sysrand(out, req)
-}
-
-#[no_mangle]
-extern "C" fn CRYPTO_sysrand(out: *mut u8, req: usize) {
-    // SAFETY: We need to assume that out points to valid memory of size req.
-    let s = unsafe { core::slice::from_raw_parts_mut(out, req) };
-    fill_with_entropy(s).unwrap()
-}
