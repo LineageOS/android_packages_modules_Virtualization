@@ -115,6 +115,8 @@ pub struct CrosvmConfig {
     pub platform_version: VersionReq,
     pub detect_hangup: bool,
     pub gdb_port: Option<NonZeroU16>,
+    pub vfio_devices: Vec<PathBuf>,
+    pub devices_dtbo: Option<File>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -185,6 +187,7 @@ impl VmState {
         if let VmState::NotStarted { config } = state {
             let detect_hangup = config.detect_hangup;
             let (failure_pipe_read, failure_pipe_write) = create_pipe()?;
+            let vfio_devices = config.vfio_devices.clone();
 
             // If this fails and returns an error, `self` will be left in the `Failed` state.
             let child =
@@ -199,7 +202,7 @@ impl VmState {
             let child_clone = child.clone();
             let instance_clone = instance.clone();
             let monitor_vm_exit_thread = Some(thread::spawn(move || {
-                instance_clone.monitor_vm_exit(child_clone, failure_pipe_read);
+                instance_clone.monitor_vm_exit(child_clone, failure_pipe_read, vfio_devices);
             }));
 
             if detect_hangup {
@@ -336,7 +339,12 @@ impl VmInstance {
     /// Monitors the exit of the VM (i.e. termination of the `child` process). When that happens,
     /// handles the event by updating the state, noityfing the event to clients by calling
     /// callbacks, and removing temporary files for the VM.
-    fn monitor_vm_exit(&self, child: Arc<SharedChild>, mut failure_pipe_read: File) {
+    fn monitor_vm_exit(
+        &self,
+        child: Arc<SharedChild>,
+        mut failure_pipe_read: File,
+        vfio_devices: Vec<PathBuf>,
+    ) {
         let result = child.wait();
         match &result {
             Err(e) => error!("Error waiting for crosvm({}) instance to die: {}", child.id(), e),
@@ -394,6 +402,11 @@ impl VmInstance {
         remove_temporary_files(&self.temporary_directory).unwrap_or_else(|e| {
             error!("Error removing temporary files from {:?}: {}", self.temporary_directory, e);
         });
+
+        // TODO(b/278008182): clean up assigned devices.
+        for device in vfio_devices.iter() {
+            info!("NOT RELEASING {device:?}");
+        }
     }
 
     /// Waits until payload is started, or timeout expires. When timeout occurs, kill
@@ -677,6 +690,39 @@ fn exit_signal(result: &Result<ExitStatus, io::Error>) -> Option<i32> {
     }
 }
 
+const SYSFS_PLATFORM_DEVICES_PATH: &str = "/sys/devices/platform/";
+const VFIO_PLATFORM_DRIVER_PATH: &str = "/sys/bus/platform/drivers/vfio-platform";
+
+fn vfio_argument_for_platform_device(path: &Path) -> Result<String, Error> {
+    // Check platform device exists
+    let path = path.canonicalize()?;
+    if !path.starts_with(SYSFS_PLATFORM_DEVICES_PATH) {
+        bail!("{path:?} is not a platform device");
+    }
+
+    // Check platform device is bound to VFIO driver
+    let dev_driver_path = path.join("driver").canonicalize()?;
+    if dev_driver_path != Path::new(VFIO_PLATFORM_DRIVER_PATH) {
+        bail!("{path:?} is not bound to VFIO-platform driver");
+    }
+
+    if let Some(p) = path.to_str() {
+        Ok(format!("--vfio={p},iommu=viommu"))
+    } else {
+        bail!("invalid path {path:?}");
+    }
+}
+
+fn append_platform_devices(command: &mut Command, config: &CrosvmConfig) -> Result<(), Error> {
+    for device in &config.vfio_devices {
+        command.arg(vfio_argument_for_platform_device(device)?);
+    }
+    if let Some(_dtbo) = &config.devices_dtbo {
+        // TODO(b/291192693): add dtbo to command line
+    }
+    Ok(())
+}
+
 /// Starts an instance of `crosvm` to manage a new VM.
 fn run_vm(
     config: CrosvmConfig,
@@ -832,6 +878,8 @@ fn run_vm(
     command
         .arg("--socket")
         .arg(add_preserved_fd(&mut preserved_fds, &control_server_socket.as_raw_descriptor()));
+
+    append_platform_devices(&mut command, &config)?;
 
     debug!("Preserving FDs {:?}", preserved_fds);
     command.preserved_fds(preserved_fds);

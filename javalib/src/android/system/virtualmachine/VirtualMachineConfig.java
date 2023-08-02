@@ -62,6 +62,8 @@ import java.util.zip.ZipFile;
 public final class VirtualMachineConfig {
     private static final String TAG = "VirtualMachineConfig";
 
+    private static String[] EMPTY_STRING_ARRAY = {};
+
     // These define the schema of the config file persisted on disk.
     private static final int VERSION = 6;
     private static final String KEY_VERSION = "version";
@@ -517,7 +519,8 @@ public final class VirtualMachineConfig {
         if (mVendorDiskImage != null) {
             VirtualMachineAppConfig.CustomConfig customConfig =
                     new VirtualMachineAppConfig.CustomConfig();
-            customConfig.taskProfiles = new String[0];
+            customConfig.taskProfiles = EMPTY_STRING_ARRAY;
+            customConfig.devices = EMPTY_STRING_ARRAY;
             try {
                 customConfig.vendorImage =
                         ParcelFileDescriptor.open(mVendorDiskImage, MODE_READ_ONLY);
