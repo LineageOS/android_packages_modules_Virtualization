@@ -66,6 +66,7 @@ pub fn command_run_app(
     gdb: Option<NonZeroU16>,
     kernel: Option<&Path>,
     vendor: Option<&Path>,
+    devices: Vec<PathBuf>,
 ) -> Result<(), Error> {
     let apk_file = File::open(apk).context("Failed to open APK file")?;
 
@@ -148,6 +149,12 @@ pub fn command_run_app(
         gdbPort: gdb.map(u16::from).unwrap_or(0) as i32, // 0 means no gdb
         taskProfiles: task_profiles,
         vendorImage: vendor,
+        devices: devices
+            .iter()
+            .map(|x| {
+                x.to_str().map(String::from).ok_or(anyhow!("Failed to convert {x:?} to String"))
+            })
+            .collect::<Result<_, _>>()?,
     };
 
     let config = VirtualMachineConfig::AppConfig(VirtualMachineAppConfig {
@@ -208,6 +215,7 @@ pub fn command_run_microdroid(
     gdb: Option<NonZeroU16>,
     kernel: Option<&Path>,
     vendor: Option<&Path>,
+    devices: Vec<PathBuf>,
 ) -> Result<(), Error> {
     let apk = find_empty_payload_apk_path()?;
     println!("found path {}", apk.display());
@@ -242,6 +250,7 @@ pub fn command_run_microdroid(
         gdb,
         kernel,
         vendor,
+        devices,
     )
 }
 
