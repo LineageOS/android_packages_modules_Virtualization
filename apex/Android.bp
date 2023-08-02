@@ -76,6 +76,7 @@ apex_defaults {
         arm64: {
             binaries: [
                 "crosvm",
+                "vfio_handler",
                 "virtmgr",
                 "virtualizationservice",
             ],
@@ -84,6 +85,7 @@ apex_defaults {
         x86_64: {
             binaries: [
                 "crosvm",
+                "vfio_handler",
                 "virtmgr",
                 "virtualizationservice",
             ],

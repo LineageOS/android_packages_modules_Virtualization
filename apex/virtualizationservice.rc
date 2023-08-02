@@ -19,3 +19,10 @@ service virtualizationservice /apex/com.android.virt/bin/virtualizationservice
     interface aidl android.system.virtualizationservice
     disabled
     oneshot
+
+service vfio_handler /apex/com.android.virt/bin/vfio_handler
+    user root
+    group root
+    interface aidl android.system.virtualizationservice_internal.IVfioHandler
+    disabled
+    oneshot
