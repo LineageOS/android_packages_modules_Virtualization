@@ -76,8 +76,8 @@ pub(crate) fn request_certificate(
         memoryMib: 300,
         cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
-        taskProfiles: vec![],
         gdbPort: 0, // No gdb
+        ..Default::default()
     });
     let vm = VmInstance::create(service.as_ref(), &config, None, None, None, None)
         .context("Failed to create service VM")?;

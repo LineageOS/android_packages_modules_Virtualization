@@ -62,9 +62,10 @@ use nix::unistd::pipe;
 use rpcbinder::RpcServer;
 use rustutils::system_properties;
 use semver::VersionReq;
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::ffi::CStr;
-use std::fs::{read_dir, remove_file, File, OpenOptions};
+use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Write};
 use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -337,7 +338,8 @@ impl VirtualizationService {
                 // - controlling CPUs;
                 // - specifying a config file in the APK; (this one is not part of CustomConfig)
                 // - gdbPort is set, meaning that crosvm will start a gdb server;
-                // - using anything other than the default kernel.
+                // - using anything other than the default kernel;
+                // - specifying devices to be assigned.
                 config.customConfig.is_some() || matches!(config.payload, Payload::ConfigPath(_))
             }
         };
@@ -456,6 +458,27 @@ impl VirtualizationService {
             }
         };
 
+        let devices_dtbo = if !config.devices.is_empty() {
+            let mut set = HashSet::new();
+            for device in config.devices.iter() {
+                let path = canonicalize(device).map_err(|e| {
+                    Status::new_exception_str(
+                        ExceptionCode::ILLEGAL_ARGUMENT,
+                        Some(format!("can't canonicalize {device}: {e:?}")),
+                    )
+                })?;
+                if !set.insert(path) {
+                    return Err(Status::new_exception_str(
+                        ExceptionCode::ILLEGAL_ARGUMENT,
+                        Some(format!("duplicated device {device}")),
+                    ));
+                }
+            }
+            Some(clone_file(&GLOBAL_SERVICE.bindDevicesToVfioDriver(&config.devices)?)?)
+        } else {
+            None
+        };
+
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
             cid,
@@ -479,6 +502,8 @@ impl VirtualizationService {
             platform_version: parse_platform_version_req(&config.platformVersion)?,
             detect_hangup: is_app_config,
             gdb_port,
+            vfio_devices: config.devices.iter().map(PathBuf::from).collect(),
+            devices_dtbo,
         };
         let instance = Arc::new(
             VmInstance::new(
@@ -641,6 +666,8 @@ fn load_app_config(
             add_microdroid_vendor_image(clone_file(file)?, &mut vm_config);
             append_kernel_param("androidboot.microdroid.mount_vendor=1", &mut vm_config)
         }
+
+        vm_config.devices = custom_config.devices.clone();
     }
 
     if config.memoryMib > 0 {
