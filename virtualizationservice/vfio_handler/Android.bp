@@ -3,8 +3,8 @@ package {
 }
 
 rust_binary {
-    name: "virtualizationservice",
-    crate_name: "virtualizationservice",
+    name: "vfio_handler",
+    crate_name: "vfio_handler",
     edition: "2021",
     srcs: ["src/main.rs"],
     // Only build on targets which crosvm builds on.
@@ -20,22 +20,12 @@ rust_binary {
     },
     prefer_rlib: true,
     rustlibs: [
-        "android.system.virtualizationcommon-rust",
-        "android.system.virtualizationservice-rust",
         "android.system.virtualizationservice_internal-rust",
-        "android.system.virtualmachineservice-rust",
-        "android.os.permissions_aidl-rust",
         "libandroid_logger",
-        "libanyhow",
         "libbinder_rs",
-        "libvmclient",
-        "liblibc",
         "liblog_rust",
         "libnix",
-        "librustutils",
-        "libstatslog_virtualization_rust",
-        "libtombstoned_client_rust",
-        "libvsock",
+        "liblazy_static",
     ],
     apex_available: ["com.android.virt"],
 }
