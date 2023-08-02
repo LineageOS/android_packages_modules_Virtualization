@@ -21,7 +21,7 @@ use android_system_virtualizationservice::{
     binder::ParcelFileDescriptor,
 };
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
@@ -57,6 +57,9 @@ pub struct VmConfig {
     /// Version or range of versions of the virtual platform that this config is compatible with.
     /// The format follows SemVer (https://semver.org).
     pub platform_version: VersionReq,
+    /// SysFS paths of devices assigned to the VM.
+    #[serde(default)]
+    pub devices: Vec<PathBuf>,
 }
 
 impl VmConfig {
@@ -103,6 +106,13 @@ impl VmConfig {
             protectedVm: self.protected,
             memoryMib: memory_mib,
             platformVersion: self.platform_version.to_string(),
+            devices: self
+                .devices
+                .iter()
+                .map(|x| {
+                    x.to_str().map(String::from).ok_or(anyhow!("Failed to convert {x:?} to String"))
+                })
+                .collect::<Result<_>>()?,
             ..Default::default()
         })
     }
