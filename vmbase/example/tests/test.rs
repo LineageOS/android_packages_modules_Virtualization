@@ -101,8 +101,8 @@ fn test_run_example_vm() -> Result<(), Error> {
         memoryMib: 300,
         cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
-        taskProfiles: vec![],
         gdbPort: 0, // no gdb
+        ..Default::default()
     });
     let (handle, console) = android_log_fd()?;
     let (mut log_reader, log_writer) = pipe()?;
