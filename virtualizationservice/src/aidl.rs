@@ -183,12 +183,18 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         }])
     }
 
-    fn bindDevicesToVfioDriver(&self, devices: &[String]) -> binder::Result<ParcelFileDescriptor> {
+    fn bindDevicesToVfioDriver(
+        &self,
+        devices: &[String],
+        dtbo: &ParcelFileDescriptor,
+    ) -> binder::Result<()> {
         check_use_custom_virtual_machine()?;
 
         let vfio_service: Strong<dyn IVfioHandler> =
             wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())?;
-        vfio_service.bindDevicesToVfioDriver(devices)
+
+        vfio_service.bindDevicesToVfioDriver(devices, dtbo)?;
+        Ok(())
     }
 }
 
