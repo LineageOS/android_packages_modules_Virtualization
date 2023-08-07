@@ -474,7 +474,27 @@ impl VirtualizationService {
                     ));
                 }
             }
-            Some(clone_file(&GLOBAL_SERVICE.bindDevicesToVfioDriver(&config.devices)?)?)
+            let dtbo_path = temporary_directory.join("dtbo");
+            // open a writable file descriptor for vfio_handler
+            let dtbo = File::create(&dtbo_path).map_err(|e| {
+                error!("Failed to create VM DTBO file {dtbo_path:?}: {e:?}");
+                Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to create VM DTBO file {dtbo_path:?}: {e:?}")),
+                )
+            })?;
+            GLOBAL_SERVICE
+                .bindDevicesToVfioDriver(&config.devices, &ParcelFileDescriptor::new(dtbo))?;
+
+            // open (again) a readable file descriptor for crosvm
+            let dtbo = File::open(&dtbo_path).map_err(|e| {
+                error!("Failed to open VM DTBO file {dtbo_path:?}: {e:?}");
+                Status::new_service_specific_error_str(
+                    -1,
+                    Some(format!("Failed to open VM DTBO file {dtbo_path:?}: {e:?}")),
+                )
+            })?;
+            Some(dtbo)
         } else {
             None
         };

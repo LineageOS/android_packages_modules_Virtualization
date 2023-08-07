@@ -18,11 +18,9 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 use android_system_virtualizationservice_internal::binder::ParcelFileDescriptor;
 use binder::{self, ExceptionCode, Interface, Status};
 use lazy_static::lazy_static;
-use std::fs::{read_link, write, File};
-use std::os::fd::FromRawFd;
+use std::fs::{read_link, write};
+use std::io::Write;
 use std::path::Path;
-use nix::fcntl::OFlag;
-use nix::unistd::pipe2;
 
 #[derive(Debug, Default)]
 pub struct VfioHandler {}
@@ -36,7 +34,11 @@ impl VfioHandler {
 impl Interface for VfioHandler {}
 
 impl IVfioHandler for VfioHandler {
-    fn bindDevicesToVfioDriver(&self, devices: &[String]) -> binder::Result<ParcelFileDescriptor> {
+    fn bindDevicesToVfioDriver(
+        &self,
+        devices: &[String],
+        dtbo: &ParcelFileDescriptor,
+    ) -> binder::Result<()> {
         // permission check is already done by IVirtualizationServiceInternal.
         if !*IS_VFIO_SUPPORTED {
             return Err(Status::new_exception_str(
@@ -47,19 +49,20 @@ impl IVfioHandler for VfioHandler {
 
         devices.iter().try_for_each(|x| bind_device(Path::new(x)))?;
 
-        // TODO(b/278008182): create a file descriptor containing DTBO for devices.
-        let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC).map_err(|e| {
+        let mut dtbo = dtbo.as_ref().try_clone().map_err(|e| {
             Status::new_exception_str(
-                ExceptionCode::SERVICE_SPECIFIC,
-                Some(format!("can't create fd for DTBO: {e:?}")),
+                ExceptionCode::BAD_PARCELABLE,
+                Some(format!("Failed to clone File from ParcelFileDescriptor: {e:?}")),
             )
         })?;
-        // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
-        let read_fd = unsafe { File::from_raw_fd(raw_read) };
-        // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
-        let _write_fd = unsafe { File::from_raw_fd(raw_write) };
-
-        Ok(ParcelFileDescriptor::new(read_fd))
+        // TODO(b/291191362): write DTBO for devices to dtbo.
+        dtbo.write(b"\n").map_err(|e| {
+            Status::new_exception_str(
+                ExceptionCode::BAD_PARCELABLE,
+                Some(format!("Can't write to ParcelFileDescriptor: {e:?}")),
+            )
+        })?;
+        Ok(())
     }
 }
 
@@ -120,13 +123,13 @@ fn bind_vfio_driver(path: &Path) -> binder::Result<()> {
     let Some(device) = path.file_name() else {
         return Err(Status::new_exception_str(
             ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("can't get device name from {path:?}"))
+            Some(format!("can't get device name from {path:?}")),
         ));
     };
     let Some(device_str) = device.to_str() else {
         return Err(Status::new_exception_str(
             ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("invalid filename {device:?}"))
+            Some(format!("invalid filename {device:?}")),
         ));
     };
     write(path.join("driver/unbind"), device_str.as_bytes()).map_err(|e| {
