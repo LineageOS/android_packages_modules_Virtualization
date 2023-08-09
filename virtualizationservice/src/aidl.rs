@@ -33,7 +33,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
 use anyhow::{anyhow, ensure, Context, Result};
-use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong};
+use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong, IntoBinderResult};
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
 use rustutils::system_properties;
@@ -47,6 +47,20 @@ use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
 use vsock::{VsockListener, VsockStream};
 use nix::unistd::{chown, Uid};
+
+/// Convenient trait for logging an error while returning it
+trait LogResult<T, E> {
+    fn with_log(self) -> std::result::Result<T, E>;
+}
+
+impl<T, E: std::fmt::Debug> LogResult<T, E> for std::result::Result<T, E> {
+    fn with_log(self) -> std::result::Result<T, E> {
+        self.map_err(|e| {
+            error!("{e:?}");
+            e
+        })
+    }
+}
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;
@@ -102,15 +116,10 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
 
         match ret {
             0 => Ok(()),
-            -1 => Err(Status::new_exception_str(
-                ExceptionCode::ILLEGAL_STATE,
-                Some(std::io::Error::last_os_error().to_string()),
-            )),
-            n => Err(Status::new_exception_str(
-                ExceptionCode::ILLEGAL_STATE,
-                Some(format!("Unexpected return value from prlimit(): {n}")),
-            )),
+            -1 => Err(std::io::Error::last_os_error().into()),
+            n => Err(anyhow!("Unexpected return value from prlimit(): {n}")),
         }
+        .or_binder_exception(ExceptionCode::ILLEGAL_STATE)
     }
 
     fn allocateGlobalVmContext(
@@ -122,9 +131,9 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         let requester_uid = get_calling_uid();
         let requester_debug_pid = requester_debug_pid as pid_t;
         let state = &mut *self.state.lock().unwrap();
-        state.allocate_vm_context(requester_uid, requester_debug_pid).map_err(|e| {
-            Status::new_exception_str(ExceptionCode::ILLEGAL_STATE, Some(e.to_string()))
-        })
+        state
+            .allocate_vm_context(requester_uid, requester_debug_pid)
+            .or_binder_exception(ExceptionCode::ILLEGAL_STATE)
     }
 
     fn atomVmBooted(&self, atom: &AtomVmBooted) -> Result<(), Status> {
@@ -167,10 +176,10 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
     ) -> binder::Result<Vec<u8>> {
         check_manage_access()?;
         info!("Received csr. Getting certificate...");
-        request_certificate(csr, instance_img_fd).map_err(|e| {
-            error!("Failed to get certificate. Error: {e:?}");
-            Status::new_exception_str(ExceptionCode::SERVICE_SPECIFIC, Some(e.to_string()))
-        })
+        request_certificate(csr, instance_img_fd)
+            .context("Failed to get certificate")
+            .with_log()
+            .or_service_specific_exception(-1)
     }
 
     fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
@@ -405,10 +414,8 @@ fn check_permission(perm: &str) -> binder::Result<()> {
     if perm_svc.checkPermission(perm, calling_pid, calling_uid as i32)? {
         Ok(())
     } else {
-        Err(Status::new_exception_str(
-            ExceptionCode::SECURITY,
-            Some(format!("does not have the {} permission", perm)),
-        ))
+        Err(anyhow!("does not have the {} permission", perm))
+            .or_binder_exception(ExceptionCode::SECURITY)
     }
 }
 
