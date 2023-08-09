@@ -42,7 +42,7 @@ use std::fs::{create_dir, remove_dir_all, set_permissions, Permissions};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::raw::{pid_t, uid_t};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
 use vsock::{VsockListener, VsockStream};
@@ -177,10 +177,12 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         check_use_custom_virtual_machine()?;
 
         // TODO(b/291191362): read VM DTBO to find assignable devices.
-        Ok(vec![AssignableDevice {
-            kind: "eh".to_owned(),
-            node: "/sys/bus/platform/devices/16d00000.eh".to_owned(),
-        }])
+        let mut devices = Vec::new();
+        let eh_path = "/sys/bus/platform/devices/16d00000.eh";
+        if Path::new(eh_path).exists() {
+            devices.push(AssignableDevice { kind: "eh".to_owned(), node: eh_path.to_owned() });
+        }
+        Ok(devices)
     }
 
     fn bindDevicesToVfioDriver(
