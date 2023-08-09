@@ -22,10 +22,11 @@ rust_binary {
     rustlibs: [
         "android.system.virtualizationservice_internal-rust",
         "libandroid_logger",
+        "libanyhow",
         "libbinder_rs",
+        "liblazy_static",
         "liblog_rust",
         "libnix",
-        "liblazy_static",
     ],
     apex_available: ["com.android.virt"],
 }
