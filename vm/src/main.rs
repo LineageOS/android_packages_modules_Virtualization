@@ -444,6 +444,10 @@ fn command_info() -> Result<(), Error> {
         println!("VFIO-platform is not supported.");
     }
 
+    let devices = get_service()?.getAssignableDevices()?;
+    let devices = devices.into_iter().map(|x| x.node).collect::<Vec<_>>();
+    println!("Assignable devices: {}", serde_json::to_string(&devices)?);
+
     Ok(())
 }
 
