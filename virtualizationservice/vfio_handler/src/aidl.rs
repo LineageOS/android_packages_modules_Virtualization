@@ -132,12 +132,15 @@ fn bind_vfio_driver(path: &Path) -> binder::Result<()> {
             Some(format!("invalid filename {device:?}")),
         ));
     };
-    write(path.join("driver/unbind"), device_str.as_bytes()).map_err(|e| {
-        Status::new_exception_str(
-            ExceptionCode::SERVICE_SPECIFIC,
-            Some(format!("could not unbind {device_str}: {e:?}")),
-        )
-    })?;
+    let unbind_path = path.join("driver/unbind");
+    if unbind_path.exists() {
+        write(&unbind_path, device_str.as_bytes()).map_err(|e| {
+            Status::new_exception_str(
+                ExceptionCode::SERVICE_SPECIFIC,
+                Some(format!("could not unbind {device_str}: {e:?}")),
+            )
+        })?;
+    }
 
     // bind to VFIO
     write(path.join("driver_override"), b"vfio-platform").map_err(|e| {
