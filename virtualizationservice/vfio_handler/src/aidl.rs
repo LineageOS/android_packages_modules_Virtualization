@@ -14,9 +14,10 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
+use anyhow::{anyhow, Context};
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IVfioHandler::IVfioHandler;
 use android_system_virtualizationservice_internal::binder::ParcelFileDescriptor;
-use binder::{self, ExceptionCode, Interface, Status};
+use binder::{self, ExceptionCode, Interface, IntoBinderResult};
 use lazy_static::lazy_static;
 use std::fs::{read_link, write};
 use std::io::Write;
@@ -41,27 +42,21 @@ impl IVfioHandler for VfioHandler {
     ) -> binder::Result<()> {
         // permission check is already done by IVirtualizationServiceInternal.
         if !*IS_VFIO_SUPPORTED {
-            return Err(Status::new_exception_str(
-                ExceptionCode::UNSUPPORTED_OPERATION,
-                Some("VFIO-platform not supported"),
-            ));
+            return Err(anyhow!("VFIO-platform not supported"))
+                .or_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION);
         }
 
         devices.iter().try_for_each(|x| bind_device(Path::new(x)))?;
 
-        let mut dtbo = dtbo.as_ref().try_clone().map_err(|e| {
-            Status::new_exception_str(
-                ExceptionCode::BAD_PARCELABLE,
-                Some(format!("Failed to clone File from ParcelFileDescriptor: {e:?}")),
-            )
-        })?;
+        let mut dtbo = dtbo
+            .as_ref()
+            .try_clone()
+            .context("Failed to clone File from ParcelFileDescriptor")
+            .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?;
         // TODO(b/291191362): write DTBO for devices to dtbo.
-        dtbo.write(b"\n").map_err(|e| {
-            Status::new_exception_str(
-                ExceptionCode::BAD_PARCELABLE,
-                Some(format!("Can't write to ParcelFileDescriptor: {e:?}")),
-            )
-        })?;
+        dtbo.write(b"\n")
+            .context("Can't write to ParcelFileDescriptor")
+            .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?;
         Ok(())
     }
 }
@@ -81,17 +76,13 @@ fn is_vfio_supported() -> bool {
 
 fn check_platform_device(path: &Path) -> binder::Result<()> {
     if !path.exists() {
-        return Err(Status::new_exception_str(
-            ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("no such device {path:?}")),
-        ));
+        return Err(anyhow!("no such device {path:?}"))
+            .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
     }
 
     if !path.starts_with(SYSFS_PLATFORM_DEVICES_PATH) {
-        return Err(Status::new_exception_str(
-            ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("{path:?} is not a platform device")),
-        ));
+        return Err(anyhow!("{path:?} is not a platform device"))
+            .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
     }
 
     Ok(())
@@ -121,67 +112,48 @@ fn bind_vfio_driver(path: &Path) -> binder::Result<()> {
 
     // unbind
     let Some(device) = path.file_name() else {
-        return Err(Status::new_exception_str(
-            ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("can't get device name from {path:?}")),
-        ));
+        return Err(anyhow!("can't get device name from {path:?}"))
+            .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
     };
     let Some(device_str) = device.to_str() else {
-        return Err(Status::new_exception_str(
-            ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("invalid filename {device:?}")),
-        ));
+        return Err(anyhow!("invalid filename {device:?}"))
+            .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
     };
     let unbind_path = path.join("driver/unbind");
     if unbind_path.exists() {
-        write(&unbind_path, device_str.as_bytes()).map_err(|e| {
-            Status::new_exception_str(
-                ExceptionCode::SERVICE_SPECIFIC,
-                Some(format!("could not unbind {device_str}: {e:?}")),
-            )
-        })?;
+        write(&unbind_path, device_str.as_bytes())
+            .with_context(|| format!("could not unbind {device_str}"))
+            .or_service_specific_exception(-1)?;
     }
 
     // bind to VFIO
-    write(path.join("driver_override"), b"vfio-platform").map_err(|e| {
-        Status::new_exception_str(
-            ExceptionCode::SERVICE_SPECIFIC,
-            Some(format!("could not bind {device_str} to vfio-platform: {e:?}")),
-        )
-    })?;
+    write(path.join("driver_override"), b"vfio-platform")
+        .with_context(|| format!("could not bind {device_str} to vfio-platform"))
+        .or_service_specific_exception(-1)?;
 
-    write(SYSFS_PLATFORM_DRIVERS_PROBE_PATH, device_str.as_bytes()).map_err(|e| {
-        Status::new_exception_str(
-            ExceptionCode::SERVICE_SPECIFIC,
-            Some(format!("could not write {device_str} to drivers-probe: {e:?}")),
-        )
-    })?;
+    write(SYSFS_PLATFORM_DRIVERS_PROBE_PATH, device_str.as_bytes())
+        .with_context(|| format!("could not write {device_str} to drivers-probe"))
+        .or_service_specific_exception(-1)?;
 
     // final check
     if !is_bound_to_vfio_driver(path) {
-        return Err(Status::new_exception_str(
-            ExceptionCode::SERVICE_SPECIFIC,
-            Some(format!("{path:?} still not bound to vfio driver")),
-        ));
+        return Err(anyhow!("{path:?} still not bound to vfio driver"))
+            .or_service_specific_exception(-1);
     }
 
     if get_device_iommu_group(path).is_none() {
-        return Err(Status::new_exception_str(
-            ExceptionCode::SERVICE_SPECIFIC,
-            Some(format!("can't get iommu group for {path:?}")),
-        ));
+        return Err(anyhow!("can't get iommu group for {path:?}"))
+            .or_service_specific_exception(-1);
     }
 
     Ok(())
 }
 
 fn bind_device(path: &Path) -> binder::Result<()> {
-    let path = path.canonicalize().map_err(|e| {
-        Status::new_exception_str(
-            ExceptionCode::ILLEGAL_ARGUMENT,
-            Some(format!("can't canonicalize {path:?}: {e:?}")),
-        )
-    })?;
+    let path = path
+        .canonicalize()
+        .with_context(|| format!("can't canonicalize {path:?}"))
+        .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT)?;
 
     check_platform_device(&path)?;
     bind_vfio_driver(&path)
