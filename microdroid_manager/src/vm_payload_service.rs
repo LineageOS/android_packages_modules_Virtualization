@@ -19,25 +19,12 @@ use android_system_virtualization_payload::aidl::android::system::virtualization
     BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 use anyhow::{anyhow, Context, Result};
+use avfutil::LogResult;
 use binder::{Interface, BinderFeatures, ExceptionCode, Strong, IntoBinderResult};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
-use log::{error, info};
+use log::info;
 use rpcbinder::RpcServer;
 use std::os::unix::io::OwnedFd;
-
-/// Convenient trait for logging an error while returning it
-trait LogResult<T, E> {
-    fn with_log(self) -> std::result::Result<T, E>;
-}
-
-impl<T, E: std::fmt::Debug> LogResult<T, E> for std::result::Result<T, E> {
-    fn with_log(self) -> std::result::Result<T, E> {
-        self.map_err(|e| {
-            error!("{e:?}");
-            e
-        })
-    }
-}
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
