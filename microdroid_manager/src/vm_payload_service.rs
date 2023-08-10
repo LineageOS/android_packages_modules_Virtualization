@@ -19,7 +19,7 @@ use android_system_virtualization_payload::aidl::android::system::virtualization
     BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 use anyhow::{anyhow, Context, Result};
-use avfutil::LogResult;
+use avflog::LogResult;
 use binder::{Interface, BinderFeatures, ExceptionCode, Strong, IntoBinderResult};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
 use log::info;

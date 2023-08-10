@@ -3,7 +3,7 @@
 {
   "avf-presubmit" : [
     {
-      "name" : "libavfutil.test"
+      "name" : "libavflog.test"
     }
   ]
 }

@@ -27,7 +27,7 @@ rust_binary {
         "android.os.permissions_aidl-rust",
         "libandroid_logger",
         "libanyhow",
-        "libavfutil",
+        "libavflog",
         "libbinder_rs",
         "liblibc",
         "liblog_rust",
