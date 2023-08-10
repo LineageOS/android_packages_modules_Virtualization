@@ -33,6 +33,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
 use anyhow::{anyhow, ensure, Context, Result};
+use avfutil::LogResult;
 use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong, IntoBinderResult};
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
@@ -47,20 +48,6 @@ use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
 use vsock::{VsockListener, VsockStream};
 use nix::unistd::{chown, Uid};
-
-/// Convenient trait for logging an error while returning it
-trait LogResult<T, E> {
-    fn with_log(self) -> std::result::Result<T, E>;
-}
-
-impl<T, E: std::fmt::Debug> LogResult<T, E> for std::result::Result<T, E> {
-    fn with_log(self) -> std::result::Result<T, E> {
-        self.map_err(|e| {
-            error!("{e:?}");
-            e
-        })
-    }
-}
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;

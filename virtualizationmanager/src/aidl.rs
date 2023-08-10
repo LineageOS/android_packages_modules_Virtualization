@@ -50,6 +50,7 @@ use android_system_virtualmachineservice::aidl::android::system::virtualmachines
 };
 use anyhow::{anyhow, bail, Context, Result};
 use apkverify::{HashAlgorithm, V4Signature};
+use avfutil::LogResult;
 use binder::{
     self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, ParcelFileDescriptor,
     Status, StatusCode, Strong,
@@ -76,20 +77,6 @@ use std::sync::{Arc, Mutex, Weak};
 use vmconfig::VmConfig;
 use vsock::VsockStream;
 use zip::ZipArchive;
-
-/// Convenient trait for logging an error while returning it
-trait LogResult<T, E> {
-    fn with_log(self) -> std::result::Result<T, E>;
-}
-
-impl<T, E: std::fmt::Debug> LogResult<T, E> for std::result::Result<T, E> {
-    fn with_log(self) -> std::result::Result<T, E> {
-        self.map_err(|e| {
-            error!("{e:?}");
-            e
-        })
-    }
-}
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;

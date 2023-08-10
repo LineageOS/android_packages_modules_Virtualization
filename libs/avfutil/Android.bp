@@ -1,0 +1,30 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_defaults {
+    name: "libavfutil.defaults",
+    crate_name: "avfutil",
+    host_supported: true,
+    srcs: ["src/lib.rs"],
+    edition: "2021",
+    rustlibs: [
+        "liblog_rust",
+    ],
+}
+
+rust_library {
+    name: "libavfutil",
+    defaults: ["libavfutil.defaults"],
+    apex_available: [
+        "//apex_available:platform",
+        "//apex_available:anyapex",
+    ],
+}
+
+rust_test {
+    name: "libavfutil.test",
+    defaults: ["libavfutil.defaults"],
+    prefer_rlib: true,
+    test_suites: ["general-tests"],
+}
