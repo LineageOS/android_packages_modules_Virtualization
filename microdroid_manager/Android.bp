@@ -15,7 +15,7 @@ rust_defaults {
         "android.system.virtualization.payload-rust",
         "libandroid_logger",
         "libanyhow",
-        "libavfutil",
+        "libavflog",
         "libapexutil_rust",
         "libapkverify",
         "libbinder_rs",
