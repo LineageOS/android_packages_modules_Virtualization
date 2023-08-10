@@ -33,7 +33,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
 use anyhow::{anyhow, ensure, Context, Result};
-use avfutil::LogResult;
+use avflog::LogResult;
 use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong, IntoBinderResult};
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};

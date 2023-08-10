@@ -27,7 +27,7 @@ rust_defaults {
         "libandroid_logger",
         "libanyhow",
         "libapkverify",
-        "libavfutil",
+        "libavflog",
         "libbase_rust",
         "libbinder_rs",
         "libclap",
