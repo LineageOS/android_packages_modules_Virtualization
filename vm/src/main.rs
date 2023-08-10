@@ -24,7 +24,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 };
 use anyhow::{Context, Error};
 use binder::{ProcessState, Strong};
-use clap::Parser;
+use clap::{Args, Parser};
 use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
 use run::{command_run, command_run_app, command_run_microdroid};
@@ -34,201 +34,165 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 struct Idsigs(Vec<PathBuf>);
 
+#[derive(Args)]
+/// Collection of flags that are at VM level and therefore applicable to all subcommands
+pub struct CommonConfig {
+    /// Name of VM
+    #[arg(long)]
+    name: Option<String>,
+
+    /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
+    #[arg(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
+    cpu_topology: CpuTopology,
+
+    /// Comma separated list of task profile names to apply to the VM
+    #[arg(long)]
+    task_profiles: Vec<String>,
+
+    /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
+    /// in the VM config file.
+    #[arg(short, long)]
+    mem: Option<u32>,
+
+    /// Run VM in protected mode.
+    #[arg(short, long)]
+    protected: bool,
+}
+
+#[derive(Args)]
+/// Collection of flags for debugging
+pub struct DebugConfig {
+    /// Debug level of the VM. Supported values: "full" (default), and "none".
+    #[arg(long, default_value = "full", value_parser = parse_debug_level)]
+    debug: DebugLevel,
+
+    /// Path to file for VM console output.
+    #[arg(long)]
+    console: Option<PathBuf>,
+
+    /// Path to file for VM console input.
+    #[arg(long)]
+    console_in: Option<PathBuf>,
+
+    /// Path to file for VM log output.
+    #[arg(long)]
+    log: Option<PathBuf>,
+
+    /// Port at which crosvm will start a gdb server to debug guest kernel.
+    /// Note: this is only supported on Android kernels android14-5.15 and higher.
+    #[arg(long)]
+    gdb: Option<NonZeroU16>,
+}
+
+#[derive(Args)]
+/// Collection of flags that are Microdroid specific
+pub struct MicrodroidConfig {
+    /// Path to the file backing the storage.
+    /// Created if the option is used but the path does not exist in the device.
+    #[arg(long)]
+    storage: Option<PathBuf>,
+
+    /// Size of the storage. Used only if --storage is supplied but path does not exist
+    /// Default size is 10*1024*1024
+    #[arg(long)]
+    storage_size: Option<u64>,
+
+    /// Path to custom kernel image to use when booting Microdroid.
+    #[arg(long)]
+    kernel: Option<PathBuf>,
+
+    /// Path to disk image containing vendor-specific modules.
+    #[arg(long)]
+    vendor: Option<PathBuf>,
+
+    /// SysFS nodes of devices to assign to VM
+    #[arg(long)]
+    devices: Vec<PathBuf>,
+}
+
+#[derive(Args)]
+/// Flags for the run_app subcommand
+pub struct RunAppConfig {
+    #[command(flatten)]
+    common: CommonConfig,
+
+    #[command(flatten)]
+    debug: DebugConfig,
+
+    #[command(flatten)]
+    microdroid: MicrodroidConfig,
+
+    /// Path to VM Payload APK
+    apk: PathBuf,
+
+    /// Path to idsig of the APK
+    idsig: PathBuf,
+
+    /// Path to the instance image. Created if not exists.
+    instance: PathBuf,
+
+    /// Path to VM config JSON within APK (e.g. assets/vm_config.json)
+    #[arg(long)]
+    config_path: Option<String>,
+
+    /// Name of VM payload binary within APK (e.g. MicrodroidTestNativeLib.so)
+    #[arg(long)]
+    #[arg(alias = "payload_path")]
+    payload_binary_name: Option<String>,
+
+    /// Paths to extra idsig files.
+    #[arg(long = "extra-idsig")]
+    extra_idsigs: Vec<PathBuf>,
+}
+
+#[derive(Args)]
+/// Flags for the run_microdroid subcommand
+pub struct RunMicrodroidConfig {
+    #[command(flatten)]
+    common: CommonConfig,
+
+    #[command(flatten)]
+    debug: DebugConfig,
+
+    #[command(flatten)]
+    microdroid: MicrodroidConfig,
+
+    /// Path to the directory where VM-related files (e.g. instance.img, apk.idsig, etc.) will
+    /// be stored. If not specified a random directory under /data/local/tmp/microdroid will be
+    /// created and used.
+    #[arg(long)]
+    work_dir: Option<PathBuf>,
+}
+
+#[derive(Args)]
+/// Flags for the run subcommand
+pub struct RunCustomVmConfig {
+    #[command(flatten)]
+    common: CommonConfig,
+
+    #[command(flatten)]
+    debug: DebugConfig,
+
+    /// Path to VM config JSON
+    config: PathBuf,
+}
+
 #[derive(Parser)]
 enum Opt {
     /// Run a virtual machine with a config in APK
     RunApp {
-        /// Path to VM Payload APK
-        apk: PathBuf,
-
-        /// Path to idsig of the APK
-        idsig: PathBuf,
-
-        /// Path to the instance image. Created if not exists.
-        instance: PathBuf,
-
-        /// Path to VM config JSON within APK (e.g. assets/vm_config.json)
-        #[clap(long)]
-        config_path: Option<String>,
-
-        /// Name of VM payload binary within APK (e.g. MicrodroidTestNativeLib.so)
-        #[clap(long)]
-        #[clap(alias = "payload_path")]
-        payload_binary_name: Option<String>,
-
-        /// Name of VM
-        #[clap(long)]
-        name: Option<String>,
-
-        /// Path to the file backing the storage.
-        /// Created if the option is used but the path does not exist in the device.
-        #[clap(long)]
-        storage: Option<PathBuf>,
-
-        /// Size of the storage. Used only if --storage is supplied but path does not exist
-        /// Default size is 10*1024*1024
-        #[clap(long)]
-        storage_size: Option<u64>,
-
-        /// Path to file for VM console output.
-        #[clap(long)]
-        console: Option<PathBuf>,
-
-        /// Path to file for VM console input.
-        #[clap(long)]
-        console_in: Option<PathBuf>,
-
-        /// Path to file for VM log output.
-        #[clap(long)]
-        log: Option<PathBuf>,
-
-        /// Debug level of the VM. Supported values: "full" (default), and "none".
-        #[clap(long, default_value = "full", value_parser = parse_debug_level)]
-        debug: DebugLevel,
-
-        /// Run VM in protected mode.
-        #[clap(short, long)]
-        protected: bool,
-
-        /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
-        /// in the VM config file.
-        #[clap(short, long)]
-        mem: Option<u32>,
-
-        /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
-        #[clap(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
-        cpu_topology: CpuTopology,
-
-        /// Comma separated list of task profile names to apply to the VM
-        #[clap(long)]
-        task_profiles: Vec<String>,
-
-        /// Paths to extra idsig files.
-        #[clap(long = "extra-idsig")]
-        extra_idsigs: Vec<PathBuf>,
-
-        /// Port at which crosvm will start a gdb server to debug guest kernel.
-        /// Note: this is only supported on Android kernels android14-5.15 and higher.
-        #[clap(long)]
-        gdb: Option<NonZeroU16>,
-
-        /// Path to custom kernel image to use when booting Microdroid.
-        #[clap(long)]
-        kernel: Option<PathBuf>,
-
-        /// Path to disk image containing vendor-specific modules.
-        #[clap(long)]
-        vendor: Option<PathBuf>,
-
-        /// SysFS nodes of devices to assign to VM
-        #[clap(long)]
-        devices: Vec<PathBuf>,
+        #[command(flatten)]
+        config: RunAppConfig,
     },
     /// Run a virtual machine with Microdroid inside
     RunMicrodroid {
-        /// Path to the directory where VM-related files (e.g. instance.img, apk.idsig, etc.) will
-        /// be stored. If not specified a random directory under /data/local/tmp/microdroid will be
-        /// created and used.
-        #[clap(long)]
-        work_dir: Option<PathBuf>,
-
-        /// Name of VM
-        #[clap(long)]
-        name: Option<String>,
-
-        /// Path to the file backing the storage.
-        /// Created if the option is used but the path does not exist in the device.
-        #[clap(long)]
-        storage: Option<PathBuf>,
-
-        /// Size of the storage. Used only if --storage is supplied but path does not exist
-        /// Default size is 10*1024*1024
-        #[clap(long)]
-        storage_size: Option<u64>,
-
-        /// Path to file for VM console output.
-        #[clap(long)]
-        console: Option<PathBuf>,
-
-        /// Path to file for VM console input.
-        #[clap(long)]
-        console_in: Option<PathBuf>,
-
-        /// Path to file for VM log output.
-        #[clap(long)]
-        log: Option<PathBuf>,
-
-        /// Debug level of the VM. Supported values: "full" (default), and "none".
-        #[clap(long, default_value = "full", value_parser = parse_debug_level)]
-        debug: DebugLevel,
-
-        /// Run VM in protected mode.
-        #[clap(short, long)]
-        protected: bool,
-
-        /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
-        /// in the VM config file.
-        #[clap(short, long)]
-        mem: Option<u32>,
-
-        /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
-        #[clap(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
-        cpu_topology: CpuTopology,
-
-        /// Comma separated list of task profile names to apply to the VM
-        #[clap(long)]
-        task_profiles: Vec<String>,
-
-        /// Port at which crosvm will start a gdb server to debug guest kernel.
-        /// Note: this is only supported on Android kernels android14-5.15 and higher.
-        #[clap(long)]
-        gdb: Option<NonZeroU16>,
-
-        /// Path to custom kernel image to use when booting Microdroid.
-        #[clap(long)]
-        kernel: Option<PathBuf>,
-
-        /// Path to disk image containing vendor-specific modules.
-        #[clap(long)]
-        vendor: Option<PathBuf>,
-
-        /// SysFS nodes of devices to assign to VM
-        #[clap(long)]
-        devices: Vec<PathBuf>,
+        #[command(flatten)]
+        config: RunMicrodroidConfig,
     },
     /// Run a virtual machine
     Run {
-        /// Path to VM config JSON
-        config: PathBuf,
-
-        /// Name of VM
-        #[clap(long)]
-        name: Option<String>,
-
-        /// Run VM with vCPU topology matching that of the host. If unspecified, defaults to 1 vCPU.
-        #[clap(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
-        cpu_topology: CpuTopology,
-
-        /// Comma separated list of task profile names to apply to the VM
-        #[clap(long)]
-        task_profiles: Vec<String>,
-
-        /// Path to file for VM console output.
-        #[clap(long)]
-        console: Option<PathBuf>,
-
-        /// Path to file for VM console input.
-        #[clap(long)]
-        console_in: Option<PathBuf>,
-
-        /// Path to file for VM log output.
-        #[clap(long)]
-        log: Option<PathBuf>,
-
-        /// Port at which crosvm will start a gdb server to debug guest kernel.
-        /// Note: this is only supported on Android kernels android14-5.15 and higher.
-        #[clap(long)]
-        gdb: Option<NonZeroU16>,
+        #[command(flatten)]
+        config: RunCustomVmConfig,
     },
     /// List running virtual machines
     List,
@@ -243,7 +207,7 @@ enum Opt {
         size: u64,
 
         /// Type of the partition
-        #[clap(short = 't', long = "type", default_value = "raw",
+        #[arg(short = 't', long = "type", default_value = "raw",
                value_parser = parse_partition_type)]
         partition_type: PartitionType,
     },
@@ -295,102 +259,9 @@ fn main() -> Result<(), Error> {
     ProcessState::start_thread_pool();
 
     match opt {
-        Opt::RunApp {
-            name,
-            apk,
-            idsig,
-            instance,
-            storage,
-            storage_size,
-            config_path,
-            payload_binary_name,
-            console,
-            console_in,
-            log,
-            debug,
-            protected,
-            mem,
-            cpu_topology,
-            task_profiles,
-            extra_idsigs,
-            gdb,
-            kernel,
-            vendor,
-            devices,
-        } => command_run_app(
-            name,
-            get_service()?.as_ref(),
-            &apk,
-            &idsig,
-            &instance,
-            storage.as_deref(),
-            storage_size,
-            config_path,
-            payload_binary_name,
-            console.as_deref(),
-            console_in.as_deref(),
-            log.as_deref(),
-            debug,
-            protected,
-            mem,
-            cpu_topology,
-            task_profiles,
-            &extra_idsigs,
-            gdb,
-            kernel.as_deref(),
-            vendor.as_deref(),
-            devices,
-        ),
-        Opt::RunMicrodroid {
-            name,
-            work_dir,
-            storage,
-            storage_size,
-            console,
-            console_in,
-            log,
-            debug,
-            protected,
-            mem,
-            cpu_topology,
-            task_profiles,
-            gdb,
-            kernel,
-            vendor,
-            devices,
-        } => command_run_microdroid(
-            name,
-            get_service()?.as_ref(),
-            work_dir,
-            storage.as_deref(),
-            storage_size,
-            console.as_deref(),
-            console_in.as_deref(),
-            log.as_deref(),
-            debug,
-            protected,
-            mem,
-            cpu_topology,
-            task_profiles,
-            gdb,
-            kernel.as_deref(),
-            vendor.as_deref(),
-            devices,
-        ),
-        Opt::Run { name, config, cpu_topology, task_profiles, console, console_in, log, gdb } => {
-            command_run(
-                name,
-                get_service()?.as_ref(),
-                &config,
-                console.as_deref(),
-                console_in.as_deref(),
-                log.as_deref(),
-                /* mem */ None,
-                cpu_topology,
-                task_profiles,
-                gdb,
-            )
-        }
+        Opt::RunApp { config } => command_run_app(config),
+        Opt::RunMicrodroid { config } => command_run_microdroid(config),
+        Opt::Run { config } => command_run(config),
         Opt::List => command_list(get_service()?.as_ref()),
         Opt::Info => command_info(),
         Opt::CreatePartition { path, size, partition_type } => {
