@@ -3,8 +3,8 @@ package {
 }
 
 rust_defaults {
-    name: "libavfutil.defaults",
-    crate_name: "avfutil",
+    name: "libavflog.defaults",
+    crate_name: "avflog",
     host_supported: true,
     srcs: ["src/lib.rs"],
     edition: "2021",
@@ -14,8 +14,8 @@ rust_defaults {
 }
 
 rust_library {
-    name: "libavfutil",
-    defaults: ["libavfutil.defaults"],
+    name: "libavflog",
+    defaults: ["libavflog.defaults"],
     apex_available: [
         "//apex_available:platform",
         "//apex_available:anyapex",
@@ -23,8 +23,8 @@ rust_library {
 }
 
 rust_test {
-    name: "libavfutil.test",
-    defaults: ["libavfutil.defaults"],
+    name: "libavflog.test",
+    defaults: ["libavflog.defaults"],
     prefer_rlib: true,
     test_suites: ["general-tests"],
 }
