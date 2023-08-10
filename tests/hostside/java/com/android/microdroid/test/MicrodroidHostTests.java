@@ -1065,6 +1065,27 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         }
     }
 
+    @Test
+    public void testDevcieAssignment() throws Exception {
+        assumeProtectedVmSupported();
+        assumeVfioPlatformSupported();
+
+        List<String> devices = getAssignableDevices();
+        assumeFalse("no assignable devices", devices.isEmpty());
+
+        final String configPath = "assets/vm_config.json";
+        mMicrodroidDevice =
+                MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
+                        .debugLevel("full")
+                        .memoryMib(minMemorySize())
+                        .cpuTopology("match_host")
+                        .protectedVm(true)
+                        .addAssignableDevice(devices.get(0))
+                        .build(getAndroidDevice());
+
+        mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
+    }
+
     @Before
     public void setUp() throws Exception {
         assumeDeviceIsCapable(getDevice());
@@ -1108,6 +1129,31 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assumeTrue(
                 "Test skipped because non-protected VMs are not supported",
                 getAndroidDevice().supportsMicrodroid(false));
+    }
+
+    private void assumeVfioPlatformSupported() throws Exception {
+        TestDevice device = getAndroidDevice();
+        assumeTrue(
+                "Test skipped because VFIO platform is not supported.",
+                device.doesFileExist("/dev/vfio/vfio")
+                        && device.doesFileExist("/sys/bus/platform/drivers/vfio-platform"));
+    }
+
+    private List<String> getAssignableDevices() throws Exception {
+        CommandRunner android = new CommandRunner(getDevice());
+        String result = android.run("/apex/com.android.virt/bin/vm", "info");
+        List<String> devices = new ArrayList<>();
+        for (String line : result.split("\n")) {
+            final String header = "Assignable devices: ";
+            if (!line.startsWith(header)) continue;
+
+            JSONArray jsonArray = new JSONArray(line.substring(header.length()));
+            for (int i = 0; i < jsonArray.length(); i++) {
+                devices.add(jsonArray.getString(i));
+            }
+            break;
+        }
+        return devices;
     }
 
     private TestDevice getAndroidDevice() {
