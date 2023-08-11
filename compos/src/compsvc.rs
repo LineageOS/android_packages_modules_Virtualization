@@ -33,7 +33,9 @@ use crate::compos_key;
 use authfs_aidl_interface::aidl::com::android::virt::fs::IAuthFsService::{
     IAuthFsService, AUTHFS_SERVICE_SOCKET_NAME,
 };
-use binder::{BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong};
+use binder::{
+    BinderFeatures, ExceptionCode, Interface, IntoBinderResult, Result as BinderResult, Strong,
+};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::{
     BnCompOsService, ICompOsService, OdrefreshArgs::OdrefreshArgs,
 };
@@ -66,29 +68,23 @@ impl ICompOsService for CompOsService {
     fn initializeSystemProperties(&self, names: &[String], values: &[String]) -> BinderResult<()> {
         let mut initialized = self.initialized.write().unwrap();
         if initialized.is_some() {
-            return Err(Status::new_exception_str(
-                ExceptionCode::ILLEGAL_STATE,
-                Some(format!("Already initialized: {:?}", initialized)),
-            ));
+            return Err(format!("Already initialized: {initialized:?}"))
+                .or_binder_exception(ExceptionCode::ILLEGAL_STATE);
         }
         *initialized = Some(false);
 
         if names.len() != values.len() {
-            return Err(Status::new_exception_str(
-                ExceptionCode::ILLEGAL_ARGUMENT,
-                Some(format!(
-                    "Received inconsistent number of keys ({}) and values ({})",
-                    names.len(),
-                    values.len()
-                )),
-            ));
+            return Err(format!(
+                "Received inconsistent number of keys ({}) and values ({})",
+                names.len(),
+                values.len()
+            ))
+            .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
         }
         for (name, value) in zip(names, values) {
             if !is_system_property_interesting(name) {
-                return Err(Status::new_exception_str(
-                    ExceptionCode::ILLEGAL_ARGUMENT,
-                    Some(format!("Received invalid system property {}", &name)),
-                ));
+                return Err(format!("Received invalid system property {name}"))
+                    .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
             }
             let result = system_properties::write(name, value);
             if result.is_err() {
@@ -103,10 +99,8 @@ impl ICompOsService for CompOsService {
     fn odrefresh(&self, args: &OdrefreshArgs) -> BinderResult<i8> {
         let initialized = *self.initialized.read().unwrap();
         if !initialized.unwrap_or(false) {
-            return Err(Status::new_exception_str(
-                ExceptionCode::ILLEGAL_STATE,
-                Some("Service has not been initialized"),
-            ));
+            return Err("Service has not been initialized")
+                .or_binder_exception(ExceptionCode::ILLEGAL_STATE);
         }
 
         to_binder_result(self.do_odrefresh(args))
