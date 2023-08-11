@@ -81,12 +81,9 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
     private boolean mNeedTearDown = false;
 
-    private boolean mNeedToRestartPkvmStatus = false;
-
     @Before
     public void setUp() throws Exception {
         mNeedTearDown = false;
-        mNeedToRestartPkvmStatus = false;
 
         assumeDeviceIsCapable(getDevice());
         mNeedTearDown = true;
@@ -104,26 +101,11 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             // sees, so we can't rely on that - b/268688303.)
             return;
         }
-        // Restore PKVM status and reboot to prevent previous staged session, if switched.
-        if (mNeedToRestartPkvmStatus) {
-            setPKVMStatusWithRebootToBootloader(true);
-            rebootFromBootloaderAndWaitBootCompleted();
-        }
 
         CommandRunner android = new CommandRunner(getDevice());
 
         // Clear up any CompOS instance files we created.
         android.tryRun("rm", "-rf", COMPOS_TEST_ROOT);
-    }
-
-    @Test
-    public void testBootEnablePKVM() throws Exception {
-        enableDisablePKVMTestHelper(true);
-    }
-
-    @Test
-    public void testBootDisablePKVM() throws Exception {
-        enableDisablePKVMTestHelper(false);
     }
 
     @Test
@@ -424,36 +406,6 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         throw new IllegalArgumentException("Failed to get boot time info.");
     }
 
-    private void enableDisablePKVMTestHelper(boolean isEnable) throws Exception {
-        assumePKVMStatusSwitchSupported();
-
-        List<Double> bootDmesgTime = new ArrayList<>(ROUND_COUNT);
-        Map<String, List<Double>> bootloaderTime = new HashMap<>();
-
-        setPKVMStatusWithRebootToBootloader(isEnable);
-        rebootFromBootloaderAndWaitBootCompleted();
-        for (int round = 0; round < ROUND_COUNT; ++round) {
-            getDevice().nonBlockingReboot();
-            waitForBootCompleted();
-
-            updateBootloaderTimeInfo(bootloaderTime);
-
-            double elapsedSec = getDmesgBootTime();
-            bootDmesgTime.add(elapsedSec);
-        }
-
-        String suffix = "";
-        if (isEnable) {
-            suffix = "enable";
-        } else {
-            suffix = "disable";
-        }
-
-        reportMetric(bootDmesgTime, "dmesg_boot_time_with_pkvm_" + suffix, "s");
-        reportAggregatedMetrics(bootloaderTime,
-                "bootloader_time_with_pkvm_" + suffix, "ms");
-    }
-
     private void composTestHelper(boolean isWithCompos) throws Exception {
         assumeFalse("Skip on CF; too slow", isCuttlefish());
 
@@ -481,29 +433,6 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
         reportMetric(bootDmesgTime, "dmesg_boot_time_" + suffix, "s");
     }
 
-    private void assumePKVMStatusSwitchSupported() throws Exception {
-        assumeFalse("Skip on CF; can't reboot to bootloader", isCuttlefish());
-
-        // This is an overkill. The intention is to exclude remote_device_proxy, which uses
-        // different serial for fastboot. But there's no good way to distinguish from regular IP
-        // transport. This is currently not a problem until someone really needs to run the test
-        // over regular IP transport.
-        assumeFalse("Skip over IP (overkill for remote_device_proxy)", getDevice().isAdbTcp());
-
-        if (!getDevice().isStateBootloaderOrFastbootd()) {
-            getDevice().rebootIntoBootloader();
-        }
-        getDevice().waitForDeviceBootloader();
-
-        CommandResult result;
-        result = getDevice().executeFastbootCommand("oem", "pkvm", "status");
-        rebootFromBootloaderAndWaitBootCompleted();
-        assumeFalse(result.getStderr().contains("Invalid oem command"));
-        // Skip the test if running on a build with pkvm_enabler. Disabling pKVM
-        // for such builds results in a bootloop.
-        assumeTrue(result.getStderr().contains("misc=auto"));
-    }
-
     private void reportMetric(List<Double> data, String name, String unit) {
         CLog.d("Report metric " + name + "(" + unit + ") : " + data.toString());
         Map<String, Double> stats = mMetricsProcessor.computeStats(data, name, unit);
@@ -511,50 +440,6 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             CLog.d("Add test metrics " + entry.getKey() + " : " + entry.getValue().toString());
             mMetrics.addTestMetric(entry.getKey(), entry.getValue().toString());
         }
-    }
-
-    private void reportAggregatedMetrics(Map<String, List<Double>> bootloaderTime,
-            String prefix, String unit) {
-
-        for (Map.Entry<String, List<Double>> entry : bootloaderTime.entrySet()) {
-            reportMetric(entry.getValue(), prefix + "_" + entry.getKey(), unit);
-        }
-    }
-
-    private void setPKVMStatusWithRebootToBootloader(boolean isEnable) throws Exception {
-        mNeedToRestartPkvmStatus = true;
-
-        if (!getDevice().isStateBootloaderOrFastbootd()) {
-            getDevice().rebootIntoBootloader();
-        }
-        getDevice().waitForDeviceBootloader();
-
-        CommandResult result;
-        if (isEnable) {
-            result = getDevice().executeFastbootCommand("oem", "pkvm", "enable");
-        } else {
-            result = getDevice().executeFastbootCommand("oem", "pkvm", "disable");
-        }
-
-        result = getDevice().executeFastbootCommand("oem", "pkvm", "status");
-        CLog.i("Gets PKVM status : " + result);
-
-        String expectedOutput = "";
-
-        if (isEnable) {
-            expectedOutput = "pkvm is enabled";
-        } else {
-            expectedOutput = "pkvm is disabled";
-        }
-        assertWithMessage("Failed to set PKVM status. Reason: " + result)
-            .that(result.toString()).ignoringCase().contains(expectedOutput);
-    }
-
-    private void rebootFromBootloaderAndWaitBootCompleted() throws Exception {
-        getDevice().executeFastbootCommand("reboot");
-        getDevice().waitForDeviceOnline(BOOT_COMPLETE_TIMEOUT_MS);
-        getDevice().waitForBootComplete(BOOT_COMPLETE_TIMEOUT_MS);
-        getDevice().enableAdbRoot();
     }
 
     private void waitForBootCompleted() throws Exception {
