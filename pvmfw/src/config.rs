@@ -28,7 +28,7 @@ struct Header {
     /// Magic number; must be `Header::MAGIC`.
     magic: u32,
     /// Version of the header format.
-    version: u32,
+    version: Version,
     /// Total size of the configuration data.
     total_size: u32,
     /// Feature flags; currently reserved and must be zero.
@@ -46,7 +46,7 @@ pub enum Error {
     /// Header doesn't contain the expect magic value.
     InvalidMagic,
     /// Version of the header isn't supported.
-    UnsupportedVersion(u16, u16),
+    UnsupportedVersion(Version),
     /// Header sets flags incorrectly or uses reserved flags.
     InvalidFlags(u32),
     /// Header describes configuration data that doesn't fit in the expected buffer.
@@ -63,7 +63,7 @@ impl fmt::Display for Error {
             Self::BufferTooSmall => write!(f, "Reserved region is smaller than config header"),
             Self::HeaderMisaligned => write!(f, "Reserved region is misaligned"),
             Self::InvalidMagic => write!(f, "Wrong magic number"),
-            Self::UnsupportedVersion(x, y) => write!(f, "Version {x}.{y} not supported"),
+            Self::UnsupportedVersion(v) => write!(f, "Version {v} not supported"),
             Self::InvalidFlags(v) => write!(f, "Flags value {v:#x} is incorrect or reserved"),
             Self::InvalidSize(sz) => write!(f, "Total size ({sz:#x}) overflows reserved region"),
             Self::MissingEntry(entry) => write!(f, "Mandatory {entry:?} entry is missing"),
@@ -100,16 +100,8 @@ impl fmt::Display for EntryError {
 
 impl Header {
     const MAGIC: u32 = u32::from_ne_bytes(*b"pvmf");
-    const VERSION_1_0: u32 = Self::version(1, 0);
+    const VERSION_1_0: Version = Version { major: 1, minor: 0 };
     const PADDED_SIZE: usize = unchecked_align_up(mem::size_of::<Self>(), mem::size_of::<u64>());
-
-    pub const fn version(major: u16, minor: u16) -> u32 {
-        ((major as u32) << 16) | (minor as u32)
-    }
-
-    pub const fn version_tuple(&self) -> (u16, u16) {
-        ((self.version >> 16) as u16, self.version as u16)
-    }
 
     pub fn total_size(&self) -> usize {
         self.total_size as usize
@@ -176,6 +168,21 @@ struct HeaderEntry {
     size: u32,
 }
 
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug, Eq, FromBytes, PartialEq)]
+pub struct Version {
+    minor: u16,
+    major: u16,
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Copy the fields to local variables to prevent unaligned access.
+        let (major, minor) = (self.major, self.minor);
+        write!(f, "{}.{}", major, minor)
+    }
+}
+
 #[derive(Debug)]
 pub struct Config<'a> {
     body: &'a mut [u8],
@@ -197,8 +204,7 @@ impl<'a> Config<'a> {
         }
 
         if header.version != Header::VERSION_1_0 {
-            let (major, minor) = header.version_tuple();
-            return Err(Error::UnsupportedVersion(major, minor));
+            return Err(Error::UnsupportedVersion(header.version));
         }
 
         if header.flags != 0 {
