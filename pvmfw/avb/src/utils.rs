@@ -14,11 +14,10 @@
 
 //! Common utility functions.
 
-use crate::error::AvbIOError;
 use core::ptr::NonNull;
 use core::result;
 
-pub(crate) type Result<T> = result::Result<T, AvbIOError>;
+pub(crate) type Result<T> = result::Result<T, avb::IoError>;
 
 pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<()> {
     let ptr = to_nonnull(ptr)?;
@@ -36,21 +35,21 @@ pub(crate) fn as_ref<'a, T>(ptr: *mut T) -> Result<&'a T> {
 }
 
 pub(crate) fn to_nonnull<T>(ptr: *mut T) -> Result<NonNull<T>> {
-    NonNull::new(ptr).ok_or(AvbIOError::NoSuchValue)
+    NonNull::new(ptr).ok_or(avb::IoError::NoSuchValue)
 }
 
 pub(crate) fn is_not_null<T>(ptr: *const T) -> Result<()> {
     if ptr.is_null() {
-        Err(AvbIOError::NoSuchValue)
+        Err(avb::IoError::NoSuchValue)
     } else {
         Ok(())
     }
 }
 
 pub(crate) fn to_usize<T: TryInto<usize>>(num: T) -> Result<usize> {
-    num.try_into().map_err(|_| AvbIOError::InvalidValueSize)
+    num.try_into().map_err(|_| avb::IoError::InvalidValueSize)
 }
 
 pub(crate) fn usize_checked_add(x: usize, y: usize) -> Result<usize> {
-    x.checked_add(y).ok_or(AvbIOError::InvalidValueSize)
+    x.checked_add(y).ok_or(avb::IoError::InvalidValueSize)
 }

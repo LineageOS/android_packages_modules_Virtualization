@@ -15,7 +15,6 @@
 //! Structs and functions relating to the property descriptor.
 
 use super::common::get_valid_descriptor;
-use crate::error::AvbIOError;
 use crate::utils::{self, to_usize, usize_checked_add};
 use avb_bindgen::{
     avb_property_descriptor_validate_and_byteswap, AvbDescriptor, AvbPropertyDescriptor,
@@ -48,8 +47,8 @@ impl<'a> PropertyDescriptor<'a> {
         const NUL_BYTE: u8 = b'\0';
 
         match data.get(end) {
-            Some(&NUL_BYTE) => data.get(start..end).ok_or(AvbIOError::RangeOutsidePartition),
-            _ => Err(AvbIOError::NoSuchValue),
+            Some(&NUL_BYTE) => data.get(start..end).ok_or(avb::IoError::RangeOutsidePartition),
+            _ => Err(avb::IoError::NoSuchValue),
         }
     }
 }

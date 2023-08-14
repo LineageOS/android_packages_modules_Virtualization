@@ -15,9 +15,9 @@
 //! This module handles the pvmfw payload verification.
 
 use crate::descriptor::{Descriptors, Digest};
-use crate::error::AvbSlotVerifyError;
 use crate::ops::{Ops, Payload};
 use crate::partition::PartitionName;
+use crate::PvmfwVerifyError;
 use alloc::vec;
 use alloc::vec::Vec;
 use avb_bindgen::{AvbPartitionData, AvbVBMetaData};
@@ -59,16 +59,16 @@ impl Capability {
     const REMOTE_ATTEST: &[u8] = b"remote_attest";
     const SEPARATOR: u8 = b'|';
 
-    fn get_capabilities(property_value: &[u8]) -> Result<Vec<Self>, AvbSlotVerifyError> {
+    fn get_capabilities(property_value: &[u8]) -> Result<Vec<Self>, PvmfwVerifyError> {
         let mut res = Vec::new();
 
         for v in property_value.split(|b| *b == Self::SEPARATOR) {
             let cap = match v {
                 Self::REMOTE_ATTEST => Self::RemoteAttest,
-                _ => return Err(AvbSlotVerifyError::UnknownVbmetaProperty),
+                _ => return Err(PvmfwVerifyError::UnknownVbmetaProperty),
             };
             if res.contains(&cap) {
-                return Err(AvbSlotVerifyError::InvalidMetadata);
+                return Err(avb::SlotVerifyError::InvalidMetadata.into());
             }
             res.push(cap);
         }
@@ -78,30 +78,30 @@ impl Capability {
 
 fn verify_only_one_vbmeta_exists(
     vbmeta_images: &[AvbVBMetaData],
-) -> Result<(), AvbSlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError> {
     if vbmeta_images.len() == 1 {
         Ok(())
     } else {
-        Err(AvbSlotVerifyError::InvalidMetadata)
+        Err(avb::SlotVerifyError::InvalidMetadata)
     }
 }
 
 fn verify_vbmeta_is_from_kernel_partition(
     vbmeta_image: &AvbVBMetaData,
-) -> Result<(), AvbSlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError> {
     match (vbmeta_image.partition_name as *const c_char).try_into() {
         Ok(PartitionName::Kernel) => Ok(()),
-        _ => Err(AvbSlotVerifyError::InvalidMetadata),
+        _ => Err(avb::SlotVerifyError::InvalidMetadata),
     }
 }
 
 fn verify_vbmeta_has_only_one_hash_descriptor(
     descriptors: &Descriptors,
-) -> Result<(), AvbSlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError> {
     if descriptors.num_hash_descriptor() == 1 {
         Ok(())
     } else {
-        Err(AvbSlotVerifyError::InvalidMetadata)
+        Err(avb::SlotVerifyError::InvalidMetadata)
     }
 }
 
@@ -109,22 +109,22 @@ fn verify_loaded_partition_has_expected_length(
     loaded_partitions: &[AvbPartitionData],
     partition_name: PartitionName,
     expected_len: usize,
-) -> Result<(), AvbSlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError> {
     if loaded_partitions.len() != 1 {
         // Only one partition should be loaded in each verify result.
-        return Err(AvbSlotVerifyError::Io);
+        return Err(avb::SlotVerifyError::Io);
     }
     let loaded_partition = loaded_partitions[0];
     if !PartitionName::try_from(loaded_partition.partition_name as *const c_char)
         .map_or(false, |p| p == partition_name)
     {
         // Only the requested partition should be loaded.
-        return Err(AvbSlotVerifyError::Io);
+        return Err(avb::SlotVerifyError::Io);
     }
     if loaded_partition.data_size == expected_len {
         Ok(())
     } else {
-        Err(AvbSlotVerifyError::Verification)
+        Err(avb::SlotVerifyError::Verification)
     }
 }
 
@@ -132,13 +132,13 @@ fn verify_loaded_partition_has_expected_length(
 /// vm type is service VM.
 fn verify_property_and_get_capabilities(
     descriptors: &Descriptors,
-) -> Result<Vec<Capability>, AvbSlotVerifyError> {
+) -> Result<Vec<Capability>, PvmfwVerifyError> {
     if !descriptors.has_property_descriptor() {
         return Ok(vec![]);
     }
     descriptors
         .find_property_value(Capability::KEY)
-        .ok_or(AvbSlotVerifyError::UnknownVbmetaProperty)
+        .ok_or(PvmfwVerifyError::UnknownVbmetaProperty)
         .and_then(Capability::get_capabilities)
 }
 
@@ -147,7 +147,7 @@ pub fn verify_payload<'a>(
     kernel: &[u8],
     initrd: Option<&[u8]>,
     trusted_public_key: &'a [u8],
-) -> Result<VerifiedBootData<'a>, AvbSlotVerifyError> {
+) -> Result<VerifiedBootData<'a>, PvmfwVerifyError> {
     let mut payload = Payload::new(kernel, initrd, trusted_public_key);
     let mut ops = Ops::from(&mut payload);
     let kernel_verify_result = ops.verify_partition(PartitionName::Kernel.as_cstr())?;
@@ -181,7 +181,7 @@ pub fn verify_payload<'a>(
         } else if let Ok(result) = ops.verify_partition(PartitionName::InitrdDebug.as_cstr()) {
             (DebugLevel::Full, result, PartitionName::InitrdDebug)
         } else {
-            return Err(AvbSlotVerifyError::Verification);
+            return Err(avb::SlotVerifyError::Verification.into());
         };
     let loaded_partitions = initrd_verify_result.loaded_partitions()?;
     verify_loaded_partition_has_expected_length(
