@@ -139,6 +139,10 @@ The configuration data is described using the following [header]:
 |  offset = (SECOND - HEAD)     |
 |  size = (SECOND_END - SECOND) |
 +-------------------------------+
+|           [Entry 2]           | <-- Entry 2 is present since version 1.1
+|  offset = (THIRD - HEAD)      |
+|  size = (THIRD_END - SECOND)  |
++-------------------------------+
 |              ...              |
 +-------------------------------+
 |           [Entry n]           |
@@ -151,6 +155,10 @@ The configuration data is described using the following [header]:
 +===============================+ <-- SECOND
 |        {Second blob: DP}      |
 +~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+ <-- SECOND_END
+| (Padding to 8-byte alignment) |
++===============================+ <-- THIRD
+|        {Third blob: VM DTBO}  |
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+ <-- THIRD_END
 | (Padding to 8-byte alignment) |
 +===============================+
 |              ...              |
@@ -176,6 +184,11 @@ blos it refers to. In version 1.0, it describes two blobs:
 - entry 0 must point to a valid BCC Handover (see below)
 - entry 1 may point to a [DTBO] to be applied to the pVM device tree. See
   [debug policy][debug_policy] for an example.
+
+In version 1.1, new blob is added.
+
+- entry 2 may point to a [DTBO] that describes VM DTBO for device assignment.
+  pvmfw will provision assigned devices with the VM DTBO.
 
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/master/Documentation/dt-object-internal.txt
