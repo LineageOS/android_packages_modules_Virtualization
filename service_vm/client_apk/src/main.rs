@@ -49,12 +49,7 @@ fn try_main() -> Result<()> {
 fn request_certificate(csr: &[u8]) -> Vec<u8> {
     // SAFETY: It is safe as we only request the size of the certificate in this call.
     let certificate_size = unsafe {
-        AVmPayload_requestCertificate(
-            csr.as_ptr() as *const c_void,
-            csr.len(),
-            [].as_mut_ptr() as *mut c_void,
-            0,
-        )
+        AVmPayload_requestCertificate(csr.as_ptr() as *const c_void, csr.len(), [].as_mut_ptr(), 0)
     };
     let mut certificate = vec![0u8; certificate_size];
     // SAFETY: It is safe as we only write the data into the given buffer within the buffer
