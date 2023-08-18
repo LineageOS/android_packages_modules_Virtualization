@@ -27,6 +27,8 @@ rust_binary {
         "liblazy_static",
         "liblog_rust",
         "libnix",
+        "librustutils",
+        "libzerocopy",
     ],
     apex_available: ["com.android.virt"],
 }
