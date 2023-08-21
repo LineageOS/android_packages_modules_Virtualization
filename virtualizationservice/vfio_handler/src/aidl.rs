@@ -288,8 +288,8 @@ fn write_dtbo(dtbo_fd: &ParcelFileDescriptor) -> binder::Result<()> {
         .or_service_specific_exception(-1)?;
 
     let dt_table_header = get_dt_table_header(&mut dtbo_img)?;
-    // TODO(b/291190552): Use vm_dtbo_idx from bootconfig.
-    let vm_dtbo_idx = 3;
+    // TODO(b/296799016): Use vm_dtbo_idx from bootconfig.
+    let vm_dtbo_idx = 20;
     let dt_table_entry = get_dt_table_entry(&mut dtbo_img, &dt_table_header, vm_dtbo_idx)?;
     filter_dtbo_from_img(&mut dtbo_img, &dt_table_entry, dtbo_fd)?;
     Ok(())
