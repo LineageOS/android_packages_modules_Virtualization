@@ -2,6 +2,17 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
+android_app_certificate {
+    name: "MicrodroidTestAppCert",
+
+    // The default app cert is the same as the default platform cert
+    // (on a test-keys build), which means we end up getting assigned
+    // the permissions via signature and can't reliably disclaim
+    // them. So instead we use our own custom cert. See b/290582742.
+    // Created via: development/tools/make_key microdroid_test_app '/CN=microdroid_test_app'
+    certificate: "microdroid_test_app",
+}
+
 java_defaults {
     name: "MicrodroidTestAppsDefaults",
     test_suites: [
@@ -12,6 +23,7 @@ java_defaults {
         "com.android.microdroid.testservice-java",
         "com.android.microdroid.test.vmshare_service-java",
     ],
+    certificate: ":MicrodroidTestAppCert",
     sdk_version: "test_current",
     jni_uses_platform_apis: true,
     use_embedded_native_libs: true,
