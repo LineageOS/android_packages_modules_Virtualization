@@ -273,7 +273,7 @@ fn filter_dtbo_from_img(
         .context("Failed to clone File from ParcelFileDescriptor")
         .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?;
 
-    // TODO(b/291191362): Filter dtbo.img, not writing all information.
+    // TODO(b/296796644): Filter dtbo.img, not writing all information.
     dtbo_fd
         .write_all(&buffer)
         .context("Failed to write dtbo file")
