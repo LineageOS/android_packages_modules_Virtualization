@@ -288,8 +288,15 @@ fn write_dtbo(dtbo_fd: &ParcelFileDescriptor) -> binder::Result<()> {
         .or_service_specific_exception(-1)?;
 
     let dt_table_header = get_dt_table_header(&mut dtbo_img)?;
-    // TODO(b/296799016): Use vm_dtbo_idx from bootconfig.
-    let vm_dtbo_idx = 20;
+    let vm_dtbo_idx = system_properties::read("ro.boot.hypervisor.vm_dtbo_idx")
+        .context("Failed to read vm_dtbo_idx")
+        .or_service_specific_exception(-1)?
+        .ok_or_else(|| anyhow!("vm_dtbo_idx is none"))
+        .or_service_specific_exception(-1)?;
+    let vm_dtbo_idx = vm_dtbo_idx
+        .parse()
+        .context("vm_dtbo_idx is not an integer")
+        .or_service_specific_exception(-1)?;
     let dt_table_entry = get_dt_table_entry(&mut dtbo_img, &dt_table_header, vm_dtbo_idx)?;
     filter_dtbo_from_img(&mut dtbo_img, &dt_table_entry, dtbo_fd)?;
     Ok(())
