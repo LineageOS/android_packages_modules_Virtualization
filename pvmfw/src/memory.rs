@@ -14,8 +14,6 @@
 
 //! Low-level allocation and tracking of main memory.
 
-#![deny(unsafe_op_in_unsafe_fn)]
-
 use crate::helpers::PVMFW_PAGE_SIZE;
 use aarch64_paging::paging::VirtualAddress;
 use aarch64_paging::MapError;
