@@ -18,8 +18,8 @@ use core::ffi::c_void;
 use core::mem::size_of;
 use core::slice;
 use diced_open_dice::{
-    bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceMode, Hash,
-    InputValues, HIDDEN_SIZE,
+    bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceConfigValues, DiceMode,
+    Hash, InputValues, HIDDEN_SIZE,
 };
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
 use vmbase::cstr;
@@ -63,12 +63,10 @@ impl PartialInputs {
         next_bcc: &mut [u8],
     ) -> diced_open_dice::Result<()> {
         let mut config_descriptor_buffer = [0; 128];
-        let config_descriptor_size = bcc_format_config_descriptor(
-            Some(cstr!("vm_entry")),
-            None,  // component_version
-            false, // resettable
-            &mut config_descriptor_buffer,
-        )?;
+        let config_values =
+            DiceConfigValues { component_name: Some(cstr!("vm_entry")), ..Default::default() };
+        let config_descriptor_size =
+            bcc_format_config_descriptor(&config_values, &mut config_descriptor_buffer)?;
         let config = &config_descriptor_buffer[..config_descriptor_size];
 
         let dice_inputs = InputValues::new(
