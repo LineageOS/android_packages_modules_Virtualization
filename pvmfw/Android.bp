@@ -7,8 +7,6 @@ rust_ffi_static {
     crate_name: "pvmfw",
     defaults: ["vmbase_ffi_defaults"],
     srcs: ["src/main.rs"],
-    // Require unsafe blocks for inside unsafe functions.
-    flags: ["-Dunsafe_op_in_unsafe_fn"],
     features: [
         "legacy",
     ],
