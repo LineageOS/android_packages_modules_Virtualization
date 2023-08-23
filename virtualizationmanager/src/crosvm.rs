@@ -529,8 +529,10 @@ impl VmInstance {
                         MemoryTrimLevel::TRIM_MEMORY_RUNNING_MODERATE => 10,
                         _ => bail!("Invalid memory trim level {:?}", level),
                     };
-                    let command =
-                        BalloonControlCommand::Adjust { num_bytes: total_memory * pct / 100 };
+                    let command = BalloonControlCommand::Adjust {
+                        num_bytes: total_memory * pct / 100,
+                        wait_for_success: false,
+                    };
                     if let Err(e) = vm_control::client::handle_request(
                         &VmRequest::BalloonCommand(command),
                         &self.crosvm_control_socket_path,
