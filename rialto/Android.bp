@@ -76,6 +76,7 @@ avb_add_hash_footer {
 }
 
 prebuilt_etc {
+    // rialto_bin is a prebuilt target wrapping the signed bare-metal service VM.
     name: "rialto_bin",
     filename: "rialto.bin",
     target: {

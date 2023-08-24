@@ -220,6 +220,11 @@ public class VmShareServiceImpl extends Service {
         }
 
         @Override
+        public int getUid() throws RemoteException {
+            throw new UnsupportedOperationException("Not supported");
+        }
+
+        @Override
         public void writeToFile(String content, String path) throws RemoteException {
             throw new UnsupportedOperationException("Not supported");
         }
