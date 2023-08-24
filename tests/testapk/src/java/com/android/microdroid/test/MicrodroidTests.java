@@ -72,6 +72,7 @@ import com.google.common.truth.BooleanSubject;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
@@ -1523,6 +1524,30 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    @Ignore // Figure out how to run this conditionally
+    @CddTest(requirements = {"9.17/C-1-1"})
+    public void payloadIsNotRoot() throws Exception {
+        assumeSupportedDevice();
+
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setMemoryBytes(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm", config);
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            tr.mUid = ts.getUid();
+                        });
+        testResults.assertNoException();
+        assertThat(testResults.mUid).isNotEqualTo(0);
+    }
+
+    @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void encryptedStorageIsPersistent() throws Exception {
         assumeSupportedDevice();
@@ -1971,8 +1996,12 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         | OsConstants.S_IROTH
                         | OsConstants.S_IWOTH
                         | OsConstants.S_IXOTH;
-        assertThat(testResults.mFileMode & allPermissionsMask)
-                .isEqualTo(OsConstants.S_IRUSR | OsConstants.S_IXUSR);
+        int expectedPermissions =
+                OsConstants.S_IRUSR
+                        | OsConstants.S_IXUSR
+                        | OsConstants.S_IRGRP
+                        | OsConstants.S_IXGRP;
+        assertThat(testResults.mFileMode & allPermissionsMask).isEqualTo(expectedPermissions);
     }
 
     // Taken from bionic/libc/kernel/uapi/linux/mount.h
