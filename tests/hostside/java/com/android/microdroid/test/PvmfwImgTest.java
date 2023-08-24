@@ -143,7 +143,7 @@ public class PvmfwImgTest extends MicrodroidHostTestCaseBase {
     public void testInvalidConfigVersion_doesNotBoot() throws Exception {
         // Disclaimer: Update versions when it becomes valid
         Pvmfw pvmfw =
-                new Pvmfw.Builder(mPvmfwBinFileOnHost, mBccFileOnHost).setVersion(1, 100).build();
+                new Pvmfw.Builder(mPvmfwBinFileOnHost, mBccFileOnHost).setVersion(2, 0).build();
         pvmfw.serialize(mCustomPvmfwBinFileOnHost);
 
         assertThrows(
