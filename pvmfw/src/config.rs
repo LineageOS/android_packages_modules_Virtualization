@@ -18,7 +18,7 @@ use core::fmt;
 use core::mem;
 use core::ops::Range;
 use core::result;
-use log::info;
+use log::{info, warn};
 use static_assertions::const_assert_eq;
 use vmbase::util::RangeExt;
 use zerocopy::{FromBytes, LayoutVerified};
@@ -47,8 +47,6 @@ pub enum Error {
     InvalidMagic,
     /// Version of the header isn't supported.
     UnsupportedVersion(Version),
-    /// Header sets flags incorrectly or uses reserved flags.
-    InvalidFlags(u32),
     /// Header describes configuration data that doesn't fit in the expected buffer.
     InvalidSize(usize),
     /// Header entry is missing.
@@ -64,7 +62,6 @@ impl fmt::Display for Error {
             Self::HeaderMisaligned => write!(f, "Reserved region is misaligned"),
             Self::InvalidMagic => write!(f, "Wrong magic number"),
             Self::UnsupportedVersion(v) => write!(f, "Version {v} not supported"),
-            Self::InvalidFlags(v) => write!(f, "Flags value {v:#x} is incorrect or reserved"),
             Self::InvalidSize(sz) => write!(f, "Total size ({sz:#x}) overflows reserved region"),
             Self::MissingEntry(entry) => write!(f, "Mandatory {entry:?} entry is missing"),
             Self::EntryOutOfBounds(entry, range, limits) => {
@@ -88,7 +85,7 @@ impl Header {
         self.total_size as usize
     }
 
-    pub fn body_offset(&self) -> Result<usize> {
+    pub fn body_lowest_bound(&self) -> Result<usize> {
         let entries_offset = mem::size_of::<Self>();
 
         // Ensure that the entries are properly aligned and do not require padding.
@@ -104,6 +101,11 @@ impl Header {
         let last_entry = match self.version {
             Self::VERSION_1_0 => Entry::DebugPolicy,
             Self::VERSION_1_1 => Entry::VmDtbo,
+            v @ Version { major: 1, .. } => {
+                const LATEST: Version = Header::VERSION_1_1;
+                warn!("Parsing unknown config data version {v} as version {LATEST}");
+                return Ok(Entry::COUNT);
+            }
             v => return Err(Error::UnsupportedVersion(v)),
         };
 
@@ -181,8 +183,9 @@ impl<'a> Config<'a> {
             return Err(Error::InvalidMagic);
         }
 
-        if header.flags != 0 {
-            return Err(Error::InvalidFlags(header.flags));
+        let header_flags = header.flags;
+        if header_flags != 0 {
+            warn!("Ignoring unknown config flags: {header_flags:#x}");
         }
 
         info!("pvmfw config version: {}", header.version);
@@ -206,7 +209,7 @@ impl<'a> Config<'a> {
         // Validate that we won't get an invalid alignment in the following due to padding to u64.
         const_assert_eq!(mem::size_of::<HeaderEntry>() % mem::size_of::<u64>(), 0);
 
-        let limits = header.body_offset()?..total_size;
+        let limits = header.body_lowest_bound()?..total_size;
         let ranges = [
             // TODO: Find a way to do this programmatically even if the trait
             // `core::marker::Copy` is not implemented for `core::ops::Range<usize>`.
