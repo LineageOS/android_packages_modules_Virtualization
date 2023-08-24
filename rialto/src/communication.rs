@@ -17,9 +17,11 @@
 use crate::error::Result;
 use ciborium_io::{Read, Write};
 use core::hint::spin_loop;
+use core::mem;
 use core::result;
 use log::info;
 use service_vm_comm::{Request, Response};
+use tinyvec::ArrayVec;
 use virtio_drivers::{
     self,
     device::socket::{
@@ -29,10 +31,13 @@ use virtio_drivers::{
     Hal,
 };
 
+const WRITE_BUF_CAPACITY: usize = 512;
+
 pub struct VsockStream<H: Hal, T: Transport> {
     connection_manager: VsockConnectionManager<H, T>,
     /// Peer address. The same port is used on rialto and peer for convenience.
     peer_addr: VsockAddr,
+    write_buf: ArrayVec<[u8; WRITE_BUF_CAPACITY]>,
 }
 
 impl<H: Hal, T: Transport> VsockStream<H, T> {
@@ -43,6 +48,7 @@ impl<H: Hal, T: Transport> VsockStream<H, T> {
         let mut vsock_stream = Self {
             connection_manager: VsockConnectionManager::new(socket_device_driver),
             peer_addr,
+            write_buf: ArrayVec::default(),
         };
         vsock_stream.connect()?;
         Ok(vsock_stream)
@@ -176,12 +182,25 @@ impl<H: Hal, T: Transport> Write for VsockStream<H, T> {
     type Error = virtio_drivers::Error;
 
     fn write_all(&mut self, data: &[u8]) -> result::Result<(), Self::Error> {
-        self.wait_for_send(data)
+        if data.len() >= self.write_buf.capacity() - self.write_buf.len() {
+            self.flush()?;
+            if data.len() >= self.write_buf.capacity() {
+                self.wait_for_send(data)?;
+                return Ok(());
+            }
+        }
+        self.write_buf.extend_from_slice(data);
+        Ok(())
     }
 
     fn flush(&mut self) -> result::Result<(), Self::Error> {
-        // TODO(b/293411448): Optimize the data sending by saving the data to write
-        // in a local buffer and then flushing only when the buffer is full.
+        if !self.write_buf.is_empty() {
+            // We need to take the memory from self.write_buf to a temporary
+            // buffer to avoid borrowing `*self` as mutable and immutable on
+            // the same time in `self.wait_for_send(&self.write_buf)`.
+            let buffer = mem::take(&mut self.write_buf);
+            self.wait_for_send(&buffer)?;
+        }
         Ok(())
     }
 }
