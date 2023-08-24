@@ -31,10 +31,11 @@ pub type Inode = u64;
 const INVALID: Inode = 0;
 const ROOT: Inode = 1;
 
-const DEFAULT_DIR_MODE: u32 = libc::S_IRUSR | libc::S_IXUSR;
+const DEFAULT_DIR_MODE: u32 = libc::S_IRUSR | libc::S_IXUSR | libc::S_IRGRP | libc::S_IXGRP;
 // b/264668376 some files in APK don't have unix permissions specified. Default to 400
 // otherwise those files won't be readable even by the owner.
-const DEFAULT_FILE_MODE: u32 = libc::S_IRUSR;
+const DEFAULT_FILE_MODE: u32 = libc::S_IRUSR | libc::S_IRGRP;
+const EXECUTABLE_FILE_MODE: u32 = DEFAULT_FILE_MODE | libc::S_IXUSR | libc::S_IXGRP;
 
 /// `InodeData` represents an inode which has metadata about a file or a directory
 #[derive(Debug)]
@@ -191,7 +192,7 @@ impl InodeTable {
                 // additional binaries that they might want to execute.
                 // An example of such binary is measure_io one used in the authfs performance tests.
                 // More context available at b/265261525 and b/270955654.
-                file_mode |= libc::S_IXUSR;
+                file_mode = EXECUTABLE_FILE_MODE;
             }
 
             while let Some(name) = iter.next() {

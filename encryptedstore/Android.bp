@@ -14,6 +14,7 @@ rust_defaults {
         "libclap",
         "libhex",
         "liblog_rust",
+        "libmicrodroid_uids",
         "libnix",
         "libdm_rust",
     ],
