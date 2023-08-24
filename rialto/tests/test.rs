@@ -22,10 +22,11 @@ use android_system_virtualizationservice::{
     },
     binder::{ParcelFileDescriptor, ProcessState},
 };
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Result};
 use log::info;
+use service_vm_comm::{Request, Response};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::os::unix::io::FromRawFd;
 use std::panic;
 use std::thread;
@@ -44,7 +45,7 @@ const INSTANCE_IMG_PATH: &str = "/data/local/tmp/rialto_test/arm64/instance.img"
 const INSTANCE_IMG_SIZE: i64 = 1024 * 1024; // 1MB
 
 #[test]
-fn boot_rialto_in_protected_vm_successfully() -> Result<(), Error> {
+fn boot_rialto_in_protected_vm_successfully() -> Result<()> {
     boot_rialto_successfully(
         SIGNED_RIALTO_PATH,
         true, // protected_vm
@@ -52,14 +53,14 @@ fn boot_rialto_in_protected_vm_successfully() -> Result<(), Error> {
 }
 
 #[test]
-fn boot_rialto_in_unprotected_vm_successfully() -> Result<(), Error> {
+fn boot_rialto_in_unprotected_vm_successfully() -> Result<()> {
     boot_rialto_successfully(
         UNSIGNED_RIALTO_PATH,
         false, // protected_vm
     )
 }
 
-fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<(), Error> {
+fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<()> {
     android_logger::init_once(
         android_logger::Config::default().with_tag("rialto").with_min_level(log::Level::Debug),
     );
@@ -169,27 +170,31 @@ fn android_log_fd() -> io::Result<File> {
     Ok(writer)
 }
 
-fn try_check_socket_connection(port: u32) -> Result<(), Error> {
+fn try_check_socket_connection(port: u32) -> Result<()> {
     info!("Setting up the listening socket on port {port}...");
     let listener = VsockListener::bind_with_cid_port(VMADDR_CID_HOST, port)?;
     info!("Listening on port {port}...");
 
-    let Some(Ok(mut vsock_stream)) = listener.incoming().next() else {
-        bail!("Failed to get vsock_stream");
-    };
+    let mut vsock_stream =
+        listener.incoming().next().ok_or_else(|| anyhow!("Failed to get vsock_stream"))??;
     info!("Accepted connection {:?}", vsock_stream);
-
-    let message = "Hello from host";
-    vsock_stream.write_all(message.as_bytes())?;
-    vsock_stream.flush()?;
-    info!("Sent message: {:?}.", message);
-
-    let mut buffer = vec![0u8; 30];
     vsock_stream.set_read_timeout(Some(Duration::from_millis(1_000)))?;
-    let len = vsock_stream.read(&mut buffer)?;
 
-    assert_eq!(message.len(), len);
-    buffer[..len].reverse();
-    assert_eq!(message.as_bytes(), &buffer[..len]);
+    const WRITE_BUFFER_CAPACITY: usize = 512;
+    let mut buffer = BufWriter::with_capacity(WRITE_BUFFER_CAPACITY, vsock_stream.clone());
+
+    // TODO(b/292080257): Test with message longer than the receiver's buffer capacity
+    // 1024 bytes once the guest virtio-vsock driver fixes the credit update in recv().
+    let message = "abc".repeat(166);
+    let request = Request::Reverse(message.as_bytes().to_vec());
+    ciborium::into_writer(&request, &mut buffer)?;
+    buffer.flush()?;
+    info!("Sent request: {request:?}.");
+
+    let response: Response = ciborium::from_reader(&mut vsock_stream)?;
+    info!("Received response: {response:?}.");
+
+    let expected_response: Vec<u8> = message.as_bytes().iter().rev().cloned().collect();
+    assert_eq!(Response::Reverse(expected_response), response);
     Ok(())
 }
