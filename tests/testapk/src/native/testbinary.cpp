@@ -248,6 +248,11 @@ Result<void> start_test_service() {
             return ScopedAStatus::ok();
         }
 
+        ScopedAStatus getUid(int* out) override {
+            *out = getuid();
+            return ScopedAStatus::ok();
+        }
+
         ScopedAStatus runEchoReverseServer() override {
             auto result = start_echo_reverse_server();
             if (result.ok()) {
