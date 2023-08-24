@@ -32,6 +32,7 @@ rust_defaults {
         "liblog_rust",
         "libmicrodroid_metadata",
         "libmicrodroid_payload_config",
+        "libmicrodroid_uids",
         "libnix",
         "libonce_cell",
         "libopenssl",

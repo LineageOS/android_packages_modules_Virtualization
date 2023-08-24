@@ -528,8 +528,6 @@ struct Zipfuse {
 }
 
 impl Zipfuse {
-    const MICRODROID_PAYLOAD_UID: u32 = 0; // TODO(b/264861173) should be non-root
-    const MICRODROID_PAYLOAD_GID: u32 = 0; // TODO(b/264861173) should be non-root
     fn mount(
         &mut self,
         noexec: MountForExec,
@@ -542,9 +540,13 @@ impl Zipfuse {
         if let MountForExec::Disallowed = noexec {
             cmd.arg("--noexec");
         }
+        // Let root own the files in APK, so we can access them, but set the group to
+        // allow all payloads to have access too.
+        let (uid, gid) = (microdroid_uids::ROOT_UID, microdroid_uids::MICRODROID_PAYLOAD_GID);
+
         cmd.args(["-p", &ready_prop, "-o", option]);
-        cmd.args(["-u", &Self::MICRODROID_PAYLOAD_UID.to_string()]);
-        cmd.args(["-g", &Self::MICRODROID_PAYLOAD_GID.to_string()]);
+        cmd.args(["-u", &uid.to_string()]);
+        cmd.args(["-g", &gid.to_string()]);
         cmd.arg(zip_path).arg(mount_dir);
         self.ready_properties.push(ready_prop);
         cmd.spawn().with_context(|| format!("Failed to run zipfuse for {mount_dir:?}"))
@@ -850,10 +852,15 @@ fn load_crashkernel_if_supported() -> Result<()> {
 fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Result<i32> {
     info!("executing main task {:?}...", task);
     let mut command = match task.type_ {
-        TaskType::Executable => Command::new(&task.command),
+        TaskType::Executable => {
+            // TODO(b/296393106): Run system payloads as non-root.
+            Command::new(&task.command)
+        }
         TaskType::MicrodroidLauncher => {
             let mut command = Command::new("/system/bin/microdroid_launcher");
             command.arg(find_library_path(&task.command)?);
+            command.uid(microdroid_uids::MICRODROID_PAYLOAD_UID);
+            command.gid(microdroid_uids::MICRODROID_PAYLOAD_GID);
             command
         }
     };

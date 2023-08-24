@@ -54,6 +54,8 @@ android_system_image {
     deps: [
         "init_second_stage.microdroid",
         "microdroid_build_prop",
+        "microdroid_etc_passwd",
+        "microdroid_etc_group",
         "microdroid_init_debug_policy",
         "microdroid_init_rc",
         "microdroid_ueventd_rc",
@@ -154,6 +156,20 @@ prebuilt_etc {
     filename: "ueventd.rc",
     src: "ueventd.rc",
     installable: false, // avoid collision with system partition's ueventd.rc
+}
+
+prebuilt_etc {
+    name: "microdroid_etc_passwd",
+    src: "microdroid_passwd",
+    filename: "passwd",
+    installable: false,
+}
+
+prebuilt_etc {
+    name: "microdroid_etc_group",
+    src: "microdroid_group",
+    filename: "group",
+    installable: false,
 }
 
 prebuilt_root {

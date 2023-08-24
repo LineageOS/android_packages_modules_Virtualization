@@ -55,6 +55,9 @@ interface ITestService {
     /** Returns a mask of effective capabilities that the process running the payload binary has. */
     String[] getEffectiveCapabilities();
 
+    /* Return the uid of the process running the binary. */
+    int getUid();
+
     /* write the content into the specified file. */
     void writeToFile(String content, String path);
 
