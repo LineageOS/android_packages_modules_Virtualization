@@ -20,10 +20,11 @@
 mod communication;
 mod error;
 mod exceptions;
+mod requests;
 
 extern crate alloc;
 
-use crate::communication::DataChannel;
+use crate::communication::VsockStream;
 use crate::error::{Error, Result};
 use core::num::NonZeroUsize;
 use core::slice;
@@ -137,10 +138,10 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     let socket_device = find_socket_device::<HalImpl>(&mut pci_root)?;
     debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
 
-    let mut data_channel = DataChannel::from(socket_device);
-    data_channel.connect(host_addr())?;
-    data_channel.handle_incoming_request()?;
-    data_channel.force_close()?;
+    let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
+    let response = requests::process_request(vsock_stream.read_request()?);
+    vsock_stream.write_response(&response)?;
+    vsock_stream.shutdown()?;
 
     Ok(())
 }

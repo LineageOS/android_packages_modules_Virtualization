@@ -1,0 +1,36 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_defaults {
+    name: "libservice_vm_comm_defaults",
+    crate_name: "service_vm_comm",
+    srcs: ["src/lib.rs"],
+    prefer_rlib: true,
+    apex_available: [
+        "com.android.virt",
+    ],
+}
+
+rust_library_rlib {
+    name: "libservice_vm_comm_nostd",
+    defaults: ["libservice_vm_comm_defaults"],
+    no_stdlibs: true,
+    stdlibs: [
+        "libcore.rust_sysroot",
+    ],
+    rustlibs: [
+        "libserde_nostd",
+    ],
+}
+
+rust_library {
+    name: "libservice_vm_comm",
+    defaults: ["libservice_vm_comm_defaults"],
+    rustlibs: [
+        "libserde",
+    ],
+    features: [
+        "std",
+    ],
+}
