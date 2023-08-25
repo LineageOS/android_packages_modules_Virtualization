@@ -130,8 +130,8 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         // or tryLaunchProtectedNonDebuggableVm().
         mCustomPvmfwBinFileOnHost =
                 FileUtil.createTempFile(CUSTOM_PVMFW_FILE_PREFIX, CUSTOM_PVMFW_FILE_SUFFIX);
-        mAndroidDevice.setProperty(CUSTOM_PVMFW_IMG_PATH_PROP, CUSTOM_PVMFW_IMG_PATH);
-        mAndroidDevice.setProperty(CUSTOM_DEBUG_POLICY_PATH_PROP, CUSTOM_DEBUG_POLICY_PATH);
+        setPropertyOrThrow(mAndroidDevice, CUSTOM_PVMFW_IMG_PATH_PROP, CUSTOM_PVMFW_IMG_PATH);
+        setPropertyOrThrow(mAndroidDevice, CUSTOM_DEBUG_POLICY_PATH_PROP, CUSTOM_DEBUG_POLICY_PATH);
 
         // Prepare for launching microdroid
         mAndroidDevice.installPackage(findTestFile(PACKAGE_FILE_NAME), /* reinstall */ false);
@@ -151,8 +151,8 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         mAndroidDevice.uninstallPackage(PACKAGE_NAME);
 
         // Cleanup for custom debug policies
-        mAndroidDevice.setProperty(CUSTOM_DEBUG_POLICY_PATH_PROP, "");
-        mAndroidDevice.setProperty(CUSTOM_PVMFW_IMG_PATH_PROP, "");
+        setPropertyOrThrow(mAndroidDevice, CUSTOM_DEBUG_POLICY_PATH_PROP, "");
+        setPropertyOrThrow(mAndroidDevice, CUSTOM_PVMFW_IMG_PATH_PROP, "");
         FileUtil.deleteFile(mCustomPvmfwBinFileOnHost);
 
         cleanUpVirtualizationTestSetup(mAndroidDevice);
