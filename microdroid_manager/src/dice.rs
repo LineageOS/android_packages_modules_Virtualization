@@ -164,11 +164,11 @@ impl Drop for DiceDriver<'_> {
 /// https://cs.android.com/android/platform/superproject/+/master:hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/ProtectedData.aidl
 /// {
 ///   -70002: "Microdroid payload",
-///   ? -71000: tstr // payload_config_path
+///   ? -71000: tstr ; payload_config_path
 ///   ? -71001: PayloadConfig
 /// }
 /// PayloadConfig = {
-///   1: tstr // payload_binary_name
+///   1: tstr ; payload_binary_name
 /// }
 pub fn format_payload_config_descriptor(payload: &PayloadMetadata) -> Result<Vec<u8>> {
     const MICRODROID_PAYLOAD_COMPONENT_NAME: &str = "Microdroid payload";
