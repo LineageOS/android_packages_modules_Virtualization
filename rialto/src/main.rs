@@ -26,6 +26,7 @@ extern crate alloc;
 
 use crate::communication::VsockStream;
 use crate::error::{Error, Result};
+use ciborium_io::Write;
 use core::num::NonZeroUsize;
 use core::slice;
 use fdtpci::PciInfo;
@@ -141,6 +142,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
     let response = requests::process_request(vsock_stream.read_request()?);
     vsock_stream.write_response(&response)?;
+    vsock_stream.flush()?;
     vsock_stream.shutdown()?;
 
     Ok(())
