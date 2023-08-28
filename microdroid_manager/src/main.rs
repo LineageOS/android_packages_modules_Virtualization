@@ -341,7 +341,9 @@ fn get_debug_policy_bool(path: &'static str) -> Result<Option<bool>> {
     let mut file = match File::open(path) {
         Ok(dp) => dp,
         Err(e) => {
-            info!("{e:?}. Assumes <0>");
+            info!(
+                "Assumes that debug policy is disabled because failed to read debug policy ({e:?})"
+            );
             return Ok(Some(false));
         }
     };
