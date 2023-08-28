@@ -177,7 +177,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         long start = System.currentTimeMillis();
         while ((System.currentTimeMillis() - start < timeoutMillis)
                 && !matcher.matches(callable.call())) {
-            Thread.sleep(500);
+            RunUtil.getDefault().sleep(500);
         }
         assertThat(callable.call(), matcher);
     }
