@@ -22,7 +22,7 @@ use avb_bindgen::{
     AvbVBMetaImageHeader,
 };
 use openssl::sha;
-use pvmfw_avb::{verify_payload, AvbSlotVerifyError, DebugLevel, Digest, VerifiedBootData};
+use pvmfw_avb::{verify_payload, DebugLevel, Digest, PvmfwVerifyError, VerifiedBootData};
 use std::{
     fs,
     mem::{size_of, transmute, MaybeUninit},
@@ -39,7 +39,7 @@ pub fn assert_payload_verification_with_initrd_fails(
     kernel: &[u8],
     initrd: &[u8],
     trusted_public_key: &[u8],
-    expected_error: AvbSlotVerifyError,
+    expected_error: PvmfwVerifyError,
 ) -> Result<()> {
     assert_payload_verification_fails(kernel, Some(initrd), trusted_public_key, expected_error)
 }
@@ -48,7 +48,7 @@ pub fn assert_payload_verification_fails(
     kernel: &[u8],
     initrd: Option<&[u8]>,
     trusted_public_key: &[u8],
-    expected_error: AvbSlotVerifyError,
+    expected_error: PvmfwVerifyError,
 ) -> Result<()> {
     assert_eq!(expected_error, verify_payload(kernel, initrd, trusted_public_key).unwrap_err());
     Ok(())

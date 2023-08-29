@@ -14,7 +14,6 @@
 
 //! Structs and functions used by all the descriptors.
 
-use crate::error::AvbIOError;
 use crate::utils::{self, is_not_null};
 use core::mem::MaybeUninit;
 
@@ -32,7 +31,7 @@ pub(super) unsafe fn get_valid_descriptor<T>(
     let descriptor = unsafe {
         let mut desc = MaybeUninit::uninit();
         if !descriptor_validate_and_byteswap(descriptor_ptr, desc.as_mut_ptr()) {
-            return Err(AvbIOError::Io);
+            return Err(avb::IoError::Io);
         }
         desc.assume_init()
     };
