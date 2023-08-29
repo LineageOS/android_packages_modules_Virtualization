@@ -112,6 +112,13 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         LogArchiver.archiveLogThenDelete(logs, device, remotePath, localName);
     }
 
+    public static void setPropertyOrThrow(ITestDevice device, String propertyName, String value)
+            throws DeviceNotAvailableException {
+        if (!device.setProperty(propertyName, value)) {
+            throw new RuntimeException("Failed to set sysprop " + propertyName + " to " + value);
+        }
+    }
+
     // Run an arbitrary command in the host side and returns the result.
     // Note failure is not an error.
     public static String tryRunOnHost(String... cmd) {
