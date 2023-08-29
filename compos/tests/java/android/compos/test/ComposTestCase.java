@@ -116,13 +116,13 @@ public final class ComposTestCase extends MicrodroidHostTestCaseBase {
 
     @Test
     public void testOdrefreshSpeed() throws Exception {
-        getDevice().setProperty(SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME, "speed");
+        setPropertyOrThrow(getDevice(), SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME, "speed");
         testOdrefresh();
     }
 
     @Test
     public void testOdrefreshSpeedProfile() throws Exception {
-        getDevice().setProperty(SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME, "speed-profile");
+        setPropertyOrThrow(getDevice(), SYSTEM_SERVER_COMPILER_FILTER_PROP_NAME, "speed-profile");
         testOdrefresh();
     }
 
