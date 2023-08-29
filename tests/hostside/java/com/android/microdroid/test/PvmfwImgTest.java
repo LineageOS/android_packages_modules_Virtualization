@@ -93,7 +93,7 @@ public class PvmfwImgTest extends MicrodroidHostTestCaseBase {
         // when launching with launchProtectedVmAndWaitForBootCompleted().
         mCustomPvmfwBinFileOnHost =
                 FileUtil.createTempFile(CUSTOM_PVMFW_FILE_PREFIX, CUSTOM_PVMFW_FILE_SUFFIX);
-        mAndroidDevice.setProperty(CUSTOM_PVMFW_IMG_PATH_PROP, CUSTOM_PVMFW_IMG_PATH);
+        setPropertyOrThrow(mAndroidDevice, CUSTOM_PVMFW_IMG_PATH_PROP, CUSTOM_PVMFW_IMG_PATH);
 
         // Prepare for launching microdroid
         mAndroidDevice.installPackage(findTestFile(PACKAGE_FILE_NAME), /* reinstall */ false);
@@ -113,7 +113,7 @@ public class PvmfwImgTest extends MicrodroidHostTestCaseBase {
         mAndroidDevice.uninstallPackage(PACKAGE_NAME);
 
         // Cleanup for custom pvmfw.img
-        mAndroidDevice.setProperty(CUSTOM_PVMFW_IMG_PATH_PROP, "");
+        setPropertyOrThrow(mAndroidDevice, CUSTOM_PVMFW_IMG_PATH_PROP, "");
         FileUtil.deleteFile(mCustomPvmfwBinFileOnHost);
 
         cleanUpVirtualizationTestSetup(mAndroidDevice);
