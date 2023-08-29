@@ -17,9 +17,9 @@
 use super::common::get_valid_descriptor;
 use super::hash::HashDescriptor;
 use super::property::PropertyDescriptor;
-use crate::error::{AvbIOError, AvbSlotVerifyError};
 use crate::partition::PartitionName;
 use crate::utils::{self, is_not_null, to_usize, usize_checked_add};
+use crate::PvmfwVerifyError;
 use avb_bindgen::{
     avb_descriptor_foreach, avb_descriptor_validate_and_byteswap, AvbDescriptor, AvbDescriptorTag,
     AvbVBMetaData,
@@ -45,9 +45,9 @@ impl<'a> Descriptors<'a> {
     /// Behavior is undefined if any of the following conditions are violated:
     /// * `vbmeta.vbmeta_data` must be non-null and points to a valid VBMeta.
     /// * `vbmeta.vbmeta_data` must be valid for reading `vbmeta.vbmeta_size` bytes.
-    pub(crate) unsafe fn from_vbmeta(vbmeta: AvbVBMetaData) -> Result<Self, AvbSlotVerifyError> {
-        is_not_null(vbmeta.vbmeta_data).map_err(|_| AvbSlotVerifyError::Io)?;
-        let mut res: Result<Self, AvbIOError> = Ok(Self::default());
+    pub(crate) unsafe fn from_vbmeta(vbmeta: AvbVBMetaData) -> Result<Self, PvmfwVerifyError> {
+        is_not_null(vbmeta.vbmeta_data).map_err(|_| avb::SlotVerifyError::Io)?;
+        let mut res: Result<Self, avb::IoError> = Ok(Self::default());
         // SAFETY: It is safe as the raw pointer `vbmeta.vbmeta_data` is a non-null pointer and
         // points to a valid VBMeta structure.
         let output = unsafe {
@@ -59,9 +59,9 @@ impl<'a> Descriptors<'a> {
             )
         };
         if output == res.is_ok() {
-            res.map_err(AvbSlotVerifyError::InvalidDescriptors)
+            res.map_err(PvmfwVerifyError::InvalidDescriptors)
         } else {
-            Err(AvbSlotVerifyError::InvalidMetadata)
+            Err(avb::SlotVerifyError::InvalidMetadata.into())
         }
     }
 
@@ -74,11 +74,11 @@ impl<'a> Descriptors<'a> {
     pub(crate) fn find_hash_descriptor(
         &self,
         partition_name: PartitionName,
-    ) -> Result<&HashDescriptor, AvbSlotVerifyError> {
+    ) -> Result<&HashDescriptor, avb::SlotVerifyError> {
         self.hash_descriptors
             .iter()
             .find(|d| d.partition_name == partition_name)
-            .ok_or(AvbSlotVerifyError::InvalidMetadata)
+            .ok_or(avb::SlotVerifyError::InvalidMetadata)
     }
 
     pub(crate) fn has_property_descriptor(&self) -> bool {
@@ -98,7 +98,7 @@ impl<'a> Descriptors<'a> {
 
     fn push_hash_descriptor(&mut self, descriptor: HashDescriptor<'a>) -> utils::Result<()> {
         if self.hash_descriptors.iter().any(|d| d.partition_name == descriptor.partition_name) {
-            return Err(AvbIOError::Io);
+            return Err(avb::IoError::Io);
         }
         self.hash_descriptors.push(descriptor);
         Ok(())
@@ -109,7 +109,7 @@ impl<'a> Descriptors<'a> {
         descriptor: PropertyDescriptor<'a>,
     ) -> utils::Result<()> {
         if self.prop_descriptor.is_some() {
-            return Err(AvbIOError::Io);
+            return Err(avb::IoError::Io);
         }
         self.prop_descriptor.replace(descriptor);
         Ok(())
@@ -120,7 +120,8 @@ impl<'a> Descriptors<'a> {
 ///
 /// Behavior is undefined if any of the following conditions are violated:
 /// * The `descriptor` pointer must be non-null and points to a valid `AvbDescriptor` struct.
-/// * The `user_data` pointer must be non-null, points to a valid `Result<Descriptors, AvbIOError>`
+/// * The `user_data` pointer must be non-null, points to a valid
+///   `Result<Descriptors, avb::IoError>`
 ///  struct and is initialized.
 unsafe extern "C" fn check_and_save_descriptor(
     descriptor: *const AvbDescriptor,
@@ -128,7 +129,8 @@ unsafe extern "C" fn check_and_save_descriptor(
 ) -> bool {
     // SAFETY: It is safe because the caller ensures that `user_data` points to a valid struct and
     // is initialized.
-    let Some(res) = (unsafe { (user_data as *mut Result<Descriptors, AvbIOError>).as_mut() }) else {
+    let Some(res) = (unsafe { (user_data as *mut Result<Descriptors, avb::IoError>).as_mut() })
+    else {
         return false;
     };
     let Ok(descriptors) = res else {
@@ -195,7 +197,7 @@ impl<'a> Descriptor<'a> {
                     unsafe { PropertyDescriptor::from_descriptor_ptr(descriptor, data)? };
                 Ok(Self::Property(descriptor))
             }
-            _ => Err(AvbIOError::NoSuchValue),
+            _ => Err(avb::IoError::NoSuchValue),
         }
     }
 }

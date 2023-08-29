@@ -15,7 +15,6 @@
 //! Structs and functions relating to the hash descriptor.
 
 use super::common::get_valid_descriptor;
-use crate::error::AvbIOError;
 use crate::partition::PartitionName;
 use crate::utils::{self, to_usize, usize_checked_add};
 use avb_bindgen::{
@@ -54,13 +53,13 @@ impl<'a> HashDescriptor<'a> {
         let h = unsafe { HashDescriptorHeader::from_descriptor_ptr(descriptor)? };
         let partition_name = data
             .get(h.partition_name_range()?)
-            .ok_or(AvbIOError::RangeOutsidePartition)?
+            .ok_or(avb::IoError::RangeOutsidePartition)?
             .try_into()?;
         let digest = data
             .get(h.digest_range()?)
-            .ok_or(AvbIOError::RangeOutsidePartition)?
+            .ok_or(avb::IoError::RangeOutsidePartition)?
             .try_into()
-            .map_err(|_| AvbIOError::InvalidValueSize)?;
+            .map_err(|_| avb::IoError::InvalidValueSize)?;
         Ok(Self { partition_name, digest })
     }
 }

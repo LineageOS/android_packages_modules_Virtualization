@@ -14,11 +14,9 @@
 
 //! Structs and functions relating to `AvbOps`.
 
-use crate::error::{
-    slot_verify_result_to_verify_payload_result, to_avb_io_result, AvbIOError, AvbSlotVerifyError,
-};
 use crate::partition::PartitionName;
 use crate::utils::{self, as_ref, is_not_null, to_nonnull, write};
+use avb::internal::{result_to_io_enum, slot_verify_enum_to_result};
 use avb_bindgen::{
     avb_slot_verify, avb_slot_verify_data_free, AvbHashtreeErrorMode, AvbIOResult, AvbOps,
     AvbPartitionData, AvbSlotVerifyData, AvbSlotVerifyFlags, AvbVBMetaData,
@@ -55,11 +53,11 @@ impl<'a> Payload<'a> {
         Self { kernel, initrd, trusted_public_key }
     }
 
-    fn get_partition(&self, partition_name: *const c_char) -> Result<&[u8], AvbIOError> {
+    fn get_partition(&self, partition_name: *const c_char) -> Result<&[u8], avb::IoError> {
         match partition_name.try_into()? {
             PartitionName::Kernel => Ok(self.kernel),
             PartitionName::InitrdNormal | PartitionName::InitrdDebug => {
-                self.initrd.ok_or(AvbIOError::NoSuchPartition)
+                self.initrd.ok_or(avb::IoError::NoSuchPartition)
             }
         }
     }
@@ -96,7 +94,7 @@ impl Ops {
     pub(crate) fn verify_partition(
         &mut self,
         partition_name: &CStr,
-    ) -> Result<AvbSlotVerifyDataWrap, AvbSlotVerifyError> {
+    ) -> Result<AvbSlotVerifyDataWrap, avb::SlotVerifyError> {
         let requested_partitions = [partition_name.as_ptr(), ptr::null()];
         let ab_suffix = CStr::from_bytes_with_nul(NULL_BYTE).unwrap();
         let mut out_data = MaybeUninit::uninit();
@@ -113,7 +111,7 @@ impl Ops {
                 out_data.as_mut_ptr(),
             )
         };
-        slot_verify_result_to_verify_payload_result(result)?;
+        slot_verify_enum_to_result(result)?;
         // SAFETY: This is safe because `out_data` has been properly initialized after
         // calling `avb_slot_verify` and it returns OK.
         let out_data = unsafe { out_data.assume_init() };
@@ -125,7 +123,7 @@ extern "C" fn read_is_device_unlocked(
     _ops: *mut AvbOps,
     out_is_unlocked: *mut bool,
 ) -> AvbIOResult {
-    to_avb_io_result(write(out_is_unlocked, false))
+    result_to_io_enum(write(out_is_unlocked, false))
 }
 
 extern "C" fn get_preloaded_partition(
@@ -135,7 +133,7 @@ extern "C" fn get_preloaded_partition(
     out_pointer: *mut *mut u8,
     out_num_bytes_preloaded: *mut usize,
 ) -> AvbIOResult {
-    to_avb_io_result(try_get_preloaded_partition(
+    result_to_io_enum(try_get_preloaded_partition(
         ops,
         partition,
         num_bytes,
@@ -165,7 +163,7 @@ extern "C" fn read_from_partition(
     buffer: *mut c_void,
     out_num_read: *mut usize,
 ) -> AvbIOResult {
-    to_avb_io_result(try_read_from_partition(
+    result_to_io_enum(try_read_from_partition(
         ops,
         partition,
         offset,
@@ -194,9 +192,9 @@ fn try_read_from_partition(
 }
 
 fn copy_data_to_dst(src: &[u8], offset: i64, dst: &mut [u8]) -> utils::Result<()> {
-    let start = to_copy_start(offset, src.len()).ok_or(AvbIOError::InvalidValueSize)?;
-    let end = start.checked_add(dst.len()).ok_or(AvbIOError::InvalidValueSize)?;
-    dst.copy_from_slice(src.get(start..end).ok_or(AvbIOError::RangeOutsidePartition)?);
+    let start = to_copy_start(offset, src.len()).ok_or(avb::IoError::InvalidValueSize)?;
+    let end = start.checked_add(dst.len()).ok_or(avb::IoError::InvalidValueSize)?;
+    dst.copy_from_slice(src.get(start..end).ok_or(avb::IoError::RangeOutsidePartition)?);
     Ok(())
 }
 
@@ -211,7 +209,7 @@ extern "C" fn get_size_of_partition(
     partition: *const c_char,
     out_size_num_bytes: *mut u64,
 ) -> AvbIOResult {
-    to_avb_io_result(try_get_size_of_partition(ops, partition, out_size_num_bytes))
+    result_to_io_enum(try_get_size_of_partition(ops, partition, out_size_num_bytes))
 }
 
 fn try_get_size_of_partition(
@@ -222,7 +220,7 @@ fn try_get_size_of_partition(
     let ops = as_ref(ops)?;
     let partition = ops.as_ref().get_partition(partition)?;
     let partition_size =
-        u64::try_from(partition.len()).map_err(|_| AvbIOError::InvalidValueSize)?;
+        u64::try_from(partition.len()).map_err(|_| avb::IoError::InvalidValueSize)?;
     write(out_size_num_bytes, partition_size)
 }
 
@@ -235,7 +233,7 @@ extern "C" fn read_rollback_index(
     // `avb_slot_verify()`.
     // We set `out_rollback_index` to 0 to ensure that the default rollback index (0)
     // is never smaller than it, thus the rollback index check will pass.
-    to_avb_io_result(write(out_rollback_index, 0))
+    result_to_io_enum(write(out_rollback_index, 0))
 }
 
 extern "C" fn get_unique_guid_for_partition(
@@ -258,7 +256,7 @@ extern "C" fn validate_vbmeta_public_key(
     public_key_metadata_length: usize,
     out_is_trusted: *mut bool,
 ) -> AvbIOResult {
-    to_avb_io_result(try_validate_vbmeta_public_key(
+    result_to_io_enum(try_validate_vbmeta_public_key(
         ops,
         public_key_data,
         public_key_length,
@@ -290,10 +288,10 @@ fn try_validate_vbmeta_public_key(
 pub(crate) struct AvbSlotVerifyDataWrap(*mut AvbSlotVerifyData);
 
 impl TryFrom<*mut AvbSlotVerifyData> for AvbSlotVerifyDataWrap {
-    type Error = AvbSlotVerifyError;
+    type Error = avb::SlotVerifyError;
 
     fn try_from(data: *mut AvbSlotVerifyData) -> Result<Self, Self::Error> {
-        is_not_null(data).map_err(|_| AvbSlotVerifyError::Io)?;
+        is_not_null(data).map_err(|_| avb::SlotVerifyError::Io)?;
         Ok(Self(data))
     }
 }
@@ -317,18 +315,18 @@ impl AsRef<AvbSlotVerifyData> for AvbSlotVerifyDataWrap {
 }
 
 impl AvbSlotVerifyDataWrap {
-    pub(crate) fn vbmeta_images(&self) -> Result<&[AvbVBMetaData], AvbSlotVerifyError> {
+    pub(crate) fn vbmeta_images(&self) -> Result<&[AvbVBMetaData], avb::SlotVerifyError> {
         let data = self.as_ref();
-        is_not_null(data.vbmeta_images).map_err(|_| AvbSlotVerifyError::Io)?;
+        is_not_null(data.vbmeta_images).map_err(|_| avb::SlotVerifyError::Io)?;
         let vbmeta_images =
         // SAFETY: It is safe as the raw pointer `data.vbmeta_images` is a nonnull pointer.
             unsafe { slice::from_raw_parts(data.vbmeta_images, data.num_vbmeta_images) };
         Ok(vbmeta_images)
     }
 
-    pub(crate) fn loaded_partitions(&self) -> Result<&[AvbPartitionData], AvbSlotVerifyError> {
+    pub(crate) fn loaded_partitions(&self) -> Result<&[AvbPartitionData], avb::SlotVerifyError> {
         let data = self.as_ref();
-        is_not_null(data.loaded_partitions).map_err(|_| AvbSlotVerifyError::Io)?;
+        is_not_null(data.loaded_partitions).map_err(|_| avb::SlotVerifyError::Io)?;
         let loaded_partitions =
         // SAFETY: It is safe as the raw pointer `data.loaded_partitions` is a nonnull pointer and
         // is guaranteed by libavb to point to a valid `AvbPartitionData` array as part of the
