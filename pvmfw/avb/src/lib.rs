@@ -26,5 +26,5 @@ mod utils;
 mod verify;
 
 pub use descriptor::Digest;
-pub use error::{AvbIOError, AvbSlotVerifyError};
+pub use error::PvmfwVerifyError;
 pub use verify::{verify_payload, Capability, DebugLevel, VerifiedBootData};
