@@ -37,6 +37,15 @@ rust_binary {
         "libstatslog_virtualization_rust",
         "libtombstoned_client_rust",
         "libvsock",
+        "libserde",
+        "libserde_xml_rs",
     ],
     apex_available: ["com.android.virt"],
+}
+
+xsd_config {
+    name: "assignable_devices",
+    srcs: ["assignable_devices.xsd"],
+    api_dir: "schema",
+    package_name: "android.system.virtualizationservice",
 }
