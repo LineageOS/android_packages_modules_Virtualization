@@ -14,7 +14,6 @@
 
 //! Struct and functions relating to well-known partition names.
 
-use crate::error::AvbIOError;
 use crate::utils::is_not_null;
 use core::ffi::{c_char, CStr};
 
@@ -53,7 +52,7 @@ impl PartitionName {
 }
 
 impl TryFrom<*const c_char> for PartitionName {
-    type Error = AvbIOError;
+    type Error = avb::IoError;
 
     fn try_from(partition_name: *const c_char) -> Result<Self, Self::Error> {
         is_not_null(partition_name)?;
@@ -64,27 +63,27 @@ impl TryFrom<*const c_char> for PartitionName {
 }
 
 impl TryFrom<&CStr> for PartitionName {
-    type Error = AvbIOError;
+    type Error = avb::IoError;
 
     fn try_from(partition_name: &CStr) -> Result<Self, Self::Error> {
         match partition_name.to_bytes_with_nul() {
             Self::KERNEL_PARTITION_NAME => Ok(Self::Kernel),
             Self::INITRD_NORMAL_PARTITION_NAME => Ok(Self::InitrdNormal),
             Self::INITRD_DEBUG_PARTITION_NAME => Ok(Self::InitrdDebug),
-            _ => Err(AvbIOError::NoSuchPartition),
+            _ => Err(avb::IoError::NoSuchPartition),
         }
     }
 }
 
 impl TryFrom<&[u8]> for PartitionName {
-    type Error = AvbIOError;
+    type Error = avb::IoError;
 
     fn try_from(non_null_terminated_name: &[u8]) -> Result<Self, Self::Error> {
         match non_null_terminated_name {
             x if x == Self::Kernel.as_non_null_terminated_bytes() => Ok(Self::Kernel),
             x if x == Self::InitrdNormal.as_non_null_terminated_bytes() => Ok(Self::InitrdNormal),
             x if x == Self::InitrdDebug.as_non_null_terminated_bytes() => Ok(Self::InitrdDebug),
-            _ => Err(AvbIOError::NoSuchPartition),
+            _ => Err(avb::IoError::NoSuchPartition),
         }
     }
 }

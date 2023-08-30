@@ -9,6 +9,7 @@ rust_library_rlib {
     prefer_rlib: true,
     rustlibs: [
         "libavb_bindgen_nostd",
+        "libavb_rs_nostd",
         "libtinyvec_nostd",
     ],
     whole_static_libs: [
@@ -45,6 +46,7 @@ rust_test {
     rustlibs: [
         "libanyhow",
         "libavb_bindgen",
+        "libavb_rs_nostd",
         "libhex",
         "libpvmfw_avb_nostd",
         "libopenssl",
