@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This library contains the communication protocol used between the host
-//! and the service VM.
+//! Vsock setup shared between the host and the service VM.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+/// Returns the host port number for the given VM protection state.
+pub fn host_port(is_protected_vm: bool) -> u32 {
+    const PROTECTED_VM_PORT: u32 = 5679;
+    const NON_PROTECTED_VM_PORT: u32 = 5680;
 
-extern crate alloc;
-
-mod message;
-mod vsock;
-
-pub use message::{Request, Response};
-pub use vsock::host_port;
+    if is_protected_vm {
+        PROTECTED_VM_PORT
+    } else {
+        NON_PROTECTED_VM_PORT
+    }
+}
