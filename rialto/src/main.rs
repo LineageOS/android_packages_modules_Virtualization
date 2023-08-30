@@ -34,7 +34,7 @@ use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
 use virtio_drivers::{
-    device::socket::VsockAddr,
+    device::socket::{VsockAddr, VMADDR_CID_HOST},
     transport::{pci::bus::PciRoot, DeviceType, Transport},
     Hal,
 };
@@ -52,12 +52,7 @@ use vmbase::{
 };
 
 fn host_addr() -> VsockAddr {
-    const PROTECTED_VM_PORT: u32 = 5679;
-    const NON_PROTECTED_VM_PORT: u32 = 5680;
-    const VMADDR_CID_HOST: u64 = 2;
-
-    let port = if is_protected_vm() { PROTECTED_VM_PORT } else { NON_PROTECTED_VM_PORT };
-    VsockAddr { cid: VMADDR_CID_HOST, port }
+    VsockAddr { cid: VMADDR_CID_HOST, port: service_vm_comm::host_port(is_protected_vm()) }
 }
 
 fn is_protected_vm() -> bool {

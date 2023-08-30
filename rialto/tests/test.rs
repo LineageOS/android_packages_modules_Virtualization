@@ -24,7 +24,7 @@ use android_system_virtualizationservice::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use log::info;
-use service_vm_comm::{Request, Response};
+use service_vm_comm::{host_port, Request, Response};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::os::unix::io::FromRawFd;
@@ -33,11 +33,6 @@ use std::thread;
 use std::time::Duration;
 use vmclient::{DeathReason, VmInstance};
 use vsock::{VsockListener, VMADDR_CID_HOST};
-
-// TODO(b/291732060): Move the port numbers to the common library shared between the host
-// and rialto.
-const PROTECTED_VM_PORT: u32 = 5679;
-const NON_PROTECTED_VM_PORT: u32 = 5680;
 
 const SIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
 const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
@@ -131,7 +126,7 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<()>
     )
     .context("Failed to create VM")?;
 
-    let port = if protected_vm { PROTECTED_VM_PORT } else { NON_PROTECTED_VM_PORT };
+    let port = host_port(protected_vm);
     let check_socket_handle = thread::spawn(move || try_check_socket_connection(port).unwrap());
 
     vm.start().context("Failed to start VM")?;
