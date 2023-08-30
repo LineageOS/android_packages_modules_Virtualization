@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package com.android.microdroid;
+package com.android.pvmfw;
 
-import com.android.microdroid.test.host.Pvmfw;
+import com.android.pvmfw.test.host.Pvmfw;
 
 import java.io.File;
 import java.io.IOException;
