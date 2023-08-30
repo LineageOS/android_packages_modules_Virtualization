@@ -38,8 +38,9 @@ use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface,
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
 use rustutils::system_properties;
-use std::collections::HashMap;
-use std::fs::{create_dir, remove_dir_all, set_permissions, Permissions};
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
+use std::fs::{self, create_dir, remove_dir_all, set_permissions, Permissions};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::raw::{pid_t, uid_t};
@@ -172,13 +173,41 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
     fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
         check_use_custom_virtual_machine()?;
 
-        // TODO(b/291191362): read VM DTBO to find assignable devices.
-        let mut devices = Vec::new();
-        let eh_path = "/sys/bus/platform/devices/16d00000.eh";
-        if Path::new(eh_path).exists() {
-            devices.push(AssignableDevice { kind: "eh".to_owned(), node: eh_path.to_owned() });
+        let mut ret = Vec::new();
+        let xml_path = Path::new("/vendor/etc/avf/assignable_devices.xml");
+        if !xml_path.exists() {
+            return Ok(ret);
         }
-        Ok(devices)
+
+        let xml = fs::read(xml_path)
+            .context("Failed to read assignable_devices.xml")
+            .with_log()
+            .or_service_specific_exception(-1)?;
+
+        let xml = String::from_utf8(xml)
+            .context("assignable_devices.xml is not a valid UTF-8 file")
+            .with_log()
+            .or_service_specific_exception(-1)?;
+
+        let devices: Devices = serde_xml_rs::from_str(&xml)
+            .context("can't parse assignable_devices.xml")
+            .with_log()
+            .or_service_specific_exception(-1)?;
+
+        let mut device_set = HashSet::new();
+
+        for device in devices.device.into_iter() {
+            if device_set.contains(&device.sysfs_path) {
+                warn!("duplicated assignable device {device:?}; ignoring...")
+            } else if Path::new(&device.sysfs_path).exists() {
+                device_set.insert(device.sysfs_path.clone());
+                ret.push(AssignableDevice { kind: device.kind, node: device.sysfs_path });
+            } else {
+                warn!("assignable device {device:?} doesn't exist; ignoring...");
+            }
+        }
+
+        Ok(ret)
     }
 
     fn bindDevicesToVfioDriver(
@@ -194,6 +223,18 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         vfio_service.bindDevicesToVfioDriver(devices, dtbo)?;
         Ok(())
     }
+}
+
+// KEEP IN SYNC WITH assignable_devices.xsd
+#[derive(Debug, Deserialize)]
+struct Device {
+    kind: String,
+    sysfs_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Devices {
+    device: Vec<Device>,
 }
 
 #[derive(Debug, Default)]
