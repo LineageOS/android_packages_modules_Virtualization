@@ -41,11 +41,6 @@ use std::process::Command;
 use std::time::SystemTime;
 use vmconfig::open_parcel_file;
 
-/// The list of APEXes which microdroid requires.
-// TODO(b/192200378) move this to microdroid.json?
-const MICRODROID_REQUIRED_APEXES: [&str; 1] = ["com.android.os.statsd"];
-const MICRODROID_REQUIRED_APEXES_DEBUG: [&str; 1] = ["com.android.adbd"];
-
 const APEX_INFO_LIST_PATH: &str = "/apex/apex-info-list.xml";
 
 const PACKAGE_MANAGER_NATIVE_SERVICE: &str = "package_native";
@@ -395,17 +390,17 @@ fn collect_apex_infos<'a>(
     apex_configs: &[ApexConfig],
     debug_config: &DebugConfig,
 ) -> Result<Vec<&'a ApexInfo>> {
-    let mut additional_apexes: Vec<&str> = MICRODROID_REQUIRED_APEXES.to_vec();
-    if debug_config.should_include_debug_apexes() {
-        additional_apexes.extend(MICRODROID_REQUIRED_APEXES_DEBUG.to_vec());
-    }
+    // APEXes which any Microdroid VM needs.
+    // TODO(b/192200378) move this to microdroid.json?
+    let required_apexes: &[_] =
+        if debug_config.should_include_debug_apexes() { &["com.android.adbd"] } else { &[] };
 
     let apex_infos = apex_list
         .list
         .iter()
         .filter(|ai| {
             apex_configs.iter().any(|cfg| ai.matches(cfg) && ai.is_active)
-                || additional_apexes.iter().any(|name| name == &ai.name && ai.is_active)
+                || required_apexes.iter().any(|name| name == &ai.name && ai.is_active)
                 || ai.provide_shared_apex_libs
         })
         .collect();
@@ -487,6 +482,7 @@ pub fn add_microdroid_payload_images(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -505,43 +501,36 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
 
     #[test]
     fn test_collect_apexes() -> Result<()> {
-        let apex_info_list = ApexInfoList {
-            list: vec![
+        let apex_infos_for_test = [
+            (
+                "adbd",
                 ApexInfo {
-                    // 0
                     name: "com.android.adbd".to_string(),
                     path: PathBuf::from("adbd"),
                     preinstalled_path: PathBuf::from("/system/adbd"),
                     has_classpath_jar: false,
                     last_update_seconds: 12345678,
                     is_factory: true,
-                    is_active: true,
-                    ..Default::default()
-                },
-                ApexInfo {
-                    // 1
-                    name: "com.android.os.statsd".to_string(),
-                    path: PathBuf::from("statsd"),
-                    preinstalled_path: PathBuf::from("/system/statsd"),
-                    has_classpath_jar: false,
-                    last_update_seconds: 12345678,
-                    is_factory: true,
                     is_active: false,
                     ..Default::default()
                 },
+            ),
+            (
+                "adbd_updated",
                 ApexInfo {
-                    // 2
-                    name: "com.android.os.statsd".to_string(),
-                    path: PathBuf::from("statsd/updated"),
-                    preinstalled_path: PathBuf::from("/system/statsd"),
+                    name: "com.android.adbd".to_string(),
+                    path: PathBuf::from("adbd"),
+                    preinstalled_path: PathBuf::from("/system/adbd"),
                     has_classpath_jar: false,
                     last_update_seconds: 12345678 + 1,
                     is_factory: false,
                     is_active: true,
                     ..Default::default()
                 },
+            ),
+            (
+                "no_classpath",
                 ApexInfo {
-                    // 3
                     name: "no_classpath".to_string(),
                     path: PathBuf::from("no_classpath"),
                     has_classpath_jar: false,
@@ -550,8 +539,10 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     is_active: true,
                     ..Default::default()
                 },
+            ),
+            (
+                "has_classpath",
                 ApexInfo {
-                    // 4
                     name: "has_classpath".to_string(),
                     path: PathBuf::from("has_classpath"),
                     has_classpath_jar: true,
@@ -560,8 +551,10 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     is_active: false,
                     ..Default::default()
                 },
+            ),
+            (
+                "has_classpath_updated",
                 ApexInfo {
-                    // 5
                     name: "has_classpath".to_string(),
                     path: PathBuf::from("has_classpath/updated"),
                     preinstalled_path: PathBuf::from("/system/has_classpath"),
@@ -571,8 +564,10 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     is_active: true,
                     ..Default::default()
                 },
+            ),
+            (
+                "apex-foo",
                 ApexInfo {
-                    // 6
                     name: "apex-foo".to_string(),
                     path: PathBuf::from("apex-foo"),
                     preinstalled_path: PathBuf::from("/system/apex-foo"),
@@ -582,8 +577,10 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     is_active: false,
                     ..Default::default()
                 },
+            ),
+            (
+                "apex-foo-updated",
                 ApexInfo {
-                    // 7
                     name: "apex-foo".to_string(),
                     path: PathBuf::from("apex-foo/updated"),
                     preinstalled_path: PathBuf::from("/system/apex-foo"),
@@ -593,8 +590,10 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     is_active: true,
                     ..Default::default()
                 },
+            ),
+            (
+                "sharedlibs",
                 ApexInfo {
-                    // 8
                     name: "sharedlibs".to_string(),
                     path: PathBuf::from("apex-foo"),
                     preinstalled_path: PathBuf::from("/system/apex-foo"),
@@ -603,8 +602,10 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     provide_shared_apex_libs: true,
                     ..Default::default()
                 },
+            ),
+            (
+                "sharedlibs-updated",
                 ApexInfo {
-                    // 9
                     name: "sharedlibs".to_string(),
                     path: PathBuf::from("apex-foo/updated"),
                     preinstalled_path: PathBuf::from("/system/apex-foo"),
@@ -613,8 +614,12 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
                     provide_shared_apex_libs: true,
                     ..Default::default()
                 },
-            ],
+            ),
+        ];
+        let apex_info_list = ApexInfoList {
+            list: apex_infos_for_test.iter().map(|(_, info)| info).cloned().collect(),
         };
+        let apex_info_map = HashMap::from(apex_infos_for_test);
         let apex_configs = vec![
             ApexConfig { name: "apex-foo".to_string() },
             ApexConfig { name: "{CLASSPATH}".to_string() },
@@ -627,14 +632,13 @@ export OTHER /foo/bar:/baz:/apex/second.valid.apex/:gibberish:"#;
             )?,
             vec![
                 // Pass active/required APEXes
-                &apex_info_list.list[0],
-                &apex_info_list.list[2],
+                &apex_info_map["adbd_updated"],
                 // Pass active APEXes specified in the config
-                &apex_info_list.list[5],
-                &apex_info_list.list[7],
+                &apex_info_map["has_classpath_updated"],
+                &apex_info_map["apex-foo-updated"],
                 // Pass both preinstalled(inactive) and updated(active) for "sharedlibs" APEXes
-                &apex_info_list.list[8],
-                &apex_info_list.list[9],
+                &apex_info_map["sharedlibs"],
+                &apex_info_map["sharedlibs-updated"],
             ]
         );
         Ok(())
