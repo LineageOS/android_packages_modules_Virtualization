@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.microdroid.test.host;
+package com.android.pvmfw.test.host;
 
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 
