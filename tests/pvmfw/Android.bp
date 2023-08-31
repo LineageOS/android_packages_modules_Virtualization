@@ -1,0 +1,46 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+genrule_defaults {
+    name: "test_avf_dts_to_dtb",
+    tools: ["dtc"],
+    cmd: "$(location dtc) -I dts -O dtb $(in) -o $(out)",
+}
+
+genrule {
+    name: "test_avf_debug_policy_with_adb",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["assets/avf_debug_policy_with_adb.dts"],
+    out: ["avf_debug_policy_with_adb.dtbo"],
+}
+
+genrule {
+    name: "test_avf_debug_policy_without_adb",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["assets/avf_debug_policy_without_adb.dts"],
+    out: ["avf_debug_policy_without_adb.dtbo"],
+}
+
+java_test_host {
+    name: "CustomPvmfwHostTestCases",
+    srcs: ["java/**/*.java"],
+    test_suites: ["general-tests"],
+    libs: [
+        "androidx.annotation_annotation",
+        "tradefed",
+    ],
+    static_libs: [
+        "MicrodroidHostTestHelper",
+        "PvmfwHostTestHelper",
+        "compatibility-host-util",
+    ],
+    per_testcase_directory: true,
+    data: [
+        ":MicrodroidTestApp",
+        ":pvmfw_test",
+        ":test_avf_debug_policy_with_adb",
+        ":test_avf_debug_policy_without_adb",
+        "assets/bcc.dat",
+    ],
+}
