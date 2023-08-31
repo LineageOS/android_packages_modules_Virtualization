@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.microdroid.test;
+package com.android.pvmfw.test;
 
 import static com.android.tradefed.device.TestDevice.MicrodroidBuilder;
 
@@ -22,7 +22,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assume.assumeTrue;
-import static org.junit.Assume.assumeFalse;
 import static org.junit.Assert.assertThrows;
 
 import androidx.annotation.NonNull;
@@ -30,7 +29,7 @@ import androidx.annotation.Nullable;
 
 import com.android.microdroid.test.host.CommandRunner;
 import com.android.microdroid.test.host.MicrodroidHostTestCaseBase;
-import com.android.microdroid.test.host.Pvmfw;
+import com.android.pvmfw.test.host.Pvmfw;
 import com.android.tradefed.device.DeviceNotAvailableException;
 import com.android.tradefed.device.DeviceRuntimeException;
 import com.android.tradefed.device.ITestDevice;
@@ -113,9 +112,6 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         assumeTrue(
                 "Skip if protected VMs are not supported",
                 mAndroidDevice.supportsMicrodroid(/* protectedVm= */ true));
-        assumeFalse("Test requires setprop for using custom pvmfw and adb root", isUserBuild());
-
-        assumeTrue("Skip if adb root fails", mAndroidDevice.enableAdbRoot());
 
         // tradefed copies the test artfacts under /tmp when running tests,
         // so we should *find* the artifacts with the file name.
@@ -156,8 +152,6 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         FileUtil.deleteFile(mCustomPvmfwBinFileOnHost);
 
         cleanUpVirtualizationTestSetup(mAndroidDevice);
-
-        mAndroidDevice.disableAdbRoot();
     }
 
     @Test
