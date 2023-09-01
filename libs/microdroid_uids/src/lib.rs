@@ -17,6 +17,17 @@
 /// Always the user ID of Root.
 pub const ROOT_UID: u32 = 0;
 
+// Android reserves UID/GIDs 6000-6499 for use by the system partition -
+// see AID_SYSTEM_RESERVED_START.
+// Within Microdroid we own the system partition, so they are free for our
+// use. The Microdroid system image includes /system/ext/passwd and
+// /system/ext/group files that allocate names to the IDs that we are
+// using, so that tools like `ps` handle them correctly - see build targets
+// microdroid_etc_passwd and microdroid_etc_group.
+// (Our UIDs are entirely separate from Android's, but we use the same
+// Bionic, and it uses the Android definitions - so using a reserved range
+// helps avoid confusion.)
+
 /// Group ID shared by all payload users.
 pub const MICRODROID_PAYLOAD_GID: u32 = if cfg!(payload_not_root) { 6000 } else { 0 };
 
