@@ -855,7 +855,7 @@ fn exec_task(task: &Task, service: &Strong<dyn IVirtualMachineService>) -> Resul
     info!("executing main task {:?}...", task);
     let mut command = match task.type_ {
         TaskType::Executable => {
-            // TODO(b/296393106): Run system payloads as non-root.
+            // TODO(b/297501338): Figure out how to handle non-root for system payloads.
             Command::new(&task.command)
         }
         TaskType::MicrodroidLauncher => {
