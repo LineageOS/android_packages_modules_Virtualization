@@ -27,3 +27,24 @@ license {
     ],
     // large-scale-change unable to identify any license_text files
 }
+
+soong_config_module_type {
+    name: "avf_flag_aware_rust_defaults",
+    module_type: "rust_defaults",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_avf_enable_multi_tenant_microdroid_vm",
+    ],
+    properties: [
+        "cfgs",
+    ],
+}
+
+avf_flag_aware_rust_defaults {
+    name: "avf_build_flags_rust",
+    soong_config_variables: {
+        release_avf_enable_multi_tenant_microdroid_vm: {
+            cfgs: ["payload_not_root"],
+        },
+    },
+}

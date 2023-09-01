@@ -44,7 +44,19 @@ microdroid_symlinks = [
     },
 ]
 
-android_system_image {
+soong_config_module_type {
+    name: "flag_aware_microdroid_system_image",
+    module_type: "android_system_image",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_avf_enable_multi_tenant_microdroid_vm",
+    ],
+    properties: [
+        "deps",
+    ],
+}
+
+flag_aware_microdroid_system_image {
     name: "microdroid",
     use_avb: true,
     avb_private_key: ":microdroid_sign_key",
@@ -54,8 +66,6 @@ android_system_image {
     deps: [
         "init_second_stage.microdroid",
         "microdroid_build_prop",
-        "microdroid_etc_passwd",
-        "microdroid_etc_group",
         "microdroid_init_debug_policy",
         "microdroid_init_rc",
         "microdroid_ueventd_rc",
@@ -141,6 +151,16 @@ android_system_image {
     fake_timestamp: "1611569676",
     // python -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL, 'www.android.com/avf/microdroid/system'))"
     uuid: "5fe079c6-f01a-52be-87d3-d415231a72ad",
+
+    // Below are dependencies that are conditionally enabled depending on value of build flags.
+    soong_config_variables: {
+        release_avf_enable_multi_tenant_microdroid_vm: {
+            deps: [
+                "microdroid_etc_passwd",
+                "microdroid_etc_group",
+            ],
+        },
+    },
 }
 
 prebuilt_etc {
