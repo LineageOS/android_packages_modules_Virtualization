@@ -157,14 +157,10 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         Ok(cids)
     }
 
-    fn requestCertificate(
-        &self,
-        csr: &[u8],
-        instance_img_fd: &ParcelFileDescriptor,
-    ) -> binder::Result<Vec<u8>> {
+    fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
         check_manage_access()?;
         info!("Received csr. Getting certificate...");
-        request_certificate(csr, instance_img_fd)
+        request_certificate(csr)
             .context("Failed to get certificate")
             .with_log()
             .or_service_specific_exception(-1)
