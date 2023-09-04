@@ -34,6 +34,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
     IVirtualizationService::IVirtualizationService,
+    IVirtualizationService::FEATURE_PAYLOAD_NON_ROOT,
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
     PartitionType::PartitionType,
@@ -263,6 +264,21 @@ impl IVirtualizationService for VirtualizationService {
     fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
         // Delegate to the global service, including checking the permission.
         GLOBAL_SERVICE.getAssignableDevices()
+    }
+
+    /// Returns whether given feature is enabled
+    fn isFeatureEnabled(&self, feature: &str) -> binder::Result<bool> {
+        check_manage_access()?;
+
+        // This approach is quite cumbersome, but will do the work for the short term.
+        // TODO(b/298012279): make this scalable.
+        match feature {
+            FEATURE_PAYLOAD_NON_ROOT => Ok(cfg!(payload_not_root)),
+            _ => {
+                warn!("unknown feature {}", feature);
+                Ok(false)
+            }
+        }
     }
 }
 
