@@ -5,6 +5,7 @@ package {
 rust_defaults {
     name: "libapexutil_rust.defaults",
     crate_name: "apexutil",
+    defaults: ["avf_build_flags_rust"],
     host_supported: true,
     srcs: ["src/lib.rs"],
     edition: "2021",

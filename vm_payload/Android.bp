@@ -6,6 +6,7 @@ package {
 rust_ffi_static {
     name: "libvm_payload_impl",
     crate_name: "vm_payload",
+    defaults: ["avf_build_flags_rust"],
     visibility: ["//visibility:private"],
     srcs: ["src/*.rs"],
     include_dirs: ["include"],
@@ -29,6 +30,7 @@ rust_bindgen {
     name: "libvm_payload_bindgen",
     wrapper_src: "include-restricted/vm_payload_restricted.h",
     crate_name: "vm_payload_bindgen",
+    defaults: ["avf_build_flags_rust"],
     source_stem: "bindings",
     apex_available: ["com.android.compos"],
     visibility: [

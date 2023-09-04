@@ -5,6 +5,7 @@ package {
 rust_library {
     name: "libvmclient",
     crate_name: "vmclient",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/lib.rs"],
     edition: "2021",
     rustlibs: [

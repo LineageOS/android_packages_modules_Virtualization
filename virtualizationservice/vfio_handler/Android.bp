@@ -5,6 +5,7 @@ package {
 rust_binary {
     name: "vfio_handler",
     crate_name: "vfio_handler",
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     srcs: ["src/main.rs"],
     // Only build on targets which crosvm builds on.

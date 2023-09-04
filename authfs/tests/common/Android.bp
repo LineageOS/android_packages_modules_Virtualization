@@ -18,6 +18,7 @@ java_library_host {
 rust_test {
     name: "open_then_run",
     crate_name: "open_then_run",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/open_then_run.rs"],
     edition: "2021",
     rustlibs: [
@@ -35,6 +36,7 @@ rust_test {
 rust_test {
     name: "open_then_run.test",
     crate_name: "open_then_run",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/open_then_run.rs"],
     edition: "2021",
     rustlibs: [

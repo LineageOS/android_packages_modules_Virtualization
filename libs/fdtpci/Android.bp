@@ -8,6 +8,7 @@ rust_library_rlib {
     no_stdlibs: true,
     host_supported: false,
     crate_name: "fdtpci",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/lib.rs"],
     rustlibs: [
         "liblibfdt",

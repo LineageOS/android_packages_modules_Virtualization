@@ -5,6 +5,7 @@ package {
 rust_defaults {
     name: "composd_cmd_defaults",
     srcs: ["composd_cmd.rs"],
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     rustlibs: [
         "android.system.composd-rust",
