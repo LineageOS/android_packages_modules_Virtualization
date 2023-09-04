@@ -5,6 +5,7 @@ package {
 rust_bindgen {
     name: "liblibfdt_bindgen",
     crate_name: "libfdt_bindgen",
+    defaults: ["avf_build_flags_rust"],
     wrapper_src: "bindgen/fdt.h",
     source_stem: "bindings",
     bindgen_flags: [
@@ -24,6 +25,7 @@ rust_bindgen {
 rust_library_rlib {
     name: "liblibfdt",
     crate_name: "libfdt",
+    defaults: ["avf_build_flags_rust"],
     srcs: [
         "src/lib.rs",
         ":liblibfdt_bindgen",
@@ -47,6 +49,7 @@ rust_library_rlib {
 rust_test {
     name: "liblibfdt.integration_test",
     crate_name: "libfdt_test",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["tests/*.rs"],
     test_suites: ["general-tests"],
     data: [

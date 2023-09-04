@@ -29,6 +29,7 @@ genrule {
 
 rust_defaults {
     name: "libstatslog_virtualization_rust_defaults",
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     rustlibs: [
         "libstatspull_bindgen",

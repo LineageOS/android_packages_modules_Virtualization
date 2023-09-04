@@ -15,6 +15,7 @@ package {
 // Used by intermediate rust_library_rlib for vmbase-based binaries.
 rust_defaults {
     name: "vmbase_rlib_defaults",
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     prefer_rlib: true,
     host_supported: false,

@@ -5,6 +5,7 @@ package {
 rust_binary {
     name: "compos_verify",
     srcs: ["verify.rs"],
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     rustlibs: [
         "compos_aidl_interface-rust",
@@ -26,6 +27,7 @@ rust_binary {
 rust_test {
     name: "compos_verify.test",
     srcs: ["verify.rs"],
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     rustlibs: [
         "compos_aidl_interface-rust",
