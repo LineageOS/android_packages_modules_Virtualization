@@ -4,6 +4,7 @@ package {
 
 rust_binary_host {
     name: "initrd_bootconfig",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/main.rs"],
     rustlibs: [
         "libanyhow",
@@ -14,6 +15,7 @@ rust_binary_host {
 
 rust_test_host {
     name: "initrd_bootconfig.test",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/main.rs"],
     rustlibs: [
         "libanyhow",

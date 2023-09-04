@@ -5,6 +5,7 @@ package {
 rust_defaults {
     name: "zipfuse.defaults",
     crate_name: "zipfuse",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/main.rs"],
     edition: "2021",
     prefer_rlib: true,

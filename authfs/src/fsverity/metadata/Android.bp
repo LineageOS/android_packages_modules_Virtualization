@@ -5,6 +5,7 @@ package {
 rust_bindgen {
     name: "libauthfs_fsverity_metadata_bindgen",
     wrapper_src: "metadata.hpp",
+    defaults: ["avf_build_flags_rust"],
     crate_name: "authfs_fsverity_metadata_bindgen",
     source_stem: "metadata_bindings",
     apex_available: ["com.android.virt"],
@@ -13,6 +14,7 @@ rust_bindgen {
 rust_library {
     name: "libauthfs_fsverity_metadata",
     crate_name: "authfs_fsverity_metadata",
+    defaults: ["avf_build_flags_rust"],
     srcs: [
         "metadata.rs",
     ],
