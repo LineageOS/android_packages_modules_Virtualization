@@ -5,6 +5,7 @@ package {
 rust_library {
     name: "libcomposd_native_rust",
     crate_name: "composd_native",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["lib.rs"],
     rustlibs: [
         "libanyhow",

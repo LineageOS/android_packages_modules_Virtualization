@@ -95,6 +95,7 @@ prebuilt_etc {
 rust_test {
     name: "rialto_test",
     crate_name: "rialto_test",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["tests/test.rs"],
     prefer_rlib: true,
     edition: "2021",

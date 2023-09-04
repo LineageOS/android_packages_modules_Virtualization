@@ -48,6 +48,7 @@ rust_test {
     host_supported: true,
     // For now, only bootargs.rs is written to be conditionally compiled with std.
     srcs: ["src/bootargs.rs"],
+    defaults: ["avf_build_flags_rust"],
     test_suites: ["general-tests"],
     test_options: {
         unit_test: true,
