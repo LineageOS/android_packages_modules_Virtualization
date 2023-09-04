@@ -17,6 +17,7 @@
 mod aidl;
 mod atom;
 mod rkpvm;
+mod service_vm;
 
 use crate::aidl::{
     remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY,
@@ -54,6 +55,8 @@ fn main() {
     );
 
     clear_temporary_files().expect("Failed to delete old temporary files");
+
+    ProcessState::start_thread_pool();
 
     let service = VirtualizationServiceInternal::init();
     let service = BnVirtualizationServiceInternal::new_binder(service, BinderFeatures::default());
