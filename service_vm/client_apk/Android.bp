@@ -16,6 +16,7 @@ android_app {
 rust_defaults {
     name: "service_vm_client_defaults",
     crate_name: "service_vm_client",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/main.rs"],
     prefer_rlib: true,
     rustlibs: [

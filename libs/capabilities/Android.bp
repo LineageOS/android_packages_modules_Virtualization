@@ -4,6 +4,7 @@ package {
 
 rust_bindgen {
     name: "libcap_bindgen",
+    defaults: ["avf_build_flags_rust"],
     edition: "2021",
     wrapper_src: "bindgen/libcap.h",
     crate_name: "cap_bindgen",
@@ -20,6 +21,7 @@ rust_bindgen {
 rust_test {
     name: "libcap_bindgen_test",
     srcs: [":libcap_bindgen"],
+    defaults: ["avf_build_flags_rust"],
     crate_name: "cap_bindgen_test",
     test_suites: ["general-tests"],
     auto_gen_config: true,
@@ -30,6 +32,7 @@ rust_test {
 rust_defaults {
     name: "libcap_rust.defaults",
     crate_name: "cap",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/caps.rs"],
     rustlibs: [
         "libanyhow",
