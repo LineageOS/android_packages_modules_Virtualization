@@ -5,6 +5,7 @@ package {
 rust_defaults {
     name: "libapkverify.defaults",
     crate_name: "apkverify",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     edition: "2021",
@@ -40,6 +41,7 @@ rust_test {
 rust_test {
     name: "libapkverify.integration_test",
     crate_name: "apkverify_test",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["tests/*_test.rs"],
     prefer_rlib: true,
     edition: "2021",

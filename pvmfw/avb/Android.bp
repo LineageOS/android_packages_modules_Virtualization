@@ -5,6 +5,7 @@ package {
 rust_library_rlib {
     name: "libpvmfw_avb_nostd",
     crate_name: "pvmfw_avb",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
@@ -24,6 +25,7 @@ rust_library_rlib {
 rust_test {
     name: "libpvmfw_avb.integration_test",
     crate_name: "pvmfw_avb_test",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["tests/*.rs"],
     test_suites: ["general-tests"],
     data: [

@@ -5,6 +5,7 @@ package {
 rust_defaults {
     name: "libservice_vm_comm_defaults",
     crate_name: "service_vm_comm",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     apex_available: [

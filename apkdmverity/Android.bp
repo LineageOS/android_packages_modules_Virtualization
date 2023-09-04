@@ -5,6 +5,7 @@ package {
 rust_defaults {
     name: "apkdmverity.defaults",
     crate_name: "apkdmverity",
+    defaults: ["avf_build_flags_rust"],
     srcs: ["src/main.rs"],
     edition: "2021",
     prefer_rlib: true,

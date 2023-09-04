@@ -33,7 +33,10 @@ rust_defaults {
             enabled: false,
         },
     },
-    defaults: ["crosvm_defaults"],
+    defaults: [
+        "crosvm_defaults",
+        "avf_build_flags_rust",
+    ],
 }
 
 rust_binary {
