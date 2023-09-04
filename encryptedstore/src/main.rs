@@ -94,11 +94,19 @@ fn encryptedstore_init(blkdevice: &Path, key: &str, mountpoint: &Path) -> Result
     }
     mount(&crypt_device, mountpoint)
         .with_context(|| format!("Unable to mount {:?}", crypt_device))?;
-    if needs_formatting {
-        std::fs::set_permissions(mountpoint, PermissionsExt::from_mode(0o770))
-            .context("Failed to chmod root directory")?;
+    if cfg!(payload_not_root) && needs_formatting {
+        set_root_dir_permissions(mountpoint)?;
     }
     Ok(())
+}
+
+fn set_root_dir_permissions(mountpoint: &Path) -> Result<()> {
+    // mke2fs hardwires the root dir permissions as 0o755 which doesn't match what we want.
+    // We want to allow full access by both root and the payload group, and no access by anything
+    // else. And we want the sticky bit set, so different payload UIDs can create sub-directories
+    // that other payloads can't delete.
+    let permissions = PermissionsExt::from_mode(0o770 | libc::S_ISVTX);
+    std::fs::set_permissions(mountpoint, permissions).context("Failed to chmod root directory")
 }
 
 fn enable_crypt(data_device: &Path, key: &str, name: &str) -> Result<PathBuf> {
