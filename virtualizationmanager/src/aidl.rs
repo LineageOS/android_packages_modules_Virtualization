@@ -380,8 +380,8 @@ impl VirtualizationService {
 
         // Check if partition images are labeled incorrectly. This is to prevent random images
         // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
-        // being loaded in a pVM. This applies to everything in the raw config, and everything but
-        // the non-executable, generated partitions in the app config.
+        // being loaded in a pVM. This applies to everything but the instance image in the raw config,
+        // and everything but the non-executable, generated partitions in the app config.
         config
             .disks
             .iter()
@@ -390,7 +390,7 @@ impl VirtualizationService {
                 if is_app_config {
                     !is_safe_app_partition(&partition.label)
                 } else {
-                    true // all partitions are checked
+                    !is_safe_raw_partition(&partition.label)
                 }
             })
             .try_for_each(check_label_for_partition)
@@ -767,6 +767,11 @@ fn is_safe_app_partition(label: &str) -> bool {
         || label == "microdroid-apk-idsig"
         || label == "payload-metadata"
         || label.starts_with("extra-idsig-")
+}
+
+/// Returns whether a partition with the given label is safe for a raw config VM.
+fn is_safe_raw_partition(label: &str) -> bool {
+    label == "vm-instance"
 }
 
 /// Check that a file SELinux label is acceptable.
@@ -1214,22 +1219,7 @@ impl IVirtualMachineService for VirtualMachineService {
     }
 
     fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
-        let cid = self.cid;
-        let Some(vm) = self.state.lock().unwrap().get_vm(cid) else {
-            error!("requestCertificate is called from an unknown CID {cid}");
-            return Err(anyhow!("cannot find a VM with CID {}", cid))
-                .or_service_specific_exception(-1);
-        };
-        let instance_img_path = vm.temporary_directory.join("rkpvm_instance.img");
-        let instance_img = OpenOptions::new()
-            .create(true)
-            .read(true)
-            .write(true)
-            .open(instance_img_path)
-            .context("Failed to create rkpvm_instance.img file")
-            .with_log()
-            .or_service_specific_exception(-1)?;
-        GLOBAL_SERVICE.requestCertificate(csr, &ParcelFileDescriptor::new(instance_img))
+        GLOBAL_SERVICE.requestCertificate(csr)
     }
 }
 
