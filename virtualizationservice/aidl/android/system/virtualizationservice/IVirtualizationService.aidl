@@ -22,6 +22,8 @@ import android.system.virtualizationservice.VirtualMachineConfig;
 import android.system.virtualizationservice.VirtualMachineDebugInfo;
 
 interface IVirtualizationService {
+    const String FEATURE_PAYLOAD_NON_ROOT = "com.android.kvm.PAYLOAD_NON_ROOT";
+
     /**
      * Create the VM with the given config file, and return a handle to it ready to start it. If
      * `consoleOutFd` is provided then console output from the VM will be sent to it. If
@@ -61,4 +63,7 @@ interface IVirtualizationService {
      * Get a list of assignable device types.
      */
     AssignableDevice[] getAssignableDevices();
+
+    /** Returns whether given feature is enabled. */
+    boolean isFeatureEnabled(in String feature);
 }
