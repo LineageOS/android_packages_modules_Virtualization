@@ -23,6 +23,7 @@ import android.system.virtualizationservice.VirtualMachineDebugInfo;
 
 interface IVirtualizationService {
     const String FEATURE_PAYLOAD_NON_ROOT = "com.android.kvm.PAYLOAD_NON_ROOT";
+    const String FEATURE_VENDOR_MODULES = "com.android.kvm.VENDOR_MODULES";
 
     /**
      * Create the VM with the given config file, and return a handle to it ready to start it. If
