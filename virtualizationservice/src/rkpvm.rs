@@ -16,9 +16,9 @@
 //! The RKP VM will be recognized and attested by the RKP server periodically and
 //! serves as a trusted platform to attest a client VM.
 
-use crate::service_vm::ServiceVm;
 use anyhow::{bail, Context, Result};
 use service_vm_comm::{Request, Response};
+use service_vm_manager::ServiceVm;
 
 pub(crate) fn request_certificate(csr: &[u8]) -> Result<Vec<u8>> {
     let mut vm = ServiceVm::start()?;
