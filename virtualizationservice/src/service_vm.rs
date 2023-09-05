@@ -23,31 +23,98 @@ use android_system_virtualizationservice::{
     },
     binder::ParcelFileDescriptor,
 };
-use anyhow::{Context, Result};
-use log::info;
+use anyhow::{ensure, Context, Result};
+use log::{info, warn};
+use service_vm_comm::{Request, Response, VmType};
 use std::fs::{File, OpenOptions};
+use std::io::{BufWriter, Write};
 use std::path::Path;
+use std::time::Duration;
 use vmclient::VmInstance;
+use vsock::{VsockListener, VsockStream, VMADDR_CID_HOST};
 
 const VIRT_DATA_DIR: &str = "/data/misc/apexdata/com.android.virt";
 const RIALTO_PATH: &str = "/apex/com.android.virt/etc/rialto.bin";
 const INSTANCE_IMG_NAME: &str = "service_vm_instance.img";
 const INSTANCE_IMG_SIZE_BYTES: i64 = 1 << 20; // 1MB
 const MEMORY_MB: i32 = 300;
+const WRITE_BUFFER_CAPACITY: usize = 512;
+const READ_TIMEOUT: Duration = Duration::from_secs(10);
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Starts the service VM and returns its instance.
-/// The same instance image is used for different VMs.
-/// TODO(b/278858244): Allow only one service VM running at each time.
-pub fn start() -> Result<VmInstance> {
-    let virtmgr = vmclient::VirtualizationService::new().context("Failed to spawn VirtMgr")?;
-    let service = virtmgr.connect().context("Failed to connect to VirtMgr")?;
-    info!("Connected to VirtMgr for service VM");
+/// Service VM.
+pub struct ServiceVm {
+    vsock_stream: VsockStream,
+    /// VmInstance will be dropped when ServiceVm goes out of scope, which will kill the VM.
+    vm: VmInstance,
+}
 
-    let vm = vm_instance(service.as_ref())?;
+impl ServiceVm {
+    /// Starts the service VM and returns its instance.
+    /// The same instance image is used for different VMs.
+    /// TODO(b/278858244): Allow only one service VM running at each time.
+    pub fn start() -> Result<Self> {
+        // Sets up the vsock server on the host.
+        let vsock_listener =
+            VsockListener::bind_with_cid_port(VMADDR_CID_HOST, VmType::ProtectedVm.port())?;
 
-    vm.start().context("Failed to start service VM")?;
-    info!("Service VM started");
-    Ok(vm)
+        // Starts the service VM.
+        let virtmgr = vmclient::VirtualizationService::new().context("Failed to spawn VirtMgr")?;
+        let service = virtmgr.connect().context("Failed to connect to VirtMgr")?;
+        info!("Connected to VirtMgr for service VM");
+
+        let vm = vm_instance(service.as_ref())?;
+        vm.start().context("Failed to start service VM")?;
+        info!("Service VM started");
+
+        // Accepts the connection from the service VM.
+        // TODO(b/299427101): Introduce a timeout for the accept.
+        let (vsock_stream, peer_addr) = vsock_listener.accept().context("Failed to accept")?;
+        info!("Accepted connection {:?}", vsock_stream);
+        ensure!(
+            peer_addr.cid() == u32::try_from(vm.cid()).unwrap(),
+            "The CID of the peer address {} doesn't match the service VM CID {}",
+            peer_addr,
+            vm.cid()
+        );
+        vsock_stream.set_read_timeout(Some(READ_TIMEOUT))?;
+        vsock_stream.set_write_timeout(Some(WRITE_TIMEOUT))?;
+
+        Ok(Self { vsock_stream, vm })
+    }
+
+    /// Processes the request in the service VM.
+    pub fn process_request(&mut self, request: &Request) -> Result<Response> {
+        self.write_request(request)?;
+        self.read_response()
+    }
+
+    /// Sends the request to the service VM.
+    fn write_request(&mut self, request: &Request) -> Result<()> {
+        let mut buffer = BufWriter::with_capacity(WRITE_BUFFER_CAPACITY, &mut self.vsock_stream);
+        ciborium::into_writer(request, &mut buffer)?;
+        buffer.flush().context("Failed to flush the buffer")?;
+        info!("Sent request to the service VM.");
+        Ok(())
+    }
+
+    /// Reads the response from the service VM.
+    fn read_response(&mut self) -> Result<Response> {
+        let response: Response = ciborium::from_reader(&mut self.vsock_stream)
+            .context("Failed to read the response from the service VM")?;
+        info!("Received response from the service VM.");
+        Ok(response)
+    }
+}
+
+impl Drop for ServiceVm {
+    fn drop(&mut self) {
+        // Wait till the service VM finishes releasing all the resources.
+        match self.vm.wait_for_death_with_timeout(Duration::from_secs(10)) {
+            Some(e) => info!("Exit the service VM: {e:?}"),
+            None => warn!("Timed out waiting for service VM exit"),
+        }
+    }
 }
 
 fn vm_instance(service: &dyn IVirtualizationService) -> Result<VmInstance> {
