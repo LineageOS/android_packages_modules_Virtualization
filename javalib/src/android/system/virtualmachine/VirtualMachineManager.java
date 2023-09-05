@@ -23,11 +23,15 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.RequiresFeature;
 import android.annotation.RequiresPermission;
+import android.annotation.StringDef;
 import android.annotation.SystemApi;
+import android.annotation.TestApi;
 import android.annotation.WorkerThread;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.RemoteException;
 import android.sysprop.HypervisorProperties;
+import android.system.virtualizationservice.IVirtualizationService;
 import android.util.ArrayMap;
 
 import com.android.internal.annotations.GuardedBy;
@@ -94,6 +98,26 @@ public class VirtualMachineManager {
      * host OS.
      */
     public static final int CAPABILITY_NON_PROTECTED_VM = 2;
+
+    /**
+     * Features provided by {@link VirtualMachineManager}.
+     *
+     * @hide
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @StringDef(
+            prefix = "FEATURE_",
+            value = {FEATURE_PAYLOAD_NOT_ROOT})
+    public @interface Features {}
+
+    /**
+     * Feature to run payload as non-root user.
+     *
+     * @hide
+     */
+    @TestApi
+    public static final String FEATURE_PAYLOAD_NOT_ROOT =
+            IVirtualizationService.FEATURE_PAYLOAD_NON_ROOT;
 
     /**
      * Returns a set of flags indicating what this implementation of virtualization is capable of.
@@ -276,5 +300,23 @@ public class VirtualMachineManager {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns {@code true} if given {@code featureName} is enabled.
+     *
+     * @hide
+     */
+    @TestApi
+    @RequiresPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION)
+    public boolean isFeatureEnabled(@Features String featureName) throws VirtualMachineException {
+        synchronized (sCreateLock) {
+            VirtualizationService service = VirtualizationService.getInstance();
+            try {
+                return service.getBinder().isFeatureEnabled(featureName);
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            }
+        }
     }
 }

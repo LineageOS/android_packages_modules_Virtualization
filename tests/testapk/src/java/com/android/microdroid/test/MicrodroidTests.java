@@ -72,7 +72,6 @@ import com.google.common.truth.BooleanSubject;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
@@ -1130,6 +1129,17 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThrows(Exception.class, () -> launchVmAndGetCdis("test_vm"));
     }
 
+    @Test
+    public void isFeatureEnabled_requiresManagePermission() throws Exception {
+        revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
+
+        VirtualMachineManager vmm = getVirtualMachineManager();
+        SecurityException e =
+                assertThrows(SecurityException.class, () -> vmm.isFeatureEnabled("whatever"));
+        assertThat(e)
+                .hasMessageThat()
+                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
+    }
 
     private static final UUID MICRODROID_PARTITION_UUID =
             UUID.fromString("cf9afe9a-0662-11ec-a329-c32663a09d75");
@@ -1524,10 +1534,14 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
-    @Ignore // Figure out how to run this conditionally
     @CddTest(requirements = {"9.17/C-1-1"})
     public void payloadIsNotRoot() throws Exception {
         assumeSupportedDevice();
+
+        VirtualMachineManager vmm = getVirtualMachineManager();
+        assumeTrue(
+                VirtualMachineManager.FEATURE_PAYLOAD_NOT_ROOT + " not enabled",
+                vmm.isFeatureEnabled(VirtualMachineManager.FEATURE_PAYLOAD_NOT_ROOT));
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
