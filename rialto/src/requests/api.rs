@@ -14,16 +14,23 @@
 
 //! This module contains the main API for the request processing module.
 
+use super::rkp;
+use crate::error::Result;
 use alloc::vec::Vec;
 use service_vm_comm::{Request, Response};
 
 /// Processes a request and returns the corresponding response.
 /// This function serves as the entry point for the request processing
 /// module.
-pub fn process_request(request: Request) -> Response {
-    match request {
+pub fn process_request(request: Request) -> Result<Response> {
+    let response = match request {
         Request::Reverse(v) => Response::Reverse(reverse(v)),
-    }
+        Request::GenerateEcdsaP256KeyPair => {
+            let res = rkp::generate_ecdsa_p256_key_pair()?;
+            Response::GenerateEcdsaP256KeyPair(res)
+        }
+    };
+    Ok(response)
 }
 
 fn reverse(payload: Vec<u8>) -> Vec<u8> {
