@@ -21,6 +21,7 @@ import static android.os.ParcelFileDescriptor.MODE_READ_ONLY;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
 import android.annotation.NonNull;
@@ -903,6 +904,7 @@ public final class VirtualMachineConfig {
          */
         @TestApi
         @RequiresPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
+        @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
         @NonNull
         public Builder setVendorDiskImage(@NonNull File vendorDiskImage) {
             mVendorDiskImage = vendorDiskImage;
