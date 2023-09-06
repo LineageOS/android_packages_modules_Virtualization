@@ -1537,11 +1537,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @CddTest(requirements = {"9.17/C-1-1"})
     public void payloadIsNotRoot() throws Exception {
         assumeSupportedDevice();
-
-        VirtualMachineManager vmm = getVirtualMachineManager();
-        assumeTrue(
-                VirtualMachineManager.FEATURE_PAYLOAD_NOT_ROOT + " not enabled",
-                vmm.isFeatureEnabled(VirtualMachineManager.FEATURE_PAYLOAD_NOT_ROOT));
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_PAYLOAD_NOT_ROOT);
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
@@ -2098,6 +2094,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void configuringVendorDiskImageRequiresCustomPermission() throws Exception {
         assumeSupportedDevice();
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
         File vendorDiskImage =
                 new File("/data/local/tmp/cts/microdroid/test_microdroid_vendor_image.img");
@@ -2122,6 +2119,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void bootsWithVendorPartition() throws Exception {
         assumeSupportedDevice();
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
 
@@ -2248,5 +2246,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .withMessage("Skip on 5.4 kernel. b/218303240")
                 .that(KERNEL_VERSION)
                 .isNotEqualTo("5.4");
+    }
+
+    private void assumeFeatureEnabled(String featureName) throws Exception {
+        VirtualMachineManager vmm = getVirtualMachineManager();
+        assumeTrue(featureName + " not enabled", vmm.isFeatureEnabled(featureName));
     }
 }

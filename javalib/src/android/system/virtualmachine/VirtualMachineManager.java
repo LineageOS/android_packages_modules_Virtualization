@@ -107,7 +107,7 @@ public class VirtualMachineManager {
     @Retention(RetentionPolicy.SOURCE)
     @StringDef(
             prefix = "FEATURE_",
-            value = {FEATURE_PAYLOAD_NOT_ROOT})
+            value = {FEATURE_PAYLOAD_NOT_ROOT, FEATURE_VENDOR_MODULES})
     public @interface Features {}
 
     /**
@@ -118,6 +118,15 @@ public class VirtualMachineManager {
     @TestApi
     public static final String FEATURE_PAYLOAD_NOT_ROOT =
             IVirtualizationService.FEATURE_PAYLOAD_NON_ROOT;
+
+    /**
+     * Feature to run payload as non-root user.
+     *
+     * @hide
+     */
+    @TestApi
+    public static final String FEATURE_VENDOR_MODULES =
+            IVirtualizationService.FEATURE_VENDOR_MODULES;
 
     /**
      * Returns a set of flags indicating what this implementation of virtualization is capable of.
