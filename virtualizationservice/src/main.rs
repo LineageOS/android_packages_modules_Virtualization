@@ -16,6 +16,7 @@
 
 mod aidl;
 mod atom;
+mod remote_provisioning;
 mod rkpvm;
 mod service_vm;
 
@@ -32,6 +33,8 @@ use std::fs::read_dir;
 use std::os::unix::raw::{pid_t, uid_t};
 
 const LOG_TAG: &str = "VirtualizationService";
+const _REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME: &str =
+    "android.system.virtualization.IRemotelyProvisionedComponent/avf";
 
 fn get_calling_pid() -> pid_t {
     ThreadState::get_calling_pid()
@@ -61,7 +64,13 @@ fn main() {
     let service = VirtualizationServiceInternal::init();
     let service = BnVirtualizationServiceInternal::new_binder(service, BinderFeatures::default());
     register_lazy_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
-    info!("Registered Binder service, joining threadpool.");
+    info!("Registered Binder service {}.", BINDER_SERVICE_IDENTIFIER);
+
+    // The IRemotelyProvisionedComponent service is only supposed to be triggered by rkpd for
+    // RKP VM attestation.
+    let _remote_provisioning_service = remote_provisioning::new_binder();
+    // TODO(b/274881098): Register the RKP service when the implementation is ready.
+
     ProcessState::join_thread_pool();
 }
 
