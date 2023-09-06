@@ -129,7 +129,6 @@ impl MicrodroidConfig {
     }
 
     #[cfg(not(vendor_modules))]
-    #[inline(always)]
     fn vendor(&self) -> Option<PathBuf> {
         None
     }
