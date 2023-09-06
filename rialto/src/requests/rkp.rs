@@ -17,10 +17,17 @@
 
 use crate::error::Result;
 use alloc::vec::Vec;
-use service_vm_comm::EcdsaP256KeyPair;
+use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams};
 
 pub(super) fn generate_ecdsa_p256_key_pair() -> Result<EcdsaP256KeyPair> {
     // TODO(b/299055662): Generate the key pair.
     let key_pair = EcdsaP256KeyPair { maced_public_key: Vec::new(), key_blob: Vec::new() };
     Ok(key_pair)
+}
+
+pub(super) fn generate_certificate_request(
+    _params: GenerateCertificateRequestParams,
+) -> Result<Vec<u8>> {
+    // TODO(b/299256925): Generate the certificate request
+    Ok(Vec::new())
 }
