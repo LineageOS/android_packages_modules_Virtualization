@@ -84,25 +84,25 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
         )?;
     }
 
-    let storage = if let Some(path) = config.microdroid.storage {
+    let storage = if let Some(ref path) = config.microdroid.storage {
         if !path.exists() {
             command_create_partition(
                 service.as_ref(),
-                &path,
+                path,
                 config.microdroid.storage_size.unwrap_or(10 * 1024 * 1024),
                 PartitionType::ENCRYPTEDSTORE,
             )?;
         }
-        Some(open_parcel_file(&path, true)?)
+        Some(open_parcel_file(path, true)?)
     } else {
         None
     };
 
     let kernel =
-        config.microdroid.kernel.as_ref().map(|p| open_parcel_file(p, false)).transpose()?;
+        config.microdroid.kernel().as_ref().map(|p| open_parcel_file(p, false)).transpose()?;
 
     let vendor =
-        config.microdroid.vendor.as_ref().map(|p| open_parcel_file(p, false)).transpose()?;
+        config.microdroid.vendor().as_ref().map(|p| open_parcel_file(p, false)).transpose()?;
 
     let extra_idsig_files: Result<Vec<File>, _> =
         config.extra_idsigs.iter().map(File::open).collect();
