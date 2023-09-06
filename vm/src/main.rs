@@ -98,16 +98,41 @@ pub struct MicrodroidConfig {
     storage_size: Option<u64>,
 
     /// Path to custom kernel image to use when booting Microdroid.
+    #[cfg(vendor_modules)]
     #[arg(long)]
     kernel: Option<PathBuf>,
 
     /// Path to disk image containing vendor-specific modules.
+    #[cfg(vendor_modules)]
     #[arg(long)]
     vendor: Option<PathBuf>,
 
     /// SysFS nodes of devices to assign to VM
     #[arg(long)]
     devices: Vec<PathBuf>,
+}
+
+impl MicrodroidConfig {
+    #[cfg(vendor_modules)]
+    fn kernel(&self) -> &Option<PathBuf> {
+        &self.kernel
+    }
+
+    #[cfg(not(vendor_modules))]
+    fn kernel(&self) -> Option<PathBuf> {
+        None
+    }
+
+    #[cfg(vendor_modules)]
+    fn vendor(&self) -> &Option<PathBuf> {
+        &self.vendor
+    }
+
+    #[cfg(not(vendor_modules))]
+    #[inline(always)]
+    fn vendor(&self) -> Option<PathBuf> {
+        None
+    }
 }
 
 #[derive(Args)]
