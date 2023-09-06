@@ -29,6 +29,10 @@ pub fn process_request(request: Request) -> Result<Response> {
             let res = rkp::generate_ecdsa_p256_key_pair()?;
             Response::GenerateEcdsaP256KeyPair(res)
         }
+        Request::GenerateCertificateRequest(p) => {
+            let res = rkp::generate_certificate_request(p)?;
+            Response::GenerateCertificateRequest(res)
+        }
     };
     Ok(response)
 }
