@@ -29,7 +29,7 @@ use log::{info, warn};
 use service_vm_comm::{Request, Response, VmType};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use vmclient::VmInstance;
 use vsock::{VsockListener, VsockStream, VMADDR_CID_HOST};
@@ -55,16 +55,18 @@ impl ServiceVm {
     /// The same instance image is used for different VMs.
     /// TODO(b/278858244): Allow only one service VM running at each time.
     pub fn start() -> Result<Self> {
+        let vm = vm_instance()?;
+        Self::start_vm(vm, VmType::ProtectedVm)
+    }
+
+    /// Starts the given VM instance and sets up the vsock connection with it.
+    /// Returns a `ServiceVm` instance.
+    /// This function is exposed for testing.
+    pub fn start_vm(vm: VmInstance, vm_type: VmType) -> Result<Self> {
         // Sets up the vsock server on the host.
-        let vsock_listener =
-            VsockListener::bind_with_cid_port(VMADDR_CID_HOST, VmType::ProtectedVm.port())?;
+        let vsock_listener = VsockListener::bind_with_cid_port(VMADDR_CID_HOST, vm_type.port())?;
 
         // Starts the service VM.
-        let virtmgr = vmclient::VirtualizationService::new().context("Failed to spawn VirtMgr")?;
-        let service = virtmgr.connect().context("Failed to connect to VirtMgr")?;
-        info!("Connected to VirtMgr for service VM");
-
-        let vm = vm_instance(service.as_ref())?;
         vm.start().context("Failed to start service VM")?;
         info!("Service VM started");
 
@@ -118,8 +120,13 @@ impl Drop for ServiceVm {
     }
 }
 
-fn vm_instance(service: &dyn IVirtualizationService) -> Result<VmInstance> {
-    let instance_img = instance_img(service)?;
+fn vm_instance() -> Result<VmInstance> {
+    let virtmgr = vmclient::VirtualizationService::new().context("Failed to spawn VirtMgr")?;
+    let service = virtmgr.connect().context("Failed to connect to VirtMgr")?;
+    info!("Connected to VirtMgr for service VM");
+
+    let instance_img_path = Path::new(VIRT_DATA_DIR).join(INSTANCE_IMG_NAME);
+    let instance_img = instance_img(service.as_ref(), instance_img_path)?;
     let writable_partitions = vec![Partition {
         label: "vm-instance".to_owned(),
         image: Some(instance_img),
@@ -141,12 +148,16 @@ fn vm_instance(service: &dyn IVirtualizationService) -> Result<VmInstance> {
     let console_in = None;
     let log = None;
     let callback = None;
-    VmInstance::create(service, &config, console_out, console_in, log, callback)
+    VmInstance::create(service.as_ref(), &config, console_out, console_in, log, callback)
         .context("Failed to create service VM")
 }
 
-fn instance_img(service: &dyn IVirtualizationService) -> Result<ParcelFileDescriptor> {
-    let instance_img_path = Path::new(VIRT_DATA_DIR).join(INSTANCE_IMG_NAME);
+/// Returns the file descriptor of the instance image at the given path.
+/// This function is only exposed for testing.
+pub fn instance_img(
+    service: &dyn IVirtualizationService,
+    instance_img_path: PathBuf,
+) -> Result<ParcelFileDescriptor> {
     if instance_img_path.exists() {
         // TODO(b/298174584): Try to recover if the service VM is triggered by rkpd.
         return Ok(OpenOptions::new()
