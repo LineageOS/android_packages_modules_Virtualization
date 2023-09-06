@@ -135,7 +135,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
-    let response = requests::process_request(vsock_stream.read_request()?);
+    let response = requests::process_request(vsock_stream.read_request()?)?;
     vsock_stream.write_response(&response)?;
     vsock_stream.flush()?;
     vsock_stream.shutdown()?;
