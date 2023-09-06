@@ -35,6 +35,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachineCallback::IVirtualMachineCallback,
     IVirtualizationService::IVirtualizationService,
     IVirtualizationService::FEATURE_PAYLOAD_NON_ROOT,
+    IVirtualizationService::FEATURE_VENDOR_MODULES,
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
     PartitionType::PartitionType,
@@ -274,6 +275,7 @@ impl IVirtualizationService for VirtualizationService {
         // TODO(b/298012279): make this scalable.
         match feature {
             FEATURE_PAYLOAD_NON_ROOT => Ok(cfg!(payload_not_root)),
+            FEATURE_VENDOR_MODULES => Ok(cfg!(vendor_modules)),
             _ => {
                 warn!("unknown feature {}", feature);
                 Ok(false)
@@ -325,6 +327,8 @@ impl VirtualizationService {
     ) -> binder::Result<Strong<dyn IVirtualMachine>> {
         let requester_uid = get_calling_uid();
         let requester_debug_pid = get_calling_pid();
+
+        check_config_features(config)?;
 
         // Allocating VM context checks the MANAGE_VIRTUAL_MACHINE permission.
         let (vm_context, cid, temporary_directory) = self.create_vm_context(requester_debug_pid)?;
@@ -1103,6 +1107,24 @@ fn extract_gdb_port(config: &VirtualMachineConfig) -> Option<NonZeroU16> {
             NonZeroU16::new(config.customConfig.as_ref().map(|c| c.gdbPort).unwrap_or(0) as u16)
         }
     }
+}
+
+fn check_no_vendor_modules(config: &VirtualMachineConfig) -> binder::Result<()> {
+    let VirtualMachineConfig::AppConfig(config) = config else { return Ok(()) };
+    if let Some(custom_config) = &config.customConfig {
+        if custom_config.vendorImage.is_some() || custom_config.customKernelImage.is_some() {
+            return Err(anyhow!("vendor modules feature is disabled"))
+                .or_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION);
+        }
+    }
+    Ok(())
+}
+
+fn check_config_features(config: &VirtualMachineConfig) -> binder::Result<()> {
+    if !cfg!(vendor_modules) {
+        check_no_vendor_modules(config)?;
+    }
+    Ok(())
 }
 
 fn clone_or_prepare_logger_fd(
