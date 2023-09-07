@@ -239,6 +239,38 @@ mod tests {
     }
 
     #[test]
+    fn test_read_avf_debug_policy_with_ramdump() -> Result<()> {
+        let debug_config = DebugConfig::from_custom_debug_overlay_policy(
+            DebugLevel::FULL,
+            "avf_debug_policy_with_ramdump.dtbo".as_ref(),
+        )
+        .unwrap();
+
+        assert_eq!(DebugLevel::FULL, debug_config.debug_level);
+        assert!(!debug_config.debug_policy_log);
+        assert!(debug_config.debug_policy_ramdump);
+        assert!(debug_config.debug_policy_adb);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_avf_debug_policy_without_ramdump() -> Result<()> {
+        let debug_config = DebugConfig::from_custom_debug_overlay_policy(
+            DebugLevel::FULL,
+            "avf_debug_policy_without_ramdump.dtbo".as_ref(),
+        )
+        .unwrap();
+
+        assert_eq!(DebugLevel::FULL, debug_config.debug_level);
+        assert!(!debug_config.debug_policy_log);
+        assert!(!debug_config.debug_policy_ramdump);
+        assert!(debug_config.debug_policy_adb);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_read_avf_debug_policy_with_adb() -> Result<()> {
         let debug_config = DebugConfig::from_custom_debug_overlay_policy(
             DebugLevel::FULL,
