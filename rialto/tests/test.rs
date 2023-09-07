@@ -38,17 +38,44 @@ const SIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
 const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
 const INSTANCE_IMG_PATH: &str = "/data/local/tmp/rialto_test/arm64/instance.img";
 
-#[test]
-fn boot_rialto_in_protected_vm_successfully() -> Result<()> {
-    boot_rialto_successfully(SIGNED_RIALTO_PATH, VmType::ProtectedVm)
+fn rialto_path(vm_type: VmType) -> &'static str {
+    match vm_type {
+        VmType::ProtectedVm => SIGNED_RIALTO_PATH,
+        VmType::NonProtectedVm => UNSIGNED_RIALTO_PATH,
+    }
 }
 
 #[test]
-fn boot_rialto_in_unprotected_vm_successfully() -> Result<()> {
-    boot_rialto_successfully(UNSIGNED_RIALTO_PATH, VmType::NonProtectedVm)
+fn process_requests_in_protected_vm() -> Result<()> {
+    let mut vm = start_service_vm(VmType::ProtectedVm)?;
+
+    check_processing_reverse_request(&mut vm)?;
+    Ok(())
 }
 
-fn boot_rialto_successfully(rialto_path: &str, vm_type: VmType) -> Result<()> {
+#[test]
+fn process_requests_in_non_protected_vm() -> Result<()> {
+    let mut vm = start_service_vm(VmType::NonProtectedVm)?;
+
+    check_processing_reverse_request(&mut vm)?;
+    Ok(())
+}
+
+fn check_processing_reverse_request(vm: &mut ServiceVm) -> Result<()> {
+    // TODO(b/292080257): Test with message longer than the receiver's buffer capacity
+    // 1024 bytes once the guest virtio-vsock driver fixes the credit update in recv().
+    let message = "abc".repeat(166);
+    let request = Request::Reverse(message.as_bytes().to_vec());
+
+    let response = vm.process_request(&request)?;
+    info!("Received response '{response:?}' for the request '{request:?}'.");
+
+    let expected_response: Vec<u8> = message.as_bytes().iter().rev().cloned().collect();
+    assert_eq!(Response::Reverse(expected_response), response);
+    Ok(())
+}
+
+fn start_service_vm(vm_type: VmType) -> Result<ServiceVm> {
     android_logger::init_once(
         android_logger::Config::default().with_tag("rialto").with_min_level(log::Level::Debug),
     );
@@ -58,27 +85,15 @@ fn boot_rialto_successfully(rialto_path: &str, vm_type: VmType) -> Result<()> {
     }));
     // We need to start the thread pool for Binder to work properly, especially link_to_death.
     ProcessState::start_thread_pool();
-
-    let mut vm = ServiceVm::start_vm(vm_instance(rialto_path, vm_type)?, vm_type)?;
-
-    // TODO(b/292080257): Test with message longer than the receiver's buffer capacity
-    // 1024 bytes once the guest virtio-vsock driver fixes the credit update in recv().
-    let message = "abc".repeat(166);
-    let request = Request::Reverse(message.as_bytes().to_vec());
-    let response = vm.process_request(&request)?;
-    info!("Received response: {response:?}.");
-
-    let expected_response: Vec<u8> = message.as_bytes().iter().rev().cloned().collect();
-    assert_eq!(Response::Reverse(expected_response), response);
-    Ok(())
+    ServiceVm::start_vm(vm_instance(vm_type)?, vm_type)
 }
 
-fn vm_instance(rialto_path: &str, vm_type: VmType) -> Result<VmInstance> {
+fn vm_instance(vm_type: VmType) -> Result<VmInstance> {
     let virtmgr =
         vmclient::VirtualizationService::new().context("Failed to spawn VirtualizationService")?;
     let service = virtmgr.connect().context("Failed to connect to VirtualizationService")?;
 
-    let rialto = File::open(rialto_path).context("Failed to open Rialto kernel binary")?;
+    let rialto = File::open(rialto_path(vm_type)).context("Failed to open Rialto kernel binary")?;
     let console = android_log_fd()?;
     let log = android_log_fd()?;
 
