@@ -105,7 +105,6 @@ rust_test {
         "libanyhow",
         "liblibc",
         "liblog_rust",
-        "libnix",
         "libservice_vm_comm",
         "libservice_vm_manager",
         "libvmclient",
