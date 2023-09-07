@@ -16,7 +16,7 @@
 
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::{
-        DiskImage::DiskImage, Partition::Partition, VirtualMachineConfig::VirtualMachineConfig,
+        VirtualMachineConfig::VirtualMachineConfig,
         VirtualMachineRawConfig::VirtualMachineRawConfig,
     },
     binder::{ParcelFileDescriptor, ProcessState},
@@ -30,16 +30,8 @@ use std::panic;
 use std::path::PathBuf;
 use vmclient::VmInstance;
 
-const SIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto.bin";
 const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
 const INSTANCE_IMG_PATH: &str = "/data/local/tmp/rialto_test/arm64/instance.img";
-
-fn rialto_path(vm_type: VmType) -> &'static str {
-    match vm_type {
-        VmType::ProtectedVm => SIGNED_RIALTO_PATH,
-        VmType::NonProtectedVm => UNSIGNED_RIALTO_PATH,
-    }
-}
 
 #[test]
 fn process_requests_in_protected_vm() -> Result<()> {
@@ -85,45 +77,29 @@ fn start_service_vm(vm_type: VmType) -> Result<ServiceVm> {
 }
 
 fn vm_instance(vm_type: VmType) -> Result<VmInstance> {
-    let virtmgr =
-        vmclient::VirtualizationService::new().context("Failed to spawn VirtualizationService")?;
-    let service = virtmgr.connect().context("Failed to connect to VirtualizationService")?;
-
-    let rialto = File::open(rialto_path(vm_type)).context("Failed to open Rialto kernel binary")?;
-    let console = service_vm_manager::android_log_fd()?;
-    let log = service_vm_manager::android_log_fd()?;
-
-    let disks = match vm_type {
+    match vm_type {
         VmType::ProtectedVm => {
-            let instance_img = service_vm_manager::instance_img(
-                service.as_ref(),
-                PathBuf::from(INSTANCE_IMG_PATH),
-            )?;
-            let writable_partitions = vec![Partition {
-                label: "vm-instance".to_owned(),
-                image: Some(instance_img),
-                writable: true,
-            }];
-            vec![DiskImage { image: None, partitions: writable_partitions, writable: true }]
+            service_vm_manager::protected_vm_instance(PathBuf::from(INSTANCE_IMG_PATH))
         }
-        VmType::NonProtectedVm => vec![],
-    };
+        VmType::NonProtectedVm => nonprotected_vm_instance(),
+    }
+}
+
+fn nonprotected_vm_instance() -> Result<VmInstance> {
+    let rialto = File::open(UNSIGNED_RIALTO_PATH).context("Failed to open Rialto kernel binary")?;
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
-        name: String::from("RialtoTest"),
+        name: String::from("Non protected rialto"),
         bootloader: Some(ParcelFileDescriptor::new(rialto)),
-        disks,
-        protectedVm: vm_type.is_protected(),
+        protectedVm: false,
         memoryMib: 300,
         platformVersion: "~1.0".to_string(),
         ..Default::default()
     });
-    VmInstance::create(
-        service.as_ref(),
-        &config,
-        Some(console),
-        /* consoleIn */ None,
-        Some(log),
-        None,
-    )
-    .context("Failed to create VM")
+    let console = Some(service_vm_manager::android_log_fd()?);
+    let log = Some(service_vm_manager::android_log_fd()?);
+    let virtmgr = vmclient::VirtualizationService::new().context("Failed to spawn VirtMgr")?;
+    let service = virtmgr.connect().context("Failed to connect to VirtMgr")?;
+    info!("Connected to VirtMgr for service VM");
+    VmInstance::create(service.as_ref(), &config, console, /* consoleIn */ None, log, None)
+        .context("Failed to create VM")
 }
