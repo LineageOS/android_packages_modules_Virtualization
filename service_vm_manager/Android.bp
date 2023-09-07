@@ -13,6 +13,7 @@ rust_library {
         "libanyhow",
         "libciborium",
         "liblog_rust",
+        "libnix",
         "libservice_vm_comm",
         "libvmclient",
         "libvsock",

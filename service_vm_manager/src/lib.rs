@@ -28,8 +28,10 @@ use anyhow::{ensure, Context, Result};
 use log::{info, warn};
 use service_vm_comm::{Request, Response, VmType};
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::os::unix::io::FromRawFd;
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::time::Duration;
 use vmclient::VmInstance;
 use vsock::{VsockListener, VsockStream, VMADDR_CID_HOST};
@@ -144,9 +146,9 @@ fn vm_instance() -> Result<VmInstance> {
         gdbPort: 0, // No gdb
         ..Default::default()
     });
-    let console_out = None;
+    let console_out = Some(android_log_fd()?);
     let console_in = None;
-    let log = None;
+    let log = Some(android_log_fd()?);
     let callback = None;
     VmInstance::create(service.as_ref(), &config, console_out, console_in, log, callback)
         .context("Failed to create service VM")
@@ -178,4 +180,27 @@ pub fn instance_img(
         PartitionType::ANDROID_VM_INSTANCE,
     )?;
     Ok(instance_img)
+}
+
+/// This function is only exposed for testing.
+pub fn android_log_fd() -> io::Result<File> {
+    let (reader_fd, writer_fd) = nix::unistd::pipe()?;
+
+    // SAFETY: These are new FDs with no previous owner.
+    let reader = unsafe { File::from_raw_fd(reader_fd) };
+    // SAFETY: These are new FDs with no previous owner.
+    let writer = unsafe { File::from_raw_fd(writer_fd) };
+
+    thread::spawn(|| {
+        for line in BufReader::new(reader).lines() {
+            match line {
+                Ok(l) => info!("{}", l),
+                Err(e) => {
+                    warn!("Failed to read line: {e:?}");
+                    break;
+                }
+            }
+        }
+    });
+    Ok(writer)
 }
