@@ -120,7 +120,7 @@ public class VirtualMachineManager {
             IVirtualizationService.FEATURE_PAYLOAD_NON_ROOT;
 
     /**
-     * Feature to run payload as non-root user.
+     * Feature to allow vendor modules in Microdroid.
      *
      * @hide
      */
