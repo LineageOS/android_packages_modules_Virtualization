@@ -57,7 +57,8 @@ impl ServiceVm {
     /// The same instance image is used for different VMs.
     /// TODO(b/278858244): Allow only one service VM running at each time.
     pub fn start() -> Result<Self> {
-        let vm = vm_instance()?;
+        let instance_img_path = Path::new(VIRT_DATA_DIR).join(INSTANCE_IMG_NAME);
+        let vm = protected_vm_instance(instance_img_path)?;
         Self::start_vm(vm, VmType::ProtectedVm)
     }
 
@@ -122,12 +123,12 @@ impl Drop for ServiceVm {
     }
 }
 
-fn vm_instance() -> Result<VmInstance> {
+/// Returns a `VmInstance` of a protected VM with the instance image from the given path.
+pub fn protected_vm_instance(instance_img_path: PathBuf) -> Result<VmInstance> {
     let virtmgr = vmclient::VirtualizationService::new().context("Failed to spawn VirtMgr")?;
     let service = virtmgr.connect().context("Failed to connect to VirtMgr")?;
     info!("Connected to VirtMgr for service VM");
 
-    let instance_img_path = Path::new(VIRT_DATA_DIR).join(INSTANCE_IMG_NAME);
     let instance_img = instance_img(service.as_ref(), instance_img_path)?;
     let writable_partitions = vec![Partition {
         label: "vm-instance".to_owned(),
@@ -155,8 +156,7 @@ fn vm_instance() -> Result<VmInstance> {
 }
 
 /// Returns the file descriptor of the instance image at the given path.
-/// This function is only exposed for testing.
-pub fn instance_img(
+fn instance_img(
     service: &dyn IVirtualizationService,
     instance_img_path: PathBuf,
 ) -> Result<ParcelFileDescriptor> {
