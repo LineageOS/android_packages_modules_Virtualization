@@ -110,7 +110,6 @@ rust_test {
         "libvmclient",
     ],
     data: [
-        ":rialto_bin",
         ":rialto_unsigned",
     ],
     test_suites: ["general-tests"],
