@@ -33,6 +33,7 @@ use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
+use service_vm_comm::VmType;
 use virtio_drivers::{
     device::socket::{VsockAddr, VMADDR_CID_HOST},
     transport::{pci::bus::PciRoot, DeviceType, Transport},
@@ -52,12 +53,16 @@ use vmbase::{
 };
 
 fn host_addr() -> VsockAddr {
-    VsockAddr { cid: VMADDR_CID_HOST, port: service_vm_comm::host_port(is_protected_vm()) }
+    VsockAddr { cid: VMADDR_CID_HOST, port: vm_type().port() }
 }
 
-fn is_protected_vm() -> bool {
+fn vm_type() -> VmType {
     // Use MMIO support to determine whether the VM is protected.
-    get_mmio_guard().is_some()
+    if get_mmio_guard().is_some() {
+        VmType::ProtectedVm
+    } else {
+        VmType::NonProtectedVm
+    }
 }
 
 fn new_page_table() -> Result<PageTable> {
