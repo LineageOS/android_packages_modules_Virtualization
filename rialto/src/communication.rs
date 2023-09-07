@@ -20,7 +20,7 @@ use core::hint::spin_loop;
 use core::mem;
 use core::result;
 use log::info;
-use service_vm_comm::{Request, Response};
+use service_vm_comm::{Response, ServiceVmRequest};
 use tinyvec::ArrayVec;
 use virtio_drivers::{
     self,
@@ -84,7 +84,7 @@ impl<H: Hal, T: Transport> VsockStream<H, T> {
         }
     }
 
-    pub fn read_request(&mut self) -> Result<Request> {
+    pub fn read_request(&mut self) -> Result<ServiceVmRequest> {
         Ok(ciborium::from_reader(self)?)
     }
 

@@ -55,8 +55,8 @@ fn check_processing_reverse_request(vm: &mut ServiceVm) -> Result<()> {
     let message = "abc".repeat(166);
     let request = Request::Reverse(message.as_bytes().to_vec());
 
-    let response = vm.process_request(&request)?;
-    info!("Received response '{response:?}' for the request '{request:?}'.");
+    let response = vm.process_request(request)?;
+    info!("Received response: {response:?}.");
 
     let expected_response: Vec<u8> = message.as_bytes().iter().rev().cloned().collect();
     assert_eq!(Response::Reverse(expected_response), response);
