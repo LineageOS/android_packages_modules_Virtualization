@@ -400,8 +400,9 @@ impl VirtualizationService {
 
         // Check if partition images are labeled incorrectly. This is to prevent random images
         // which are not protected by the Android Verified Boot (e.g. bits downloaded by apps) from
-        // being loaded in a pVM. This applies to everything but the instance image in the raw config,
-        // and everything but the non-executable, generated partitions in the app config.
+        // being loaded in a pVM. This applies to everything but the instance image in the raw
+        // config, and everything but the non-executable, generated partitions in the app
+        // config.
         config
             .disks
             .iter()
@@ -989,10 +990,10 @@ impl VirtualMachineCallbacks {
 /// struct.
 #[derive(Debug, Default)]
 struct State {
-    /// The VMs which have been started. When VMs are started a weak reference is added to this list
-    /// while a strong reference is returned to the caller over Binder. Once all copies of the
-    /// Binder client are dropped the weak reference here will become invalid, and will be removed
-    /// from the list opportunistically the next time `add_vm` is called.
+    /// The VMs which have been started. When VMs are started a weak reference is added to this
+    /// list while a strong reference is returned to the caller over Binder. Once all copies of
+    /// the Binder client are dropped the weak reference here will become invalid, and will be
+    /// removed from the list opportunistically the next time `add_vm` is called.
     vms: Vec<Weak<VmInstance>>,
 }
 
