@@ -19,6 +19,7 @@ package android.system.virtualmachine {
 
   public class VirtualMachineManager {
     method @RequiresPermission(android.system.virtualmachine.VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION) public boolean isFeatureEnabled(String) throws android.system.virtualmachine.VirtualMachineException;
+    field public static final String FEATURE_DICE_CHANGES = "com.android.kvm.DICE_CHANGES";
     field public static final String FEATURE_PAYLOAD_NOT_ROOT = "com.android.kvm.PAYLOAD_NON_ROOT";
     field public static final String FEATURE_VENDOR_MODULES = "com.android.kvm.VENDOR_MODULES";
   }
