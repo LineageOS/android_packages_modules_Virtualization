@@ -18,7 +18,6 @@ mod aidl;
 mod atom;
 mod remote_provisioning;
 mod rkpvm;
-mod service_vm;
 
 use crate::aidl::{
     remove_temporary_dir, BINDER_SERVICE_IDENTIFIER, TEMPORARY_DIRECTORY,
