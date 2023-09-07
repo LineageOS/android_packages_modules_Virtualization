@@ -1,1 +1,10 @@
-../../../build/soong/scripts/rustfmt.toml
+# Android Format Style
+# Should be in sync with build/soong/scripts/rustfmt.toml
+
+edition = "2021"
+use_small_heuristics = "Max"
+newline_style = "Unix"
+
+# Local customizations
+wrap_comments = true
+comment_width = 100
