@@ -23,4 +23,4 @@ mod message;
 mod vsock;
 
 pub use message::{EcdsaP256KeyPair, GenerateCertificateRequestParams, Request, Response};
-pub use vsock::host_port;
+pub use vsock::VmType;
