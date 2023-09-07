@@ -28,6 +28,9 @@
     },
     {
       "name": "initrd_bootconfig.test"
+    },
+    {
+      "name": "libdice_policy.test"
     }
   ],
   "avf-postsubmit": [
