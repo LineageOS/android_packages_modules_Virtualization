@@ -41,20 +41,34 @@ impl VfioHandler {
 impl Interface for VfioHandler {}
 
 impl IVfioHandler for VfioHandler {
-    fn bindDevicesToVfioDriver(
-        &self,
-        devices: &[String],
-        dtbo: &ParcelFileDescriptor,
-    ) -> binder::Result<()> {
+    fn bindDevicesToVfioDriver(&self, devices: &[String]) -> binder::Result<()> {
         // permission check is already done by IVirtualizationServiceInternal.
         if !*IS_VFIO_SUPPORTED {
             return Err(anyhow!("VFIO-platform not supported"))
                 .or_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION);
         }
         devices.iter().try_for_each(|x| bind_device(Path::new(x)))?;
+        Ok(())
+    }
 
-        write_dtbo(dtbo)?;
+    fn writeVmDtbo(&self, dtbo_fd: &ParcelFileDescriptor) -> binder::Result<()> {
+        let dtbo_path = get_dtbo_img_path()?;
+        let mut dtbo_img = File::open(dtbo_path)
+            .context("Failed to open DTBO partition")
+            .or_service_specific_exception(-1)?;
 
+        let dt_table_header = get_dt_table_header(&mut dtbo_img)?;
+        let vm_dtbo_idx = system_properties::read("ro.boot.hypervisor.vm_dtbo_idx")
+            .context("Failed to read vm_dtbo_idx")
+            .or_service_specific_exception(-1)?
+            .ok_or_else(|| anyhow!("vm_dtbo_idx is none"))
+            .or_service_specific_exception(-1)?;
+        let vm_dtbo_idx = vm_dtbo_idx
+            .parse()
+            .context("vm_dtbo_idx is not an integer")
+            .or_service_specific_exception(-1)?;
+        let dt_table_entry = get_dt_table_entry(&mut dtbo_img, &dt_table_header, vm_dtbo_idx)?;
+        write_vm_full_dtbo_from_img(&mut dtbo_img, &dt_table_entry, dtbo_fd)?;
         Ok(())
     }
 }
@@ -254,7 +268,7 @@ fn get_dt_table_entry(
     Ok(dt_table_entry)
 }
 
-fn filter_dtbo_from_img(
+fn write_vm_full_dtbo_from_img(
     dtbo_img_file: &mut File,
     entry: &DtTableEntry,
     dtbo_fd: &ParcelFileDescriptor,
@@ -273,31 +287,9 @@ fn filter_dtbo_from_img(
         .context("Failed to clone File from ParcelFileDescriptor")
         .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?;
 
-    // TODO(b/296796644): Filter dtbo.img, not writing all information.
     dtbo_fd
         .write_all(&buffer)
         .context("Failed to write dtbo file")
         .or_service_specific_exception(-1)?;
-    Ok(())
-}
-
-fn write_dtbo(dtbo_fd: &ParcelFileDescriptor) -> binder::Result<()> {
-    let dtbo_path = get_dtbo_img_path()?;
-    let mut dtbo_img = File::open(dtbo_path)
-        .context("Failed to open DTBO partition")
-        .or_service_specific_exception(-1)?;
-
-    let dt_table_header = get_dt_table_header(&mut dtbo_img)?;
-    let vm_dtbo_idx = system_properties::read("ro.boot.hypervisor.vm_dtbo_idx")
-        .context("Failed to read vm_dtbo_idx")
-        .or_service_specific_exception(-1)?
-        .ok_or_else(|| anyhow!("vm_dtbo_idx is none"))
-        .or_service_specific_exception(-1)?;
-    let vm_dtbo_idx = vm_dtbo_idx
-        .parse()
-        .context("vm_dtbo_idx is not an integer")
-        .or_service_specific_exception(-1)?;
-    let dt_table_entry = get_dt_table_entry(&mut dtbo_img, &dt_table_header, vm_dtbo_idx)?;
-    filter_dtbo_from_img(&mut dtbo_img, &dt_table_entry, dtbo_fd)?;
     Ok(())
 }

@@ -435,7 +435,7 @@ impl VirtualizationService {
             }
         };
 
-        let devices_dtbo = if !config.devices.is_empty() {
+        if !config.devices.is_empty() {
             let mut set = HashSet::new();
             for device in config.devices.iter() {
                 let path = canonicalize(device)
@@ -446,30 +446,8 @@ impl VirtualizationService {
                         .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
                 }
             }
-            let dtbo_path = temporary_directory.join("dtbo");
-            // open a writable file descriptor for vfio_handler
-            let dtbo = File::create(&dtbo_path).map_err(|e| {
-                error!("Failed to create VM DTBO file {dtbo_path:?}: {e:?}");
-                Status::new_service_specific_error_str(
-                    -1,
-                    Some(format!("Failed to create VM DTBO file {dtbo_path:?}: {e:?}")),
-                )
-            })?;
-            GLOBAL_SERVICE
-                .bindDevicesToVfioDriver(&config.devices, &ParcelFileDescriptor::new(dtbo))?;
-
-            // open (again) a readable file descriptor for crosvm
-            let dtbo = File::open(&dtbo_path).map_err(|e| {
-                error!("Failed to open VM DTBO file {dtbo_path:?}: {e:?}");
-                Status::new_service_specific_error_str(
-                    -1,
-                    Some(format!("Failed to open VM DTBO file {dtbo_path:?}: {e:?}")),
-                )
-            })?;
-            Some(dtbo)
-        } else {
-            None
-        };
+            GLOBAL_SERVICE.bindDevicesToVfioDriver(&config.devices)?;
+        }
 
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
@@ -495,7 +473,6 @@ impl VirtualizationService {
             detect_hangup: is_app_config,
             gdb_port,
             vfio_devices: config.devices.iter().map(PathBuf::from).collect(),
-            devices_dtbo,
         };
         let instance = Arc::new(
             VmInstance::new(
