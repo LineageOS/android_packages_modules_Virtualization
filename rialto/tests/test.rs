@@ -24,7 +24,7 @@ use android_system_virtualizationservice::{
 };
 use anyhow::{anyhow, bail, Context, Result};
 use log::info;
-use service_vm_comm::{host_port, Request, Response};
+use service_vm_comm::{Request, Response, VmType};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::os::unix::io::FromRawFd;
@@ -41,21 +41,15 @@ const INSTANCE_IMG_SIZE: i64 = 1024 * 1024; // 1MB
 
 #[test]
 fn boot_rialto_in_protected_vm_successfully() -> Result<()> {
-    boot_rialto_successfully(
-        SIGNED_RIALTO_PATH,
-        true, // protected_vm
-    )
+    boot_rialto_successfully(SIGNED_RIALTO_PATH, VmType::ProtectedVm)
 }
 
 #[test]
 fn boot_rialto_in_unprotected_vm_successfully() -> Result<()> {
-    boot_rialto_successfully(
-        UNSIGNED_RIALTO_PATH,
-        false, // protected_vm
-    )
+    boot_rialto_successfully(UNSIGNED_RIALTO_PATH, VmType::NonProtectedVm)
 }
 
-fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<()> {
+fn boot_rialto_successfully(rialto_path: &str, vm_type: VmType) -> Result<()> {
     android_logger::init_once(
         android_logger::Config::default().with_tag("rialto").with_min_level(log::Level::Debug),
     );
@@ -76,30 +70,31 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<()>
     let console = android_log_fd()?;
     let log = android_log_fd()?;
 
-    let disks = if protected_vm {
-        let instance_img = File::options()
-            .create(true)
-            .read(true)
-            .write(true)
-            .truncate(true)
-            .open(INSTANCE_IMG_PATH)?;
-        let instance_img = ParcelFileDescriptor::new(instance_img);
+    let disks = match vm_type {
+        VmType::ProtectedVm => {
+            let instance_img = File::options()
+                .create(true)
+                .read(true)
+                .write(true)
+                .truncate(true)
+                .open(INSTANCE_IMG_PATH)?;
+            let instance_img = ParcelFileDescriptor::new(instance_img);
 
-        service
-            .initializeWritablePartition(
-                &instance_img,
-                INSTANCE_IMG_SIZE,
-                PartitionType::ANDROID_VM_INSTANCE,
-            )
-            .context("Failed to initialize instange.img")?;
-        let writable_partitions = vec![Partition {
-            label: "vm-instance".to_owned(),
-            image: Some(instance_img),
-            writable: true,
-        }];
-        vec![DiskImage { image: None, partitions: writable_partitions, writable: true }]
-    } else {
-        vec![]
+            service
+                .initializeWritablePartition(
+                    &instance_img,
+                    INSTANCE_IMG_SIZE,
+                    PartitionType::ANDROID_VM_INSTANCE,
+                )
+                .context("Failed to initialize instange.img")?;
+            let writable_partitions = vec![Partition {
+                label: "vm-instance".to_owned(),
+                image: Some(instance_img),
+                writable: true,
+            }];
+            vec![DiskImage { image: None, partitions: writable_partitions, writable: true }]
+        }
+        VmType::NonProtectedVm => vec![],
     };
 
     let config = VirtualMachineConfig::RawConfig(VirtualMachineRawConfig {
@@ -109,7 +104,7 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<()>
         params: None,
         bootloader: Some(ParcelFileDescriptor::new(rialto)),
         disks,
-        protectedVm: protected_vm,
+        protectedVm: vm_type.is_protected(),
         memoryMib: 300,
         cpuTopology: CpuTopology::ONE_CPU,
         platformVersion: "~1.0".to_string(),
@@ -126,8 +121,8 @@ fn boot_rialto_successfully(rialto_path: &str, protected_vm: bool) -> Result<()>
     )
     .context("Failed to create VM")?;
 
-    let port = host_port(protected_vm);
-    let check_socket_handle = thread::spawn(move || try_check_socket_connection(port).unwrap());
+    let check_socket_handle =
+        thread::spawn(move || try_check_socket_connection(vm_type.port()).unwrap());
 
     vm.start().context("Failed to start VM")?;
 
