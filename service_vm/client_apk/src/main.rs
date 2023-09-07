@@ -41,6 +41,7 @@ pub extern "C" fn AVmPayload_main() {
 fn try_main() -> Result<()> {
     info!("Welcome to Service VM Client!");
     let csr = b"Hello from Service VM";
+    info!("Sending: {:?}", csr);
     let certificate = request_certificate(csr);
     info!("Certificate: {:?}", certificate);
     Ok(())
