@@ -1,0 +1,35 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_defaults {
+    name: "libdice_policy.defaults",
+    crate_name: "dice_policy",
+    defaults: ["avf_build_flags_rust"],
+    srcs: ["src/lib.rs"],
+    edition: "2021",
+    prefer_rlib: true,
+    rustlibs: [
+        "libanyhow",
+        "libciborium",
+        "libcoset",
+    ],
+}
+
+rust_library {
+    name: "libdice_policy",
+    defaults: ["libdice_policy.defaults"],
+}
+
+rust_test {
+    name: "libdice_policy.test",
+    defaults: [
+        "libdice_policy.defaults",
+        "rdroidtest.defaults",
+    ],
+    test_suites: ["general-tests"],
+    rustlibs: [
+        "librustutils",
+        "libscopeguard",
+    ],
+}
