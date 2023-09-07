@@ -14,14 +14,34 @@
 
 //! Vsock setup shared between the host and the service VM.
 
-/// Returns the host port number for the given VM protection state.
-pub fn host_port(is_protected_vm: bool) -> u32 {
-    const PROTECTED_VM_PORT: u32 = 5679;
-    const NON_PROTECTED_VM_PORT: u32 = 5680;
+const PROTECTED_VM_PORT: u32 = 5679;
+const NON_PROTECTED_VM_PORT: u32 = 5680;
 
-    if is_protected_vm {
-        PROTECTED_VM_PORT
-    } else {
-        NON_PROTECTED_VM_PORT
+/// VM Type.
+#[derive(Clone, Copy, Debug)]
+pub enum VmType {
+    /// Protected VM.
+    ProtectedVm,
+
+    /// NonProtectev VM.
+    NonProtectedVm,
+}
+
+impl VmType {
+    /// Returns the port number used for the vsock communication between
+    /// the host and the service VM.
+    pub fn port(&self) -> u32 {
+        match self {
+            Self::ProtectedVm => PROTECTED_VM_PORT,
+            Self::NonProtectedVm => NON_PROTECTED_VM_PORT,
+        }
+    }
+
+    /// Returns whether it is a protected VM.
+    pub fn is_protected(&self) -> bool {
+        match self {
+            Self::ProtectedVm => true,
+            Self::NonProtectedVm => false,
+        }
     }
 }
