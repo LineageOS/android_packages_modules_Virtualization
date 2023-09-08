@@ -14,17 +14,20 @@
 
 //! IRemotelyProvisionedComponent HAL implementation.
 
+use crate::rkpvm;
 use android_hardware_security_rkp::aidl::android::hardware::security::keymint::{
     DeviceInfo::DeviceInfo,
     IRemotelyProvisionedComponent::{
-        BnRemotelyProvisionedComponent, IRemotelyProvisionedComponent, STATUS_REMOVED,
+        BnRemotelyProvisionedComponent, IRemotelyProvisionedComponent, STATUS_FAILED,
+        STATUS_REMOVED,
     },
     MacedPublicKey::MacedPublicKey,
     ProtectedData::ProtectedData,
     RpcHardwareInfo::{RpcHardwareInfo, CURVE_NONE, MIN_SUPPORTED_NUM_KEYS_IN_CSR},
 };
+use anyhow::Context;
 use avflog::LogResult;
-use binder::{BinderFeatures, ExceptionCode, Interface, Result as BinderResult, Status, Strong};
+use binder::{BinderFeatures, Interface, IntoBinderResult, Result as BinderResult, Status, Strong};
 
 /// Constructs a binder object that implements `IRemotelyProvisionedComponent`.
 pub(crate) fn new_binder() -> Strong<dyn IRemotelyProvisionedComponent> {
@@ -53,7 +56,7 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
     fn generateEcdsaP256KeyPair(
         &self,
         testMode: bool,
-        _macedPublicKey: &mut MacedPublicKey,
+        macedPublicKey: &mut MacedPublicKey,
     ) -> BinderResult<Vec<u8>> {
         if testMode {
             return Err(Status::new_service_specific_error_str(
@@ -62,8 +65,12 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
             ))
             .with_log();
         }
-        // TODO(b/274881098): Implement this.
-        Err(Status::new_exception(ExceptionCode::UNSUPPORTED_OPERATION, None)).with_log()
+        let key_pair = rkpvm::generate_ecdsa_p256_key_pair()
+            .context("Failed to generate ECDSA P-256 key pair")
+            .with_log()
+            .or_service_specific_exception(STATUS_FAILED)?;
+        macedPublicKey.macedKey = key_pair.maced_public_key;
+        Ok(key_pair.key_blob)
     }
 
     fn generateCertificateRequest(
@@ -84,10 +91,13 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
 
     fn generateCertificateRequestV2(
         &self,
-        _keysToSign: &[MacedPublicKey],
-        _challenge: &[u8],
+        keysToSign: &[MacedPublicKey],
+        challenge: &[u8],
     ) -> BinderResult<Vec<u8>> {
-        // TODO(b/274881098): Implement this.
-        Err(Status::new_exception(ExceptionCode::UNSUPPORTED_OPERATION, None)).with_log()
+        // TODO(b/299259624): Validate the MAC of the keys to certify.
+        rkpvm::generate_certificate_request(keysToSign, challenge)
+            .context("Failed to generate certificate request")
+            .with_log()
+            .or_service_specific_exception(STATUS_FAILED)
     }
 }
