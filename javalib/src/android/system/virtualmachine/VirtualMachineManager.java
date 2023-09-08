@@ -107,9 +107,16 @@ public class VirtualMachineManager {
     @Retention(RetentionPolicy.SOURCE)
     @StringDef(
             prefix = "FEATURE_",
-            value = {FEATURE_PAYLOAD_NOT_ROOT, FEATURE_VENDOR_MODULES})
+            value = {FEATURE_DICE_CHANGES, FEATURE_PAYLOAD_NOT_ROOT, FEATURE_VENDOR_MODULES})
     public @interface Features {}
 
+    /**
+     * Feature to include new data in the VM DICE chain.
+     *
+     * @hide
+     */
+    @TestApi
+    public static final String FEATURE_DICE_CHANGES = IVirtualizationService.FEATURE_DICE_CHANGES;
     /**
      * Feature to run payload as non-root user.
      *
