@@ -21,8 +21,20 @@ use openssl::hkdf::hkdf;
 use openssl::md::Md;
 use openssl::sha;
 
+const ENCRYPTEDSTORE_KEY_IDENTIFIER: &str = "encryptedstore_key";
+
 // Size of the secret stored in Secretkeeper.
 const SK_SECRET_SIZE: usize = 64;
+
+// Generated using hexdump -vn32 -e'14/1 "0x%02X, " 1 "\n"' /dev/urandom
+const SALT_ENCRYPTED_STORE: &[u8] = &[
+    0xFC, 0x1D, 0x35, 0x7B, 0x96, 0xF3, 0xEF, 0x17, 0x78, 0x7D, 0x70, 0xED, 0xEA, 0xFE, 0x1D, 0x6F,
+    0xB3, 0xF9, 0x40, 0xCE, 0xDD, 0x99, 0x40, 0xAA, 0xA7, 0x0E, 0x92, 0x73, 0x90, 0x86, 0x4A, 0x75,
+];
+const SALT_PAYLOAD_SERVICE: &[u8] = &[
+    0x8B, 0x0F, 0xF0, 0xD3, 0xB1, 0x69, 0x2B, 0x95, 0x84, 0x2C, 0x9E, 0x3C, 0x99, 0x56, 0x7A, 0x22,
+    0x55, 0xF8, 0x08, 0x23, 0x81, 0x5F, 0xF5, 0x16, 0x20, 0x3E, 0xBE, 0xBA, 0xB7, 0xA8, 0x43, 0x92,
+];
 
 pub enum VmSecret {
     // V2 secrets are derived from 2 independently secured secrets:
@@ -71,10 +83,14 @@ impl VmSecret {
         Ok(())
     }
 
-    /// Derives a sealing key of `key_length` bytes from the VmSecret.
-    /// Essentially key expansion.
-    pub fn derive_sealing_key(&self, salt: &[u8], identifier: &[u8], key: &mut [u8]) -> Result<()> {
-        self.get_vm_secret(salt, identifier, key)
+    /// Derive sealing key for payload with following identifier.
+    pub fn derive_payload_sealing_key(&self, identifier: &[u8], key: &mut [u8]) -> Result<()> {
+        self.get_vm_secret(SALT_PAYLOAD_SERVICE, identifier, key)
+    }
+
+    /// Derive encryptedstore key. This uses hardcoded random salt & fixed identifier.
+    pub fn derive_encryptedstore_key(&self, key: &mut [u8]) -> Result<()> {
+        self.get_vm_secret(SALT_ENCRYPTED_STORE, ENCRYPTEDSTORE_KEY_IDENTIFIER.as_bytes(), key)
     }
 }
 

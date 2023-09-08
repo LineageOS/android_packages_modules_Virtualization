@@ -43,15 +43,9 @@ impl IVmPayloadService for VmPayloadService {
             return Err(anyhow!("size {size} not in range (0..=32)"))
                 .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
         }
-        // Use a fixed salt to scope the derivation to this API. It was randomly generated.
-        let salt = [
-            0x8B, 0x0F, 0xF0, 0xD3, 0xB1, 0x69, 0x2B, 0x95, 0x84, 0x2C, 0x9E, 0x3C, 0x99, 0x56,
-            0x7A, 0x22, 0x55, 0xF8, 0x08, 0x23, 0x81, 0x5F, 0xF5, 0x16, 0x20, 0x3E, 0xBE, 0xBA,
-            0xB7, 0xA8, 0x43, 0x92,
-        ];
         let mut instance_secret = vec![0; size.try_into().unwrap()];
         self.secret
-            .derive_sealing_key(&salt, identifier, &mut instance_secret)
+            .derive_payload_sealing_key(identifier, &mut instance_secret)
             .context("Failed to derive VM instance secret")
             .with_log()
             .or_service_specific_exception(-1)?;
