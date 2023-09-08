@@ -36,6 +36,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::IVirtualizationService,
     IVirtualizationService::FEATURE_PAYLOAD_NON_ROOT,
     IVirtualizationService::FEATURE_VENDOR_MODULES,
+    IVirtualizationService::FEATURE_DICE_CHANGES,
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
     PartitionType::PartitionType,
@@ -274,10 +275,11 @@ impl IVirtualizationService for VirtualizationService {
         // This approach is quite cumbersome, but will do the work for the short term.
         // TODO(b/298012279): make this scalable.
         match feature {
+            FEATURE_DICE_CHANGES => Ok(cfg!(dice_changes)),
             FEATURE_PAYLOAD_NON_ROOT => Ok(cfg!(payload_not_root)),
             FEATURE_VENDOR_MODULES => Ok(cfg!(vendor_modules)),
             _ => {
-                warn!("unknown feature {}", feature);
+                warn!("unknown feature {feature}");
                 Ok(false)
             }
         }
