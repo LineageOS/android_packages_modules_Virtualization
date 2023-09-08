@@ -21,9 +21,11 @@ use android_system_virtualizationservice::{
     },
     binder::{ParcelFileDescriptor, ProcessState},
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use log::info;
-use service_vm_comm::{Request, Response, VmType};
+use service_vm_comm::{
+    EcdsaP256KeyPair, GenerateCertificateRequestParams, Request, Response, VmType,
+};
 use service_vm_manager::ServiceVm;
 use std::fs::File;
 use std::panic;
@@ -35,17 +37,20 @@ const INSTANCE_IMG_PATH: &str = "/data/local/tmp/rialto_test/arm64/instance.img"
 
 #[test]
 fn process_requests_in_protected_vm() -> Result<()> {
-    let mut vm = start_service_vm(VmType::ProtectedVm)?;
-
-    check_processing_reverse_request(&mut vm)?;
-    Ok(())
+    check_processing_requests(VmType::ProtectedVm)
 }
 
 #[test]
 fn process_requests_in_non_protected_vm() -> Result<()> {
-    let mut vm = start_service_vm(VmType::NonProtectedVm)?;
+    check_processing_requests(VmType::NonProtectedVm)
+}
+
+fn check_processing_requests(vm_type: VmType) -> Result<()> {
+    let mut vm = start_service_vm(vm_type)?;
 
     check_processing_reverse_request(&mut vm)?;
+    check_processing_generating_key_pair_request(&mut vm)?;
+    check_processing_generating_certificate_request(&mut vm)?;
     Ok(())
 }
 
@@ -61,6 +66,31 @@ fn check_processing_reverse_request(vm: &mut ServiceVm) -> Result<()> {
     let expected_response: Vec<u8> = message.as_bytes().iter().rev().cloned().collect();
     assert_eq!(Response::Reverse(expected_response), response);
     Ok(())
+}
+
+fn check_processing_generating_key_pair_request(vm: &mut ServiceVm) -> Result<()> {
+    let request = Request::GenerateEcdsaP256KeyPair;
+
+    let response = vm.process_request(request)?;
+    info!("Received response: {response:?}.");
+
+    match response {
+        Response::GenerateEcdsaP256KeyPair(EcdsaP256KeyPair { .. }) => Ok(()),
+        _ => bail!("Incorrect response type"),
+    }
+}
+
+fn check_processing_generating_certificate_request(vm: &mut ServiceVm) -> Result<()> {
+    let params = GenerateCertificateRequestParams { keys_to_sign: vec![], challenge: vec![] };
+    let request = Request::GenerateCertificateRequest(params);
+
+    let response = vm.process_request(request)?;
+    info!("Received response: {response:?}.");
+
+    match response {
+        Response::GenerateCertificateRequest(_) => Ok(()),
+        _ => bail!("Incorrect response type"),
+    }
 }
 
 fn start_service_vm(vm_type: VmType) -> Result<ServiceVm> {
