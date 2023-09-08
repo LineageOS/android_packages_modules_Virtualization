@@ -33,7 +33,7 @@ use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
-use service_vm_comm::VmType;
+use service_vm_comm::{ServiceVmRequest, VmType};
 use virtio_drivers::{
     device::socket::{VsockAddr, VMADDR_CID_HOST},
     transport::{pci::bus::PciRoot, DeviceType, Transport},
@@ -140,9 +140,11 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
-    let response = requests::process_request(vsock_stream.read_request()?)?;
-    vsock_stream.write_response(&response)?;
-    vsock_stream.flush()?;
+    while let ServiceVmRequest::Process(req) = vsock_stream.read_request()? {
+        let response = requests::process_request(req)?;
+        vsock_stream.write_response(&response)?;
+        vsock_stream.flush()?;
+    }
     vsock_stream.shutdown()?;
 
     Ok(())
