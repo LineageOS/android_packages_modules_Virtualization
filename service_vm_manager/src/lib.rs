@@ -25,12 +25,14 @@ use android_system_virtualizationservice::{
     binder::ParcelFileDescriptor,
 };
 use anyhow::{anyhow, ensure, Context, Result};
+use lazy_static::lazy_static;
 use log::{info, warn};
 use service_vm_comm::{Request, Response, ServiceVmRequest, VmType};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::os::unix::io::FromRawFd;
 use std::path::{Path, PathBuf};
+use std::sync::{Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 use vmclient::{DeathReason, VmInstance};
@@ -45,6 +47,43 @@ const WRITE_BUFFER_CAPACITY: usize = 512;
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
+lazy_static! {
+    static ref SERVICE_VM_STATE: State = State::default();
+}
+
+/// The running state of the Service VM.
+#[derive(Debug, Default)]
+struct State {
+    is_running: Mutex<bool>,
+    stopped: Condvar,
+}
+
+impl State {
+    fn wait_until_no_service_vm_running(&self) -> Result<MutexGuard<'_, bool>> {
+        // The real timeout can be longer than 10 seconds since the time to acquire
+        // is_running mutex is not counted in the 10 seconds.
+        let (guard, wait_result) = self
+            .stopped
+            .wait_timeout_while(
+                self.is_running.lock().unwrap(),
+                Duration::from_secs(10),
+                |&mut is_running| is_running,
+            )
+            .unwrap();
+        ensure!(
+            !wait_result.timed_out(),
+            "Timed out while waiting for the running service VM to stop."
+        );
+        Ok(guard)
+    }
+
+    fn notify_service_vm_shutdown(&self) {
+        let mut is_running_guard = self.is_running.lock().unwrap();
+        *is_running_guard = false;
+        self.stopped.notify_one();
+    }
+}
+
 /// Service VM.
 pub struct ServiceVm {
     vsock_stream: VsockStream,
@@ -55,11 +94,18 @@ pub struct ServiceVm {
 impl ServiceVm {
     /// Starts the service VM and returns its instance.
     /// The same instance image is used for different VMs.
-    /// TODO(b/278858244): Allow only one service VM running at each time.
+    /// At any given time,  only one service should be running. If a service VM is
+    /// already running, this function will start the service VM once the running one
+    /// shuts down.
     pub fn start() -> Result<Self> {
+        let mut is_running_guard = SERVICE_VM_STATE.wait_until_no_service_vm_running()?;
+
         let instance_img_path = Path::new(VIRT_DATA_DIR).join(INSTANCE_IMG_NAME);
         let vm = protected_vm_instance(instance_img_path)?;
-        Self::start_vm(vm, VmType::ProtectedVm)
+
+        let vm = Self::start_vm(vm, VmType::ProtectedVm)?;
+        *is_running_guard = true;
+        Ok(vm)
     }
 
     /// Starts the given VM instance and sets up the vsock connection with it.
@@ -128,6 +174,7 @@ impl Drop for ServiceVm {
             Ok(reason) => info!("Exit the service VM successfully: {reason:?}"),
             Err(e) => warn!("Service VM shutdown request failed '{e:?}', killing it."),
         }
+        SERVICE_VM_STATE.notify_service_vm_shutdown();
     }
 }
 
