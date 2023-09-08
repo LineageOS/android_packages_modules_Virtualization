@@ -28,8 +28,9 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
 use anyhow::Error;
 use binder::{register_lazy_service, BinderFeatures, ProcessState, ThreadState};
 use log::{info, Level};
-use std::fs::read_dir;
+use std::fs::{create_dir, read_dir};
 use std::os::unix::raw::{pid_t, uid_t};
+use std::path::Path;
 
 const LOG_TAG: &str = "VirtualizationService";
 const _REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME: &str =
@@ -57,6 +58,9 @@ fn main() {
     );
 
     clear_temporary_files().expect("Failed to delete old temporary files");
+
+    let common_dir_path = Path::new(TEMPORARY_DIRECTORY).join("common");
+    create_dir(common_dir_path).expect("Failed to create common directory");
 
     ProcessState::start_thread_pool();
 
