@@ -68,7 +68,6 @@ interface IVirtualizationServiceInternal {
      * Bind given devices to vfio driver.
      *
      * @param devices paths of sysfs nodes of devices to assign.
-     * @param dtbo writable file descriptor to store VM DTBO.
      */
-    void bindDevicesToVfioDriver(in String[] devices, in ParcelFileDescriptor dtbo);
+    void bindDevicesToVfioDriver(in String[] devices);
 }
