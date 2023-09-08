@@ -26,7 +26,7 @@ pub(crate) fn request_certificate(csr: &[u8]) -> Result<Vec<u8>> {
     // TODO(b/271275206): Send the correct request type with client VM's
     // information to be attested.
     let request = Request::Reverse(csr.to_vec());
-    match vm.process_request(&request).context("Failed to process request")? {
+    match vm.process_request(request).context("Failed to process request")? {
         Response::Reverse(cert) => Ok(cert),
         _ => bail!("Incorrect response type"),
     }
