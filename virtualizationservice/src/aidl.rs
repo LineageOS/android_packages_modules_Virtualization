@@ -40,7 +40,7 @@ use log::{error, info, warn};
 use rustutils::system_properties;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::fs::{self, create_dir, remove_dir_all, set_permissions, Permissions};
+use std::fs::{self, create_dir, remove_dir_all, set_permissions, File, Permissions};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::raw::{pid_t, uid_t};
@@ -206,17 +206,23 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         Ok(ret)
     }
 
-    fn bindDevicesToVfioDriver(
-        &self,
-        devices: &[String],
-        dtbo: &ParcelFileDescriptor,
-    ) -> binder::Result<()> {
+    fn bindDevicesToVfioDriver(&self, devices: &[String]) -> binder::Result<()> {
         check_use_custom_virtual_machine()?;
 
         let vfio_service: Strong<dyn IVfioHandler> =
             wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())?;
 
-        vfio_service.bindDevicesToVfioDriver(devices, dtbo)?;
+        vfio_service.bindDevicesToVfioDriver(devices)?;
+
+        let dtbo_path = Path::new(TEMPORARY_DIRECTORY).join("common").join("dtbo");
+        if !dtbo_path.exists() {
+            // open a writable file descriptor for vfio_handler
+            let dtbo = File::create(&dtbo_path)
+                .context("Failed to create VM DTBO file")
+                .or_service_specific_exception(-1)?;
+            vfio_service.writeVmDtbo(&ParcelFileDescriptor::new(dtbo))?;
+        }
+
         Ok(())
     }
 }

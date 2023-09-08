@@ -28,7 +28,13 @@ interface IVfioHandler {
      * Bind given devices to vfio driver.
      *
      * @param devices paths of sysfs nodes of devices to assign.
+     */
+    void bindDevicesToVfioDriver(in String[] devices);
+
+    /**
+     * Store VM DTBO via the file descriptor.
+     *
      * @param dtbo writable file descriptor to store VM DTBO.
      */
-    void bindDevicesToVfioDriver(in String[] devices, in ParcelFileDescriptor dtbo);
+    void writeVmDtbo(in ParcelFileDescriptor dtbo);
 }
