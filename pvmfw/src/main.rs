@@ -38,6 +38,7 @@ use crate::entry::RebootReason;
 use crate::fdt::modify_for_next_stage;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::instance::get_or_generate_instance_salt;
+use alloc::borrow::Cow;
 use alloc::boxed::Box;
 use core::ops::Range;
 use diced_open_dice::{bcc_handover_parse, DiceArtifacts};
@@ -132,22 +133,25 @@ fn main(
         })?;
     trace!("Got salt from instance.img: {salt:x?}");
 
-    // It is possible that the DICE chain we were given is rooted in the UDS. We do not want to give
-    // such a chain to the payload, or even the associated CDIs. So remove the entire chain we
-    // were given and taint the CDIs. Note that the resulting CDIs are still deterministically
-    // derived from those we received, so will vary iff they do.
-    // TODO(b/280405545): Remove this post Android 14.
-    let truncated_bcc_handover = bcc::truncate(bcc_handover).map_err(|e| {
-        error!("{e}");
-        RebootReason::InternalError
-    })?;
+    let new_bcc_handover = if cfg!(dice_changes) {
+        Cow::Borrowed(current_bcc_handover)
+    } else {
+        // It is possible that the DICE chain we were given is rooted in the UDS. We do not want to
+        // give such a chain to the payload, or even the associated CDIs. So remove the
+        // entire chain we were given and taint the CDIs. Note that the resulting CDIs are
+        // still deterministically derived from those we received, so will vary iff they do.
+        // TODO(b/280405545): Remove this post Android 14.
+        let truncated_bcc_handover = bcc::truncate(bcc_handover).map_err(|e| {
+            error!("{e}");
+            RebootReason::InternalError
+        })?;
+        Cow::Owned(truncated_bcc_handover)
+    };
 
-    dice_inputs.write_next_bcc(truncated_bcc_handover.as_slice(), &salt, next_bcc).map_err(
-        |e| {
-            error!("Failed to derive next-stage DICE secrets: {e:?}");
-            RebootReason::SecretDerivationError
-        },
-    )?;
+    dice_inputs.write_next_bcc(new_bcc_handover.as_ref(), &salt, next_bcc).map_err(|e| {
+        error!("Failed to derive next-stage DICE secrets: {e:?}");
+        RebootReason::SecretDerivationError
+    })?;
     flush(next_bcc);
 
     let strict_boot = true;
