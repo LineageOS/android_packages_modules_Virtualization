@@ -24,16 +24,16 @@ use android_system_virtualizationservice::{
     },
     binder::ParcelFileDescriptor,
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 use log::{info, warn};
-use service_vm_comm::{Request, Response, VmType};
+use service_vm_comm::{Request, Response, ServiceVmRequest, VmType};
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::os::unix::io::FromRawFd;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
-use vmclient::VmInstance;
+use vmclient::{DeathReason, VmInstance};
 use vsock::{VsockListener, VsockStream, VMADDR_CID_HOST};
 
 const VIRT_DATA_DIR: &str = "/data/misc/apexdata/com.android.virt";
@@ -90,13 +90,13 @@ impl ServiceVm {
     }
 
     /// Processes the request in the service VM.
-    pub fn process_request(&mut self, request: &Request) -> Result<Response> {
-        self.write_request(request)?;
+    pub fn process_request(&mut self, request: Request) -> Result<Response> {
+        self.write_request(&ServiceVmRequest::Process(request))?;
         self.read_response()
     }
 
     /// Sends the request to the service VM.
-    fn write_request(&mut self, request: &Request) -> Result<()> {
+    fn write_request(&mut self, request: &ServiceVmRequest) -> Result<()> {
         let mut buffer = BufWriter::with_capacity(WRITE_BUFFER_CAPACITY, &mut self.vsock_stream);
         ciborium::into_writer(request, &mut buffer)?;
         buffer.flush().context("Failed to flush the buffer")?;
@@ -111,14 +111,22 @@ impl ServiceVm {
         info!("Received response from the service VM.");
         Ok(response)
     }
+
+    /// Shuts down the service VM.
+    fn shutdown(&mut self) -> Result<DeathReason> {
+        self.write_request(&ServiceVmRequest::Shutdown)?;
+        self.vm
+            .wait_for_death_with_timeout(Duration::from_secs(10))
+            .ok_or_else(|| anyhow!("Timed out to exit the service VM"))
+    }
 }
 
 impl Drop for ServiceVm {
     fn drop(&mut self) {
         // Wait till the service VM finishes releasing all the resources.
-        match self.vm.wait_for_death_with_timeout(Duration::from_secs(10)) {
-            Some(e) => info!("Exit the service VM: {e:?}"),
-            None => warn!("Timed out waiting for service VM exit"),
+        match self.shutdown() {
+            Ok(reason) => info!("Exit the service VM successfully: {reason:?}"),
+            Err(e) => warn!("Service VM shutdown request failed '{e:?}', killing it."),
         }
     }
 }
