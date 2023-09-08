@@ -116,7 +116,6 @@ pub struct CrosvmConfig {
     pub detect_hangup: bool,
     pub gdb_port: Option<NonZeroU16>,
     pub vfio_devices: Vec<PathBuf>,
-    pub devices_dtbo: Option<File>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -719,9 +718,7 @@ fn append_platform_devices(command: &mut Command, config: &CrosvmConfig) -> Resu
     for device in &config.vfio_devices {
         command.arg(vfio_argument_for_platform_device(device)?);
     }
-    if let Some(_dtbo) = &config.devices_dtbo {
-        // TODO(b/291192693): add dtbo to command line
-    }
+    // TODO(b/291192693): add dtbo to command line when assigned device is not empty.
     Ok(())
 }
 
