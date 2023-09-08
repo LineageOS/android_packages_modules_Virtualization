@@ -52,9 +52,16 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
 
     fn generateEcdsaP256KeyPair(
         &self,
-        _testMode: bool,
+        testMode: bool,
         _macedPublicKey: &mut MacedPublicKey,
     ) -> BinderResult<Vec<u8>> {
+        if testMode {
+            return Err(Status::new_service_specific_error_str(
+                STATUS_REMOVED,
+                Some("generateEcdsaP256KeyPair does not support test mode in IRPC v3+ HAL."),
+            ))
+            .with_log();
+        }
         // TODO(b/274881098): Implement this.
         Err(Status::new_exception(ExceptionCode::UNSUPPORTED_OPERATION, None)).with_log()
     }
