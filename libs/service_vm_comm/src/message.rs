@@ -21,7 +21,19 @@ use serde::{Deserialize, Serialize};
 
 type MacedPublicKey = Vec<u8>;
 
-/// Represents a request to be sent to the service VM.
+/// The main request type to be sent to the service VM.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ServiceVmRequest {
+    /// A request to be processed by the service VM.
+    ///
+    /// Each request has a corresponding response item.
+    Process(Request),
+
+    /// Shuts down the service VM. No response is expected from it.
+    Shutdown,
+}
+
+/// Represents a process request to be sent to the service VM.
 ///
 /// Each request has a corresponding response item.
 #[derive(Clone, Debug, Serialize, Deserialize)]
