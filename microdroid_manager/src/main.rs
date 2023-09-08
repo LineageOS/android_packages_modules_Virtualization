@@ -90,7 +90,6 @@ const DEBUGGABLE_PROP: &str = "ro.boot.microdroid.debuggable";
 const FAILURE_SERIAL_DEVICE: &str = "/dev/ttyS1";
 
 const ENCRYPTEDSTORE_BACKING_DEVICE: &str = "/dev/block/by-name/encryptedstore";
-const ENCRYPTEDSTORE_KEY_IDENTIFIER: &str = "encryptedstore_key";
 const ENCRYPTEDSTORE_KEYSIZE: usize = 32;
 
 #[derive(thiserror::Error, Debug)]
@@ -921,16 +920,8 @@ fn to_hex_string(buf: &[u8]) -> String {
 }
 
 fn prepare_encryptedstore(vm_secret: &VmSecret) -> Result<Child> {
-    // Use a fixed salt to scope the derivation to this API.
-    // Generated using hexdump -vn32 -e'14/1 "0x%02X, " 1 "\n"' /dev/urandom
-    // TODO(b/241541860) : Move this (& other salts) to a salt container, i.e. a global enum
-    let salt = [
-        0xFC, 0x1D, 0x35, 0x7B, 0x96, 0xF3, 0xEF, 0x17, 0x78, 0x7D, 0x70, 0xED, 0xEA, 0xFE, 0x1D,
-        0x6F, 0xB3, 0xF9, 0x40, 0xCE, 0xDD, 0x99, 0x40, 0xAA, 0xA7, 0x0E, 0x92, 0x73, 0x90, 0x86,
-        0x4A, 0x75,
-    ];
     let mut key = ZVec::new(ENCRYPTEDSTORE_KEYSIZE)?;
-    vm_secret.derive_sealing_key(&salt, ENCRYPTEDSTORE_KEY_IDENTIFIER.as_bytes(), &mut key)?;
+    vm_secret.derive_encryptedstore_key(&mut key)?;
     let mut cmd = Command::new(ENCRYPTEDSTORE_BIN);
     cmd.arg("--blkdevice")
         .arg(ENCRYPTEDSTORE_BACKING_DEVICE)
