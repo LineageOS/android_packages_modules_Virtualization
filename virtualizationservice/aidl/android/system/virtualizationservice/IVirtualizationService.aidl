@@ -22,6 +22,7 @@ import android.system.virtualizationservice.VirtualMachineConfig;
 import android.system.virtualizationservice.VirtualMachineDebugInfo;
 
 interface IVirtualizationService {
+    const String FEATURE_DICE_CHANGES = "com.android.kvm.DICE_CHANGES";
     const String FEATURE_PAYLOAD_NON_ROOT = "com.android.kvm.PAYLOAD_NON_ROOT";
     const String FEATURE_VENDOR_MODULES = "com.android.kvm.VENDOR_MODULES";
 
