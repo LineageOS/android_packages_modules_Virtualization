@@ -14,23 +14,23 @@
 
 //! Implementation of the AIDL interface `IVmPayloadService`.
 
-use crate::dice::derive_sealing_key;
 use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
     BnVmPayloadService, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME};
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::IVirtualMachineService;
 use anyhow::{anyhow, Context, Result};
 use avflog::LogResult;
 use binder::{Interface, BinderFeatures, ExceptionCode, Strong, IntoBinderResult};
-use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
+use diced_open_dice::DiceArtifacts;
 use log::info;
 use rpcbinder::RpcServer;
 use std::os::unix::io::OwnedFd;
+use crate::vm_secret::{VmSecret};
 
 /// Implementation of `IVmPayloadService`.
 struct VmPayloadService {
     allow_restricted_apis: bool,
     virtual_machine_service: Strong<dyn IVirtualMachineService>,
-    dice: OwnedDiceArtifacts,
+    secret: VmSecret,
 }
 
 impl IVmPayloadService for VmPayloadService {
@@ -49,17 +49,18 @@ impl IVmPayloadService for VmPayloadService {
             0x7A, 0x22, 0x55, 0xF8, 0x08, 0x23, 0x81, 0x5F, 0xF5, 0x16, 0x20, 0x3E, 0xBE, 0xBA,
             0xB7, 0xA8, 0x43, 0x92,
         ];
-        let mut secret = vec![0; size.try_into().unwrap()];
-        derive_sealing_key(&self.dice, &salt, identifier, &mut secret)
+        let mut instance_secret = vec![0; size.try_into().unwrap()];
+        self.secret
+            .derive_sealing_key(&salt, identifier, &mut instance_secret)
             .context("Failed to derive VM instance secret")
             .with_log()
             .or_service_specific_exception(-1)?;
-        Ok(secret)
+        Ok(instance_secret)
     }
 
     fn getDiceAttestationChain(&self) -> binder::Result<Vec<u8>> {
         self.check_restricted_apis_allowed()?;
-        if let Some(bcc) = self.dice.bcc() {
+        if let Some(bcc) = self.secret.dice().bcc() {
             Ok(bcc.to_vec())
         } else {
             Err(anyhow!("bcc is none")).or_binder_exception(ExceptionCode::ILLEGAL_STATE)
@@ -68,7 +69,7 @@ impl IVmPayloadService for VmPayloadService {
 
     fn getDiceAttestationCdi(&self) -> binder::Result<Vec<u8>> {
         self.check_restricted_apis_allowed()?;
-        Ok(self.dice.cdi_attest().to_vec())
+        Ok(self.secret.dice().cdi_attest().to_vec())
     }
 
     fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
@@ -84,9 +85,9 @@ impl VmPayloadService {
     fn new(
         allow_restricted_apis: bool,
         vm_service: Strong<dyn IVirtualMachineService>,
-        dice: OwnedDiceArtifacts,
-    ) -> Self {
-        Self { allow_restricted_apis, virtual_machine_service: vm_service, dice }
+        secret: VmSecret,
+    ) -> VmPayloadService {
+        Self { allow_restricted_apis, virtual_machine_service: vm_service, secret }
     }
 
     fn check_restricted_apis_allowed(&self) -> binder::Result<()> {
@@ -104,11 +105,11 @@ impl VmPayloadService {
 pub(crate) fn register_vm_payload_service(
     allow_restricted_apis: bool,
     vm_service: Strong<dyn IVirtualMachineService>,
-    dice: OwnedDiceArtifacts,
+    secret: VmSecret,
     vm_payload_service_fd: OwnedFd,
 ) -> Result<()> {
     let vm_payload_binder = BnVmPayloadService::new_binder(
-        VmPayloadService::new(allow_restricted_apis, vm_service, dice),
+        VmPayloadService::new(allow_restricted_apis, vm_service, secret),
         BinderFeatures::default(),
     );
 
