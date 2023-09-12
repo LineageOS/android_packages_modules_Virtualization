@@ -409,7 +409,19 @@ avb_gen_vbmeta_image {
     },
 }
 
-avb_add_hash_footer {
+soong_config_module_type {
+    name: "flag_aware_avb_add_hash_footer",
+    module_type: "avb_add_hash_footer",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_avf_enable_llpvm_changes",
+    ],
+    properties: [
+        "rollback_index",
+    ],
+}
+
+flag_aware_avb_add_hash_footer {
     name: "microdroid_kernel_signed",
     src: ":empty_file",
     filename: "microdroid_kernel",
@@ -431,6 +443,12 @@ avb_add_hash_footer {
         ":microdroid_initrd_normal_hashdesc",
         ":microdroid_initrd_debug_hashdesc",
     ],
+    // Below are properties that are conditionally set depending on value of build flags.
+    soong_config_variables: {
+        release_avf_enable_llpvm_changes: {
+            rollback_index: 1,
+        },
+    },
 }
 
 prebuilt_etc {
@@ -447,7 +465,7 @@ prebuilt_etc {
     },
 }
 
-avb_add_hash_footer {
+flag_aware_avb_add_hash_footer {
     name: "microdroid_kernel_with_modules_signed",
     src: ":empty_file",
     filename: "microdroid_kernel_with_modules",
@@ -465,6 +483,12 @@ avb_add_hash_footer {
         ":microdroid_initrd_normal_hashdesc",
         ":microdroid_initrd_debug_hashdesc",
     ],
+    // Below are properties that are conditionally set depending on value of build flags.
+    soong_config_variables: {
+        release_avf_enable_llpvm_changes: {
+            rollback_index: 1,
+        },
+    },
 }
 
 prebuilt_etc {
