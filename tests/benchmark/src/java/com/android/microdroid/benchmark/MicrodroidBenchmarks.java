@@ -38,6 +38,7 @@ import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.Os;
+import android.system.virtualmachine.VirtualMachineManager;
 import android.util.Log;
 
 import com.android.microdroid.test.common.MetricsProcessor;
@@ -252,6 +253,26 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                         "test_vm_boot_time_debug",
                         (builder) ->
                                 builder.setDebugLevel(DEBUG_LEVEL_FULL).setVmOutputCaptured(true));
+        reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
+        reportMetrics(stats.get(BootTimeMetric.VM_START), "vm_starting_time", "ms");
+        reportMetrics(stats.get(BootTimeMetric.BOOTLOADER), "bootloader_time", "ms");
+        reportMetrics(stats.get(BootTimeMetric.KERNEL), "kernel_boot_time", "ms");
+        reportMetrics(stats.get(BootTimeMetric.USERSPACE), "userspace_boot_time", "ms");
+    }
+
+    @Test
+    public void testMicrodroidDebugBootTime_withVendorPartition() throws Exception {
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
+
+        File vendorDiskImage =
+                new File("/data/local/tmp/microdroid-bench/microdroid_vendor_image.img");
+        BootTimeStats stats =
+                runBootTimeTest(
+                        "test_vm_boot_time_debug_with_vendor_partition",
+                        (builder) ->
+                                builder.setDebugLevel(DEBUG_LEVEL_FULL)
+                                        .setVmOutputCaptured(true)
+                                        .setVendorDiskImage(vendorDiskImage));
         reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
         reportMetrics(stats.get(BootTimeMetric.VM_START), "vm_starting_time", "ms");
         reportMetrics(stats.get(BootTimeMetric.BOOTLOADER), "bootloader_time", "ms");
