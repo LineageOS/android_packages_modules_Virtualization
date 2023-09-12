@@ -30,6 +30,14 @@
         <option name="post-push" value="chmod 755 /data/local/tmp/perf-setup.sh;/data/local/tmp/perf-setup.sh" />
         <option name="cleanup" value="true" />
     </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
+        <option name="run-command" value="mkdir -p /data/local/tmp/microdroid-bench" />
+        <option name="teardown-command" value="rm -rf /data/local/tmp/microdroid-bench" />
+    </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="push" value="test_microdroid_vendor_image.img->/data/local/tmp/microdroid-bench/microdroid_vendor_image.img" />
+    </target_preparer>
     <target_preparer class="com.android.microdroid.test.preparer.DisableMicrodroidDebugPolicyPreparer" />
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.microdroid.benchmark" />
