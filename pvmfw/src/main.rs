@@ -52,6 +52,7 @@ use pvmfw_embedded_key::PUBLIC_KEY;
 use vmbase::heap;
 use vmbase::memory::flush;
 use vmbase::memory::MEMORY;
+use vmbase::rand;
 use vmbase::virtio::pci;
 
 const NEXT_BCC_SIZE: usize = GUEST_PAGE_SIZE;
@@ -154,12 +155,24 @@ fn main(
     })?;
     flush(next_bcc);
 
+    let kaslr_seed = u64::from_ne_bytes(rand::random_array().map_err(|e| {
+        error!("Failed to generated guest KASLR seed: {e}");
+        RebootReason::InternalError
+    })?);
     let strict_boot = true;
-    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot, debug_policy, debuggable)
-        .map_err(|e| {
-            error!("Failed to configure device tree: {e}");
-            RebootReason::InternalError
-        })?;
+    modify_for_next_stage(
+        fdt,
+        next_bcc,
+        new_instance,
+        strict_boot,
+        debug_policy,
+        debuggable,
+        kaslr_seed,
+    )
+    .map_err(|e| {
+        error!("Failed to configure device tree: {e}");
+        RebootReason::InternalError
+    })?;
 
     info!("Starting payload...");
 
