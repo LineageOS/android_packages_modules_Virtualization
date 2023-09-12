@@ -29,6 +29,7 @@ use crate::communication::VsockStream;
 use crate::error::{Error, Result};
 use crate::fdt::read_dice_range_from;
 use alloc::boxed::Box;
+use bssl_ffi::CRYPTO_library_init;
 use ciborium_io::Write;
 use core::num::NonZeroUsize;
 use core::slice;
@@ -133,6 +134,13 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
             error!("Failed to initialize heap-based pseudo-shared pool.");
             e
         })?;
+    }
+
+    // Initializes the crypto library before any crypto operations and after the heap is
+    // initialized.
+    // SAFETY: It is safe to call this function multiple times and concurrently.
+    unsafe {
+        CRYPTO_library_init();
     }
     let bcc_handover: Box<dyn DiceArtifacts> = match vm_type() {
         VmType::ProtectedVm => {
