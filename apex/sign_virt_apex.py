@@ -231,6 +231,9 @@ def AddHashFooter(args, key, image_path, partition_name, additional_descriptors=
         if additional_descriptors:
             for image in additional_descriptors:
                 cmd.extend(['--include_descriptors_from_image', image])
+
+        if 'Rollback Index' in info:
+            cmd.extend(['--rollback_index', info['Rollback Index']])
         RunCommand(args, cmd)
 
 
