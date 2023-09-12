@@ -2254,12 +2254,4 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .that(KERNEL_VERSION)
                 .isNotEqualTo("5.4");
     }
-
-    private void assumeFeatureEnabled(String featureName) throws Exception {
-        assumeTrue(featureName + " not enabled", isFeatureEnabled(featureName));
-    }
-
-    private boolean isFeatureEnabled(String featureName) throws Exception {
-        return getVirtualMachineManager().isFeatureEnabled(featureName);
-    }
 }
