@@ -160,10 +160,20 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
     fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
         check_manage_access()?;
         info!("Received csr. Getting certificate...");
-        request_certificate(csr)
-            .context("Failed to get certificate")
+        if cfg!(remote_attestation) {
+            request_certificate(csr)
+                .context("Failed to get certificate")
+                .with_log()
+                .or_service_specific_exception(-1)
+        } else {
+            Err(Status::new_exception_str(
+                ExceptionCode::UNSUPPORTED_OPERATION,
+                Some(
+                    "requestCertificate is not supported with the remote_attestation feature disabled",
+                ),
+            ))
             .with_log()
-            .or_service_specific_exception(-1)
+        }
     }
 
     fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
