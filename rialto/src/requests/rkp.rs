@@ -16,7 +16,7 @@
 //! service VM via the RKP (Remote Key Provisioning) server.
 
 use super::ec_key::EcKey;
-use super::pub_key::build_maced_public_key;
+use super::pub_key::{build_maced_public_key, validate_public_key};
 use alloc::vec::Vec;
 use core::result;
 use diced_open_dice::DiceArtifacts;
@@ -40,9 +40,14 @@ pub(super) fn generate_ecdsa_p256_key_pair(
 }
 
 pub(super) fn generate_certificate_request(
-    _params: GenerateCertificateRequestParams,
+    params: GenerateCertificateRequestParams,
     _dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<Vec<u8>> {
+    // TODO(b/300590857): Derive the HMAC key from the DICE sealing CDI.
+    let hmac_key = [];
+    for key_to_sign in params.keys_to_sign {
+        validate_public_key(&key_to_sign, &hmac_key)?;
+    }
     // TODO(b/299256925): Generate the certificate request
     Ok(Vec::new())
 }
