@@ -18,7 +18,7 @@ use crate::{get_calling_pid, get_calling_uid};
 use crate::atom::{
     write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
-use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
+use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VfioDevice, VmContext, VmInstance, VmState};
 use crate::debug_config::DebugConfig;
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images, add_microdroid_vendor_image};
 use crate::selinux::{getfilecon, SeContext};
@@ -458,7 +458,7 @@ impl VirtualizationService {
             }
         };
 
-        if !config.devices.is_empty() {
+        let vfio_devices = if !config.devices.is_empty() {
             let mut set = HashSet::new();
             for device in config.devices.iter() {
                 let path = canonicalize(device)
@@ -469,8 +469,17 @@ impl VirtualizationService {
                         .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
                 }
             }
-            GLOBAL_SERVICE.bindDevicesToVfioDriver(&config.devices)?;
-        }
+            GLOBAL_SERVICE
+                .bindDevicesToVfioDriver(&config.devices)?
+                .into_iter()
+                .map(|x| VfioDevice {
+                    sysfs_path: PathBuf::from(&x.sysfsPath),
+                    dtbo_node: x.dtboNode,
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
 
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
@@ -495,7 +504,7 @@ impl VirtualizationService {
             platform_version: parse_platform_version_req(&config.platformVersion)?,
             detect_hangup: is_app_config,
             gdb_port,
-            vfio_devices: config.devices.iter().map(PathBuf::from).collect(),
+            vfio_devices,
         };
         let instance = Arc::new(
             VmInstance::new(
