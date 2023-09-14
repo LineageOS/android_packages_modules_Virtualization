@@ -94,6 +94,16 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
         keysToSign: &[MacedPublicKey],
         challenge: &[u8],
     ) -> BinderResult<Vec<u8>> {
+        const MAX_CHALLENGE_SIZE: usize = 64;
+        if challenge.len() > MAX_CHALLENGE_SIZE {
+            let message = format!(
+                "Challenge is too big. Actual: {:?}. Maximum: {:?}.",
+                challenge.len(),
+                MAX_CHALLENGE_SIZE
+            );
+            return Err(Status::new_service_specific_error_str(STATUS_FAILED, Some(message)))
+                .with_log();
+        }
         // TODO(b/299259624): Validate the MAC of the keys to certify.
         rkpvm::generate_certificate_request(keysToSign, challenge)
             .context("Failed to generate certificate request")
