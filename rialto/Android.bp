@@ -11,6 +11,7 @@ rust_ffi_static {
         "libaarch64_paging",
         "libciborium_io_nostd",
         "libciborium_nostd",
+        "libdiced_open_dice_nostd",
         "libhyp",
         "libfdtpci",
         "liblibfdt",

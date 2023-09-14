@@ -14,6 +14,7 @@
 
 //! Iterators over cells, and various layers on top of them.
 
+use crate::FdtError;
 use crate::{AddrCells, SizeCells};
 use core::marker::PhantomData;
 use core::{mem::size_of, ops::Range, slice::ChunksExact};
@@ -57,6 +58,21 @@ pub struct Reg<T> {
     pub addr: T,
     /// Size of the region (optional).
     pub size: Option<T>,
+}
+
+impl<T: TryInto<usize>> TryFrom<Reg<T>> for Range<usize> {
+    type Error = FdtError;
+
+    fn try_from(reg: Reg<T>) -> Result<Self, Self::Error> {
+        let addr = to_usize(reg.addr)?;
+        let size = to_usize(reg.size.ok_or(FdtError::NotFound)?)?;
+        let end = addr.checked_add(size).ok_or(FdtError::BadValue)?;
+        Ok(addr..end)
+    }
+}
+
+fn to_usize<T: TryInto<usize>>(num: T) -> Result<usize, FdtError> {
+    num.try_into().map_err(|_| FdtError::BadValue)
 }
 
 impl<'a> RegIterator<'a> {
