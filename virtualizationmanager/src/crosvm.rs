@@ -171,7 +171,8 @@ pub struct Rss {
 pub struct VmMetric {
     /// Recorded timestamp when the VM is started.
     pub start_timestamp: Option<SystemTime>,
-    /// Update most recent guest_time periodically from /proc/[crosvm pid]/stat while VM is running.
+    /// Update most recent guest_time periodically from /proc/[crosvm pid]/stat while VM is
+    /// running.
     pub cpu_guest_time: Option<i64>,
     /// Update maximum RSS values periodically from /proc/[crosvm pid]/smaps while VM is running.
     pub rss: Option<Rss>,
