@@ -144,18 +144,9 @@ fn write_death_reason_to_serial(err: &Error) -> Result<()> {
         Owned(format!("MICRODROID_UNKNOWN_RUNTIME_ERROR|{:?}", err))
     };
 
-    let death_reason_bytes = death_reason.as_bytes();
-    let mut sent_total = 0;
-    while sent_total < death_reason_bytes.len() {
+    for chunk in death_reason.as_bytes().chunks(16) {
         // TODO(b/220071963): Sometimes, sending more than 16 bytes at once makes MM hang.
-        let begin = sent_total;
-        let end = std::cmp::min(begin.saturating_add(16), death_reason_bytes.len());
-        OpenOptions::new()
-            .read(false)
-            .write(true)
-            .open(FAILURE_SERIAL_DEVICE)?
-            .write_all(&death_reason_bytes[begin..end])?;
-        sent_total = end;
+        OpenOptions::new().read(false).write(true).open(FAILURE_SERIAL_DEVICE)?.write_all(chunk)?;
     }
 
     Ok(())
