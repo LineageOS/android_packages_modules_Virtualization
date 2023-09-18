@@ -9,6 +9,20 @@ genrule_defaults {
 }
 
 genrule {
+    name: "test_avf_debug_policy_with_ramdump",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["assets/avf_debug_policy_with_ramdump.dts"],
+    out: ["avf_debug_policy_with_ramdump.dtbo"],
+}
+
+genrule {
+    name: "test_avf_debug_policy_without_ramdump",
+    defaults: ["test_avf_dts_to_dtb"],
+    srcs: ["assets/avf_debug_policy_without_ramdump.dts"],
+    out: ["avf_debug_policy_without_ramdump.dtbo"],
+}
+
+genrule {
     name: "test_avf_debug_policy_with_adb",
     defaults: ["test_avf_dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_with_adb.dts"],
@@ -39,6 +53,8 @@ java_test_host {
     data: [
         ":MicrodroidTestApp",
         ":pvmfw_test",
+        ":test_avf_debug_policy_with_ramdump",
+        ":test_avf_debug_policy_without_ramdump",
         ":test_avf_debug_policy_with_adb",
         ":test_avf_debug_policy_without_adb",
         "assets/bcc.dat",
