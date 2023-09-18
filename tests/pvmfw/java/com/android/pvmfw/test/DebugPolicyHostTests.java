@@ -192,6 +192,43 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
         launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_FULL);
     }
 
+    @Test
+    public void testRamdumpInDebugPolicy_withDebugLevelNone_hasRamdumpArgs() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_with_ramdump.dtbo");
+        mMicrodroidDevice = launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_NONE);
+
+        assertThat(readMicrodroidFileAsString(MICRODROID_CMDLINE_PATH)).contains("crashkernel=");
+        assertThat(readMicrodroidFileAsString(MICRODROID_DT_BOOTARGS_PATH))
+                .contains("crashkernel=");
+        assertThat(readMicrodroidFileAsHexString(MICRODROID_DT_RAMDUMP_PATH))
+                .isEqualTo(HEX_STRING_ONE);
+    }
+
+    @Test
+    public void testNoRamdumpInDebugPolicy_withDebugLevelNone_noRamdumpArgs() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_without_ramdump.dtbo");
+        mMicrodroidDevice = launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_NONE);
+
+        assertThat(readMicrodroidFileAsString(MICRODROID_CMDLINE_PATH))
+                .doesNotContain("crashkernel=");
+        assertThat(readMicrodroidFileAsString(MICRODROID_DT_BOOTARGS_PATH))
+                .doesNotContain("crashkernel=");
+        assertThat(readMicrodroidFileAsHexString(MICRODROID_DT_RAMDUMP_PATH))
+                .isEqualTo(HEX_STRING_ZERO);
+    }
+
+    @Test
+    public void testNoRamdumpInDebugPolicy_withDebugLevelFull_hasRamdumpArgs() throws Exception {
+        prepareCustomDebugPolicy("avf_debug_policy_without_ramdump.dtbo");
+        mMicrodroidDevice = launchProtectedVmAndWaitForBootCompleted(MICRODROID_DEBUG_FULL);
+
+        assertThat(readMicrodroidFileAsString(MICRODROID_CMDLINE_PATH)).contains("crashkernel=");
+        assertThat(readMicrodroidFileAsString(MICRODROID_DT_BOOTARGS_PATH))
+                .contains("crashkernel=");
+        assertThat(readMicrodroidFileAsHexString(MICRODROID_DT_RAMDUMP_PATH))
+                .isEqualTo(HEX_STRING_ZERO);
+    }
+
     private boolean isDebugPolicyEnabled(@NonNull String dtPropertyPath)
             throws DeviceNotAvailableException {
         CommandRunner runner = new CommandRunner(mAndroidDevice);
