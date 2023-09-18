@@ -171,7 +171,8 @@ pub struct Rss {
 pub struct VmMetric {
     /// Recorded timestamp when the VM is started.
     pub start_timestamp: Option<SystemTime>,
-    /// Update most recent guest_time periodically from /proc/[crosvm pid]/stat while VM is running.
+    /// Update most recent guest_time periodically from /proc/[crosvm pid]/stat while VM is
+    /// running.
     pub cpu_guest_time: Option<i64>,
     /// Update maximum RSS values periodically from /proc/[crosvm pid]/smaps while VM is running.
     pub rss: Option<Rss>,
@@ -641,10 +642,10 @@ fn get_rss(pid: u32) -> Result<Rss> {
 }
 
 fn death_reason(result: &Result<ExitStatus, io::Error>, mut failure_reason: &str) -> DeathReason {
-    if let Some(position) = failure_reason.find('|') {
+    if let Some((reason, info)) = failure_reason.split_once('|') {
         // Separator indicates extra context information is present after the failure name.
-        error!("Failure info: {}", &failure_reason[(position + 1)..]);
-        failure_reason = &failure_reason[..position];
+        error!("Failure info: {info}");
+        failure_reason = reason;
     }
     if let Ok(status) = result {
         match failure_reason {
