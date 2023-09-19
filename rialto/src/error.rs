@@ -20,6 +20,7 @@ use diced_open_dice::DiceError;
 use fdtpci::PciError;
 use hyp::Error as HypervisorError;
 use libfdt::FdtError;
+use service_vm_comm::RequestProcessingError;
 use vmbase::{memory::MemoryTrackerError, virtio::pci};
 
 pub type Result<T> = result::Result<T, Error>;
@@ -53,6 +54,8 @@ pub enum Error {
     DeserializationFailed(CiboriumDeError),
     /// Failed DICE operation.
     DiceOperationFailed(DiceError),
+    /// Failed to process request.
+    RequestProcessingFailed(RequestProcessingError),
 }
 
 impl fmt::Display for Error {
@@ -76,6 +79,7 @@ impl fmt::Display for Error {
             Self::SerializationFailed(e) => write!(f, "Failed to serialize: {e}"),
             Self::DeserializationFailed(e) => write!(f, "Failed to deserialize: {e}"),
             Self::DiceOperationFailed(e) => write!(f, "Failed DICE operation: {e}"),
+            Self::RequestProcessingFailed(e) => write!(f, "Failed to process request: {e}"),
         }
     }
 }
@@ -131,5 +135,11 @@ impl From<CiboriumDeError> for Error {
 impl From<DiceError> for Error {
     fn from(e: DiceError) -> Self {
         Self::DiceOperationFailed(e)
+    }
+}
+
+impl From<RequestProcessingError> for Error {
+    fn from(e: RequestProcessingError) -> Self {
+        Self::RequestProcessingFailed(e)
     }
 }
