@@ -25,14 +25,10 @@ use service_vm_comm::{Request, Response};
 pub fn process_request(request: Request) -> Result<Response> {
     let response = match request {
         Request::Reverse(v) => Response::Reverse(reverse(v)),
-        Request::GenerateEcdsaP256KeyPair => {
-            let res = rkp::generate_ecdsa_p256_key_pair()?;
-            Response::GenerateEcdsaP256KeyPair(res)
-        }
-        Request::GenerateCertificateRequest(p) => {
-            let res = rkp::generate_certificate_request(p)?;
-            Response::GenerateCertificateRequest(res)
-        }
+        Request::GenerateEcdsaP256KeyPair => rkp::generate_ecdsa_p256_key_pair()
+            .map_or_else(Response::Err, Response::GenerateEcdsaP256KeyPair),
+        Request::GenerateCertificateRequest(p) => rkp::generate_certificate_request(p)
+            .map_or_else(Response::Err, Response::GenerateCertificateRequest),
     };
     Ok(response)
 }

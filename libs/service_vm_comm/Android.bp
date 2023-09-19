@@ -21,6 +21,8 @@ rust_library_rlib {
         "libcore.rust_sysroot",
     ],
     rustlibs: [
+        "libcoset_nostd",
+        "liblog_rust_nostd",
         "libserde_nostd",
     ],
 }
@@ -29,6 +31,8 @@ rust_library {
     name: "libservice_vm_comm",
     defaults: ["libservice_vm_comm_defaults"],
     rustlibs: [
+        "libcoset",
+        "liblog_rust",
         "libserde",
     ],
     features: [
