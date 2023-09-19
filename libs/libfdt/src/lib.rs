@@ -21,7 +21,7 @@ mod iterators;
 
 pub use iterators::{
     AddressRange, CellIterator, CompatibleIterator, MemRegIterator, RangesIterator, Reg,
-    RegIterator,
+    RegIterator, SubnodeIterator,
 };
 
 use core::cmp::max;
@@ -383,6 +383,25 @@ impl<'a> FdtNode<'a> {
         unsafe { libfdt_bindgen::fdt_size_cells(self.fdt.as_ptr(), self.offset) }
             .try_into()
             .map_err(|_| FdtError::Internal)
+    }
+
+    /// Returns an iterator of subnodes
+    pub fn subnodes(&'a self) -> Result<SubnodeIterator<'a>> {
+        SubnodeIterator::new(self)
+    }
+
+    fn first_subnode(&self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_first_subnode(self.fdt.as_ptr(), self.offset) };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
+    }
+
+    fn next_subnode(&self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
     }
 }
 

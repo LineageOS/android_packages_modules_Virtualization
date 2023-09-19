@@ -295,3 +295,29 @@ impl AddressRange<(u32, u64), u64, u64> {
         }
     }
 }
+
+/// Iterator over subnodes
+#[derive(Debug)]
+pub struct SubnodeIterator<'a> {
+    subnode: Option<FdtNode<'a>>,
+}
+
+impl<'a> SubnodeIterator<'a> {
+    pub(crate) fn new(node: &'a FdtNode) -> Result<Self, FdtError> {
+        let subnode = node.first_subnode()?;
+
+        Ok(Self { subnode })
+    }
+}
+
+impl<'a> Iterator for SubnodeIterator<'a> {
+    type Item = FdtNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = self.subnode;
+
+        self.subnode = self.subnode.and_then(|node| node.next_subnode().ok()?);
+
+        res
+    }
+}
