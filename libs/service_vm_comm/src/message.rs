@@ -15,8 +15,10 @@
 //! This module contains the requests and responses definitions exchanged
 //! between the host and the service VM.
 
+use alloc::string::String;
 use alloc::vec::Vec;
-
+use core::fmt;
+use log::error;
 use serde::{Deserialize, Serialize};
 
 type MacedPublicKey = Vec<u8>;
@@ -64,6 +66,41 @@ pub enum Response {
 
     /// Returns a CBOR Certificate Signing Request (Csr) serialized into a byte array.
     GenerateCertificateRequest(Vec<u8>),
+
+    /// Encountered an error during the request processing.
+    Err(RequestProcessingError),
+}
+
+/// Errors related to request processing.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RequestProcessingError {
+    /// Failed to invoke a BoringSSL API.
+    BoringSSLCallFailed(String),
+
+    /// An error happened during the interaction with coset.
+    CosetError,
+
+    /// Any key to sign lacks a valid MAC. Maps to `STATUS_INVALID_MAC`.
+    InvalidMac,
+}
+
+impl fmt::Display for RequestProcessingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::BoringSSLCallFailed(api_name) => {
+                write!(f, "Failed to invoke a BoringSSL API: {api_name}")
+            }
+            Self::CosetError => write!(f, "Encountered an error with coset"),
+            Self::InvalidMac => write!(f, "A key to sign lacks a valid MAC."),
+        }
+    }
+}
+
+impl From<coset::CoseError> for RequestProcessingError {
+    fn from(e: coset::CoseError) -> Self {
+        error!("Coset error: {e}");
+        Self::CosetError
+    }
 }
 
 /// Represents the params passed to GenerateCertificateRequest
