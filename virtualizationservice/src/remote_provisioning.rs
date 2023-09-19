@@ -19,7 +19,7 @@ use android_hardware_security_rkp::aidl::android::hardware::security::keymint::{
     DeviceInfo::DeviceInfo,
     IRemotelyProvisionedComponent::{
         BnRemotelyProvisionedComponent, IRemotelyProvisionedComponent, STATUS_FAILED,
-        STATUS_REMOVED,
+        STATUS_INVALID_MAC, STATUS_REMOVED,
     },
     MacedPublicKey::MacedPublicKey,
     ProtectedData::ProtectedData,
@@ -28,6 +28,7 @@ use android_hardware_security_rkp::aidl::android::hardware::security::keymint::{
 use anyhow::Context;
 use avflog::LogResult;
 use binder::{BinderFeatures, Interface, IntoBinderResult, Result as BinderResult, Status, Strong};
+use service_vm_comm::{RequestProcessingError, Response};
 
 /// Constructs a binder object that implements `IRemotelyProvisionedComponent`.
 pub(crate) fn new_binder() -> Strong<dyn IRemotelyProvisionedComponent> {
@@ -65,12 +66,18 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
             ))
             .with_log();
         }
-        let key_pair = rkpvm::generate_ecdsa_p256_key_pair()
+        let res = rkpvm::generate_ecdsa_p256_key_pair()
             .context("Failed to generate ECDSA P-256 key pair")
             .with_log()
             .or_service_specific_exception(STATUS_FAILED)?;
-        macedPublicKey.macedKey = key_pair.maced_public_key;
-        Ok(key_pair.key_blob)
+        match res {
+            Response::GenerateEcdsaP256KeyPair(key_pair) => {
+                macedPublicKey.macedKey = key_pair.maced_public_key;
+                Ok(key_pair.key_blob)
+            }
+            _ => Err(to_service_specific_error(res)),
+        }
+        .with_log()
     }
 
     fn generateCertificateRequest(
@@ -104,10 +111,32 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
             return Err(Status::new_service_specific_error_str(STATUS_FAILED, Some(message)))
                 .with_log();
         }
-        // TODO(b/299259624): Validate the MAC of the keys to certify.
-        rkpvm::generate_certificate_request(keysToSign, challenge)
+        let res = rkpvm::generate_certificate_request(keysToSign, challenge)
             .context("Failed to generate certificate request")
             .with_log()
-            .or_service_specific_exception(STATUS_FAILED)
+            .or_service_specific_exception(STATUS_FAILED)?;
+        match res {
+            Response::GenerateCertificateRequest(res) => Ok(res),
+            _ => Err(to_service_specific_error(res)),
+        }
+        .with_log()
+    }
+}
+
+fn to_service_specific_error(response: Response) -> Status {
+    match response {
+        Response::Err(e) => match e {
+            RequestProcessingError::InvalidMac => {
+                Status::new_service_specific_error_str(STATUS_INVALID_MAC, Some(format!("{e}")))
+            }
+            _ => Status::new_service_specific_error_str(
+                STATUS_FAILED,
+                Some(format!("Failed to process request: {e}.")),
+            ),
+        },
+        other => Status::new_service_specific_error_str(
+            STATUS_FAILED,
+            Some(format!("Incorrect response type: {other:?}")),
+        ),
     }
 }
