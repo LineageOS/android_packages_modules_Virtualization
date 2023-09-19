@@ -20,12 +20,14 @@
 mod communication;
 mod error;
 mod exceptions;
+mod fdt;
 mod requests;
 
 extern crate alloc;
 
 use crate::communication::VsockStream;
 use crate::error::{Error, Result};
+use crate::fdt::read_dice_range_from;
 use ciborium_io::Write;
 use core::num::NonZeroUsize;
 use core::slice;
@@ -130,6 +132,17 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
             e
         })?;
     }
+    let _bcc_handover = match vm_type() {
+        VmType::ProtectedVm => {
+            let dice_range = read_dice_range_from(fdt)?;
+            info!("DICE range: {dice_range:#x?}");
+            // TODO(b/287233786): Read the bcc_handover from the given range.
+            Some(dice_range)
+        }
+        // Currently, no DICE data is retrieved for non-protected VMs, as these VMs are solely
+        // intended for debugging purposes.
+        VmType::NonProtectedVm => None,
+    };
 
     let pci_info = PciInfo::from_fdt(fdt)?;
     debug!("PCI: {pci_info:#x?}");
@@ -140,6 +153,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
+    // TODO(b/287233786): Pass the bcc_handover to process_request.
     while let ServiceVmRequest::Process(req) = vsock_stream.read_request()? {
         let response = requests::process_request(req)?;
         vsock_stream.write_response(&response)?;
