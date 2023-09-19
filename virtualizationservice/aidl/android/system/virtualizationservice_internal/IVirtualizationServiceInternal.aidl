@@ -23,6 +23,10 @@ import android.system.virtualizationservice_internal.AtomVmExited;
 import android.system.virtualizationservice_internal.IGlobalVmContext;
 
 interface IVirtualizationServiceInternal {
+    parcelable BoundDevice {
+        String sysfsPath;
+        String dtboNode;
+    }
     /**
      * Removes the memlock rlimit of the calling process.
      *
@@ -68,6 +72,7 @@ interface IVirtualizationServiceInternal {
      * Bind given devices to vfio driver.
      *
      * @param devices paths of sysfs nodes of devices to assign.
+     * @return a list of pairs (sysfs path, DTBO node label) for devices.
      */
-    void bindDevicesToVfioDriver(in String[] devices);
+    BoundDevice[] bindDevicesToVfioDriver(in String[] devices);
 }
