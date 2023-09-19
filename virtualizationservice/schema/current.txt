@@ -3,8 +3,10 @@ package android.system.virtualizationservice {
 
   public class Device {
     ctor public Device();
+    method public String getDtbo_node();
     method public String getKind();
     method public String getSysfs_path();
+    method public void setDtbo_node(String);
     method public void setKind(String);
     method public void setSysfs_path(String);
   }
