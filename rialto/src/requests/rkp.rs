@@ -15,9 +15,11 @@
 //! This module contains functions related to the attestation of the
 //! service VM via the RKP (Remote Key Provisionning) server.
 
-use crate::error::Result;
 use alloc::vec::Vec;
-use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams};
+use core::result;
+use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams, RequestProcessingError};
+
+type Result<T> = result::Result<T, RequestProcessingError>;
 
 pub(super) fn generate_ecdsa_p256_key_pair() -> Result<EcdsaP256KeyPair> {
     // TODO(b/299055662): Generate the key pair.
