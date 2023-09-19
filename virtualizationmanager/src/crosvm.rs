@@ -115,7 +115,7 @@ pub struct CrosvmConfig {
     pub platform_version: VersionReq,
     pub detect_hangup: bool,
     pub gdb_port: Option<NonZeroU16>,
-    pub vfio_devices: Vec<PathBuf>,
+    pub vfio_devices: Vec<VfioDevice>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -123,6 +123,12 @@ pub struct CrosvmConfig {
 pub struct DiskFile {
     pub image: File,
     pub writable: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct VfioDevice {
+    pub sysfs_path: PathBuf,
+    pub dtbo_node: String,
 }
 
 /// The lifecycle state which the payload in the VM has reported itself to be in.
@@ -144,7 +150,7 @@ pub enum VmState {
     /// The VM has not yet tried to start.
     NotStarted {
         ///The configuration needed to start the VM, if it has not yet been started.
-        config: CrosvmConfig,
+        config: Box<CrosvmConfig>,
     },
     /// The VM has been started.
     Running {
@@ -185,6 +191,7 @@ impl VmState {
     fn start(&mut self, instance: Arc<VmInstance>) -> Result<(), Error> {
         let state = mem::replace(self, VmState::Failed);
         if let VmState::NotStarted { config } = state {
+            let config = *config;
             let detect_hangup = config.detect_hangup;
             let (failure_pipe_read, failure_pipe_write) = create_pipe()?;
             let vfio_devices = config.vfio_devices.clone();
@@ -304,7 +311,7 @@ impl VmInstance {
             .flatten()
             .map_or_else(|| format!("{}", requester_uid), |u| u.name);
         let instance = VmInstance {
-            vm_state: Mutex::new(VmState::NotStarted { config }),
+            vm_state: Mutex::new(VmState::NotStarted { config: Box::new(config) }),
             vm_context,
             cid,
             crosvm_control_socket_path: temporary_directory.join("crosvm.sock"),
@@ -343,7 +350,7 @@ impl VmInstance {
         &self,
         child: Arc<SharedChild>,
         mut failure_pipe_read: File,
-        vfio_devices: Vec<PathBuf>,
+        vfio_devices: Vec<VfioDevice>,
     ) {
         let result = child.wait();
         match &result {
@@ -695,9 +702,9 @@ fn exit_signal(result: &Result<ExitStatus, io::Error>) -> Option<i32> {
 const SYSFS_PLATFORM_DEVICES_PATH: &str = "/sys/devices/platform/";
 const VFIO_PLATFORM_DRIVER_PATH: &str = "/sys/bus/platform/drivers/vfio-platform";
 
-fn vfio_argument_for_platform_device(path: &Path) -> Result<String, Error> {
+fn vfio_argument_for_platform_device(device: &VfioDevice) -> Result<String, Error> {
     // Check platform device exists
-    let path = path.canonicalize()?;
+    let path = device.sysfs_path.canonicalize()?;
     if !path.starts_with(SYSFS_PLATFORM_DEVICES_PATH) {
         bail!("{path:?} is not a platform device");
     }
@@ -709,7 +716,7 @@ fn vfio_argument_for_platform_device(path: &Path) -> Result<String, Error> {
     }
 
     if let Some(p) = path.to_str() {
-        Ok(format!("--vfio={p},iommu=viommu"))
+        Ok(format!("--vfio={p},iommu=viommu,dt-symbol={0}", device.dtbo_node))
     } else {
         bail!("invalid path {path:?}");
     }
