@@ -10,7 +10,6 @@ rust_binary {
     rustlibs: [
         "librustutils",
     ],
-    installable: false, // match with microdroid_init_rc.
     bootstrap: true,
     prefer_rlib: true,
 }
