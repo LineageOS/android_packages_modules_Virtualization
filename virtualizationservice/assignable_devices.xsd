@@ -25,6 +25,7 @@
     </xs:element>
     <xs:complexType name="device">
         <xs:attribute name="kind" type="xs:string"/>
+        <xs:attribute name="dtbo_node" type="xs:string"/>
         <xs:attribute name="sysfs_path" type="xs:string"/>
     </xs:complexType>
 </xs:schema>
