@@ -443,7 +443,7 @@ impl SerialInfo {
 fn read_serial_info_from(fdt: &Fdt) -> libfdt::Result<SerialInfo> {
     let mut addrs: ArrayVec<[u64; SerialInfo::MAX_SERIALS]> = Default::default();
     for node in fdt.compatible_nodes(cstr!("ns16550a"))?.take(SerialInfo::MAX_SERIALS) {
-        let reg = node.reg()?.ok_or(FdtError::NotFound)?.next().ok_or(FdtError::NotFound)?;
+        let reg = node.first_reg()?;
         addrs.push(reg.addr);
     }
     Ok(SerialInfo { addrs })
