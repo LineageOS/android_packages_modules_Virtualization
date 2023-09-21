@@ -31,6 +31,7 @@ use crate::fdt::read_dice_range_from;
 use ciborium_io::Write;
 use core::num::NonZeroUsize;
 use core::slice;
+use diced_open_dice::bcc_handover_parse;
 use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
@@ -136,8 +137,21 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
         VmType::ProtectedVm => {
             let dice_range = read_dice_range_from(fdt)?;
             info!("DICE range: {dice_range:#x?}");
-            // TODO(b/287233786): Read the bcc_handover from the given range.
-            Some(dice_range)
+            // SAFETY: This region was written by pvmfw in its writable_data region. The region
+            // has no overlap with the main memory region and is safe to be mapped as read-only
+            // data.
+            let res = unsafe {
+                MEMORY.lock().as_mut().unwrap().alloc_range_outside_main_memory(&dice_range)
+            };
+            res.map_err(|e| {
+                error!("Failed to use DICE range from DT: {dice_range:#x?}");
+                e
+            })?;
+            let dice_start = dice_range.start as *const u8;
+            // SAFETY: There's no memory overlap and the region is mapped as read-only data.
+            let bcc_handover = unsafe { slice::from_raw_parts(dice_start, dice_range.len()) };
+            let bcc_handover = bcc_handover_parse(bcc_handover)?;
+            Some(bcc_handover)
         }
         // Currently, no DICE data is retrieved for non-protected VMs, as these VMs are solely
         // intended for debugging purposes.
