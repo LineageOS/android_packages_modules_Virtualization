@@ -928,12 +928,18 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-7"})
     public void changingNonDebuggableVmDebuggableInvalidatesVmIdentity() throws Exception {
+        // Debuggability changes initrd which is verified by pvmfw.
+        // Therefore, skip this on non-protected VM.
+        assumeProtectedVM();
         changeDebugLevel(DEBUG_LEVEL_NONE, DEBUG_LEVEL_FULL);
     }
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-7"})
     public void changingDebuggableVmNonDebuggableInvalidatesVmIdentity() throws Exception {
+        // Debuggability changes initrd which is verified by pvmfw.
+        // Therefore, skip this on non-protected VM.
+        assumeProtectedVM();
         changeDebugLevel(DEBUG_LEVEL_FULL, DEBUG_LEVEL_NONE);
     }
 
