@@ -75,9 +75,16 @@ fn check_processing_generating_key_pair_request(vm: &mut ServiceVm) -> Result<()
     info!("Received response: {response:?}.");
 
     match response {
-        Response::GenerateEcdsaP256KeyPair(EcdsaP256KeyPair { .. }) => Ok(()),
+        Response::GenerateEcdsaP256KeyPair(EcdsaP256KeyPair { maced_public_key, .. }) => {
+            assert_array_has_nonzero(&maced_public_key[..]);
+            Ok(())
+        }
         _ => bail!("Incorrect response type"),
     }
+}
+
+fn assert_array_has_nonzero(v: &[u8]) {
+    assert!(v.iter().any(|&x| x != 0))
 }
 
 fn check_processing_generating_certificate_request(vm: &mut ServiceVm) -> Result<()> {
