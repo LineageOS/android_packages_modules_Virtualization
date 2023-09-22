@@ -23,7 +23,8 @@ use alloc::vec::Vec;
 use ciborium::{cbor, value::Value};
 use core::result;
 use coset::{iana, AsCborValue, CoseSign1, CoseSign1Builder, HeaderBuilder};
-use diced_open_dice::DiceArtifacts;
+use diced_open_dice::{keypair_from_seed, sign, DiceArtifacts, PrivateKey};
+use log::error;
 use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams, RequestProcessingError};
 
 type Result<T> = result::Result<T, RequestProcessingError>;
@@ -54,7 +55,7 @@ const CERTIFICATE_TYPE: &str = "keymint";
 /// generateCertificateRequestV2.cddl
 pub(super) fn generate_certificate_request(
     params: GenerateCertificateRequestParams,
-    _dice_artifacts: &dyn DiceArtifacts,
+    dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<Vec<u8>> {
     // TODO(b/300590857): Derive the HMAC key from the DICE sealing CDI.
     let hmac_key = [];
@@ -75,7 +76,7 @@ pub(super) fn generate_certificate_request(
     // Builds `SignedData`.
     let signed_data_payload =
         cbor!([Value::Bytes(params.challenge.to_vec()), Value::Bytes(csr_payload)])?;
-    let signed_data = build_signed_data(&signed_data_payload)?.to_cbor_value()?;
+    let signed_data = build_signed_data(&signed_data_payload, dice_artifacts)?.to_cbor_value()?;
 
     // Builds `AuthenticatedRequest<CsrPayload>`.
     // TODO(b/287233786): Add UdsCerts and DiceCertChain here.
@@ -91,21 +92,33 @@ pub(super) fn generate_certificate_request(
 }
 
 /// Builds the `SignedData` for the given payload.
-fn build_signed_data(payload: &Value) -> Result<CoseSign1> {
-    // TODO(b/299256925): Adjust the signing algorithm if needed.
-    let signing_algorithm = iana::Algorithm::ES256;
+fn build_signed_data(payload: &Value, dice_artifacts: &dyn DiceArtifacts) -> Result<CoseSign1> {
+    let cdi_leaf_priv = derive_cdi_leaf_priv(dice_artifacts).map_err(|e| {
+        error!("Failed to derive the CDI_Leaf_Priv: {e}");
+        RequestProcessingError::InternalError
+    })?;
+    let signing_algorithm = iana::Algorithm::EdDSA;
     let protected = HeaderBuilder::new().algorithm(signing_algorithm).build();
     let signed_data = CoseSign1Builder::new()
         .protected(protected)
         .payload(cbor_to_vec(payload)?)
-        .try_create_signature(&[], sign_data)?
+        .try_create_signature(&[], |message| sign_message(message, &cdi_leaf_priv))?
         .build();
     Ok(signed_data)
 }
 
-fn sign_data(_data: &[u8]) -> Result<Vec<u8>> {
-    // TODO(b/287233786): Sign the data with the CDI leaf private key.
-    Ok(Vec::new())
+fn derive_cdi_leaf_priv(dice_artifacts: &dyn DiceArtifacts) -> diced_open_dice::Result<PrivateKey> {
+    let (_, private_key) = keypair_from_seed(dice_artifacts.cdi_attest())?;
+    Ok(private_key)
+}
+
+fn sign_message(message: &[u8], private_key: &PrivateKey) -> Result<Vec<u8>> {
+    Ok(sign(message, private_key.as_array())
+        .map_err(|e| {
+            error!("Failed to sign the CSR: {e}");
+            RequestProcessingError::InternalError
+        })?
+        .to_vec())
 }
 
 fn cbor_to_vec(v: &Value) -> Result<Vec<u8>> {
