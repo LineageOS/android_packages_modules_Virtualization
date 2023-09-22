@@ -79,9 +79,13 @@ pub(super) fn generate_certificate_request(
     let signed_data = build_signed_data(&signed_data_payload, dice_artifacts)?.to_cbor_value()?;
 
     // Builds `AuthenticatedRequest<CsrPayload>`.
-    // TODO(b/287233786): Add UdsCerts and DiceCertChain here.
+    // Currently `UdsCerts` is left empty because it is only needed for Samsung devices.
+    // Check http://b/301574013#comment3 for more information.
     let uds_certs = Value::Map(Vec::new());
-    let dice_cert_chain = Value::Array(Vec::new());
+    let dice_cert_chain = dice_artifacts
+        .bcc()
+        .map(read_to_value)
+        .ok_or(RequestProcessingError::MissingDiceChain)??;
     let auth_req = cbor!([
         Value::Integer(AUTH_REQ_SCHEMA_V1.into()),
         uds_certs,
@@ -125,4 +129,19 @@ fn cbor_to_vec(v: &Value) -> Result<Vec<u8>> {
     let mut data = Vec::new();
     ciborium::into_writer(v, &mut data).map_err(coset::CoseError::from)?;
     Ok(data)
+}
+
+/// Read a CBOR `Value` from a byte slice, failing if any extra data remains
+/// after the `Value` has been read.
+fn read_to_value(mut data: &[u8]) -> Result<Value> {
+    let value = ciborium::from_reader(&mut data).map_err(|e| {
+        error!("Failed to deserialize the data into CBOR value: {e}");
+        RequestProcessingError::CborValueError
+    })?;
+    if data.is_empty() {
+        Ok(value)
+    } else {
+        error!("CBOR input has extra data.");
+        Err(RequestProcessingError::CborValueError)
+    }
 }
