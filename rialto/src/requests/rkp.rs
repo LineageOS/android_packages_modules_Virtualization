@@ -17,11 +17,14 @@
 
 use alloc::vec::Vec;
 use core::result;
+use diced_open_dice::DiceArtifacts;
 use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams, RequestProcessingError};
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
-pub(super) fn generate_ecdsa_p256_key_pair() -> Result<EcdsaP256KeyPair> {
+pub(super) fn generate_ecdsa_p256_key_pair(
+    _dice_artifacts: &dyn DiceArtifacts,
+) -> Result<EcdsaP256KeyPair> {
     // TODO(b/299055662): Generate the key pair.
     let key_pair = EcdsaP256KeyPair { maced_public_key: Vec::new(), key_blob: Vec::new() };
     Ok(key_pair)
@@ -29,6 +32,7 @@ pub(super) fn generate_ecdsa_p256_key_pair() -> Result<EcdsaP256KeyPair> {
 
 pub(super) fn generate_certificate_request(
     _params: GenerateCertificateRequestParams,
+    _dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<Vec<u8>> {
     // TODO(b/299256925): Generate the certificate request
     Ok(Vec::new())
