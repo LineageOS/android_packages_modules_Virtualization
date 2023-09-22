@@ -15,7 +15,6 @@
 //! This module contains the requests and responses definitions exchanged
 //! between the host and the service VM.
 
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 use log::error;
@@ -71,11 +70,24 @@ pub enum Response {
     Err(RequestProcessingError),
 }
 
+/// BoringSSL API names.
+#[allow(missing_docs)]
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BoringSSLApiName {
+    CBB_flush,
+    CBB_len,
+    EC_KEY_check_key,
+    EC_KEY_generate_key,
+    EC_KEY_marshal_private_key,
+    EC_KEY_new_by_curve_name,
+}
+
 /// Errors related to request processing.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RequestProcessingError {
     /// Failed to invoke a BoringSSL API.
-    BoringSSLCallFailed(String),
+    BoringSSLCallFailed(BoringSSLApiName),
 
     /// An error happened during the interaction with coset.
     CosetError,
@@ -88,7 +100,7 @@ impl fmt::Display for RequestProcessingError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::BoringSSLCallFailed(api_name) => {
-                write!(f, "Failed to invoke a BoringSSL API: {api_name}")
+                write!(f, "Failed to invoke a BoringSSL API: {api_name:?}")
             }
             Self::CosetError => write!(f, "Encountered an error with coset"),
             Self::InvalidMac => write!(f, "A key to sign lacks a valid MAC."),
