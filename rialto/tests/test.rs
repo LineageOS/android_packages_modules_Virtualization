@@ -22,12 +22,14 @@ use android_system_virtualizationservice::{
     binder::{ParcelFileDescriptor, ProcessState},
 };
 use anyhow::{bail, Context, Result};
+use ciborium::value::Value;
 use log::info;
 use service_vm_comm::{
     EcdsaP256KeyPair, GenerateCertificateRequestParams, Request, Response, VmType,
 };
 use service_vm_manager::ServiceVm;
 use std::fs::File;
+use std::io;
 use std::panic;
 use std::path::PathBuf;
 use vmclient::VmInstance;
@@ -101,9 +103,22 @@ fn check_processing_generating_certificate_request(
     info!("Received response: {response:?}.");
 
     match response {
-        Response::GenerateCertificateRequest(_) => Ok(()),
+        Response::GenerateCertificateRequest(csr) => check_csr(csr),
         _ => bail!("Incorrect response type: {response:?}"),
     }
+}
+
+/// TODO(b/300625792): Check the CSR with libhwtrust once the CSR is complete.
+fn check_csr(csr: Vec<u8>) -> Result<()> {
+    let mut reader = io::Cursor::new(csr);
+    let csr: Value = ciborium::from_reader(&mut reader)?;
+    match csr {
+        Value::Array(arr) => {
+            assert_eq!(4, arr.len());
+        }
+        _ => bail!("Incorrect CSR format: {csr:?}"),
+    }
+    Ok(())
 }
 
 fn start_service_vm(vm_type: VmType) -> Result<ServiceVm> {
