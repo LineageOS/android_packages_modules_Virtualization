@@ -75,12 +75,19 @@ pub enum Response {
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BoringSSLApiName {
+    BN_new,
+    BN_bn2bin_padded,
     CBB_flush,
     CBB_len,
     EC_KEY_check_key,
     EC_KEY_generate_key,
+    EC_KEY_get0_group,
+    EC_KEY_get0_public_key,
     EC_KEY_marshal_private_key,
     EC_KEY_new_by_curve_name,
+    EC_POINT_get_affine_coordinates,
+    EVP_sha256,
+    HMAC,
 }
 
 /// Errors related to request processing.
