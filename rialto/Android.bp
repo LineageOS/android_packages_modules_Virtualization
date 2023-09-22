@@ -111,6 +111,7 @@ rust_test {
         "android.system.virtualizationservice-rust",
         "libandroid_logger",
         "libanyhow",
+        "libciborium",
         "liblibc",
         "liblog_rust",
         "libservice_vm_comm",

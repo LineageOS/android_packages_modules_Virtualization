@@ -17,8 +17,12 @@
 
 use super::ec_key::EcKey;
 use super::pub_key::{build_maced_public_key, validate_public_key};
+use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
+use ciborium::{cbor, value::Value};
 use core::result;
+use coset::{iana, AsCborValue, CoseSign1, CoseSign1Builder, HeaderBuilder};
 use diced_open_dice::DiceArtifacts;
 use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams, RequestProcessingError};
 
@@ -39,15 +43,73 @@ pub(super) fn generate_ecdsa_p256_key_pair(
     Ok(key_pair)
 }
 
+const CSR_PAYLOAD_SCHEMA_V3: u8 = 3;
+const AUTH_REQ_SCHEMA_V1: u8 = 1;
+// TODO(b/300624493): Add a new certificate type for AVF CSR.
+const CERTIFICATE_TYPE: &str = "keymint";
+
+/// Builds the CSR described in:
+///
+/// hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/
+/// generateCertificateRequestV2.cddl
 pub(super) fn generate_certificate_request(
     params: GenerateCertificateRequestParams,
     _dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<Vec<u8>> {
     // TODO(b/300590857): Derive the HMAC key from the DICE sealing CDI.
     let hmac_key = [];
+    let mut public_keys: Vec<Value> = Vec::new();
     for key_to_sign in params.keys_to_sign {
-        validate_public_key(&key_to_sign, &hmac_key)?;
+        let public_key = validate_public_key(&key_to_sign, &hmac_key)?;
+        public_keys.push(public_key.to_cbor_value()?);
     }
-    // TODO(b/299256925): Generate the certificate request
+    // Builds `CsrPayload`.
+    let csr_payload = cbor!([
+        Value::Integer(CSR_PAYLOAD_SCHEMA_V3.into()),
+        Value::Text(String::from(CERTIFICATE_TYPE)),
+        // TODO(b/299256925): Add device info in CBOR format here.
+        Value::Array(public_keys),
+    ])?;
+    let csr_payload = cbor_to_vec(&csr_payload)?;
+
+    // Builds `SignedData`.
+    let signed_data_payload =
+        cbor!([Value::Bytes(params.challenge.to_vec()), Value::Bytes(csr_payload)])?;
+    let signed_data = build_signed_data(&signed_data_payload)?.to_cbor_value()?;
+
+    // Builds `AuthenticatedRequest<CsrPayload>`.
+    // TODO(b/287233786): Add UdsCerts and DiceCertChain here.
+    let uds_certs = Value::Map(Vec::new());
+    let dice_cert_chain = Value::Array(Vec::new());
+    let auth_req = cbor!([
+        Value::Integer(AUTH_REQ_SCHEMA_V1.into()),
+        uds_certs,
+        dice_cert_chain,
+        signed_data,
+    ])?;
+    cbor_to_vec(&auth_req)
+}
+
+/// Builds the `SignedData` for the given payload.
+fn build_signed_data(payload: &Value) -> Result<CoseSign1> {
+    // TODO(b/299256925): Adjust the signing algorithm if needed.
+    let signing_algorithm = iana::Algorithm::ES256;
+    let protected = HeaderBuilder::new().algorithm(signing_algorithm).build();
+    let signed_data = CoseSign1Builder::new()
+        .protected(protected)
+        .payload(cbor_to_vec(payload)?)
+        .try_create_signature(&[], sign_data)?
+        .build();
+    Ok(signed_data)
+}
+
+fn sign_data(_data: &[u8]) -> Result<Vec<u8>> {
+    // TODO(b/287233786): Sign the data with the CDI leaf private key.
     Ok(Vec::new())
+}
+
+fn cbor_to_vec(v: &Value) -> Result<Vec<u8>> {
+    let mut data = Vec::new();
+    ciborium::into_writer(v, &mut data).map_err(coset::CoseError::from)?;
+    Ok(data)
 }
