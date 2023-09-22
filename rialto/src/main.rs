@@ -28,10 +28,11 @@ extern crate alloc;
 use crate::communication::VsockStream;
 use crate::error::{Error, Result};
 use crate::fdt::read_dice_range_from;
+use alloc::boxed::Box;
 use ciborium_io::Write;
 use core::num::NonZeroUsize;
 use core::slice;
-use diced_open_dice::bcc_handover_parse;
+use diced_open_dice::{bcc_handover_parse, DiceArtifacts};
 use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
@@ -133,7 +134,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
             e
         })?;
     }
-    let _bcc_handover = match vm_type() {
+    let bcc_handover: Box<dyn DiceArtifacts> = match vm_type() {
         VmType::ProtectedVm => {
             let dice_range = read_dice_range_from(fdt)?;
             info!("DICE range: {dice_range:#x?}");
@@ -150,12 +151,13 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
             let dice_start = dice_range.start as *const u8;
             // SAFETY: There's no memory overlap and the region is mapped as read-only data.
             let bcc_handover = unsafe { slice::from_raw_parts(dice_start, dice_range.len()) };
-            let bcc_handover = bcc_handover_parse(bcc_handover)?;
-            Some(bcc_handover)
+            Box::new(bcc_handover_parse(bcc_handover)?)
         }
-        // Currently, no DICE data is retrieved for non-protected VMs, as these VMs are solely
-        // intended for debugging purposes.
-        VmType::NonProtectedVm => None,
+        // Currently, a sample DICE data is used for non-protected VMs, as these VMs only run
+        // in tests at the moment.
+        // If we intend to run non-protected rialto in production, we should retrieve real
+        // DICE chain data instead.
+        VmType::NonProtectedVm => Box::new(diced_sample_inputs::make_sample_bcc_and_cdis()?),
     };
 
     let pci_info = PciInfo::from_fdt(fdt)?;
@@ -167,9 +169,8 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
     debug!("Found socket device: guest cid = {:?}", socket_device.guest_cid());
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
-    // TODO(b/287233786): Pass the bcc_handover to process_request.
     while let ServiceVmRequest::Process(req) = vsock_stream.read_request()? {
-        let response = requests::process_request(req)?;
+        let response = requests::process_request(req, bcc_handover.as_ref())?;
         vsock_stream.write_response(&response)?;
         vsock_stream.flush()?;
     }
