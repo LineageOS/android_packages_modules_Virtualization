@@ -15,26 +15,14 @@
 //! Contains struct and functions that wraps the API related to EC_KEY in
 //! BoringSSL.
 
+use super::cbb::CbbFixed;
 use alloc::vec::Vec;
-use bssl_ffi::BN_bn2bin_padded;
-use bssl_ffi::BN_clear_free;
-use bssl_ffi::BN_new;
-use bssl_ffi::CBB_flush;
-use bssl_ffi::CBB_init_fixed;
-use bssl_ffi::CBB_len;
-use bssl_ffi::EC_KEY_free;
-use bssl_ffi::EC_KEY_generate_key;
-use bssl_ffi::EC_KEY_get0_group;
-use bssl_ffi::EC_KEY_get0_public_key;
-use bssl_ffi::EC_KEY_marshal_private_key;
-use bssl_ffi::EC_KEY_new_by_curve_name;
-use bssl_ffi::EC_POINT_get_affine_coordinates;
-use bssl_ffi::NID_X9_62_prime256v1; // EC P-256 CURVE Nid
-use bssl_ffi::BIGNUM;
-use bssl_ffi::EC_GROUP;
-use bssl_ffi::EC_KEY;
-use bssl_ffi::EC_POINT;
-use core::mem::MaybeUninit;
+use bssl_ffi::{
+    BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, EC_KEY_free, EC_KEY_generate_key,
+    EC_KEY_get0_group, EC_KEY_get0_public_key, EC_KEY_marshal_private_key,
+    EC_KEY_new_by_curve_name, EC_POINT_get_affine_coordinates, NID_X9_62_prime256v1, BIGNUM,
+    EC_GROUP, EC_KEY, EC_POINT,
+};
 use core::ptr::{self, NonNull};
 use core::result;
 use coset::{iana, CoseKey, CoseKeyBuilder};
@@ -61,7 +49,9 @@ impl EcKey {
     /// Creates a new EC P-256 key pair.
     pub fn new_p256() -> Result<Self> {
         // SAFETY: The returned pointer is checked below.
-        let ec_key = unsafe { EC_KEY_new_by_curve_name(NID_X9_62_prime256v1) };
+        let ec_key = unsafe {
+            EC_KEY_new_by_curve_name(NID_X9_62_prime256v1) // EC P-256 CURVE Nid
+        };
         let mut ec_key = NonNull::new(ec_key).map(Self).ok_or(
             RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::EC_KEY_new_by_curve_name),
         )?;
@@ -142,26 +132,20 @@ impl EcKey {
     pub fn private_key(&self) -> Result<ZVec> {
         const CAPACITY: usize = 256;
         let mut buf = Zeroizing::new([0u8; CAPACITY]);
-        // SAFETY: `CBB_init_fixed()` is infallible and always returns one.
-        // The `buf` is never moved and remains valid during the lifetime of `cbb`.
-        let mut cbb = unsafe {
-            let mut cbb = MaybeUninit::uninit();
-            CBB_init_fixed(cbb.as_mut_ptr(), buf.as_mut_ptr(), buf.len());
-            cbb.assume_init()
-        };
+        let mut cbb = CbbFixed::new(buf.as_mut());
         let enc_flags = 0;
         let ret =
             // SAFETY: The function only write bytes to the buffer managed by the valid `CBB`
             // object, and the key has been allocated by BoringSSL.
-            unsafe { EC_KEY_marshal_private_key(&mut cbb, self.0.as_ptr(), enc_flags) };
+            unsafe { EC_KEY_marshal_private_key(cbb.as_mut(), self.0.as_ptr(), enc_flags) };
 
         check_int_result(ret, BoringSSLApiName::EC_KEY_marshal_private_key)?;
         // SAFETY: This is safe because the CBB pointer is a valid pointer initialized with
         // `CBB_init_fixed()`.
-        check_int_result(unsafe { CBB_flush(&mut cbb) }, BoringSSLApiName::CBB_flush)?;
+        check_int_result(unsafe { CBB_flush(cbb.as_mut()) }, BoringSSLApiName::CBB_flush)?;
         // SAFETY: This is safe because the CBB pointer is initialized with `CBB_init_fixed()`,
         // and it has been flushed, thus it has no active children.
-        let len = unsafe { CBB_len(&cbb) };
+        let len = unsafe { CBB_len(cbb.as_ref()) };
         Ok(buf
             .get(0..len)
             .ok_or(RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::CBB_len))?
