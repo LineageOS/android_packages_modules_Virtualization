@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module contains functions for the request processing.
+//! Safe wrappers around the BoringSSL API.
 
-mod api;
-mod ec_key;
-mod pub_key;
-mod rkp;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-pub use api::process_request;
+mod cbb;
+
+pub use bssl_avf_error::{ApiName, Error, Result};
+pub use cbb::CbbFixed;
