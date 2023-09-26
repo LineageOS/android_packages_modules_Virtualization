@@ -15,11 +15,11 @@
 //! This module contains functions related to the attestation of the
 //! service VM via the RKP (Remote Key Provisioning) server.
 
-use super::ec_key::EcKey;
 use super::pub_key::{build_maced_public_key, validate_public_key};
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
+use bssl_avf::EcKey;
 use ciborium::{cbor, value::Value};
 use core::result;
 use coset::{iana, AsCborValue, CoseSign1, CoseSign1Builder, HeaderBuilder};
