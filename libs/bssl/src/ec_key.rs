@@ -15,8 +15,9 @@
 //! Contains struct and functions that wraps the API related to EC_KEY in
 //! BoringSSL.
 
+use crate::cbb::CbbFixed;
 use alloc::vec::Vec;
-use bssl_avf::{ApiName, CbbFixed, Error, Result};
+use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
     BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, EC_KEY_free, EC_KEY_generate_key,
     EC_KEY_get0_group, EC_KEY_get0_public_key, EC_KEY_marshal_private_key,
