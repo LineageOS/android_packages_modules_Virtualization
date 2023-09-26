@@ -90,6 +90,9 @@ pub enum RequestProcessingError {
 
     /// An error happened when serializing to/from a `Value`.
     CborValueError,
+
+    /// The DICE chain of the service VM is missing.
+    MissingDiceChain,
 }
 
 impl fmt::Display for RequestProcessingError {
@@ -105,6 +108,7 @@ impl fmt::Display for RequestProcessingError {
             Self::CborValueError => {
                 write!(f, "An error happened when serializing to/from a CBOR Value.")
             }
+            Self::MissingDiceChain => write!(f, "The DICE chain of the service VM is missing"),
         }
     }
 }
