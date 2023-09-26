@@ -15,8 +15,8 @@
 //! Contains struct and functions that wraps the API related to EC_KEY in
 //! BoringSSL.
 
-use super::cbb::CbbFixed;
 use alloc::vec::Vec;
+use bssl_avf::{ApiName, CbbFixed, Error, Result};
 use bssl_ffi::{
     BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, EC_KEY_free, EC_KEY_generate_key,
     EC_KEY_get0_group, EC_KEY_get0_public_key, EC_KEY_marshal_private_key,
@@ -26,12 +26,10 @@ use bssl_ffi::{
 use core::ptr::{self, NonNull};
 use core::result;
 use coset::{iana, CoseKey, CoseKeyBuilder};
-use service_vm_comm::{BoringSSLApiName, RequestProcessingError};
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 const P256_AFFINE_COORDINATE_SIZE: usize = 32;
 
-type Result<T> = result::Result<T, RequestProcessingError>;
 type Coordinate = [u8; P256_AFFINE_COORDINATE_SIZE];
 
 /// Wrapper of an `EC_KEY` object, representing a public or private EC key.
@@ -52,9 +50,9 @@ impl EcKey {
         let ec_key = unsafe {
             EC_KEY_new_by_curve_name(NID_X9_62_prime256v1) // EC P-256 CURVE Nid
         };
-        let mut ec_key = NonNull::new(ec_key).map(Self).ok_or(
-            RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::EC_KEY_new_by_curve_name),
-        )?;
+        let mut ec_key = NonNull::new(ec_key)
+            .map(Self)
+            .ok_or(Error::CallFailed(ApiName::EC_KEY_new_by_curve_name))?;
         ec_key.generate_key()?;
         Ok(ec_key)
     }
@@ -66,7 +64,7 @@ impl EcKey {
         // point to a valid `EC_KEY`.
         // The randomness is provided by `getentropy()` in `vmbase`.
         let ret = unsafe { EC_KEY_generate_key(self.0.as_ptr()) };
-        check_int_result(ret, BoringSSLApiName::EC_KEY_generate_key)
+        check_int_result(ret, ApiName::EC_KEY_generate_key)
     }
 
     /// Returns the `CoseKey` for the public key.
@@ -92,7 +90,7 @@ impl EcKey {
         let ret = unsafe {
             EC_POINT_get_affine_coordinates(ec_group, ec_point, x.as_mut_ptr(), y.as_mut_ptr(), ctx)
         };
-        check_int_result(ret, BoringSSLApiName::EC_POINT_get_affine_coordinates)?;
+        check_int_result(ret, ApiName::EC_POINT_get_affine_coordinates)?;
         Ok((x.try_into()?, y.try_into()?))
     }
 
@@ -104,9 +102,7 @@ impl EcKey {
            // `EC_KEY` pointer.
            unsafe { EC_KEY_get0_public_key(self.0.as_ptr()) };
         if ec_point.is_null() {
-            Err(RequestProcessingError::BoringSSLCallFailed(
-                BoringSSLApiName::EC_KEY_get0_public_key,
-            ))
+            Err(Error::CallFailed(ApiName::EC_KEY_get0_public_key))
         } else {
             Ok(ec_point)
         }
@@ -120,7 +116,7 @@ impl EcKey {
            // `EC_KEY` pointer.
            unsafe { EC_KEY_get0_group(self.0.as_ptr()) };
         if group.is_null() {
-            Err(RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::EC_KEY_get0_group))
+            Err(Error::CallFailed(ApiName::EC_KEY_get0_group))
         } else {
             Ok(group)
         }
@@ -139,18 +135,14 @@ impl EcKey {
             // object, and the key has been allocated by BoringSSL.
             unsafe { EC_KEY_marshal_private_key(cbb.as_mut(), self.0.as_ptr(), enc_flags) };
 
-        check_int_result(ret, BoringSSLApiName::EC_KEY_marshal_private_key)?;
+        check_int_result(ret, ApiName::EC_KEY_marshal_private_key)?;
         // SAFETY: This is safe because the CBB pointer is a valid pointer initialized with
         // `CBB_init_fixed()`.
-        check_int_result(unsafe { CBB_flush(cbb.as_mut()) }, BoringSSLApiName::CBB_flush)?;
+        check_int_result(unsafe { CBB_flush(cbb.as_mut()) }, ApiName::CBB_flush)?;
         // SAFETY: This is safe because the CBB pointer is initialized with `CBB_init_fixed()`,
         // and it has been flushed, thus it has no active children.
         let len = unsafe { CBB_len(cbb.as_ref()) };
-        Ok(buf
-            .get(0..len)
-            .ok_or(RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::CBB_len))?
-            .to_vec()
-            .into())
+        Ok(buf.get(0..len).ok_or(Error::CallFailed(ApiName::CBB_len))?.to_vec().into())
     }
 }
 
@@ -184,9 +176,7 @@ impl BigNum {
     fn new() -> Result<Self> {
         // SAFETY: The returned pointer is checked below.
         let bn = unsafe { BN_new() };
-        NonNull::new(bn)
-            .map(Self)
-            .ok_or(RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::BN_new))
+        NonNull::new(bn).map(Self).ok_or(Error::CallFailed(ApiName::BN_new))
     }
 
     fn as_mut_ptr(&mut self) -> *mut BIGNUM {
@@ -197,23 +187,23 @@ impl BigNum {
 /// Converts the `BigNum` to a big-endian integer. The integer is padded with leading zeros up to
 /// size `N`. The conversion fails if `N` is smaller thanthe size of the integer.
 impl<const N: usize> TryFrom<BigNum> for [u8; N] {
-    type Error = RequestProcessingError;
+    type Error = Error;
 
     fn try_from(bn: BigNum) -> result::Result<Self, Self::Error> {
         let mut num = [0u8; N];
         // SAFETY: The `BIGNUM` pointer has been created with `BN_new`.
         let ret = unsafe { BN_bn2bin_padded(num.as_mut_ptr(), num.len(), bn.0.as_ptr()) };
-        check_int_result(ret, BoringSSLApiName::BN_bn2bin_padded)?;
+        check_int_result(ret, ApiName::BN_bn2bin_padded)?;
         Ok(num)
     }
 }
 
-fn check_int_result(ret: i32, api_name: BoringSSLApiName) -> Result<()> {
+fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
     if ret == 1 {
         Ok(())
     } else {
         assert_eq!(ret, 0, "Unexpected return value {ret} for {api_name:?}");
-        Err(RequestProcessingError::BoringSSLCallFailed(api_name))
+        Err(Error::CallFailed(api_name))
     }
 }
 
