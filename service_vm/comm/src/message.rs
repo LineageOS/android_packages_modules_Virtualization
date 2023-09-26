@@ -79,6 +79,9 @@ pub enum RequestProcessingError {
     /// An error happened during the interaction with coset.
     CosetError,
 
+    /// An unexpected internal error occurred.
+    InternalError,
+
     /// Any key to sign lacks a valid MAC. Maps to `STATUS_INVALID_MAC`.
     InvalidMac,
 
@@ -96,6 +99,7 @@ impl fmt::Display for RequestProcessingError {
                 write!(f, "An error happened during the interaction with BoringSSL: {e}")
             }
             Self::CosetError => write!(f, "Encountered an error with coset"),
+            Self::InternalError => write!(f, "An unexpected internal error occurred"),
             Self::InvalidMac => write!(f, "A key to sign lacks a valid MAC."),
             Self::KeyToSignHasEmptyPayload => write!(f, "No payload found in a key to sign."),
             Self::CborValueError => {
