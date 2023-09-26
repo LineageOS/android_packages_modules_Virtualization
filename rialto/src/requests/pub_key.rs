@@ -16,11 +16,12 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
+use bssl_avf::{self, ApiName};
 use bssl_ffi::EVP_sha256;
 use bssl_ffi::HMAC;
 use core::result;
 use coset::{iana, CborSerializable, CoseKey, CoseMac0, CoseMac0Builder, HeaderBuilder};
-use service_vm_comm::{BoringSSLApiName, RequestProcessingError};
+use service_vm_comm::RequestProcessingError;
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
@@ -56,7 +57,7 @@ pub fn build_maced_public_key(public_key: CoseKey, hmac_key: &[u8]) -> Result<Ve
 }
 
 /// Computes the HMAC using SHA-256 for the given `data` with the given `key`.
-fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+fn hmac_sha256(key: &[u8], data: &[u8]) -> bssl_avf::Result<Vec<u8>> {
     const SHA256_HMAC_LEN: usize = 32;
 
     let mut out = vec![0u8; SHA256_HMAC_LEN];
@@ -65,7 +66,7 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     // as a potentially NULL pointer.
     let digester = unsafe { EVP_sha256() };
     if digester.is_null() {
-        return Err(RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::EVP_sha256));
+        return Err(bssl_avf::Error::CallFailed(ApiName::EVP_sha256));
     }
     // SAFETY: Only reads from/writes to the provided slices and supports digester was checked not
     // be NULL.
@@ -83,6 +84,6 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     if !ret.is_null() && out_len == (out.len() as u32) {
         Ok(out)
     } else {
-        Err(RequestProcessingError::BoringSSLCallFailed(BoringSSLApiName::HMAC))
+        Err(bssl_avf::Error::CallFailed(ApiName::HMAC))
     }
 }
