@@ -148,13 +148,25 @@ fn main(
         })?;
     flush(next_bcc);
 
+    let kaslr_seed = u64::from_ne_bytes(rand::random_array().map_err(|e| {
+        error!("Failed to generated guest KASLR seed: {e}");
+        RebootReason::InternalError
+    })?);
     let strict_boot = true;
     let debuggable = verified_boot_data.debug_level != DebugLevel::None;
-    modify_for_next_stage(fdt, next_bcc, new_instance, strict_boot, debug_policy, debuggable)
-        .map_err(|e| {
-            error!("Failed to configure device tree: {e}");
-            RebootReason::InternalError
-        })?;
+    modify_for_next_stage(
+        fdt,
+        next_bcc,
+        new_instance,
+        strict_boot,
+        debug_policy,
+        debuggable,
+        kaslr_seed,
+    )
+    .map_err(|e| {
+        error!("Failed to configure device tree: {e}");
+        RebootReason::InternalError
+    })?;
 
     info!("Starting payload...");
 
