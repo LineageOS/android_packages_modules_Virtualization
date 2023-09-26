@@ -15,7 +15,6 @@
 //! This module contains functions for the request processing.
 
 mod api;
-mod ec_key;
 mod pub_key;
 mod rkp;
 
