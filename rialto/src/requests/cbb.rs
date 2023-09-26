@@ -26,9 +26,9 @@ pub struct CbbFixed<'a> {
     _buffer: PhantomData<&'a mut [u8]>,
 }
 
-impl CbbFixed<'_> {
+impl<'a> CbbFixed<'a> {
     // Create a new CBB that writes to the given buffer.
-    pub fn new(buffer: &mut [u8]) -> Self {
+    pub fn new(buffer: &'a mut [u8]) -> Self {
         let mut cbb = MaybeUninit::uninit();
         // SAFETY: `CBB_init_fixed()` is infallible and always returns one.
         // The buffer remains valid during the lifetime of `cbb`.
@@ -39,13 +39,13 @@ impl CbbFixed<'_> {
     }
 }
 
-impl AsRef<CBB> for CbbFixed<'_> {
+impl<'a> AsRef<CBB> for CbbFixed<'a> {
     fn as_ref(&self) -> &CBB {
         &self.cbb
     }
 }
 
-impl AsMut<CBB> for CbbFixed<'_> {
+impl<'a> AsMut<CBB> for CbbFixed<'a> {
     fn as_mut(&mut self) -> &mut CBB {
         &mut self.cbb
     }
