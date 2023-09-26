@@ -23,7 +23,7 @@ mod message;
 mod vsock;
 
 pub use message::{
-    BoringSSLApiName, EcdsaP256KeyPair, GenerateCertificateRequestParams, Request,
-    RequestProcessingError, Response, ServiceVmRequest,
+    EcdsaP256KeyPair, GenerateCertificateRequestParams, Request, RequestProcessingError, Response,
+    ServiceVmRequest,
 };
 pub use vsock::VmType;
