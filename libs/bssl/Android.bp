@@ -20,9 +20,6 @@ rust_library_rlib {
         "libcompiler_builtins.rust_sysroot",
         "libcore.rust_sysroot",
     ],
-    static_libs: [
-        "libcrypto_baremetal",
-    ],
     rustlibs: [
         "libbssl_avf_error_nostd",
         "libbssl_ffi_nostd",
