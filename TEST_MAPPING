@@ -72,6 +72,9 @@
       "path": "packages/modules/Virtualization/libs/avb"
     },
     {
+      "path": "packages/modules/Virtualization/libs/bssl"
+    },
+    {
       "path": "packages/modules/Virtualization/libs/capabilities"
     },
     {
