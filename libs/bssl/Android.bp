@@ -27,3 +27,21 @@ rust_library_rlib {
         "libzeroize_nostd",
     ],
 }
+
+rust_defaults {
+    name: "libbssl_avf_test_defaults",
+    crate_name: "bssl_avf_test",
+    srcs: ["tests/*.rs"],
+    test_suites: ["general-tests"],
+    static_libs: [
+        "libcrypto_baremetal",
+    ],
+}
+
+rust_test {
+    name: "libbssl_avf_nostd.test",
+    defaults: ["libbssl_avf_test_defaults"],
+    rustlibs: [
+        "libbssl_avf_nostd",
+    ],
+}
