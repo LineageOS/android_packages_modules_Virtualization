@@ -19,8 +19,11 @@
 extern crate alloc;
 
 mod cbb;
+mod digest;
 mod ec_key;
+mod hmac;
 
 pub use bssl_avf_error::{ApiName, Error, Result};
 pub use cbb::CbbFixed;
 pub use ec_key::{EcKey, ZVec};
+pub use hmac::hmac_sha256;
