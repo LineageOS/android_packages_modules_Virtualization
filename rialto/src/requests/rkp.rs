@@ -23,18 +23,28 @@ use bssl_avf::EcKey;
 use ciborium::{cbor, value::Value};
 use core::result;
 use coset::{iana, AsCborValue, CoseSign1, CoseSign1Builder, HeaderBuilder};
-use diced_open_dice::{keypair_from_seed, sign, DiceArtifacts, PrivateKey};
+use diced_open_dice::{kdf, keypair_from_seed, sign, DiceArtifacts, PrivateKey};
 use log::error;
 use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams, RequestProcessingError};
+use zeroize::Zeroizing;
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
+/// The salt is generated randomly with:
+/// hexdump -vn32 -e'16/1 "0x%02X, " 1 "\n"' /dev/urandom
+const HMAC_KEY_SALT: [u8; 32] = [
+    0x82, 0x80, 0xFA, 0xD3, 0xA8, 0x0A, 0x9A, 0x4B, 0xF7, 0xA5, 0x7D, 0x7B, 0xE9, 0xC3, 0xAB, 0x13,
+    0x89, 0xDC, 0x7B, 0x46, 0xEE, 0x71, 0x22, 0xB4, 0x5F, 0x4C, 0x3F, 0xE2, 0x40, 0x04, 0x3B, 0x6C,
+];
+const HMAC_KEY_INFO: &[u8] = b"rialto hmac key";
+const HMAC_KEY_LENGTH: usize = 32;
+
 pub(super) fn generate_ecdsa_p256_key_pair(
-    _dice_artifacts: &dyn DiceArtifacts,
+    dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<EcdsaP256KeyPair> {
-    let hmac_key = [];
+    let hmac_key = derive_hmac_key(dice_artifacts)?;
     let ec_key = EcKey::new_p256()?;
-    let maced_public_key = build_maced_public_key(ec_key.cose_public_key()?, &hmac_key)?;
+    let maced_public_key = build_maced_public_key(ec_key.cose_public_key()?, hmac_key.as_ref())?;
 
     // TODO(b/279425980): Encrypt the private key in a key blob.
     // Remove the printing of the private key.
@@ -57,11 +67,10 @@ pub(super) fn generate_certificate_request(
     params: GenerateCertificateRequestParams,
     dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<Vec<u8>> {
-    // TODO(b/300590857): Derive the HMAC key from the DICE sealing CDI.
-    let hmac_key = [];
+    let hmac_key = derive_hmac_key(dice_artifacts)?;
     let mut public_keys: Vec<Value> = Vec::new();
     for key_to_sign in params.keys_to_sign {
-        let public_key = validate_public_key(&key_to_sign, &hmac_key)?;
+        let public_key = validate_public_key(&key_to_sign, hmac_key.as_ref())?;
         public_keys.push(public_key.to_cbor_value()?);
     }
     // Builds `CsrPayload`.
@@ -93,6 +102,15 @@ pub(super) fn generate_certificate_request(
         signed_data,
     ])?;
     cbor_to_vec(&auth_req)
+}
+
+fn derive_hmac_key(dice_artifacts: &dyn DiceArtifacts) -> Result<Zeroizing<[u8; HMAC_KEY_LENGTH]>> {
+    let mut key = Zeroizing::new([0u8; HMAC_KEY_LENGTH]);
+    kdf(dice_artifacts.cdi_seal(), &HMAC_KEY_SALT, HMAC_KEY_INFO, key.as_mut()).map_err(|e| {
+        error!("Failed to compute the HMAC key: {e}");
+        RequestProcessingError::InternalError
+    })?;
+    Ok(key)
 }
 
 /// Builds the `SignedData` for the given payload.
