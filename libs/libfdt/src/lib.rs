@@ -802,13 +802,12 @@ impl Fdt {
     }
 
     fn check_full(&self) -> Result<()> {
-        let len = self.buffer.len();
         // SAFETY: Only performs read accesses within the limits of the slice. If successful, this
         // call guarantees to other unsafe calls that the header contains a valid totalsize (w.r.t.
         // 'len' i.e. the self.fdt slice) that those C functions can use to perform bounds
         // checking. The library doesn't maintain an internal state (such as pointers) between
         // calls as it expects the client code to keep track of the objects (DT, nodes, ...).
-        let ret = unsafe { libfdt_bindgen::fdt_check_full(self.as_ptr(), len) };
+        let ret = unsafe { libfdt_bindgen::fdt_check_full(self.as_ptr(), self.capacity()) };
         fdt_err_expect_zero(ret)
     }
 
