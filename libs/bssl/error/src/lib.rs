@@ -55,6 +55,5 @@ pub enum ApiName {
     EC_KEY_marshal_private_key,
     EC_KEY_new_by_curve_name,
     EC_POINT_get_affine_coordinates,
-    EVP_sha256,
     HMAC,
 }
