@@ -207,10 +207,7 @@ fn main_wrapper(
         RebootReason::InvalidConfig
     })?;
 
-    let (bcc_slice, debug_policy) = appended.get_entries().map_err(|e| {
-        error!("Failed to obtained the config entries: {e}");
-        RebootReason::InvalidConfig
-    })?;
+    let (bcc_slice, debug_policy) = appended.get_entries();
 
     // Up to this point, we were using the built-in static (from .rodata) page tables.
     MEMORY.lock().replace(MemoryTracker::new(
@@ -430,10 +427,10 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    fn get_entries(&mut self) -> config::Result<(&mut [u8], Option<&mut [u8]>)> {
+    fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>) {
         match self {
             Self::Config(ref mut cfg) => cfg.get_entries(),
-            Self::LegacyBcc(ref mut bcc) => Ok((bcc, None)),
+            Self::LegacyBcc(ref mut bcc) => (bcc, None),
         }
     }
 }
