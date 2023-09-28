@@ -16,6 +16,7 @@
 //! BoringSSL.
 
 use crate::cbb::CbbFixed;
+use crate::util::check_int_result;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
@@ -196,15 +197,6 @@ impl<const N: usize> TryFrom<BigNum> for [u8; N] {
         let ret = unsafe { BN_bn2bin_padded(num.as_mut_ptr(), num.len(), bn.0.as_ptr()) };
         check_int_result(ret, ApiName::BN_bn2bin_padded)?;
         Ok(num)
-    }
-}
-
-fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
-    if ret == 1 {
-        Ok(())
-    } else {
-        assert_eq!(ret, 0, "Unexpected return value {ret} for {api_name:?}");
-        Err(Error::CallFailed(api_name))
     }
 }
 
