@@ -12,19 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Safe wrappers around the BoringSSL API.
+//! Utility functions.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+use bssl_avf_error::{ApiName, Error, Result};
+use log::error;
 
-extern crate alloc;
-
-mod cbb;
-mod digest;
-mod ec_key;
-mod hmac;
-mod util;
-
-pub use bssl_avf_error::{ApiName, Error, Result};
-pub use cbb::CbbFixed;
-pub use ec_key::{EcKey, ZVec};
-pub use hmac::hmac_sha256;
+pub(crate) fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
+    match ret {
+        1 => Ok(()),
+        0 => Err(Error::CallFailed(api_name)),
+        _ => {
+            error!(
+                "Received a return value ({}) other than 0 or 1 from the BoringSSL API: {:?}",
+                ret, api_name
+            );
+            Err(Error::InternalError)
+        }
+    }
+}
