@@ -45,6 +45,7 @@ pub struct PartialInputs {
     pub code_hash: Hash,
     pub auth_hash: Hash,
     pub mode: DiceMode,
+    pub security_version: u64,
 }
 
 impl PartialInputs {
@@ -52,8 +53,10 @@ impl PartialInputs {
         let code_hash = to_dice_hash(data)?;
         let auth_hash = hash(data.public_key)?;
         let mode = to_dice_mode(data.debug_level);
+        // We use rollback_index from vbmeta as the security_version field in dice certificate.
+        let security_version = data.rollback_index;
 
-        Ok(Self { code_hash, auth_hash, mode })
+        Ok(Self { code_hash, auth_hash, mode, security_version })
     }
 
     pub fn write_next_bcc(
@@ -63,8 +66,12 @@ impl PartialInputs {
         next_bcc: &mut [u8],
     ) -> diced_open_dice::Result<()> {
         let mut config_descriptor_buffer = [0; 128];
-        let config_values =
-            DiceConfigValues { component_name: Some(cstr!("vm_entry")), ..Default::default() };
+        let config_values = DiceConfigValues {
+            component_name: Some(cstr!("vm_entry")),
+            security_version: if cfg!(llpvm_changes) { Some(self.security_version) } else { None },
+            ..Default::default()
+        };
+
         let config_descriptor_size =
             bcc_format_config_descriptor(&config_values, &mut config_descriptor_buffer)?;
         let config = &config_descriptor_buffer[..config_descriptor_size];

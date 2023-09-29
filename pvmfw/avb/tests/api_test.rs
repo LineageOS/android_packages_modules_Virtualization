@@ -23,6 +23,7 @@ use std::{fs, mem::size_of, ptr};
 use utils::*;
 
 const TEST_IMG_WITH_ONE_HASHDESC_PATH: &str = "test_image_with_one_hashdesc.img";
+const TEST_IMG_WITH_ROLLBACK_INDEX_5: &str = "test_image_with_rollback_index_5.img";
 const TEST_IMG_WITH_PROP_DESC_PATH: &str = "test_image_with_prop_desc.img";
 const TEST_IMG_WITH_SERVICE_VM_PROP_PATH: &str = "test_image_with_service_vm_prop.img";
 const TEST_IMG_WITH_UNKNOWN_VM_TYPE_PROP_PATH: &str = "test_image_with_unknown_vm_type_prop.img";
@@ -60,7 +61,7 @@ fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()
     let public_key = load_trusted_public_key()?;
     let verified_boot_data = verify_payload(
         &fs::read(TEST_IMG_WITH_ONE_HASHDESC_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &public_key,
     )
     .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
@@ -72,6 +73,7 @@ fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()
         initrd_digest: None,
         public_key: &public_key,
         capabilities: vec![],
+        rollback_index: 0,
     };
     assert_eq!(expected_boot_data, verified_boot_data);
 
@@ -82,7 +84,7 @@ fn payload_expecting_no_initrd_passes_verification_with_no_initrd() -> Result<()
 fn payload_with_non_initrd_descriptor_fails_verification_with_no_initrd() -> Result<()> {
     assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &load_trusted_public_key()?,
         PvmfwVerifyError::InvalidDescriptors(avb::IoError::NoSuchPartition),
     )
@@ -103,7 +105,7 @@ fn payload_expecting_no_initrd_passes_verification_with_service_vm_prop() -> Res
     let public_key = load_trusted_public_key()?;
     let verified_boot_data = verify_payload(
         &fs::read(TEST_IMG_WITH_SERVICE_VM_PROP_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &public_key,
     )
     .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
@@ -115,6 +117,7 @@ fn payload_expecting_no_initrd_passes_verification_with_service_vm_prop() -> Res
         initrd_digest: None,
         public_key: &public_key,
         capabilities: vec![Capability::RemoteAttest],
+        rollback_index: 0,
     };
     assert_eq!(expected_boot_data, verified_boot_data);
 
@@ -125,7 +128,7 @@ fn payload_expecting_no_initrd_passes_verification_with_service_vm_prop() -> Res
 fn payload_with_unknown_vm_type_fails_verification_with_no_initrd() -> Result<()> {
     assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_UNKNOWN_VM_TYPE_PROP_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &load_trusted_public_key()?,
         PvmfwVerifyError::UnknownVbmetaProperty,
     )
@@ -135,7 +138,7 @@ fn payload_with_unknown_vm_type_fails_verification_with_no_initrd() -> Result<()
 fn payload_with_multiple_props_fails_verification_with_no_initrd() -> Result<()> {
     assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_MULTIPLE_PROPS_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &load_trusted_public_key()?,
         PvmfwVerifyError::InvalidDescriptors(avb::IoError::Io),
     )
@@ -145,7 +148,7 @@ fn payload_with_multiple_props_fails_verification_with_no_initrd() -> Result<()>
 fn payload_with_duplicated_capability_fails_verification_with_no_initrd() -> Result<()> {
     assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_DUPLICATED_CAP_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &load_trusted_public_key()?,
         avb::SlotVerifyError::InvalidMetadata.into(),
     )
@@ -155,7 +158,7 @@ fn payload_with_duplicated_capability_fails_verification_with_no_initrd() -> Res
 fn payload_with_prop_descriptor_fails_verification_with_no_initrd() -> Result<()> {
     assert_payload_verification_fails(
         &fs::read(TEST_IMG_WITH_PROP_DESC_PATH)?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &load_trusted_public_key()?,
         PvmfwVerifyError::UnknownVbmetaProperty,
     )
@@ -165,7 +168,7 @@ fn payload_with_prop_descriptor_fails_verification_with_no_initrd() -> Result<()
 fn payload_expecting_initrd_fails_verification_with_no_initrd() -> Result<()> {
     assert_payload_verification_fails(
         &load_latest_signed_kernel()?,
-        /*initrd=*/ None,
+        /* initrd= */ None,
         &load_trusted_public_key()?,
         avb::SlotVerifyError::InvalidMetadata.into(),
     )
@@ -176,7 +179,7 @@ fn payload_with_empty_public_key_fails_verification() -> Result<()> {
     assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
-        /*trusted_public_key=*/ &[0u8; 0],
+        /* trusted_public_key= */ &[0u8; 0],
         avb::SlotVerifyError::PublicKeyRejected.into(),
     )
 }
@@ -186,7 +189,7 @@ fn payload_with_an_invalid_public_key_fails_verification() -> Result<()> {
     assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
-        /*trusted_public_key=*/ &[0u8; 512],
+        /* trusted_public_key= */ &[0u8; 512],
         avb::SlotVerifyError::PublicKeyRejected.into(),
     )
 }
@@ -205,7 +208,7 @@ fn payload_with_a_different_valid_public_key_fails_verification() -> Result<()> 
 fn payload_with_an_invalid_initrd_fails_verification() -> Result<()> {
     assert_payload_verification_with_initrd_fails(
         &load_latest_signed_kernel()?,
-        /*initrd=*/ &fs::read(UNSIGNED_TEST_IMG_PATH)?,
+        /* initrd= */ &fs::read(UNSIGNED_TEST_IMG_PATH)?,
         &load_trusted_public_key()?,
         avb::SlotVerifyError::Verification.into(),
     )
@@ -382,4 +385,27 @@ fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
         &load_trusted_public_key()?,
         avb::SlotVerifyError::Verification.into(),
     )
+}
+
+#[test]
+fn payload_with_rollback_index() -> Result<()> {
+    let public_key = load_trusted_public_key()?;
+    let verified_boot_data = verify_payload(
+        &fs::read(TEST_IMG_WITH_ROLLBACK_INDEX_5)?,
+        /* initrd= */ None,
+        &public_key,
+    )
+    .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
+
+    let kernel_digest = hash(&[&hex::decode("1211")?, &fs::read(UNSIGNED_TEST_IMG_PATH)?]);
+    let expected_boot_data = VerifiedBootData {
+        debug_level: DebugLevel::None,
+        kernel_digest,
+        initrd_digest: None,
+        public_key: &public_key,
+        capabilities: vec![],
+        rollback_index: 5,
+    };
+    assert_eq!(expected_boot_data, verified_boot_data);
+    Ok(())
 }
