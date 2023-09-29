@@ -107,7 +107,7 @@ public class VirtualMachineManager {
     @Retention(RetentionPolicy.SOURCE)
     @StringDef(
             prefix = "FEATURE_",
-            value = {FEATURE_DICE_CHANGES, FEATURE_PAYLOAD_NOT_ROOT, FEATURE_VENDOR_MODULES})
+            value = {FEATURE_DICE_CHANGES, FEATURE_MULTI_TENANT, FEATURE_VENDOR_MODULES})
     public @interface Features {}
 
     /**
@@ -123,8 +123,7 @@ public class VirtualMachineManager {
      * @hide
      */
     @TestApi
-    public static final String FEATURE_PAYLOAD_NOT_ROOT =
-            IVirtualizationService.FEATURE_PAYLOAD_NON_ROOT;
+    public static final String FEATURE_MULTI_TENANT = IVirtualizationService.FEATURE_MULTI_TENANT;
 
     /**
      * Feature to allow vendor modules in Microdroid.

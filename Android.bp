@@ -54,7 +54,7 @@ avf_flag_aware_rust_defaults {
             cfgs: ["llpvm_changes"],
         },
         release_avf_enable_multi_tenant_microdroid_vm: {
-            cfgs: ["payload_not_root"],
+            cfgs: ["multi_tenant"],
         },
         release_avf_enable_remote_attestation: {
             cfgs: ["remote_attestation"],
