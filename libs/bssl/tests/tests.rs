@@ -14,4 +14,5 @@
 
 //! API tests of the crate `bssl_avf`.
 
+mod hkdf_test;
 mod hmac_test;
