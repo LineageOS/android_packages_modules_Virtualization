@@ -117,6 +117,7 @@ pub fn assert_latest_payload_verification_passes(
         initrd_digest,
         public_key: &public_key,
         capabilities: vec![],
+        rollback_index: if cfg!(llpvm_changes) { 1 } else { 0 },
     };
     assert_eq!(expected_boot_data, verified_boot_data);
 
