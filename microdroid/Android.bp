@@ -418,6 +418,7 @@ soong_config_module_type {
     ],
     properties: [
         "rollback_index",
+        "props",
     ],
 }
 
@@ -447,6 +448,12 @@ flag_aware_avb_add_hash_footer {
     soong_config_variables: {
         release_avf_enable_llpvm_changes: {
             rollback_index: 1,
+            props: [
+                {
+                    name: "com.android.virt.cap",
+                    value: "secretkeeper_protection",
+                },
+            ],
         },
     },
 }
@@ -487,6 +494,12 @@ flag_aware_avb_add_hash_footer {
     soong_config_variables: {
         release_avf_enable_llpvm_changes: {
             rollback_index: 1,
+            props: [
+                {
+                    name: "com.android.virt.cap",
+                    value: "secretkeeper_protection",
+                },
+            ],
         },
     },
 }
