@@ -32,7 +32,7 @@ rust_library_rlib {
 rust_defaults {
     name: "libbssl_avf_test_defaults",
     crate_name: "bssl_avf_test",
-    srcs: ["tests/*.rs"],
+    srcs: ["tests/tests.rs"],
     test_suites: ["general-tests"],
     static_libs: [
         "libcrypto_baremetal",
