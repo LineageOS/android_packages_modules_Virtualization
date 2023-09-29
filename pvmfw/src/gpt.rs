@@ -26,6 +26,7 @@ use virtio_drivers::device::blk::SECTOR_SIZE;
 use vmbase::util::ceiling_div;
 use vmbase::virtio::{pci, HalImpl};
 use zerocopy::FromBytes;
+use zerocopy::FromZeroes;
 
 type VirtIOBlk = pci::VirtIOBlk<HalImpl>;
 
@@ -156,7 +157,7 @@ impl Partitions {
 type Lba = u64;
 
 /// Structure as defined in release 2.10 of the UEFI Specification (5.3.2 GPT Header).
-#[derive(FromBytes)]
+#[derive(FromZeroes, FromBytes)]
 #[repr(C, packed)]
 struct Header {
     signature: u64,
