@@ -229,10 +229,14 @@ extern "C" fn read_rollback_index(
     _rollback_index_location: usize,
     out_rollback_index: *mut u64,
 ) -> AvbIOResult {
-    // Rollback protection is not yet implemented, but this method is required by
-    // `avb_slot_verify()`.
-    // We set `out_rollback_index` to 0 to ensure that the default rollback index (0)
-    // is never smaller than it, thus the rollback index check will pass.
+    // This method is used by `avb_slot_verify()` to read the stored_rollback_index at
+    // rollback_index_location.
+
+    // TODO(291213394) : Refine this comment once capability for rollback protection is defined.
+    // pvmfw does not compare stored_rollback_index with rollback_index for Antirollback protection
+    // Hence, we set `out_rollback_index` to 0 to ensure that the
+    // rollback_index (including default: 0) is never smaller than it,
+    // thus the rollback index check will pass.
     result_to_io_enum(write(out_rollback_index, 0))
 }
 
@@ -333,5 +337,9 @@ impl AvbSlotVerifyDataWrap {
         // `AvbSlotVerifyData` struct.
             unsafe { slice::from_raw_parts(data.loaded_partitions, data.num_loaded_partitions) };
         Ok(loaded_partitions)
+    }
+
+    pub(crate) fn rollback_indexes(&self) -> &[u64] {
+        &self.as_ref().rollback_indexes
     }
 }
