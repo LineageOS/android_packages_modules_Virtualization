@@ -32,6 +32,7 @@ const TEST_IMG_WITH_DUPLICATED_CAP_PATH: &str = "test_image_with_duplicated_capa
 const TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH: &str = "test_image_with_non_initrd_hashdesc.img";
 const TEST_IMG_WITH_INITRD_AND_NON_INITRD_DESC_PATH: &str =
     "test_image_with_initrd_and_non_initrd_desc.img";
+const TEST_IMG_WITH_MULTIPLE_CAPABILITIES: &str = "test_image_with_multiple_capabilities.img";
 const UNSIGNED_TEST_IMG_PATH: &str = "unsigned_test.img";
 
 const RANDOM_FOOTER_POS: usize = 30;
@@ -407,5 +408,20 @@ fn payload_with_rollback_index() -> Result<()> {
         rollback_index: 5,
     };
     assert_eq!(expected_boot_data, verified_boot_data);
+    Ok(())
+}
+
+#[test]
+fn payload_with_multiple_capabilities() -> Result<()> {
+    let public_key = load_trusted_public_key()?;
+    let verified_boot_data = verify_payload(
+        &fs::read(TEST_IMG_WITH_MULTIPLE_CAPABILITIES)?,
+        /* initrd= */ None,
+        &public_key,
+    )
+    .map_err(|e| anyhow!("Verification failed. Error: {}", e))?;
+
+    assert!(verified_boot_data.has_capability(Capability::RemoteAttest));
+    assert!(verified_boot_data.has_capability(Capability::SecretkeeperProtection));
     Ok(())
 }

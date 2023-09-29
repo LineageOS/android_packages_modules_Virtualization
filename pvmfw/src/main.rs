@@ -112,8 +112,20 @@ fn main(
         info!("Please disregard any previous libavb ERROR about initrd_normal.");
     }
 
-    if verified_boot_data.capabilities.contains(&Capability::RemoteAttest) {
+    if verified_boot_data.has_capability(Capability::RemoteAttest) {
         info!("Service VM capable of remote attestation detected");
+    }
+
+    if verified_boot_data.has_capability(Capability::SecretkeeperProtection) {
+        info!("Guest OS is capable of Secretkeeper protection");
+        // For Secretkeeper based Antirollback protection, rollback_index of the image > 0
+        if verified_boot_data.rollback_index == 0 {
+            error!(
+                "Expected positive rollback_index, found {:?}",
+                verified_boot_data.rollback_index
+            );
+            return Err(RebootReason::InvalidPayload);
+        };
     }
 
     let next_bcc = heap::aligned_boxed_slice(NEXT_BCC_SIZE, GUEST_PAGE_SIZE).ok_or_else(|| {
