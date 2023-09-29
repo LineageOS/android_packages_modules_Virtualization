@@ -31,10 +31,8 @@ use bssl_ffi::EVP_AEAD_CTX_open;
 use bssl_ffi::EVP_AEAD_CTX_seal;
 use bssl_ffi::EVP_AEAD_max_overhead;
 use bssl_ffi::EVP_aead_aes_256_gcm_randnonce;
-use bssl_ffi::EVP_sha512;
 use bssl_ffi::EVP_AEAD;
 use bssl_ffi::EVP_AEAD_CTX;
-use bssl_ffi::HKDF;
 use vmbase::cstr;
 
 #[derive(Debug)]
@@ -264,36 +262,6 @@ impl AsRef<EVP_AEAD> for Aead {
 impl AsRef<EVP_AEAD_CTX> for AeadCtx {
     fn as_ref(&self) -> &EVP_AEAD_CTX {
         &self.0
-    }
-}
-
-pub fn hkdf_sh512<const N: usize>(secret: &[u8], salt: &[u8], info: &[u8]) -> Result<[u8; N]> {
-    let mut key = [0; N];
-    // SAFETY: The function shouldn't access any Rust variable and the returned value is accepted
-    // as a potentially NULL pointer.
-    let digest = unsafe { EVP_sha512() };
-
-    assert!(!digest.is_null());
-    // SAFETY: Only reads from/writes to the provided slices and supports digest was checked not
-    // be NULL.
-    let result = unsafe {
-        HKDF(
-            key.as_mut_ptr(),
-            key.len(),
-            digest,
-            secret.as_ptr(),
-            secret.len(),
-            salt.as_ptr(),
-            salt.len(),
-            info.as_ptr(),
-            info.len(),
-        )
-    };
-
-    if result == 1 {
-        Ok(key)
-    } else {
-        Err(ErrorIterator {})
     }
 }
 
