@@ -15,12 +15,12 @@
 //! Support for reading and writing to the instance.img.
 
 use crate::crypto;
-use crate::crypto::hkdf_sh512;
 use crate::crypto::AeadCtx;
 use crate::dice::PartialInputs;
 use crate::gpt;
 use crate::gpt::Partition;
 use crate::gpt::Partitions;
+use bssl_avf::{self, hkdf, Digester};
 use core::fmt;
 use core::mem::size_of;
 use diced_open_dice::DiceMode;
@@ -63,6 +63,8 @@ pub enum Error {
     UnsupportedEntrySize(usize),
     /// Failed to create VirtIO Block device.
     VirtIOBlkCreationFailed(virtio_drivers::Error),
+    /// An error happened during the interaction with BoringSSL.
+    BoringSslFailed(bssl_avf::Error),
 }
 
 impl fmt::Display for Error {
@@ -95,7 +97,16 @@ impl fmt::Display for Error {
             Self::VirtIOBlkCreationFailed(e) => {
                 write!(f, "Failed to create VirtIO Block device: {e}")
             }
+            Self::BoringSslFailed(e) => {
+                write!(f, "An error happened during the interaction with BoringSSL: {e}")
+            }
         }
+    }
+}
+
+impl From<bssl_avf::Error> for Error {
+    fn from(e: bssl_avf::Error) -> Self {
+        Self::BoringSslFailed(e)
     }
 }
 
@@ -111,7 +122,7 @@ pub fn get_or_generate_instance_salt(
     let entry = locate_entry(&mut instance_img)?;
     trace!("Found pvmfw instance.img entry: {entry:?}");
 
-    let key = hkdf_sh512::<32>(secret, /*salt=*/ &[], b"vm-instance");
+    let key = hkdf::<32>(secret, /* salt= */ &[], b"vm-instance", Digester::sha512())?;
     let mut blk = [0; BLK_SIZE];
     match entry {
         PvmfwEntry::Existing { header_index, payload_size } => {
@@ -124,7 +135,6 @@ pub fn get_or_generate_instance_salt(
 
             let payload = &blk[..payload_size];
             let mut entry = [0; size_of::<EntryBody>()];
-            let key = key.map_err(Error::FailedOpen)?;
             let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedOpen)?;
             let decrypted = aead.open(&mut entry, payload).map_err(Error::FailedOpen)?;
 
@@ -143,7 +153,6 @@ pub fn get_or_generate_instance_salt(
             let salt = rand::random_array().map_err(Error::FailedSaltGeneration)?;
             let body = EntryBody::new(dice_inputs, &salt);
 
-            let key = key.map_err(Error::FailedSeal)?;
             let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedSeal)?;
             // We currently only support single-blk entries.
             let plaintext = body.as_bytes();
