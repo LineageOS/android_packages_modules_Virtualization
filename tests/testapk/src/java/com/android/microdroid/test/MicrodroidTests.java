@@ -1550,7 +1550,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @CddTest(requirements = {"9.17/C-1-1"})
     public void payloadIsNotRoot() throws Exception {
         assumeSupportedDevice();
-        assumeFeatureEnabled(VirtualMachineManager.FEATURE_PAYLOAD_NOT_ROOT);
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_MULTI_TENANT);
 
         VirtualMachineConfig config =
                 newVmConfigBuilder()
