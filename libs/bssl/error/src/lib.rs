@@ -16,8 +16,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+mod code;
+
 use core::{fmt, result};
 use serde::{Deserialize, Serialize};
+
+pub use crate::code::{CipherError, GlobalError, ReasonCode};
 
 /// libbssl_avf result type.
 pub type Result<T> = result::Result<T, Error>;
@@ -26,7 +30,7 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Error {
     /// Failed to invoke a BoringSSL API.
-    CallFailed(ApiName),
+    CallFailed(ApiName, ReasonCode),
 
     /// An unexpected internal error occurred.
     InternalError,
@@ -35,8 +39,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::CallFailed(api_name) => {
-                write!(f, "Failed to invoke the BoringSSL API: {api_name:?}")
+            Self::CallFailed(api_name, reason) => {
+                write!(f, "Failed to invoke the BoringSSL API: {api_name:?}. Reason: {reason}")
             }
             Self::InternalError => write!(f, "An unexpected internal error occurred"),
         }
