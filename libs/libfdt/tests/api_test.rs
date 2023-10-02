@@ -17,6 +17,7 @@
 //! Integration tests of the library libfdt.
 
 use libfdt::{Fdt, FdtError};
+use std::ffi::CStr;
 use std::fs;
 use std::ops::Range;
 
@@ -69,4 +70,20 @@ fn retrieving_memory_from_fdt_with_no_memory_node_fails() {
 
     assert_eq!(fdt.memory().unwrap_err(), FdtError::NotFound);
     assert_eq!(fdt.first_memory_range(), Err(FdtError::NotFound));
+}
+
+#[test]
+fn node_name() {
+    let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let root = fdt.root().unwrap();
+    assert_eq!(root.name().unwrap().to_str().unwrap(), "");
+
+    let chosen = fdt.chosen().unwrap().unwrap();
+    assert_eq!(chosen.name().unwrap().to_str().unwrap(), "chosen");
+
+    let nested_node_path = CStr::from_bytes_with_nul(b"/cpus/PowerPC,970@0\0").unwrap();
+    let nested_node = fdt.node(nested_node_path).unwrap().unwrap();
+    assert_eq!(nested_node.name().unwrap().to_str().unwrap(), "PowerPC,970@0");
 }
