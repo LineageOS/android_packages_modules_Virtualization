@@ -16,7 +16,7 @@
 //! BoringSSL.
 
 use crate::cbb::CbbFixed;
-use crate::util::check_int_result;
+use crate::util::{check_int_result, to_call_failed_error};
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
@@ -54,7 +54,7 @@ impl EcKey {
         };
         let mut ec_key = NonNull::new(ec_key)
             .map(Self)
-            .ok_or(Error::CallFailed(ApiName::EC_KEY_new_by_curve_name))?;
+            .ok_or(to_call_failed_error(ApiName::EC_KEY_new_by_curve_name))?;
         ec_key.generate_key()?;
         Ok(ec_key)
     }
@@ -104,7 +104,7 @@ impl EcKey {
            // `EC_KEY` pointer.
            unsafe { EC_KEY_get0_public_key(self.0.as_ptr()) };
         if ec_point.is_null() {
-            Err(Error::CallFailed(ApiName::EC_KEY_get0_public_key))
+            Err(to_call_failed_error(ApiName::EC_KEY_get0_public_key))
         } else {
             Ok(ec_point)
         }
@@ -118,7 +118,7 @@ impl EcKey {
            // `EC_KEY` pointer.
            unsafe { EC_KEY_get0_group(self.0.as_ptr()) };
         if group.is_null() {
-            Err(Error::CallFailed(ApiName::EC_KEY_get0_group))
+            Err(to_call_failed_error(ApiName::EC_KEY_get0_group))
         } else {
             Ok(group)
         }
@@ -144,7 +144,7 @@ impl EcKey {
         // SAFETY: This is safe because the CBB pointer is initialized with `CBB_init_fixed()`,
         // and it has been flushed, thus it has no active children.
         let len = unsafe { CBB_len(cbb.as_ref()) };
-        Ok(buf.get(0..len).ok_or(Error::CallFailed(ApiName::CBB_len))?.to_vec().into())
+        Ok(buf.get(0..len).ok_or(to_call_failed_error(ApiName::CBB_len))?.to_vec().into())
     }
 }
 
@@ -178,7 +178,7 @@ impl BigNum {
     fn new() -> Result<Self> {
         // SAFETY: The returned pointer is checked below.
         let bn = unsafe { BN_new() };
-        NonNull::new(bn).map(Self).ok_or(Error::CallFailed(ApiName::BN_new))
+        NonNull::new(bn).map(Self).ok_or(to_call_failed_error(ApiName::BN_new))
     }
 
     fn as_mut_ptr(&mut self) -> *mut BIGNUM {
