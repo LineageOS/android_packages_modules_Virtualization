@@ -15,7 +15,8 @@
 //! Wrappers of the HMAC functions in BoringSSL hmac.h.
 
 use crate::digest::Digester;
-use bssl_avf_error::{ApiName, Error, Result};
+use crate::util::to_call_failed_error;
+use bssl_avf_error::{ApiName, Result};
 use bssl_ffi::{HMAC, SHA256_DIGEST_LENGTH};
 
 const SHA256_LEN: usize = SHA256_DIGEST_LENGTH as usize;
@@ -53,6 +54,6 @@ fn hmac<const HASH_LEN: usize>(
     if !ret.is_null() && out_len == (out.len() as u32) {
         Ok(out)
     } else {
-        Err(Error::CallFailed(ApiName::HMAC))
+        Err(to_call_failed_error(ApiName::HMAC))
     }
 }
