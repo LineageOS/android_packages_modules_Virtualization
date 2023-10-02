@@ -34,7 +34,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
     IVirtualizationService::IVirtualizationService,
-    IVirtualizationService::FEATURE_PAYLOAD_NON_ROOT,
+    IVirtualizationService::FEATURE_MULTI_TENANT,
     IVirtualizationService::FEATURE_VENDOR_MODULES,
     IVirtualizationService::FEATURE_DICE_CHANGES,
     MemoryTrimLevel::MemoryTrimLevel,
@@ -276,7 +276,7 @@ impl IVirtualizationService for VirtualizationService {
         // TODO(b/298012279): make this scalable.
         match feature {
             FEATURE_DICE_CHANGES => Ok(cfg!(dice_changes)),
-            FEATURE_PAYLOAD_NON_ROOT => Ok(cfg!(payload_not_root)),
+            FEATURE_MULTI_TENANT => Ok(cfg!(multi_tenant)),
             FEATURE_VENDOR_MODULES => Ok(cfg!(vendor_modules)),
             _ => {
                 warn!("unknown feature {feature}");
