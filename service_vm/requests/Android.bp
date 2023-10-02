@@ -3,7 +3,7 @@ package {
 }
 
 rust_defaults {
-    name: "libservice_vm_requests_defaults",
+    name: "libservice_vm_requests_nostd_defaults",
     crate_name: "service_vm_requests",
     defaults: ["avf_build_flags_rust"],
     srcs: ["src/lib.rs"],
@@ -11,11 +11,6 @@ rust_defaults {
     apex_available: [
         "com.android.virt",
     ],
-}
-
-rust_library_rlib {
-    name: "libservice_vm_requests_nostd",
-    defaults: ["libservice_vm_requests_defaults"],
     no_stdlibs: true,
     stdlibs: [
         "libcore.rust_sysroot",
@@ -31,4 +26,15 @@ rust_library_rlib {
         "libservice_vm_comm_nostd",
         "libzeroize_nostd",
     ],
+}
+
+rust_library_rlib {
+    name: "libservice_vm_requests_nostd",
+    defaults: ["libservice_vm_requests_nostd_defaults"],
+}
+
+rust_test {
+    name: "libservice_vm_requests.test",
+    defaults: ["libservice_vm_requests_nostd_defaults"],
+    test_suites: ["general-tests"],
 }

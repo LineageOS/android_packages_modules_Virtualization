@@ -23,6 +23,11 @@ use bssl_ffi::{
 };
 use core::ptr::NonNull;
 
+/// BoringSSL spec recommends to use 12-byte nonces.
+///
+/// https://commondatastorage.googleapis.com/chromium-boringssl-docs/aead.h.html#EVP_aead_aes_256_gcm
+pub const AES_GCM_NONCE_LENGTH: usize = 12;
+
 /// Magic value indicating that the default tag length for an AEAD should be used to
 /// initialize `AeadCtx`.
 const AEAD_DEFAULT_TAG_LENGTH: usize = EVP_AEAD_DEFAULT_TAG_LENGTH as usize;

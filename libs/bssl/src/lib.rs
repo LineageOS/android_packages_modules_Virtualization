@@ -25,13 +25,15 @@ mod ec_key;
 mod err;
 mod hkdf;
 mod hmac;
+mod rand;
 mod util;
 
 pub use bssl_avf_error::{ApiName, CipherError, Error, ReasonCode, Result};
 
-pub use aead::{Aead, AeadCtx};
+pub use aead::{Aead, AeadCtx, AES_GCM_NONCE_LENGTH};
 pub use cbb::CbbFixed;
 pub use digest::Digester;
 pub use ec_key::{EcKey, ZVec};
 pub use hkdf::hkdf;
 pub use hmac::hmac_sha256;
+pub use rand::rand_bytes;

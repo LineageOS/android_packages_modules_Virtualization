@@ -91,6 +91,12 @@ pub enum CipherError {
     InvalidNonce,
 }
 
+impl From<CipherError> for ReasonCode {
+    fn from(e: CipherError) -> ReasonCode {
+        ReasonCode::Cipher(e)
+    }
+}
+
 impl fmt::Display for CipherError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "An error occurred in a Cipher function: {self:?}")
