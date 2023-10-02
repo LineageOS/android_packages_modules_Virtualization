@@ -48,7 +48,7 @@ pub(super) fn generate_ecdsa_p256_key_pair(
 
     let maced_public_key = build_maced_public_key(ec_key.cose_public_key()?, hmac_key.as_ref())?;
     let key_blob =
-        EncryptedKeyBlob::new(ec_key.private_key()?.as_slice(), dice_artifacts.cdi_seal())?;
+        EncryptedKeyBlob::new(ec_key.ec_private_key()?.as_slice(), dice_artifacts.cdi_seal())?;
 
     let key_pair =
         EcdsaP256KeyPair { maced_public_key, key_blob: cbor_util::serialize(&key_blob)? };

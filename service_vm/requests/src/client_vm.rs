@@ -17,6 +17,7 @@
 
 use crate::keyblob::decrypt_private_key;
 use alloc::vec::Vec;
+use bssl_avf::EcKey;
 use core::result;
 use coset::{CborSerializable, CoseSign};
 use diced_open_dice::DiceArtifacts;
@@ -36,12 +37,13 @@ pub(super) fn request_attestation(
     // TODO(b/278717513): Compare client VM's DICE chain in the `csr` up to pvmfw
     // cert with RKP VM's DICE chain.
 
-    let _private_key =
+    let private_key =
         decrypt_private_key(&params.remotely_provisioned_key_blob, dice_artifacts.cdi_seal())
             .map_err(|e| {
                 error!("Failed to decrypt the remotely provisioned key blob: {e}");
                 RequestProcessingError::FailedToDecryptKeyBlob
             })?;
+    let _ec_private_key = EcKey::from_ec_private_key(private_key.as_slice())?;
 
     // TODO(b/309441500): Build a new certificate signed with the remotely provisioned
     // `_private_key`.
