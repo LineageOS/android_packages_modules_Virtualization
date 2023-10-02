@@ -729,9 +729,11 @@ fn mount_extra_apks(config: &VmPayloadConfig, zipfuse: &mut Zipfuse) -> Result<(
         let mount_dir = format!("/mnt/extra-apk/{i}");
         create_dir(Path::new(&mount_dir)).context("Failed to create mount dir for extra apks")?;
 
-        // don't wait, just detach
+        let mount_for_exec =
+            if cfg!(multi_tenant) { MountForExec::Allowed } else { MountForExec::Disallowed };
+        // These run asynchronously in parallel - we wait later for them to complete.
         zipfuse.mount(
-            MountForExec::Disallowed,
+            mount_for_exec,
             "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:extra_apk_file:s0",
             Path::new(&format!("/dev/block/mapper/extra-apk-{i}")),
             Path::new(&mount_dir),
