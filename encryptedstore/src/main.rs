@@ -94,7 +94,7 @@ fn encryptedstore_init(blkdevice: &Path, key: &str, mountpoint: &Path) -> Result
     }
     mount(&crypt_device, mountpoint)
         .with_context(|| format!("Unable to mount {:?}", crypt_device))?;
-    if cfg!(payload_not_root) && needs_formatting {
+    if cfg!(multi_tenant) && needs_formatting {
         set_root_dir_permissions(mountpoint)?;
     }
     Ok(())
