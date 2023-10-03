@@ -63,6 +63,9 @@ pub enum ApiName {
     EC_KEY_marshal_private_key,
     EC_KEY_new_by_curve_name,
     EC_POINT_get_affine_coordinates,
+    EVP_AEAD_CTX_new,
+    EVP_AEAD_CTX_open,
+    EVP_AEAD_CTX_seal,
     HKDF,
     HMAC,
 }
