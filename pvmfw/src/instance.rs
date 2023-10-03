@@ -135,7 +135,8 @@ pub fn get_or_generate_instance_salt(
 
             let payload = &blk[..payload_size];
             let mut entry = [0; size_of::<EntryBody>()];
-            let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedOpen)?;
+            let aead =
+                AeadCtx::new_aes_256_gcm_randnonce(key.as_slice()).map_err(Error::FailedOpen)?;
             let decrypted = aead.open(&mut entry, payload).map_err(Error::FailedOpen)?;
 
             let body = EntryBody::read_from(decrypted).unwrap();
@@ -153,7 +154,8 @@ pub fn get_or_generate_instance_salt(
             let salt = rand::random_array().map_err(Error::FailedSaltGeneration)?;
             let body = EntryBody::new(dice_inputs, &salt);
 
-            let aead = AeadCtx::new_aes_256_gcm_randnonce(&key).map_err(Error::FailedSeal)?;
+            let aead =
+                AeadCtx::new_aes_256_gcm_randnonce(key.as_slice()).map_err(Error::FailedSeal)?;
             // We currently only support single-blk entries.
             let plaintext = body.as_bytes();
             assert!(plaintext.len() + aead.aead().unwrap().max_overhead() < blk.len());
