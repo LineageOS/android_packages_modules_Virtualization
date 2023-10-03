@@ -18,6 +18,7 @@ use crate::digest::Digester;
 use crate::util::check_int_result;
 use bssl_avf_error::{ApiName, Result};
 use bssl_ffi::HKDF;
+use zeroize::Zeroizing;
 
 /// Computes HKDF (as specified by [RFC 5869]) of initial keying material `secret` with
 /// `salt` and `info` using the given `digester`.
@@ -28,8 +29,8 @@ pub fn hkdf<const N: usize>(
     salt: &[u8],
     info: &[u8],
     digester: Digester,
-) -> Result<[u8; N]> {
-    let mut key = [0u8; N];
+) -> Result<Zeroizing<[u8; N]>> {
+    let mut key = Zeroizing::new([0u8; N]);
     // SAFETY: Only reads from/writes to the provided slices and the digester was non-null.
     let ret = unsafe {
         HKDF(
