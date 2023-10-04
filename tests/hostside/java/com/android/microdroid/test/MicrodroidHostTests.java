@@ -499,7 +499,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         String result =
                 tryRunOnHost(
                         "timeout",
-                        "10s",
+                        "3s",
                         "adb",
                         "-s",
                         getDevice().getSerialNumber(),
