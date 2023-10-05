@@ -15,7 +15,6 @@
 //! This module contains the main API for the request processing module.
 
 use super::rkp;
-use crate::error::Result;
 use alloc::vec::Vec;
 use diced_open_dice::DiceArtifacts;
 use service_vm_comm::{Request, Response};
@@ -23,8 +22,8 @@ use service_vm_comm::{Request, Response};
 /// Processes a request and returns the corresponding response.
 /// This function serves as the entry point for the request processing
 /// module.
-pub fn process_request(request: Request, dice_artifacts: &dyn DiceArtifacts) -> Result<Response> {
-    let response = match request {
+pub fn process_request(request: Request, dice_artifacts: &dyn DiceArtifacts) -> Response {
+    match request {
         Request::Reverse(v) => Response::Reverse(reverse(v)),
         Request::GenerateEcdsaP256KeyPair => rkp::generate_ecdsa_p256_key_pair(dice_artifacts)
             .map_or_else(Response::Err, Response::GenerateEcdsaP256KeyPair),
@@ -32,8 +31,7 @@ pub fn process_request(request: Request, dice_artifacts: &dyn DiceArtifacts) -> 
             rkp::generate_certificate_request(p, dice_artifacts)
                 .map_or_else(Response::Err, Response::GenerateCertificateRequest)
         }
-    };
-    Ok(response)
+    }
 }
 
 fn reverse(payload: Vec<u8>) -> Vec<u8> {
