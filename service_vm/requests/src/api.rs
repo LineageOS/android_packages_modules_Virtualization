@@ -14,7 +14,7 @@
 
 //! This module contains the main API for the request processing module.
 
-use super::rkp;
+use crate::rkp;
 use alloc::vec::Vec;
 use diced_open_dice::DiceArtifacts;
 use service_vm_comm::{Request, Response};
