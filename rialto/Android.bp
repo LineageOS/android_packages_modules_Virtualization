@@ -13,7 +13,6 @@ rust_ffi_static {
         "libbssl_ffi_nostd",
         "libciborium_io_nostd",
         "libciborium_nostd",
-        "libcoset_nostd",
         "libdiced_open_dice_nostd",
         "libdiced_sample_inputs_nostd",
         "libhyp",
@@ -21,10 +20,10 @@ rust_ffi_static {
         "liblibfdt",
         "liblog_rust_nostd",
         "libservice_vm_comm_nostd",
+        "libservice_vm_requests_nostd",
         "libtinyvec_nostd",
         "libvirtio_drivers",
         "libvmbase",
-        "libzeroize_nostd",
     ],
 }
 

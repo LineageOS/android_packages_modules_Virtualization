@@ -21,14 +21,12 @@ mod communication;
 mod error;
 mod exceptions;
 mod fdt;
-mod requests;
 
 extern crate alloc;
 
 use crate::communication::VsockStream;
 use crate::error::{Error, Result};
 use crate::fdt::read_dice_range_from;
-use crate::requests::process_request;
 use alloc::boxed::Box;
 use bssl_ffi::CRYPTO_library_init;
 use ciborium_io::Write;
@@ -40,6 +38,7 @@ use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
 use service_vm_comm::{ServiceVmRequest, VmType};
+use service_vm_requests::process_request;
 use virtio_drivers::{
     device::socket::{VsockAddr, VMADDR_CID_HOST},
     transport::{pci::bus::PciRoot, DeviceType, Transport},
