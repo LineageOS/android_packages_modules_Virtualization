@@ -28,6 +28,7 @@ extern crate alloc;
 use crate::communication::VsockStream;
 use crate::error::{Error, Result};
 use crate::fdt::read_dice_range_from;
+use crate::requests::process_request;
 use alloc::boxed::Box;
 use bssl_ffi::CRYPTO_library_init;
 use ciborium_io::Write;
@@ -178,7 +179,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
     while let ServiceVmRequest::Process(req) = vsock_stream.read_request()? {
-        let response = requests::process_request(req, bcc_handover.as_ref())?;
+        let response = process_request(req, bcc_handover.as_ref());
         vsock_stream.write_response(&response)?;
         vsock_stream.flush()?;
     }
