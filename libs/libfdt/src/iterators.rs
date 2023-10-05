@@ -14,10 +14,40 @@
 
 //! Iterators over cells, and various layers on top of them.
 
+use crate::Fdt;
 use crate::FdtError;
+use crate::FdtNode;
 use crate::{AddrCells, SizeCells};
+use core::ffi::CStr;
 use core::marker::PhantomData;
 use core::{mem::size_of, ops::Range, slice::ChunksExact};
+
+/// Iterator over nodes sharing a same compatible string.
+pub struct CompatibleIterator<'a> {
+    node: FdtNode<'a>,
+    compatible: &'a CStr,
+}
+
+impl<'a> CompatibleIterator<'a> {
+    pub(crate) fn new(fdt: &'a Fdt, compatible: &'a CStr) -> Result<Self, FdtError> {
+        let node = fdt.root()?;
+        Ok(Self { node, compatible })
+    }
+}
+
+impl<'a> Iterator for CompatibleIterator<'a> {
+    type Item = FdtNode<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.node.next_compatible(self.compatible).ok()?;
+
+        if let Some(node) = next {
+            self.node = node;
+        }
+
+        next
+    }
+}
 
 /// Iterator over cells of a DT property.
 #[derive(Debug)]
