@@ -87,3 +87,15 @@ fn node_name() {
     let nested_node = fdt.node(nested_node_path).unwrap().unwrap();
     assert_eq!(nested_node.name().unwrap().to_str().unwrap(), "PowerPC,970@0");
 }
+
+#[test]
+fn node_subnodes() {
+    let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+    let root = fdt.root().unwrap();
+    let expected: Vec<&str> = vec!["cpus", "randomnode", "chosen"];
+
+    for (node, name) in root.subnodes().unwrap().zip(expected) {
+        assert_eq!(node.name().unwrap().to_str().unwrap(), name);
+    }
+}

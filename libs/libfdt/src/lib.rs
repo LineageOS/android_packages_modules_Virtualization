@@ -19,7 +19,10 @@
 
 mod iterators;
 
-pub use iterators::{AddressRange, CellIterator, MemRegIterator, RangesIterator, Reg, RegIterator};
+pub use iterators::{
+    AddressRange, CellIterator, CompatibleIterator, MemRegIterator, RangesIterator, Reg,
+    RegIterator, SubnodeIterator,
+};
 
 use core::cmp::max;
 use core::ffi::{c_int, c_void, CStr};
@@ -381,6 +384,25 @@ impl<'a> FdtNode<'a> {
             .try_into()
             .map_err(|_| FdtError::Internal)
     }
+
+    /// Returns an iterator of subnodes
+    pub fn subnodes(&'a self) -> Result<SubnodeIterator<'a>> {
+        SubnodeIterator::new(self)
+    }
+
+    fn first_subnode(&self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_first_subnode(self.fdt.as_ptr(), self.offset) };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
+    }
+
+    fn next_subnode(&self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
+    }
 }
 
 /// Mutable FDT node.
@@ -583,33 +605,6 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)?;
 
         Ok(next_offset.map(|offset| Self { fdt: self.fdt, offset }))
-    }
-}
-
-/// Iterator over nodes sharing a same compatible string.
-pub struct CompatibleIterator<'a> {
-    node: FdtNode<'a>,
-    compatible: &'a CStr,
-}
-
-impl<'a> CompatibleIterator<'a> {
-    fn new(fdt: &'a Fdt, compatible: &'a CStr) -> Result<Self> {
-        let node = fdt.root()?;
-        Ok(Self { node, compatible })
-    }
-}
-
-impl<'a> Iterator for CompatibleIterator<'a> {
-    type Item = FdtNode<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.node.next_compatible(self.compatible).ok()?;
-
-        if let Some(node) = next {
-            self.node = node;
-        }
-
-        next
     }
 }
 
