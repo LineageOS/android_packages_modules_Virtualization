@@ -30,7 +30,7 @@ mod util;
 
 pub use bssl_avf_error::{ApiName, CipherError, Error, ReasonCode, Result};
 
-pub use aead::{Aead, AeadCtx, AES_GCM_NONCE_LENGTH};
+pub use aead::{Aead, AeadContext, AES_GCM_NONCE_LENGTH};
 pub use cbb::CbbFixed;
 pub use digest::Digester;
 pub use ec_key::{EcKey, ZVec};
