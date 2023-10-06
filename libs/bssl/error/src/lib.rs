@@ -68,4 +68,5 @@ pub enum ApiName {
     EVP_AEAD_CTX_seal,
     HKDF,
     HMAC,
+    RAND_bytes,
 }
