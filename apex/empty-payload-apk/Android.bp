@@ -9,8 +9,8 @@ android_app {
     apex_available: ["com.android.virt"],
     sdk_version: "system_current",
     jni_uses_platform_apis: true,
-    min_sdk_version: "UpsideDownCake",
-    target_sdk_version: "UpsideDownCake",
+    min_sdk_version: "34",
+    target_sdk_version: "34",
     compile_multilib: "first",
     stl: "none",
 }

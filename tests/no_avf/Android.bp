@@ -17,5 +17,5 @@ android_test {
     ],
     sdk_version: "test_current",
     compile_multilib: "both",
-    min_sdk_version: "UpsideDownCake",
+    min_sdk_version: "34",
 }
