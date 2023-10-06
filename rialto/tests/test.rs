@@ -57,9 +57,7 @@ fn check_processing_requests(vm_type: VmType) -> Result<()> {
 }
 
 fn check_processing_reverse_request(vm: &mut ServiceVm) -> Result<()> {
-    // TODO(b/292080257): Test with message longer than the receiver's buffer capacity
-    // 1024 bytes once the guest virtio-vsock driver fixes the credit update in recv().
-    let message = "abc".repeat(166);
+    let message = "abc".repeat(500);
     let request = Request::Reverse(message.as_bytes().to_vec());
 
     let response = vm.process_request(request)?;
