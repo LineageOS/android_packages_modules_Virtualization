@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bssl_avf::{Aead, AeadCtx, ApiName, CipherError, Error, ReasonCode, Result};
+use bssl_avf::{Aead, AeadContext, ApiName, CipherError, Error, ReasonCode, Result};
 
 /// The following vectors are generated randomly with:
 /// `hexdump -vn32 -e'32/1 "0x%02x, " 1 "\n"' /dev/urandom`
@@ -38,7 +38,7 @@ fn aes_256_gcm_encrypts_and_decrypts_successfully() -> Result<()> {
     let tag_len = None;
 
     let ad = &[];
-    let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
     let mut out = vec![0u8; ciphertext.len()];
 
     let plaintext = aead_ctx.open(&ciphertext, &AES_256_GCM_NONCE1, ad, &mut out)?;
@@ -50,7 +50,7 @@ fn aes_256_gcm_encrypts_and_decrypts_successfully() -> Result<()> {
 #[test]
 fn aes_256_gcm_fails_to_encrypt_with_invalid_nonce() -> Result<()> {
     let tag_len = None;
-    let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
     let nonce = &[];
     let ad = &[];
     let mut out = vec![0u8; MESSAGE.len() + aead_ctx.aead().max_overhead()];
@@ -71,7 +71,7 @@ fn aes_256_gcm_fails_to_decrypt_with_wrong_key() -> Result<()> {
     let tag_len = None;
 
     let ad = &[];
-    let aead_ctx2 = AeadCtx::new(Aead::aes_256_gcm(), &KEY2, tag_len)?;
+    let aead_ctx2 = AeadContext::new(Aead::aes_256_gcm(), &KEY2, tag_len)?;
     let mut plaintext = vec![0u8; ciphertext.len()];
 
     let err = aead_ctx2.open(&ciphertext, &AES_256_GCM_NONCE1, ad, &mut plaintext).unwrap_err();
@@ -88,7 +88,7 @@ fn aes_256_gcm_fails_to_decrypt_with_different_ad() -> Result<()> {
     let tag_len = None;
 
     let ad2 = &[1];
-    let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
     let mut plaintext = vec![0u8; ciphertext.len()];
 
     let err = aead_ctx.open(&ciphertext, &AES_256_GCM_NONCE1, ad2, &mut plaintext).unwrap_err();
@@ -105,7 +105,7 @@ fn aes_256_gcm_fails_to_decrypt_with_different_nonce() -> Result<()> {
     let tag_len = None;
 
     let ad = &[];
-    let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
     let mut plaintext = vec![0u8; ciphertext.len()];
 
     let err = aead_ctx.open(&ciphertext, &AES_256_GCM_NONCE2, ad, &mut plaintext).unwrap_err();
@@ -123,7 +123,7 @@ fn aes_256_gcm_fails_to_decrypt_corrupted_ciphertext() -> Result<()> {
     let tag_len = None;
 
     let ad = &[];
-    let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
     let mut plaintext = vec![0u8; ciphertext.len()];
 
     let err = aead_ctx.open(&ciphertext, &AES_256_GCM_NONCE1, ad, &mut plaintext).unwrap_err();
@@ -136,7 +136,7 @@ fn aes_256_gcm_fails_to_decrypt_corrupted_ciphertext() -> Result<()> {
 
 fn aes_256_gcm_encrypt(message: &[u8]) -> Result<Vec<u8>> {
     let tag_len = None;
-    let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), &KEY1, tag_len)?;
     let mut out = vec![0u8; message.len() + aead_ctx.aead().max_overhead()];
 
     assert_eq!(aead_ctx.aead().nonce_length(), AES_256_GCM_NONCE1.len());
