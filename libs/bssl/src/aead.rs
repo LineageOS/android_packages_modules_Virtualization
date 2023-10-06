@@ -29,7 +29,7 @@ use core::ptr::NonNull;
 pub const AES_GCM_NONCE_LENGTH: usize = 12;
 
 /// Magic value indicating that the default tag length for an AEAD should be used to
-/// initialize `AeadCtx`.
+/// initialize `AeadContext`.
 const AEAD_DEFAULT_TAG_LENGTH: usize = EVP_AEAD_DEFAULT_TAG_LENGTH as usize;
 
 /// Represents an AEAD algorithm.
@@ -65,12 +65,12 @@ impl Aead {
 }
 
 /// Represents an AEAD algorithm configuration.
-pub struct AeadCtx {
+pub struct AeadContext {
     ctx: NonNull<EVP_AEAD_CTX>,
     aead: Aead,
 }
 
-impl Drop for AeadCtx {
+impl Drop for AeadContext {
     fn drop(&mut self) {
         // SAFETY: It is safe because the pointer has been created with `EVP_AEAD_CTX_new`
         // and isn't used after this.
@@ -78,8 +78,8 @@ impl Drop for AeadCtx {
     }
 }
 
-impl AeadCtx {
-    /// Creates a new `AeadCtx` with the given `Aead` algorithm, `key` and `tag_len`.
+impl AeadContext {
+    /// Creates a new `AeadContext` with the given `Aead` algorithm, `key` and `tag_len`.
     ///
     /// The default tag length will be used if `tag_len` is None.
     pub fn new(aead: Aead, key: &[u8], tag_len: Option<usize>) -> Result<Self> {
@@ -158,7 +158,7 @@ impl AeadCtx {
         out.get(0..out_len).ok_or(to_call_failed_error(ApiName::EVP_AEAD_CTX_open))
     }
 
-    /// Returns the `Aead` represented by this `AeadCtx`.
+    /// Returns the `Aead` represented by this `AeadContext`.
     pub fn aead(&self) -> Aead {
         self.aead
     }
