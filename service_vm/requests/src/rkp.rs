@@ -16,6 +16,7 @@
 //! service VM via the RKP (Remote Key Provisioning) server.
 
 use crate::cbor;
+use crate::keyblob::EncryptedKeyBlob;
 use crate::pub_key::{build_maced_public_key, validate_public_key};
 use alloc::string::String;
 use alloc::vec;
@@ -37,7 +38,7 @@ const HMAC_KEY_SALT: [u8; 32] = [
     0x82, 0x80, 0xFA, 0xD3, 0xA8, 0x0A, 0x9A, 0x4B, 0xF7, 0xA5, 0x7D, 0x7B, 0xE9, 0xC3, 0xAB, 0x13,
     0x89, 0xDC, 0x7B, 0x46, 0xEE, 0x71, 0x22, 0xB4, 0x5F, 0x4C, 0x3F, 0xE2, 0x40, 0x04, 0x3B, 0x6C,
 ];
-const HMAC_KEY_INFO: &[u8] = b"rialto hmac key";
+const HMAC_KEY_INFO: &[u8] = b"rialto hmac wkey";
 const HMAC_KEY_LENGTH: usize = 32;
 
 pub(super) fn generate_ecdsa_p256_key_pair(
@@ -45,13 +46,12 @@ pub(super) fn generate_ecdsa_p256_key_pair(
 ) -> Result<EcdsaP256KeyPair> {
     let hmac_key = derive_hmac_key(dice_artifacts)?;
     let ec_key = EcKey::new_p256()?;
+
     let maced_public_key = build_maced_public_key(ec_key.cose_public_key()?, hmac_key.as_ref())?;
+    let key_blob =
+        EncryptedKeyBlob::new(ec_key.private_key()?.as_slice(), dice_artifacts.cdi_seal())?;
 
-    // TODO(b/279425980): Encrypt the private key in a key blob.
-    // Remove the printing of the private key.
-    log::debug!("Private key: {:?}", ec_key.private_key()?.as_slice());
-
-    let key_pair = EcdsaP256KeyPair { maced_public_key, key_blob: Vec::new() };
+    let key_pair = EcdsaP256KeyPair { maced_public_key, key_blob: key_blob.to_cbor_vec()? };
     Ok(key_pair)
 }
 

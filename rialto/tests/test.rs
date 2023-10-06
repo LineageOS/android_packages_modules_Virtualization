@@ -77,8 +77,9 @@ fn check_processing_generating_key_pair_request(vm: &mut ServiceVm) -> Result<Ve
     info!("Received response: {response:?}.");
 
     match response {
-        Response::GenerateEcdsaP256KeyPair(EcdsaP256KeyPair { maced_public_key, .. }) => {
-            assert_array_has_nonzero(&maced_public_key[..]);
+        Response::GenerateEcdsaP256KeyPair(EcdsaP256KeyPair { maced_public_key, key_blob }) => {
+            assert_array_has_nonzero(&maced_public_key);
+            assert_array_has_nonzero(&key_blob);
             Ok(maced_public_key)
         }
         _ => bail!("Incorrect response type: {response:?}"),
