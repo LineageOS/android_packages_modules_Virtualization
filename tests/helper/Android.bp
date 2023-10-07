@@ -17,7 +17,7 @@ java_library_static {
         "androidx.test.ext.junit",
         "com.android.microdroid.testservice-java",
         "MicrodroidTestHelper",
-        "truth-prebuilt",
+        "truth",
     ],
     sdk_version: "test_current",
 }
