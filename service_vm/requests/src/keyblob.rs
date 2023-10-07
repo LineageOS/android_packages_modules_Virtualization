@@ -17,7 +17,7 @@
 use crate::cbor;
 use alloc::vec;
 use alloc::vec::Vec;
-use bssl_avf::{hkdf, rand_bytes, Aead, AeadCtx, Digester, AES_GCM_NONCE_LENGTH};
+use bssl_avf::{hkdf, rand_bytes, Aead, AeadContext, Digester, AES_GCM_NONCE_LENGTH};
 use core::result;
 use serde::{Deserialize, Serialize};
 use service_vm_comm::RequestProcessingError;
@@ -89,7 +89,7 @@ impl EncryptedKeyBlobV1 {
         let kek = hkdf::<32>(kek_secret, &kek_salt, KEK_INFO, Digester::sha512())?;
 
         let tag_len = None;
-        let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), kek.as_slice(), tag_len)?;
+        let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), kek.as_slice(), tag_len)?;
         let mut out = vec![0u8; private_key.len() + aead_ctx.aead().max_overhead()];
         let ciphertext = aead_ctx.seal(private_key, PRIVATE_KEY_NONCE, PRIVATE_KEY_AD, &mut out)?;
 
@@ -101,7 +101,7 @@ impl EncryptedKeyBlobV1 {
         let kek = hkdf::<32>(kek_secret, &self.kek_salt, KEK_INFO, Digester::sha512())?;
         let mut out = Zeroizing::new(vec![0u8; self.encrypted_private_key.len()]);
         let tag_len = None;
-        let aead_ctx = AeadCtx::new(Aead::aes_256_gcm(), kek.as_slice(), tag_len)?;
+        let aead_ctx = AeadContext::new(Aead::aes_256_gcm(), kek.as_slice(), tag_len)?;
         let plaintext = aead_ctx.open(
             &self.encrypted_private_key,
             PRIVATE_KEY_NONCE,
