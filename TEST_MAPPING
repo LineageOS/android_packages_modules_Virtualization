@@ -31,6 +31,9 @@
     },
     {
       "name": "libdice_policy.test"
+    },
+    {
+      "name": "libapkzip.test"
     }
   ],
   "avf-postsubmit": [
