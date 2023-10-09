@@ -12,5 +12,5 @@ android_test_helper_app {
         // Defined in ../testapk/Android.bp
         "MicrodroidPayloadInOtherAppNativeLib",
     ],
-    min_sdk_version: "UpsideDownCake",
+    min_sdk_version: "34",
 }
