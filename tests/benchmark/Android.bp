@@ -14,7 +14,7 @@ android_test {
         "androidx.test.runner",
         "androidx.test.ext.junit",
         "com.android.microdroid.testservice-java",
-        "truth-prebuilt",
+        "truth",
     ],
     jni_libs: [
         "MicrodroidBenchmarkNativeLib",
