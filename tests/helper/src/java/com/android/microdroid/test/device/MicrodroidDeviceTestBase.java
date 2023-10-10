@@ -20,6 +20,8 @@ import static android.content.pm.PackageManager.FEATURE_VIRTUALIZATION_FRAMEWORK
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.TruthJUnit.assume;
 
+import static org.junit.Assume.assumeTrue;
+
 import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Context;
@@ -557,5 +559,9 @@ public abstract class MicrodroidDeviceTestBase {
     @FunctionalInterface
     protected interface RunTestsAgainstTestService {
         void runTests(ITestService testService, TestResults testResults) throws Exception;
+    }
+
+    protected void assumeProtectedVM() {
+        assumeTrue("Skip on non-protected VM", mProtectedVm);
     }
 }
