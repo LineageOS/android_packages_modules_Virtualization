@@ -55,23 +55,4 @@ size_t AVmPayload_getDiceAttestationChain(void* _Nullable data, size_t size);
  */
 size_t AVmPayload_getDiceAttestationCdi(void* _Nullable data, size_t size);
 
-/**
- * Requests the remote attestation of the client VM.
- *
- * The challenge will be included in the certificate chain in the attestation result,
- * serving as proof of the freshness of the result.
- *
- * \param challenge A pointer to the challenge buffer.
- * \param challenge_size size of the challenge, the maximum supported challenge size is
- *                       64 bytes. An error will be returned if an invalid challenge is
- *                       passed.
- * \param buffer A pointer to the certificate buffer.
- * \param size number of bytes that can be written to the certificate buffer.
- *
- * \return the total size of the certificate
- */
-size_t AVmPayload_requestAttestation(const void* _Nonnull challenge, size_t challenge_size,
-                                     void* _Nullable buffer, size_t size)
-        __INTRODUCED_IN(__ANDROID_API_V__);
-
 __END_DECLS
