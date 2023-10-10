@@ -9,7 +9,7 @@ java_library_host {
         "androidx.annotation_annotation",
         "compatibility-tradefed",
         "tradefed",
-        "truth-prebuilt",
+        "truth",
     ],
     static_libs: [
         "MicrodroidTestHelper",
