@@ -558,8 +558,4 @@ public abstract class MicrodroidDeviceTestBase {
     protected interface RunTestsAgainstTestService {
         void runTests(ITestService testService, TestResults testResults) throws Exception;
     }
-
-    protected void assumeProtectedVM() {
-        assumeTrue("Skip on non-protected VM", mProtectedVm);
-    }
 }
