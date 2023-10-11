@@ -474,7 +474,7 @@ impl VirtualizationService {
                 .into_iter()
                 .map(|x| VfioDevice {
                     sysfs_path: PathBuf::from(&x.sysfsPath),
-                    dtbo_node: x.dtboNode,
+                    dtbo_label: x.dtboLabel,
                 })
                 .collect::<Vec<_>>()
         } else {

@@ -209,7 +209,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             .into_iter()
             .filter_map(|x| {
                 if devices.contains(&x.sysfs_path) {
-                    Some(BoundDevice { sysfsPath: x.sysfs_path, dtboNode: x.dtbo_node })
+                    Some(BoundDevice { sysfsPath: x.sysfs_path, dtboLabel: x.dtbo_label })
                 } else {
                     None
                 }
@@ -222,7 +222,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
 #[derive(Debug, Deserialize)]
 struct Device {
     kind: String,
-    dtbo_node: String,
+    dtbo_label: String,
     sysfs_path: String,
 }
 

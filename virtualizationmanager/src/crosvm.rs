@@ -128,7 +128,7 @@ pub struct DiskFile {
 #[derive(Clone, Debug)]
 pub struct VfioDevice {
     pub sysfs_path: PathBuf,
-    pub dtbo_node: String,
+    pub dtbo_label: String,
 }
 
 /// The lifecycle state which the payload in the VM has reported itself to be in.
@@ -716,7 +716,7 @@ fn vfio_argument_for_platform_device(device: &VfioDevice) -> Result<String, Erro
     }
 
     if let Some(p) = path.to_str() {
-        Ok(format!("--vfio={p},iommu=viommu,dt-symbol={0}", device.dtbo_node))
+        Ok(format!("--vfio={p},iommu=viommu,dt-symbol={0}", device.dtbo_label))
     } else {
         bail!("invalid path {path:?}");
     }
