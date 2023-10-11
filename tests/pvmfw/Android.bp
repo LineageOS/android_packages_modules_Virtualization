@@ -2,36 +2,30 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-genrule_defaults {
-    name: "test_avf_dts_to_dtb",
-    tools: ["dtc"],
-    cmd: "$(location dtc) -I dts -O dtb $(in) -o $(out)",
-}
-
 genrule {
     name: "test_avf_debug_policy_with_ramdump",
-    defaults: ["test_avf_dts_to_dtb"],
+    defaults: ["dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_with_ramdump.dts"],
     out: ["avf_debug_policy_with_ramdump.dtbo"],
 }
 
 genrule {
     name: "test_avf_debug_policy_without_ramdump",
-    defaults: ["test_avf_dts_to_dtb"],
+    defaults: ["dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_without_ramdump.dts"],
     out: ["avf_debug_policy_without_ramdump.dtbo"],
 }
 
 genrule {
     name: "test_avf_debug_policy_with_adb",
-    defaults: ["test_avf_dts_to_dtb"],
+    defaults: ["dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_with_adb.dts"],
     out: ["avf_debug_policy_with_adb.dtbo"],
 }
 
 genrule {
     name: "test_avf_debug_policy_without_adb",
-    defaults: ["test_avf_dts_to_dtb"],
+    defaults: ["dts_to_dtb"],
     srcs: ["assets/avf_debug_policy_without_adb.dts"],
     out: ["avf_debug_policy_without_adb.dtbo"],
 }
