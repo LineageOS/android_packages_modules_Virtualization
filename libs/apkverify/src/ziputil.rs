@@ -40,7 +40,7 @@ pub struct ZipSections {
 }
 
 /// Discover the layout of a zip file.
-pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<(R, ZipSections)> {
+pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<ZipSections> {
     // open a zip to parse EOCD
     let archive = ZipArchive::new(reader)?;
     let eocd_size = archive.comment().len() + EOCD_SIZE_WITHOUT_COMMENT;
@@ -65,15 +65,12 @@ pub fn zip_sections<R: Read + Seek>(mut reader: R) -> Result<(R, ZipSections)> {
         "Invalid ZIP: EOCD should follow CD with no extra data or overlap."
     );
 
-    Ok((
-        reader,
-        ZipSections {
-            central_directory_offset,
-            central_directory_size,
-            eocd_offset,
-            eocd_size: eocd_size as u32,
-        },
-    ))
+    Ok(ZipSections {
+        central_directory_offset,
+        central_directory_size,
+        eocd_offset,
+        eocd_size: eocd_size as u32,
+    })
 }
 
 fn get_central_directory(buf: &[u8]) -> Result<(u32, u32)> {
@@ -109,7 +106,8 @@ mod tests {
 
     #[test]
     fn test_zip_sections() {
-        let (cursor, sections) = zip_sections(create_test_zip()).unwrap();
+        let mut cursor = create_test_zip();
+        let sections = zip_sections(&mut cursor).unwrap();
         assert_eq!(
             sections.eocd_offset,
             (cursor.get_ref().len() - EOCD_SIZE_WITHOUT_COMMENT) as u32
@@ -136,8 +134,8 @@ mod tests {
 
     #[test]
     fn test_zip_sections_with_apk() {
-        let apk = File::open("tests/data/v3-only-with-stamp.apk").unwrap();
-        let (mut reader, sections) = zip_sections(apk).unwrap();
+        let mut reader = File::open("tests/data/v3-only-with-stamp.apk").unwrap();
+        let sections = zip_sections(&mut reader).unwrap();
 
         // Checks Central directory.
         assert_eq!(

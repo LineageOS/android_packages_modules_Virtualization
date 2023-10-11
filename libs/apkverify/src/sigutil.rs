@@ -51,8 +51,8 @@ pub struct ApkSections<R> {
 }
 
 impl<R: Read + Seek> ApkSections<R> {
-    pub fn new(reader: R) -> Result<ApkSections<R>> {
-        let (mut reader, zip_sections) = zip_sections(reader)?;
+    pub fn new(mut reader: R) -> Result<ApkSections<R>> {
+        let zip_sections = zip_sections(&mut reader)?;
         let (signing_block_offset, signing_block_size) =
             find_signing_block(&mut reader, zip_sections.central_directory_offset)?;
         Ok(ApkSections {
