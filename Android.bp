@@ -64,3 +64,9 @@ avf_flag_aware_rust_defaults {
         },
     },
 }
+
+genrule_defaults {
+    name: "dts_to_dtb",
+    tools: ["dtc"],
+    cmd: "$(location dtc) -I dts -O dtb $(in) -o $(out)",
+}
