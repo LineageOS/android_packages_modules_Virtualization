@@ -99,3 +99,23 @@ fn node_subnodes() {
         assert_eq!(node.name().unwrap().to_str().unwrap(), name);
     }
 }
+
+#[test]
+fn node_properties() {
+    let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+    let root = fdt.root().unwrap();
+    let one_be = 0x1_u32.to_be_bytes();
+    let expected: Vec<(&str, &[u8])> = vec![
+        ("model", b"MyBoardName\0"),
+        ("compatible", b"MyBoardName\0MyBoardFamilyName\0"),
+        ("#address-cells", &one_be),
+        ("#size-cells", &one_be),
+        ("empty_prop", b""),
+    ];
+
+    for (prop, (name, value)) in root.properties().unwrap().zip(expected) {
+        assert_eq!(prop.name().unwrap().to_str().unwrap(), name);
+        assert_eq!(prop.value().unwrap(), value);
+    }
+}

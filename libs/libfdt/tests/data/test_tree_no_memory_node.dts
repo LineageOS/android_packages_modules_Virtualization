@@ -6,6 +6,7 @@
 	compatible = "MyBoardName", "MyBoardFamilyName";
 	#address-cells = <0x1>;
 	#size-cells = <0x1>;
+	empty_prop;
 
 	cpus {
 		linux,phandle = <0x1>;
