@@ -260,7 +260,7 @@ impl<'a> Config<'a> {
     }
 
     /// Get slice containing the platform BCC.
-    pub fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>) {
+    pub fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>, Option<&mut [u8]>) {
         // This assumes that the blobs are in-order w.r.t. the entries.
         let bcc_range = self.get_entry_range(Entry::Bcc);
         let dp_range = self.get_entry_range(Entry::DebugPolicy);
@@ -277,6 +277,7 @@ impl<'a> Config<'a> {
             (
                 Self::from_raw_range_mut(ptr, bcc_range.unwrap()),
                 dp_range.map(|dp_range| Self::from_raw_range_mut(ptr, dp_range)),
+                vm_dtbo_range.map(|vm_dtbo_range| Self::from_raw_range_mut(ptr, vm_dtbo_range)),
             )
         }
     }
