@@ -21,9 +21,6 @@ use bytes::{Buf, BufMut};
 use std::io::{Read, Seek};
 use zip::ZipArchive;
 
-#[cfg(test)]
-use std::io::SeekFrom;
-
 const EOCD_SIZE_WITHOUT_COMMENT: usize = 22;
 const EOCD_CENTRAL_DIRECTORY_SIZE_FIELD_OFFSET: usize = 12;
 const EOCD_CENTRAL_DIRECTORY_OFFSET_FIELD_OFFSET: usize = 16;
@@ -31,11 +28,16 @@ const EOCD_CENTRAL_DIRECTORY_OFFSET_FIELD_OFFSET: usize = 16;
 const EOCD_SIGNATURE: u32 = 0x06054b50;
 const ZIP64_MARK: u32 = 0xffffffff;
 
+/// Information about the layout of a zip file.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ZipSections {
+    /// Offset within the file of the central directory.
     pub central_directory_offset: u32,
+    /// Size of the central directory.
     pub central_directory_size: u32,
+    /// Offset within the file of end of central directory marker.
     pub eocd_offset: u32,
+    /// Size of the end of central directory marker.
     pub eocd_size: u32,
 }
 
@@ -88,20 +90,33 @@ pub fn set_central_directory_offset(buf: &mut [u8], value: u32) -> Result<()> {
     Ok(())
 }
 
+/// Read an entire file from a .zip file into memory and return it.
+pub fn read_file<R: Read + Seek>(reader: R, file_name: &str) -> Result<Vec<u8>> {
+    let mut archive = ZipArchive::new(reader)?;
+    let mut file = archive.by_name(file_name)?;
+    let mut bytes = Vec::with_capacity(file.size() as usize);
+    file.read_to_end(&mut bytes)?;
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::assert_contains;
-    use byteorder::{LittleEndian, ReadBytesExt};
-    use std::fs::File;
     use std::io::{Cursor, Write};
     use zip::{write::FileOptions, ZipWriter};
 
+    const FILE_CONTENT: &[u8] = b"testcontent";
+    const FILE_NAME: &str = "testfile";
+
     fn create_test_zip() -> Cursor<Vec<u8>> {
         let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
-        writer.start_file("testfile", FileOptions::default()).unwrap();
-        writer.write_all(b"testcontent").unwrap();
+        writer.start_file(FILE_NAME, FileOptions::default()).unwrap();
+        writer.write_all(FILE_CONTENT).unwrap();
         writer.finish().unwrap()
+    }
+
+    fn assert_contains(haystack: &str, needle: &str) {
+        assert!(haystack.contains(needle), "{} is not found in {}", needle, haystack);
     }
 
     #[test]
@@ -112,6 +127,12 @@ mod tests {
             sections.eocd_offset,
             (cursor.get_ref().len() - EOCD_SIZE_WITHOUT_COMMENT) as u32
         );
+    }
+
+    #[test]
+    fn test_read_file() {
+        let file = read_file(create_test_zip(), FILE_NAME).unwrap();
+        assert_eq!(file.as_slice(), FILE_CONTENT);
     }
 
     #[test]
@@ -130,25 +151,5 @@ mod tests {
         let res = zip_sections(Cursor::new([pre_eocd, cd, eocd].concat()));
         assert!(res.is_err());
         assert_contains(&res.err().unwrap().to_string(), "Invalid ZIP: offset should be 0");
-    }
-
-    #[test]
-    fn test_zip_sections_with_apk() {
-        let mut reader = File::open("tests/data/v3-only-with-stamp.apk").unwrap();
-        let sections = zip_sections(&mut reader).unwrap();
-
-        // Checks Central directory.
-        assert_eq!(
-            sections.central_directory_offset + sections.central_directory_size,
-            sections.eocd_offset
-        );
-
-        // Checks EOCD.
-        reader.seek(SeekFrom::Start(sections.eocd_offset as u64)).unwrap();
-        assert_eq!(reader.read_u32::<LittleEndian>().unwrap(), EOCD_SIGNATURE);
-        assert_eq!(
-            reader.metadata().unwrap().len(),
-            (sections.eocd_offset + sections.eocd_size) as u64
-        );
     }
 }

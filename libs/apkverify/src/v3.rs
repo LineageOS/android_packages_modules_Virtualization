@@ -29,7 +29,7 @@ use std::path::Path;
 
 use crate::algorithms::SignatureAlgorithmID;
 use crate::bytes_ext::{BytesExt, LengthPrefixed, ReadFromBytes};
-use crate::sigutil::*;
+use crate::sigutil::ApkSections;
 
 pub const APK_SIGNATURE_SCHEME_V3_BLOCK_ID: u32 = 0xf05368c0;
 
@@ -161,7 +161,8 @@ impl Signer {
         // 1. Choose the strongest supported signature algorithm ID from signatures.
         let strongest = self.strongest_signature()?;
 
-        // 2. Verify the corresponding signature from signatures against signed data using public key.
+        // 2. Verify the corresponding signature from signatures against signed data using public
+        // key.
         let verified_signed_data = self.verify_signature(strongest)?;
 
         // 3. Verify the min and max SDK versions in the signed data match those specified for the
@@ -196,8 +197,8 @@ impl Signer {
             hex::encode(digest.digest.as_ref()),
         );
 
-        // 7. Verify that public key of the first certificate of certificates is identical
-        //    to public key.
+        // 7. Verify that public key of the first certificate of certificates is identical to public
+        //    key.
         let cert = verified_signed_data.certificates.first().context("No certificates listed")?;
         let cert = X509::from_der(cert.as_ref())?;
         ensure!(
