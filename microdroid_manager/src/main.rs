@@ -34,12 +34,13 @@ use android_system_virtualization_payload::aidl::android::system::virtualization
 };
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
 use apkverify::{get_public_key_der, verify, V4Signature};
+use apkmanifest::get_manifest_info;
 use binder::Strong;
 use diced_open_dice::OwnedDiceArtifacts;
 use glob::glob;
 use itertools::sorted;
 use libc::VMADDR_CID_HOST;
-use log::{error, info};
+use log::{error, info, warn};
 use keystore2_crypto::ZVec;
 use microdroid_metadata::{write_metadata, Metadata, PayloadMetadata};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
@@ -424,7 +425,7 @@ fn try_run_payload(
     zipfuse.mount(
         MountForExec::Allowed,
         "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:system_file:s0",
-        Path::new("/dev/block/mapper/microdroid-apk"),
+        Path::new(DM_MOUNTED_APK_PATH),
         Path::new(VM_APK_CONTENTS_PATH),
         "microdroid_manager.apk.mounted".to_owned(),
     )?;
@@ -776,14 +777,25 @@ fn get_apk_root_hash_from_idsig<P: AsRef<Path>>(idsig_path: P) -> Result<Box<Roo
 
 fn get_public_key_from_apk(apk: &str, root_hash_trustful: bool) -> Result<Box<[u8]>> {
     let current_sdk = get_current_sdk()?;
-    if !root_hash_trustful {
+
+    let public_key_der = if !root_hash_trustful {
         verify(apk, current_sdk).context(MicrodroidError::PayloadVerificationFailed(format!(
             "failed to verify {}",
             apk
-        )))
+        )))?
     } else {
-        get_public_key_der(apk, current_sdk)
-    }
+        get_public_key_der(apk, current_sdk)?
+    };
+
+    match get_manifest_info(apk) {
+        Ok(manifest_info) => {
+            // TODO (b/299591171): Do something with this info
+            info!("Manifest info is {manifest_info:?}")
+        }
+        Err(e) => warn!("Failed to read manifest info from APK: {e:?}"),
+    };
+
+    Ok(public_key_der)
 }
 
 fn get_current_sdk() -> Result<u32> {

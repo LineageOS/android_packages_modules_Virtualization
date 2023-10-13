@@ -17,7 +17,10 @@
 use apkverify::{
     get_apk_digest, get_public_key_der, testing::assert_contains, verify, SignatureAlgorithmID,
 };
+use apkzip::zip_sections;
+use byteorder::{LittleEndian, ReadBytesExt};
 use log::info;
+use std::io::{Seek, SeekFrom};
 use std::{fs, matches, path::Path};
 
 const KEY_NAMES_DSA: &[&str] = &["1024", "2048", "3072"];
@@ -34,6 +37,28 @@ fn setup() {
             .with_min_level(log::Level::Info),
     );
     info!("Test starting");
+}
+
+#[test]
+fn test_zip_sections_with_apk() {
+    let mut reader = fs::File::open("tests/data/v3-only-with-stamp.apk").unwrap();
+    let sections = zip_sections(&mut reader).unwrap();
+
+    // Checks Central directory.
+    assert_eq!(
+        sections.central_directory_offset + sections.central_directory_size,
+        sections.eocd_offset
+    );
+
+    // Checks EOCD.
+    const EOCD_SIGNATURE: u32 = 0x06054b50;
+
+    reader.seek(SeekFrom::Start(sections.eocd_offset as u64)).unwrap();
+    assert_eq!(reader.read_u32::<LittleEndian>().unwrap(), EOCD_SIGNATURE);
+    assert_eq!(
+        reader.metadata().unwrap().len(),
+        (sections.eocd_offset + sections.eocd_size) as u64
+    );
 }
 
 #[test]
@@ -284,7 +309,7 @@ fn validate_apk_digest<P: AsRef<Path>>(apk_path: P, expected_algorithm_id: Signa
     let apk = fs::File::open(&apk_path).expect("Unabled to open apk file");
 
     let (verified_algorithm_id, verified_digest) =
-        get_apk_digest(&apk, SDK_INT, /*verify=*/ true)
+        get_apk_digest(&apk, SDK_INT, /* verify= */ true)
             .expect("Error when extracting apk digest with verification.");
 
     assert_eq!(expected_algorithm_id, verified_algorithm_id);
@@ -292,7 +317,7 @@ fn validate_apk_digest<P: AsRef<Path>>(apk_path: P, expected_algorithm_id: Signa
     assert_bytes_eq_to_data_in_file(&verified_digest, expected_digest_path);
 
     let (unverified_algorithm_id, unverified_digest) =
-        get_apk_digest(&apk, SDK_INT, /*verify=*/ false)
+        get_apk_digest(&apk, SDK_INT, /* verify= */ false)
             .expect("Error when extracting apk digest without verification.");
     assert_eq!(expected_algorithm_id, unverified_algorithm_id);
     assert_eq!(verified_digest, unverified_digest);

@@ -17,6 +17,7 @@
 //! Utilities for Signature Verification
 
 use anyhow::{anyhow, ensure, Error, Result};
+use apkzip::{set_central_directory_offset, zip_sections};
 use byteorder::{LittleEndian, ReadBytesExt};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use openssl::hash::{DigestBytes, Hasher, MessageDigest};
@@ -24,7 +25,6 @@ use std::cmp::min;
 use std::io::{self, Cursor, ErrorKind, Read, Seek, SeekFrom, Take};
 
 use crate::algorithms::SignatureAlgorithmID;
-use crate::ziputil::{set_central_directory_offset, zip_sections};
 
 const APK_SIG_BLOCK_MIN_SIZE: u32 = 32;
 const APK_SIG_BLOCK_MAGIC: u128 = 0x3234206b636f6c4220676953204b5041;
