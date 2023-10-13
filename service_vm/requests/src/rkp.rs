@@ -25,7 +25,7 @@ use bssl_avf::EcKey;
 use ciborium::{cbor, value::Value};
 use core::result;
 use coset::{iana, AsCborValue, CoseSign1, CoseSign1Builder, HeaderBuilder};
-use diced_open_dice::{kdf, keypair_from_seed, sign, DiceArtifacts, PrivateKey};
+use diced_open_dice::{derive_cdi_leaf_priv, kdf, sign, DiceArtifacts, PrivateKey};
 use log::error;
 use service_vm_comm::{EcdsaP256KeyPair, GenerateCertificateRequestParams, RequestProcessingError};
 use zeroize::Zeroizing;
@@ -126,11 +126,6 @@ fn build_signed_data(payload: &Value, dice_artifacts: &dyn DiceArtifacts) -> Res
         .try_create_signature(&[], |message| sign_message(message, &cdi_leaf_priv))?
         .build();
     Ok(signed_data)
-}
-
-fn derive_cdi_leaf_priv(dice_artifacts: &dyn DiceArtifacts) -> diced_open_dice::Result<PrivateKey> {
-    let (_, private_key) = keypair_from_seed(dice_artifacts.cdi_attest())?;
-    Ok(private_key)
 }
 
 fn sign_message(message: &[u8], private_key: &PrivateKey) -> Result<Vec<u8>> {
