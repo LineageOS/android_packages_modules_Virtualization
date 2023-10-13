@@ -1,0 +1,31 @@
+; Configuration Descriptor used in the DICE node that describes the payload of a Microdroid virtual
+; machine.
+;
+; See the Open DICE specification
+; https://pigweed.googlesource.com/open-dice/+/HEAD/docs/specification.md,
+; and the Android Profile for DICE
+; https://pigweed.googlesource.com/open-dice/+/HEAD/docs/android.md.
+;
+; CDDL for the normal Configuration Descriptor can be found at
+; https://cs.android.com/android/platform/superproject/main/+/main:hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/generateCertificateRequestV2.cddl
+
+; The configuration descriptor node for a Microdroid VM, with extensions to describe the contents
+; of the VM payload.
+VmConfigDescriptor = {
+    -70002 : "Microdroid payload",      ; Component name
+    (? -71000: tstr //                  ; Path to the payload config file
+    ? -71001: PayloadConfig),
+    ? -71002: [+ SubcomponentDescriptor],
+}
+
+PayloadConfig = {
+    1: tstr                             ; Path to the binary file where payload execution starts
+}
+
+; Describes a unit of code (e.g. an APK or an APEX) present inside the VM.
+SubcomponentDescriptor = {
+  1: tstr,                              ; Component name
+  2: uint,                              ; Security version
+  ? 3: bstr,                            ; Code hash
+  4: bstr,                              ; Authority hash
+}

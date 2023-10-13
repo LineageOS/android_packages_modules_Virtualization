@@ -38,11 +38,11 @@ impl Error for DiceError {}
 impl fmt::Display for DiceError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::InvalidInput => write!(f, "invalid input"),
+            Self::InvalidInput => write!(f, "Invalid input"),
             Self::BufferTooSmall(buffer_required_size) => {
-                write!(f, "buffer too small. Required {buffer_required_size} bytes.")
+                write!(f, "Buffer too small; need {buffer_required_size} bytes")
             }
-            Self::PlatformError => write!(f, "platform error"),
+            Self::PlatformError => write!(f, "Platform error"),
         }
     }
 }
