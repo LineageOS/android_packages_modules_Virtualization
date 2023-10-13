@@ -21,11 +21,11 @@ use core::result;
 use log::{info, warn};
 use static_assertions::const_assert_eq;
 use vmbase::util::RangeExt;
-use zerocopy::{FromBytes, LayoutVerified};
+use zerocopy::{FromBytes, FromZeroes, LayoutVerified};
 
 /// Configuration data header.
 #[repr(C, packed)]
-#[derive(Clone, Copy, Debug, FromBytes)]
+#[derive(Clone, Copy, Debug, FromZeroes, FromBytes)]
 struct Header {
     /// Magic number; must be `Header::MAGIC`.
     magic: u32,
@@ -127,7 +127,7 @@ impl Entry {
 }
 
 #[repr(packed)]
-#[derive(Clone, Copy, Debug, FromBytes)]
+#[derive(Clone, Copy, Debug, FromZeroes, FromBytes)]
 struct HeaderEntry {
     offset: u32,
     size: u32,
@@ -147,7 +147,7 @@ impl HeaderEntry {
 }
 
 #[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Eq, FromBytes, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, FromZeroes, FromBytes, PartialEq)]
 pub struct Version {
     minor: u16,
     major: u16,
