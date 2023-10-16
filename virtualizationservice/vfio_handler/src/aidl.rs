@@ -239,7 +239,7 @@ fn get_dt_table_header(file: &mut File) -> binder::Result<DtTableHeader> {
     if dt_table_header.magic.get() != DT_TABLE_MAGIC
         || dt_table_header.header_size.get() as usize != size_of::<DtTableHeader>()
     {
-        return Err(anyhow!("DtTableHeader is invalid")).or_service_specific_exception(-1)?;
+        return Err(anyhow!("DtTableHeader is invalid")).or_service_specific_exception(-1);
     }
     Ok(dt_table_header)
 }
@@ -250,7 +250,7 @@ fn get_dt_table_entry(
     index: u32,
 ) -> binder::Result<DtTableEntry> {
     if index >= header.dt_entry_count.get() {
-        return Err(anyhow!("Invalid dtbo index {index}")).or_service_specific_exception(-1)?;
+        return Err(anyhow!("Invalid dtbo index {index}")).or_service_specific_exception(-1);
     }
     let Some(prev_dt_entry_total_size) = header.dt_entry_size.get().checked_mul(index) else {
         return Err(anyhow!("Unexpected arithmetic result"))
