@@ -53,7 +53,7 @@ impl<'a> ArtifactSigner<'a> {
 
         let file = File::open(path).with_context(|| format!("Opening {}", path.display()))?;
         let digest = fsverity::measure(file.as_fd())?;
-        let digest = to_hex_string(&digest);
+        let digest = hex::encode(digest);
 
         self.file_digests.push((target_path.to_owned(), digest));
         Ok(())
@@ -81,8 +81,4 @@ impl<'a> ArtifactSigner<'a> {
 
         Ok(())
     }
-}
-
-fn to_hex_string(buf: &[u8]) -> String {
-    buf.iter().map(|b| format!("{:02x}", b)).collect()
 }
