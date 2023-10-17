@@ -100,7 +100,16 @@ impl<H: Hal, T: Transport> VsockStream<H, T> {
     }
 
     fn recv(&mut self, buffer: &mut [u8]) -> virtio_drivers::Result<usize> {
-        self.connection_manager.recv(self.peer_addr, self.peer_addr.port, buffer)
+        let bytes_read =
+            self.connection_manager.recv(self.peer_addr, self.peer_addr.port, buffer)?;
+
+        let buffer_available_bytes = self
+            .connection_manager
+            .recv_buffer_available_bytes(self.peer_addr, self.peer_addr.port)?;
+        if buffer_available_bytes == 0 && bytes_read > 0 {
+            self.connection_manager.update_credit(self.peer_addr, self.peer_addr.port)?;
+        }
+        Ok(bytes_read)
     }
 
     fn wait_for_send(&mut self, buffer: &[u8]) -> virtio_drivers::Result {
