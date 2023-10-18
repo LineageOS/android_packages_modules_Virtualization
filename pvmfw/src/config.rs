@@ -16,8 +16,10 @@
 
 use core::fmt;
 use core::mem;
+use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::result;
+use core::slice;
 use log::{info, warn};
 use static_assertions::const_assert_eq;
 use vmbase::util::RangeExt;
@@ -53,6 +55,8 @@ pub enum Error {
     MissingEntry(Entry),
     /// Range described by entry does not fit within config data.
     EntryOutOfBounds(Entry, Range<usize>, Range<usize>),
+    /// Entries are in out of order
+    EntryOutOfOrder,
 }
 
 impl fmt::Display for Error {
@@ -70,6 +74,7 @@ impl fmt::Display for Error {
                     "Entry {entry:?} out of bounds: {range:#x?} must be within range {limits:#x?}"
                 )
             }
+            Self::EntryOutOfOrder => write!(f, "Entries are out of order"),
         }
     }
 }
@@ -133,19 +138,6 @@ struct HeaderEntry {
     size: u32,
 }
 
-impl HeaderEntry {
-    pub fn as_range(&self) -> Option<Range<usize>> {
-        let size = usize::try_from(self.size).unwrap();
-        if size != 0 {
-            let offset = self.offset.try_into().unwrap();
-            // Allow overflows here for the Range to properly describe the entry (validated later).
-            Some(offset..(offset + size))
-        } else {
-            None
-        }
-    }
-}
-
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, Eq, FromZeroes, FromBytes, PartialEq)]
 pub struct Version {
@@ -161,10 +153,38 @@ impl fmt::Display for Version {
     }
 }
 
+/// Range with non-empty length.
+#[derive(Debug, Copy, Clone)]
+struct NonEmptyRange {
+    start: usize,
+    size: NonZeroUsize,
+}
+
+impl NonEmptyRange {
+    pub fn new(start: usize, size: usize) -> Option<Self> {
+        // Ensure end() is safe.
+        start.checked_add(size).unwrap();
+
+        Some(Self { start, size: NonZeroUsize::new(size)? })
+    }
+
+    fn end(&self) -> usize {
+        self.start + self.len()
+    }
+
+    fn len(&self) -> usize {
+        self.size.into()
+    }
+
+    fn as_range(&self) -> Range<usize> {
+        self.start..self.end()
+    }
+}
+
 #[derive(Debug)]
 pub struct Config<'a> {
     body: &'a mut [u8],
-    ranges: [Option<Range<usize>>; Entry::COUNT],
+    ranges: [Option<NonEmptyRange>; Entry::COUNT],
 }
 
 impl<'a> Config<'a> {
@@ -209,68 +229,64 @@ impl<'a> Config<'a> {
         // Validate that we won't get an invalid alignment in the following due to padding to u64.
         const_assert_eq!(mem::size_of::<HeaderEntry>() % mem::size_of::<u64>(), 0);
 
+        // Ensure entries are in the body.
         let limits = header.body_lowest_bound()?..total_size;
-        let ranges = [
-            // TODO: Find a way to do this programmatically even if the trait
-            // `core::marker::Copy` is not implemented for `core::ops::Range<usize>`.
-            Self::validated_body_range(Entry::Bcc, &header_entries, &limits)?,
-            Self::validated_body_range(Entry::DebugPolicy, &header_entries, &limits)?,
-            Self::validated_body_range(Entry::VmDtbo, &header_entries, &limits)?,
-        ];
+        let mut ranges: [Option<NonEmptyRange>; Entry::COUNT] = [None; Entry::COUNT];
+        let mut last_end = 0;
+        for entry in [Entry::Bcc, Entry::DebugPolicy, Entry::VmDtbo] {
+            let Some(header_entry) = header_entries.get(entry as usize) else { continue };
+            let entry_offset = header_entry.offset.try_into().unwrap();
+            let entry_size = header_entry.size.try_into().unwrap();
+            let Some(range) = NonEmptyRange::new(entry_offset, entry_size) else { continue };
+            let range = range.as_range();
+            if !range.is_within(&limits) {
+                return Err(Error::EntryOutOfBounds(entry, range, limits));
+            }
+
+            if last_end > range.start {
+                return Err(Error::EntryOutOfOrder);
+            }
+            last_end = range.end;
+
+            ranges[entry as usize] = NonEmptyRange::new(
+                entry_offset - limits.start, // is_within() validates safety of this.
+                entry_size,
+            );
+        }
+        // Ensures that BCC exists.
+        ranges[Entry::Bcc as usize].ok_or(Error::MissingEntry(Entry::Bcc))?;
 
         Ok(Self { body, ranges })
     }
 
     /// Get slice containing the platform BCC.
-    pub fn get_entries(&mut self) -> Result<(&mut [u8], Option<&mut [u8]>)> {
+    pub fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>) {
         // This assumes that the blobs are in-order w.r.t. the entries.
-        let bcc_range = self.get_entry_range(Entry::Bcc).ok_or(Error::MissingEntry(Entry::Bcc))?;
+        let bcc_range = self.get_entry_range(Entry::Bcc);
         let dp_range = self.get_entry_range(Entry::DebugPolicy);
         let vm_dtbo_range = self.get_entry_range(Entry::VmDtbo);
         // TODO(b/291191157): Provision device assignment with this.
         if let Some(vm_dtbo_range) = vm_dtbo_range {
             info!("Found VM DTBO at {:?}", vm_dtbo_range);
         }
-        let bcc_start = bcc_range.start;
-        let bcc_end = bcc_range.len();
-        let (_, rest) = self.body.split_at_mut(bcc_start);
-        let (bcc, rest) = rest.split_at_mut(bcc_end);
 
-        let dp = if let Some(dp_range) = dp_range {
-            let dp_start = dp_range.start.checked_sub(bcc_range.end).unwrap();
-            let dp_end = dp_range.len();
-            let (_, rest) = rest.split_at_mut(dp_start);
-            let (dp, _) = rest.split_at_mut(dp_end);
-            Some(dp)
-        } else {
-            None
-        };
-
-        Ok((bcc, dp))
-    }
-
-    pub fn get_entry_range(&self, entry: Entry) -> Option<Range<usize>> {
-        self.ranges[entry as usize].clone()
-    }
-
-    fn validated_body_range(
-        entry: Entry,
-        header_entries: &[HeaderEntry],
-        limits: &Range<usize>,
-    ) -> Result<Option<Range<usize>>> {
-        if let Some(header_entry) = header_entries.get(entry as usize) {
-            if let Some(r) = header_entry.as_range() {
-                return if r.start <= r.end && r.is_within(limits) {
-                    let start = r.start - limits.start;
-                    let end = r.end - limits.start;
-
-                    Ok(Some(start..end))
-                } else {
-                    Err(Error::EntryOutOfBounds(entry, r, limits.clone()))
-                };
-            }
+        // SAFETY: When instantiate, ranges are validated to be in the body range without
+        // overlapping.
+        unsafe {
+            let ptr = self.body.as_mut_ptr() as usize;
+            (
+                Self::from_raw_range_mut(ptr, bcc_range.unwrap()),
+                dp_range.map(|dp_range| Self::from_raw_range_mut(ptr, dp_range)),
+            )
         }
+    }
 
-        Ok(None)
+    fn get_entry_range(&self, entry: Entry) -> Option<NonEmptyRange> {
+        self.ranges[entry as usize]
+    }
+
+    unsafe fn from_raw_range_mut(ptr: usize, range: NonEmptyRange) -> &'a mut [u8] {
+        // SAFETY: The caller must ensure that the range is valid from ptr.
+        unsafe { slice::from_raw_parts_mut((ptr + range.start) as *mut u8, range.end()) }
     }
 }
