@@ -8,8 +8,8 @@ VM.
 Note that only native code is supported in Microdroid, so no Java APIs are
 available in the VM, and only 64 bit code is supported.
 
-To create a VM and run the payload from Android, see
-[android.system.virtualmachine.VirtualMachineManager](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/javalib/src/android/system/virtualmachine/VirtualMachineManager.java).
+To create a VM and run the payload from Android see the [AVF Java
+APIs](../javalib/README.md).
 
 ## Entry point
 
