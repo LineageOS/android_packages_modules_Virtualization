@@ -14,12 +14,16 @@
 
 //! Utility functions for CBOR serialization/deserialization.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 use alloc::vec::Vec;
 use coset::{CoseError, Result};
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Serializes the given data to a CBOR-encoded byte vector.
-pub(crate) fn serialize<T: ?Sized + Serialize>(v: &T) -> Result<Vec<u8>> {
+pub fn serialize<T: ?Sized + Serialize>(v: &T) -> Result<Vec<u8>> {
     let mut data = Vec::new();
     ciborium::into_writer(v, &mut data)?;
     Ok(data)
@@ -27,7 +31,7 @@ pub(crate) fn serialize<T: ?Sized + Serialize>(v: &T) -> Result<Vec<u8>> {
 
 /// Deserializes the given type from a CBOR-encoded byte slice, failing if any extra
 /// data remains after the type has been read.
-pub(crate) fn deserialize<T: DeserializeOwned>(mut data: &[u8]) -> Result<T> {
+pub fn deserialize<T: DeserializeOwned>(mut data: &[u8]) -> Result<T> {
     let res = ciborium::from_reader(&mut data)?;
     if data.is_empty() {
         Ok(res)
