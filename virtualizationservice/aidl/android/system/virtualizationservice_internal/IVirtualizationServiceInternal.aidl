@@ -25,7 +25,7 @@ import android.system.virtualizationservice_internal.IGlobalVmContext;
 interface IVirtualizationServiceInternal {
     parcelable BoundDevice {
         String sysfsPath;
-        String dtboNode;
+        String dtboLabel;
     }
     /**
      * Removes the memlock rlimit of the calling process.
