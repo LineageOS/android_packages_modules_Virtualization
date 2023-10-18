@@ -15,7 +15,6 @@
 //! This module contains functions related to the attestation of the
 //! service VM via the RKP (Remote Key Provisioning) server.
 
-use crate::cbor;
 use crate::keyblob::EncryptedKeyBlob;
 use crate::pub_key::{build_maced_public_key, validate_public_key};
 use alloc::string::String;
@@ -51,7 +50,8 @@ pub(super) fn generate_ecdsa_p256_key_pair(
     let key_blob =
         EncryptedKeyBlob::new(ec_key.private_key()?.as_slice(), dice_artifacts.cdi_seal())?;
 
-    let key_pair = EcdsaP256KeyPair { maced_public_key, key_blob: key_blob.to_cbor_vec()? };
+    let key_pair =
+        EcdsaP256KeyPair { maced_public_key, key_blob: cbor_util::serialize(&key_blob)? };
     Ok(key_pair)
 }
 
@@ -81,7 +81,7 @@ pub(super) fn generate_certificate_request(
         // TODO(b/299256925): Add device info in CBOR format here.
         Value::Array(public_keys),
     ])?;
-    let csr_payload = cbor::serialize(&csr_payload)?;
+    let csr_payload = cbor_util::serialize(&csr_payload)?;
 
     // Builds `SignedData`.
     let signed_data_payload =
@@ -93,14 +93,14 @@ pub(super) fn generate_certificate_request(
     // Check http://b/301574013#comment3 for more information.
     let uds_certs = Value::Map(Vec::new());
     let dice_cert_chain = dice_artifacts.bcc().ok_or(RequestProcessingError::MissingDiceChain)?;
-    let dice_cert_chain: Value = cbor::deserialize(dice_cert_chain)?;
+    let dice_cert_chain: Value = cbor_util::deserialize(dice_cert_chain)?;
     let auth_req = cbor!([
         Value::Integer(AUTH_REQ_SCHEMA_V1.into()),
         uds_certs,
         dice_cert_chain,
         signed_data,
     ])?;
-    Ok(cbor::serialize(&auth_req)?)
+    Ok(cbor_util::serialize(&auth_req)?)
 }
 
 fn derive_hmac_key(dice_artifacts: &dyn DiceArtifacts) -> Result<Zeroizing<[u8; HMAC_KEY_LENGTH]>> {
@@ -122,7 +122,7 @@ fn build_signed_data(payload: &Value, dice_artifacts: &dyn DiceArtifacts) -> Res
     let protected = HeaderBuilder::new().algorithm(signing_algorithm).build();
     let signed_data = CoseSign1Builder::new()
         .protected(protected)
-        .payload(cbor::serialize(payload)?)
+        .payload(cbor_util::serialize(payload)?)
         .try_create_signature(&[], |message| sign_message(message, &cdi_leaf_priv))?
         .build();
     Ok(signed_data)
