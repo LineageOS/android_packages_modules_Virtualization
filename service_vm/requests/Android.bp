@@ -18,6 +18,7 @@ rust_defaults {
     rustlibs: [
         "libbssl_avf_error_nostd",
         "libbssl_avf_nostd",
+        "libcbor_util_nostd",
         "libciborium_nostd",
         "libcoset_nostd",
         "libdiced_open_dice_nostd",
