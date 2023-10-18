@@ -19,7 +19,6 @@
 extern crate alloc;
 
 mod api;
-mod cbor;
 mod keyblob;
 mod pub_key;
 mod rkp;

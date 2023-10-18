@@ -14,7 +14,6 @@
 
 //! Handles the encryption and decryption of the key blob.
 
-use crate::cbor;
 use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf::{hkdf, rand_bytes, Aead, AeadContext, Digester, AES_GCM_NONCE_LENGTH};
@@ -69,16 +68,6 @@ impl EncryptedKeyBlob {
         match self {
             Self::V1(blob) => blob.decrypt_private_key(kek_secret),
         }
-    }
-
-    // TODO(b/241428146): This function will be used once the retrieval mechanism is available.
-    #[cfg(test)]
-    pub(crate) fn from_cbor_slice(slice: &[u8]) -> coset::Result<Self> {
-        cbor::deserialize(slice)
-    }
-
-    pub(crate) fn to_cbor_vec(&self) -> coset::Result<Vec<u8>> {
-        cbor::serialize(&self)
     }
 }
 
@@ -136,8 +125,9 @@ mod tests {
 
     #[test]
     fn decrypting_keyblob_succeeds_with_the_same_kek() -> Result<()> {
-        let encrypted_key_blob = EncryptedKeyBlob::new(&TEST_KEY, &TEST_SECRET1)?.to_cbor_vec()?;
-        let encrypted_key_blob = EncryptedKeyBlob::from_cbor_slice(&encrypted_key_blob)?;
+        let encrypted_key_blob =
+            cbor_util::serialize(&EncryptedKeyBlob::new(&TEST_KEY, &TEST_SECRET1)?)?;
+        let encrypted_key_blob: EncryptedKeyBlob = cbor_util::deserialize(&encrypted_key_blob)?;
         let decrypted_key = encrypted_key_blob.decrypt_private_key(&TEST_SECRET1)?;
 
         assert_eq!(TEST_KEY, decrypted_key.as_slice());
@@ -146,8 +136,9 @@ mod tests {
 
     #[test]
     fn decrypting_keyblob_fails_with_a_different_kek() -> Result<()> {
-        let encrypted_key_blob = EncryptedKeyBlob::new(&TEST_KEY, &TEST_SECRET1)?.to_cbor_vec()?;
-        let encrypted_key_blob = EncryptedKeyBlob::from_cbor_slice(&encrypted_key_blob)?;
+        let encrypted_key_blob =
+            cbor_util::serialize(&EncryptedKeyBlob::new(&TEST_KEY, &TEST_SECRET1)?)?;
+        let encrypted_key_blob: EncryptedKeyBlob = cbor_util::deserialize(&encrypted_key_blob)?;
         let err = encrypted_key_blob.decrypt_private_key(&TEST_SECRET2).unwrap_err();
 
         let expected_err: RequestProcessingError =
