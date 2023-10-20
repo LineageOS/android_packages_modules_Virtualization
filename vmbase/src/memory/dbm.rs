@@ -52,14 +52,10 @@ fn dbm_available() -> bool {
 /// Flushes a memory range the descriptor refers to, if the descriptor is in writable-dirty state.
 pub(super) fn flush_dirty_range(
     va_range: &MemoryRegion,
-    desc: &mut Descriptor,
-    level: usize,
+    desc: &Descriptor,
+    _level: usize,
 ) -> Result<(), ()> {
-    // Only flush ranges corresponding to dirty leaf PTEs.
     let flags = desc.flags().ok_or(())?;
-    if !is_leaf_pte(&flags, level) {
-        return Ok(());
-    }
     if !flags.contains(Attributes::READ_ONLY) {
         flush_region(va_range.start().0, va_range.len());
     }

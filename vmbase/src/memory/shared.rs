@@ -16,12 +16,14 @@
 
 use super::dbm::{flush_dirty_range, mark_dirty_block, set_dbm_enabled};
 use super::error::MemoryTrackerError;
-use super::page_table::{is_leaf_pte, PageTable, MMIO_LAZY_MAP_FLAG};
+use super::page_table::{PageTable, MMIO_LAZY_MAP_FLAG};
 use super::util::{page_4kb_of, virt_to_phys};
 use crate::dsb;
 use crate::exceptions::HandleExceptionError;
 use crate::util::RangeExt as _;
-use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion as VaRange, VirtualAddress};
+use aarch64_paging::paging::{
+    Attributes, Descriptor, MemoryRegion as VaRange, VirtualAddress, BITS_PER_LEVEL, PAGE_SIZE,
+};
 use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -253,7 +255,7 @@ impl MemoryTracker {
         if get_mmio_guard().is_some() {
             for range in &self.mmio_regions {
                 self.page_table
-                    .modify_range(&get_va_range(range), &mmio_guard_unmap_page)
+                    .walk_range(&get_va_range(range), &mmio_guard_unmap_page)
                     .map_err(|_| MemoryTrackerError::FailedToUnmap)?;
             }
         }
@@ -350,7 +352,7 @@ impl MemoryTracker {
         // Now flush writable-dirty pages in those regions.
         for range in writable_regions.chain(self.payload_range.as_ref().into_iter()) {
             self.page_table
-                .modify_range(&get_va_range(range), &flush_dirty_range)
+                .walk_range(&get_va_range(range), &flush_dirty_range)
                 .map_err(|_| MemoryTrackerError::FlushRegionFailed)?;
         }
         Ok(())
@@ -480,13 +482,10 @@ impl Drop for MemorySharer {
 /// MMIO guard unmaps page
 fn mmio_guard_unmap_page(
     va_range: &VaRange,
-    desc: &mut Descriptor,
+    desc: &Descriptor,
     level: usize,
 ) -> result::Result<(), ()> {
     let flags = desc.flags().expect("Unsupported PTE flags set");
-    if !is_leaf_pte(&flags, level) {
-        return Ok(());
-    }
     // This function will be called on an address range that corresponds to a device. Only if a
     // page has been accessed (written to or read from), will it contain the VALID flag and be MMIO
     // guard mapped. Therefore, we can skip unmapping invalid pages, they were never MMIO guard
@@ -496,9 +495,11 @@ fn mmio_guard_unmap_page(
             flags.contains(MMIO_LAZY_MAP_FLAG),
             "Attempting MMIO guard unmap for non-device pages"
         );
+        const MMIO_GUARD_GRANULE_SHIFT: u32 = MMIO_GUARD_GRANULE_SIZE.ilog2() - PAGE_SIZE.ilog2();
+        const MMIO_GUARD_GRANULE_LEVEL: usize =
+            3 - (MMIO_GUARD_GRANULE_SHIFT as usize / BITS_PER_LEVEL);
         assert_eq!(
-            va_range.len(),
-            MMIO_GUARD_GRANULE_SIZE,
+            level, MMIO_GUARD_GRANULE_LEVEL,
             "Failed to break down block mapping before MMIO guard mapping"
         );
         let page_base = va_range.start().0;
