@@ -39,5 +39,5 @@ enum ErrorCode {
     /**
      * Error code indicating that the payload config is invalid.
      */
-    PAYLOAD_CONFIG_INVALID = 3,
+    PAYLOAD_INVALID_CONFIG = 3,
 }
