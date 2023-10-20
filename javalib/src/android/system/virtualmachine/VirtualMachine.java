@@ -1382,7 +1382,7 @@ public class VirtualMachine implements AutoCloseable {
                     return ERROR_PAYLOAD_VERIFICATION_FAILED;
                 case ErrorCode.PAYLOAD_CHANGED:
                     return ERROR_PAYLOAD_CHANGED;
-                case ErrorCode.PAYLOAD_CONFIG_INVALID:
+                case ErrorCode.PAYLOAD_INVALID_CONFIG:
                     return ERROR_PAYLOAD_INVALID_CONFIG;
                 default:
                     return ERROR_UNKNOWN;
