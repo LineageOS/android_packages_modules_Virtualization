@@ -765,16 +765,22 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
 
         // Check if the native library in the APK is has correct filesystem info
         final String[] abis = microdroid.run("getprop", "ro.product.cpu.abilist").split(",");
-        assertThat(abis).hasLength(1);
+        assertWithMessage("Incorrect ABI list").that(abis).hasLength(1);
 
         // Check that no denials have happened so far
-        assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", LOG_PATH)).isNull();
-        assertThat(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", CONSOLE_PATH)).isNull();
+        assertWithMessage("Unexpected denials during VM boot")
+                .that(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", LOG_PATH))
+                .isNull();
+        assertWithMessage("Unexpected denials during VM boot")
+                .that(android.tryRun("egrep", "'avc:[[:space:]]{1,2}denied'", CONSOLE_PATH))
+                .isNull();
 
         assertThat(getDeviceNumCpus(microdroid)).isEqualTo(getDeviceNumCpus(android));
 
         // Check that selinux is enabled
-        assertThat(microdroid.run("getenforce")).isEqualTo("Enforcing");
+        assertWithMessage("SELinux should be in enforcing mode")
+                .that(microdroid.run("getenforce"))
+                .isEqualTo("Enforcing");
 
         // TODO(b/176805428): adb is broken for nested VM
         if (!isCuttlefish()) {
