@@ -16,7 +16,7 @@
 
 use crate::read_sysreg;
 use aarch64_paging::idmap::IdMap;
-use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion, PteUpdater};
+use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion};
 use aarch64_paging::MapError;
 use core::result;
 
@@ -124,7 +124,10 @@ impl PageTable {
 
     /// Applies the provided updater function to a number of PTEs corresponding to a given memory
     /// range.
-    pub fn modify_range(&mut self, range: &MemoryRegion, f: &PteUpdater) -> Result<()> {
+    pub fn modify_range<F>(&mut self, range: &MemoryRegion, f: &F) -> Result<()>
+    where
+        F: Fn(&MemoryRegion, &mut Descriptor, usize) -> result::Result<(), ()>,
+    {
         self.idmap.modify_range(range, f)
     }
 
