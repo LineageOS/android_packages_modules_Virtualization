@@ -92,7 +92,7 @@ enum MicrodroidError {
     #[error("Payload verification has failed: {0}")]
     PayloadVerificationFailed(String),
     #[error("Payload config is invalid: {0}")]
-    InvalidConfig(String),
+    PayloadInvalidConfig(String),
 }
 
 fn translate_error(err: &Error) -> (ErrorCode, String) {
@@ -102,8 +102,8 @@ fn translate_error(err: &Error) -> (ErrorCode, String) {
             MicrodroidError::PayloadVerificationFailed(msg) => {
                 (ErrorCode::PAYLOAD_VERIFICATION_FAILED, msg.to_string())
             }
-            MicrodroidError::InvalidConfig(msg) => {
-                (ErrorCode::PAYLOAD_CONFIG_INVALID, msg.to_string())
+            MicrodroidError::PayloadInvalidConfig(msg) => {
+                (ErrorCode::PAYLOAD_INVALID_CONFIG, msg.to_string())
             }
 
             // Connection failure won't be reported to VS; return the default value
@@ -126,7 +126,7 @@ fn write_death_reason_to_serial(err: &Error) -> Result<()> {
             MicrodroidError::PayloadVerificationFailed(_) => {
                 "MICRODROID_PAYLOAD_VERIFICATION_FAILED"
             }
-            MicrodroidError::InvalidConfig(_) => "MICRODROID_INVALID_PAYLOAD_CONFIG",
+            MicrodroidError::PayloadInvalidConfig(_) => "MICRODROID_INVALID_PAYLOAD_CONFIG",
         })
     } else {
         // Send context information back after a separator, to ease diagnosis.
@@ -326,12 +326,14 @@ fn try_run_payload(
         if is_new_instance() {
             ensure!(
                 saved_data.is_none(),
-                MicrodroidError::InvalidConfig("Found instance data on first boot.".to_string())
+                MicrodroidError::PayloadInvalidConfig(
+                    "Found instance data on first boot.".to_string()
+                )
             );
         } else {
             ensure!(
                 saved_data.is_some(),
-                MicrodroidError::InvalidConfig("Instance data not found.".to_string())
+                MicrodroidError::PayloadInvalidConfig("Instance data not found.".to_string())
             );
         };
     }
@@ -367,7 +369,7 @@ fn try_run_payload(
     };
 
     let payload_metadata = metadata.payload.ok_or_else(|| {
-        MicrodroidError::InvalidConfig("No payload config in metadata".to_string())
+        MicrodroidError::PayloadInvalidConfig("No payload config in metadata".to_string())
     })?;
 
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
@@ -407,7 +409,7 @@ fn try_run_payload(
     let task = config
         .task
         .as_ref()
-        .ok_or_else(|| MicrodroidError::InvalidConfig("No task in VM config".to_string()))?;
+        .ok_or_else(|| MicrodroidError::PayloadInvalidConfig("No task in VM config".to_string()))?;
 
     ensure!(
         config.extra_apks.len() == verified_data.extra_apks_data.len(),
