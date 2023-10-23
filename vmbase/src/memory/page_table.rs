@@ -16,7 +16,7 @@
 
 use crate::read_sysreg;
 use aarch64_paging::idmap::IdMap;
-use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion};
+use aarch64_paging::paging::{Attributes, Constraints, Descriptor, MemoryRegion};
 use aarch64_paging::MapError;
 use core::result;
 
@@ -107,7 +107,15 @@ impl PageTable {
     /// Maps the given range of virtual addresses to the physical addresses as non-executable,
     /// read-only and writable-clean normal memory.
     pub fn map_data_dbm(&mut self, range: &MemoryRegion) -> Result<()> {
-        self.idmap.map_range(range, DATA_DBM)
+        // Map the region down to pages to minimize the size of the regions that will be marked
+        // dirty once a store hits them, but also to ensure that we can clear the read-only
+        // attribute while the mapping is live without causing break-before-make (BBM) violations.
+        // The latter implies that we must avoid the use of the contiguous hint as well.
+        self.idmap.map_range_with_constraints(
+            range,
+            DATA_DBM,
+            Constraints::NO_BLOCK_MAPPINGS | Constraints::NO_CONTIGUOUS_HINT,
+        )
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as read-only
