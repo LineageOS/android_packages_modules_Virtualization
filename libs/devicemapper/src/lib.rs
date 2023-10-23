@@ -32,12 +32,13 @@
 #![cfg_attr(test, allow(unused))]
 
 use anyhow::{Context, Result};
-use data_model::DataInit;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::size_of;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
+use zerocopy::AsBytes;
+use zerocopy::FromZeroes;
 
 /// Exposes DmCryptTarget & related builder
 pub mod crypt;
@@ -87,7 +88,7 @@ fn dm_dev_remove(dm: &DeviceMapper, ioctl: *mut DmIoctl) -> Result<i32> {
 // `DmTargetSpec` is the header of the data structure for a device-mapper target. When doing the
 // ioctl, one of more `DmTargetSpec` (and its body) are appened to the `DmIoctl` struct.
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, AsBytes, FromZeroes)]
 struct DmTargetSpec {
     sector_start: u64,
     length: u64, // number of 512 sectors
@@ -96,13 +97,9 @@ struct DmTargetSpec {
     target_type: [u8; DM_MAX_TYPE_NAME],
 }
 
-// SAFETY: C struct is safe to be initialized from raw data
-unsafe impl DataInit for DmTargetSpec {}
-
 impl DmTargetSpec {
     fn new(target_type: &str) -> Result<Self> {
-        // safe because the size of the array is the same as the size of the struct
-        let mut spec: Self = *DataInit::from_mut_slice(&mut [0; size_of::<Self>()]).unwrap();
+        let mut spec = Self::new_zeroed();
         spec.target_type.as_mut().write_all(target_type.as_bytes())?;
         Ok(spec)
     }
@@ -110,8 +107,7 @@ impl DmTargetSpec {
 
 impl DmIoctl {
     fn new(name: &str) -> Result<DmIoctl> {
-        // safe because the size of the array is the same as the size of the struct
-        let mut data: Self = *DataInit::from_mut_slice(&mut [0; size_of::<Self>()]).unwrap();
+        let mut data: Self = Self::new_zeroed();
         data.version[0] = DM_VERSION_MAJOR;
         data.version[1] = DM_VERSION_MINOR;
         data.version[2] = DM_VERSION_PATCHLEVEL;
@@ -202,7 +198,7 @@ impl DeviceMapper {
         }
 
         let mut payload = Vec::with_capacity(payload_size);
-        payload.extend_from_slice(data.as_slice());
+        payload.extend_from_slice(data.as_bytes());
         payload.extend_from_slice(target);
         dm_table_load(self, payload.as_mut_ptr() as *mut DmIoctl)
             .context("failed to load table")?;
