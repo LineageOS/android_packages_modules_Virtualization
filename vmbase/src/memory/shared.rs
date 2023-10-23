@@ -319,14 +319,24 @@ impl MemoryTracker {
     /// table entry and MMIO guard mapping the block. Breaks apart a block entry if required.
     fn handle_mmio_fault(&mut self, addr: VirtualAddress) -> Result<()> {
         let page_start = VirtualAddress(page_4kb_of(addr.0));
+        assert_eq!(page_start.0 % MMIO_GUARD_GRANULE_SIZE, 0);
         let page_range: VaRange = (page_start..page_start + MMIO_GUARD_GRANULE_SIZE).into();
         let mmio_guard = get_mmio_guard().unwrap();
+        // This must be safe and free from break-before-make (BBM) violations, given that the
+        // initial lazy mapping has the valid bit cleared, and each newly created valid descriptor
+        // created inside the mapping has the same size and alignment.
         self.page_table
-            .modify_range(&page_range, &verify_lazy_mapped_block)
+            .modify_range(&page_range, &|_: &VaRange, desc: &mut Descriptor, _: usize| {
+                let flags = desc.flags().expect("Unsupported PTE flags set");
+                if flags.contains(MMIO_LAZY_MAP_FLAG) && !flags.contains(Attributes::VALID) {
+                    desc.modify_flags(Attributes::VALID, Attributes::empty());
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            })
             .map_err(|_| MemoryTrackerError::InvalidPte)?;
-        mmio_guard.map(page_start.0)?;
-        // Maps a single device page, breaking up block mappings if necessary.
-        self.page_table.map_device(&page_range).map_err(|_| MemoryTrackerError::FailedToMap)
+        Ok(mmio_guard.map(page_start.0)?)
     }
 
     /// Flush all memory regions marked as writable-dirty.
@@ -464,23 +474,6 @@ impl Drop for MemorySharer {
             // SAFETY: The region was obtained from alloc_zeroed() with the recorded layout.
             unsafe { dealloc(base as *mut _, layout) };
         }
-    }
-}
-
-/// Checks whether block flags indicate it should be MMIO guard mapped.
-fn verify_lazy_mapped_block(
-    _range: &VaRange,
-    desc: &mut Descriptor,
-    level: usize,
-) -> result::Result<(), ()> {
-    let flags = desc.flags().expect("Unsupported PTE flags set");
-    if !is_leaf_pte(&flags, level) {
-        return Ok(()); // Skip table PTEs as they aren't tagged with MMIO_LAZY_MAP_FLAG.
-    }
-    if flags.contains(MMIO_LAZY_MAP_FLAG) && !flags.contains(Attributes::VALID) {
-        Ok(())
-    } else {
-        Err(())
     }
 }
 
