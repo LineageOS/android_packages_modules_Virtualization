@@ -13,10 +13,10 @@ rust_defaults {
         "libanyhow",
         "libbitflags",
         "liblibc",
-        "libdata_model",
         "libhex",
         "libnix",
         "libuuid",
+        "libzerocopy",
     ],
     multilib: {
         lib32: {
