@@ -15,7 +15,8 @@
  */
 
 use bitflags::bitflags;
-use data_model::DataInit;
+use zerocopy::AsBytes;
+use zerocopy::FromZeroes;
 
 // UAPI for device mapper can be found at include/uapi/linux/dm-ioctl.h
 
@@ -44,7 +45,7 @@ pub enum Cmd {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, AsBytes, FromZeroes)]
 pub struct DmIoctl {
     pub version: [u32; 3],
     pub data_size: u32,
@@ -60,9 +61,6 @@ pub struct DmIoctl {
     pub data: [u8; 7],
 }
 
-// SAFETY: C struct is safe to be initialized from raw data
-unsafe impl DataInit for DmIoctl {}
-
 pub const DM_VERSION_MAJOR: u32 = 4;
 pub const DM_VERSION_MINOR: u32 = 0;
 pub const DM_VERSION_PATCHLEVEL: u32 = 0;
@@ -71,10 +69,12 @@ pub const DM_NAME_LEN: usize = 128;
 pub const DM_UUID_LEN: usize = 129;
 pub const DM_MAX_TYPE_NAME: usize = 16;
 
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, AsBytes, FromZeroes)]
+pub struct Flag(u32);
+
 bitflags! {
-    #[repr(transparent)]
-    #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-    pub struct Flag: u32 {
+    impl Flag: u32 {
         const DM_READONLY_FLAG = 1 << 0;
         const DM_SUSPEND_FLAG = 1 << 1;
         const DM_PERSISTENT_DEV_FLAG = 1 << 3;

@@ -25,15 +25,14 @@ mod sys;
 
 use crate::util::*;
 use anyhow::{Context, Result};
-use data_model::DataInit;
 use libc::O_DIRECT;
 use std::fs::{File, OpenOptions};
-use std::mem::size_of;
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
+use zerocopy::FromZeroes;
 
 use crate::loopdevice::sys::*;
 
@@ -122,9 +121,7 @@ fn try_attach<P: AsRef<Path>>(
         .custom_flags(if direct_io { O_DIRECT } else { 0 })
         .open(&path)
         .context(format!("failed to open {:?}", path.as_ref()))?;
-    // safe because the size of the array is the same as the size of the struct
-    let mut config: loop_config =
-        *DataInit::from_mut_slice(&mut [0; size_of::<loop_config>()]).unwrap();
+    let mut config = loop_config::new_zeroed();
     config.fd = backing_file.as_raw_fd() as u32;
     config.block_size = 4096;
     config.info.lo_offset = offset;

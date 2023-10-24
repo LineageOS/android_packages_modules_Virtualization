@@ -20,10 +20,10 @@
 use crate::DmTargetSpec;
 
 use anyhow::{ensure, Context, Result};
-use data_model::DataInit;
 use std::io::Write;
 use std::mem::size_of;
 use std::path::Path;
+use zerocopy::AsBytes;
 
 const SECTOR_SIZE: u64 = 512;
 
@@ -174,7 +174,7 @@ impl<'a> DmCryptTargetBuilder<'a> {
         header.next = aligned_size as u32;
 
         let mut buf = Vec::with_capacity(aligned_size);
-        buf.write_all(header.as_slice())?;
+        buf.write_all(header.as_bytes())?;
         buf.write_all(body.as_bytes())?;
         buf.write_all(vec![0; padding].as_slice())?;
 
