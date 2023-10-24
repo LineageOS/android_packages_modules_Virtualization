@@ -14,7 +14,6 @@ rust_defaults {
         "libapkverify",
         "libbitflags",
         "libclap",
-        "libdata_model",
         "libdm_rust",
         "libitertools",
         "liblibc",
@@ -22,6 +21,7 @@ rust_defaults {
         "libnum_traits",
         "libscopeguard",
         "libuuid",
+        "libzerocopy",
     ],
     proc_macros: ["libnum_derive"],
     multilib: {

@@ -15,7 +15,7 @@
  */
 
 use bitflags::bitflags;
-use data_model::DataInit;
+use zerocopy::FromZeroes;
 
 // This UAPI is copied and converted from include/uapi/linux/loop.h Note that this module doesn't
 // implement all the features introduced in loop(4). Only the features that are required to support
@@ -28,7 +28,7 @@ pub const LOOP_CONFIGURE: libc::c_ulong = 0x4C0A;
 pub const LOOP_CLR_FD: libc::c_ulong = 0x4C01;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromZeroes)]
 pub struct loop_config {
     pub fd: u32,
     pub block_size: u32,
@@ -36,11 +36,8 @@ pub struct loop_config {
     pub reserved: [u64; 8],
 }
 
-// SAFETY: C struct is safe to be initialized from raw data
-unsafe impl DataInit for loop_config {}
-
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, FromZeroes)]
 pub struct loop_info64 {
     pub lo_device: u64,
     pub lo_inode: u64,
@@ -57,13 +54,12 @@ pub struct loop_info64 {
     pub lo_init: [u64; 2],
 }
 
-// SAFETY: C struct is safe to be initialized from raw data
-unsafe impl DataInit for loop_info64 {}
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, FromZeroes)]
+pub struct Flag(u32);
 
 bitflags! {
-    #[repr(transparent)]
-    #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-    pub struct Flag: u32 {
+    impl Flag: u32 {
         const LO_FLAGS_READ_ONLY = 1 << 0;
         const LO_FLAGS_AUTOCLEAR = 1 << 2;
         const LO_FLAGS_PARTSCAN = 1 << 3;
