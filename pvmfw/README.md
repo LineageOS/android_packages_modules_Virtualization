@@ -422,12 +422,25 @@ kernel][soong-udroid]).
 
 For faster iteration, you can build pvmfw, adb-push it to the device, and use
 it directly for a new pVM, without having to flash it to the physical
-partition. To do that, set the system property `hypervisor.pvmfw.path` to point
-to the pvmfw image you pushed as shown below:
+partition. To do that, the binary image composition performed by ABL described
+above must be replicated to produce a single file containing the pvmfw binary
+and its configuration data.
+
+As a quick prototyping solution, a valid BCC (such as the [bcc.dat] test file)
+can be appended to the `pvmfw.bin` image, making use of the "legacy" mode that
+predates the configuration data format:
 
 ```shell
-m pvmfw_img
-adb push out/target/product/generic_arm64/system/etc/pvmfw.img /data/local/tmp/pvmfw.img
+m pvmfw_bin
+cp out/target/product/generic_arm64/system/etc/pvmfw.bin ${PVMFW_BIN}
+truncate -s '%4KiB' ${PVMFW_BIN} && cat ${CONFIG_OR_BCC} >> ${PVMFW_BIN}
+```
+
+The result can then be pushed to the device. Pointing the system property
+`hypervisor.pvmfw.path` to it will cause AVF to use that image as pvmfw:
+
+```shell
+adb push ${PVMFW_BIN} /data/local/tmp/pvmfw.img
 adb root
 adb shell setprop hypervisor.pvmfw.path /data/local/tmp/pvmfw.img
 ```
@@ -439,3 +452,5 @@ adb shell /apex/com.android.virt/bin/vm run-microdroid --protected
 ```
 
 Note: `adb root` is required to set the system property.
+
+[bcc.dat]: https://cs.android.com/android/platform/superproject/main/+/main:packages/modules/Virtualization/tests/pvmfw/assets/bcc.dat
