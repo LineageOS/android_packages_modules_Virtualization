@@ -81,9 +81,7 @@ unsafe extern "C" fn malloc(size: usize) -> *mut c_void {
 
 #[no_mangle]
 unsafe extern "C" fn calloc(nmemb: usize, size: usize) -> *mut c_void {
-    let Some(size) = nmemb.checked_mul(size) else {
-        return ptr::null_mut()
-    };
+    let Some(size) = nmemb.checked_mul(size) else { return ptr::null_mut() };
     allocate(size, true).map_or(ptr::null_mut(), |p| p.cast::<c_void>().as_ptr())
 }
 
