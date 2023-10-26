@@ -42,7 +42,7 @@ pvmfw currently only supports AArch64.
 
 [AVF]: https://source.android.com/docs/core/virtualization
 [why-avf]: https://source.android.com/docs/core/virtualization/whyavf
-[BCC]: https://pigweed.googlesource.com/open-dice/+/master/src/android/README.md
+[BCC]: https://pigweed.googlesource.com/open-dice/+/refs/heads/main/docs/android.md
 [pKVM]: https://source.android.com/docs/core/virtualization/architecture#hypervisor
 [open-dice]: https://pigweed.googlesource.com/open-dice/+/refs/heads/main/docs/specification.md
 
@@ -191,7 +191,7 @@ In version 1.1, new blob is added.
   pvmfw will provision assigned devices with the VM DTBO.
 
 [header]: src/config.rs
-[DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/master/Documentation/dt-object-internal.txt
+[DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/main/Documentation/dt-object-internal.txt
 [debug_policy]: ../docs/debug/README.md#debug-policy
 
 #### Virtual Platform Boot Certificate Chain Handover
@@ -416,7 +416,7 @@ the signing described above is recommended to be done through an
 `avb_add_hash_footer` Soong module (see [how we sign the Microdroid
 kernel][soong-udroid]).
 
-[soong-udroid]: https://cs.android.com/android/platform/superproject/+/master:packages/modules/Virtualization/microdroid/Android.bp;l=427;drc=ca0049be4d84897b8c9956924cfae506773103eb
+[soong-udroid]: https://cs.android.com/android/platform/superproject/main/+/main:packages/modules/Virtualization/microdroid/Android.bp;l=425;drc=b94a5cf516307c4279f6c16a63803527a8affc6d
 
 ## Development
 
