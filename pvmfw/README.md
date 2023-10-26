@@ -427,22 +427,23 @@ above must be replicated to produce a single file containing the pvmfw binary
 and its configuration data.
 
 As a quick prototyping solution, a valid BCC (such as the [bcc.dat] test file)
-can be appended to the `pvmfw.bin` image, making use of the "legacy" mode that
-predates the configuration data format:
+can be appended to the `pvmfw.bin` image with `pvmfw-tool`.
 
 ```shell
-m pvmfw_bin
-cp out/target/product/generic_arm64/system/etc/pvmfw.bin ${PVMFW_BIN}
-truncate -s '%4KiB' ${PVMFW_BIN} && cat ${CONFIG_OR_BCC} >> ${PVMFW_BIN}
+m pvmfw-tool pvmfw_bin
+PVMFW_BIN=${ANDROID_PRODUCT_OUT}/system/etc/pvmfw.bin
+BCC_DAT=${ANDROID_BUILD_TOP}/packages/modules/Virtualization/tests/pvmfw/assets/bcc.dat
+
+pvmfw-tool custom_pvmfw ${PVMFW_BIN} ${BCC_DAT}
 ```
 
 The result can then be pushed to the device. Pointing the system property
 `hypervisor.pvmfw.path` to it will cause AVF to use that image as pvmfw:
 
 ```shell
-adb push ${PVMFW_BIN} /data/local/tmp/pvmfw.img
+adb push custom_pvmfw /data/local/tmp/pvmfw
 adb root
-adb shell setprop hypervisor.pvmfw.path /data/local/tmp/pvmfw.img
+adb shell setprop hypervisor.pvmfw.path /data/local/tmp/pvmfw
 ```
 
 Then run a protected VM, for example:
