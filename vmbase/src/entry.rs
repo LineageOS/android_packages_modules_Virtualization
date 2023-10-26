@@ -53,8 +53,14 @@ extern "C" fn rust_entry(x0: u64, x1: u64, x2: u64, x3: u64) -> ! {
     // We keep a null byte at the top of the stack guard to act as a string terminator.
     let random_guard = &mut stack_guard[..(SIZE_OF_STACK_GUARD - 1)];
 
-    rand::init().expect("Failed to initialize a source of entropy");
-    rand::fill_with_entropy(random_guard).expect("Failed to get stack canary entropy");
+    if let Err(e) = rand::init() {
+        panic!("Failed to initialize a source of entropy: {e}");
+    }
+
+    if let Err(e) = rand::fill_with_entropy(random_guard) {
+        panic!("Failed to get stack canary entropy: {e}");
+    }
+
     bionic::__get_tls().stack_guard = u64::from_ne_bytes(stack_guard);
 
     // Note: If rust_entry ever returned (which it shouldn't by being -> !), the compiler-injected
