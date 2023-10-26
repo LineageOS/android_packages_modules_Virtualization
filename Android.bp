@@ -14,18 +14,7 @@
 // limitations under the License.
 
 package {
-    default_applicable_licenses: ["packages_modules_Virtualization_license"],
-}
-
-// Added automatically by a large-scale-change
-// See: http://go/android-license-faq
-license {
-    name: "packages_modules_Virtualization_license",
-    visibility: [":__subpackages__"],
-    license_kinds: [
-        "legacy_unencumbered",
-    ],
-    // large-scale-change unable to identify any license_text files
+    default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
 soong_config_module_type {
