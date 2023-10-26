@@ -25,13 +25,13 @@ import java.io.IOException;
 public class PvmfwTool {
     public static void printUsage() {
         System.out.println("pvmfw-tool: Appends pvmfw.bin and config payloads.");
-        System.out.println("Requires BCC and debug policy dtbo files");
+        System.out.println("Requires BCC and optional debug policy dtbo files");
         System.out.println("");
-        System.out.println("Usage: pvmfw-tool <pvmfw_with_config> <pvmfw_bin> <bcc.dat> <dp.dtbo>");
+        System.out.println("Usage: pvmfw-tool <out> <pvmfw.bin> <bcc.dat> [<dp.dtbo>]");
     }
 
     public static void main(String[] args) {
-        if (args.length != 4) {
+        if (args.length != 4 && args.length != 3) {
             printUsage();
             System.exit(1);
         }
@@ -39,11 +39,14 @@ public class PvmfwTool {
         File out = new File(args[0]);
         File pvmfw_bin = new File(args[1]);
         File bcc_dat = new File(args[2]);
-        File dtbo = new File(args[3]);
 
         try {
-            Pvmfw pvmfw = new Pvmfw.Builder(pvmfw_bin, bcc_dat).setDebugPolicyOverlay(dtbo).build();
-            pvmfw.serialize(out);
+            Pvmfw.Builder builder = new Pvmfw.Builder(pvmfw_bin, bcc_dat);
+            if (args.length == 4) {
+                File dtbo = new File(args[3]);
+                builder.setDebugPolicyOverlay(dtbo);
+            }
+            builder.build().serialize(out);
         } catch (IOException e) {
             e.printStackTrace();
             printUsage();
