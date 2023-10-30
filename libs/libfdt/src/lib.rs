@@ -20,8 +20,8 @@
 mod iterators;
 
 pub use iterators::{
-    AddressRange, CellIterator, CompatibleIterator, MemRegIterator, RangesIterator, Reg,
-    RegIterator, SubnodeIterator,
+    AddressRange, CellIterator, CompatibleIterator, MemRegIterator, PropertyIterator,
+    RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
 
 use core::cmp::max;
@@ -191,6 +191,71 @@ impl TryFrom<c_int> for SizeCells {
             x if x == Self::Double as c_int => Ok(Self::Double),
             _ => Err(FdtError::BadNCells),
         }
+    }
+}
+
+/// DT property wrapper to abstract endianess changes
+#[repr(transparent)]
+#[derive(Debug)]
+struct FdtPropertyStruct(libfdt_bindgen::fdt_property);
+
+impl FdtPropertyStruct {
+    fn from_offset(fdt: &Fdt, offset: c_int) -> Result<&Self> {
+        let mut len = 0;
+        let prop =
+            // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+            unsafe { libfdt_bindgen::fdt_get_property_by_offset(fdt.as_ptr(), offset, &mut len) };
+        if prop.is_null() {
+            fdt_err(len)?;
+            return Err(FdtError::Internal); // shouldn't happen.
+        }
+        // SAFETY: prop is only returned when it points to valid libfdt_bindgen.
+        Ok(unsafe { &*prop.cast::<FdtPropertyStruct>() })
+    }
+
+    fn name_offset(&self) -> c_int {
+        u32::from_be(self.0.nameoff).try_into().unwrap()
+    }
+
+    fn data_len(&self) -> usize {
+        u32::from_be(self.0.len).try_into().unwrap()
+    }
+
+    fn data_ptr(&self) -> *const c_void {
+        self.0.data.as_ptr().cast::<_>()
+    }
+}
+
+/// DT property.
+#[derive(Clone, Copy, Debug)]
+pub struct FdtProperty<'a> {
+    fdt: &'a Fdt,
+    offset: c_int,
+    property: &'a FdtPropertyStruct,
+}
+
+impl<'a> FdtProperty<'a> {
+    fn new(fdt: &'a Fdt, offset: c_int) -> Result<Self> {
+        let property = FdtPropertyStruct::from_offset(fdt, offset)?;
+        Ok(Self { fdt, offset, property })
+    }
+
+    /// Returns the property name
+    pub fn name(&self) -> Result<&'a CStr> {
+        self.fdt.string(self.property.name_offset())
+    }
+
+    /// Returns the property value
+    pub fn value(&self) -> Result<&'a [u8]> {
+        self.fdt.get_from_ptr(self.property.data_ptr(), self.property.data_len())
+    }
+
+    fn next_property(&self) -> Result<Option<Self>> {
+        let ret =
+            // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+            unsafe { libfdt_bindgen::fdt_next_property_offset(self.fdt.as_ptr(), self.offset) };
+
+        fdt_err_or_option(ret)?.map(|offset| Self::new(self.fdt, offset)).transpose()
     }
 }
 
@@ -402,6 +467,19 @@ impl<'a> FdtNode<'a> {
         let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
 
         Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
+    }
+
+    /// Returns an iterator of properties
+    pub fn properties(&'a self) -> Result<PropertyIterator<'a>> {
+        PropertyIterator::new(self)
+    }
+
+    fn first_property(&self) -> Result<Option<FdtProperty<'a>>> {
+        let ret =
+            // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+            unsafe { libfdt_bindgen::fdt_first_property_offset(self.fdt.as_ptr(), self.offset) };
+
+        fdt_err_or_option(ret)?.map(|offset| FdtProperty::new(self.fdt, offset)).transpose()
     }
 }
 
@@ -826,6 +904,17 @@ impl Fdt {
         let ptr = ptr as usize;
         let offset = ptr.checked_sub(self.as_ptr() as usize).ok_or(FdtError::Internal)?;
         self.buffer.get(offset..(offset + len)).ok_or(FdtError::Internal)
+    }
+
+    fn string(&self, offset: c_int) -> Result<&CStr> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let res = unsafe { libfdt_bindgen::fdt_string(self.as_ptr(), offset) };
+        if res.is_null() {
+            return Err(FdtError::Internal);
+        }
+
+        // SAFETY: Non-null return from fdt_string() is valid null-terminating string within FDT.
+        Ok(unsafe { CStr::from_ptr(res) })
     }
 
     /// Returns a shared pointer to the device tree.
