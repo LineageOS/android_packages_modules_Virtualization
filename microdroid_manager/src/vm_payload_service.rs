@@ -66,9 +66,9 @@ impl IVmPayloadService for VmPayloadService {
         Ok(self.secret.dice().cdi_attest().to_vec())
     }
 
-    fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
+    fn requestAttestation(&self, challenge: &[u8]) -> binder::Result<Vec<u8>> {
         self.check_restricted_apis_allowed()?;
-        self.virtual_machine_service.requestCertificate(csr)
+        self.virtual_machine_service.requestAttestation(challenge)
     }
 }
 
