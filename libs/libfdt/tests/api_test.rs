@@ -169,3 +169,23 @@ fn node_with_phandle() {
     let node = fdt.node_with_phandle(Phandle::new(0x22).unwrap()).unwrap().unwrap();
     assert_eq!(node.name().unwrap().to_str().unwrap(), "node_abc");
 }
+
+#[test]
+fn node_nop() {
+    let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    fdt.node_with_phandle(Phandle::new(0xFF).unwrap()).unwrap().unwrap();
+    let node = fdt.node_mut(cstr!("/node_z/node_zz")).unwrap().unwrap();
+
+    node.nop().unwrap();
+
+    assert!(fdt.node_with_phandle(Phandle::new(0xFF).unwrap()).unwrap().is_none());
+    assert!(fdt.node(cstr!("/node_z/node_zz")).unwrap().is_none());
+
+    fdt.unpack().unwrap();
+    fdt.pack().unwrap();
+
+    assert!(fdt.node_with_phandle(Phandle::new(0xFF).unwrap()).unwrap().is_none());
+    assert!(fdt.node(cstr!("/node_z/node_zz")).unwrap().is_none());
+}
