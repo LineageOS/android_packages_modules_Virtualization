@@ -29,6 +29,7 @@ use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
 use core::mem;
 use core::ops::Range;
+use core::ptr;
 use core::result;
 use zerocopy::AsBytes as _;
 
@@ -275,6 +276,21 @@ impl<'a> FdtNode<'a> {
     pub fn parent(&self) -> Result<Self> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
+
+        Ok(Self { fdt: self.fdt, offset: fdt_err(ret)? })
+    }
+
+    /// Returns supernode with depth. Note that root is at depth 0.
+    pub fn supernode_at_depth(&self, depth: usize) -> Result<Self> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_supernode_atdepth_offset(
+                self.fdt.as_ptr(),
+                self.offset,
+                depth.try_into().unwrap(),
+                ptr::null_mut(),
+            )
+        };
 
         Ok(Self { fdt: self.fdt, offset: fdt_err(ret)? })
     }
