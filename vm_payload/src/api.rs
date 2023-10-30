@@ -253,29 +253,31 @@ fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
     get_vm_payload_service()?.getDiceAttestationCdi().context("Cannot get attestation CDI")
 }
 
-/// Requests a certificate using the provided certificate signing request (CSR).
-/// Panics on failure.
+/// Requests the remote attestation of the client VM.
+///
+/// The challenge will be included in the certificate chain in the attestation result,
+/// serving as proof of the freshness of the result.
 ///
 /// # Safety
 ///
 /// Behavior is undefined if any of the following conditions are violated:
 ///
-/// * `csr` must be [valid] for reads of `csr_size` bytes.
+/// * `challenge` must be [valid] for reads of `challenge_size` bytes.
 /// * `buffer` must be [valid] for writes of `size` bytes. `buffer` can be null if `size` is 0.
 ///
 /// [valid]: ptr#safety
 #[no_mangle]
-pub unsafe extern "C" fn AVmPayload_requestCertificate(
-    csr: *const u8,
-    csr_size: usize,
+pub unsafe extern "C" fn AVmPayload_requestAttestation(
+    challenge: *const u8,
+    challenge_size: usize,
     buffer: *mut u8,
     size: usize,
 ) -> usize {
     initialize_logging();
 
-    // SAFETY: See the requirements on `csr` above.
-    let csr = unsafe { std::slice::from_raw_parts(csr, csr_size) };
-    let certificate = unwrap_or_abort(try_request_certificate(csr));
+    // SAFETY: See the requirements on `challenge` above.
+    let challenge = unsafe { std::slice::from_raw_parts(challenge, challenge_size) };
+    let certificate = unwrap_or_abort(try_request_attestation(challenge));
 
     if size != 0 || buffer.is_null() {
         // SAFETY: See the requirements on `buffer` above. The number of bytes copied doesn't exceed
@@ -292,10 +294,10 @@ pub unsafe extern "C" fn AVmPayload_requestCertificate(
     certificate.len()
 }
 
-fn try_request_certificate(csr: &[u8]) -> Result<Vec<u8>> {
+fn try_request_attestation(challenge: &[u8]) -> Result<Vec<u8>> {
     let certificate = get_vm_payload_service()?
-        .requestCertificate(csr)
-        .context("Failed to request certificate")?;
+        .requestAttestation(challenge)
+        .context("Failed to request attestation")?;
     Ok(certificate)
 }
 
