@@ -1,13 +1,13 @@
 LIBVM_PAYLOAD {
   global:
-    AVmPayload_notifyPayloadReady;       # systemapi
-    AVmPayload_runVsockRpcServer;        # systemapi
-    AVmPayload_getVmInstanceSecret;      # systemapi
-    AVmPayload_getDiceAttestationChain;  # systemapi
-    AVmPayload_getDiceAttestationCdi;    # systemapi
-    AVmPayload_getApkContentsPath;       # systemapi
-    AVmPayload_getEncryptedStoragePath;  # systemapi
-    AVmPayload_requestCertificate;       # systemapi introduced=35
+    AVmPayload_notifyPayloadReady;       # systemapi introduced=UpsideDownCake
+    AVmPayload_runVsockRpcServer;        # systemapi introduced=UpsideDownCake
+    AVmPayload_getVmInstanceSecret;      # systemapi introduced=UpsideDownCake
+    AVmPayload_getDiceAttestationChain;  # systemapi introduced=UpsideDownCake
+    AVmPayload_getDiceAttestationCdi;    # systemapi introduced=UpsideDownCake
+    AVmPayload_getApkContentsPath;       # systemapi introduced=UpsideDownCake
+    AVmPayload_getEncryptedStoragePath;  # systemapi introduced=UpsideDownCake
+    AVmPayload_requestAttestation;       # systemapi introduced=VanillaIceCream
   local:
     *;
 };
