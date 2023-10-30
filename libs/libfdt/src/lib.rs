@@ -499,6 +499,27 @@ impl<'a> FdtNode<'a> {
     }
 }
 
+/// Phandle of a FDT node
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Phandle(u32);
+
+impl Phandle {
+    /// Creates a new Phandle
+    pub fn new(value: u32) -> Result<Self> {
+        if value == 0 || value > libfdt_bindgen::FDT_MAX_PHANDLE {
+            return Err(FdtError::BadPhandle);
+        }
+        Ok(Self(value))
+    }
+}
+
+impl From<Phandle> for u32 {
+    fn from(phandle: Phandle) -> u32 {
+        phandle.0
+    }
+}
+
 /// Mutable FDT node.
 pub struct FdtNodeMut<'a> {
     fdt: &'a mut Fdt,
@@ -877,6 +898,23 @@ impl Fdt {
     /// Iterate over nodes with a given compatible string.
     pub fn compatible_nodes<'a>(&'a self, compatible: &'a CStr) -> Result<CompatibleIterator<'a>> {
         CompatibleIterator::new(self, compatible)
+    }
+
+    /// Returns max phandle in the tree.
+    pub fn max_phandle(&self) -> Result<Phandle> {
+        let mut phandle: u32 = 0;
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_find_max_phandle(self.as_ptr(), &mut phandle) };
+
+        fdt_err_expect_zero(ret)?;
+        Phandle::new(phandle)
+    }
+
+    /// Returns a node with the phandle
+    pub fn node_with_phandle(&self, phandle: Phandle) -> Result<Option<FdtNode>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_phandle(self.as_ptr(), phandle.0) };
+        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self, offset }))
     }
 
     /// Returns the mutable root node of the tree.
