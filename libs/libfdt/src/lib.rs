@@ -499,6 +499,12 @@ impl<'a> FdtNode<'a> {
     }
 }
 
+impl<'a> PartialEq for FdtNode<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.fdt.as_ptr() == other.fdt.as_ptr() && self.offset == other.offset
+    }
+}
+
 /// Phandle of a FDT node
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -535,6 +541,7 @@ impl TryFrom<u32> for Phandle {
 }
 
 /// Mutable FDT node.
+#[derive(Debug)]
 pub struct FdtNodeMut<'a> {
     fdt: &'a mut Fdt,
     offset: c_int,
