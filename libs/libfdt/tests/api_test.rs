@@ -21,6 +21,12 @@ use std::ffi::CStr;
 use std::fs;
 use std::ops::Range;
 
+macro_rules! cstr {
+    ($str:literal) => {{
+        CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+    }};
+}
+
 const TEST_TREE_WITH_ONE_MEMORY_RANGE_PATH: &str = "data/test_tree_one_memory_range.dtb";
 const TEST_TREE_WITH_MULTIPLE_MEMORY_RANGES_PATH: &str =
     "data/test_tree_multiple_memory_ranges.dtb";
@@ -83,7 +89,7 @@ fn node_name() {
     let chosen = fdt.chosen().unwrap().unwrap();
     assert_eq!(chosen.name().unwrap().to_str().unwrap(), "chosen");
 
-    let nested_node_path = CStr::from_bytes_with_nul(b"/cpus/PowerPC,970@0\0").unwrap();
+    let nested_node_path = cstr!("/cpus/PowerPC,970@0");
     let nested_node = fdt.node(nested_node_path).unwrap().unwrap();
     assert_eq!(nested_node.name().unwrap().to_str().unwrap(), "PowerPC,970@0");
 }
@@ -117,5 +123,18 @@ fn node_properties() {
     for (prop, (name, value)) in root.properties().unwrap().zip(expected) {
         assert_eq!(prop.name().unwrap().to_str().unwrap(), name);
         assert_eq!(prop.value().unwrap(), value);
+    }
+}
+
+#[test]
+fn node_supernode_at_depth() {
+    let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+    let node = fdt.node(cstr!("/cpus/PowerPC,970@1")).unwrap().unwrap();
+    let expected = &["", "cpus", "PowerPC,970@1"];
+
+    for (depth, expect) in expected.iter().enumerate() {
+        let supernode = node.supernode_at_depth(depth).unwrap();
+        assert_eq!(supernode.name().unwrap().to_str().unwrap(), *expect);
     }
 }
