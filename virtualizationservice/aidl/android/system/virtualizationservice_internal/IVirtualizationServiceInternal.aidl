@@ -56,12 +56,13 @@ interface IVirtualizationServiceInternal {
     VirtualMachineDebugInfo[] debugListVms();
 
     /**
-     * Requests a certificate using the provided certificate signing request (CSR).
+     * Requests a certificate chain for the provided certificate signing request (CSR).
      *
-     * @param csr the certificate signing request.
-     * @return the X.509 encoded certificate.
+     * @param csr The certificate signing request.
+     * @return A sequence of DER-encoded X.509 certificates that make up the attestation
+     *         key's certificate chain. The attestation key is provided in the CSR.
      */
-    byte[] requestCertificate(in byte[] csr);
+    byte[] requestAttestation(in byte[] csr);
 
     /**
      * Get a list of assignable devices.

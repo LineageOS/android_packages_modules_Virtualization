@@ -1245,8 +1245,8 @@ impl IVirtualMachineService for VirtualMachineService {
         }
     }
 
-    fn requestCertificate(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
-        GLOBAL_SERVICE.requestCertificate(csr)
+    fn requestAttestation(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
+        GLOBAL_SERVICE.requestAttestation(csr)
     }
 }
 
