@@ -69,11 +69,13 @@ interface IVmPayloadService {
     byte[] getDiceAttestationCdi();
 
     /**
-     * Requests a certificate using the provided certificate signing request (CSR).
+     * Requests the remote attestation of the client VM.
      *
-     * TODO(b/271275206): Define the format of the CSR properly.
-     * @param csr the certificate signing request.
+     * The challenge will be included in the certificate chain in the attestation result,
+     * serving as proof of the freshness of the result.
+     *
+     * @param challenge the maximum supported challenge size is 64 bytes.
      * @return the X.509 encoded certificate.
      */
-    byte[] requestCertificate(in byte[] csr);
+    byte[] requestAttestation(in byte[] challenge);
 }
