@@ -627,7 +627,7 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err_expect_zero(ret)
     }
 
-    /// Sets the given property with FDT_NOP, effectively removing it from the DT.
+    /// Deletes the given property effectively from DT, by setting it with FDT_NOP.
     pub fn nop_property(&mut self, name: &CStr) -> Result<()> {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) when the
         // library locates the node's property.
@@ -711,7 +711,7 @@ impl<'a> FdtNodeMut<'a> {
     // node, and delete the current node, the Rust borrow checker kicks in. The next node has a
     // mutable reference to DT, so we can't use current node (which also has a mutable reference to
     // DT).
-    pub fn delete_and_next_compatible(self, compatible: &CStr) -> Result<Option<Self>> {
+    pub fn delete_and_next_compatible(mut self, compatible: &CStr) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe {
             libfdt_bindgen::fdt_node_offset_by_compatible(
@@ -722,12 +722,32 @@ impl<'a> FdtNodeMut<'a> {
         };
         let next_offset = fdt_err_or_option(ret)?;
 
-        // SAFETY: fdt_nop_node alter only the bytes in the blob which contain the node and its
-        // properties and subnodes, and will not alter or move any other part of the tree.
-        let ret = unsafe { libfdt_bindgen::fdt_nop_node(self.fdt.as_mut_ptr(), self.offset) };
-        fdt_err_expect_zero(ret)?;
+        if Some(self.offset) == next_offset {
+            return Err(FdtError::Internal);
+        }
+
+        // SAFETY: nop_self() only touches bytes of the self and its properties and subnodes, and
+        // doesn't alter any other blob in the tree. self.fdt and next_offset would remain valid.
+        unsafe { self.nop_self()? };
 
         Ok(next_offset.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
+    /// Deletes this node effectively from DT, by setting it with FDT_NOP
+    pub fn nop(mut self) -> Result<()> {
+        // SAFETY: This consumes self, so invalid node wouldn't be used any further
+        unsafe { self.nop_self() }
+    }
+
+    /// Deletes this node effectively from DT, by setting it with FDT_NOP.
+    /// This only changes bytes of the node and its properties and subnodes, and doesn't alter or
+    /// move any other part of the tree.
+    /// SAFETY: This node is no longer valid.
+    unsafe fn nop_self(&mut self) -> Result<()> {
+        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
+        let ret = unsafe { libfdt_bindgen::fdt_nop_node(self.fdt.as_mut_ptr(), self.offset) };
+
+        fdt_err_expect_zero(ret)
     }
 }
 
