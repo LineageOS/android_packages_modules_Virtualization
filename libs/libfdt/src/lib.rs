@@ -855,7 +855,7 @@ impl Fdt {
 
     /// Returns a tree node by its full path.
     pub fn node(&self, path: &CStr) -> Result<Option<FdtNode>> {
-        Ok(self.path_offset(path)?.map(|offset| FdtNode { fdt: self, offset }))
+        Ok(self.path_offset(path.to_bytes())?.map(|offset| FdtNode { fdt: self, offset }))
     }
 
     /// Iterate over nodes with a given compatible string.
@@ -870,7 +870,7 @@ impl Fdt {
 
     /// Returns a mutable tree node by its full path.
     pub fn node_mut(&mut self, path: &CStr) -> Result<Option<FdtNodeMut>> {
-        Ok(self.path_offset(path)?.map(|offset| FdtNodeMut { fdt: self, offset }))
+        Ok(self.path_offset(path.to_bytes())?.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
     /// Returns the device tree as a slice (may be smaller than the containing buffer).
@@ -878,13 +878,13 @@ impl Fdt {
         &self.buffer[..self.totalsize()]
     }
 
-    fn path_offset(&self, path: &CStr) -> Result<Option<c_int>> {
-        let len = path.to_bytes().len().try_into().map_err(|_| FdtError::BadPath)?;
+    fn path_offset(&self, path: &[u8]) -> Result<Option<c_int>> {
+        let len = path.len().try_into().map_err(|_| FdtError::BadPath)?;
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) and the
         // function respects the passed number of characters.
         let ret = unsafe {
             // *_namelen functions don't include the trailing nul terminator in 'len'.
-            libfdt_bindgen::fdt_path_offset_namelen(self.as_ptr(), path.as_ptr(), len)
+            libfdt_bindgen::fdt_path_offset_namelen(self.as_ptr(), path.as_ptr().cast::<_>(), len)
         };
 
         fdt_err_or_option(ret)
