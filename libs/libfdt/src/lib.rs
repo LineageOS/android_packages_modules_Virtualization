@@ -670,12 +670,49 @@ impl<'a> FdtNodeMut<'a> {
 
     /// Adds a new subnode to the given node and return it as a FdtNodeMut on success.
     pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
+        let offset = self.add_subnode_offset(name.to_bytes())?;
+        Ok(Self { fdt: self.fdt, offset })
+    }
+
+    /// Adds a new subnode to the given node with name and namelen, and returns it as a FdtNodeMut
+    /// on success.
+    pub fn add_subnode_with_namelen(&'a mut self, name: &CStr, namelen: usize) -> Result<Self> {
+        let offset = { self.add_subnode_offset(&name.to_bytes()[..namelen])? };
+        Ok(Self { fdt: self.fdt, offset })
+    }
+
+    fn add_subnode_offset(&mut self, name: &[u8]) -> Result<c_int> {
+        let namelen = name.len().try_into().unwrap();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe {
-            libfdt_bindgen::fdt_add_subnode(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
+            libfdt_bindgen::fdt_add_subnode_namelen(
+                self.fdt.as_mut_ptr(),
+                self.offset,
+                name.as_ptr().cast::<_>(),
+                namelen,
+            )
         };
+        fdt_err(ret)
+    }
 
-        Ok(Self { fdt: self.fdt, offset: fdt_err(ret)? })
+    /// Returns the subnode of the given name with len.
+    pub fn subnode_with_namelen(&'a mut self, name: &CStr, namelen: usize) -> Result<Option<Self>> {
+        let offset = self.subnode_offset(&name.to_bytes()[..namelen])?;
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
+    fn subnode_offset(&self, name: &[u8]) -> Result<Option<c_int>> {
+        let namelen = name.len().try_into().unwrap();
+        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
+        let ret = unsafe {
+            libfdt_bindgen::fdt_subnode_offset_namelen(
+                self.fdt.as_ptr(),
+                self.offset,
+                name.as_ptr().cast::<_>(),
+                namelen,
+            )
+        };
+        fdt_err_or_option(ret)
     }
 
     fn parent(&'a self) -> Result<FdtNode<'a>> {
