@@ -17,6 +17,7 @@
 use crate::Fdt;
 use crate::FdtError;
 use crate::FdtNode;
+use crate::FdtProperty;
 use crate::{AddrCells, SizeCells};
 use core::ffi::CStr;
 use core::marker::PhantomData;
@@ -317,6 +318,32 @@ impl<'a> Iterator for SubnodeIterator<'a> {
         let res = self.subnode;
 
         self.subnode = self.subnode.and_then(|node| node.next_subnode().ok()?);
+
+        res
+    }
+}
+
+/// Iterator over properties
+#[derive(Debug)]
+pub struct PropertyIterator<'a> {
+    prop: Option<FdtProperty<'a>>,
+}
+
+impl<'a> PropertyIterator<'a> {
+    pub(crate) fn new(node: &'a FdtNode) -> Result<Self, FdtError> {
+        let prop = node.first_property()?;
+
+        Ok(Self { prop })
+    }
+}
+
+impl<'a> Iterator for PropertyIterator<'a> {
+    type Item = FdtProperty<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = self.prop;
+
+        self.prop = res?.next_property().ok()?;
 
         res
     }
