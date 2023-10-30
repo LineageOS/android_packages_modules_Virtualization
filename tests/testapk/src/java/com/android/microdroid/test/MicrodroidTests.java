@@ -2019,11 +2019,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         | OsConstants.S_IROTH
                         | OsConstants.S_IWOTH
                         | OsConstants.S_IXOTH;
-        int expectedPermissions =
-                OsConstants.S_IRUSR
-                        | OsConstants.S_IXUSR
-                        | OsConstants.S_IRGRP
-                        | OsConstants.S_IXGRP;
+        int expectedPermissions = OsConstants.S_IRUSR | OsConstants.S_IXUSR;
+        if (isFeatureEnabled(VirtualMachineManager.FEATURE_MULTI_TENANT)) {
+            expectedPermissions |= OsConstants.S_IRGRP | OsConstants.S_IXGRP;
+        }
         assertThat(testResults.mFileMode & allPermissionsMask).isEqualTo(expectedPermissions);
     }
 
