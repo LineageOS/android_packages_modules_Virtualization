@@ -31,11 +31,21 @@ pub type Inode = u64;
 const INVALID: Inode = 0;
 const ROOT: Inode = 1;
 
-const DEFAULT_DIR_MODE: u32 = libc::S_IRUSR | libc::S_IXUSR | libc::S_IRGRP | libc::S_IXGRP;
+#[cfg(multi_tenant)]
+const READ_MODE: u32 = libc::S_IRUSR | libc::S_IRGRP;
+#[cfg(multi_tenant)]
+const EXECUTE_MODE: u32 = libc::S_IXUSR | libc::S_IXGRP;
+
+#[cfg(not(multi_tenant))]
+const READ_MODE: u32 = libc::S_IRUSR;
+#[cfg(not(multi_tenant))]
+const EXECUTE_MODE: u32 = libc::S_IXUSR;
+
+const DEFAULT_DIR_MODE: u32 = READ_MODE | EXECUTE_MODE;
 // b/264668376 some files in APK don't have unix permissions specified. Default to 400
 // otherwise those files won't be readable even by the owner.
-const DEFAULT_FILE_MODE: u32 = libc::S_IRUSR | libc::S_IRGRP;
-const EXECUTABLE_FILE_MODE: u32 = DEFAULT_FILE_MODE | libc::S_IXUSR | libc::S_IXGRP;
+const DEFAULT_FILE_MODE: u32 = READ_MODE;
+const EXECUTABLE_FILE_MODE: u32 = DEFAULT_FILE_MODE | EXECUTE_MODE;
 
 /// `InodeData` represents an inode which has metadata about a file or a directory
 #[derive(Debug)]
