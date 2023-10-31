@@ -27,7 +27,11 @@ use android_hardware_security_rkp::aidl::android::hardware::security::keymint::{
 };
 use anyhow::Context;
 use avflog::LogResult;
-use binder::{BinderFeatures, Interface, IntoBinderResult, Result as BinderResult, Status, Strong};
+use binder::{
+    BinderFeatures, ExceptionCode, Interface, IntoBinderResult, Result as BinderResult, Status,
+    Strong,
+};
+use hypervisor_props::is_protected_vm_supported;
 use service_vm_comm::{RequestProcessingError, Response};
 
 /// Constructs a binder object that implements `IRemotelyProvisionedComponent`.
@@ -45,11 +49,13 @@ impl Interface for AvfRemotelyProvisionedComponent {}
 #[allow(non_snake_case)]
 impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
     fn getHardwareInfo(&self) -> BinderResult<RpcHardwareInfo> {
+        check_protected_vm_is_supported()?;
+
         Ok(RpcHardwareInfo {
             versionNumber: 3,
             rpcAuthorName: String::from("Android Virtualization Framework"),
             supportedEekCurve: CURVE_NONE,
-            uniqueId: Some(String::from("Android Virtualization Framework 1")),
+            uniqueId: Some(String::from("AVF Remote Provisioning 1")),
             supportedNumKeysInCsr: MIN_SUPPORTED_NUM_KEYS_IN_CSR,
         })
     }
@@ -59,6 +65,8 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
         testMode: bool,
         macedPublicKey: &mut MacedPublicKey,
     ) -> BinderResult<Vec<u8>> {
+        check_protected_vm_is_supported()?;
+
         if testMode {
             return Err(Status::new_service_specific_error_str(
                 STATUS_REMOVED,
@@ -101,6 +109,8 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
         keysToSign: &[MacedPublicKey],
         challenge: &[u8],
     ) -> BinderResult<Vec<u8>> {
+        check_protected_vm_is_supported()?;
+
         const MAX_CHALLENGE_SIZE: usize = 64;
         if challenge.len() > MAX_CHALLENGE_SIZE {
             let message = format!(
@@ -119,6 +129,18 @@ impl IRemotelyProvisionedComponent for AvfRemotelyProvisionedComponent {
             Response::GenerateCertificateRequest(res) => Ok(res),
             _ => Err(to_service_specific_error(res)),
         }
+        .with_log()
+    }
+}
+
+fn check_protected_vm_is_supported() -> BinderResult<()> {
+    if is_protected_vm_supported().unwrap_or(false) {
+        Ok(())
+    } else {
+        Err(Status::new_exception_str(
+            ExceptionCode::UNSUPPORTED_OPERATION,
+            Some("Protected VM support is missing for this operation"),
+        ))
         .with_log()
     }
 }
