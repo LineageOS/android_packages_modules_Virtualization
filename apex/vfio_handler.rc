@@ -1,4 +1,4 @@
-# Copyright (C) 2021 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-service virtualizationservice /apex/com.android.virt/bin/virtualizationservice
-    class main
-    user system
+service vfio_handler /apex/com.android.virt/bin/vfio_handler
+    user root
     group system
-    interface aidl android.system.virtualizationservice
+    interface aidl android.system.virtualizationservice_internal.IVfioHandler
     disabled
     oneshot
