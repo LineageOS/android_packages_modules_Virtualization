@@ -17,5 +17,6 @@ service virtualizationservice /apex/com.android.virt/bin/virtualizationservice
     user system
     group system
     interface aidl android.system.virtualizationservice
+    interface aidl android.hardware.security.keymint.IRemotelyProvisionedComponent/avf
     disabled
     oneshot
