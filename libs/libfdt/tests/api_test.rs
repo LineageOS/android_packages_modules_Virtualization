@@ -21,6 +21,7 @@ use std::ffi::{CStr, CString};
 use std::fs;
 use std::ops::Range;
 
+// TODO(b/308694211): Use cstr!() from vmbase
 macro_rules! cstr {
     ($str:literal) => {{
         CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
