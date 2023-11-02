@@ -32,4 +32,8 @@
             };
         };
     };
+
+    __symbols__ {
+        symbol_a = "/node_a";
+    };
 };
