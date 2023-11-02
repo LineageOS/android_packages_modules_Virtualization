@@ -289,6 +289,8 @@ impl MicrodroidData {
 pub struct ApkData {
     pub root_hash: Box<RootHash>,
     pub pubkey: Box<[u8]>,
+    pub package_name: String,
+    pub version_code: u64,
 }
 
 impl ApkData {

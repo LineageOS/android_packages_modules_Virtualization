@@ -28,7 +28,7 @@ use std::fs::File;
 use std::path::Path;
 
 /// Information extracted from the Android manifest inside an APK.
-#[derive(Debug)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct ApkManifestInfo {
     /// The package name of the app.
     pub package: String,
