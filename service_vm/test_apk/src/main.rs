@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Main executable of Service VM client.
+//! Main executable of Service VM client for manual testing.
 
 use anyhow::Result;
 use log::{error, info};

@@ -35,7 +35,7 @@ rust_bindgen {
     apex_available: ["com.android.compos"],
     visibility: [
         "//packages/modules/Virtualization/compos",
-        "//packages/modules/Virtualization/service_vm/client_apk",
+        "//packages/modules/Virtualization/service_vm/test_apk",
     ],
     shared_libs: [
         "libvm_payload#current",

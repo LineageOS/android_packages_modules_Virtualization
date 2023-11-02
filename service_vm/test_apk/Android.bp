@@ -3,7 +3,7 @@ package {
 }
 
 android_app {
-    name: "ServiceVmClientApp",
+    name: "ServiceVmClientTestApp",
     installable: true,
     jni_libs: ["libservice_vm_client"],
     jni_uses_platform_apis: true,
