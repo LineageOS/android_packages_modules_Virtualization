@@ -24,6 +24,7 @@ rust_defaults {
         "libbyteorder",
         "libcap_rust",
         "libciborium",
+        "libcoset",
         "libdiced_open_dice",
         "libdiced_sample_inputs",
         "libglob",
