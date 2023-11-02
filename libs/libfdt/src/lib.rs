@@ -975,6 +975,16 @@ impl Fdt {
         self.node(cstr!("/"))?.ok_or(FdtError::Internal)
     }
 
+    /// Returns the standard /__symbols__ node.
+    pub fn symbols(&self) -> Result<Option<FdtNode>> {
+        self.node(cstr!("/__symbols__"))
+    }
+
+    /// Returns the standard /__symbols__ node as mutable
+    pub fn symbols_mut(&mut self) -> Result<Option<FdtNodeMut>> {
+        self.node_mut(cstr!("/__symbols__"))
+    }
+
     /// Returns a tree node by its full path.
     pub fn node(&self, path: &CStr) -> Result<Option<FdtNode>> {
         Ok(self.path_offset(path.to_bytes())?.map(|offset| FdtNode { fdt: self, offset }))
