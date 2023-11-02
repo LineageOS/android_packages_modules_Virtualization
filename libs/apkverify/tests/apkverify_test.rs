@@ -20,6 +20,7 @@ use apkverify::{
 use apkzip::zip_sections;
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::info;
+use std::fmt::Write;
 use std::io::{Seek, SeekFrom};
 use std::{fs, matches, path::Path};
 
@@ -330,7 +331,10 @@ fn assert_bytes_eq_to_data_in_file<P: AsRef<Path> + std::fmt::Display>(
     assert!(
         fs::metadata(&expected_data_path).is_ok(),
         "File does not exist. You can re-create it with:\n$ echo -en {} > {}\n",
-        bytes_data.iter().map(|b| format!("\\\\x{:02x}", b)).collect::<String>(),
+        bytes_data.iter().fold(String::new(), |mut output, b| {
+            let _ = write!(output, "\\\\x{:02x}", b);
+            output
+        }),
         expected_data_path
     );
     let expected_data = fs::read(&expected_data_path).unwrap();
