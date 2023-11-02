@@ -33,6 +33,13 @@ use core::ptr;
 use core::result;
 use zerocopy::AsBytes as _;
 
+// TODO(b/308694211): Use cstr!() from vmbase
+macro_rules! cstr {
+    ($str:literal) => {{
+        core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+    }};
+}
+
 /// Error type corresponding to libfdt error codes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FdtError {
@@ -297,12 +304,12 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the standard (deprecated) device_type <string> property.
     pub fn device_type(&self) -> Result<Option<&CStr>> {
-        self.getprop_str(CStr::from_bytes_with_nul(b"device_type\0").unwrap())
+        self.getprop_str(cstr!("device_type"))
     }
 
     /// Returns the standard reg <prop-encoded-array> property.
     pub fn reg(&self) -> Result<Option<RegIterator<'a>>> {
-        let reg = CStr::from_bytes_with_nul(b"reg\0").unwrap();
+        let reg = cstr!("reg");
 
         if let Some(cells) = self.getprop_cells(reg)? {
             let parent = self.parent()?;
@@ -318,7 +325,7 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the standard ranges property.
     pub fn ranges<A, P, S>(&self) -> Result<Option<RangesIterator<'a, A, P, S>>> {
-        let ranges = CStr::from_bytes_with_nul(b"ranges\0").unwrap();
+        let ranges = cstr!("ranges");
         if let Some(cells) = self.getprop_cells(ranges)? {
             let parent = self.parent()?;
             let addr_cells = self.address_cells()?;
@@ -938,8 +945,8 @@ impl Fdt {
     ///
     /// NOTE: This does not support individual "/memory@XXXX" banks.
     pub fn memory(&self) -> Result<MemRegIterator> {
-        let memory_node_name = CStr::from_bytes_with_nul(b"/memory\0").unwrap();
-        let memory_device_type = CStr::from_bytes_with_nul(b"memory\0").unwrap();
+        let memory_node_name = cstr!("/memory");
+        let memory_device_type = cstr!("memory");
 
         let node = self.node(memory_node_name)?.ok_or(FdtError::NotFound)?;
         if node.device_type()? != Some(memory_device_type) {
@@ -955,17 +962,17 @@ impl Fdt {
 
     /// Returns the standard /chosen node.
     pub fn chosen(&self) -> Result<Option<FdtNode>> {
-        self.node(CStr::from_bytes_with_nul(b"/chosen\0").unwrap())
+        self.node(cstr!("/chosen"))
     }
 
     /// Returns the standard /chosen node as mutable.
     pub fn chosen_mut(&mut self) -> Result<Option<FdtNodeMut>> {
-        self.node_mut(CStr::from_bytes_with_nul(b"/chosen\0").unwrap())
+        self.node_mut(cstr!("/chosen"))
     }
 
     /// Returns the root node of the tree.
     pub fn root(&self) -> Result<FdtNode> {
-        self.node(CStr::from_bytes_with_nul(b"/\0").unwrap())?.ok_or(FdtError::Internal)
+        self.node(cstr!("/"))?.ok_or(FdtError::Internal)
     }
 
     /// Returns a tree node by its full path.
@@ -997,7 +1004,7 @@ impl Fdt {
 
     /// Returns the mutable root node of the tree.
     pub fn root_mut(&mut self) -> Result<FdtNodeMut> {
-        self.node_mut(CStr::from_bytes_with_nul(b"/\0").unwrap())?.ok_or(FdtError::Internal)
+        self.node_mut(cstr!("/"))?.ok_or(FdtError::Internal)
     }
 
     /// Returns a mutable tree node by its full path.
