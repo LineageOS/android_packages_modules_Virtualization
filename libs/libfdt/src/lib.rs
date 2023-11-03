@@ -504,6 +504,18 @@ impl<'a> FdtNode<'a> {
 
         fdt_err_or_option(ret)?.map(|offset| FdtProperty::new(self.fdt, offset)).transpose()
     }
+
+    /// Returns the phandle
+    pub fn get_phandle(&self) -> Result<Option<Phandle>> {
+        // This rewrites the fdt_get_phandle() because it doesn't return error code.
+        if let Some(prop) = self.getprop_u32(cstr!("phandle"))? {
+            Ok(Some(prop.try_into()?))
+        } else if let Some(prop) = self.getprop_u32(cstr!("linux,phandle"))? {
+            Ok(Some(prop.try_into()?))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl<'a> PartialEq for FdtNode<'a> {

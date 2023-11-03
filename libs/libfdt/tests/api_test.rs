@@ -200,6 +200,24 @@ fn node_with_phandle() {
 }
 
 #[test]
+fn node_get_phandle() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    // Test linux,phandle
+    let node = fdt.node(cstr!("/node_z/node_zz")).unwrap().unwrap();
+    assert_eq!(node.get_phandle(), Ok(Phandle::new(0xFF)));
+
+    // Test phandle
+    let node = fdt.node(cstr!("/node_a/node_ab/node_abc")).unwrap().unwrap();
+    assert_eq!(node.get_phandle(), Ok(Phandle::new(0x22)));
+
+    // Test no phandle
+    let node = fdt.node(cstr!("/node_b")).unwrap().unwrap();
+    assert_eq!(node.get_phandle(), Ok(None));
+}
+
+#[test]
 fn node_nop() {
     let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
     let fdt = Fdt::from_mut_slice(&mut data).unwrap();
