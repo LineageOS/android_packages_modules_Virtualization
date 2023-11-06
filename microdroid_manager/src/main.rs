@@ -34,7 +34,7 @@ use android_system_virtualization_payload::aidl::android::system::virtualization
 
 use crate::dice::dice_derivation;
 use crate::dice_driver::DiceDriver;
-use crate::instance::{ApexData, InstanceDisk, MicrodroidData};
+use crate::instance::{InstanceDisk, MicrodroidData};
 use crate::verify::verify_payload;
 use crate::vm_payload_service::register_vm_payload_service;
 use anyhow::{anyhow, bail, ensure, Context, Error, Result};
@@ -42,10 +42,10 @@ use binder::Strong;
 use keystore2_crypto::ZVec;
 use libc::VMADDR_CID_HOST;
 use log::{error, info};
-use microdroid_metadata::{write_metadata, PayloadMetadata};
+use microdroid_metadata::PayloadMetadata;
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::sys::signal::Signal;
-use payload::{load_metadata, to_metadata};
+use payload::load_metadata;
 use rpcbinder::RpcSession;
 use rustutils::sockets::android_get_control_socket;
 use rustutils::system_properties;
@@ -143,15 +143,6 @@ fn write_death_reason_to_serial(err: &Error) -> Result<()> {
     Ok(())
 }
 
-fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
-    // The host is running a VirtualMachineService for this VM on a port equal
-    // to the CID of this VM.
-    let port = vsock::get_local_cid().context("Could not determine local CID")?;
-    RpcSession::new()
-        .setup_vsock_client(VMADDR_CID_HOST, port)
-        .context("Could not connect to IVirtualMachineService")
-}
-
 fn main() -> Result<()> {
     // If debuggable, print full backtrace to console log with stdio_to_kmsg
     if is_debuggable()? {
@@ -172,25 +163,6 @@ fn main() -> Result<()> {
         }
         e
     })
-}
-
-/// Prepares a socket file descriptor for the vm payload service.
-///
-/// # Safety
-///
-/// The caller must ensure that this function is the only place that claims ownership
-/// of the file descriptor and it is called only once.
-unsafe fn prepare_vm_payload_service_socket() -> Result<OwnedFd> {
-    let raw_fd = android_get_control_socket(VM_PAYLOAD_SERVICE_SOCKET_NAME)?;
-
-    // Creating OwnedFd for stdio FDs is not safe.
-    if [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO].contains(&raw_fd) {
-        bail!("File descriptor {raw_fd} is standard I/O descriptor");
-    }
-    // SAFETY: Initializing OwnedFd for a RawFd created by the init.
-    // We checked that the integer value corresponds to a valid FD and that the caller
-    // ensures that this is the only place to claim its ownership.
-    Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
 }
 
 fn try_main() -> Result<()> {
@@ -243,71 +215,6 @@ fn try_main() -> Result<()> {
             Err(err)
         }
     }
-}
-
-fn post_payload_work() -> Result<()> {
-    // Sync the encrypted storage filesystem (flushes the filesystem caches).
-    if Path::new(ENCRYPTEDSTORE_BACKING_DEVICE).exists() {
-        let mountpoint = CString::new(ENCRYPTEDSTORE_MOUNTPOINT).unwrap();
-
-        // SAFETY: `mountpoint` is a valid C string. `syncfs` and `close` are safe for any parameter
-        // values.
-        let ret = unsafe {
-            let dirfd = libc::open(
-                mountpoint.as_ptr(),
-                libc::O_DIRECTORY | libc::O_RDONLY | libc::O_CLOEXEC,
-            );
-            ensure!(dirfd >= 0, "Unable to open {:?}", mountpoint);
-            let ret = libc::syncfs(dirfd);
-            libc::close(dirfd);
-            ret
-        };
-        if ret != 0 {
-            error!("failed to sync encrypted storage.");
-            return Err(anyhow!(std::io::Error::last_os_error()));
-        }
-    }
-    Ok(())
-}
-
-fn is_strict_boot() -> bool {
-    Path::new(AVF_STRICT_BOOT).exists()
-}
-
-fn is_new_instance() -> bool {
-    Path::new(AVF_NEW_INSTANCE).exists()
-}
-
-fn is_verified_boot() -> bool {
-    !Path::new(DEBUG_MICRODROID_NO_VERIFIED_BOOT).exists()
-}
-
-fn is_debuggable() -> Result<bool> {
-    Ok(system_properties::read_bool(DEBUGGABLE_PROP, true)?)
-}
-
-fn should_export_tombstones(config: &VmPayloadConfig) -> bool {
-    match config.export_tombstones {
-        Some(b) => b,
-        None => is_debuggable().unwrap_or(false),
-    }
-}
-
-/// Get debug policy value in bool. It's true iff the value is explicitly set to <1>.
-fn get_debug_policy_bool(path: &'static str) -> Result<Option<bool>> {
-    let mut file = match File::open(path) {
-        Ok(dp) => dp,
-        Err(e) => {
-            info!(
-                "Assumes that debug policy is disabled because failed to read debug policy ({e:?})"
-            );
-            return Ok(Some(false));
-        }
-    };
-    let mut log: [u8; 4] = Default::default();
-    file.read_exact(&mut log).context("Malformed data in {path}")?;
-    // DT spec uses big endian although Android is always little endian.
-    Ok(Some(u32::from_be_bytes(log) == 1))
 }
 
 fn try_run_payload(
@@ -457,6 +364,125 @@ fn try_run_payload(
     exec_task(task, service).context("Failed to run payload")
 }
 
+fn post_payload_work() -> Result<()> {
+    // Sync the encrypted storage filesystem (flushes the filesystem caches).
+    if Path::new(ENCRYPTEDSTORE_BACKING_DEVICE).exists() {
+        let mountpoint = CString::new(ENCRYPTEDSTORE_MOUNTPOINT).unwrap();
+
+        // SAFETY: `mountpoint` is a valid C string. `syncfs` and `close` are safe for any parameter
+        // values.
+        let ret = unsafe {
+            let dirfd = libc::open(
+                mountpoint.as_ptr(),
+                libc::O_DIRECTORY | libc::O_RDONLY | libc::O_CLOEXEC,
+            );
+            ensure!(dirfd >= 0, "Unable to open {:?}", mountpoint);
+            let ret = libc::syncfs(dirfd);
+            libc::close(dirfd);
+            ret
+        };
+        if ret != 0 {
+            error!("failed to sync encrypted storage.");
+            return Err(anyhow!(std::io::Error::last_os_error()));
+        }
+    }
+    Ok(())
+}
+
+// Waits until linker config is generated
+fn wait_for_apex_config_done() -> Result<()> {
+    wait_for_property_true(APEX_CONFIG_DONE_PROP).context("Failed waiting for apex config done")
+}
+
+fn mount_extra_apks(config: &VmPayloadConfig, zipfuse: &mut Zipfuse) -> Result<()> {
+    // For now, only the number of apks is important, as the mount point and dm-verity name is fixed
+    for i in 0..config.extra_apks.len() {
+        let mount_dir = format!("/mnt/extra-apk/{i}");
+        create_dir(Path::new(&mount_dir)).context("Failed to create mount dir for extra apks")?;
+
+        let mount_for_exec =
+            if cfg!(multi_tenant) { MountForExec::Allowed } else { MountForExec::Disallowed };
+        // These run asynchronously in parallel - we wait later for them to complete.
+        zipfuse.mount(
+            mount_for_exec,
+            "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:extra_apk_file:s0",
+            Path::new(&format!("/dev/block/mapper/extra-apk-{i}")),
+            Path::new(&mount_dir),
+            format!("microdroid_manager.extra_apk.mounted.{i}"),
+        )?;
+    }
+
+    Ok(())
+}
+
+fn get_vms_rpc_binder() -> Result<Strong<dyn IVirtualMachineService>> {
+    // The host is running a VirtualMachineService for this VM on a port equal
+    // to the CID of this VM.
+    let port = vsock::get_local_cid().context("Could not determine local CID")?;
+    RpcSession::new()
+        .setup_vsock_client(VMADDR_CID_HOST, port)
+        .context("Could not connect to IVirtualMachineService")
+}
+
+/// Prepares a socket file descriptor for the vm payload service.
+///
+/// # Safety
+///
+/// The caller must ensure that this function is the only place that claims ownership
+/// of the file descriptor and it is called only once.
+unsafe fn prepare_vm_payload_service_socket() -> Result<OwnedFd> {
+    let raw_fd = android_get_control_socket(VM_PAYLOAD_SERVICE_SOCKET_NAME)?;
+
+    // Creating OwnedFd for stdio FDs is not safe.
+    if [libc::STDIN_FILENO, libc::STDOUT_FILENO, libc::STDERR_FILENO].contains(&raw_fd) {
+        bail!("File descriptor {raw_fd} is standard I/O descriptor");
+    }
+    // SAFETY: Initializing OwnedFd for a RawFd created by the init.
+    // We checked that the integer value corresponds to a valid FD and that the caller
+    // ensures that this is the only place to claim its ownership.
+    Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
+}
+
+fn is_strict_boot() -> bool {
+    Path::new(AVF_STRICT_BOOT).exists()
+}
+
+fn is_new_instance() -> bool {
+    Path::new(AVF_NEW_INSTANCE).exists()
+}
+
+fn is_verified_boot() -> bool {
+    !Path::new(DEBUG_MICRODROID_NO_VERIFIED_BOOT).exists()
+}
+
+fn is_debuggable() -> Result<bool> {
+    Ok(system_properties::read_bool(DEBUGGABLE_PROP, true)?)
+}
+
+fn should_export_tombstones(config: &VmPayloadConfig) -> bool {
+    match config.export_tombstones {
+        Some(b) => b,
+        None => is_debuggable().unwrap_or(false),
+    }
+}
+
+/// Get debug policy value in bool. It's true iff the value is explicitly set to <1>.
+fn get_debug_policy_bool(path: &'static str) -> Result<Option<bool>> {
+    let mut file = match File::open(path) {
+        Ok(dp) => dp,
+        Err(e) => {
+            info!(
+                "Assumes that debug policy is disabled because failed to read debug policy ({e:?})"
+            );
+            return Ok(Some(false));
+        }
+    };
+    let mut log: [u8; 4] = Default::default();
+    file.read_exact(&mut log).context("Malformed data in {path}")?;
+    // DT spec uses big endian although Android is always little endian.
+    Ok(Some(u32::from_be_bytes(log) == 1))
+}
+
 enum MountForExec {
     Allowed,
     Disallowed,
@@ -504,50 +530,6 @@ impl Zipfuse {
     }
 }
 
-fn write_apex_payload_data(
-    saved_data: Option<&MicrodroidData>,
-    apex_data_from_payload: &[ApexData],
-) -> Result<()> {
-    if let Some(saved_apex_data) = saved_data.map(|d| &d.apex_data) {
-        // We don't support APEX updates. (assuming that update will change root digest)
-        ensure!(
-            saved_apex_data == apex_data_from_payload,
-            MicrodroidError::PayloadChanged(String::from("APEXes have changed."))
-        );
-        let apex_metadata = to_metadata(apex_data_from_payload);
-        // Pass metadata(with public keys and root digests) to apexd so that it uses the passed
-        // metadata instead of the default one (/dev/block/by-name/payload-metadata)
-        OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open("/apex/vm-payload-metadata")
-            .context("Failed to open /apex/vm-payload-metadata")
-            .and_then(|f| write_metadata(&apex_metadata, f))?;
-    }
-    Ok(())
-}
-
-fn mount_extra_apks(config: &VmPayloadConfig, zipfuse: &mut Zipfuse) -> Result<()> {
-    // For now, only the number of apks is important, as the mount point and dm-verity name is fixed
-    for i in 0..config.extra_apks.len() {
-        let mount_dir = format!("/mnt/extra-apk/{i}");
-        create_dir(Path::new(&mount_dir)).context("Failed to create mount dir for extra apks")?;
-
-        let mount_for_exec =
-            if cfg!(multi_tenant) { MountForExec::Allowed } else { MountForExec::Disallowed };
-        // These run asynchronously in parallel - we wait later for them to complete.
-        zipfuse.mount(
-            mount_for_exec,
-            "fscontext=u:object_r:zipfusefs:s0,context=u:object_r:extra_apk_file:s0",
-            Path::new(&format!("/dev/block/mapper/extra-apk-{i}")),
-            Path::new(&mount_dir),
-            format!("microdroid_manager.extra_apk.mounted.{i}"),
-        )?;
-    }
-
-    Ok(())
-}
-
 fn setup_config_sysprops(config: &VmPayloadConfig) -> Result<()> {
     if config.enable_authfs {
         system_properties::write("microdroid_manager.authfs.enabled", "1")
@@ -556,11 +538,6 @@ fn setup_config_sysprops(config: &VmPayloadConfig) -> Result<()> {
     system_properties::write("microdroid_manager.config_done", "1")
         .context("failed to write microdroid_manager.config_done")?;
     Ok(())
-}
-
-// Waits until linker config is generated
-fn wait_for_apex_config_done() -> Result<()> {
-    wait_for_property_true(APEX_CONFIG_DONE_PROP).context("Failed waiting for apex config done")
 }
 
 fn wait_for_property_true(property_name: &str) -> Result<()> {
