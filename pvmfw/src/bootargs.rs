@@ -94,7 +94,7 @@ impl<'a> Iterator for BootArgsIterator<'a> {
         // after.
         let name_end = arg.find(|c: char| c.is_whitespace() || c == '=').unwrap_or(arg.len());
         let (arg, equal_sign) = match arg.chars().nth(name_end) {
-            Some(c) if c == '=' => {
+            Some('=') => {
                 let value_end = name_end + Self::find_value_end(&arg[name_end..]);
                 (&arg[..value_end], Some(name_end))
             }
