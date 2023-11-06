@@ -31,7 +31,7 @@ on early-init
     exec_start init_debug_policy
 
 on init
-    mkdir /mnt/apk 0755 system system
+    mkdir /mnt/apk 0755 root root
     mkdir /mnt/extra-apk 0755 root root
 
     # Allow the payload access to the console (default is 0600)
@@ -39,9 +39,6 @@ on init
 
     # Microdroid_manager starts apkdmverity/zipfuse/apexd
     start microdroid_manager
-
-    # restorecon so microdroid_manager can create subdirectories
-    restorecon /mnt/extra-apk
 
     # Wait for apexd to finish activating APEXes before starting more processes.
     # Microdroid starts apexd in VM mode in which apexd doesn't wait for init after setting
