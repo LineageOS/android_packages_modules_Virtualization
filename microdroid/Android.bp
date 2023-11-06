@@ -416,6 +416,11 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
+    name: "microdroid_gki.json",
+    src: "microdroid_gki.json",
+}
+
+prebuilt_etc {
     name: "microdroid_manifest",
     src: "microdroid_manifest.xml",
     filename: "manifest.xml",
