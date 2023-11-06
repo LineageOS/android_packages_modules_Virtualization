@@ -14,12 +14,14 @@ and follow the steps there.
 For in-depth explanations about individual topics and components, visit the following links.
 
 AVF components:
-
 * [pVM firmware](pvmfw/README.md)
 * [Microdroid](microdroid/README.md)
 * [Microdroid kernel](microdroid/kernel/README.md)
 * [Microdroid payload](microdroid/payload/README.md)
 * [vmbase](vmbase/README.md)
+
+AVF APIs:
+* [Java API](javalib/README.md)
 * [VM Payload API](vm_payload/README.md)
 
 How-Tos:
