@@ -326,10 +326,12 @@ fn try_run_payload(
     );
     mount_extra_apks(&config, &mut zipfuse)?;
 
-    // Wait until apex config is done. (e.g. linker configuration for apexes)
-    wait_for_apex_config_done()?;
-
-    setup_config_sysprops(&config)?;
+    register_vm_payload_service(
+        allow_restricted_apis,
+        service.clone(),
+        vm_secret,
+        vm_payload_service_fd,
+    )?;
 
     // Set export_tombstones if enabled
     if should_export_tombstones(&config) {
@@ -338,15 +340,19 @@ fn try_run_payload(
             .context("set microdroid_manager.export_tombstones.enabled")?;
     }
 
+    // Wait until apex config is done. (e.g. linker configuration for apexes)
+    wait_for_property_true(APEX_CONFIG_DONE_PROP).context("Failed waiting for apex config done")?;
+
+    // Trigger init post-fs-data. This will start authfs if we wask it to.
+    if config.enable_authfs {
+        system_properties::write("microdroid_manager.authfs.enabled", "1")
+            .context("failed to write microdroid_manager.authfs.enabled")?;
+    }
+    system_properties::write("microdroid_manager.config_done", "1")
+        .context("failed to write microdroid_manager.config_done")?;
+
     // Wait until zipfuse has mounted the APKs so we can access the payload
     zipfuse.wait_until_done()?;
-
-    register_vm_payload_service(
-        allow_restricted_apis,
-        service.clone(),
-        vm_secret,
-        vm_payload_service_fd,
-    )?;
 
     // Wait for encryptedstore to finish mounting the storage (if enabled) before setting
     // microdroid_manager.init_done. Reason is init stops uneventd after that.
@@ -356,7 +362,10 @@ fn try_run_payload(
         ensure!(exitcode.success(), "Unable to prepare encrypted storage. Exitcode={}", exitcode);
     }
 
+    // Wait for init to have finished booting.
     wait_for_property_true("dev.bootcomplete").context("failed waiting for dev.bootcomplete")?;
+
+    // And then tell it we're done so unnecessary services can be shut down.
     system_properties::write("microdroid_manager.init_done", "1")
         .context("set microdroid_manager.init_done")?;
 
@@ -387,11 +396,6 @@ fn post_payload_work() -> Result<()> {
         }
     }
     Ok(())
-}
-
-// Waits until linker config is generated
-fn wait_for_apex_config_done() -> Result<()> {
-    wait_for_property_true(APEX_CONFIG_DONE_PROP).context("Failed waiting for apex config done")
 }
 
 fn mount_extra_apks(config: &VmPayloadConfig, zipfuse: &mut Zipfuse) -> Result<()> {
@@ -528,16 +532,6 @@ impl Zipfuse {
         }
         Ok(())
     }
-}
-
-fn setup_config_sysprops(config: &VmPayloadConfig) -> Result<()> {
-    if config.enable_authfs {
-        system_properties::write("microdroid_manager.authfs.enabled", "1")
-            .context("failed to write microdroid_manager.authfs.enabled")?;
-    }
-    system_properties::write("microdroid_manager.config_done", "1")
-        .context("failed to write microdroid_manager.config_done")?;
-    Ok(())
 }
 
 fn wait_for_property_true(property_name: &str) -> Result<()> {
