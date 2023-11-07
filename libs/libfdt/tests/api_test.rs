@@ -17,14 +17,19 @@
 //! Integration tests of the library libfdt.
 
 use libfdt::{Fdt, FdtError, FdtNodeMut, Phandle};
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fs;
 use std::ops::Range;
 
 // TODO(b/308694211): Use cstr!() from vmbase
 macro_rules! cstr {
     ($str:literal) => {{
-        CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+        const S: &str = concat!($str, "\0");
+        const C: &::core::ffi::CStr = match ::core::ffi::CStr::from_bytes_with_nul(S.as_bytes()) {
+            Ok(v) => v,
+            Err(_) => panic!("string contains interior NUL"),
+        };
+        C
     }};
 }
 

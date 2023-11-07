@@ -20,7 +20,12 @@ use core::ops::Range;
 #[macro_export]
 macro_rules! cstr {
     ($str:literal) => {{
-        core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+        const S: &str = concat!($str, "\0");
+        const C: &::core::ffi::CStr = match ::core::ffi::CStr::from_bytes_with_nul(S.as_bytes()) {
+            Ok(v) => v,
+            Err(_) => panic!("string contains interior NUL"),
+        };
+        C
     }};
 }
 
