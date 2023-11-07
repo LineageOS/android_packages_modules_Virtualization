@@ -284,6 +284,13 @@ fn try_run_payload(
     let dice_artifacts = dice_derivation(dice, &verified_data, &payload_metadata)?;
     let vm_secret = VmSecret::new(dice_artifacts).context("Failed to create VM secrets")?;
 
+    if cfg!(dice_changes) {
+        // Now that the DICE derivation is done, it's ok to allow payload code to run.
+
+        // Start apexd to activate APEXes. This may allow code within them to run.
+        system_properties::write("ctl.start", "apexd-vm")?;
+    }
+
     // Run encryptedstore binary to prepare the storage
     let encryptedstore_child = if Path::new(ENCRYPTEDSTORE_BACKING_DEVICE).exists() {
         info!("Preparing encryptedstore ...");

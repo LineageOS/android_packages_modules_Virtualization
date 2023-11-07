@@ -135,8 +135,10 @@ pub fn verify_payload(
         write_apex_payload_data(saved_data, &apex_data_from_payload)?;
     }
 
-    // Start apexd to activate APEXes
-    system_properties::write("ctl.start", "apexd-vm")?;
+    if cfg!(not(dice_changes)) {
+        // Start apexd to activate APEXes
+        system_properties::write("ctl.start", "apexd-vm")?;
+    }
 
     // TODO(inseob): add timeout
     apkdmverity_child.wait()?;
