@@ -17,18 +17,23 @@
 //! serves as a trusted platform to attest a client VM.
 
 use android_hardware_security_rkp::aidl::android::hardware::security::keymint::MacedPublicKey::MacedPublicKey;
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::Certificate::Certificate;
 use anyhow::{bail, Context, Result};
 use service_vm_comm::{GenerateCertificateRequestParams, Request, Response};
 use service_vm_manager::ServiceVm;
 
-pub(crate) fn request_attestation(csr: &[u8]) -> Result<Vec<u8>> {
+pub(crate) fn request_attestation(csr: &[u8]) -> Result<Vec<Certificate>> {
     let mut vm = ServiceVm::start()?;
 
     // TODO(b/271275206): Send the correct request type with client VM's
     // information to be attested.
     let request = Request::Reverse(csr.to_vec());
     match vm.process_request(request).context("Failed to process request")? {
-        Response::Reverse(cert) => Ok(cert),
+        // TODO(b/271275206): Adjust the response type.
+        Response::Reverse(cert) => {
+            let cert = Certificate { encodedCertificate: cert };
+            Ok(vec![cert])
+        }
         _ => bail!("Incorrect response type"),
     }
 }
