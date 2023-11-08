@@ -8,6 +8,12 @@ LIBVM_PAYLOAD {
     AVmPayload_getApkContentsPath;       # systemapi introduced=UpsideDownCake
     AVmPayload_getEncryptedStoragePath;  # systemapi introduced=UpsideDownCake
     AVmPayload_requestAttestation;       # systemapi introduced=VanillaIceCream
+    AVmAttestationResult_getPrivateKey;  # systemapi introduced=VanillaIceCream
+    AVmAttestationResult_sign;           # systemapi introduced=VanillaIceCream
+    AVmAttestationResult_free;           # systemapi introduced=VanillaIceCream
+    AVmAttestationResult_resultToString; # systemapi introduced=VanillaIceCream
+    AVmAttestationResult_getCertificateCount; # systemapi introduced=VanillaIceCream
+    AVmAttestationResult_getCertificateAt; # systemapi introduced=VanillaIceCream
   local:
     *;
 };

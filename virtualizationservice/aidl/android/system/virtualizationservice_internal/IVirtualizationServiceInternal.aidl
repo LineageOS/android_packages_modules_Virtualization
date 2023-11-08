@@ -15,6 +15,7 @@
  */
 package android.system.virtualizationservice_internal;
 
+import android.system.virtualizationcommon.Certificate;
 import android.system.virtualizationservice.AssignableDevice;
 import android.system.virtualizationservice.VirtualMachineDebugInfo;
 import android.system.virtualizationservice_internal.AtomVmBooted;
@@ -62,7 +63,7 @@ interface IVirtualizationServiceInternal {
      * @return A sequence of DER-encoded X.509 certificates that make up the attestation
      *         key's certificate chain. The attestation key is provided in the CSR.
      */
-    byte[] requestAttestation(in byte[] csr);
+    Certificate[] requestAttestation(in byte[] csr);
 
     /**
      * Get a list of assignable devices.

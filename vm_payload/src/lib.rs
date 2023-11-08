@@ -17,7 +17,9 @@
 mod api;
 
 pub use api::{
-    AVmPayload_getCertificate, AVmPayload_getDiceAttestationCdi,
-    AVmPayload_getDiceAttestationChain, AVmPayload_getVmInstanceSecret,
-    AVmPayload_notifyPayloadReady,
+    AVmAttestationResult_free, AVmAttestationResult_getCertificateAt,
+    AVmAttestationResult_getCertificatesCount, AVmAttestationResult_getPrivateKey,
+    AVmAttestationResult_resultToString, AVmAttestationResult_sign,
+    AVmPayload_getDiceAttestationCdi, AVmPayload_getDiceAttestationChain,
+    AVmPayload_getVmInstanceSecret, AVmPayload_notifyPayloadReady, AVmPayload_requestAttestation,
 };
