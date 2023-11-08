@@ -19,9 +19,24 @@ rust_ffi_static {
         "liblazy_static",
         "liblibc",
         "liblog_rust",
+        "libopenssl",
         "librpcbinder_rs",
+        "libvm_payload_status_bindgen",
         "libvsock",
     ],
+}
+
+rust_bindgen {
+    name: "libvm_payload_status_bindgen",
+    wrapper_src: "include/vm_payload.h",
+    crate_name: "vm_payload_status_bindgen",
+    defaults: ["avf_build_flags_rust"],
+    source_stem: "bindings",
+    bindgen_flags: [
+        "--default-enum-style rust",
+        "--allowlist-type=attestation_status_t",
+    ],
+    visibility: [":__subpackages__"],
 }
 
 // Rust wrappers round the C API for Rust clients.
@@ -33,6 +48,9 @@ rust_bindgen {
     defaults: ["avf_build_flags_rust"],
     source_stem: "bindings",
     apex_available: ["com.android.compos"],
+    bindgen_flags: [
+        "--default-enum-style rust",
+    ],
     visibility: [
         "//packages/modules/Virtualization/compos",
         "//packages/modules/Virtualization/service_vm/test_apk",
@@ -49,6 +67,7 @@ cc_library_shared {
         "libbinder_ndk",
         "libbinder_rpc_unstable",
         "liblog",
+        "libcrypto",
     ],
     whole_static_libs: ["libvm_payload_impl"],
     export_static_lib_headers: ["libvm_payload_impl"],

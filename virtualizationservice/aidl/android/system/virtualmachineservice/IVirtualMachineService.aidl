@@ -15,6 +15,7 @@
  */
 package android.system.virtualmachineservice;
 
+import android.system.virtualizationcommon.Certificate;
 import android.system.virtualizationcommon.ErrorCode;
 
 /** {@hide} */
@@ -52,5 +53,5 @@ interface IVirtualMachineService {
      * @return A sequence of DER-encoded X.509 certificates that make up the attestation
      *         key's certificate chain. The attestation key is provided in the CSR.
      */
-    byte[] requestAttestation(in byte[] csr);
+    Certificate[] requestAttestation(in byte[] csr);
 }
