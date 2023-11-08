@@ -264,3 +264,18 @@ fn fdt_symbols() {
     // Validates type.
     let _symbols: FdtNodeMut = fdt.symbols_mut().unwrap().unwrap();
 }
+
+#[test]
+fn node_mut_as_node() {
+    let mut data = fs::read(TEST_TREE_WITH_ONE_MEMORY_RANGE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    let mut memory = fdt.node_mut(cstr!("/memory")).unwrap().unwrap();
+    {
+        let memory = memory.as_node();
+        assert_eq!(memory.name(), Ok(cstr!("memory")));
+    }
+
+    // Just check whether borrow checker doesn't complain this.
+    memory.setprop_inplace(cstr!("device_type"), b"MEMORY\0").unwrap();
+}
