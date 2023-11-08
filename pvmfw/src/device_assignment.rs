@@ -28,32 +28,24 @@ use core::iter::Iterator;
 use core::mem;
 use libfdt::{Fdt, FdtError, FdtNode};
 
-// TODO(b/308694211): Move this to the vmbase
-macro_rules! const_cstr {
-    ($str:literal) => {{
-        #[allow(unused_unsafe)] // In case the macro is used within an unsafe block.
-        // SAFETY: Trailing null is guaranteed by concat!()
-        unsafe {
-            CStr::from_bytes_with_nul_unchecked(concat!($str, "\0").as_bytes())
-        }
-    }};
-}
-
 // TODO(b/308694211): Use cstr! from vmbase instead.
 macro_rules! cstr {
     ($str:literal) => {{
-        CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
+        const S: &str = concat!($str, "\0");
+        const C: &::core::ffi::CStr = match ::core::ffi::CStr::from_bytes_with_nul(S.as_bytes()) {
+            Ok(v) => v,
+            Err(_) => panic!("string contains interior NUL"),
+        };
+        C
     }};
 }
 
 const FILTERED_VM_DTBO_PROP: [&CStr; 3] = [
-    const_cstr!("android,pvmfw,phy-reg"),
-    const_cstr!("android,pvmfw,phy-iommu"),
-    const_cstr!("android,pvmfw,phy-sid"),
+    cstr!("android,pvmfw,phy-reg"),
+    cstr!("android,pvmfw,phy-iommu"),
+    cstr!("android,pvmfw,phy-sid"),
 ];
 
-const REG_PROP_NAME: &CStr = const_cstr!("reg");
-const INTERRUPTS_PROP_NAME: &CStr = const_cstr!("interrupts");
 // TODO(b/277993056): Keep constants derived from platform.dts in one place.
 const CELLS_PER_INTERRUPT: usize = 3; // from /intc node in platform.dts
 
@@ -102,10 +94,6 @@ pub type Result<T> = core::result::Result<T, DeviceAssignmentError>;
 pub struct VmDtbo(Fdt);
 
 impl VmDtbo {
-    const OVERLAY_NODE_NAME: &CStr = const_cstr!("__overlay__");
-    const TARGET_PATH_PROP: &CStr = const_cstr!("target-path");
-    const SYMBOLS_NODE_PATH: &CStr = const_cstr!("/__symbols__");
-
     /// Wraps a mutable slice containing a VM DTBO.
     ///
     /// Fails if the VM DTBO does not pass validation.
@@ -150,7 +138,7 @@ impl VmDtbo {
 
         let fragment_node = node.supernode_at_depth(1)?;
         let target_path = fragment_node
-            .getprop_str(Self::TARGET_PATH_PROP)?
+            .getprop_str(cstr!("target-path"))?
             .ok_or(DeviceAssignmentError::InvalidDtbo)?;
         if target_path != cstr!("/") {
             return Err(DeviceAssignmentError::UnsupportedOverlayTarget);
@@ -161,7 +149,7 @@ impl VmDtbo {
             .filter(|&component| !component.is_empty())
             .skip(1);
         let overlay_node_name = components.next();
-        if overlay_node_name != Some(Self::OVERLAY_NODE_NAME.to_bytes()) {
+        if overlay_node_name != Some(b"__overlay__") {
             return Err(DeviceAssignmentError::InvalidDtbo);
         }
         let mut overlaid_path = Vec::with_capacity(dtbo_node_path_bytes.len());
@@ -206,7 +194,7 @@ impl AssignedDeviceInfo {
         // Validation: Validate if interrupts cell numbers are multiple of #interrupt-cells.
         // We can't know how many interrupts would exist.
         let interrupts_cells = node
-            .getprop_cells(INTERRUPTS_PROP_NAME)?
+            .getprop_cells(cstr!("interrupts"))?
             .ok_or(DeviceAssignmentError::InvalidInterrupts)?
             .count();
         if interrupts_cells % CELLS_PER_INTERRUPT != 0 {
@@ -214,7 +202,7 @@ impl AssignedDeviceInfo {
         }
 
         // Once validated, keep the raw bytes so patch can be done with setprop()
-        Ok(node.getprop(INTERRUPTS_PROP_NAME).unwrap().unwrap().into())
+        Ok(node.getprop(cstr!("interrupts")).unwrap().unwrap().into())
     }
 
     // TODO(b/277993056): Read and validate iommu
@@ -224,7 +212,7 @@ impl AssignedDeviceInfo {
         let Some(node) = fdt.node(&node_path)? else { return Ok(None) };
 
         // TODO(b/277993056): Validate reg with HVC, and keep reg with FdtNode::reg()
-        let reg = node.getprop(REG_PROP_NAME).unwrap().unwrap();
+        let reg = node.getprop(cstr!("reg")).unwrap().unwrap();
 
         let interrupts = Self::parse_interrupts(&node)?;
 
@@ -238,8 +226,8 @@ impl AssignedDeviceInfo {
 
     fn patch(&self, fdt: &mut Fdt) -> Result<()> {
         let mut dst = fdt.node_mut(&self.node_path)?.unwrap();
-        dst.setprop(REG_PROP_NAME, &self.reg)?;
-        dst.setprop(INTERRUPTS_PROP_NAME, &self.interrupts)?;
+        dst.setprop(cstr!("reg"), &self.reg)?;
+        dst.setprop(cstr!("interrupts"), &self.interrupts)?;
         // TODO(b/277993056): Read and patch iommu
         Ok(())
     }
@@ -275,7 +263,7 @@ impl DeviceAssignmentInfo {
                 filtered_dtbo_paths.push(dtbo_node_path.into());
             }
         }
-        filtered_dtbo_paths.push(VmDtbo::SYMBOLS_NODE_PATH.into());
+        filtered_dtbo_paths.push(CString::new("/__symbols__").unwrap());
 
         if assigned_devices.is_empty() {
             return Ok(None);
