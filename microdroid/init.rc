@@ -30,6 +30,11 @@ on early-init
     # We don't directly exec the binary to specify stdio_to_kmsg.
     exec_start init_debug_policy
 
+    # Wait for ueventd to have finished cold boot.
+    # This is needed by prng-seeder (at least).
+    # (In Android this happens inside apexd-bootstrap.)
+    wait_for_prop ro.cold_boot_done true
+
 on init
     mkdir /mnt/apk 0755 root root
     mkdir /mnt/extra-apk 0755 root root
