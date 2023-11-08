@@ -40,12 +40,6 @@ macro_rules! cstr {
     }};
 }
 
-const FILTERED_VM_DTBO_PROP: [&CStr; 3] = [
-    cstr!("android,pvmfw,phy-reg"),
-    cstr!("android,pvmfw,phy-iommu"),
-    cstr!("android,pvmfw,phy-sid"),
-];
-
 // TODO(b/277993056): Keep constants derived from platform.dts in one place.
 const CELLS_PER_INTERRUPT: usize = 3; // from /intc node in platform.dts
 
@@ -287,7 +281,12 @@ impl DeviceAssignmentInfo {
             node.nop()?;
         }
 
-        // Filters unused properties in assigned device node
+        // Filters pvmfw-specific properties in assigned device node.
+        const FILTERED_VM_DTBO_PROP: [&CStr; 3] = [
+            cstr!("android,pvmfw,phy-reg"),
+            cstr!("android,pvmfw,phy-iommu"),
+            cstr!("android,pvmfw,phy-sid"),
+        ];
         for assigned_device in &self.assigned_devices {
             let mut node = vm_dtbo.node_mut(&assigned_device.dtbo_node_path).unwrap().unwrap();
             for prop in FILTERED_VM_DTBO_PROP {
