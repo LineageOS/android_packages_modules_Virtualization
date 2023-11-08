@@ -18,6 +18,7 @@ use crate::{get_calling_pid, get_calling_uid};
 use crate::atom::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom};
 use crate::rkpvm::request_attestation;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::Certificate::Certificate;
 use android_system_virtualizationservice::{
     aidl::android::system::virtualizationservice::AssignableDevice::AssignableDevice,
     aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo,
@@ -158,7 +159,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         Ok(cids)
     }
 
-    fn requestAttestation(&self, csr: &[u8]) -> binder::Result<Vec<u8>> {
+    fn requestAttestation(&self, csr: &[u8]) -> binder::Result<Vec<Certificate>> {
         check_manage_access()?;
         info!("Received csr. Requestting attestation...");
         if cfg!(remote_attestation) {

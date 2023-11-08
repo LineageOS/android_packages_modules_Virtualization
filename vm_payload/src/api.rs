@@ -14,20 +14,30 @@
 
 //! This module handles the interaction with virtual machine payload service.
 
-use android_system_virtualization_payload::aidl::android::system::virtualization::payload::IVmPayloadService::{
-    ENCRYPTEDSTORE_MOUNTPOINT, IVmPayloadService, VM_PAYLOAD_SERVICE_SOCKET_NAME, VM_APK_CONTENTS_PATH};
-use anyhow::{ensure, bail, Context, Result};
-use binder::{Strong, unstable_api::{AIBinder, new_spibinder}};
+use android_system_virtualization_payload::aidl::android::system::virtualization::payload:: IVmPayloadService::{
+    IVmPayloadService, ENCRYPTEDSTORE_MOUNTPOINT, VM_APK_CONTENTS_PATH,
+    VM_PAYLOAD_SERVICE_SOCKET_NAME, AttestationResult::AttestationResult,
+};
+use anyhow::{bail, ensure, Context, Result};
+use binder::{
+    unstable_api::{new_spibinder, AIBinder},
+    Strong,
+};
 use lazy_static::lazy_static;
 use log::{error, info, Level};
-use rpcbinder::{RpcSession, RpcServer};
+use rpcbinder::{RpcServer, RpcSession};
+use openssl::{ec::EcKey, sha::sha256, ecdsa::EcdsaSig};
 use std::convert::Infallible;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::fmt::Debug;
 use std::os::raw::{c_char, c_void};
 use std::path::Path;
-use std::ptr;
-use std::sync::{Mutex, atomic::{AtomicBool, Ordering}};
+use std::ptr::{self, NonNull};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
+use vm_payload_status_bindgen::attestation_status_t;
 
 lazy_static! {
     static ref VM_APK_CONTENTS_PATH_C: CString =
@@ -263,42 +273,210 @@ fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
 /// Behavior is undefined if any of the following conditions are violated:
 ///
 /// * `challenge` must be [valid] for reads of `challenge_size` bytes.
-/// * `buffer` must be [valid] for writes of `size` bytes. `buffer` can be null if `size` is 0.
+/// * `res` must be [valid] to write the attestation result.
+/// * The region of memory beginning at `challenge` with `challenge_size` bytes must not
+///  overlap with the region of memory `res` points to.
 ///
 /// [valid]: ptr#safety
 #[no_mangle]
 pub unsafe extern "C" fn AVmPayload_requestAttestation(
     challenge: *const u8,
     challenge_size: usize,
-    buffer: *mut u8,
+    res: &mut *mut AttestationResult,
+) -> attestation_status_t {
+    initialize_logging();
+    const MAX_CHALLENGE_SIZE: usize = 64;
+    if challenge_size > MAX_CHALLENGE_SIZE {
+        return attestation_status_t::ATTESTATION_ERROR_INVALID_CHALLENGE;
+    }
+    let challenge = if challenge_size == 0 {
+        &[]
+    } else {
+        // SAFETY: The caller guarantees that `challenge` is valid for reads of
+        // `challenge_size` bytes and `challenge_size` is not zero.
+        unsafe { std::slice::from_raw_parts(challenge, challenge_size) }
+    };
+    let attestation_res = unwrap_or_abort(try_request_attestation(challenge));
+    *res = Box::into_raw(Box::new(attestation_res));
+    attestation_status_t::ATTESTATION_OK
+}
+
+fn try_request_attestation(public_key: &[u8]) -> Result<AttestationResult> {
+    get_vm_payload_service()?
+        .requestAttestation(public_key)
+        .context("Failed to request attestation")
+}
+
+/// Converts the return value from `AVmPayload_requestAttestation` to a text string
+/// representing the error code.
+#[no_mangle]
+pub extern "C" fn AVmAttestationResult_resultToString(
+    status: attestation_status_t,
+) -> *const c_char {
+    let message = match status {
+        attestation_status_t::ATTESTATION_OK => {
+            CStr::from_bytes_with_nul(b"The remote attestation completes successfully.\0").unwrap()
+        }
+        attestation_status_t::ATTESTATION_ERROR_INVALID_CHALLENGE => {
+            CStr::from_bytes_with_nul(b"The challenge size is not between 0 and 64.\0").unwrap()
+        }
+        _ => CStr::from_bytes_with_nul(
+            b"The remote attestation has failed due to an unspecified cause.\0",
+        )
+        .unwrap(),
+    };
+    message.as_ptr()
+}
+
+/// Reads the DER-encoded ECPrivateKey structure specified in [RFC 5915 s3] for the
+/// EC P-256 private key from the provided attestation result.
+///
+/// # Safety
+///
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `data` must be [valid] for writes of `size` bytes, if size > 0.
+/// * The region of memory beginning at `data` with `size` bytes must not overlap with the
+///  region of memory `res` points to.
+///
+/// [valid]: ptr#safety
+/// [RFC 5915 s3]: https://datatracker.ietf.org/doc/html/rfc5915#section-3
+#[no_mangle]
+pub unsafe extern "C" fn AVmAttestationResult_getPrivateKey(
+    res: &AttestationResult,
+    data: *mut u8,
     size: usize,
 ) -> usize {
-    initialize_logging();
+    let private_key = &res.privateKey;
+    if size != 0 {
+        let data = NonNull::new(data).expect("data must not be null when size > 0");
+        // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+        // the length of either buffer, and the caller ensures that `private_key` cannot overlap
+        // `data`. We allow data to be null, which is never valid, but only if size == 0
+        // which is checked above.
+        unsafe {
+            ptr::copy_nonoverlapping(
+                private_key.as_ptr(),
+                data.as_ptr(),
+                std::cmp::min(private_key.len(), size),
+            )
+        };
+    }
+    private_key.len()
+}
 
-    // SAFETY: See the requirements on `challenge` above.
-    let challenge = unsafe { std::slice::from_raw_parts(challenge, challenge_size) };
-    let certificate = unwrap_or_abort(try_request_attestation(challenge));
+/// Signs the given message using ECDSA P-256, the message is first hashed with SHA-256 and
+/// then it is signed with the attested EC P-256 private key in the attestation result.
+///
+/// # Safety
+///
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `message` must be [valid] for reads of `message_size` bytes.
+/// * `data` must be [valid] for writes of `size` bytes, if size > 0.
+/// * The region of memory beginning at `data` with `size` bytes must not overlap with the
+///  region of memory `res` or `message` point to.
+///
+///
+/// [valid]: ptr#safety
+#[no_mangle]
+pub unsafe extern "C" fn AVmAttestationResult_sign(
+    res: &AttestationResult,
+    message: *const u8,
+    message_size: usize,
+    data: *mut u8,
+    size: usize,
+) -> usize {
+    if message_size == 0 {
+        panic!("Message to be signed must not be empty.")
+    }
+    // SAFETY: See the requirements on `message` above.
+    let message = unsafe { std::slice::from_raw_parts(message, message_size) };
+    let signature = unwrap_or_abort(try_ecdsa_sign(message, &res.privateKey));
+    if size != 0 {
+        let data = NonNull::new(data).expect("data must not be null when size > 0");
+        // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+        // the length of either buffer, and the caller ensures that `signature` cannot overlap
+        // `data`. We allow data to be null, which is never valid, but only if size == 0
+        // which is checked above.
+        unsafe {
+            ptr::copy_nonoverlapping(
+                signature.as_ptr(),
+                data.as_ptr(),
+                std::cmp::min(signature.len(), size),
+            )
+        };
+    }
+    signature.len()
+}
 
-    if size != 0 || buffer.is_null() {
-        // SAFETY: See the requirements on `buffer` above. The number of bytes copied doesn't exceed
-        // the length of either buffer, and `certificate` cannot overlap `buffer` because we just
-        // allocated it.
+fn try_ecdsa_sign(message: &[u8], der_encoded_ec_private_key: &[u8]) -> Result<Vec<u8>> {
+    let private_key = EcKey::private_key_from_der(der_encoded_ec_private_key)?;
+    let digest = sha256(message);
+    let sig = EcdsaSig::sign(&digest, &private_key)?;
+    Ok(sig.to_der()?)
+}
+
+/// Gets the number of certificates in the certificate chain.
+#[no_mangle]
+pub extern "C" fn AVmAttestationResult_getCertificateCount(res: &AttestationResult) -> usize {
+    res.certificateChain.len()
+}
+
+/// Retrieves the certificate at the given `index` from the certificate chain in the provided
+/// attestation result.
+///
+/// # Safety
+///
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `data` must be [valid] for writes of `size` bytes, if size > 0.
+/// * `index` must be within the range of [0, number of certificates). The number of certificates
+///   can be obtained with `AVmAttestationResult_getCertificateCount`.
+/// * The region of memory beginning at `data` with `size` bytes must not overlap with the
+///  region of memory `res` points to.
+///
+/// [valid]: ptr#safety
+#[no_mangle]
+pub unsafe extern "C" fn AVmAttestationResult_getCertificateAt(
+    res: &AttestationResult,
+    index: usize,
+    data: *mut u8,
+    size: usize,
+) -> usize {
+    let certificate =
+        &res.certificateChain.get(index).expect("The index is out of bounds.").encodedCertificate;
+    if size != 0 {
+        let data = NonNull::new(data).expect("data must not be null when size > 0");
+        // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+        // the length of either buffer, and the caller ensures that `certificate` cannot overlap
+        // `data`. We allow data to be null, which is never valid, but only if size == 0
+        // which is checked above.
         unsafe {
             ptr::copy_nonoverlapping(
                 certificate.as_ptr(),
-                buffer,
+                data.as_ptr(),
                 std::cmp::min(certificate.len(), size),
-            );
-        }
+            )
+        };
     }
     certificate.len()
 }
 
-fn try_request_attestation(challenge: &[u8]) -> Result<Vec<u8>> {
-    let certificate = get_vm_payload_service()?
-        .requestAttestation(challenge)
-        .context("Failed to request attestation")?;
-    Ok(certificate)
+/// Frees all the data owned by given attestation result and result itself.
+///
+/// # Safety
+///
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `res` must point to a valid `AttestationResult` and has not been freed before.
+#[no_mangle]
+pub unsafe extern "C" fn AVmAttestationResult_free(res: *mut AttestationResult) {
+    if !res.is_null() {
+        // SAFETY: The result is only freed once is ensured by the caller.
+        let res = unsafe { Box::from_raw(res) };
+        drop(res)
+    }
 }
 
 /// Gets the path to the APK contents.
