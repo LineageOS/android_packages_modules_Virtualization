@@ -59,6 +59,55 @@ rust_test {
     ],
 }
 
+genrule {
+    name: "test_pvmfw_devices_vm_dtbo",
+    defaults: ["dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_vm_dtbo.dts"],
+    out: ["test_pvmfw_devices_vm_dtbo.dtbo"],
+}
+
+genrule {
+    name: "test_pvmfw_devices_vm_dtbo_without_symbols",
+    defaults: ["dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_vm_dtbo_without_symbols.dts"],
+    out: ["test_pvmfw_devices_vm_dtbo_without_symbols.dtbo"],
+}
+
+genrule {
+    name: "test_pvmfw_devices_with_rng",
+    defaults: ["dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_with_rng.dts"],
+    out: ["test_pvmfw_devices_with_rng.dtb"],
+}
+
+rust_test {
+    name: "libpvmfw.device_assignment.test",
+    srcs: ["src/device_assignment.rs"],
+    defaults: ["avf_build_flags_rust"],
+    test_suites: ["general-tests"],
+    test_options: {
+        unit_test: true,
+    },
+    prefer_rlib: true,
+    rustlibs: [
+        "liblibfdt",
+        "liblog_rust",
+        "libpvmfw_fdt_template",
+    ],
+    data: [
+        ":test_pvmfw_devices_vm_dtbo",
+        ":test_pvmfw_devices_vm_dtbo_without_symbols",
+        ":test_pvmfw_devices_with_rng",
+    ],
+    // To use libpvmfw_fdt_template for testing
+    enabled: false,
+    target: {
+        android_arm64: {
+            enabled: true,
+        },
+    },
+}
+
 cc_binary {
     name: "pvmfw",
     defaults: ["vmbase_elf_defaults"],

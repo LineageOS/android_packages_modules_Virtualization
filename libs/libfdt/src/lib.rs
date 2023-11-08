@@ -696,6 +696,11 @@ impl<'a> FdtNodeMut<'a> {
         self.fdt
     }
 
+    /// Returns immutable FdtNode of this node.
+    pub fn as_node(&self) -> FdtNode {
+        FdtNode { fdt: self.fdt, offset: self.offset }
+    }
+
     /// Adds a new subnode to the given node and return it as a FdtNodeMut on success.
     pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
         let offset = self.add_subnode_offset(name.to_bytes())?;
