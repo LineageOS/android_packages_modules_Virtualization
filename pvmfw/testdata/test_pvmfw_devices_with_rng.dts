@@ -1,0 +1,52 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	chosen {
+		stdout-path = "/uart@3f8";
+		linux,pci-probe-only = <1>;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x00 0x80000000 0xFFFFFFFF>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		swiotlb: restricted_dma_reserved {
+			compatible = "restricted-dma-pool";
+			reg = <0xFFFFFFFF>;
+			size = <0xFFFFFFFF>;
+			alignment = <0xFFFFFFFF>;
+		};
+
+		dice {
+			compatible = "google,open-dice";
+			no-map;
+			reg = <0xFFFFFFFF>;
+		};
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cpu@0 {
+			device_type = "cpu";
+		};
+		cpu@1 {
+			device_type = "cpu";
+		    reg = <0x00 0x80000000 0xFFFFFFFF>;
+		};
+    };
+
+    rng@90000000 {
+        compatible = "android,rng";
+        reg = <0x0 0x9 0x0 0xFF>;
+        interrupts = <0x0 0xF 0x4>;
+        google,eh,ignore-gctrl-reset;
+        status = "okay";
+    };
+};

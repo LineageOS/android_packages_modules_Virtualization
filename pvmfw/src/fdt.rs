@@ -15,6 +15,8 @@
 //! High-level FDT functions.
 
 use crate::bootargs::BootArgsIterator;
+use crate::device_assignment::DeviceAssignmentInfo;
+use crate::device_assignment::VmDtbo;
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::Box;
 use crate::RebootReason;
@@ -590,6 +592,7 @@ pub struct DeviceTreeInfo {
     pci_info: PciInfo,
     serial_info: SerialInfo,
     pub swiotlb_info: SwiotlbInfo,
+    device_assignment: Option<DeviceAssignmentInfo>,
 }
 
 impl DeviceTreeInfo {
@@ -600,20 +603,53 @@ impl DeviceTreeInfo {
     }
 }
 
-pub fn sanitize_device_tree(fdt: &mut Fdt) -> Result<DeviceTreeInfo, RebootReason> {
-    let info = parse_device_tree(fdt)?;
-    debug!("Device tree info: {:?}", info);
+pub fn sanitize_device_tree(
+    fdt: &mut [u8],
+    vm_dtbo: Option<&mut [u8]>,
+) -> Result<DeviceTreeInfo, RebootReason> {
+    let fdt = Fdt::from_mut_slice(fdt).map_err(|e| {
+        error!("Failed to load FDT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
+    let vm_dtbo = match vm_dtbo {
+        Some(vm_dtbo) => Some(VmDtbo::from_mut_slice(vm_dtbo).map_err(|e| {
+            error!("Failed to load VM DTBO: {e}");
+            RebootReason::InvalidFdt
+        })?),
+        None => None,
+    };
+
+    let info = parse_device_tree(fdt, vm_dtbo.as_deref())?;
 
     fdt.copy_from_slice(pvmfw_fdt_template::RAW).map_err(|e| {
         error!("Failed to instantiate FDT from the template DT: {e}");
         RebootReason::InvalidFdt
     })?;
 
+    if let Some(device_assignment_info) = &info.device_assignment {
+        let vm_dtbo = vm_dtbo.unwrap();
+        device_assignment_info.filter(vm_dtbo).map_err(|e| {
+            error!("Failed to filter VM DTBO: {e}");
+            RebootReason::InvalidFdt
+        })?;
+        // SAFETY: Damaged VM DTBO isn't used in this API after this unsafe block.
+        // VM DTBO can't be reused in any way as Fdt nor VmDtbo outside of this API because
+        // it can only be instantiated after validation.
+        unsafe {
+            fdt.apply_overlay(vm_dtbo.as_mut()).map_err(|e| {
+                error!("Failed to apply filtered VM DTBO: {e}");
+                RebootReason::InvalidFdt
+            })?;
+        }
+    }
+
     patch_device_tree(fdt, &info)?;
+
     Ok(info)
 }
 
-fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> {
+fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeInfo, RebootReason> {
     let kernel_range = read_kernel_range_from(fdt).map_err(|e| {
         error!("Failed to read kernel range from DT: {e}");
         RebootReason::InvalidFdt
@@ -657,6 +693,14 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
     })?;
     validate_swiotlb_info(&swiotlb_info, &memory_range)?;
 
+    let device_assignment = match vm_dtbo {
+        Some(vm_dtbo) => DeviceAssignmentInfo::parse(fdt, vm_dtbo).map_err(|e| {
+            error!("Failed to parse device assignment from DT and VM DTBO: {e}");
+            RebootReason::InvalidFdt
+        })?,
+        None => None,
+    };
+
     Ok(DeviceTreeInfo {
         kernel_range,
         initrd_range,
@@ -666,6 +710,7 @@ fn parse_device_tree(fdt: &libfdt::Fdt) -> Result<DeviceTreeInfo, RebootReason> 
         pci_info,
         serial_info,
         swiotlb_info,
+        device_assignment,
     })
 }
 
@@ -715,6 +760,14 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
         error!("Failed to patch timer info to DT: {e}");
         RebootReason::InvalidFdt
     })?;
+    if let Some(device_assignment) = &info.device_assignment {
+        // Note: We patch values after VM DTBO is overlaid because patch may require more space
+        // then VM DTBO's underlying slice is allocated.
+        device_assignment.patch(fdt).map_err(|e| {
+            error!("Failed to patch device assignment info to DT: {e}");
+            RebootReason::InvalidFdt
+        })?;
+    }
 
     fdt.pack().map_err(|e| {
         error!("Failed to pack DT after patching: {e}");
