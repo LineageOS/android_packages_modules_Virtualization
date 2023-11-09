@@ -8,7 +8,7 @@ rust_ffi_static {
     crate_name: "vm_payload",
     defaults: ["avf_build_flags_rust"],
     visibility: ["//visibility:private"],
-    srcs: ["src/*.rs"],
+    srcs: ["src/lib.rs"],
     include_dirs: ["include"],
     prefer_rlib: true,
     rustlibs: [
