@@ -16,7 +16,7 @@
 
 use crate::read_sysreg;
 use aarch64_paging::idmap::IdMap;
-use aarch64_paging::paging::{Attributes, MemoryRegion, PteUpdater};
+use aarch64_paging::paging::{Attributes, Constraints, Descriptor, MemoryRegion};
 use aarch64_paging::MapError;
 use core::result;
 
@@ -83,7 +83,9 @@ impl PageTable {
     /// code being currently executed. Otherwise, the Rust execution model (on which the borrow
     /// checker relies) would be violated.
     pub unsafe fn activate(&mut self) {
-        self.idmap.activate()
+        // SAFETY: the caller of this unsafe function asserts that switching to a different
+        // translation is safe
+        unsafe { self.idmap.activate() }
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as lazily mapped
@@ -107,7 +109,15 @@ impl PageTable {
     /// Maps the given range of virtual addresses to the physical addresses as non-executable,
     /// read-only and writable-clean normal memory.
     pub fn map_data_dbm(&mut self, range: &MemoryRegion) -> Result<()> {
-        self.idmap.map_range(range, DATA_DBM)
+        // Map the region down to pages to minimize the size of the regions that will be marked
+        // dirty once a store hits them, but also to ensure that we can clear the read-only
+        // attribute while the mapping is live without causing break-before-make (BBM) violations.
+        // The latter implies that we must avoid the use of the contiguous hint as well.
+        self.idmap.map_range_with_constraints(
+            range,
+            DATA_DBM,
+            Constraints::NO_BLOCK_MAPPINGS | Constraints::NO_CONTIGUOUS_HINT,
+        )
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as read-only
@@ -124,18 +134,20 @@ impl PageTable {
 
     /// Applies the provided updater function to a number of PTEs corresponding to a given memory
     /// range.
-    pub fn modify_range(&mut self, range: &MemoryRegion, f: &PteUpdater) -> Result<()> {
+    pub fn modify_range<F>(&mut self, range: &MemoryRegion, f: &F) -> Result<()>
+    where
+        F: Fn(&MemoryRegion, &mut Descriptor, usize) -> result::Result<(), ()>,
+    {
         self.idmap.modify_range(range, f)
     }
-}
 
-/// Checks whether a PTE at given level is a page or block descriptor.
-#[inline]
-pub(super) fn is_leaf_pte(flags: &Attributes, level: usize) -> bool {
-    const LEAF_PTE_LEVEL: usize = 3;
-    if flags.contains(Attributes::TABLE_OR_PAGE) {
-        level == LEAF_PTE_LEVEL
-    } else {
-        level < LEAF_PTE_LEVEL
+    /// Applies the provided callback function to a number of PTEs corresponding to a given memory
+    /// range.
+    pub fn walk_range<F>(&self, range: &MemoryRegion, f: &F) -> Result<()>
+    where
+        F: Fn(&MemoryRegion, &Descriptor, usize) -> result::Result<(), ()>,
+    {
+        let mut callback = |mr: &MemoryRegion, d: &Descriptor, l: usize| f(mr, d, l);
+        self.idmap.walk_range(range, &mut callback)
     }
 }
