@@ -21,7 +21,7 @@ use android_system_virtualization_payload::aidl::android::system::virtualization
 use anyhow::{bail, ensure, Context, Result};
 use binder::{
     unstable_api::{new_spibinder, AIBinder},
-    Strong,
+    Strong, ExceptionCode,
 };
 use lazy_static::lazy_static;
 use log::{error, info, Level};
@@ -296,15 +296,24 @@ pub unsafe extern "C" fn AVmPayload_requestAttestation(
         // `challenge_size` bytes and `challenge_size` is not zero.
         unsafe { std::slice::from_raw_parts(challenge, challenge_size) }
     };
-    let attestation_res = unwrap_or_abort(try_request_attestation(challenge));
-    *res = Box::into_raw(Box::new(attestation_res));
-    attestation_status_t::ATTESTATION_OK
+    let service = unwrap_or_abort(get_vm_payload_service());
+    match service.requestAttestation(challenge) {
+        Ok(attestation_res) => {
+            *res = Box::into_raw(Box::new(attestation_res));
+            attestation_status_t::ATTESTATION_OK
+        }
+        Err(e) => {
+            error!("Remote attestation failed: {e:?}");
+            binder_status_to_attestation_status(e)
+        }
+    }
 }
 
-fn try_request_attestation(public_key: &[u8]) -> Result<AttestationResult> {
-    get_vm_payload_service()?
-        .requestAttestation(public_key)
-        .context("Failed to request attestation")
+fn binder_status_to_attestation_status(status: binder::Status) -> attestation_status_t {
+    match status.exception_code() {
+        ExceptionCode::UNSUPPORTED_OPERATION => attestation_status_t::ATTESTATION_ERROR_UNSUPPORTED,
+        _ => attestation_status_t::ATTESTATION_ERROR_ATTESTATION_FAILED,
+    }
 }
 
 /// Converts the return value from `AVmPayload_requestAttestation` to a text string
@@ -320,8 +329,12 @@ pub extern "C" fn AVmAttestationResult_resultToString(
         attestation_status_t::ATTESTATION_ERROR_INVALID_CHALLENGE => {
             CStr::from_bytes_with_nul(b"The challenge size is not between 0 and 64.\0").unwrap()
         }
-        _ => CStr::from_bytes_with_nul(
-            b"The remote attestation has failed due to an unspecified cause.\0",
+        attestation_status_t::ATTESTATION_ERROR_ATTESTATION_FAILED => {
+            CStr::from_bytes_with_nul(b"Failed to attest the VM. Please retry at a later time.\0")
+                .unwrap()
+        }
+        attestation_status_t::ATTESTATION_ERROR_UNSUPPORTED => CStr::from_bytes_with_nul(
+            b"Remote attestation is not supported in the current environment.\0",
         )
         .unwrap(),
     };
