@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::instance::{ApkData, MicrodroidData, RootHash};
-use crate::payload::get_apex_data_from_payload;
-use crate::{is_strict_boot, is_verified_boot, write_apex_payload_data, MicrodroidError};
+use crate::instance::{ApexData, ApkData, MicrodroidData, RootHash};
+use crate::payload::{get_apex_data_from_payload, to_metadata};
+use crate::{is_strict_boot, is_verified_boot, MicrodroidError};
 use anyhow::{anyhow, ensure, Context, Result};
 use apkmanifest::get_manifest_info;
 use apkverify::{get_public_key_der, verify, V4Signature};
 use glob::glob;
 use itertools::sorted;
 use log::{info, warn};
-use microdroid_metadata::Metadata;
+use microdroid_metadata::{write_metadata, Metadata};
 use rand::Fill;
 use rustutils::system_properties;
+use std::fs::OpenOptions;
 use std::path::Path;
 use std::process::{Child, Command};
 use std::str;
@@ -134,8 +135,10 @@ pub fn verify_payload(
         write_apex_payload_data(saved_data, &apex_data_from_payload)?;
     }
 
-    // Start apexd to activate APEXes
-    system_properties::write("ctl.start", "apexd-vm")?;
+    if cfg!(not(dice_changes)) {
+        // Start apexd to activate APEXes
+        system_properties::write("ctl.start", "apexd-vm")?;
+    }
 
     // TODO(inseob): add timeout
     apkdmverity_child.wait()?;
@@ -205,6 +208,29 @@ fn get_data_from_apk(
         package_name: manifest_info.package,
         version_code: manifest_info.version_code,
     })
+}
+
+fn write_apex_payload_data(
+    saved_data: Option<&MicrodroidData>,
+    apex_data_from_payload: &[ApexData],
+) -> Result<()> {
+    if let Some(saved_apex_data) = saved_data.map(|d| &d.apex_data) {
+        // We don't support APEX updates. (assuming that update will change root digest)
+        ensure!(
+            saved_apex_data == apex_data_from_payload,
+            MicrodroidError::PayloadChanged(String::from("APEXes have changed."))
+        );
+        let apex_metadata = to_metadata(apex_data_from_payload);
+        // Pass metadata(with public keys and root digests) to apexd so that it uses the passed
+        // metadata instead of the default one (/dev/block/by-name/payload-metadata)
+        OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open("/apex/vm-payload-metadata")
+            .context("Failed to open /apex/vm-payload-metadata")
+            .and_then(|f| write_metadata(&apex_metadata, f))?;
+    }
+    Ok(())
 }
 
 fn get_apk_root_hash_from_idsig<P: AsRef<Path>>(idsig_path: P) -> Result<Box<RootHash>> {
