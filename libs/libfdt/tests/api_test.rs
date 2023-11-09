@@ -206,6 +206,22 @@ fn node_with_phandle() {
 }
 
 #[test]
+fn node_mut_with_phandle() {
+    let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    // Test linux,phandle
+    let phandle = Phandle::new(0xFF).unwrap();
+    let node: FdtNodeMut = fdt.node_mut_with_phandle(phandle).unwrap().unwrap();
+    assert_eq!(node.as_node().name(), Ok(cstr!("node_zz")));
+
+    // Test phandle
+    let phandle = Phandle::new(0x22).unwrap();
+    let node: FdtNodeMut = fdt.node_mut_with_phandle(phandle).unwrap().unwrap();
+    assert_eq!(node.as_node().name(), Ok(cstr!("node_abc")));
+}
+
+#[test]
 fn node_get_phandle() {
     let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
