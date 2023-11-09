@@ -83,7 +83,9 @@ impl PageTable {
     /// code being currently executed. Otherwise, the Rust execution model (on which the borrow
     /// checker relies) would be violated.
     pub unsafe fn activate(&mut self) {
-        self.idmap.activate()
+        // SAFETY: the caller of this unsafe function asserts that switching to a different
+        // translation is safe
+        unsafe { self.idmap.activate() }
     }
 
     /// Maps the given range of virtual addresses to the physical addresses as lazily mapped
