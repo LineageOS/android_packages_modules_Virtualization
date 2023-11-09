@@ -15,6 +15,9 @@ Note that these APIs are all `@SystemApi` and require the restricted
 `android.permission.MANAGE_VIRTUAL_MACHINE` permission, so they are not
 available to third party apps.
 
+All of these APIs were introduced in API level 34 (Android 14). The classes may
+not exist in devices running an earlier version.
+
 ## Detecting AVF Support
 
 The simplest way to detect whether a device has support for AVF is to retrieve
@@ -22,7 +25,7 @@ an instance of the
 [`VirtualMachineManager`](src/android/system/virtualmachine/VirtualMachineManager.java)
 class; if the result is not `null` then the device has support. You can then
 find out whether protected, non-protected VMs, or both are supported using the
-`getCapabilities()` method:
+`getCapabilities()` method. Note that this code requires API level 34 or higher:
 
 ```Java
 VirtualMachineManager vmm = context.getSystemService(VirtualMachineManager.class);
@@ -41,7 +44,8 @@ if (vmm == null) {
 ```
 
 An alternative for detecting AVF support is to query support for the
-`android.software.virtualization_framework` system feature:
+`android.software.virtualization_framework` system feature. This method will
+work on any API level, and return false if it is below 34:
 
 ```Java
 if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_VIRTUALIZATION_FRAMEWORK)) {
@@ -116,7 +120,9 @@ There are other things that you can specify as part of the
   reached - but there is some overhead proportional to the maximum size.)
 - How many virtual CPUs the VM has.
 - How much encrypted storage the VM has.
-- The path to the installed APK containing the code to run as the VM payload.
+- The path to the installed APK containing the code to run as the VM
+  payload. (Normally you don't need this; the APK path is determined from the
+  context passed to the config builder.)
 
 ## VM Life-cycle
 
@@ -244,7 +250,7 @@ richer RPC style of communication we suggest using Binder.
 
 ### Binder
 
-The use of AIDL interfaces between the VM and app is support via Binder RPC,
+The use of AIDL interfaces between the VM and app is supported via Binder RPC,
 which transmits messages over an underlying vsock socket.
 
 Note that Binder RPC has some limitations compared to the kernel Binder used in
@@ -304,10 +310,12 @@ callback, if you have installed a
 which includes the payload's exit code.
 
 Use of `stop()` should be reserved as a recovery mechanism - for example if the
-VM has not stopped within a reasonable time after being requested to.
+VM has not stopped within a reasonable time (a few seconds, say) after being
+requested to.
 
-The status of a VM will be `STATUS_STOPPED` after a successful call to `stop()`,
-or if your `onPayloadStopped()` callback is invoked.
+The status of a VM will be `STATUS_STOPPED` if your `onStopped()` callback is
+invoked, or after a successful call to `stop()`. Note that your `onStopped()`
+will be called on the VM even if it ended as a result of a call to `stop()`.
 
 # Encrypted Storage
 
@@ -333,9 +341,8 @@ earlier version, or modify it, corrupting the data.
 
 # Transferring a VM
 
-It is possible to make a copy of a VM instance with a new name. This can be used
-to transfer a VM from one app to another, which can be useful in some
-circumstances.
+It is possible to make a copy of a VM instance. This can be used to transfer a
+VM from one app to another, which can be useful in some circumstances.
 
 This should only be done while the VM is stopped. The first step is to call
 `toDescriptor()` on the
