@@ -43,11 +43,14 @@ typedef enum attestation_status_t : int32_t {
     /** The remote attestation completes successfully. */
     ATTESTATION_OK = 0,
 
-    /** The remote attestation has failed due to an unspecified cause. */
-    ATTESTATION_UNKNOWN_ERROR = -10000,
-
     /** The challenge size is not between 0 and 64. */
     ATTESTATION_ERROR_INVALID_CHALLENGE = -10001,
+
+    /** Failed to attest the VM. Please retry at a later time. */
+    ATTESTATION_ERROR_ATTESTATION_FAILED = -10002,
+
+    /** Remote attestation is not supported in the current environment. */
+    ATTESTATION_ERROR_UNSUPPORTED = -10003,
 } attestation_status_t;
 
 /**
