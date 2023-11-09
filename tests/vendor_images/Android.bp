@@ -15,3 +15,9 @@ android_filesystem {
     use_avb: true,
     avb_private_key: ":vendor_sign_key",
 }
+
+android_filesystem {
+    name: "test_microdroid_vendor_image_unsigned",
+    type: "ext4",
+    file_contexts: ":microdroid_vendor_file_contexts.gen",
+}
