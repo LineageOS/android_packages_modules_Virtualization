@@ -14,7 +14,7 @@
 
 //! Hardware management of the access flag and dirty state.
 
-use super::page_table::{is_leaf_pte, PageTable};
+use super::page_table::PageTable;
 use super::util::flush_region;
 use crate::{dsb, isb, read_sysreg, tlbi, write_sysreg};
 use aarch64_paging::paging::{Attributes, Descriptor, MemoryRegion};
@@ -52,14 +52,10 @@ fn dbm_available() -> bool {
 /// Flushes a memory range the descriptor refers to, if the descriptor is in writable-dirty state.
 pub(super) fn flush_dirty_range(
     va_range: &MemoryRegion,
-    desc: &mut Descriptor,
-    level: usize,
+    desc: &Descriptor,
+    _level: usize,
 ) -> Result<(), ()> {
-    // Only flush ranges corresponding to dirty leaf PTEs.
     let flags = desc.flags().ok_or(())?;
-    if !is_leaf_pte(&flags, level) {
-        return Ok(());
-    }
     if !flags.contains(Attributes::READ_ONLY) {
         flush_region(va_range.start().0, va_range.len());
     }
@@ -71,12 +67,9 @@ pub(super) fn flush_dirty_range(
 pub(super) fn mark_dirty_block(
     va_range: &MemoryRegion,
     desc: &mut Descriptor,
-    level: usize,
+    _level: usize,
 ) -> Result<(), ()> {
     let flags = desc.flags().ok_or(())?;
-    if !is_leaf_pte(&flags, level) {
-        return Ok(());
-    }
     if flags.contains(Attributes::DBM) {
         assert!(flags.contains(Attributes::READ_ONLY), "unexpected PTE writable state");
         desc.modify_flags(Attributes::empty(), Attributes::READ_ONLY);
