@@ -14,7 +14,7 @@
 
 use crate::instance::{ApexData, ApkData, MicrodroidData};
 use crate::payload::{get_apex_data_from_payload, to_metadata};
-use crate::{is_strict_boot, is_verified_boot, MicrodroidError};
+use crate::{is_strict_boot, MicrodroidError};
 use anyhow::{anyhow, ensure, Context, Result};
 use apkmanifest::get_manifest_info;
 use apkverify::{extract_signed_data, verify, V4Signature};
@@ -130,11 +130,10 @@ pub fn verify_payload(
     // APEX payload.
     let apex_data_from_payload = get_apex_data_from_payload(metadata)?;
 
-    // Writing /apex/vm-payload-metadata is to verify that the payload isn't changed.
-    // Skip writing it if the debug policy ignoring identity is on
-    if is_verified_boot() {
-        write_apex_payload_data(saved_data, &apex_data_from_payload)?;
-    }
+    // To prevent a TOCTOU attack, we need to make sure that when apexd verifies & mounts the
+    // APEXes it sees the same ones that we just read - so we write the metadata we just collected
+    // to a file (that the host can't access) that apexd will then verify against. See b/199371341.
+    write_apex_payload_data(saved_data, &apex_data_from_payload)?;
 
     if cfg!(not(dice_changes)) {
         // Start apexd to activate APEXes
@@ -221,16 +220,17 @@ fn write_apex_payload_data(
             saved_apex_data == apex_data_from_payload,
             MicrodroidError::PayloadChanged(String::from("APEXes have changed."))
         );
-        let apex_metadata = to_metadata(apex_data_from_payload);
-        // Pass metadata(with public keys and root digests) to apexd so that it uses the passed
-        // metadata instead of the default one (/dev/block/by-name/payload-metadata)
-        OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open("/apex/vm-payload-metadata")
-            .context("Failed to open /apex/vm-payload-metadata")
-            .and_then(|f| write_metadata(&apex_metadata, f))?;
     }
+    let apex_metadata = to_metadata(apex_data_from_payload);
+    // Pass metadata(with public keys and root digests) to apexd so that it uses the passed
+    // metadata instead of the default one (/dev/block/by-name/payload-metadata)
+    OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open("/apex/vm-payload-metadata")
+        .context("Failed to open /apex/vm-payload-metadata")
+        .and_then(|f| write_metadata(&apex_metadata, f))?;
+
     Ok(())
 }
 
