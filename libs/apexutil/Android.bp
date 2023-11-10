@@ -9,7 +9,9 @@ rust_defaults {
     srcs: ["src/lib.rs"],
     edition: "2021",
     rustlibs: [
+        "libapex_manifest_rs",
         "liblog_rust",
+        "libprotobuf",
         "libthiserror",
         "libvbmeta_rust",
         "libzip",
