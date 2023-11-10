@@ -93,7 +93,8 @@ fn convert_partitions(partitions: &[Partition]) -> Result<(Vec<PartitionInfo>, V
                 .context("Invalid partition image file descriptor")?
                 .as_ref()
                 .try_clone()
-                .context("Failed to clone partition image file descriptor")?;
+                .context("Failed to clone partition image file descriptor")?
+                .into();
             let path = fd_path_for_file(&file);
             let size = get_partition_size(&file, &path)?;
             files.push(file);

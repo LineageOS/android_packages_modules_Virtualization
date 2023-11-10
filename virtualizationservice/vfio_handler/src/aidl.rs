@@ -282,11 +282,13 @@ fn write_vm_full_dtbo_from_img(
         .or_binder_exception(ExceptionCode::ILLEGAL_STATE)?;
     let buffer = read_values(dtbo_img_file, dt_size, entry.dt_offset.get().into())?;
 
-    let mut dtbo_fd = dtbo_fd
-        .as_ref()
-        .try_clone()
-        .context("Failed to clone File from ParcelFileDescriptor")
-        .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?;
+    let mut dtbo_fd = File::from(
+        dtbo_fd
+            .as_ref()
+            .try_clone()
+            .context("Failed to create File from ParcelFileDescriptor")
+            .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?,
+    );
 
     dtbo_fd
         .write_all(&buffer)
