@@ -13,13 +13,27 @@
 // limitations under the License.
 
 use bssl_avf::{EcKey, Result};
+use coset::CborSerializable;
 
 #[test]
 fn ec_private_key_serialization() -> Result<()> {
-    let ec_key = EcKey::new_p256()?;
+    let mut ec_key = EcKey::new_p256()?;
+    ec_key.generate_key()?;
     let der_encoded_ec_private_key = ec_key.ec_private_key()?;
     let deserialized_ec_key = EcKey::from_ec_private_key(der_encoded_ec_private_key.as_slice())?;
 
     assert_eq!(ec_key.cose_public_key()?, deserialized_ec_key.cose_public_key()?);
+    Ok(())
+}
+
+#[test]
+fn cose_public_key_serialization() -> Result<()> {
+    let mut ec_key = EcKey::new_p256()?;
+    ec_key.generate_key()?;
+    let cose_key = ec_key.cose_public_key()?;
+    let cose_key_data = cose_key.clone().to_vec().unwrap();
+    let deserialized_ec_key = EcKey::from_cose_public_key(&cose_key_data)?;
+
+    assert_eq!(cose_key, deserialized_ec_key.cose_public_key()?);
     Ok(())
 }
