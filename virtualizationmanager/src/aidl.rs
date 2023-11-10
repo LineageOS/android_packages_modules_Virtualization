@@ -1030,6 +1030,7 @@ pub fn clone_file(file: &ParcelFileDescriptor) -> binder::Result<File> {
         .try_clone()
         .context("Failed to clone File from ParcelFileDescriptor")
         .or_binder_exception(ExceptionCode::BAD_PARCELABLE)
+        .map(File::from)
 }
 
 /// Converts an `&Option<ParcelFileDescriptor>` to an `Option<File>` by cloning the file.
