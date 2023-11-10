@@ -21,6 +21,8 @@ use ciborium::Value;
 use coset::{self, CborSerializable, CoseError};
 
 /// Represents a CSR sent from the client VM to the service VM for attestation.
+///
+/// See client_vm_csr.cddl for the definition of the CSR.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Csr {
     /// The DICE certificate chain of the client VM.
