@@ -17,11 +17,10 @@
 use anyhow::{anyhow, bail, Context, Result};
 use std::ffi::{CStr, CString};
 use std::fmt;
-use std::fs::File;
 use std::io;
 use std::ops::Deref;
+use std::os::fd::AsRawFd;
 use std::os::raw::c_char;
-use std::os::unix::io::AsRawFd;
 use std::ptr;
 
 // Partially copied from system/security/keystore2/selinux/src/lib.rs
@@ -102,7 +101,7 @@ impl SeContext {
     }
 }
 
-pub fn getfilecon(file: &File) -> Result<SeContext> {
+pub fn getfilecon<F: AsRawFd>(file: &F) -> Result<SeContext> {
     let fd = file.as_raw_fd();
     let mut con: *mut c_char = ptr::null_mut();
     // SAFETY: the returned pointer `con` is wrapped in SeContext::Raw which is freed with
