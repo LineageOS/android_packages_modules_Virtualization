@@ -246,20 +246,20 @@ fn try_run_payload(
     }
 
     // Verify the payload before using it.
-    let verified_data = verify_payload(&metadata, saved_data.as_ref())
+    let extracted_data = verify_payload(&metadata, saved_data.as_ref())
         .context("Payload verification failed")
         .map_err(|e| MicrodroidError::PayloadVerificationFailed(e.to_string()))?;
 
     // In case identity is ignored (by debug policy), we should reuse existing payload data, even
     // when the payload is changed. This is to keep the derived secret same as before.
-    let verified_data = if let Some(saved_data) = saved_data {
+    let instance_data = if let Some(saved_data) = saved_data {
         if !is_verified_boot() {
-            if saved_data != verified_data {
+            if saved_data != extracted_data {
                 info!("Detected an update of the payload, but continue (regarding debug policy)")
             }
         } else {
             ensure!(
-                saved_data == verified_data,
+                saved_data == extracted_data,
                 MicrodroidError::PayloadChanged(String::from(
                     "Detected an update of the payload which isn't supported yet."
                 ))
@@ -270,9 +270,9 @@ fn try_run_payload(
     } else {
         info!("Saving verified data.");
         instance
-            .write_microdroid_data(&verified_data, &dice)
+            .write_microdroid_data(&extracted_data, &dice)
             .context("Failed to write identity data")?;
-        verified_data
+        extracted_data
     };
 
     let payload_metadata = metadata.payload.ok_or_else(|| {
@@ -281,7 +281,7 @@ fn try_run_payload(
 
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
-    let dice_artifacts = dice_derivation(dice, &verified_data, &payload_metadata)?;
+    let dice_artifacts = dice_derivation(dice, &instance_data, &payload_metadata)?;
     let vm_secret = VmSecret::new(dice_artifacts).context("Failed to create VM secrets")?;
 
     if cfg!(dice_changes) {
@@ -326,10 +326,10 @@ fn try_run_payload(
         .ok_or_else(|| MicrodroidError::PayloadInvalidConfig("No task in VM config".to_string()))?;
 
     ensure!(
-        config.extra_apks.len() == verified_data.extra_apks_data.len(),
+        config.extra_apks.len() == instance_data.extra_apks_data.len(),
         "config expects {} extra apks, but found {}",
         config.extra_apks.len(),
-        verified_data.extra_apks_data.len()
+        instance_data.extra_apks_data.len()
     );
     mount_extra_apks(&config, &mut zipfuse)?;
 
