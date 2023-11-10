@@ -25,7 +25,7 @@ mod vsock;
 
 pub use csr::{Csr, CsrPayload};
 pub use message::{
-    EcdsaP256KeyPair, GenerateCertificateRequestParams, Request, RequestProcessingError, Response,
-    ServiceVmRequest,
+    ClientVmAttestationParams, EcdsaP256KeyPair, GenerateCertificateRequestParams, Request,
+    RequestProcessingError, Response, ServiceVmRequest,
 };
 pub use vsock::VmType;
