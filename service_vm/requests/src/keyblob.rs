@@ -20,8 +20,6 @@ use bssl_avf::{hkdf, rand_bytes, Aead, AeadContext, Digester, AES_GCM_NONCE_LENG
 use core::result;
 use serde::{Deserialize, Serialize};
 use service_vm_comm::RequestProcessingError;
-// TODO(b/241428146): This will be used once the retrieval mechanism is available.
-#[cfg(test)]
 use zeroize::Zeroizing;
 
 type Result<T> = result::Result<T, RequestProcessingError>;
@@ -61,9 +59,6 @@ impl EncryptedKeyBlob {
         EncryptedKeyBlobV1::new(private_key, kek_secret).map(Self::V1)
     }
 
-    // TODO(b/241428146): Use this function to decrypt the retrieved keyblob once the retrieval
-    // mechanism is available.
-    #[cfg(test)]
     pub(crate) fn decrypt_private_key(&self, kek_secret: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
         match self {
             Self::V1(blob) => blob.decrypt_private_key(kek_secret),
@@ -85,7 +80,6 @@ impl EncryptedKeyBlobV1 {
         Ok(Self { kek_salt, encrypted_private_key: ciphertext.to_vec() })
     }
 
-    #[cfg(test)]
     fn decrypt_private_key(&self, kek_secret: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
         let kek = hkdf::<32>(kek_secret, &self.kek_salt, KEK_INFO, Digester::sha512())?;
         let mut out = Zeroizing::new(vec![0u8; self.encrypted_private_key.len()]);
@@ -99,6 +93,15 @@ impl EncryptedKeyBlobV1 {
         )?;
         Ok(Zeroizing::new(plaintext.to_vec()))
     }
+}
+
+pub(crate) fn decrypt_private_key(
+    encrypted_key_blob: &[u8],
+    kek_secret: &[u8],
+) -> Result<Zeroizing<Vec<u8>>> {
+    let key_blob: EncryptedKeyBlob = cbor_util::deserialize(encrypted_key_blob)?;
+    let private_key = key_blob.decrypt_private_key(kek_secret)?;
+    Ok(private_key)
 }
 
 #[cfg(test)]
@@ -127,8 +130,7 @@ mod tests {
     fn decrypting_keyblob_succeeds_with_the_same_kek() -> Result<()> {
         let encrypted_key_blob =
             cbor_util::serialize(&EncryptedKeyBlob::new(&TEST_KEY, &TEST_SECRET1)?)?;
-        let encrypted_key_blob: EncryptedKeyBlob = cbor_util::deserialize(&encrypted_key_blob)?;
-        let decrypted_key = encrypted_key_blob.decrypt_private_key(&TEST_SECRET1)?;
+        let decrypted_key = decrypt_private_key(&encrypted_key_blob, &TEST_SECRET1)?;
 
         assert_eq!(TEST_KEY, decrypted_key.as_slice());
         Ok(())
@@ -138,8 +140,7 @@ mod tests {
     fn decrypting_keyblob_fails_with_a_different_kek() -> Result<()> {
         let encrypted_key_blob =
             cbor_util::serialize(&EncryptedKeyBlob::new(&TEST_KEY, &TEST_SECRET1)?)?;
-        let encrypted_key_blob: EncryptedKeyBlob = cbor_util::deserialize(&encrypted_key_blob)?;
-        let err = encrypted_key_blob.decrypt_private_key(&TEST_SECRET2).unwrap_err();
+        let err = decrypt_private_key(&encrypted_key_blob, &TEST_SECRET2).unwrap_err();
 
         let expected_err: RequestProcessingError =
             Error::CallFailed(ApiName::EVP_AEAD_CTX_open, CipherError::BadDecrypt.into()).into();
