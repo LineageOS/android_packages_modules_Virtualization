@@ -31,6 +31,7 @@ rust_binary {
         "libanyhow",
         "libavflog",
         "libbinder_rs",
+        "libhypervisor_props",
         "liblibc",
         "liblog_rust",
         "libnix",
