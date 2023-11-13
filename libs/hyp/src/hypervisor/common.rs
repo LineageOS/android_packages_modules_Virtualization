@@ -31,6 +31,11 @@ pub trait Hypervisor {
     fn as_mem_sharer(&self) -> Option<&dyn MemSharingHypervisor> {
         None
     }
+
+    /// Returns the hypervisor's device assigning implementation, if any.
+    fn as_device_assigner(&self) -> Option<&dyn DeviceAssigningHypervisor> {
+        None
+    }
 }
 
 pub trait MmioGuardedHypervisor {
@@ -72,4 +77,12 @@ pub trait MemSharingHypervisor {
 
     /// Returns the memory protection granule size in bytes.
     fn granule(&self) -> Result<usize>;
+}
+
+pub trait DeviceAssigningHypervisor {
+    /// Returns MMIO token.
+    fn get_phys_mmio_token(&self, base_ipa: u64, size: u64) -> Result<u64>;
+
+    /// Returns DMA token as a tuple of (phys_iommu_id, phys_sid).
+    fn get_phys_iommu_token(&self, pviommu_id: u64, vsid: u64) -> Result<(u64, u64)>;
 }
