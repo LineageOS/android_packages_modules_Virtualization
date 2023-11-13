@@ -14,8 +14,8 @@
 
 //! High-level FDT functions.
 
-use crate::cstr;
 use core::ops::Range;
+use cstr::cstr;
 use libfdt::{self, Fdt, FdtError};
 
 /// Represents information about a SWIOTLB buffer.
