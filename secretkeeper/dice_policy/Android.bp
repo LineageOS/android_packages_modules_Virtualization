@@ -13,7 +13,9 @@ rust_defaults {
         "libanyhow",
         "libciborium",
         "libcoset",
+        "libnum_traits",
     ],
+    proc_macros: ["libnum_derive"],
 }
 
 rust_library {
