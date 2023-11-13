@@ -224,7 +224,7 @@ cc_genrule {
     srcs: [":pvmfw_platform.dts.preprocessed"],
     out: ["lib.rs"],
     tools: ["dtc"],
-    cmd: "$(location dtc) -I dts -O dtb -o $(genDir)/compiled.dtbo $(in) && " +
+    cmd: "$(location dtc) -@ -I dts -O dtb -o $(genDir)/compiled.dtbo $(in) && " +
         "(" +
         "    echo '#![no_std]';" +
         "    echo '#![allow(missing_docs)]';" +
