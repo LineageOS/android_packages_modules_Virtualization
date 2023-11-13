@@ -16,6 +16,7 @@
 
 //! Integration tests of the library libfdt.
 
+use core::ffi::CStr;
 use libfdt::{Fdt, FdtError, FdtNodeMut, Phandle};
 use std::ffi::CString;
 use std::fs;
@@ -106,11 +107,11 @@ fn node_subnodes() {
     let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
     let root = fdt.root().unwrap();
-    let expected = [cstr!("cpus"), cstr!("randomnode"), cstr!("chosen")];
+    let expected = [Ok(cstr!("cpus")), Ok(cstr!("randomnode")), Ok(cstr!("chosen"))];
 
-    for (node, name) in root.subnodes().unwrap().zip(expected) {
-        assert_eq!(node.name(), Ok(name));
-    }
+    let root_subnodes = root.subnodes().unwrap();
+    let subnode_names: Vec<_> = root_subnodes.map(|node| node.name()).collect();
+    assert_eq!(subnode_names, expected);
 }
 
 #[test]
@@ -119,18 +120,19 @@ fn node_properties() {
     let fdt = Fdt::from_slice(&data).unwrap();
     let root = fdt.root().unwrap();
     let one_be = 0x1_u32.to_be_bytes();
-    let expected = [
-        (cstr!("model"), b"MyBoardName\0".as_ref()),
-        (cstr!("compatible"), b"MyBoardName\0MyBoardFamilyName\0".as_ref()),
-        (cstr!("#address-cells"), &one_be),
-        (cstr!("#size-cells"), &one_be),
-        (cstr!("empty_prop"), &[]),
+    type Result<T> = core::result::Result<T, FdtError>;
+    let expected: Vec<(Result<&CStr>, Result<&[u8]>)> = vec![
+        (Ok(cstr!("model")), Ok(b"MyBoardName\0".as_ref())),
+        (Ok(cstr!("compatible")), Ok(b"MyBoardName\0MyBoardFamilyName\0".as_ref())),
+        (Ok(cstr!("#address-cells")), Ok(&one_be)),
+        (Ok(cstr!("#size-cells")), Ok(&one_be)),
+        (Ok(cstr!("empty_prop")), Ok(&[])),
     ];
 
     let properties = root.properties().unwrap();
-    for (prop, (name, value)) in properties.zip(expected.into_iter()) {
-        assert_eq!((prop.name(), prop.value()), (Ok(name), Ok(value)));
-    }
+    let subnode_properties: Vec<_> = properties.map(|prop| (prop.name(), prop.value())).collect();
+
+    assert_eq!(subnode_properties, expected);
 }
 
 #[test]
@@ -138,12 +140,16 @@ fn node_supernode_at_depth() {
     let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
     let node = fdt.node(cstr!("/cpus/PowerPC,970@1")).unwrap().unwrap();
-    let expected = [cstr!(""), cstr!("cpus"), cstr!("PowerPC,970@1")];
+    let expected = vec![Ok(cstr!("")), Ok(cstr!("cpus")), Ok(cstr!("PowerPC,970@1"))];
 
-    for (depth, name) in expected.into_iter().enumerate() {
-        let supernode = node.supernode_at_depth(depth).unwrap();
-        assert_eq!(supernode.name(), Ok(name));
+    let mut supernode_names = vec![];
+    let mut depth = 0;
+    while let Ok(supernode) = node.supernode_at_depth(depth) {
+        supernode_names.push(supernode.name());
+        depth += 1;
     }
+
+    assert_eq!(supernode_names, expected);
 }
 
 #[test]
@@ -197,6 +203,40 @@ fn node_with_phandle() {
     let phandle = Phandle::new(0x22).unwrap();
     let node = fdt.node_with_phandle(phandle).unwrap().unwrap();
     assert_eq!(node.name(), Ok(cstr!("node_abc")));
+}
+
+#[test]
+fn node_mut_with_phandle() {
+    let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    // Test linux,phandle
+    let phandle = Phandle::new(0xFF).unwrap();
+    let node: FdtNodeMut = fdt.node_mut_with_phandle(phandle).unwrap().unwrap();
+    assert_eq!(node.as_node().name(), Ok(cstr!("node_zz")));
+
+    // Test phandle
+    let phandle = Phandle::new(0x22).unwrap();
+    let node: FdtNodeMut = fdt.node_mut_with_phandle(phandle).unwrap().unwrap();
+    assert_eq!(node.as_node().name(), Ok(cstr!("node_abc")));
+}
+
+#[test]
+fn node_get_phandle() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    // Test linux,phandle
+    let node = fdt.node(cstr!("/node_z/node_zz")).unwrap().unwrap();
+    assert_eq!(node.get_phandle(), Ok(Phandle::new(0xFF)));
+
+    // Test phandle
+    let node = fdt.node(cstr!("/node_a/node_ab/node_abc")).unwrap().unwrap();
+    assert_eq!(node.get_phandle(), Ok(Phandle::new(0x22)));
+
+    // Test no phandle
+    let node = fdt.node(cstr!("/node_b")).unwrap().unwrap();
+    assert_eq!(node.get_phandle(), Ok(None));
 }
 
 #[test]

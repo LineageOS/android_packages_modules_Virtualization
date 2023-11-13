@@ -401,17 +401,28 @@ mod tests {
         unsafe {
             platform_dt.apply_overlay(vm_dtbo.as_mut()).unwrap();
         }
+        device_info.patch(platform_dt).unwrap();
 
-        let rng_node = platform_dt.node(cstr!("/rng")).unwrap().unwrap();
-        let expected: Vec<(&CStr, Vec<u8>)> = vec![
-            (cstr!("android,rng,ignore-gctrl-reset"), Vec::<u8>::new()),
-            (cstr!("compatible"), b"android,rng\0".to_vec()),
-            (cstr!("reg"), into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF])),
-            (cstr!("interrupts"), into_fdt_prop(vec![0x0, 0xF, 0x4])),
+        type FdtResult<T> = libfdt::Result<T>;
+        let expected: Vec<(FdtResult<&CStr>, FdtResult<Vec<u8>>)> = vec![
+            (Ok(cstr!("android,rng,ignore-gctrl-reset")), Ok(Vec::new())),
+            (Ok(cstr!("compatible")), Ok(Vec::from(*b"android,rng\0"))),
+            (Ok(cstr!("interrupts")), Ok(into_fdt_prop(vec![0x0, 0xF, 0x4]))),
+            (Ok(cstr!("reg")), Ok(into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]))),
         ];
 
-        for (prop, (prop_name, prop_value)) in rng_node.properties().unwrap().zip(expected) {
-            assert_eq!((prop.name(), prop.value()), (Ok(prop_name), Ok(prop_value.as_slice())));
-        }
+        let rng_node = platform_dt.node(cstr!("/rng")).unwrap().unwrap();
+        let mut properties: Vec<_> = rng_node
+            .properties()
+            .unwrap()
+            .map(|prop| (prop.name(), prop.value().map(|x| x.into())))
+            .collect();
+        properties.sort_by(|a, b| {
+            let lhs = a.0.unwrap_or_default();
+            let rhs = b.0.unwrap_or_default();
+            lhs.partial_cmp(rhs).unwrap()
+        });
+
+        assert_eq!(properties, expected);
     }
 }
