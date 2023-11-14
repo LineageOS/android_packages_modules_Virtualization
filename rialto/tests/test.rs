@@ -23,6 +23,7 @@ use android_system_virtualizationservice::{
 };
 use anyhow::{bail, Context, Result};
 use ciborium::value::Value;
+use client_vm_csr::generate_attestation_key_and_csr;
 use log::info;
 use service_vm_comm::{
     ClientVmAttestationParams, EcdsaP256KeyPair, GenerateCertificateRequestParams, Request,
@@ -110,8 +111,18 @@ fn check_processing_generating_certificate_request(
 }
 
 fn check_attestation_request(vm: &mut ServiceVm, key_blob: &[u8]) -> Result<()> {
-    let params =
-        ClientVmAttestationParams { csr: vec![], remotely_provisioned_key_blob: key_blob.to_vec() };
+    /// The following data was generated randomly with urandom.
+    const CHALLENGE: [u8; 16] = [
+        0x7d, 0x86, 0x58, 0x79, 0x3a, 0x09, 0xdf, 0x1c, 0xa5, 0x80, 0x80, 0x15, 0x2b, 0x13, 0x17,
+        0x5c,
+    ];
+    let dice_artifacts = diced_sample_inputs::make_sample_bcc_and_cdis()?;
+    let attestation_data = generate_attestation_key_and_csr(&CHALLENGE, &dice_artifacts)?;
+
+    let params = ClientVmAttestationParams {
+        csr: attestation_data.csr.into_cbor_vec()?,
+        remotely_provisioned_key_blob: key_blob.to_vec(),
+    };
     let request = Request::RequestClientVmAttestation(params);
 
     let response = vm.process_request(request)?;
