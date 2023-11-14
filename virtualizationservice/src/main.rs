@@ -33,8 +33,8 @@ use std::os::unix::raw::{pid_t, uid_t};
 use std::path::Path;
 
 const LOG_TAG: &str = "VirtualizationService";
-const REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME: &str =
-    "android.hardware.security.keymint.IRemotelyProvisionedComponent/avf";
+const _REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME: &str =
+    "android.system.virtualization.IRemotelyProvisionedComponent/avf";
 
 fn get_calling_pid() -> pid_t {
     ThreadState::get_calling_pid()
@@ -69,17 +69,10 @@ fn main() {
     register_lazy_service(BINDER_SERVICE_IDENTIFIER, service.as_binder()).unwrap();
     info!("Registered Binder service {}.", BINDER_SERVICE_IDENTIFIER);
 
-    if cfg!(remote_attestation) {
-        // The IRemotelyProvisionedComponent service is only supposed to be triggered by rkpd for
-        // RKP VM attestation.
-        let remote_provisioning_service = remote_provisioning::new_binder();
-        register_lazy_service(
-            REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME,
-            remote_provisioning_service.as_binder(),
-        )
-        .unwrap();
-        info!("Registered Binder service {}.", REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME);
-    }
+    // The IRemotelyProvisionedComponent service is only supposed to be triggered by rkpd for
+    // RKP VM attestation.
+    let _remote_provisioning_service = remote_provisioning::new_binder();
+    // TODO(b/274881098): Register the RKP service when the implementation is ready.
 
     ProcessState::join_thread_pool();
 }
