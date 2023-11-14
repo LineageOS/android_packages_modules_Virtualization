@@ -105,6 +105,9 @@
       "path": "packages/modules/Virtualization/rialto"
     },
     {
+      "path": "packages/modules/Virtualization/service_vm/client_vm_csr"
+    },
+    {
       "path": "packages/modules/Virtualization/service_vm/comm"
     },
     {

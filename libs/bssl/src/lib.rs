@@ -20,6 +20,7 @@ extern crate alloc;
 
 mod aead;
 mod cbb;
+mod cbs;
 mod digest;
 mod ec_key;
 mod err;
@@ -32,6 +33,7 @@ pub use bssl_avf_error::{ApiName, CipherError, Error, ReasonCode, Result};
 
 pub use aead::{Aead, AeadContext, AES_GCM_NONCE_LENGTH};
 pub use cbb::CbbFixed;
+pub use cbs::Cbs;
 pub use digest::Digester;
 pub use ec_key::{EcKey, ZVec};
 pub use hkdf::hkdf;

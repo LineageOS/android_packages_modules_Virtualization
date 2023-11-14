@@ -86,6 +86,21 @@ unsafe extern "C" fn calloc(nmemb: usize, size: usize) -> *mut c_void {
 }
 
 #[no_mangle]
+unsafe extern "C" fn __memset_chk(
+    dest: *mut c_void,
+    val: u8,
+    len: usize,
+    destlen: usize,
+) -> *mut c_void {
+    assert!(len <= destlen, "memset buffer overflow detected");
+    // SAFETY: `dest` is valid for writes of `len` bytes.
+    unsafe {
+        ptr::write_bytes(dest, val, len);
+    }
+    dest
+}
+
+#[no_mangle]
 /// SAFETY: ptr must be null or point to a currently-allocated block returned by allocate (either
 /// directly or via malloc or calloc). Note that this function is called directly from C, so we have
 /// to trust that the C code is doing the right thing; there are checks below which will catch some

@@ -16,14 +16,15 @@
 //! BoringSSL.
 
 use crate::cbb::CbbFixed;
+use crate::cbs::Cbs;
 use crate::util::{check_int_result, to_call_failed_error};
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
-    BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, EC_KEY_free, EC_KEY_generate_key,
-    EC_KEY_get0_group, EC_KEY_get0_public_key, EC_KEY_marshal_private_key,
-    EC_KEY_new_by_curve_name, EC_POINT_get_affine_coordinates, NID_X9_62_prime256v1, BIGNUM,
-    EC_GROUP, EC_KEY, EC_POINT,
+    BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, EC_GROUP_new_by_curve_name,
+    EC_KEY_check_key, EC_KEY_free, EC_KEY_generate_key, EC_KEY_get0_group, EC_KEY_get0_public_key,
+    EC_KEY_marshal_private_key, EC_KEY_new_by_curve_name, EC_KEY_parse_private_key,
+    EC_POINT_get_affine_coordinates, NID_X9_62_prime256v1, BIGNUM, EC_GROUP, EC_KEY, EC_POINT,
 };
 use core::ptr::{self, NonNull};
 use core::result;
@@ -57,6 +58,16 @@ impl EcKey {
             .ok_or(to_call_failed_error(ApiName::EC_KEY_new_by_curve_name))?;
         ec_key.generate_key()?;
         Ok(ec_key)
+    }
+
+    /// Performs several checks on the key. See BoringSSL doc for more details:
+    ///
+    /// https://commondatastorage.googleapis.com/chromium-boringssl-docs/ec_key.h.html#EC_KEY_check_key
+    pub fn check_key(&self) -> Result<()> {
+        // SAFETY: This function only reads the `EC_KEY` pointer, the non-null check is performed
+        // within the function.
+        let ret = unsafe { EC_KEY_check_key(self.0.as_ptr()) };
+        check_int_result(ret, ApiName::EC_KEY_check_key)
     }
 
     /// Generates a random, private key, calculates the corresponding public key and stores both
@@ -124,10 +135,34 @@ impl EcKey {
         }
     }
 
+    /// Constructs an `EcKey` instance from the provided DER-encoded ECPrivateKey slice.
+    ///
+    /// Currently, only the EC P-256 curve is supported.
+    pub fn from_ec_private_key(der_encoded_ec_private_key: &[u8]) -> Result<Self> {
+        // SAFETY: This function only returns a pointer to a static object, and the
+        // return is checked below.
+        let ec_group = unsafe {
+            EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1) // EC P-256 CURVE Nid
+        };
+        if ec_group.is_null() {
+            return Err(to_call_failed_error(ApiName::EC_GROUP_new_by_curve_name));
+        }
+        let mut cbs = Cbs::new(der_encoded_ec_private_key);
+        // SAFETY: The function only reads bytes from the buffer managed by the valid `CBS`
+        // object, and the returned EC_KEY is checked.
+        let ec_key = unsafe { EC_KEY_parse_private_key(cbs.as_mut(), ec_group) };
+
+        let ec_key = NonNull::new(ec_key)
+            .map(Self)
+            .ok_or(to_call_failed_error(ApiName::EC_KEY_parse_private_key))?;
+        ec_key.check_key()?;
+        Ok(ec_key)
+    }
+
     /// Returns the DER-encoded ECPrivateKey structure described in RFC 5915 Section 3:
     ///
     /// https://datatracker.ietf.org/doc/html/rfc5915#section-3
-    pub fn private_key(&self) -> Result<ZVec> {
+    pub fn ec_private_key(&self) -> Result<ZVec> {
         const CAPACITY: usize = 256;
         let mut buf = Zeroizing::new([0u8; CAPACITY]);
         let mut cbb = CbbFixed::new(buf.as_mut());
