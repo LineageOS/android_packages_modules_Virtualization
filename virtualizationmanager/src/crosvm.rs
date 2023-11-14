@@ -716,7 +716,7 @@ fn vfio_argument_for_platform_device(device: &VfioDevice) -> Result<String, Erro
     }
 
     if let Some(p) = path.to_str() {
-        Ok(format!("--vfio={p},iommu=viommu,dt-symbol={0}", device.dtbo_label))
+        Ok(format!("--vfio={p},iommu=pkvm-iommu,dt-symbol={0}", device.dtbo_label))
     } else {
         bail!("invalid path {path:?}");
     }
