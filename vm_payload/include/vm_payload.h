@@ -19,7 +19,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdnoreturn.h>
 #include <sys/cdefs.h>
 
 #include "vm_main.h"
@@ -81,9 +80,9 @@ void AVmPayload_notifyPayloadReady(void);
  * callback will be called at most once.
  * \param param parameter to be passed to the `on_ready` callback.
  */
-noreturn void AVmPayload_runVsockRpcServer(AIBinder* _Nonnull service, uint32_t port,
-                                           void (*_Nullable on_ready)(void* _Nullable param),
-                                           void* _Nullable param);
+__attribute__((noreturn)) void AVmPayload_runVsockRpcServer(
+        AIBinder* _Nonnull service, uint32_t port,
+        void (*_Nullable on_ready)(void* _Nullable param), void* _Nullable param);
 
 /**
  * Returns all or part of a 32-byte secret that is bound to this unique VM
