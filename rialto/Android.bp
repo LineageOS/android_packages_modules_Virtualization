@@ -109,6 +109,8 @@ rust_test {
         "libandroid_logger",
         "libanyhow",
         "libciborium",
+        "libclient_vm_csr",
+        "libdiced_sample_inputs",
         "liblibc",
         "liblog_rust",
         "libservice_vm_comm",

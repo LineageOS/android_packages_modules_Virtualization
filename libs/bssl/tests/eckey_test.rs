@@ -12,9 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! API tests of the crate `bssl_avf`.
+use bssl_avf::{EcKey, Result};
 
-mod aead_test;
-mod eckey_test;
-mod hkdf_test;
-mod hmac_test;
+#[test]
+fn ec_private_key_serialization() -> Result<()> {
+    let ec_key = EcKey::new_p256()?;
+    let der_encoded_ec_private_key = ec_key.ec_private_key()?;
+    let deserialized_ec_key = EcKey::from_ec_private_key(der_encoded_ec_private_key.as_slice())?;
+
+    assert_eq!(ec_key.cose_public_key()?, deserialized_ec_key.cose_public_key()?);
+    Ok(())
+}

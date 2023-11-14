@@ -17,10 +17,12 @@
 
 use crate::keyblob::decrypt_private_key;
 use alloc::vec::Vec;
+use bssl_avf::EcKey;
 use core::result;
+use coset::{CborSerializable, CoseSign};
 use diced_open_dice::DiceArtifacts;
 use log::error;
-use service_vm_comm::{ClientVmAttestationParams, RequestProcessingError};
+use service_vm_comm::{ClientVmAttestationParams, Csr, RequestProcessingError};
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
@@ -28,19 +30,22 @@ pub(super) fn request_attestation(
     params: ClientVmAttestationParams,
     dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<Vec<u8>> {
-    // TODO(b/309440321): Verify the signatures in the csr.
+    let csr = Csr::from_cbor_slice(&params.csr)?;
+    let _cose_sign = CoseSign::from_slice(&csr.signed_csr_payload)?;
+    // TODO(b/309440321): Verify the signatures in the `_cose_sign`.
 
-    // TODO(b/278717513): Compare client VM's DICE chain up to pvmfw cert with
-    // RKP VM's DICE chain.
+    // TODO(b/278717513): Compare client VM's DICE chain in the `csr` up to pvmfw
+    // cert with RKP VM's DICE chain.
 
-    let _private_key =
+    let private_key =
         decrypt_private_key(&params.remotely_provisioned_key_blob, dice_artifacts.cdi_seal())
             .map_err(|e| {
                 error!("Failed to decrypt the remotely provisioned key blob: {e}");
                 RequestProcessingError::FailedToDecryptKeyBlob
             })?;
+    let _ec_private_key = EcKey::from_ec_private_key(private_key.as_slice())?;
 
     // TODO(b/309441500): Build a new certificate signed with the remotely provisioned
-    // private key.
+    // `_private_key`.
     Err(RequestProcessingError::OperationUnimplemented)
 }
