@@ -25,7 +25,8 @@ use anyhow::{bail, Context, Result};
 use ciborium::value::Value;
 use log::info;
 use service_vm_comm::{
-    EcdsaP256KeyPair, GenerateCertificateRequestParams, Request, Response, VmType,
+    ClientVmAttestationParams, EcdsaP256KeyPair, GenerateCertificateRequestParams, Request,
+    RequestProcessingError, Response, VmType,
 };
 use service_vm_manager::ServiceVm;
 use std::fs::File;
@@ -51,8 +52,9 @@ fn check_processing_requests(vm_type: VmType) -> Result<()> {
     let mut vm = start_service_vm(vm_type)?;
 
     check_processing_reverse_request(&mut vm)?;
-    let maced_public_key = check_processing_generating_key_pair_request(&mut vm)?;
-    check_processing_generating_certificate_request(&mut vm, maced_public_key)?;
+    let key_pair = check_processing_generating_key_pair_request(&mut vm)?;
+    check_processing_generating_certificate_request(&mut vm, &key_pair.maced_public_key)?;
+    check_attestation_request(&mut vm, &key_pair.key_blob)?;
     Ok(())
 }
 
@@ -68,17 +70,17 @@ fn check_processing_reverse_request(vm: &mut ServiceVm) -> Result<()> {
     Ok(())
 }
 
-fn check_processing_generating_key_pair_request(vm: &mut ServiceVm) -> Result<Vec<u8>> {
+fn check_processing_generating_key_pair_request(vm: &mut ServiceVm) -> Result<EcdsaP256KeyPair> {
     let request = Request::GenerateEcdsaP256KeyPair;
 
     let response = vm.process_request(request)?;
     info!("Received response: {response:?}.");
 
     match response {
-        Response::GenerateEcdsaP256KeyPair(EcdsaP256KeyPair { maced_public_key, key_blob }) => {
-            assert_array_has_nonzero(&maced_public_key);
-            assert_array_has_nonzero(&key_blob);
-            Ok(maced_public_key)
+        Response::GenerateEcdsaP256KeyPair(key_pair) => {
+            assert_array_has_nonzero(&key_pair.maced_public_key);
+            assert_array_has_nonzero(&key_pair.key_blob);
+            Ok(key_pair)
         }
         _ => bail!("Incorrect response type: {response:?}"),
     }
@@ -90,10 +92,10 @@ fn assert_array_has_nonzero(v: &[u8]) {
 
 fn check_processing_generating_certificate_request(
     vm: &mut ServiceVm,
-    maced_public_key: Vec<u8>,
+    maced_public_key: &[u8],
 ) -> Result<()> {
     let params = GenerateCertificateRequestParams {
-        keys_to_sign: vec![maced_public_key],
+        keys_to_sign: vec![maced_public_key.to_vec()],
         challenge: vec![],
     };
     let request = Request::GenerateCertificateRequest(params);
@@ -103,6 +105,21 @@ fn check_processing_generating_certificate_request(
 
     match response {
         Response::GenerateCertificateRequest(csr) => check_csr(csr),
+        _ => bail!("Incorrect response type: {response:?}"),
+    }
+}
+
+fn check_attestation_request(vm: &mut ServiceVm, key_blob: &[u8]) -> Result<()> {
+    let params =
+        ClientVmAttestationParams { csr: vec![], remotely_provisioned_key_blob: key_blob.to_vec() };
+    let request = Request::RequestClientVmAttestation(params);
+
+    let response = vm.process_request(request)?;
+    info!("Received response: {response:?}.");
+
+    match response {
+        // TODO(b/309441500): Check the certificate once it is implemented.
+        Response::Err(RequestProcessingError::OperationUnimplemented) => Ok(()),
         _ => bail!("Incorrect response type: {response:?}"),
     }
 }
