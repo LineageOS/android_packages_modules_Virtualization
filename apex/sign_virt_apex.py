@@ -27,6 +27,7 @@ sign_virt_apex uses external tools which are assumed to be available via PATH.
 - lpmake, lpunpack, simg2img, img2simg, initrd_bootconfig
 """
 import argparse
+import builtins
 import hashlib
 import os
 import re
@@ -282,7 +283,7 @@ def UpdateVbmetaBootconfig(args, initrds, vbmeta_img):
         avb_version_bc = re.search(
             r"androidboot.vbmeta.avb_version = \"([^\"]*)\"", bootconfigs).group(1)
         if avb_version_curr != avb_version_bc:
-            raise Exception(f'AVB version mismatch between current & one & \
+            raise builtins.Exception(f'AVB version mismatch between current & one & \
                 used to build bootconfigs:{avb_version_curr}&{avb_version_bc}')
 
     def calc_vbmeta_digest():
@@ -430,21 +431,32 @@ def SignVirtApex(args):
 
     # unpacked files (will be unpacked from super.img below)
     system_a_img = os.path.join(unpack_dir.name, 'system_a.img')
+    vendor_a_img = os.path.join(unpack_dir.name, 'vendor_a.img')
 
     # re-sign super.img
     # 1. unpack super.img
-    # 2. resign system
-    # 3. repack super.img out of resigned system
+    # 2. resign system and vendor (if exists)
+    # 3. repack super.img out of resigned system and vendor (if exists)
     UnpackSuperImg(args, files['super.img'], unpack_dir.name)
     system_a_f = Async(AddHashTreeFooter, args, key, system_a_img)
     partitions = {"system_a": system_a_img}
+    images = [system_a_img]
+    images_f = [system_a_f]
+
+    # if vendor_a.img exists, resign it
+    if os.path.exists(vendor_a_img):
+        partitions.update({'vendor_a': vendor_a_img})
+        images.append(vendor_a_img)
+        vendor_a_f = Async(AddHashTreeFooter, args, key, vendor_a_img)
+        images_f.append(vendor_a_f)
+
     Async(MakeSuperImage, args, partitions,
-          files['super.img'], wait=[system_a_f])
+          files['super.img'], wait=images_f)
 
     # re-generate vbmeta from re-signed system_a.img
     vbmeta_f = Async(MakeVbmetaImage, args, key, files['vbmeta.img'],
-                     images=[system_a_img],
-                     wait=[system_a_f])
+                     images=images,
+                     wait=images_f)
 
     vbmeta_bc_f = None
     if not args.do_not_update_bootconfigs:
