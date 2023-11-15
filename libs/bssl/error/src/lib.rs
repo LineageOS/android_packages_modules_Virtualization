@@ -21,7 +21,7 @@ mod code;
 use core::{fmt, result};
 use serde::{Deserialize, Serialize};
 
-pub use crate::code::{CipherError, GlobalError, ReasonCode};
+pub use crate::code::{CipherError, EcError, EcdsaError, GlobalError, ReasonCode};
 
 /// libbssl_avf result type.
 pub type Result<T> = result::Result<T, Error>;
