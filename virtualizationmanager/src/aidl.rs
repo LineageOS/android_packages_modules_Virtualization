@@ -168,23 +168,23 @@ pub struct VirtualizationService {
 }
 
 impl Interface for VirtualizationService {
-    fn dump(&self, mut file: &File, _args: &[&CStr]) -> Result<(), StatusCode> {
+    fn dump(&self, writer: &mut dyn Write, _args: &[&CStr]) -> Result<(), StatusCode> {
         check_permission("android.permission.DUMP").or(Err(StatusCode::PERMISSION_DENIED))?;
         let state = &mut *self.state.lock().unwrap();
         let vms = state.vms();
-        writeln!(file, "Running {0} VMs:", vms.len()).or(Err(StatusCode::UNKNOWN_ERROR))?;
+        writeln!(writer, "Running {0} VMs:", vms.len()).or(Err(StatusCode::UNKNOWN_ERROR))?;
         for vm in vms {
-            writeln!(file, "VM CID: {}", vm.cid).or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\tState: {:?}", vm.vm_state.lock().unwrap())
+            writeln!(writer, "VM CID: {}", vm.cid).or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(writer, "\tState: {:?}", vm.vm_state.lock().unwrap())
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\tPayload state {:?}", vm.payload_state())
+            writeln!(writer, "\tPayload state {:?}", vm.payload_state())
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\tProtected: {}", vm.protected).or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\ttemporary_directory: {}", vm.temporary_directory.to_string_lossy())
+            writeln!(writer, "\tProtected: {}", vm.protected).or(Err(StatusCode::UNKNOWN_ERROR))?;
+            writeln!(writer, "\ttemporary_directory: {}", vm.temporary_directory.to_string_lossy())
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\trequester_uid: {}", vm.requester_uid)
+            writeln!(writer, "\trequester_uid: {}", vm.requester_uid)
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
-            writeln!(file, "\trequester_debug_pid: {}", vm.requester_debug_pid)
+            writeln!(writer, "\trequester_debug_pid: {}", vm.requester_debug_pid)
                 .or(Err(StatusCode::UNKNOWN_ERROR))?;
         }
         Ok(())
