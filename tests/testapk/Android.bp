@@ -58,6 +58,7 @@ android_test {
     data: [
         ":MicrodroidVmShareApp",
         ":test_microdroid_vendor_image",
+        ":test_microdroid_vendor_image_unsigned",
     ],
 }
 
