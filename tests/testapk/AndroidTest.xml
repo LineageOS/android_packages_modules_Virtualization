@@ -30,6 +30,7 @@
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="test_microdroid_vendor_image.img->/data/local/tmp/cts/microdroid/test_microdroid_vendor_image.img" />
+        <option name="push" value="test_microdroid_vendor_image_unsigned.img->/data/local/tmp/cts/microdroid/test_microdroid_vendor_image_unsigned.img" />
     </target_preparer>
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.microdroid.test" />

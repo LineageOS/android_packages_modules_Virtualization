@@ -2160,6 +2160,28 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void creationFailsWithUnsignedVendorPartition() throws Exception {
+        assumeSupportedDevice();
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
+
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+
+        File unsignedVendorDiskImage =
+                new File(
+                        "/data/local/tmp/cts/microdroid/test_microdroid_vendor_image_unsigned.img");
+        VirtualMachineConfig config =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                        .setVendorDiskImage(unsignedVendorDiskImage)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_boot_with_unsigned_vendor", config);
+        assertThrowsVmExceptionContaining(
+                () -> vm.run(), "Failed to get vbmeta from microdroid-vendor.img");
+    }
+
+    @Test
     public void systemPartitionMountFlags() throws Exception {
         assumeSupportedDevice();
 
