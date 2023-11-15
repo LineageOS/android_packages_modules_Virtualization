@@ -116,6 +116,7 @@ pub struct CrosvmConfig {
     pub detect_hangup: bool,
     pub gdb_port: Option<NonZeroU16>,
     pub vfio_devices: Vec<VfioDevice>,
+    pub dtbo_vendor: Option<File>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -885,6 +886,8 @@ fn run_vm(
     command
         .arg("--socket")
         .arg(add_preserved_fd(&mut preserved_fds, &control_server_socket.as_raw_descriptor()));
+
+    // TODO(b/285855436): Pass dtbo_vendor after --device-tree-overlay crosvm option is supported.
 
     append_platform_devices(&mut command, &config)?;
 
