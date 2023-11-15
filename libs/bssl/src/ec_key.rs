@@ -18,11 +18,12 @@
 use crate::cbb::CbbFixed;
 use crate::cbs::Cbs;
 use crate::util::{check_int_result, to_call_failed_error};
+use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
-    BN_bin2bn, BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len,
-    EC_GROUP_new_by_curve_name, EC_KEY_check_key, EC_KEY_free, EC_KEY_generate_key,
+    BN_bin2bn, BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, ECDSA_sign, ECDSA_size,
+    ECDSA_verify, EC_GROUP_new_by_curve_name, EC_KEY_check_key, EC_KEY_free, EC_KEY_generate_key,
     EC_KEY_get0_group, EC_KEY_get0_public_key, EC_KEY_marshal_private_key,
     EC_KEY_new_by_curve_name, EC_KEY_parse_private_key, EC_KEY_set_public_key_affine_coordinates,
     EC_POINT_get_affine_coordinates, NID_X9_62_prime256v1, BIGNUM, EC_GROUP, EC_KEY, EC_POINT,
@@ -114,18 +115,68 @@ impl EcKey {
         check_int_result(ret, ApiName::EC_KEY_check_key)
     }
 
-    /// Verifies the DER-encoded ECDSA `signature` of the `message` with the current `EcKey`.
-    pub fn ecdsa_verify(&self, _signature: &[u8], _message: &[u8]) -> Result<()> {
-        // TODO(b/310634099): Implement ECDSA sign with `bssl::ECDSA_do_sign`.
-        Ok(())
+    /// Verifies the DER-encoded ECDSA `signature` of the `digest` with the current `EcKey`.
+    ///
+    /// Returns Ok(()) if the verification succeeds, otherwise an error will be returned.
+    pub fn ecdsa_verify(&self, signature: &[u8], digest: &[u8]) -> Result<()> {
+        // The `type` argument should be 0 as required in the BoringSSL spec.
+        const TYPE: i32 = 0;
+
+        // SAFETY: This function only reads the given data within its bounds.
+        // The `EC_KEY` passed to this function has been initialized and checked non-null.
+        let ret = unsafe {
+            ECDSA_verify(
+                TYPE,
+                digest.as_ptr(),
+                digest.len(),
+                signature.as_ptr(),
+                signature.len(),
+                self.0.as_ptr(),
+            )
+        };
+        check_int_result(ret, ApiName::ECDSA_verify)
     }
 
-    /// Signs the `message` with the current `EcKey` using ECDSA.
+    /// Signs the `digest` with the current `EcKey` using ECDSA.
     ///
     /// Returns the DER-encoded ECDSA signature.
-    pub fn ecdsa_sign(&self, _message: &[u8]) -> Result<Vec<u8>> {
-        // TODO(b/310634099): Implement ECDSA verify with `bssl::ECDSA_do_verify`.
-        Ok(Vec::new())
+    pub fn ecdsa_sign(&self, digest: &[u8]) -> Result<Vec<u8>> {
+        // The `type` argument should be 0 as required in the BoringSSL spec.
+        const TYPE: i32 = 0;
+
+        let mut signature = vec![0u8; self.ecdsa_size()?];
+        let mut signature_len = 0;
+        // SAFETY: This function only reads the given data within its bounds.
+        // The `EC_KEY` passed to this function has been initialized and checked non-null.
+        let ret = unsafe {
+            ECDSA_sign(
+                TYPE,
+                digest.as_ptr(),
+                digest.len(),
+                signature.as_mut_ptr(),
+                &mut signature_len,
+                self.0.as_ptr(),
+            )
+        };
+        check_int_result(ret, ApiName::ECDSA_sign)?;
+        if signature.len() < (signature_len as usize) {
+            Err(to_call_failed_error(ApiName::ECDSA_sign))
+        } else {
+            signature.truncate(signature_len as usize);
+            Ok(signature)
+        }
+    }
+
+    /// Returns the maximum size of an ECDSA signature using the current `EcKey`.
+    fn ecdsa_size(&self) -> Result<usize> {
+        // SAFETY: This function only reads the `EC_KEY` that has been initialized
+        // and checked non-null when this instance is created.
+        let size = unsafe { ECDSA_size(self.0.as_ptr()) };
+        if size == 0 {
+            Err(to_call_failed_error(ApiName::ECDSA_size))
+        } else {
+            Ok(size)
+        }
     }
 
     /// Generates a random, private key, calculates the corresponding public key and stores both

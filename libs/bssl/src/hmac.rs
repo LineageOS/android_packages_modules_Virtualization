@@ -15,15 +15,14 @@
 //! Wrappers of the HMAC functions in BoringSSL hmac.h.
 
 use crate::digest::Digester;
+use crate::sha::SHA256_DIGEST_LENGTH;
 use crate::util::to_call_failed_error;
 use bssl_avf_error::{ApiName, Result};
-use bssl_ffi::{HMAC, SHA256_DIGEST_LENGTH};
-
-const SHA256_LEN: usize = SHA256_DIGEST_LENGTH as usize;
+use bssl_ffi::HMAC;
 
 /// Computes the HMAC using SHA-256 for the given `data` with the given `key`.
-pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; SHA256_LEN]> {
-    hmac::<SHA256_LEN>(key, data, Digester::sha256())
+pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; SHA256_DIGEST_LENGTH]> {
+    hmac::<SHA256_DIGEST_LENGTH>(key, data, Digester::sha256())
 }
 
 /// Computes the HMAC for the given `data` with the given `key` and `digester`.
