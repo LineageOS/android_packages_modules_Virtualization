@@ -10,6 +10,7 @@ prebuilt_etc {
 
 android_filesystem {
     name: "test_microdroid_vendor_image",
+    partition_name: "microdroid-vendor",
     type: "ext4",
     file_contexts: ":microdroid_vendor_file_contexts.gen",
     use_avb: true,
@@ -18,6 +19,7 @@ android_filesystem {
 
 android_filesystem {
     name: "test_microdroid_vendor_image_unsigned",
+    partition_name: "microdroid-vendor",
     type: "ext4",
     file_contexts: ":microdroid_vendor_file_contexts.gen",
 }
