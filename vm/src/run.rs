@@ -130,7 +130,7 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
         vendorImage: vendor,
         devices: config
             .microdroid
-            .devices
+            .devices()
             .iter()
             .map(|x| {
                 x.to_str().map(String::from).ok_or(anyhow!("Failed to convert {x:?} to String"))

@@ -108,6 +108,7 @@ pub struct MicrodroidConfig {
     vendor: Option<PathBuf>,
 
     /// SysFS nodes of devices to assign to VM
+    #[cfg(device_assignment)]
     #[arg(long)]
     devices: Vec<PathBuf>,
 }
@@ -131,6 +132,16 @@ impl MicrodroidConfig {
     #[cfg(not(vendor_modules))]
     fn vendor(&self) -> Option<PathBuf> {
         None
+    }
+
+    #[cfg(device_assignment)]
+    fn devices(&self) -> &Vec<PathBuf> {
+        &self.devices
+    }
+
+    #[cfg(not(device_assignment))]
+    fn devices(&self) -> Vec<PathBuf> {
+        Vec::new()
     }
 }
 
