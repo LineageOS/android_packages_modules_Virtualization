@@ -1195,9 +1195,23 @@ fn check_no_vendor_modules(config: &VirtualMachineConfig) -> binder::Result<()> 
     Ok(())
 }
 
+fn check_no_devices(config: &VirtualMachineConfig) -> binder::Result<()> {
+    let VirtualMachineConfig::AppConfig(config) = config else { return Ok(()) };
+    if let Some(custom_config) = &config.customConfig {
+        if !custom_config.devices.is_empty() {
+            return Err(anyhow!("device assignment feature is disabled"))
+                .or_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION);
+        }
+    }
+    Ok(())
+}
+
 fn check_config_features(config: &VirtualMachineConfig) -> binder::Result<()> {
     if !cfg!(vendor_modules) {
         check_no_vendor_modules(config)?;
+    }
+    if !cfg!(device_assignment) {
+        check_no_devices(config)?;
     }
     Ok(())
 }
