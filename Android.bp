@@ -22,6 +22,7 @@ soong_config_module_type {
     module_type: "rust_defaults",
     config_namespace: "ANDROID",
     bool_variables: [
+        "release_avf_enable_device_assignment",
         "release_avf_enable_dice_changes",
         "release_avf_enable_llpvm_changes",
         "release_avf_enable_multi_tenant_microdroid_vm",
@@ -36,6 +37,9 @@ soong_config_module_type {
 avf_flag_aware_rust_defaults {
     name: "avf_build_flags_rust",
     soong_config_variables: {
+        release_avf_enable_device_assignment: {
+            cfgs: ["device_assignment"],
+        },
         release_avf_enable_dice_changes: {
             cfgs: ["dice_changes"],
         },
