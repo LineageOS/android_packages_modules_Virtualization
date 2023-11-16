@@ -526,7 +526,7 @@ impl<'a> PartialEq for FdtNode<'a> {
 
 /// Phandle of a FDT node
 #[repr(transparent)]
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Phandle(u32);
 
 impl Phandle {
