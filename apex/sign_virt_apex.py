@@ -413,10 +413,13 @@ def GenVbmetaImage(args, image, output, partition_name):
 # dict of (key, file) for re-sign/verification. keys are un-versioned for readability.
 virt_apex_files = {
     'kernel': 'etc/fs/microdroid_kernel',
+    'gki_kernel': 'etc/fs/microdroid_gki_kernel',
     'vbmeta.img': 'etc/fs/microdroid_vbmeta.img',
     'super.img': 'etc/fs/microdroid_super.img',
     'initrd_normal.img': 'etc/microdroid_initrd_normal.img',
+    'gki_initrd_normal.img': 'etc/microdroid_gki_initrd_normal.img',
     'initrd_debuggable.img': 'etc/microdroid_initrd_debuggable.img',
+    'gki_initrd_debuggable.img': 'etc/microdroid_gki_initrd_debuggable.img',
 }
 
 
@@ -458,26 +461,40 @@ def SignVirtApex(args):
                      images=images,
                      wait=images_f)
 
+    has_gki_kernel = os.path.isfile(files['gki_kernel'])
+
     vbmeta_bc_f = None
     if not args.do_not_update_bootconfigs:
-        vbmeta_bc_f = Async(UpdateVbmetaBootconfig, args,
-                            [files['initrd_normal.img'],
-                                files['initrd_debuggable.img']], files['vbmeta.img'],
+        initrd_files = [files['initrd_normal.img'], files['initrd_debuggable.img']]
+        if has_gki_kernel:
+            initrd_files += [files['gki_initrd_normal.img'], files['gki_initrd_debuggable.img']]
+        vbmeta_bc_f = Async(UpdateVbmetaBootconfig, args, initrd_files,
+                            files['vbmeta.img'],
                             wait=[vbmeta_f])
 
     # Re-sign kernel. Note kernel's vbmeta contain addition descriptor from ramdisk(s)
-    initrd_normal_hashdesc = tempfile.NamedTemporaryFile(delete=False).name
-    initrd_debug_hashdesc = tempfile.NamedTemporaryFile(delete=False).name
-    initrd_n_f = Async(GenVbmetaImage, args, files['initrd_normal.img'],
-                       initrd_normal_hashdesc, "initrd_normal",
-                       wait=[vbmeta_bc_f] if vbmeta_bc_f is not None else [])
-    initrd_d_f = Async(GenVbmetaImage, args, files['initrd_debuggable.img'],
-                       initrd_debug_hashdesc, "initrd_debug",
-                       wait=[vbmeta_bc_f] if vbmeta_bc_f is not None else [])
-    Async(AddHashFooter, args, key, files['kernel'], partition_name="boot",
-          additional_descriptors=[
-              initrd_normal_hashdesc, initrd_debug_hashdesc],
-          wait=[initrd_n_f, initrd_d_f])
+    def resign_kernel(kernel, initrd_normal, initrd_debug):
+        kernel_file = files[kernel]
+        initrd_normal_file = files[initrd_normal]
+        initrd_debug_file = files[initrd_debug]
+
+        initrd_normal_hashdesc = tempfile.NamedTemporaryFile(delete=False).name
+        initrd_debug_hashdesc = tempfile.NamedTemporaryFile(delete=False).name
+        initrd_n_f = Async(GenVbmetaImage, args, initrd_normal_file,
+                           initrd_normal_hashdesc, "initrd_normal",
+                           wait=[vbmeta_bc_f] if vbmeta_bc_f is not None else [])
+        initrd_d_f = Async(GenVbmetaImage, args, initrd_debug_file,
+                           initrd_debug_hashdesc, "initrd_debug",
+                           wait=[vbmeta_bc_f] if vbmeta_bc_f is not None else [])
+        Async(AddHashFooter, args, key, kernel_file, partition_name="boot",
+              additional_descriptors=[
+                  initrd_normal_hashdesc, initrd_debug_hashdesc],
+              wait=[initrd_n_f, initrd_d_f])
+
+    resign_kernel('kernel', 'initrd_normal.img', 'initrd_debuggable.img')
+
+    if has_gki_kernel:
+        resign_kernel('gki_kernel', 'gki_initrd_normal.img', 'gki_initrd_debuggable.img')
 
 
 def VerifyVirtApex(args):
@@ -502,7 +519,8 @@ def VerifyVirtApex(args):
         assert info['Public key (sha1)'] == pubkey_digest, f'pubkey mismatch: {file}'
 
     for f in files.values():
-        if f in (files['initrd_normal.img'], files['initrd_debuggable.img']):
+        if f in (files['initrd_normal.img'], files['initrd_debuggable.img'],
+                 files['gki_initrd_normal.img'], files['gki_initrd_debuggable.img']):
             # TODO(b/245277660): Verify that ramdisks contain the correct vbmeta digest
             continue
         if f == files['super.img']:
