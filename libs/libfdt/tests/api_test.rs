@@ -17,22 +17,11 @@
 //! Integration tests of the library libfdt.
 
 use core::ffi::CStr;
+use cstr::cstr;
 use libfdt::{Fdt, FdtError, FdtNodeMut, Phandle};
 use std::ffi::CString;
 use std::fs;
 use std::ops::Range;
-
-// TODO(b/308694211): Use cstr!() from vmbase
-macro_rules! cstr {
-    ($str:literal) => {{
-        const S: &str = concat!($str, "\0");
-        const C: &::core::ffi::CStr = match ::core::ffi::CStr::from_bytes_with_nul(S.as_bytes()) {
-            Ok(v) => v,
-            Err(_) => panic!("string contains interior NUL"),
-        };
-        C
-    }};
-}
 
 const TEST_TREE_WITH_ONE_MEMORY_RANGE_PATH: &str = "data/test_tree_one_memory_range.dtb";
 const TEST_TREE_WITH_MULTIPLE_MEMORY_RANGES_PATH: &str =

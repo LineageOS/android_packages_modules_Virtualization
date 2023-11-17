@@ -37,6 +37,7 @@ rust_library_rlib {
         "libcore.rust_sysroot",
     ],
     rustlibs: [
+        "libcstr",
         "liblibfdt_bindgen",
         "libzerocopy_nostd",
     ],
@@ -61,6 +62,7 @@ rust_test {
     ],
     prefer_rlib: true,
     rustlibs: [
+        "libcstr",
         "liblibfdt",
     ],
 }

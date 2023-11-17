@@ -31,14 +31,8 @@ use core::mem;
 use core::ops::Range;
 use core::ptr;
 use core::result;
+use cstr::cstr;
 use zerocopy::AsBytes as _;
-
-// TODO(b/308694211): Use cstr!() from vmbase
-macro_rules! cstr {
-    ($str:literal) => {{
-        core::ffi::CStr::from_bytes_with_nul(concat!($str, "\0").as_bytes()).unwrap()
-    }};
-}
 
 /// Error type corresponding to libfdt error codes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
