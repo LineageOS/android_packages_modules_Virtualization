@@ -17,12 +17,12 @@
 use core::ffi::c_void;
 use core::mem::size_of;
 use core::slice;
+use cstr::cstr;
 use diced_open_dice::{
     bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceConfigValues, DiceMode,
     Hash, InputValues, HIDDEN_SIZE,
 };
 use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
-use vmbase::cstr;
 use vmbase::memory::flushed_zeroize;
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {

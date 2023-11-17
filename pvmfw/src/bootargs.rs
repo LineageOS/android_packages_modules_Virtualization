@@ -108,19 +108,7 @@ impl<'a> Iterator for BootArgsIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // TODO(b/308694211): Use cstr!() from vmbase
-    macro_rules! cstr {
-        ($str:literal) => {{
-            const S: &str = concat!($str, "\0");
-            const C: &::core::ffi::CStr = match ::core::ffi::CStr::from_bytes_with_nul(S.as_bytes())
-            {
-                Ok(v) => v,
-                Err(_) => panic!("string contains interior NUL"),
-            };
-            C
-        }};
-    }
+    use cstr::cstr;
 
     fn check(raw: &CStr, expected: Result<&[(&str, Option<&str>)], ()>) {
         let actual = BootArgsIterator::new(raw);
