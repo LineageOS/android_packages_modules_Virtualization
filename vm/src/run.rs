@@ -98,9 +98,6 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
         None
     };
 
-    let kernel =
-        config.microdroid.kernel().as_ref().map(|p| open_parcel_file(p, false)).transpose()?;
-
     let vendor =
         config.microdroid.vendor().as_ref().map(|p| open_parcel_file(p, false)).transpose()?;
 
@@ -114,8 +111,11 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
         }
         Payload::ConfigPath(config_path)
     } else if let Some(payload_binary_name) = config.payload_binary_name {
+        let os_name =
+            if config.microdroid.gki() { "microdroid_gki" } else { "microdroid" }.to_owned();
         Payload::PayloadConfig(VirtualMachinePayloadConfig {
             payloadBinaryName: payload_binary_name,
+            osName: os_name,
         })
     } else {
         bail!("Either --config-path or --payload-binary-name must be defined")
@@ -124,7 +124,7 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
     let payload_config_str = format!("{:?}!{:?}", config.apk, payload);
 
     let custom_config = CustomConfig {
-        customKernelImage: kernel,
+        customKernelImage: None,
         gdbPort: config.debug.gdb.map(u16::from).unwrap_or(0) as i32, // 0 means no gdb
         taskProfiles: config.common.task_profiles,
         vendorImage: vendor,

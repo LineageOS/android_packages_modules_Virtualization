@@ -425,6 +425,7 @@ pub fn add_microdroid_system_images(
     config: &VirtualMachineAppConfig,
     instance_file: File,
     storage_image: Option<File>,
+    os_name: &str,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
     let debug_suffix = match config.debugLevel {
@@ -432,7 +433,7 @@ pub fn add_microdroid_system_images(
         DebugLevel::FULL => "debuggable",
         _ => return Err(anyhow!("unsupported debug level: {:?}", config.debugLevel)),
     };
-    let initrd = format!("/apex/com.android.virt/etc/microdroid_initrd_{}.img", debug_suffix);
+    let initrd = format!("/apex/com.android.virt/etc/{os_name}_initrd_{debug_suffix}.img");
     vm_config.initrd = Some(open_parcel_file(Path::new(&initrd), false)?);
 
     let mut writable_partitions = vec![Partition {
