@@ -146,6 +146,7 @@ avf_flag_aware_apex_defaults {
                 "microdroid_gki_initrd_debuggable",
                 "microdroid_gki_initrd_normal",
                 "microdroid_gki_kernel",
+                "microdroid_gki.json",
             ],
         },
     },
