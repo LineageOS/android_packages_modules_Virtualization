@@ -884,7 +884,7 @@ fn is_safe_raw_partition(label: &str) -> bool {
 /// Check that a file SELinux label is acceptable.
 ///
 /// We only want to allow code in a VM to be sourced from places that apps, and the
-/// system, do not have write access to.
+/// system or vendor, do not have write access to.
 ///
 /// Note that sepolicy must also grant read access for these types to both virtualization
 /// service and crosvm.
@@ -898,6 +898,7 @@ fn check_label_is_allowed(context: &SeContext) -> Result<()> {
         | "staging_data_file" // updated/staged APEX images
         | "system_file" // immutable dm-verity protected partition
         | "virtualizationservice_data_file" // files created by VS / VirtMgr
+        | "vendor_microdroid_file" // immutable dm-verity protected partition (/vendor/etc/avf/microdroid/.*)
          => Ok(()),
         _ => bail!("Label {} is not allowed", context),
     }
