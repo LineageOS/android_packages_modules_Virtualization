@@ -9,6 +9,7 @@ rust_ffi_static {
     srcs: ["src/main.rs"],
     rustlibs: [
         "libaarch64_paging",
+        "libcstr",
         "libdiced_open_dice_nostd",
         "libfdtpci",
         "liblibfdt",

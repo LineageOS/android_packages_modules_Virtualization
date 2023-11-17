@@ -28,11 +28,12 @@ use crate::pci::{check_pci, get_bar_region};
 use aarch64_paging::paging::MemoryRegion;
 use aarch64_paging::MapError;
 use alloc::{vec, vec::Vec};
+use cstr::cstr;
 use fdtpci::PciInfo;
 use libfdt::Fdt;
 use log::{debug, error, info, trace, warn, LevelFilter};
 use vmbase::{
-    bionic, configure_heap, cstr,
+    bionic, configure_heap,
     layout::{dtb_range, rodata_range, scratch_range, text_range},
     linker, logger, main,
     memory::{PageTable, SIZE_64KB},

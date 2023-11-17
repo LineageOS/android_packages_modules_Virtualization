@@ -13,6 +13,7 @@ rust_ffi_static {
         "libbssl_ffi_nostd",
         "libciborium_io_nostd",
         "libciborium_nostd",
+        "libcstr",
         "libdiced_open_dice_nostd",
         "libdiced_sample_inputs_nostd",
         "libhyp",
