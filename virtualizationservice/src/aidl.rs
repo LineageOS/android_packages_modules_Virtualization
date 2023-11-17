@@ -14,7 +14,7 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
-use crate::{get_calling_pid, get_calling_uid};
+use crate::{get_calling_pid, get_calling_uid, REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME};
 use crate::atom::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom};
 use crate::rkpvm::request_attestation;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
@@ -39,6 +39,7 @@ use avflog::LogResult;
 use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong, IntoBinderResult};
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
+use rkpd_client::get_rkpd_attestation_key;
 use rustutils::system_properties;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -159,14 +160,31 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         Ok(cids)
     }
 
-    fn requestAttestation(&self, csr: &[u8]) -> binder::Result<Vec<Certificate>> {
+    fn requestAttestation(
+        &self,
+        csr: &[u8],
+        requester_uid: i32,
+    ) -> binder::Result<Vec<Certificate>> {
         check_manage_access()?;
         info!("Received csr. Requestting attestation...");
         if cfg!(remote_attestation) {
-            request_attestation(csr)
+            let attestation_key = get_rkpd_attestation_key(
+                REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME,
+                requester_uid as u32,
+            )
+            .context("Failed to retrieve the remotely provisioned keys")
+            .with_log()
+            .or_service_specific_exception(-1)?;
+            let certificate = request_attestation(csr, &attestation_key.keyBlob)
                 .context("Failed to request attestation")
                 .with_log()
-                .or_service_specific_exception(-1)
+                .or_service_specific_exception(-1)?;
+            // TODO(b/309780089): Parse the remotely provisioned certificate chain into
+            // individual certificates.
+            let mut certificate_chain =
+                vec![Certificate { encodedCertificate: attestation_key.encodedCertChain }];
+            certificate_chain.push(Certificate { encodedCertificate: certificate });
+            Ok(certificate_chain)
         } else {
             Err(Status::new_exception_str(
                 ExceptionCode::UNSUPPORTED_OPERATION,
