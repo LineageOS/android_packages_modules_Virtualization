@@ -21,10 +21,13 @@ rust_defaults {
         "libcbor_util_nostd",
         "libciborium_nostd",
         "libcoset_nostd",
+        "libder_nostd",
         "libdiced_open_dice_nostd",
         "liblog_rust_nostd",
         "libserde_nostd",
         "libservice_vm_comm_nostd",
+        "libspki_nostd",
+        "libx509_cert_nostd",
         "libzeroize_nostd",
     ],
 }

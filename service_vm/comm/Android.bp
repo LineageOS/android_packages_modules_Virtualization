@@ -24,6 +24,7 @@ rust_library_rlib {
         "libbssl_avf_error_nostd",
         "libciborium_nostd",
         "libcoset_nostd",
+        "libder_nostd",
         "liblog_rust_nostd",
         "libserde_nostd",
     ],
