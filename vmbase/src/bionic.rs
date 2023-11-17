@@ -22,10 +22,11 @@ use core::slice;
 use core::str;
 
 use crate::console;
-use crate::cstr;
 use crate::eprintln;
 use crate::rand::fill_with_entropy;
 use crate::read_sysreg;
+
+use cstr::cstr;
 
 const EOF: c_int = -1;
 const EIO: c_int = 5;

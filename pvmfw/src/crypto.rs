@@ -33,7 +33,7 @@ use bssl_ffi::EVP_AEAD_max_overhead;
 use bssl_ffi::EVP_aead_aes_256_gcm_randnonce;
 use bssl_ffi::EVP_AEAD;
 use bssl_ffi::EVP_AEAD_CTX;
-use vmbase::cstr;
+use cstr::cstr;
 
 #[derive(Debug)]
 pub struct Error {

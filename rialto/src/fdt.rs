@@ -15,8 +15,8 @@
 //! High-level FDT functions.
 
 use core::ops::Range;
+use cstr::cstr;
 use libfdt::{Fdt, FdtError};
-use vmbase::cstr;
 
 /// Reads the DICE data range from the given `fdt`.
 pub fn read_dice_range_from(fdt: &Fdt) -> libfdt::Result<Range<usize>> {
