@@ -482,7 +482,7 @@ impl VirtualizationService {
             }
         };
 
-        let vfio_devices = if !config.devices.is_empty() {
+        let (vfio_devices, dtbo) = if !config.devices.is_empty() {
             let mut set = HashSet::new();
             for device in config.devices.iter() {
                 let path = canonicalize(device)
@@ -493,16 +493,25 @@ impl VirtualizationService {
                         .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT);
                 }
             }
-            GLOBAL_SERVICE
+            let devices = GLOBAL_SERVICE
                 .bindDevicesToVfioDriver(&config.devices)?
                 .into_iter()
                 .map(|x| VfioDevice {
                     sysfs_path: PathBuf::from(&x.sysfsPath),
                     dtbo_label: x.dtboLabel,
                 })
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            let dtbo_file = File::from(
+                GLOBAL_SERVICE
+                    .getDtboFile()?
+                    .as_ref()
+                    .try_clone()
+                    .context("Failed to create File from ParcelFileDescriptor")
+                    .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?,
+            );
+            (devices, Some(dtbo_file))
         } else {
-            vec![]
+            (vec![], None)
         };
 
         // Actually start the VM.
@@ -529,6 +538,7 @@ impl VirtualizationService {
             detect_hangup: is_app_config,
             gdb_port,
             vfio_devices,
+            dtbo,
             dtbo_vendor,
         };
         let instance = Arc::new(
