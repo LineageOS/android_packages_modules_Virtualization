@@ -17,23 +17,25 @@
 //! serves as a trusted platform to attest a client VM.
 
 use android_hardware_security_rkp::aidl::android::hardware::security::keymint::MacedPublicKey::MacedPublicKey;
-use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::Certificate::Certificate;
 use anyhow::{bail, Context, Result};
-use service_vm_comm::{GenerateCertificateRequestParams, Request, Response};
+use service_vm_comm::{
+    ClientVmAttestationParams, GenerateCertificateRequestParams, Request, Response,
+};
 use service_vm_manager::ServiceVm;
 
-pub(crate) fn request_attestation(csr: &[u8]) -> Result<Vec<Certificate>> {
+pub(crate) fn request_attestation(
+    csr: &[u8],
+    remotely_provisioned_keyblob: &[u8],
+) -> Result<Vec<u8>> {
     let mut vm = ServiceVm::start()?;
 
-    // TODO(b/271275206): Send the correct request type with client VM's
-    // information to be attested.
-    let request = Request::Reverse(csr.to_vec());
+    let params = ClientVmAttestationParams {
+        csr: csr.to_vec(),
+        remotely_provisioned_key_blob: remotely_provisioned_keyblob.to_vec(),
+    };
+    let request = Request::RequestClientVmAttestation(params);
     match vm.process_request(request).context("Failed to process request")? {
-        // TODO(b/271275206): Adjust the response type.
-        Response::Reverse(cert) => {
-            let cert = Certificate { encodedCertificate: cert };
-            Ok(vec![cert])
-        }
+        Response::RequestClientVmAttestation(cert) => Ok(cert),
         _ => bail!("Incorrect response type"),
     }
 }
