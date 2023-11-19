@@ -1,0 +1,84 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	chosen {
+		stdout-path = "/uart@3f8";
+		linux,pci-probe-only = <1>;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x00 0x80000000 0xFFFFFFFF>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		swiotlb: restricted_dma_reserved {
+			compatible = "restricted-dma-pool";
+			reg = <0xFFFFFFFF>;
+			size = <0xFFFFFFFF>;
+			alignment = <0xFFFFFFFF>;
+		};
+
+		dice {
+			compatible = "google,open-dice";
+			no-map;
+			reg = <0xFFFFFFFF>;
+		};
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cpu@0 {
+			device_type = "cpu";
+		};
+		cpu@1 {
+			device_type = "cpu";
+		    reg = <0x00 0x80000000 0xFFFFFFFF>;
+		};
+    };
+
+    rng@90000000 {
+        compatible = "android,rng";
+        reg = <0x0 0x9 0x0 0xFF>;
+        interrupts = <0x0 0xF 0x4>;
+        google,eh,ignore-gctrl-reset;
+        status = "okay";
+        iommus = <&pviommu_0>, <&pviommu_1>;
+    };
+
+    pviommu_0: pviommu0 {
+        compatible = "pkvm,pviommu";
+        id = <0x4>;
+        #iommu-cells = <0>;
+    };
+
+    pviommu_1: pviommu1 {
+        compatible = "pkvm,pviommu";
+        id = <0x9>;
+        #iommu-cells = <0>;
+    };
+
+    light@70000000 {
+        compatible = "android,light";
+        reg = <0x100 0x9>;
+        interrupts = <0x0 0xF 0x5>;
+        iommus = <&pviommu_0>, <&pviommu_a>, <&pviommu_b>;
+    };
+
+    pviommu_a: pviommua {
+        compatible = "pkvm,pviommu";
+        id = <0x40>;
+        #iommu-cells = <0>;
+    };
+
+    pviommu_b: pviommub {
+        compatible = "pkvm,pviommu";
+        id = <0x9>;
+        #iommu-cells = <0>;
+    };
+};
