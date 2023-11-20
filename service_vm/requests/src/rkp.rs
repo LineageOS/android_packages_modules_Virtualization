@@ -44,7 +44,8 @@ pub(super) fn generate_ecdsa_p256_key_pair(
     dice_artifacts: &dyn DiceArtifacts,
 ) -> Result<EcdsaP256KeyPair> {
     let hmac_key = derive_hmac_key(dice_artifacts)?;
-    let ec_key = EcKey::new_p256()?;
+    let mut ec_key = EcKey::new_p256()?;
+    ec_key.generate_key()?;
 
     let maced_public_key = build_maced_public_key(ec_key.cose_public_key()?, hmac_key.as_ref())?;
     let key_blob =

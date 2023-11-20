@@ -21,7 +21,7 @@ mod code;
 use core::{fmt, result};
 use serde::{Deserialize, Serialize};
 
-pub use crate::code::{CipherError, GlobalError, ReasonCode};
+pub use crate::code::{CipherError, EcError, EcdsaError, GlobalError, ReasonCode};
 
 /// libbssl_avf result type.
 pub type Result<T> = result::Result<T, Error>;
@@ -34,6 +34,12 @@ pub enum Error {
 
     /// An unexpected internal error occurred.
     InternalError,
+
+    /// Failed to decode the COSE_Key.
+    CoseKeyDecodingFailed,
+
+    /// Unimplemented operation.
+    Unimplemented,
 }
 
 impl fmt::Display for Error {
@@ -43,6 +49,8 @@ impl fmt::Display for Error {
                 write!(f, "Failed to invoke the BoringSSL API: {api_name:?}. Reason: {reason}")
             }
             Self::InternalError => write!(f, "An unexpected internal error occurred"),
+            Self::CoseKeyDecodingFailed => write!(f, "Failed to decode the COSE_Key"),
+            Self::Unimplemented => write!(f, "Unimplemented operation"),
         }
     }
 }
@@ -53,6 +61,7 @@ impl fmt::Display for Error {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ApiName {
     BN_new,
+    BN_bin2bn,
     BN_bn2bin_padded,
     CBB_flush,
     CBB_len,
@@ -64,11 +73,16 @@ pub enum ApiName {
     EC_KEY_marshal_private_key,
     EC_KEY_parse_private_key,
     EC_KEY_new_by_curve_name,
+    EC_KEY_set_public_key_affine_coordinates,
     EC_POINT_get_affine_coordinates,
+    ECDSA_sign,
+    ECDSA_size,
+    ECDSA_verify,
     EVP_AEAD_CTX_new,
     EVP_AEAD_CTX_open,
     EVP_AEAD_CTX_seal,
     HKDF,
     HMAC,
     RAND_bytes,
+    SHA256,
 }

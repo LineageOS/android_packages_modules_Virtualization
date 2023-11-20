@@ -25,6 +25,8 @@ pub enum ReasonCode {
     NoError,
     Global(GlobalError),
     Cipher(CipherError),
+    Ec(EcError),
+    Ecdsa(EcdsaError),
     Unknown(BsslReasonCode, BsslLibraryCode),
 }
 
@@ -100,5 +102,88 @@ impl From<CipherError> for ReasonCode {
 impl fmt::Display for CipherError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "An error occurred in a Cipher function: {self:?}")
+    }
+}
+
+/// Errors occurred in the EC functions.
+///
+/// The values are from:
+/// boringssl/src/include/openssl/ec.h
+#[allow(missing_docs)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EcError {
+    BufferTooSmall,
+    CoordinatesOutOfRange,
+    D2IEcpkparametersFailure,
+    EcGroupNewByNameFailure,
+    Group2PkparametersFailure,
+    I2DEcpkparametersFailure,
+    IncompatibleObjects,
+    InvalidCompressedPoint,
+    InvalidCompressionBit,
+    InvalidEncoding,
+    InvalidField,
+    InvalidForm,
+    InvalidGroupOrder,
+    InvalidPrivateKey,
+    MissingParameters,
+    MissingPrivateKey,
+    NonNamedCurve,
+    NotInitialized,
+    Pkparameters2GroupFailure,
+    PointAtInfinity,
+    PointIsNotOnCurve,
+    SlotFull,
+    UndefinedGenerator,
+    UnknownGroup,
+    UnknownOrder,
+    WrongOrder,
+    BignumOutOfRange,
+    WrongCurveParameters,
+    DecodeError,
+    EncodeError,
+    GroupMismatch,
+    InvalidCofactor,
+    PublicKeyValidationFailed,
+    InvalidScalar,
+}
+
+impl From<EcError> for ReasonCode {
+    fn from(e: EcError) -> ReasonCode {
+        ReasonCode::Ec(e)
+    }
+}
+
+impl fmt::Display for EcError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "An error occurred in an EC function: {self:?}")
+    }
+}
+
+/// Errors occurred in the ECDSA functions.
+///
+/// The values are from:
+/// boringssl/src/include/openssl/ecdsa.h
+#[allow(missing_docs)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EcdsaError {
+    BadSignature,
+    MissingParameters,
+    NeedNewSetupValues,
+    NotImplemented,
+    RandomNumberGenerationFailed,
+    EncodeError,
+    TooManyIterations,
+}
+
+impl From<EcdsaError> for ReasonCode {
+    fn from(e: EcdsaError) -> ReasonCode {
+        ReasonCode::Ecdsa(e)
+    }
+}
+
+impl fmt::Display for EcdsaError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "An error occurred in an ECDSA function: {self:?}")
     }
 }
