@@ -23,6 +23,7 @@ rust_library_rlib {
     rustlibs: [
         "libbssl_avf_error_nostd",
         "libbssl_ffi_nostd",
+        "libciborium_nostd",
         "libcoset_nostd",
         "liblog_rust_nostd",
         "libzeroize_nostd",
@@ -44,5 +45,6 @@ rust_test {
     defaults: ["libbssl_avf_test_defaults"],
     rustlibs: [
         "libbssl_avf_nostd",
+        "libcoset_nostd",
     ],
 }

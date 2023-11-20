@@ -18,19 +18,28 @@
 use crate::cbb::CbbFixed;
 use crate::cbs::Cbs;
 use crate::util::{check_int_result, to_call_failed_error};
+use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
-    BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, EC_GROUP_new_by_curve_name,
-    EC_KEY_check_key, EC_KEY_free, EC_KEY_generate_key, EC_KEY_get0_group, EC_KEY_get0_public_key,
-    EC_KEY_marshal_private_key, EC_KEY_new_by_curve_name, EC_KEY_parse_private_key,
+    BN_bin2bn, BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, ECDSA_sign, ECDSA_size,
+    ECDSA_verify, EC_GROUP_new_by_curve_name, EC_KEY_check_key, EC_KEY_free, EC_KEY_generate_key,
+    EC_KEY_get0_group, EC_KEY_get0_public_key, EC_KEY_marshal_private_key,
+    EC_KEY_new_by_curve_name, EC_KEY_parse_private_key, EC_KEY_set_public_key_affine_coordinates,
     EC_POINT_get_affine_coordinates, NID_X9_62_prime256v1, BIGNUM, EC_GROUP, EC_KEY, EC_POINT,
 };
+use ciborium::Value;
 use core::ptr::{self, NonNull};
 use core::result;
-use coset::{iana, CoseKey, CoseKeyBuilder};
+use coset::{
+    iana::{self, EnumI64},
+    CborSerializable, CoseKey, CoseKeyBuilder, Label,
+};
+use log::error;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
+const ES256_ALGO: iana::Algorithm = iana::Algorithm::ES256;
+const P256_CURVE: iana::EllipticCurve = iana::EllipticCurve::P_256;
 const P256_AFFINE_COORDINATE_SIZE: usize = 32;
 
 type Coordinate = [u8; P256_AFFINE_COORDINATE_SIZE];
@@ -53,10 +62,46 @@ impl EcKey {
         let ec_key = unsafe {
             EC_KEY_new_by_curve_name(NID_X9_62_prime256v1) // EC P-256 CURVE Nid
         };
-        let mut ec_key = NonNull::new(ec_key)
+        NonNull::new(ec_key)
             .map(Self)
-            .ok_or(to_call_failed_error(ApiName::EC_KEY_new_by_curve_name))?;
-        ec_key.generate_key()?;
+            .ok_or(to_call_failed_error(ApiName::EC_KEY_new_by_curve_name))
+    }
+
+    /// Constructs an `EcKey` instance from the provided COSE_Key encoded public key slice.
+    pub fn from_cose_public_key(cose_key: &[u8]) -> Result<Self> {
+        let cose_key = CoseKey::from_slice(cose_key).map_err(|e| {
+            error!("Failed to deserialize COSE_Key: {e:?}");
+            Error::CoseKeyDecodingFailed
+        })?;
+        if cose_key.alg != Some(coset::Algorithm::Assigned(ES256_ALGO)) {
+            error!(
+                "Only ES256 algorithm is supported. Algo type in the COSE Key: {:?}",
+                cose_key.alg
+            );
+            return Err(Error::Unimplemented);
+        }
+        let crv = get_label_value(&cose_key, Label::Int(iana::Ec2KeyParameter::Crv.to_i64()))?;
+        if &Value::from(P256_CURVE.to_i64()) != crv {
+            error!("Only EC P-256 curve is supported. Curve type in the COSE Key: {crv:?}");
+            return Err(Error::Unimplemented);
+        }
+
+        let x = get_label_value_as_bytes(&cose_key, Label::Int(iana::Ec2KeyParameter::X.to_i64()))?;
+        let y = get_label_value_as_bytes(&cose_key, Label::Int(iana::Ec2KeyParameter::Y.to_i64()))?;
+
+        check_p256_affine_coordinate_size(x)?;
+        check_p256_affine_coordinate_size(y)?;
+
+        let x = BigNum::from_slice(x)?;
+        let y = BigNum::from_slice(y)?;
+
+        let ec_key = EcKey::new_p256()?;
+        // SAFETY: All the parameters are checked non-null and initialized.
+        // The function only reads the coordinates x and y within their bounds.
+        let ret = unsafe {
+            EC_KEY_set_public_key_affine_coordinates(ec_key.0.as_ptr(), x.as_ref(), y.as_ref())
+        };
+        check_int_result(ret, ApiName::EC_KEY_set_public_key_affine_coordinates)?;
         Ok(ec_key)
     }
 
@@ -70,9 +115,73 @@ impl EcKey {
         check_int_result(ret, ApiName::EC_KEY_check_key)
     }
 
+    /// Verifies the DER-encoded ECDSA `signature` of the `digest` with the current `EcKey`.
+    ///
+    /// Returns Ok(()) if the verification succeeds, otherwise an error will be returned.
+    pub fn ecdsa_verify(&self, signature: &[u8], digest: &[u8]) -> Result<()> {
+        // The `type` argument should be 0 as required in the BoringSSL spec.
+        const TYPE: i32 = 0;
+
+        // SAFETY: This function only reads the given data within its bounds.
+        // The `EC_KEY` passed to this function has been initialized and checked non-null.
+        let ret = unsafe {
+            ECDSA_verify(
+                TYPE,
+                digest.as_ptr(),
+                digest.len(),
+                signature.as_ptr(),
+                signature.len(),
+                self.0.as_ptr(),
+            )
+        };
+        check_int_result(ret, ApiName::ECDSA_verify)
+    }
+
+    /// Signs the `digest` with the current `EcKey` using ECDSA.
+    ///
+    /// Returns the DER-encoded ECDSA signature.
+    pub fn ecdsa_sign(&self, digest: &[u8]) -> Result<Vec<u8>> {
+        // The `type` argument should be 0 as required in the BoringSSL spec.
+        const TYPE: i32 = 0;
+
+        let mut signature = vec![0u8; self.ecdsa_size()?];
+        let mut signature_len = 0;
+        // SAFETY: This function only reads the given data within its bounds.
+        // The `EC_KEY` passed to this function has been initialized and checked non-null.
+        let ret = unsafe {
+            ECDSA_sign(
+                TYPE,
+                digest.as_ptr(),
+                digest.len(),
+                signature.as_mut_ptr(),
+                &mut signature_len,
+                self.0.as_ptr(),
+            )
+        };
+        check_int_result(ret, ApiName::ECDSA_sign)?;
+        if signature.len() < (signature_len as usize) {
+            Err(to_call_failed_error(ApiName::ECDSA_sign))
+        } else {
+            signature.truncate(signature_len as usize);
+            Ok(signature)
+        }
+    }
+
+    /// Returns the maximum size of an ECDSA signature using the current `EcKey`.
+    fn ecdsa_size(&self) -> Result<usize> {
+        // SAFETY: This function only reads the `EC_KEY` that has been initialized
+        // and checked non-null when this instance is created.
+        let size = unsafe { ECDSA_size(self.0.as_ptr()) };
+        if size == 0 {
+            Err(to_call_failed_error(ApiName::ECDSA_size))
+        } else {
+            Ok(size)
+        }
+    }
+
     /// Generates a random, private key, calculates the corresponding public key and stores both
     /// in the `EC_KEY`.
-    fn generate_key(&mut self) -> Result<()> {
+    pub fn generate_key(&mut self) -> Result<()> {
         // SAFETY: The non-null pointer is created with `EC_KEY_new_by_curve_name` and should
         // point to a valid `EC_KEY`.
         // The randomness is provided by `getentropy()` in `vmbase`.
@@ -82,12 +191,10 @@ impl EcKey {
 
     /// Returns the `CoseKey` for the public key.
     pub fn cose_public_key(&self) -> Result<CoseKey> {
-        const ALGO: iana::Algorithm = iana::Algorithm::ES256;
-        const CURVE: iana::EllipticCurve = iana::EllipticCurve::P_256;
-
         let (x, y) = self.public_key_coordinates()?;
-        let key =
-            CoseKeyBuilder::new_ec2_pub_key(CURVE, x.to_vec(), y.to_vec()).algorithm(ALGO).build();
+        let key = CoseKeyBuilder::new_ec2_pub_key(P256_CURVE, x.to_vec(), y.to_vec())
+            .algorithm(ES256_ALGO)
+            .build();
         Ok(key)
     }
 
@@ -183,6 +290,30 @@ impl EcKey {
     }
 }
 
+fn get_label_value_as_bytes(key: &CoseKey, label: Label) -> Result<&[u8]> {
+    Ok(get_label_value(key, label)?.as_bytes().ok_or_else(|| {
+        error!("Value not a bstr.");
+        Error::CoseKeyDecodingFailed
+    })?)
+}
+
+fn get_label_value(key: &CoseKey, label: Label) -> Result<&Value> {
+    Ok(&key.params.iter().find(|(k, _)| k == &label).ok_or(Error::CoseKeyDecodingFailed)?.1)
+}
+
+fn check_p256_affine_coordinate_size(coordinate: &[u8]) -> Result<()> {
+    if P256_AFFINE_COORDINATE_SIZE == coordinate.len() {
+        Ok(())
+    } else {
+        error!(
+            "The size of the affine coordinate '{}' does not match the expected size '{}'",
+            coordinate.len(),
+            P256_AFFINE_COORDINATE_SIZE
+        );
+        Err(Error::CoseKeyDecodingFailed)
+    }
+}
+
 /// A u8 vector that is zeroed when dropped.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct ZVec(Vec<u8>);
@@ -210,6 +341,13 @@ impl Drop for BigNum {
 }
 
 impl BigNum {
+    fn from_slice(x: &[u8]) -> Result<Self> {
+        // SAFETY: The function reads `x` within its bounds, and the returned
+        // pointer is checked below.
+        let bn = unsafe { BN_bin2bn(x.as_ptr(), x.len(), ptr::null_mut()) };
+        NonNull::new(bn).map(Self).ok_or(to_call_failed_error(ApiName::BN_bin2bn))
+    }
+
     fn new() -> Result<Self> {
         // SAFETY: The returned pointer is checked below.
         let bn = unsafe { BN_new() };
@@ -218,6 +356,14 @@ impl BigNum {
 
     fn as_mut_ptr(&mut self) -> *mut BIGNUM {
         self.0.as_ptr()
+    }
+}
+
+impl AsRef<BIGNUM> for BigNum {
+    fn as_ref(&self) -> &BIGNUM {
+        // SAFETY: The pointer is valid and points to an initialized instance of `BIGNUM`
+        // when the instance was created.
+        unsafe { self.0.as_ref() }
     }
 }
 
