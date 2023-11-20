@@ -14,7 +14,7 @@
 
 //! Wrappers of the error handling functions in BoringSSL err.h.
 
-use bssl_avf_error::{CipherError, GlobalError, ReasonCode};
+use bssl_avf_error::{CipherError, EcError, EcdsaError, GlobalError, ReasonCode};
 use bssl_ffi::{self, ERR_get_error, ERR_GET_LIB_RUST, ERR_GET_REASON_RUST};
 
 const NO_ERROR_REASON_CODE: i32 = 0;
@@ -75,6 +75,8 @@ fn map_global_reason_code(reason: i32) -> Option<GlobalError> {
 fn map_library_reason_code(reason: i32, lib: i32) -> Option<ReasonCode> {
     u32::try_from(lib).ok().and_then(|x| match x {
         bssl_ffi::ERR_LIB_CIPHER => map_cipher_reason_code(reason).map(ReasonCode::Cipher),
+        bssl_ffi::ERR_LIB_EC => map_ec_reason_code(reason).map(ReasonCode::Ec),
+        bssl_ffi::ERR_LIB_ECDSA => map_ecdsa_reason_code(reason).map(ReasonCode::Ecdsa),
         _ => None,
     })
 }
@@ -106,6 +108,63 @@ fn map_cipher_reason_code(reason: i32) -> Option<CipherError> {
         bssl_ffi::CIPHER_R_WRONG_FINAL_BLOCK_LENGTH => CipherError::WrongFinalBlockLength,
         bssl_ffi::CIPHER_R_NO_DIRECTION_SET => CipherError::NoDirectionSet,
         bssl_ffi::CIPHER_R_INVALID_NONCE => CipherError::InvalidNonce,
+        _ => return None,
+    };
+    Some(error)
+}
+
+fn map_ec_reason_code(reason: i32) -> Option<EcError> {
+    let error = match reason {
+        bssl_ffi::EC_R_BUFFER_TOO_SMALL => EcError::BufferTooSmall,
+        bssl_ffi::EC_R_COORDINATES_OUT_OF_RANGE => EcError::CoordinatesOutOfRange,
+        bssl_ffi::EC_R_D2I_ECPKPARAMETERS_FAILURE => EcError::D2IEcpkparametersFailure,
+        bssl_ffi::EC_R_EC_GROUP_NEW_BY_NAME_FAILURE => EcError::EcGroupNewByNameFailure,
+        bssl_ffi::EC_R_GROUP2PKPARAMETERS_FAILURE => EcError::Group2PkparametersFailure,
+        bssl_ffi::EC_R_I2D_ECPKPARAMETERS_FAILURE => EcError::I2DEcpkparametersFailure,
+        bssl_ffi::EC_R_INCOMPATIBLE_OBJECTS => EcError::IncompatibleObjects,
+        bssl_ffi::EC_R_INVALID_COMPRESSED_POINT => EcError::InvalidCompressedPoint,
+        bssl_ffi::EC_R_INVALID_COMPRESSION_BIT => EcError::InvalidCompressionBit,
+        bssl_ffi::EC_R_INVALID_ENCODING => EcError::InvalidEncoding,
+        bssl_ffi::EC_R_INVALID_FIELD => EcError::InvalidField,
+        bssl_ffi::EC_R_INVALID_FORM => EcError::InvalidForm,
+        bssl_ffi::EC_R_INVALID_GROUP_ORDER => EcError::InvalidGroupOrder,
+        bssl_ffi::EC_R_INVALID_PRIVATE_KEY => EcError::InvalidPrivateKey,
+        bssl_ffi::EC_R_MISSING_PARAMETERS => EcError::MissingParameters,
+        bssl_ffi::EC_R_MISSING_PRIVATE_KEY => EcError::MissingPrivateKey,
+        bssl_ffi::EC_R_NON_NAMED_CURVE => EcError::NonNamedCurve,
+        bssl_ffi::EC_R_NOT_INITIALIZED => EcError::NotInitialized,
+        bssl_ffi::EC_R_PKPARAMETERS2GROUP_FAILURE => EcError::Pkparameters2GroupFailure,
+        bssl_ffi::EC_R_POINT_AT_INFINITY => EcError::PointAtInfinity,
+        bssl_ffi::EC_R_POINT_IS_NOT_ON_CURVE => EcError::PointIsNotOnCurve,
+        bssl_ffi::EC_R_SLOT_FULL => EcError::SlotFull,
+        bssl_ffi::EC_R_UNDEFINED_GENERATOR => EcError::UndefinedGenerator,
+        bssl_ffi::EC_R_UNKNOWN_GROUP => EcError::UnknownGroup,
+        bssl_ffi::EC_R_UNKNOWN_ORDER => EcError::UnknownOrder,
+        bssl_ffi::EC_R_WRONG_ORDER => EcError::WrongOrder,
+        bssl_ffi::EC_R_BIGNUM_OUT_OF_RANGE => EcError::BignumOutOfRange,
+        bssl_ffi::EC_R_WRONG_CURVE_PARAMETERS => EcError::WrongCurveParameters,
+        bssl_ffi::EC_R_DECODE_ERROR => EcError::DecodeError,
+        bssl_ffi::EC_R_ENCODE_ERROR => EcError::EncodeError,
+        bssl_ffi::EC_R_GROUP_MISMATCH => EcError::GroupMismatch,
+        bssl_ffi::EC_R_INVALID_COFACTOR => EcError::InvalidCofactor,
+        bssl_ffi::EC_R_PUBLIC_KEY_VALIDATION_FAILED => EcError::PublicKeyValidationFailed,
+        bssl_ffi::EC_R_INVALID_SCALAR => EcError::InvalidScalar,
+        _ => return None,
+    };
+    Some(error)
+}
+
+fn map_ecdsa_reason_code(reason: i32) -> Option<EcdsaError> {
+    let error = match reason {
+        bssl_ffi::ECDSA_R_BAD_SIGNATURE => EcdsaError::BadSignature,
+        bssl_ffi::ECDSA_R_MISSING_PARAMETERS => EcdsaError::MissingParameters,
+        bssl_ffi::ECDSA_R_NEED_NEW_SETUP_VALUES => EcdsaError::NeedNewSetupValues,
+        bssl_ffi::ECDSA_R_NOT_IMPLEMENTED => EcdsaError::NotImplemented,
+        bssl_ffi::ECDSA_R_RANDOM_NUMBER_GENERATION_FAILED => {
+            EcdsaError::RandomNumberGenerationFailed
+        }
+        bssl_ffi::ECDSA_R_ENCODE_ERROR => EcdsaError::EncodeError,
+        bssl_ffi::ECDSA_R_TOO_MANY_ITERATIONS => EcdsaError::TooManyIterations,
         _ => return None,
     };
     Some(error)
