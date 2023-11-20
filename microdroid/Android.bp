@@ -283,12 +283,14 @@ flag_aware_microdroid_super_partition {
     ],
     soong_config_variables: {
         release_avf_enable_vendor_modules: {
-            default_group: [
-                {
-                    name: "vendor_a",
-                    filesystem: ":microdroid_vendor",
-                },
-            ],
+            conditions_default: {
+                default_group: [
+                    {
+                        name: "vendor_a",
+                        filesystem: ":microdroid_vendor",
+                    },
+                ],
+            },
         },
     },
 }
