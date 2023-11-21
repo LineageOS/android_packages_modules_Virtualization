@@ -213,10 +213,10 @@ fn check_constraint_on_node(constraint: &Constraint, dice_node: &Value) -> Resul
         ConstraintType::GreaterOrEqual => {
             let value_in_node = value_in_node
                 .as_integer()
-                .ok_or(anyhow!("Mismatch type: expected a cbor integer"))?;
+                .ok_or(anyhow!("Mismatch type: expected a CBOR integer"))?;
             let value_min = value_in_constraint
                 .as_integer()
-                .ok_or(anyhow!("Mismatch type: expected a cbor integer"))?;
+                .ok_or(anyhow!("Mismatch type: expected a CBOR integer"))?;
             ensure!(value_in_node >= value_min);
         }
     };
@@ -260,9 +260,9 @@ fn get_map_from_value(cbor_map: &Value) -> Result<Cow<Vec<(Value, Value)>>> {
         Value::Bytes(b) => value_from_bytes(b)?
             .into_map()
             .map(Cow::Owned)
-            .map_err(|e| anyhow!("Expected a cbor map: {:?}", e)),
+            .map_err(|e| anyhow!("Expected a CBOR map: {:?}", e)),
         Value::Map(map) => Ok(Cow::Borrowed(map)),
-        _ => bail!("/Expected a cbor map {:?}", cbor_map),
+        _ => bail!("Expected a CBOR map {:?}", cbor_map),
     }
 }
 
