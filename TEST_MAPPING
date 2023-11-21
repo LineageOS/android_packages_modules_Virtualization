@@ -34,6 +34,9 @@
     },
     {
       "name": "libapkzip.test"
+    },
+    {
+      "name": "libsecretkeeper_comm.test"
     }
   ],
   "avf-postsubmit": [
