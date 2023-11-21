@@ -21,7 +21,7 @@
 			light {
 				compatible = "android,light";
 				version = <0x1 0x2>;
-				android,pvmfw,phy-reg = <0x0 0xF00000 0x1000>;
+				android,pvmfw,phy-reg = <0x0 0xF00000 0x1000>, <0x0 0xF10000 0x1000>;
 				android,pvmfw,phy-iommu = <0x0 0x40000>, <0x0 0x50000>;
 				android,pvmfw,phy-sid = <4>, <5>;
 			};
