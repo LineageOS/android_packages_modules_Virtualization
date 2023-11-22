@@ -450,7 +450,9 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         key, keyOverrides, /* isProtected= */ false, /* updateBootconfigs= */ true);
         assertThatEventually(
                 100000,
-                () -> getDevice().pullFileContents(LOG_PATH),
+                () ->
+                        getDevice().pullFileContents(CONSOLE_PATH)
+                                + getDevice().pullFileContents(LOG_PATH),
                 containsString("boot completed, time to run payload"));
 
         vmInfo.mProcess.destroy();
