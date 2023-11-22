@@ -94,7 +94,7 @@ impl Ops {
     pub(crate) fn verify_partition(
         &mut self,
         partition_name: &CStr,
-    ) -> Result<AvbSlotVerifyDataWrap, avb::SlotVerifyError> {
+    ) -> Result<AvbSlotVerifyDataWrap, avb::SlotVerifyError<'static>> {
         let requested_partitions = [partition_name.as_ptr(), ptr::null()];
         let ab_suffix = CStr::from_bytes_with_nul(NULL_BYTE).unwrap();
         let mut out_data = MaybeUninit::uninit();
@@ -292,7 +292,7 @@ fn try_validate_vbmeta_public_key(
 pub(crate) struct AvbSlotVerifyDataWrap(*mut AvbSlotVerifyData);
 
 impl TryFrom<*mut AvbSlotVerifyData> for AvbSlotVerifyDataWrap {
-    type Error = avb::SlotVerifyError;
+    type Error = avb::SlotVerifyError<'static>;
 
     fn try_from(data: *mut AvbSlotVerifyData) -> Result<Self, Self::Error> {
         is_not_null(data).map_err(|_| avb::SlotVerifyError::Io)?;
