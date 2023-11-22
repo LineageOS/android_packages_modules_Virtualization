@@ -34,6 +34,8 @@ use once_cell::race::OnceBox;
 use smccc::hvc64;
 use uuid::Uuid;
 
+use self::common::DeviceAssigningHypervisor;
+
 enum HypervisorBackend {
     RegularKvm,
     Gunyah,
@@ -121,4 +123,9 @@ pub fn get_mmio_guard() -> Option<&'static dyn MmioGuardedHypervisor> {
 /// Gets the dynamic memory sharing hypervisor singleton, if any.
 pub fn get_mem_sharer() -> Option<&'static dyn MemSharingHypervisor> {
     get_hypervisor().as_mem_sharer()
+}
+
+/// Gets the device assigning hypervisor singleton, if any.
+pub fn get_device_assigner() -> Option<&'static dyn DeviceAssigningHypervisor> {
+    get_hypervisor().as_device_assigner()
 }
