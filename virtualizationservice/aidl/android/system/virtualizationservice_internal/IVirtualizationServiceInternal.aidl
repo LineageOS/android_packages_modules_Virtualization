@@ -81,4 +81,7 @@ interface IVirtualizationServiceInternal {
      * @return a list of pairs (sysfs path, DTBO node label) for devices.
      */
     BoundDevice[] bindDevicesToVfioDriver(in String[] devices);
+
+    /** Returns a read-only file descriptor of the VM DTBO file. */
+    ParcelFileDescriptor getDtboFile();
 }
