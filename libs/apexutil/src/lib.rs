@@ -68,6 +68,7 @@ pub enum ApexVerificationError {
 }
 
 /// Information extracted from the APEX during verification.
+#[derive(Debug)]
 pub struct ApexVerificationResult {
     /// The name of the APEX, from its manifest. Unverified, but apexd will reject
     /// an APEX where the unsigned manifest isn't the same as the signed one.
@@ -166,50 +167,67 @@ mod tests {
 
     #[test]
     fn apex_verification_returns_valid_result() {
-        let res = verify("tests/data/test.apex").unwrap();
-        // The expected hex is generated when we ran the method the first time.
-        assert_eq!(res.name, "com.android.apex.cts.shim");
+        let res = verify("apex.apexd_test.apex").unwrap();
+        assert_eq!(res.name, "com.android.apex.test_package");
         assert_eq!(res.version, 1);
-        assert_eq!(
-            hex::encode(res.public_key),
-            "000010007093e081b637735012c7f2\
-            fdacba9b1c01ee2eaa78e7fb69fa810a0e3fff8d70cd69c60eb6458c54c56c6a40e2f68\
-            60c69343c1373eb1785c4e81eca1c8921390da5997115668ef4c5f5cb90d74df3fc29dd\
-            d05d45e298761beba76276669540d5cfe9c79ed1e001637871db4f0d0083d56332fe328\
-            9f1f3aec8d00b06a7db25104d5a05226ab499cd6536434ff8f1d01ca1c653a91d58ee41\
-            a848571abf9ba555610a1dc3555911386f07109c3c9e420a17b8f63c58c74410a94cedd\
-            2e3e8203f4e638b620836742331049c96423c01fbe2609962e35d38d127730692f7e947\
-            80bb21017b4583c9fb59e9f7421a92cff4d4dd6095d5aca2f5f13b9c5320ff0f3fc84bb\
-            b347bbe7fc08b6081d2157bddae97845e2c58da58d9d56732dd90d5b59116db404b859c\
-            b68b4c51790d06337bf939201f5ab356a50242d7e50e29f53f0525ab1693d6b1db1acbd\
-            540dd8eb310accee7b3938b471a1768163c226a44483e0e4453cde393f5495bfe10297d\
-            68f1bfed44b386c5c2ecde221607635ef14aadcba153f1f916d7c1fc92fab1b04f964f8\
-            5660033024084d5b27760e61967c9df5e2a099bdc63e3c3864b15fd3caa85274ab7b02d\
-            8933c2a5e4460adbf95aae0774945e9a5c0abb15f2d533259cb090ea5be513572bd75cc\
-            5eaf23fe4f5dbe4b8fee525059ae0d8c7813704f2b9fc641525075d2ce6e44bd0955c10\
-            f8383f87b0d3a07f524893b78bb67d5428cfa430e863f121c1de0205d3dd64f3a78c5d8\
-            e802dfaa078f07c4626c4a280224816958a1e621d05184214f675a7cd1c55b6c5a2b18e\
-            358f84c4b1068b8d2aace966c47674204ada4b5376b55fd9c145b1224ddb4f578f6279d\
-            d92a381f3a11235be8331ce15754374426a35aa6f17586f1658d48f30c3220fec43b3d5\
-            ca7ed0f8de14225b19ab699fb75c95299b8f81559fe41df31e4d591692d86482c50c3ba\
-            ccfeb002ead775eca116b5674bd8f4f2c5db54bd21596d980f2067e331bc0e30a56c25f\
-            6fd7d5f2a03651198f0c7494add16889dbb49cc79038fd8bc2e7540c3101e5cbbb1f8d6\
-            f0eab86f83eb76ef5d6df29f0c718019c26f8e38d86a54f2b992a17a0c9e00a298e866d\
-            53e2ff78f35de1ccdf166375309397a43b74cf7a34a647a3ee0234dbf4744c6db5f44f7\
-            1a366d87024ec3a5ec4185ac7cc0342460160632f21b791e12b656c71c248cce5fbb45f\
-            3c624852ea9c29264c6b8ad58ac36bf99cf5254d1e69c628bdf1707136475230bbedf1f\
-            ac25849b249795456d5d99214800e44a6d71c460eb495d9926145606d7cbb986044c9f0\
-            11b6d6be5c79f89a6f90ad39676489eac632b105cbf3da29bf7e4e72bf82600bcafc867\
-            f4cb6e0ade8f532d9620b82001c69493ff5679cf0393285aa67b3e4382c8e785e43efe9\
-            7e56fbd24357eec0b19697194f0b91ee46ab82dfeea788"
-        );
+        // The expected hex values were generated when we ran the method the first time.
         assert_eq!(
             hex::encode(res.root_digest),
-            "fe11ab17da0a3a738b54bdc3a13f6139cbdf91ec32f001f8d4bbbf8938e04e39"
+            "54265da77ae1fd619e39809ad99fedc576bb20c0c7a8002190fa64438436299f"
         );
         assert_eq!(
             hex::encode(res.image_hash),
-            "296e32a76544de9da01713e471403ab4667705ad527bb4f1fac0cf61e7ce122d"
+            "cd6d8670ac6e1fd4c095f6fcfb8bb9bf4b67a67d58976fc83ab2371d2886ca0d"
         );
+        assert_eq!(
+            hex::encode(res.public_key),
+            "\
+            00001000963a5527aaf0145b3bb5f899a05034ccc76dafdd671dbf4e42c04df2eeba15\
+            6c884816d7d08ef8d834d4adc27979afed9eaf406694d0d600f0b6d31e3ab85da47d27\
+            9c223a1630e02332d920587617ea766a136057a3a3232a7c42f83fb3763e853be4026c\
+            067524a95fcbfcc6caadfb553210bb5385f5adc5caeb0e3f6a9aa56af88d8899d962eb\
+            807864feabeeacdd868697935fb4cc4843957e0d90ee4293c715c4e5b970e6545a17d1\
+            735f814c7d4dbdeaac97275a84f292e3715c158d38eb00eebd010dd2fa56595c0e5627\
+            06c7a94e566912f993e5e35c04b2a314d1bce1ceb10de6c50f8101ddb6ee993fc79959\
+            2e79ee73b77741ee5c076c89343684344a6d080e5529a046d506d104bf32903e39c363\
+            b020fee9d87e7c6ffdad120b630386e958416ac156bc2d7301836c79e926e8f185a640\
+            be05135e17018c88dde02cd7bd49655e9e9dff7f965fb8e68217236c18d23b6d7e7632\
+            184acb95b088598601c809d5e66c19f5e06b5e5ff1bbae7e3142959d9380db2d4a25c8\
+            757975232ea311016e830703a6023b0986e885f2eda066517fce09f33f359b6ef7cc5a\
+            2fdaced74257661bad184a653ea2d80d1af68de5821c06a472635f0276dc42d699f588\
+            ea6c46189ca1ad544bbd4951a766bc4119b0ea671cb16556762721723bf1db47c83c76\
+            a7cc2fd3b6029efec9908d9d4640294f6ea46f6e1a3195e9252c393e35698911a7c496\
+            138dc2dd8d9dcb470ae1c6d2224d13b160fb3ae4bc235f6133c2ff5f9232fb89adfdba\
+            48dcc47cf29a22cd47dcec0b1a179f352c9848a8e04ac37f35777a24312c821febc591\
+            84c8cdefc88e50b4d6bc9530ca743f4284c9773677d38527e6e8020fe367f0f16a6c49\
+            9a7f2da95ec6471f7382e5c0da98b531702cb55a560de7cafc7b6111aae0f896fb1fed\
+            d4997a954c6c083ef1fd3bb13fef3f95022523fb1fbe7f4a49e12e54a5206f95daa316\
+            ac009b7bee4039f769fd28033db6013df841c86d8345d44418fbc9f669e4ee3294b2ff\
+            29d048f53d768c0a41f9a280f0229d9912e8b2fb734617a9947be973ed1dc7bdeac9e2\
+            6028d59317098a44bacdb3b10ccde6ef02f7c94124461032a033701ce523b13142658c\
+            265385198903ccf227ad5ae88ec31e586cd8f855641fd2646dba8053d0d0924f132505\
+            8141f1c7433aa9686f48e3f3a972b56776eaf8bf22a740d1aea2ef473184d697de1dab\
+            9b62a227611c7500b11dea2e5eb8051807c0d1f2fe032acfd7701c017e629f99c74de5\
+            da4c2a542f17b9833beb14442aa7c2990b828473376ea03fdb4a650b88e821fe5026e8\
+            ffb7002d095c9877ee3a98a4488ed3287e9be4942a223f4e32bc26c2ebd02eec20dc82\
+            7493b44f4efaf9b2e175d4de2b07c32d6d359e234c9e50ef905ffa7f6907c313a3c9f4\
+            40d1efd5ec7cbeef06dcfd649f4c8219ad"
+        );
+    }
+
+    #[test]
+    fn apex_no_manifest_fails_verification() {
+        match verify("apex.apexd_test_v2_no_pb.apex").unwrap_err() {
+            ApexVerificationError::ParseError(ApexParseError::MissingFile(_)) => (),
+            e => panic!("Unexpected error {e}"),
+        }
+    }
+
+    #[test]
+    fn apex_signature_mismatch_fails_verification() {
+        match verify("apex.apexd_test_wrong_public_key.apex").unwrap_err() {
+            ApexVerificationError::ApexPubkeyMismatch => (),
+            e => panic!("Unexpected error {e}"),
+        }
     }
 }
