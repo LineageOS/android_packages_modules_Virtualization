@@ -211,7 +211,7 @@ fn payload_with_an_invalid_initrd_fails_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         /* initrd= */ &fs::read(UNSIGNED_TEST_IMG_PATH)?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification.into(),
+        avb::SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -234,7 +234,7 @@ fn tampered_kernel_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification.into(),
+        avb::SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -301,7 +301,7 @@ fn extended_initrd_fails_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         &initrd,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification.into(),
+        avb::SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -340,13 +340,13 @@ fn vbmeta_with_public_key_overwritten_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &empty_public_key,
-        avb::SlotVerifyError::Verification.into(),
+        avb::SlotVerifyError::Verification(None).into(),
     )?;
     assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification.into(),
+        avb::SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -384,7 +384,7 @@ fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification.into(),
+        avb::SlotVerifyError::Verification(None).into(),
     )
 }
 
