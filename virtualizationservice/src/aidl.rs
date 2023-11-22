@@ -43,7 +43,7 @@ use rkpd_client::get_rkpd_attestation_key;
 use rustutils::system_properties;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::fs::{self, create_dir, remove_dir_all, set_permissions, File, Permissions};
+use std::fs::{self, create_dir, remove_dir_all, remove_file, set_permissions, File, Permissions};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::raw::{pid_t, uid_t};
@@ -212,17 +212,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
 
         let vfio_service: Strong<dyn IVfioHandler> =
             wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())?;
-
         vfio_service.bindDevicesToVfioDriver(devices)?;
-
-        let dtbo_path = Path::new(TEMPORARY_DIRECTORY).join("common").join("dtbo");
-        if !dtbo_path.exists() {
-            // open a writable file descriptor for vfio_handler
-            let dtbo = File::create(&dtbo_path)
-                .context("Failed to create VM DTBO file")
-                .or_service_specific_exception(-1)?;
-            vfio_service.writeVmDtbo(&ParcelFileDescriptor::new(dtbo))?;
-        }
 
         Ok(get_assignable_devices()?
             .device
@@ -235,6 +225,14 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
                 }
             })
             .collect::<Vec<_>>())
+    }
+
+    fn getDtboFile(&self) -> binder::Result<ParcelFileDescriptor> {
+        check_use_custom_virtual_machine()?;
+
+        let state = &mut *self.state.lock().unwrap();
+        let file = state.get_dtbo_file().or_service_specific_exception(-1)?;
+        Ok(ParcelFileDescriptor::new(file))
     }
 }
 
@@ -314,6 +312,9 @@ struct GlobalState {
     /// VM contexts currently allocated to running VMs. A CID is never recycled as long
     /// as there is a strong reference held by a GlobalVmContext.
     held_contexts: HashMap<Cid, Weak<GlobalVmInstance>>,
+
+    /// Cached read-only FD of VM DTBO file. Also serves as a lock for creating the file.
+    dtbo_file: Mutex<Option<File>>,
 }
 
 impl GlobalState {
@@ -377,26 +378,64 @@ impl GlobalState {
 
         let cid = self.get_next_available_cid()?;
         let instance = Arc::new(GlobalVmInstance { cid, requester_uid, requester_debug_pid });
-        create_temporary_directory(&instance.get_temp_dir(), requester_uid)?;
+        create_temporary_directory(&instance.get_temp_dir(), Some(requester_uid))?;
 
         self.held_contexts.insert(cid, Arc::downgrade(&instance));
         let binder = GlobalVmContext { instance, ..Default::default() };
         Ok(BnGlobalVmContext::new_binder(binder, BinderFeatures::default()))
     }
+
+    fn get_dtbo_file(&mut self) -> Result<File> {
+        let mut file = self.dtbo_file.lock().unwrap();
+
+        let fd = if let Some(ref_fd) = &*file {
+            ref_fd.try_clone()?
+        } else {
+            let path = get_or_create_common_dir()?.join("vm.dtbo");
+            if path.exists() {
+                // All temporary files are deleted when the service is started.
+                // If the file exists but the FD is not cached, the file is
+                // likely corrupted.
+                remove_file(&path).context("Failed to clone cached VM DTBO file descriptor")?;
+            }
+
+            // Open a write-only file descriptor for vfio_handler.
+            let write_fd = File::create(&path).context("Failed to create VM DTBO file")?;
+
+            let vfio_service: Strong<dyn IVfioHandler> =
+                wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())?;
+            vfio_service.writeVmDtbo(&ParcelFileDescriptor::new(write_fd))?;
+
+            // Open read-only. This FD will be cached and returned to clients.
+            let read_fd = File::open(&path).context("Failed to open VM DTBO file")?;
+            let read_fd_clone =
+                read_fd.try_clone().context("Failed to clone VM DTBO file descriptor")?;
+            *file = Some(read_fd);
+            read_fd_clone
+        };
+
+        Ok(fd)
+    }
 }
 
-fn create_temporary_directory(path: &PathBuf, requester_uid: uid_t) -> Result<()> {
+fn create_temporary_directory(path: &PathBuf, requester_uid: Option<uid_t>) -> Result<()> {
+    // Directory may exist if previous attempt to create it had failed.
+    // Delete it before trying again.
     if path.as_path().exists() {
         remove_temporary_dir(path).unwrap_or_else(|e| {
             warn!("Could not delete temporary directory {:?}: {}", path, e);
         });
     }
-    // Create a directory that is owned by client's UID but system's GID, and permissions 0700.
+    // Create directory.
+    create_dir(path).with_context(|| format!("Could not create temporary directory {:?}", path))?;
+    // If provided, change ownership to client's UID but system's GID, and permissions 0700.
     // If the chown() fails, this will leave behind an empty directory that will get removed
     // at the next attempt, or if virtualizationservice is restarted.
-    create_dir(path).with_context(|| format!("Could not create temporary directory {:?}", path))?;
-    chown(path, Some(Uid::from_raw(requester_uid)), None)
-        .with_context(|| format!("Could not set ownership of temporary directory {:?}", path))?;
+    if let Some(uid) = requester_uid {
+        chown(path, Some(Uid::from_raw(uid)), None).with_context(|| {
+            format!("Could not set ownership of temporary directory {:?}", path)
+        })?;
+    }
     Ok(())
 }
 
@@ -408,6 +447,14 @@ pub fn remove_temporary_dir(path: &PathBuf) -> Result<()> {
     set_permissions(path, Permissions::from_mode(0o700))?;
     remove_dir_all(path)?;
     Ok(())
+}
+
+fn get_or_create_common_dir() -> Result<PathBuf> {
+    let path = Path::new(TEMPORARY_DIRECTORY).join("common");
+    if !path.exists() {
+        create_temporary_directory(&path, None)?;
+    }
+    Ok(path)
 }
 
 /// Implementation of the AIDL `IGlobalVmContext` interface.
