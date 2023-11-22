@@ -22,7 +22,7 @@ use diced_open_dice::{
     bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceConfigValues, DiceMode,
     Hash, InputValues, HIDDEN_SIZE,
 };
-use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
+use pvmfw_avb::{Capability, DebugLevel, Digest, VerifiedBootData};
 use vmbase::memory::flushed_zeroize;
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
@@ -46,6 +46,7 @@ pub struct PartialInputs {
     pub auth_hash: Hash,
     pub mode: DiceMode,
     pub security_version: u64,
+    pub rkp_vm_marker: bool,
 }
 
 impl PartialInputs {
@@ -55,8 +56,9 @@ impl PartialInputs {
         let mode = to_dice_mode(data.debug_level);
         // We use rollback_index from vbmeta as the security_version field in dice certificate.
         let security_version = data.rollback_index;
+        let rkp_vm_marker = data.has_capability(Capability::RemoteAttest);
 
-        Ok(Self { code_hash, auth_hash, mode, security_version })
+        Ok(Self { code_hash, auth_hash, mode, security_version, rkp_vm_marker })
     }
 
     pub fn write_next_bcc(
@@ -69,6 +71,7 @@ impl PartialInputs {
         let config_values = DiceConfigValues {
             component_name: Some(cstr!("vm_entry")),
             security_version: if cfg!(llpvm_changes) { Some(self.security_version) } else { None },
+            rkp_vm_marker: self.rkp_vm_marker,
             ..Default::default()
         };
 
