@@ -94,7 +94,7 @@ impl Capability {
 
 fn verify_only_one_vbmeta_exists(
     vbmeta_images: &[AvbVBMetaData],
-) -> Result<(), avb::SlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError<'static>> {
     if vbmeta_images.len() == 1 {
         Ok(())
     } else {
@@ -104,7 +104,7 @@ fn verify_only_one_vbmeta_exists(
 
 fn verify_vbmeta_is_from_kernel_partition(
     vbmeta_image: &AvbVBMetaData,
-) -> Result<(), avb::SlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError<'static>> {
     match (vbmeta_image.partition_name as *const c_char).try_into() {
         Ok(PartitionName::Kernel) => Ok(()),
         _ => Err(avb::SlotVerifyError::InvalidMetadata),
@@ -113,7 +113,7 @@ fn verify_vbmeta_is_from_kernel_partition(
 
 fn verify_vbmeta_has_only_one_hash_descriptor(
     descriptors: &Descriptors,
-) -> Result<(), avb::SlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError<'static>> {
     if descriptors.num_hash_descriptor() == 1 {
         Ok(())
     } else {
@@ -125,7 +125,7 @@ fn verify_loaded_partition_has_expected_length(
     loaded_partitions: &[AvbPartitionData],
     partition_name: PartitionName,
     expected_len: usize,
-) -> Result<(), avb::SlotVerifyError> {
+) -> Result<(), avb::SlotVerifyError<'static>> {
     if loaded_partitions.len() != 1 {
         // Only one partition should be loaded in each verify result.
         return Err(avb::SlotVerifyError::Io);
@@ -140,7 +140,7 @@ fn verify_loaded_partition_has_expected_length(
     if loaded_partition.data_size == expected_len {
         Ok(())
     } else {
-        Err(avb::SlotVerifyError::Verification)
+        Err(avb::SlotVerifyError::Verification(None))
     }
 }
 
@@ -202,7 +202,7 @@ pub fn verify_payload<'a>(
         } else if let Ok(result) = ops.verify_partition(PartitionName::InitrdDebug.as_cstr()) {
             (DebugLevel::Full, result, PartitionName::InitrdDebug)
         } else {
-            return Err(avb::SlotVerifyError::Verification.into());
+            return Err(avb::SlotVerifyError::Verification(None).into());
         };
     let loaded_partitions = initrd_verify_result.loaded_partitions()?;
     verify_loaded_partition_has_expected_length(
