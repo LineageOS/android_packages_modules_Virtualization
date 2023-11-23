@@ -52,6 +52,7 @@ use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
 use vsock::{VsockListener, VsockStream};
 use nix::unistd::{chown, Uid};
+use x509_parser::{traits::FromDer, certificate::X509Certificate};
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;
@@ -166,35 +167,42 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         requester_uid: i32,
     ) -> binder::Result<Vec<Certificate>> {
         check_manage_access()?;
-        info!("Received csr. Requestting attestation...");
-        if cfg!(remote_attestation) {
-            let attestation_key = get_rkpd_attestation_key(
-                REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME,
-                requester_uid as u32,
-            )
-            .context("Failed to retrieve the remotely provisioned keys")
-            .with_log()
-            .or_service_specific_exception(-1)?;
-            let certificate = request_attestation(csr, &attestation_key.keyBlob)
-                .context("Failed to request attestation")
-                .with_log()
-                .or_service_specific_exception(-1)?;
-            // TODO(b/309780089): Parse the remotely provisioned certificate chain into
-            // individual certificates.
-            let mut certificate_chain =
-                vec![Certificate { encodedCertificate: attestation_key.encodedCertChain }];
-            certificate_chain.push(Certificate { encodedCertificate: certificate });
-            Ok(certificate_chain)
-        } else {
-            Err(Status::new_exception_str(
+        if !cfg!(remote_attestation) {
+            return Err(Status::new_exception_str(
                 ExceptionCode::UNSUPPORTED_OPERATION,
                 Some(
                     "requestAttestation is not supported with the remote_attestation feature \
                      disabled",
                 ),
             ))
-            .with_log()
+            .with_log();
         }
+        info!("Received csr. Requestting attestation...");
+        let attestation_key = get_rkpd_attestation_key(
+            REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME,
+            requester_uid as u32,
+        )
+        .context("Failed to retrieve the remotely provisioned keys")
+        .with_log()
+        .or_service_specific_exception(-1)?;
+        let mut certificate_chain = split_x509_certificate_chain(&attestation_key.encodedCertChain)
+            .context("Failed to split the remotely provisioned certificate chain")
+            .with_log()
+            .or_service_specific_exception(-1)?;
+        if certificate_chain.is_empty() {
+            return Err(Status::new_service_specific_error_str(
+                -1,
+                Some("The certificate chain should contain at least 1 certificate"),
+            ))
+            .with_log();
+        }
+        let certificate = request_attestation(csr, &attestation_key.keyBlob)
+            .context("Failed to request attestation")
+            .with_log()
+            .or_service_specific_exception(-1)?;
+        certificate_chain.insert(0, Certificate { encodedCertificate: certificate });
+
+        Ok(certificate_chain)
     }
 
     fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
@@ -286,6 +294,17 @@ fn get_assignable_devices() -> binder::Result<Devices> {
         true
     });
     Ok(devices)
+}
+
+fn split_x509_certificate_chain(mut cert_chain: &[u8]) -> Result<Vec<Certificate>> {
+    let mut out = Vec::new();
+    while !cert_chain.is_empty() {
+        let (remaining, _) = X509Certificate::from_der(cert_chain)?;
+        let end = cert_chain.len() - remaining.len();
+        out.push(Certificate { encodedCertificate: cert_chain[..end].to_vec() });
+        cert_chain = remaining;
+    }
+    Ok(out)
 }
 
 #[derive(Debug, Default)]
@@ -560,4 +579,25 @@ fn check_manage_access() -> binder::Result<()> {
 /// Check whether the caller of the current Binder method is allowed to use custom VMs
 fn check_use_custom_virtual_machine() -> binder::Result<()> {
     check_permission("android.permission.USE_CUSTOM_VIRTUAL_MACHINE")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    const TEST_RKP_CERT_CHAIN_PATH: &str = "testdata/rkp_cert_chain.der";
+
+    #[test]
+    fn splitting_x509_certificate_chain_succeeds() -> Result<()> {
+        let bytes = fs::read(TEST_RKP_CERT_CHAIN_PATH)?;
+        let cert_chain = split_x509_certificate_chain(&bytes)?;
+
+        assert_eq!(4, cert_chain.len());
+        for cert in cert_chain {
+            let (remaining, _) = X509Certificate::from_der(&cert.encodedCertificate)?;
+            assert!(remaining.is_empty());
+        }
+        Ok(())
+    }
 }
