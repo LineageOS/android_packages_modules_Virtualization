@@ -224,8 +224,8 @@ size_t AVmAttestationResult_sign(const struct AVmAttestationResult* _Nonnull res
  * Gets the number of certificates in the certificate chain.
  *
  * The certificate chain consists of a sequence of DER-encoded X.509 certificates that form
- * the attestation key's certificate chain. It starts with a root certificate and ends with a
- * leaf certificate covering the attested public key.
+ * the attestation key's certificate chain. It starts with a leaf certificate covering the attested
+ * public key and ends with a root certificate.
  *
  * \param result A pointer to the attestation result obtained from `AVmPayload_requestAttestation`
  *               when the attestation succeeds.
@@ -240,8 +240,8 @@ size_t AVmAttestationResult_getCertificateCount(const struct AVmAttestationResul
  * attestation result.
  *
  * The certificate chain consists of a sequence of DER-encoded X.509 certificates that form
- * the attestation key's certificate chain. It starts with a root certificate and ends with a
- * leaf certificate covering the attested public key.
+ * the attestation key's certificate chain. It starts with a leaf certificate covering the attested
+ * public key and ends with a root certificate.
  *
  * \param result A pointer to the attestation result obtained from `AVmPayload_requestAttestation`
  *               when the attestation succeeds.
