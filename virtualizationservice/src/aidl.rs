@@ -196,10 +196,14 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             ))
             .with_log();
         }
-        let certificate = request_attestation(csr, &attestation_key.keyBlob)
-            .context("Failed to request attestation")
-            .with_log()
-            .or_service_specific_exception(-1)?;
+        let certificate = request_attestation(
+            csr.to_vec(),
+            attestation_key.keyBlob,
+            certificate_chain[0].encodedCertificate.clone(),
+        )
+        .context("Failed to request attestation")
+        .with_log()
+        .or_service_specific_exception(-1)?;
         certificate_chain.insert(0, Certificate { encodedCertificate: certificate });
 
         Ok(certificate_chain)
