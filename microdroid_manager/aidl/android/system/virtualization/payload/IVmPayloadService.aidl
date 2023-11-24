@@ -59,8 +59,8 @@ interface IVmPayloadService {
          * Sequence of DER-encoded X.509 certificates that make up the attestation
          * key's certificate chain.
          *
-         * The certificate chain starts with a root certificate and ends with a leaf
-         * certificate covering the attested public key.
+         * The certificate chain starts with a leaf certificate covering the attested
+         * public key and ends with a root certificate.
          */
         Certificate[] certificateChain;
     }
