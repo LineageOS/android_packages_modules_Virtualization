@@ -67,25 +67,23 @@ pub enum ApexVerificationError {
     ApexPubkeyMismatch,
 }
 
-/// Information extracted from the APEX during verification.
+/// Information extracted from the APEX during AVB verification.
 #[derive(Debug)]
 pub struct ApexVerificationResult {
-    /// The name of the APEX, from its manifest. Unverified, but apexd will reject
-    /// an APEX where the unsigned manifest isn't the same as the signed one.
-    pub name: String,
-    /// The version of the APEX, from its manifest. Unverified, but apexd will reject
-    /// an APEX where the unsigned manifest isn't the same as the signed one.
-    pub version: i64,
+    /// The name of the APEX, from its manifest.
+    pub name: Option<String>,
+    /// The version of the APEX, from its manifest.
+    pub version: Option<i64>,
     /// The public key that verifies the payload signature.
     pub public_key: Vec<u8>,
     /// The root digest of the payload hashtree.
     pub root_digest: Vec<u8>,
-    /// The hash of the verified VBMeta image data.
-    /// TODO(alanstokes): Delete this if we don't have a use for it.
-    pub image_hash: Vec<u8>,
 }
 
 /// Verify APEX payload by AVB verification and return information about the APEX.
+/// This verifies that the VBMeta is correctly signed by the public key specified in the APEX.
+/// It doesn't verify that that is the correct key, nor does it verify that the payload matches
+/// the signed root hash - that is handled by dm-verity once apexd has mounted the APEX.
 pub fn verify(path: &str) -> Result<ApexVerificationResult, ApexVerificationError> {
     let apex_file = File::open(path).map_err(ApexParseError::Io)?;
     let ApexZipInfo { public_key, image_offset, image_size, manifest } =
@@ -97,10 +95,13 @@ pub fn verify(path: &str) -> Result<ApexVerificationResult, ApexVerificationErro
     if vbmeta_public_key != public_key {
         return Err(ApexVerificationError::ApexPubkeyMismatch);
     }
-    let image_hash = vbmeta.hash().ok_or(ApexParseError::VbmetaMissingData("hash"))?.to_vec();
-    let ApexManifestInfo { name, version } = decode_manifest(&manifest)?;
-
-    Ok(ApexVerificationResult { name, version, public_key, root_digest, image_hash })
+    let (name, version) = if cfg!(dice_changes) {
+        let ApexManifestInfo { name, version } = decode_manifest(&manifest)?;
+        (Some(name), Some(version))
+    } else {
+        (None, None)
+    };
+    Ok(ApexVerificationResult { name, version, public_key, root_digest })
 }
 
 fn find_root_digest(vbmeta: &VbMetaImage) -> Result<Vec<u8>, ApexParseError> {
@@ -168,16 +169,17 @@ mod tests {
     #[test]
     fn apex_verification_returns_valid_result() {
         let res = verify("apex.apexd_test.apex").unwrap();
-        assert_eq!(res.name, "com.android.apex.test_package");
-        assert_eq!(res.version, 1);
+        let (expected_name, expected_version) = if cfg!(dice_changes) {
+            (Some("com.android.apex.test_package"), Some(1))
+        } else {
+            (None, None)
+        };
+        assert_eq!(res.name.as_deref(), expected_name);
+        assert_eq!(res.version, expected_version);
         // The expected hex values were generated when we ran the method the first time.
         assert_eq!(
             hex::encode(res.root_digest),
             "54265da77ae1fd619e39809ad99fedc576bb20c0c7a8002190fa64438436299f"
-        );
-        assert_eq!(
-            hex::encode(res.image_hash),
-            "cd6d8670ac6e1fd4c095f6fcfb8bb9bf4b67a67d58976fc83ab2371d2886ca0d"
         );
         assert_eq!(
             hex::encode(res.public_key),
