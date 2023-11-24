@@ -45,7 +45,7 @@ const P256_AFFINE_COORDINATE_SIZE: usize = 32;
 type Coordinate = [u8; P256_AFFINE_COORDINATE_SIZE];
 
 /// Wrapper of an `EC_KEY` object, representing a public or private EC key.
-pub struct EcKey(NonNull<EC_KEY>);
+pub struct EcKey(pub(crate) NonNull<EC_KEY>);
 
 impl Drop for EcKey {
     fn drop(&mut self) {
