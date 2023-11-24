@@ -12,8 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bssl_avf::{sha256, ApiName, EcKey, EcdsaError, Error, Result};
+use bssl_avf::{sha256, ApiName, EcKey, EcdsaError, Error, EvpPKey, Result};
 use coset::CborSerializable;
+use spki::{
+    der::{AnyRef, Decode},
+    AlgorithmIdentifier, ObjectIdentifier, SubjectPublicKeyInfo,
+};
+
+/// OID value for general-use NIST EC keys held in PKCS#8 and X.509; see RFC 5480 s2.1.1.
+const X509_NIST_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
+
+/// OID value in `AlgorithmIdentifier.parameters` for P-256; see RFC 5480 s2.1.1.1.
+const ALGO_PARAM_P256_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.3.1.7");
 
 const MESSAGE1: &[u8] = b"test message 1";
 const MESSAGE2: &[u8] = b"test message 2";
@@ -26,6 +36,23 @@ fn ec_private_key_serialization() -> Result<()> {
     let deserialized_ec_key = EcKey::from_ec_private_key(der_encoded_ec_private_key.as_slice())?;
 
     assert_eq!(ec_key.cose_public_key()?, deserialized_ec_key.cose_public_key()?);
+    Ok(())
+}
+
+#[test]
+fn subject_public_key_info_serialization() -> Result<()> {
+    let mut ec_key = EcKey::new_p256()?;
+    ec_key.generate_key()?;
+    let pkey: EvpPKey = ec_key.try_into()?;
+    let subject_public_key_info = pkey.subject_public_key_info()?;
+
+    let subject_public_key_info = SubjectPublicKeyInfo::from_der(&subject_public_key_info).unwrap();
+    let expected_algorithm = AlgorithmIdentifier {
+        oid: X509_NIST_OID,
+        parameters: Some(AnyRef::from(&ALGO_PARAM_P256_OID)),
+    };
+    assert_eq!(expected_algorithm, subject_public_key_info.algorithm);
+    assert!(!subject_public_key_info.subject_public_key.to_vec().is_empty());
     Ok(())
 }
 
