@@ -6,7 +6,6 @@ rust_defaults {
     name: "libapexutil_rust.defaults",
     crate_name: "apexutil",
     defaults: ["avf_build_flags_rust"],
-    host_supported: true,
     srcs: ["src/lib.rs"],
     edition: "2021",
     rustlibs: [
@@ -31,14 +30,4 @@ rust_test {
     rustlibs: [
         "libhex",
     ],
-    target: {
-        host: {
-            // TODO(b/204562227): remove once the build does this automatically
-            data_libs: [
-                "libc++",
-                "libcrypto",
-                "libz",
-            ],
-        },
-    },
 }
