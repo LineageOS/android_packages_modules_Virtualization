@@ -19,6 +19,7 @@
 extern crate alloc;
 
 mod api;
+mod cert;
 mod client_vm;
 mod keyblob;
 mod pub_key;
