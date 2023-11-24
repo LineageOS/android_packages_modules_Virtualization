@@ -49,6 +49,8 @@ const AVF_ATTESTATION_EXTENSION_V1: ObjectIdentifier =
 pub(crate) struct AttestationExtension<'a> {
     #[asn1(type = "OCTET STRING")]
     attestation_challenge: &'a [u8],
+    /// Indicates whether the VM is operating under a secure configuration.
+    is_vm_secure: bool,
 }
 
 impl<'a> AssociatedOid for AttestationExtension<'a> {
@@ -56,8 +58,8 @@ impl<'a> AssociatedOid for AttestationExtension<'a> {
 }
 
 impl<'a> AttestationExtension<'a> {
-    pub(crate) fn new(challenge: &'a [u8]) -> Self {
-        Self { attestation_challenge: challenge }
+    pub(crate) fn new(attestation_challenge: &'a [u8], is_vm_secure: bool) -> Self {
+        Self { attestation_challenge, is_vm_secure }
     }
 }
 

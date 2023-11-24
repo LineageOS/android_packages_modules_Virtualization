@@ -100,7 +100,8 @@ impl CsrPayload {
     }
 }
 
-fn try_as_bytes(v: Value, context: &str) -> coset::Result<Vec<u8>> {
+/// Reads the provided value `v` as bytes array.
+pub fn try_as_bytes(v: Value, context: &str) -> coset::Result<Vec<u8>> {
     if let Value::Bytes(data) = v {
         Ok(data)
     } else {
@@ -110,7 +111,8 @@ fn try_as_bytes(v: Value, context: &str) -> coset::Result<Vec<u8>> {
     }
 }
 
-fn cbor_value_type(v: &Value) -> &'static str {
+/// Reads the type of the provided value `v`.
+pub fn cbor_value_type(v: &Value) -> &'static str {
     match v {
         Value::Integer(_) => "int",
         Value::Bytes(_) => "bstr",

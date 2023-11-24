@@ -23,7 +23,7 @@ mod csr;
 mod message;
 mod vsock;
 
-pub use csr::{Csr, CsrPayload};
+pub use csr::{cbor_value_type, try_as_bytes, Csr, CsrPayload};
 pub use message::{
     ClientVmAttestationParams, EcdsaP256KeyPair, GenerateCertificateRequestParams, Request,
     RequestProcessingError, Response, ServiceVmRequest,
