@@ -24,15 +24,14 @@ use service_vm_comm::{
 use service_vm_manager::ServiceVm;
 
 pub(crate) fn request_attestation(
-    csr: &[u8],
-    remotely_provisioned_keyblob: &[u8],
+    csr: Vec<u8>,
+    remotely_provisioned_key_blob: Vec<u8>,
+    remotely_provisioned_cert: Vec<u8>,
 ) -> Result<Vec<u8>> {
     let mut vm = ServiceVm::start()?;
 
-    let params = ClientVmAttestationParams {
-        csr: csr.to_vec(),
-        remotely_provisioned_key_blob: remotely_provisioned_keyblob.to_vec(),
-    };
+    let params =
+        ClientVmAttestationParams { csr, remotely_provisioned_key_blob, remotely_provisioned_cert };
     let request = Request::RequestClientVmAttestation(params);
     match vm.process_request(request).context("Failed to process request")? {
         Response::RequestClientVmAttestation(cert) => Ok(cert),
