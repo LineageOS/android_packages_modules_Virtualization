@@ -1,5 +1,5 @@
 {
-  "kernel": "/apex/com.android.virt/etc/fs/microdroid_gki_kernel",
+  "kernel": "/apex/com.android.virt/etc/fs/microdroid_gki-6.1_kernel",
   "disks": [
     {
       "partitions": [

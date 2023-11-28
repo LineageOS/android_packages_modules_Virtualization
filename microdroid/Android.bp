@@ -332,22 +332,6 @@ android_filesystem {
     ],
 }
 
-android_filesystem {
-    name: "microdroid_gki_modules-6.1-arm64",
-    deps: [
-        "microdroid_gki_kernel_modules-6.1-arm64",
-    ],
-    type: "compressed_cpio",
-}
-
-android_filesystem {
-    name: "microdroid_gki_modules-6.1-x86_64",
-    deps: [
-        "microdroid_gki_kernel_modules-6.1-x86_64",
-    ],
-    type: "compressed_cpio",
-}
-
 genrule {
     name: "microdroid_bootconfig_arm64_gen",
     srcs: [
@@ -428,11 +412,6 @@ prebuilt_etc {
 }
 
 prebuilt_etc {
-    name: "microdroid_gki.json",
-    src: "microdroid_gki.json",
-}
-
-prebuilt_etc {
     name: "microdroid_manifest",
     src: "microdroid_manifest.xml",
     filename: "manifest.xml",
@@ -460,11 +439,8 @@ filegroup {
 // python -c "import hashlib; print(hashlib.sha256(b'initrd_normal').hexdigest())"
 initrd_normal_salt = "8041a07d54ac82290f6d90bac1fa8d7fdbc4db974d101d60faf294749d1ebaf8"
 
-avb_gen_vbmeta_image {
-    name: "microdroid_initrd_normal_hashdesc",
-    src: ":microdroid_initrd_normal",
-    partition_name: "initrd_normal",
-    salt: initrd_normal_salt,
+avb_gen_vbmeta_image_defaults {
+    name: "microdroid_initrd_defaults",
     enabled: false,
     arch: {
         // Microdroid kernel is only available in these architectures.
@@ -477,63 +453,38 @@ avb_gen_vbmeta_image {
     },
 }
 
-avb_gen_vbmeta_image {
-    name: "microdroid_gki_initrd_normal_hashdesc",
-    src: ":microdroid_gki_initrd_normal",
+avb_gen_vbmeta_image_defaults {
+    name: "microdroid_initrd_normal_defaults",
+    defaults: ["microdroid_initrd_defaults"],
     partition_name: "initrd_normal",
     salt: initrd_normal_salt,
-    enabled: false,
-    arch: {
-        // Microdroid kernel is only available in these architectures.
-        arm64: {
-            enabled: true,
-        },
-        x86_64: {
-            enabled: true,
-        },
-    },
+}
+
+avb_gen_vbmeta_image {
+    name: "microdroid_initrd_normal_hashdesc",
+    defaults: ["microdroid_initrd_normal_defaults"],
+    src: ":microdroid_initrd_normal",
 }
 
 // python -c "import hashlib; print(hashlib.sha256(b'initrd_debug').hexdigest())"
 initrd_debug_salt = "8ab9dc9cb7e6456700ff6ef18c6b4c3acc24c5fa5381b829563f8d7a415d869a"
 
-avb_gen_vbmeta_image {
-    name: "microdroid_initrd_debug_hashdesc",
-    src: ":microdroid_initrd_debuggable",
+avb_gen_vbmeta_image_defaults {
+    name: "microdroid_initrd_debug_defaults",
+    defaults: ["microdroid_initrd_defaults"],
     partition_name: "initrd_debug",
     salt: initrd_debug_salt,
-    enabled: false,
-    arch: {
-        // Microdroid kernel is only available in these architectures.
-        arm64: {
-            enabled: true,
-        },
-        x86_64: {
-            enabled: true,
-        },
-    },
 }
 
 avb_gen_vbmeta_image {
-    name: "microdroid_gki_initrd_debug_hashdesc",
-    src: ":microdroid_gki_initrd_debuggable",
-    partition_name: "initrd_debug",
-    salt: initrd_debug_salt,
-    enabled: false,
-    arch: {
-        // Microdroid kernel is only available in these architectures.
-        arm64: {
-            enabled: true,
-        },
-        x86_64: {
-            enabled: true,
-        },
-    },
+    name: "microdroid_initrd_debug_hashdesc",
+    defaults: ["microdroid_initrd_debug_defaults"],
+    src: ":microdroid_initrd_debuggable",
 }
 
 soong_config_module_type {
-    name: "flag_aware_avb_add_hash_footer",
-    module_type: "avb_add_hash_footer",
+    name: "flag_aware_avb_add_hash_footer_defaults",
+    module_type: "avb_add_hash_footer_defaults",
     config_namespace: "ANDROID",
     bool_variables: [
         "release_avf_enable_llpvm_changes",
@@ -544,28 +495,21 @@ soong_config_module_type {
     ],
 }
 
-flag_aware_avb_add_hash_footer {
-    name: "microdroid_kernel_signed",
+flag_aware_avb_add_hash_footer_defaults {
+    name: "microdroid_kernel_signed_defaults",
     src: ":empty_file",
-    filename: "microdroid_kernel",
     partition_name: "boot",
     private_key: ":microdroid_sign_key",
     salt: bootloader_salt,
     enabled: false,
     arch: {
         arm64: {
-            src: ":microdroid_kernel_prebuilts-6.1-arm64",
             enabled: true,
         },
         x86_64: {
-            src: ":microdroid_kernel_prebuilts-6.1-x86_64",
             enabled: true,
         },
     },
-    include_descriptors_from_images: [
-        ":microdroid_initrd_normal_hashdesc",
-        ":microdroid_initrd_debug_hashdesc",
-    ],
     // Below are properties that are conditionally set depending on value of build flags.
     soong_config_variables: {
         release_avf_enable_llpvm_changes: {
@@ -580,40 +524,22 @@ flag_aware_avb_add_hash_footer {
     },
 }
 
-flag_aware_avb_add_hash_footer {
-    name: "microdroid_gki_kernel_signed",
-    src: ":empty_file",
-    filename: "microdroid_gki_kernel",
-    partition_name: "boot",
-    private_key: ":microdroid_sign_key",
-    salt: bootloader_salt,
-    enabled: false,
+avb_add_hash_footer {
+    name: "microdroid_kernel_signed",
+    defaults: ["microdroid_kernel_signed_defaults"],
+    filename: "microdroid_kernel",
     arch: {
         arm64: {
-            src: ":microdroid_gki_kernel_prebuilts-6.1-arm64",
-            enabled: true,
+            src: ":microdroid_kernel_prebuilts-6.1-arm64",
         },
         x86_64: {
-            src: ":microdroid_gki_kernel_prebuilts-6.1-x86_64",
-            enabled: true,
+            src: ":microdroid_kernel_prebuilts-6.1-x86_64",
         },
     },
     include_descriptors_from_images: [
-        ":microdroid_gki_initrd_normal_hashdesc",
-        ":microdroid_gki_initrd_debug_hashdesc",
+        ":microdroid_initrd_normal_hashdesc",
+        ":microdroid_initrd_debug_hashdesc",
     ],
-    // Below are properties that are conditionally set depending on value of build flags.
-    soong_config_variables: {
-        release_avf_enable_llpvm_changes: {
-            rollback_index: 1,
-            props: [
-                {
-                    name: "com.android.virt.cap",
-                    value: "secretkeeper_protection",
-                },
-            ],
-        },
-    },
 }
 
 prebuilt_etc {
@@ -630,16 +556,54 @@ prebuilt_etc {
     },
 }
 
+///////////////////////////////////////
+// GKI-6.1 modules
+///////////////////////////////////////
 prebuilt_etc {
-    name: "microdroid_gki_kernel",
+    name: "microdroid_gki-6.1.json",
+    src: "microdroid_gki-6.1.json",
+}
+
+avb_add_hash_footer {
+    name: "microdroid_gki-6.1_kernel_signed",
+    defaults: ["microdroid_kernel_signed_defaults"],
+    filename: "microdroid_gki-6.1_kernel",
+    arch: {
+        arm64: {
+            src: ":microdroid_gki_kernel_prebuilts-6.1-arm64",
+        },
+        x86_64: {
+            src: ":microdroid_gki_kernel_prebuilts-6.1-x86_64",
+        },
+    },
+    include_descriptors_from_images: [
+        ":microdroid_gki-6.1_initrd_normal_hashdesc",
+        ":microdroid_gki-6.1_initrd_debug_hashdesc",
+    ],
+}
+
+prebuilt_etc {
+    name: "microdroid_gki-6.1_kernel",
     src: ":empty_file",
     relative_install_path: "fs",
     arch: {
         arm64: {
-            src: ":microdroid_gki_kernel_signed",
+            src: ":microdroid_gki-6.1_kernel_signed",
         },
         x86_64: {
-            src: ":microdroid_gki_kernel_signed",
+            src: ":microdroid_gki-6.1_kernel_signed",
         },
     },
+}
+
+avb_gen_vbmeta_image {
+    name: "microdroid_gki-6.1_initrd_normal_hashdesc",
+    defaults: ["microdroid_initrd_normal_defaults"],
+    src: ":microdroid_gki-6.1_initrd_normal",
+}
+
+avb_gen_vbmeta_image {
+    name: "microdroid_gki-6.1_initrd_debug_hashdesc",
+    defaults: ["microdroid_initrd_debug_defaults"],
+    src: ":microdroid_gki-6.1_initrd_debuggable",
 }
