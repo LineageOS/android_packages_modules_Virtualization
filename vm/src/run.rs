@@ -111,8 +111,11 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
         }
         Payload::ConfigPath(config_path)
     } else if let Some(payload_binary_name) = config.payload_binary_name {
-        let os_name =
-            if config.microdroid.gki() { "microdroid_gki" } else { "microdroid" }.to_owned();
+        let os_name = if let Some(ver) = config.microdroid.gki() {
+            format!("microdroid_gki-{ver}")
+        } else {
+            "microdroid".to_owned()
+        };
         Payload::PayloadConfig(VirtualMachinePayloadConfig {
             payloadBinaryName: payload_binary_name,
             osName: os_name,

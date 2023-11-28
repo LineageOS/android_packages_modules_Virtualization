@@ -66,6 +66,7 @@ use libfdt::Fdt;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::unistd::pipe;
+use regex::Regex;
 use rpcbinder::RpcServer;
 use rustutils::system_properties;
 use semver::VersionReq;
@@ -101,8 +102,6 @@ const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
 
 const MICRODROID_OS_NAME: &str = "microdroid";
 
-const MICRODROID_GKI_OS_NAME: &str = "microdroid_gki";
-
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
 /// Roughly estimated sufficient size for storing vendor public key into DTBO.
@@ -115,6 +114,8 @@ lazy_static! {
     pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> =
         wait_for_interface(BINDER_SERVICE_IDENTIFIER)
             .expect("Could not connect to VirtualizationServiceInternal");
+    static ref MICRODROID_GKI_OS_NAME_PATTERN: Regex =
+        Regex::new(r"^microdroid_gki-\d+\.\d+$").expect("Failed to construct Regex");
 }
 
 fn create_or_update_idsig_file(
@@ -708,12 +709,12 @@ fn append_kernel_param(param: &str, vm_config: &mut VirtualMachineRawConfig) {
 
 fn is_valid_os(os_name: &str) -> bool {
     if os_name == MICRODROID_OS_NAME {
-        return true;
+        true
+    } else if cfg!(vendor_modules) && MICRODROID_GKI_OS_NAME_PATTERN.is_match(os_name) {
+        PathBuf::from(format!("/apex/com.android.virt/etc/{}.json", os_name)).exists()
+    } else {
+        false
     }
-    if cfg!(vendor_modules) && os_name == MICRODROID_GKI_OS_NAME {
-        return true;
-    }
-    false
 }
 
 fn load_app_config(
