@@ -10,6 +10,9 @@
     },
     {
       "name" : "libpvmfw.device_assignment.test"
+    },
+    {
+      "name" : "libpvmfw.dice.test"
     }
   ]
 }

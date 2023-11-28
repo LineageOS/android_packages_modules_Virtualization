@@ -14,16 +14,13 @@
 
 //! Support for DICE derivation and BCC generation.
 
-use core::ffi::c_void;
 use core::mem::size_of;
-use core::slice;
 use cstr::cstr;
 use diced_open_dice::{
     bcc_format_config_descriptor, bcc_handover_main_flow, hash, Config, DiceConfigValues, DiceMode,
     Hash, InputValues, HIDDEN_SIZE,
 };
-use pvmfw_avb::{DebugLevel, Digest, VerifiedBootData};
-use vmbase::memory::flushed_zeroize;
+use pvmfw_avb::{Capability, DebugLevel, Digest, VerifiedBootData};
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
     match debug_level {
@@ -46,6 +43,7 @@ pub struct PartialInputs {
     pub auth_hash: Hash,
     pub mode: DiceMode,
     pub security_version: u64,
+    pub rkp_vm_marker: bool,
 }
 
 impl PartialInputs {
@@ -55,8 +53,9 @@ impl PartialInputs {
         let mode = to_dice_mode(data.debug_level);
         // We use rollback_index from vbmeta as the security_version field in dice certificate.
         let security_version = data.rollback_index;
+        let rkp_vm_marker = data.has_capability(Capability::RemoteAttest);
 
-        Ok(Self { code_hash, auth_hash, mode, security_version })
+        Ok(Self { code_hash, auth_hash, mode, security_version, rkp_vm_marker })
     }
 
     pub fn write_next_bcc(
@@ -66,15 +65,7 @@ impl PartialInputs {
         next_bcc: &mut [u8],
     ) -> diced_open_dice::Result<()> {
         let mut config_descriptor_buffer = [0; 128];
-        let config_values = DiceConfigValues {
-            component_name: Some(cstr!("vm_entry")),
-            security_version: if cfg!(llpvm_changes) { Some(self.security_version) } else { None },
-            ..Default::default()
-        };
-
-        let config_descriptor_size =
-            bcc_format_config_descriptor(&config_values, &mut config_descriptor_buffer)?;
-        let config = &config_descriptor_buffer[..config_descriptor_size];
+        let config = self.generate_config_descriptor(&mut config_descriptor_buffer)?;
 
         let dice_inputs = InputValues::new(
             self.code_hash,
@@ -86,17 +77,138 @@ impl PartialInputs {
         let _ = bcc_handover_main_flow(current_bcc_handover, &dice_inputs, next_bcc)?;
         Ok(())
     }
+
+    fn generate_config_descriptor<'a>(
+        &self,
+        config_descriptor_buffer: &'a mut [u8],
+    ) -> diced_open_dice::Result<&'a [u8]> {
+        let config_values = DiceConfigValues {
+            component_name: Some(cstr!("vm_entry")),
+            security_version: if cfg!(dice_changes) { Some(self.security_version) } else { None },
+            rkp_vm_marker: self.rkp_vm_marker,
+            ..Default::default()
+        };
+        let config_descriptor_size =
+            bcc_format_config_descriptor(&config_values, config_descriptor_buffer)?;
+        let config = &config_descriptor_buffer[..config_descriptor_size];
+        Ok(config)
+    }
 }
 
 /// Flushes data caches over the provided address range.
 ///
 /// # Safety
 ///
-/// The provided address and size must be to a valid address range (typically on the stack, .bss,
-/// .data, or provided BCC).
+/// The provided address and size must be to an address range that is valid for read and write
+/// (typically on the stack, .bss, .data, or provided BCC) from a single allocation
+/// (e.g. stack array).
 #[no_mangle]
-unsafe extern "C" fn DiceClearMemory(_ctx: *mut c_void, size: usize, addr: *mut c_void) {
-    // SAFETY: We must trust that the slice will be valid arrays/variables on the C code stack.
+#[cfg(not(test))]
+unsafe extern "C" fn DiceClearMemory(
+    _ctx: *mut core::ffi::c_void,
+    size: usize,
+    addr: *mut core::ffi::c_void,
+) {
+    use core::slice;
+    use vmbase::memory::flushed_zeroize;
+
+    // SAFETY: We require our caller to provide a valid range within a single object. The open-dice
+    // always calls this on individual stack-allocated arrays which ensures that.
     let region = unsafe { slice::from_raw_parts_mut(addr as *mut u8, size) };
     flushed_zeroize(region)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ciborium::Value;
+    use std::collections::HashMap;
+    use std::vec;
+
+    const COMPONENT_NAME_KEY: i64 = -70002;
+    const COMPONENT_VERSION_KEY: i64 = -70003;
+    const RESETTABLE_KEY: i64 = -70004;
+    const SECURITY_VERSION_KEY: i64 = -70005;
+    const RKP_VM_MARKER_KEY: i64 = -70006;
+
+    const BASE_VB_DATA: VerifiedBootData = VerifiedBootData {
+        debug_level: DebugLevel::None,
+        kernel_digest: [1u8; size_of::<Digest>()],
+        initrd_digest: Some([2u8; size_of::<Digest>()]),
+        public_key: b"public key",
+        capabilities: vec![],
+        rollback_index: 42,
+    };
+
+    #[test]
+    fn base_data_conversion() {
+        let vb_data = BASE_VB_DATA;
+        let inputs = PartialInputs::new(&vb_data).unwrap();
+
+        assert_eq!(inputs.mode, DiceMode::kDiceModeNormal);
+        assert_eq!(inputs.security_version, 42);
+        assert!(!inputs.rkp_vm_marker);
+
+        // TODO(b/313608219): Consider checks for code_hash and possibly auth_hash.
+    }
+
+    #[test]
+    fn debuggable_conversion() {
+        let vb_data = VerifiedBootData { debug_level: DebugLevel::Full, ..BASE_VB_DATA };
+        let inputs = PartialInputs::new(&vb_data).unwrap();
+
+        assert_eq!(inputs.mode, DiceMode::kDiceModeDebug);
+    }
+
+    #[test]
+    fn rkp_vm_conversion() {
+        let vb_data =
+            VerifiedBootData { capabilities: vec![Capability::RemoteAttest], ..BASE_VB_DATA };
+        let inputs = PartialInputs::new(&vb_data).unwrap();
+
+        assert!(inputs.rkp_vm_marker);
+    }
+
+    #[test]
+    fn base_config_descriptor() {
+        let vb_data = BASE_VB_DATA;
+        let inputs = PartialInputs::new(&vb_data).unwrap();
+        let config_map = decode_config_descriptor(&inputs);
+
+        assert_eq!(config_map.get(&COMPONENT_NAME_KEY).unwrap().as_text().unwrap(), "vm_entry");
+        assert_eq!(config_map.get(&COMPONENT_VERSION_KEY), None);
+        assert_eq!(config_map.get(&RESETTABLE_KEY), None);
+        if cfg!(dice_changes) {
+            assert_eq!(
+                config_map.get(&SECURITY_VERSION_KEY).unwrap().as_integer().unwrap(),
+                42.into()
+            );
+        } else {
+            assert_eq!(config_map.get(&SECURITY_VERSION_KEY), None);
+        }
+        assert_eq!(config_map.get(&RKP_VM_MARKER_KEY), None);
+    }
+
+    #[test]
+    fn config_descriptor_with_rkp_vm() {
+        let vb_data =
+            VerifiedBootData { capabilities: vec![Capability::RemoteAttest], ..BASE_VB_DATA };
+        let inputs = PartialInputs::new(&vb_data).unwrap();
+        let config_map = decode_config_descriptor(&inputs);
+
+        assert!(config_map.get(&RKP_VM_MARKER_KEY).unwrap().is_null());
+    }
+
+    fn decode_config_descriptor(inputs: &PartialInputs) -> HashMap<i64, Value> {
+        let mut buffer = [0; 128];
+        let config_descriptor = inputs.generate_config_descriptor(&mut buffer).unwrap();
+
+        let cbor_map =
+            cbor_util::deserialize::<Value>(config_descriptor).unwrap().into_map().unwrap();
+
+        cbor_map
+            .into_iter()
+            .map(|(k, v)| ((k.into_integer().unwrap().try_into().unwrap()), v))
+            .collect()
+    }
 }
