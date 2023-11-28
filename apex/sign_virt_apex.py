@@ -410,21 +410,35 @@ def GenVbmetaImage(args, image, output, partition_name):
            '--output_vbmeta_image', output]
     RunCommand(args, cmd)
 
+
+gki_versions = ['6.1']
+
 # dict of (key, file) for re-sign/verification. keys are un-versioned for readability.
-virt_apex_files = {
+virt_apex_non_gki_files = {
     'kernel': 'etc/fs/microdroid_kernel',
-    'gki_kernel': 'etc/fs/microdroid_gki_kernel',
     'vbmeta.img': 'etc/fs/microdroid_vbmeta.img',
     'super.img': 'etc/fs/microdroid_super.img',
     'initrd_normal.img': 'etc/microdroid_initrd_normal.img',
-    'gki_initrd_normal.img': 'etc/microdroid_gki_initrd_normal.img',
     'initrd_debuggable.img': 'etc/microdroid_initrd_debuggable.img',
-    'gki_initrd_debuggable.img': 'etc/microdroid_gki_initrd_debuggable.img',
 }
 
-
 def TargetFiles(input_dir):
-    return {k: os.path.join(input_dir, v) for k, v in virt_apex_files.items()}
+    ret = {k: os.path.join(input_dir, v) for k, v in virt_apex_non_gki_files.items()}
+
+    for ver in gki_versions:
+        kernel        = os.path.join(input_dir, f'etc/fs/microdroid_gki-{ver}_kernel')
+        initrd_normal = os.path.join(input_dir, f'etc/microdroid_gki-{ver}_initrd_normal.img')
+        initrd_debug  = os.path.join(input_dir, f'etc/microdroid_gki-{ver}_initrd_debuggable.img')
+
+        if os.path.isfile(kernel):
+            ret[f'gki-{ver}_kernel']                = kernel
+            ret[f'gki-{ver}_initrd_normal.img']     = initrd_normal
+            ret[f'gki-{ver}_initrd_debuggable.img'] = initrd_debug
+
+    return ret
+
+def IsInitrdImage(path):
+    return path.endswith('initrd_normal.img') or path.endswith('initrd_debuggable.img')
 
 
 def SignVirtApex(args):
@@ -461,13 +475,9 @@ def SignVirtApex(args):
                      images=images,
                      wait=images_f)
 
-    has_gki_kernel = os.path.isfile(files['gki_kernel'])
-
     vbmeta_bc_f = None
     if not args.do_not_update_bootconfigs:
-        initrd_files = [files['initrd_normal.img'], files['initrd_debuggable.img']]
-        if has_gki_kernel:
-            initrd_files += [files['gki_initrd_normal.img'], files['gki_initrd_debuggable.img']]
+        initrd_files = [v for k, v in files.items() if IsInitrdImage(k)]
         vbmeta_bc_f = Async(UpdateVbmetaBootconfig, args, initrd_files,
                             files['vbmeta.img'],
                             wait=[vbmeta_f])
@@ -493,8 +503,12 @@ def SignVirtApex(args):
 
     resign_kernel('kernel', 'initrd_normal.img', 'initrd_debuggable.img')
 
-    if has_gki_kernel:
-        resign_kernel('gki_kernel', 'gki_initrd_normal.img', 'gki_initrd_debuggable.img')
+    for ver in gki_versions:
+        if f'gki-{ver}_kernel' in files:
+            resign_kernel(
+                f'gki-{ver}_kernel',
+                f'gki-{ver}_initrd_normal.img',
+                f'gki-{ver}_initrd_debuggable.img')
 
 
 def VerifyVirtApex(args):
@@ -518,12 +532,11 @@ def VerifyVirtApex(args):
         assert info is not None, f'no avbinfo: {file}'
         assert info['Public key (sha1)'] == pubkey_digest, f'pubkey mismatch: {file}'
 
-    for f in files.values():
-        if f in (files['initrd_normal.img'], files['initrd_debuggable.img'],
-                 files['gki_initrd_normal.img'], files['gki_initrd_debuggable.img']):
+    for k, f in files.items():
+        if IsInitrdImage(k):
             # TODO(b/245277660): Verify that ramdisks contain the correct vbmeta digest
             continue
-        if f == files['super.img']:
+        if k == 'super.img':
             Async(check_avb_pubkey, system_a_img)
         else:
             # Check pubkey for other files using avbtool
