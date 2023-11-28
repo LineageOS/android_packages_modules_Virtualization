@@ -20,7 +20,7 @@ use open_dice_android_bindgen::{
     DiceAndroidConfigValues, DiceAndroidFormatConfigDescriptor, DiceAndroidHandoverMainFlow,
     DiceAndroidHandoverParse, DiceAndroidMainFlow, DICE_ANDROID_CONFIG_COMPONENT_NAME,
     DICE_ANDROID_CONFIG_COMPONENT_VERSION, DICE_ANDROID_CONFIG_RESETTABLE,
-    DICE_ANDROID_CONFIG_SECURITY_VERSION,
+    DICE_ANDROID_CONFIG_RKP_VM_MARKER, DICE_ANDROID_CONFIG_SECURITY_VERSION,
 };
 use std::{ffi::CStr, ptr};
 
@@ -36,6 +36,8 @@ pub struct DiceConfigValues<'a> {
     pub resettable: bool,
     /// Monotonically increasing version of the component.
     pub security_version: Option<u64>,
+    /// Whether the component can take part in running the RKP VM.
+    pub rkp_vm_marker: bool,
 }
 
 /// Formats a configuration descriptor following the Android Profile for DICE specification.
@@ -58,6 +60,9 @@ pub fn bcc_format_config_descriptor(values: &DiceConfigValues, buffer: &mut [u8]
         configs |= DICE_ANDROID_CONFIG_SECURITY_VERSION;
         version
     });
+    if values.rkp_vm_marker {
+        configs |= DICE_ANDROID_CONFIG_RKP_VM_MARKER;
+    }
 
     let values =
         DiceAndroidConfigValues { configs, component_name, component_version, security_version };
