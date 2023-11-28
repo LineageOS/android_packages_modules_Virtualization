@@ -102,6 +102,7 @@ impl EcKey {
             EC_KEY_set_public_key_affine_coordinates(ec_key.0.as_ptr(), x.as_ref(), y.as_ref())
         };
         check_int_result(ret, ApiName::EC_KEY_set_public_key_affine_coordinates)?;
+        ec_key.check_key()?;
         Ok(ec_key)
     }
 
