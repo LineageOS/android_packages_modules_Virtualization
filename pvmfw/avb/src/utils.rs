@@ -14,42 +14,20 @@
 
 //! Common utility functions.
 
-use core::ptr::NonNull;
-use core::result;
+use avb::{IoError, IoResult};
 
-pub(crate) type Result<T> = result::Result<T, avb::IoError>;
-
-pub(crate) fn write<T>(ptr: *mut T, value: T) -> Result<()> {
-    let ptr = to_nonnull(ptr)?;
-    // SAFETY: It is safe as the raw pointer `ptr` is a non-null pointer.
-    unsafe {
-        *ptr.as_ptr() = value;
-    }
-    Ok(())
-}
-
-pub(crate) fn as_ref<'a, T>(ptr: *mut T) -> Result<&'a T> {
-    let ptr = to_nonnull(ptr)?;
-    // SAFETY: It is safe as the raw pointer `ptr` is a non-null pointer.
-    unsafe { Ok(ptr.as_ref()) }
-}
-
-pub(crate) fn to_nonnull<T>(ptr: *mut T) -> Result<NonNull<T>> {
-    NonNull::new(ptr).ok_or(avb::IoError::NoSuchValue)
-}
-
-pub(crate) fn is_not_null<T>(ptr: *const T) -> Result<()> {
+pub(crate) fn is_not_null<T>(ptr: *const T) -> IoResult<()> {
     if ptr.is_null() {
-        Err(avb::IoError::NoSuchValue)
+        Err(IoError::NoSuchValue)
     } else {
         Ok(())
     }
 }
 
-pub(crate) fn to_usize<T: TryInto<usize>>(num: T) -> Result<usize> {
-    num.try_into().map_err(|_| avb::IoError::InvalidValueSize)
+pub(crate) fn to_usize<T: TryInto<usize>>(num: T) -> IoResult<usize> {
+    num.try_into().map_err(|_| IoError::InvalidValueSize)
 }
 
-pub(crate) fn usize_checked_add(x: usize, y: usize) -> Result<usize> {
-    x.checked_add(y).ok_or(avb::IoError::InvalidValueSize)
+pub(crate) fn usize_checked_add(x: usize, y: usize) -> IoResult<usize> {
+    x.checked_add(y).ok_or(IoError::InvalidValueSize)
 }

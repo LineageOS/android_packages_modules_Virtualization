@@ -17,6 +17,7 @@
 mod utils;
 
 use anyhow::{anyhow, Result};
+use avb::{IoError, SlotVerifyError};
 use avb_bindgen::{AvbFooter, AvbVBMetaImageHeader};
 use pvmfw_avb::{verify_payload, Capability, DebugLevel, PvmfwVerifyError, VerifiedBootData};
 use std::{fs, mem::size_of, ptr};
@@ -87,7 +88,7 @@ fn payload_with_non_initrd_descriptor_fails_verification_with_no_initrd() -> Res
         &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
         /* initrd= */ None,
         &load_trusted_public_key()?,
-        PvmfwVerifyError::InvalidDescriptors(avb::IoError::NoSuchPartition),
+        PvmfwVerifyError::InvalidDescriptors(IoError::NoSuchPartition),
     )
 }
 
@@ -97,7 +98,7 @@ fn payload_with_non_initrd_descriptor_fails_verification_with_initrd() -> Result
         &fs::read(TEST_IMG_WITH_INITRD_AND_NON_INITRD_DESC_PATH)?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        PvmfwVerifyError::InvalidDescriptors(avb::IoError::NoSuchPartition),
+        PvmfwVerifyError::InvalidDescriptors(IoError::NoSuchPartition),
     )
 }
 
@@ -141,7 +142,7 @@ fn payload_with_multiple_props_fails_verification_with_no_initrd() -> Result<()>
         &fs::read(TEST_IMG_WITH_MULTIPLE_PROPS_PATH)?,
         /* initrd= */ None,
         &load_trusted_public_key()?,
-        PvmfwVerifyError::InvalidDescriptors(avb::IoError::Io),
+        PvmfwVerifyError::InvalidDescriptors(IoError::Io),
     )
 }
 
@@ -151,7 +152,7 @@ fn payload_with_duplicated_capability_fails_verification_with_no_initrd() -> Res
         &fs::read(TEST_IMG_WITH_DUPLICATED_CAP_PATH)?,
         /* initrd= */ None,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::InvalidMetadata.into(),
+        SlotVerifyError::InvalidMetadata.into(),
     )
 }
 
@@ -171,7 +172,7 @@ fn payload_expecting_initrd_fails_verification_with_no_initrd() -> Result<()> {
         &load_latest_signed_kernel()?,
         /* initrd= */ None,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::InvalidMetadata.into(),
+        SlotVerifyError::InvalidMetadata.into(),
     )
 }
 
@@ -181,7 +182,7 @@ fn payload_with_empty_public_key_fails_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         /* trusted_public_key= */ &[0u8; 0],
-        avb::SlotVerifyError::PublicKeyRejected.into(),
+        SlotVerifyError::PublicKeyRejected.into(),
     )
 }
 
@@ -191,7 +192,7 @@ fn payload_with_an_invalid_public_key_fails_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         /* trusted_public_key= */ &[0u8; 512],
-        avb::SlotVerifyError::PublicKeyRejected.into(),
+        SlotVerifyError::PublicKeyRejected.into(),
     )
 }
 
@@ -201,7 +202,7 @@ fn payload_with_a_different_valid_public_key_fails_verification() -> Result<()> 
         &load_latest_signed_kernel()?,
         &load_latest_initrd_normal()?,
         &fs::read(PUBLIC_KEY_RSA2048_PATH)?,
-        avb::SlotVerifyError::PublicKeyRejected.into(),
+        SlotVerifyError::PublicKeyRejected.into(),
     )
 }
 
@@ -211,7 +212,7 @@ fn payload_with_an_invalid_initrd_fails_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         /* initrd= */ &fs::read(UNSIGNED_TEST_IMG_PATH)?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification(None).into(),
+        SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -221,7 +222,7 @@ fn unsigned_kernel_fails_verification() -> Result<()> {
         &fs::read(UNSIGNED_TEST_IMG_PATH)?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Io.into(),
+        SlotVerifyError::Io.into(),
     )
 }
 
@@ -234,7 +235,7 @@ fn tampered_kernel_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification(None).into(),
+        SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -272,7 +273,7 @@ fn kernel_footer_with_vbmeta_offset_overwritten_fails_verification() -> Result<(
             &kernel,
             &load_latest_initrd_normal()?,
             &load_trusted_public_key()?,
-            avb::SlotVerifyError::Io.into(),
+            SlotVerifyError::Io.into(),
         )?;
     }
     Ok(())
@@ -288,7 +289,7 @@ fn tampered_kernel_footer_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::InvalidMetadata.into(),
+        SlotVerifyError::InvalidMetadata.into(),
     )
 }
 
@@ -301,7 +302,7 @@ fn extended_initrd_fails_verification() -> Result<()> {
         &load_latest_signed_kernel()?,
         &initrd,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification(None).into(),
+        SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -317,7 +318,7 @@ fn tampered_vbmeta_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::InvalidMetadata.into(),
+        SlotVerifyError::InvalidMetadata.into(),
     )
 }
 
@@ -340,13 +341,13 @@ fn vbmeta_with_public_key_overwritten_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &empty_public_key,
-        avb::SlotVerifyError::Verification(None).into(),
+        SlotVerifyError::Verification(None).into(),
     )?;
     assert_payload_verification_with_initrd_fails(
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification(None).into(),
+        SlotVerifyError::Verification(None).into(),
     )
 }
 
@@ -384,7 +385,7 @@ fn vbmeta_with_verification_flag_disabled_fails_verification() -> Result<()> {
         &kernel,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        avb::SlotVerifyError::Verification(None).into(),
+        SlotVerifyError::Verification(None).into(),
     )
 }
 
