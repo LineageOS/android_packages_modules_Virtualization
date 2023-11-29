@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::dice_driver::DiceDriver;
-use crate::instance::ApkData;
+use crate::instance::{ApexData, ApkData};
 use crate::{is_debuggable, MicrodroidData};
 use anyhow::{bail, Context, Result};
 use ciborium::{cbor, Value};
@@ -26,24 +26,23 @@ use std::iter::once;
 /// Perform an open DICE derivation for the payload.
 pub fn dice_derivation(
     dice: DiceDriver,
-    verified_data: &MicrodroidData,
+    instance_data: &MicrodroidData,
     payload_metadata: &PayloadMetadata,
 ) -> Result<OwnedDiceArtifacts> {
-    let subcomponents = build_subcomponent_list(verified_data);
-
+    let subcomponents = build_subcomponent_list(instance_data);
     let config_descriptor = format_payload_config_descriptor(payload_metadata, &subcomponents)
         .context("Building config descriptor")?;
 
     // Calculate compound digests of code and authorities
     let mut code_hash_ctx = Sha512::new();
     let mut authority_hash_ctx = Sha512::new();
-    code_hash_ctx.update(verified_data.apk_data.root_hash.as_ref());
-    authority_hash_ctx.update(verified_data.apk_data.pubkey.as_ref());
-    for extra_apk in &verified_data.extra_apks_data {
+    code_hash_ctx.update(instance_data.apk_data.root_hash.as_ref());
+    authority_hash_ctx.update(instance_data.apk_data.pubkey.as_ref());
+    for extra_apk in &instance_data.extra_apks_data {
         code_hash_ctx.update(extra_apk.root_hash.as_ref());
         authority_hash_ctx.update(extra_apk.pubkey.as_ref());
     }
-    for apex in &verified_data.apex_data {
+    for apex in &instance_data.apex_data {
         code_hash_ctx.update(apex.root_digest.as_ref());
         authority_hash_ctx.update(apex.public_key.as_ref());
     }
@@ -54,7 +53,7 @@ pub fn dice_derivation(
     let debuggable = is_debuggable()?;
 
     // Send the details to diced
-    let hidden = verified_data.salt.clone().try_into().unwrap();
+    let hidden = instance_data.salt.clone().try_into().unwrap();
     dice.derive(code_hash, &config_descriptor, authority_hash, debuggable, hidden)
 }
 
@@ -85,17 +84,29 @@ impl<'a> Subcomponent<'a> {
                 Box::new(sha512(&apk.pubkey)),
         }
     }
+
+    fn for_apex(apex: &'a ApexData) -> Self {
+        // Note that this is only reachable if the dice_changes flag is on, in which case
+        // the manifest data will always be present.
+        Self {
+            name: format!("apex:{}", apex.manifest_name.as_ref().unwrap()),
+            version: apex.manifest_version.unwrap() as u64,
+            code_hash: &apex.root_digest,
+            authority_hash: Box::new(sha512(&apex.public_key)),
+        }
+    }
 }
 
-fn build_subcomponent_list(verified_data: &MicrodroidData) -> Vec<Subcomponent> {
+fn build_subcomponent_list(instance_data: &MicrodroidData) -> Vec<Subcomponent> {
     if !cfg!(dice_changes) {
         return vec![];
     }
 
-    once(&verified_data.apk_data)
-        .chain(&verified_data.extra_apks_data)
-        .map(Subcomponent::for_apk)
-        .collect()
+    let apks = once(&instance_data.apk_data)
+        .chain(&instance_data.extra_apks_data)
+        .map(Subcomponent::for_apk);
+    let apexes = instance_data.apex_data.iter().map(Subcomponent::for_apex);
+    apks.chain(apexes).collect()
 }
 
 // Returns a configuration descriptor of the given payload. See vm_config.cddl for a definition
