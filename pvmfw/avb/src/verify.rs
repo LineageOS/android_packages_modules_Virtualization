@@ -20,10 +20,9 @@ use crate::partition::PartitionName;
 use crate::PvmfwVerifyError;
 use alloc::vec;
 use alloc::vec::Vec;
-use avb_bindgen::{AvbPartitionData, AvbVBMetaData};
-use core::ffi::c_char;
+use avb::{PartitionData, SlotVerifyError, SlotVerifyNoDataResult, VbmetaData};
 
-// We use this for the rollback_index field if AvbSlotVerifyDataWrap has empty rollback_indexes
+// We use this for the rollback_index field if SlotVerifyData has empty rollback_indexes
 const DEFAULT_ROLLBACK_INDEX: u64 = 0;
 
 /// Verified data returned when the payload verification succeeds.
@@ -84,7 +83,7 @@ impl Capability {
                 _ => return Err(PvmfwVerifyError::UnknownVbmetaProperty),
             };
             if res.contains(&cap) {
-                return Err(avb::SlotVerifyError::InvalidMetadata.into());
+                return Err(SlotVerifyError::InvalidMetadata.into());
             }
             res.push(cap);
         }
@@ -92,55 +91,51 @@ impl Capability {
     }
 }
 
-fn verify_only_one_vbmeta_exists(
-    vbmeta_images: &[AvbVBMetaData],
-) -> Result<(), avb::SlotVerifyError<'static>> {
-    if vbmeta_images.len() == 1 {
+fn verify_only_one_vbmeta_exists(vbmeta_data: &[VbmetaData]) -> SlotVerifyNoDataResult<()> {
+    if vbmeta_data.len() == 1 {
         Ok(())
     } else {
-        Err(avb::SlotVerifyError::InvalidMetadata)
+        Err(SlotVerifyError::InvalidMetadata)
     }
 }
 
-fn verify_vbmeta_is_from_kernel_partition(
-    vbmeta_image: &AvbVBMetaData,
-) -> Result<(), avb::SlotVerifyError<'static>> {
-    match (vbmeta_image.partition_name as *const c_char).try_into() {
+fn verify_vbmeta_is_from_kernel_partition(vbmeta_image: &VbmetaData) -> SlotVerifyNoDataResult<()> {
+    match vbmeta_image.partition_name().try_into() {
         Ok(PartitionName::Kernel) => Ok(()),
-        _ => Err(avb::SlotVerifyError::InvalidMetadata),
+        _ => Err(SlotVerifyError::InvalidMetadata),
     }
 }
 
 fn verify_vbmeta_has_only_one_hash_descriptor(
     descriptors: &Descriptors,
-) -> Result<(), avb::SlotVerifyError<'static>> {
+) -> SlotVerifyNoDataResult<()> {
     if descriptors.num_hash_descriptor() == 1 {
         Ok(())
     } else {
-        Err(avb::SlotVerifyError::InvalidMetadata)
+        Err(SlotVerifyError::InvalidMetadata)
     }
 }
 
 fn verify_loaded_partition_has_expected_length(
-    loaded_partitions: &[AvbPartitionData],
+    loaded_partitions: &[PartitionData],
     partition_name: PartitionName,
     expected_len: usize,
-) -> Result<(), avb::SlotVerifyError<'static>> {
+) -> SlotVerifyNoDataResult<()> {
     if loaded_partitions.len() != 1 {
         // Only one partition should be loaded in each verify result.
-        return Err(avb::SlotVerifyError::Io);
+        return Err(SlotVerifyError::Io);
     }
-    let loaded_partition = loaded_partitions[0];
-    if !PartitionName::try_from(loaded_partition.partition_name as *const c_char)
+    let loaded_partition = &loaded_partitions[0];
+    if !PartitionName::try_from(loaded_partition.partition_name())
         .map_or(false, |p| p == partition_name)
     {
         // Only the requested partition should be loaded.
-        return Err(avb::SlotVerifyError::Io);
+        return Err(SlotVerifyError::Io);
     }
-    if loaded_partition.data_size == expected_len {
+    if loaded_partition.data().len() == expected_len {
         Ok(())
     } else {
-        Err(avb::SlotVerifyError::Verification(None))
+        Err(SlotVerifyError::Verification(None))
     }
 }
 
@@ -158,28 +153,40 @@ fn verify_property_and_get_capabilities(
         .and_then(Capability::get_capabilities)
 }
 
+/// Verifies the given initrd partition, and checks that the resulting contents looks like expected.
+fn verify_initrd(
+    ops: &mut Ops,
+    partition_name: PartitionName,
+    expected_initrd: &[u8],
+) -> SlotVerifyNoDataResult<()> {
+    let result =
+        ops.verify_partition(partition_name.as_cstr()).map_err(|e| e.without_verify_data())?;
+    verify_loaded_partition_has_expected_length(
+        result.partition_data(),
+        partition_name,
+        expected_initrd.len(),
+    )
+}
+
 /// Verifies the payload (signed kernel + initrd) against the trusted public key.
 pub fn verify_payload<'a>(
     kernel: &[u8],
     initrd: Option<&[u8]>,
     trusted_public_key: &'a [u8],
 ) -> Result<VerifiedBootData<'a>, PvmfwVerifyError> {
-    let mut payload = Payload::new(kernel, initrd, trusted_public_key);
-    let mut ops = Ops::from(&mut payload);
+    let payload = Payload::new(kernel, initrd, trusted_public_key);
+    let mut ops = Ops::new(&payload);
     let kernel_verify_result = ops.verify_partition(PartitionName::Kernel.as_cstr())?;
 
-    let vbmeta_images = kernel_verify_result.vbmeta_images()?;
+    let vbmeta_images = kernel_verify_result.vbmeta_data();
     // TODO(b/302093437): Use explicit rollback_index_location instead of default
     // location (first element).
     let rollback_index =
         *kernel_verify_result.rollback_indexes().first().unwrap_or(&DEFAULT_ROLLBACK_INDEX);
     verify_only_one_vbmeta_exists(vbmeta_images)?;
-    let vbmeta_image = vbmeta_images[0];
-    verify_vbmeta_is_from_kernel_partition(&vbmeta_image)?;
-    // SAFETY: It is safe because the `vbmeta_image` is collected from `AvbSlotVerifyData`,
-    // which is returned by `avb_slot_verify()` when the verification succeeds. It is
-    // guaranteed by libavb to be non-null and to point to a valid VBMeta structure.
-    let descriptors = unsafe { Descriptors::from_vbmeta(vbmeta_image)? };
+    let vbmeta_image = &vbmeta_images[0];
+    verify_vbmeta_is_from_kernel_partition(vbmeta_image)?;
+    let descriptors = Descriptors::from_vbmeta(vbmeta_image)?;
     let capabilities = verify_property_and_get_capabilities(&descriptors)?;
     let kernel_descriptor = descriptors.find_hash_descriptor(PartitionName::Kernel)?;
 
@@ -196,20 +203,15 @@ pub fn verify_payload<'a>(
     }
 
     let initrd = initrd.unwrap();
-    let (debug_level, initrd_verify_result, initrd_partition_name) =
-        if let Ok(result) = ops.verify_partition(PartitionName::InitrdNormal.as_cstr()) {
-            (DebugLevel::None, result, PartitionName::InitrdNormal)
-        } else if let Ok(result) = ops.verify_partition(PartitionName::InitrdDebug.as_cstr()) {
-            (DebugLevel::Full, result, PartitionName::InitrdDebug)
+    let mut initrd_ops = Ops::new(&payload);
+    let (debug_level, initrd_partition_name) =
+        if verify_initrd(&mut initrd_ops, PartitionName::InitrdNormal, initrd).is_ok() {
+            (DebugLevel::None, PartitionName::InitrdNormal)
+        } else if verify_initrd(&mut initrd_ops, PartitionName::InitrdDebug, initrd).is_ok() {
+            (DebugLevel::Full, PartitionName::InitrdDebug)
         } else {
-            return Err(avb::SlotVerifyError::Verification(None).into());
+            return Err(SlotVerifyError::Verification(None).into());
         };
-    let loaded_partitions = initrd_verify_result.loaded_partitions()?;
-    verify_loaded_partition_has_expected_length(
-        loaded_partitions,
-        initrd_partition_name,
-        initrd.len(),
-    )?;
     let initrd_descriptor = descriptors.find_hash_descriptor(initrd_partition_name)?;
     Ok(VerifiedBootData {
         debug_level,
