@@ -15,7 +15,8 @@
 //! Structs and functions relating to the property descriptor.
 
 use super::common::get_valid_descriptor;
-use crate::utils::{self, to_usize, usize_checked_add};
+use crate::utils::{to_usize, usize_checked_add};
+use avb::{IoError, IoResult};
 use avb_bindgen::{
     avb_property_descriptor_validate_and_byteswap, AvbDescriptor, AvbPropertyDescriptor,
 };
@@ -34,7 +35,7 @@ impl<'a> PropertyDescriptor<'a> {
     pub(super) unsafe fn from_descriptor_ptr(
         descriptor: *const AvbDescriptor,
         data: &'a [u8],
-    ) -> utils::Result<Self> {
+    ) -> IoResult<Self> {
         // SAFETY: It is safe as the raw pointer `descriptor` is non-null and points to
         // a valid `AvbDescriptor`.
         let h = unsafe { PropertyDescriptorHeader::from_descriptor_ptr(descriptor)? };
@@ -43,12 +44,12 @@ impl<'a> PropertyDescriptor<'a> {
         Ok(Self { key, value })
     }
 
-    fn get_valid_slice(data: &[u8], start: usize, end: usize) -> utils::Result<&[u8]> {
+    fn get_valid_slice(data: &[u8], start: usize, end: usize) -> IoResult<&[u8]> {
         const NUL_BYTE: u8 = b'\0';
 
         match data.get(end) {
-            Some(&NUL_BYTE) => data.get(start..end).ok_or(avb::IoError::RangeOutsidePartition),
-            _ => Err(avb::IoError::NoSuchValue),
+            Some(&NUL_BYTE) => data.get(start..end).ok_or(IoError::RangeOutsidePartition),
+            _ => Err(IoError::NoSuchValue),
         }
     }
 }
@@ -60,7 +61,7 @@ impl PropertyDescriptorHeader {
     ///
     /// Behavior is undefined if any of the following conditions are violated:
     /// * The `descriptor` pointer must be non-null and point to a valid `AvbDescriptor`.
-    unsafe fn from_descriptor_ptr(descriptor: *const AvbDescriptor) -> utils::Result<Self> {
+    unsafe fn from_descriptor_ptr(descriptor: *const AvbDescriptor) -> IoResult<Self> {
         // SAFETY: It is safe as the raw pointer `descriptor` is non-null and points to
         // a valid `AvbDescriptor`.
         unsafe {
@@ -76,16 +77,16 @@ impl PropertyDescriptorHeader {
         size_of::<AvbPropertyDescriptor>()
     }
 
-    fn key_end(&self) -> utils::Result<usize> {
+    fn key_end(&self) -> IoResult<usize> {
         usize_checked_add(self.key_start(), to_usize(self.0.key_num_bytes)?)
     }
 
-    fn value_start(&self) -> utils::Result<usize> {
+    fn value_start(&self) -> IoResult<usize> {
         // There is a NUL byte between key and value.
         usize_checked_add(self.key_end()?, 1)
     }
 
-    fn value_end(&self) -> utils::Result<usize> {
+    fn value_end(&self) -> IoResult<usize> {
         usize_checked_add(self.value_start()?, to_usize(self.0.value_num_bytes)?)
     }
 }

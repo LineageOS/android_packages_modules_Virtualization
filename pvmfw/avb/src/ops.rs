@@ -12,36 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Structs and functions relating to `AvbOps`.
+//! Structs and functions relating to AVB callback operations.
 
 use crate::partition::PartitionName;
-use crate::utils::{self, as_ref, is_not_null, to_nonnull, write};
-use avb::internal::{result_to_io_enum, slot_verify_enum_to_result};
-use avb_bindgen::{
-    avb_slot_verify, avb_slot_verify_data_free, AvbHashtreeErrorMode, AvbIOResult, AvbOps,
-    AvbPartitionData, AvbSlotVerifyData, AvbSlotVerifyFlags, AvbVBMetaData,
+use avb::{
+    slot_verify, HashtreeErrorMode, IoError, IoResult, PublicKeyForPartitionInfo, SlotVerifyData,
+    SlotVerifyFlags, SlotVerifyResult,
 };
-use core::{
-    ffi::{c_char, c_void, CStr},
-    mem::MaybeUninit,
-    ptr, slice,
-};
-
-const NULL_BYTE: &[u8] = b"\0";
+use core::ffi::CStr;
 
 pub(crate) struct Payload<'a> {
     kernel: &'a [u8],
     initrd: Option<&'a [u8]>,
     trusted_public_key: &'a [u8],
-}
-
-impl<'a> AsRef<Payload<'a>> for AvbOps {
-    fn as_ref(&self) -> &Payload<'a> {
-        let payload = self.user_data as *const Payload;
-        // SAFETY: It is safe to cast the `AvbOps.user_data` to Payload as we have saved a
-        // pointer to a valid value of Payload in user_data when creating AvbOps.
-        unsafe { &*payload }
-    }
 }
 
 impl<'a> Payload<'a> {
@@ -53,148 +36,116 @@ impl<'a> Payload<'a> {
         Self { kernel, initrd, trusted_public_key }
     }
 
-    fn get_partition(&self, partition_name: *const c_char) -> Result<&[u8], avb::IoError> {
+    fn get_partition(&self, partition_name: &CStr) -> IoResult<&[u8]> {
         match partition_name.try_into()? {
             PartitionName::Kernel => Ok(self.kernel),
             PartitionName::InitrdNormal | PartitionName::InitrdDebug => {
-                self.initrd.ok_or(avb::IoError::NoSuchPartition)
+                self.initrd.ok_or(IoError::NoSuchPartition)
             }
         }
     }
 }
 
-/// `Ops` wraps the class `AvbOps` in libavb. It provides pvmfw customized
-/// operations used in the verification.
-pub(crate) struct Ops(AvbOps);
-
-impl<'a> From<&mut Payload<'a>> for Ops {
-    fn from(payload: &mut Payload<'a>) -> Self {
-        let avb_ops = AvbOps {
-            user_data: payload as *mut _ as *mut c_void,
-            ab_ops: ptr::null_mut(),
-            atx_ops: ptr::null_mut(),
-            read_from_partition: Some(read_from_partition),
-            get_preloaded_partition: Some(get_preloaded_partition),
-            write_to_partition: None,
-            validate_vbmeta_public_key: Some(validate_vbmeta_public_key),
-            read_rollback_index: Some(read_rollback_index),
-            write_rollback_index: None,
-            read_is_device_unlocked: Some(read_is_device_unlocked),
-            get_unique_guid_for_partition: Some(get_unique_guid_for_partition),
-            get_size_of_partition: Some(get_size_of_partition),
-            read_persistent_value: None,
-            write_persistent_value: None,
-            validate_public_key_for_partition: None,
-        };
-        Self(avb_ops)
-    }
+/// Pvmfw customized operations used in the verification.
+pub(crate) struct Ops<'a> {
+    payload: &'a Payload<'a>,
 }
 
-impl Ops {
+impl<'a> Ops<'a> {
+    pub(crate) fn new(payload: &'a Payload<'a>) -> Self {
+        Self { payload }
+    }
+
     pub(crate) fn verify_partition(
         &mut self,
         partition_name: &CStr,
-    ) -> Result<AvbSlotVerifyDataWrap, avb::SlotVerifyError<'static>> {
-        let requested_partitions = [partition_name.as_ptr(), ptr::null()];
-        let ab_suffix = CStr::from_bytes_with_nul(NULL_BYTE).unwrap();
-        let mut out_data = MaybeUninit::uninit();
-        // SAFETY: It is safe to call `avb_slot_verify()` as the pointer arguments (`ops`,
-        // `requested_partitions` and `ab_suffix`) passed to the method are all valid and
-        // initialized.
-        let result = unsafe {
-            avb_slot_verify(
-                &mut self.0,
-                requested_partitions.as_ptr(),
-                ab_suffix.as_ptr(),
-                AvbSlotVerifyFlags::AVB_SLOT_VERIFY_FLAGS_NONE,
-                AvbHashtreeErrorMode::AVB_HASHTREE_ERROR_MODE_RESTART_AND_INVALIDATE,
-                out_data.as_mut_ptr(),
-            )
-        };
-        slot_verify_enum_to_result(result)?;
-        // SAFETY: This is safe because `out_data` has been properly initialized after
-        // calling `avb_slot_verify` and it returns OK.
-        let out_data = unsafe { out_data.assume_init() };
-        out_data.try_into()
+    ) -> SlotVerifyResult<SlotVerifyData> {
+        slot_verify(
+            self,
+            &[partition_name],
+            None, // No partition slot suffix.
+            SlotVerifyFlags::AVB_SLOT_VERIFY_FLAGS_NONE,
+            HashtreeErrorMode::AVB_HASHTREE_ERROR_MODE_RESTART_AND_INVALIDATE,
+        )
     }
 }
 
-extern "C" fn read_is_device_unlocked(
-    _ops: *mut AvbOps,
-    out_is_unlocked: *mut bool,
-) -> AvbIOResult {
-    result_to_io_enum(write(out_is_unlocked, false))
+impl<'a> avb::Ops for Ops<'a> {
+    fn read_from_partition(
+        &mut self,
+        partition: &CStr,
+        offset: i64,
+        buffer: &mut [u8],
+    ) -> IoResult<usize> {
+        let partition = self.payload.get_partition(partition)?;
+        copy_data_to_dst(partition, offset, buffer)?;
+        Ok(buffer.len())
+    }
+
+    fn get_preloaded_partition(&mut self, partition: &CStr) -> IoResult<&[u8]> {
+        self.payload.get_partition(partition)
+    }
+
+    fn validate_vbmeta_public_key(
+        &mut self,
+        public_key: &[u8],
+        _public_key_metadata: Option<&[u8]>,
+    ) -> IoResult<bool> {
+        // The public key metadata is not used when we build the VBMeta.
+        Ok(self.payload.trusted_public_key == public_key)
+    }
+
+    fn read_rollback_index(&mut self, _rollback_index_location: usize) -> IoResult<u64> {
+        // TODO(291213394) : Refine this comment once capability for rollback protection is defined.
+        // pvmfw does not compare stored_rollback_index with rollback_index for Antirollback
+        // protection. Hence, we set `out_rollback_index` to 0 to ensure that the rollback_index
+        // (including default: 0) is never smaller than it, thus the rollback index check will pass.
+        Ok(0)
+    }
+
+    fn write_rollback_index(
+        &mut self,
+        _rollback_index_location: usize,
+        _index: u64,
+    ) -> IoResult<()> {
+        Err(IoError::NotImplemented)
+    }
+
+    fn read_is_device_unlocked(&mut self) -> IoResult<bool> {
+        Ok(false)
+    }
+
+    fn get_size_of_partition(&mut self, partition: &CStr) -> IoResult<u64> {
+        let partition = self.payload.get_partition(partition)?;
+        u64::try_from(partition.len()).map_err(|_| IoError::InvalidValueSize)
+    }
+
+    fn read_persistent_value(&mut self, _name: &CStr, _value: &mut [u8]) -> IoResult<usize> {
+        Err(IoError::NotImplemented)
+    }
+
+    fn write_persistent_value(&mut self, _name: &CStr, _value: &[u8]) -> IoResult<()> {
+        Err(IoError::NotImplemented)
+    }
+
+    fn erase_persistent_value(&mut self, _name: &CStr) -> IoResult<()> {
+        Err(IoError::NotImplemented)
+    }
+
+    fn validate_public_key_for_partition(
+        &mut self,
+        _partition: &CStr,
+        _public_key: &[u8],
+        _public_key_metadata: Option<&[u8]>,
+    ) -> IoResult<PublicKeyForPartitionInfo> {
+        Err(IoError::NotImplemented)
+    }
 }
 
-extern "C" fn get_preloaded_partition(
-    ops: *mut AvbOps,
-    partition: *const c_char,
-    num_bytes: usize,
-    out_pointer: *mut *mut u8,
-    out_num_bytes_preloaded: *mut usize,
-) -> AvbIOResult {
-    result_to_io_enum(try_get_preloaded_partition(
-        ops,
-        partition,
-        num_bytes,
-        out_pointer,
-        out_num_bytes_preloaded,
-    ))
-}
-
-fn try_get_preloaded_partition(
-    ops: *mut AvbOps,
-    partition: *const c_char,
-    num_bytes: usize,
-    out_pointer: *mut *mut u8,
-    out_num_bytes_preloaded: *mut usize,
-) -> utils::Result<()> {
-    let ops = as_ref(ops)?;
-    let partition = ops.as_ref().get_partition(partition)?;
-    write(out_pointer, partition.as_ptr() as *mut u8)?;
-    write(out_num_bytes_preloaded, partition.len().min(num_bytes))
-}
-
-extern "C" fn read_from_partition(
-    ops: *mut AvbOps,
-    partition: *const c_char,
-    offset: i64,
-    num_bytes: usize,
-    buffer: *mut c_void,
-    out_num_read: *mut usize,
-) -> AvbIOResult {
-    result_to_io_enum(try_read_from_partition(
-        ops,
-        partition,
-        offset,
-        num_bytes,
-        buffer,
-        out_num_read,
-    ))
-}
-
-fn try_read_from_partition(
-    ops: *mut AvbOps,
-    partition: *const c_char,
-    offset: i64,
-    num_bytes: usize,
-    buffer: *mut c_void,
-    out_num_read: *mut usize,
-) -> utils::Result<()> {
-    let ops = as_ref(ops)?;
-    let partition = ops.as_ref().get_partition(partition)?;
-    let buffer = to_nonnull(buffer)?;
-    // SAFETY: It is safe to copy the requested number of bytes to `buffer` as `buffer`
-    // is created to point to the `num_bytes` of bytes in memory.
-    let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer.as_ptr() as *mut u8, num_bytes) };
-    copy_data_to_dst(partition, offset, buffer_slice)?;
-    write(out_num_read, buffer_slice.len())
-}
-
-fn copy_data_to_dst(src: &[u8], offset: i64, dst: &mut [u8]) -> utils::Result<()> {
-    let start = to_copy_start(offset, src.len()).ok_or(avb::IoError::InvalidValueSize)?;
-    let end = start.checked_add(dst.len()).ok_or(avb::IoError::InvalidValueSize)?;
-    dst.copy_from_slice(src.get(start..end).ok_or(avb::IoError::RangeOutsidePartition)?);
+fn copy_data_to_dst(src: &[u8], offset: i64, dst: &mut [u8]) -> IoResult<()> {
+    let start = to_copy_start(offset, src.len()).ok_or(IoError::InvalidValueSize)?;
+    let end = start.checked_add(dst.len()).ok_or(IoError::InvalidValueSize)?;
+    dst.copy_from_slice(src.get(start..end).ok_or(IoError::RangeOutsidePartition)?);
     Ok(())
 }
 
@@ -202,144 +153,4 @@ fn to_copy_start(offset: i64, len: usize) -> Option<usize> {
     usize::try_from(offset)
         .ok()
         .or_else(|| isize::try_from(offset).ok().and_then(|v| len.checked_add_signed(v)))
-}
-
-extern "C" fn get_size_of_partition(
-    ops: *mut AvbOps,
-    partition: *const c_char,
-    out_size_num_bytes: *mut u64,
-) -> AvbIOResult {
-    result_to_io_enum(try_get_size_of_partition(ops, partition, out_size_num_bytes))
-}
-
-fn try_get_size_of_partition(
-    ops: *mut AvbOps,
-    partition: *const c_char,
-    out_size_num_bytes: *mut u64,
-) -> utils::Result<()> {
-    let ops = as_ref(ops)?;
-    let partition = ops.as_ref().get_partition(partition)?;
-    let partition_size =
-        u64::try_from(partition.len()).map_err(|_| avb::IoError::InvalidValueSize)?;
-    write(out_size_num_bytes, partition_size)
-}
-
-extern "C" fn read_rollback_index(
-    _ops: *mut AvbOps,
-    _rollback_index_location: usize,
-    out_rollback_index: *mut u64,
-) -> AvbIOResult {
-    // This method is used by `avb_slot_verify()` to read the stored_rollback_index at
-    // rollback_index_location.
-
-    // TODO(291213394) : Refine this comment once capability for rollback protection is defined.
-    // pvmfw does not compare stored_rollback_index with rollback_index for Antirollback protection
-    // Hence, we set `out_rollback_index` to 0 to ensure that the
-    // rollback_index (including default: 0) is never smaller than it,
-    // thus the rollback index check will pass.
-    result_to_io_enum(write(out_rollback_index, 0))
-}
-
-extern "C" fn get_unique_guid_for_partition(
-    _ops: *mut AvbOps,
-    _partition: *const c_char,
-    _guid_buf: *mut c_char,
-    _guid_buf_size: usize,
-) -> AvbIOResult {
-    // TODO(b/256148034): Check if it's possible to throw an error here instead of having
-    // an empty method.
-    // This method is required by `avb_slot_verify()`.
-    AvbIOResult::AVB_IO_RESULT_OK
-}
-
-extern "C" fn validate_vbmeta_public_key(
-    ops: *mut AvbOps,
-    public_key_data: *const u8,
-    public_key_length: usize,
-    public_key_metadata: *const u8,
-    public_key_metadata_length: usize,
-    out_is_trusted: *mut bool,
-) -> AvbIOResult {
-    result_to_io_enum(try_validate_vbmeta_public_key(
-        ops,
-        public_key_data,
-        public_key_length,
-        public_key_metadata,
-        public_key_metadata_length,
-        out_is_trusted,
-    ))
-}
-
-fn try_validate_vbmeta_public_key(
-    ops: *mut AvbOps,
-    public_key_data: *const u8,
-    public_key_length: usize,
-    _public_key_metadata: *const u8,
-    _public_key_metadata_length: usize,
-    out_is_trusted: *mut bool,
-) -> utils::Result<()> {
-    // The public key metadata is not used when we build the VBMeta.
-    is_not_null(public_key_data)?;
-    // SAFETY: It is safe to create a slice with the given pointer and length as
-    // `public_key_data` is a valid pointer and it points to an array of length
-    // `public_key_length`.
-    let public_key = unsafe { slice::from_raw_parts(public_key_data, public_key_length) };
-    let ops = as_ref(ops)?;
-    let trusted_public_key = ops.as_ref().trusted_public_key;
-    write(out_is_trusted, public_key == trusted_public_key)
-}
-
-pub(crate) struct AvbSlotVerifyDataWrap(*mut AvbSlotVerifyData);
-
-impl TryFrom<*mut AvbSlotVerifyData> for AvbSlotVerifyDataWrap {
-    type Error = avb::SlotVerifyError<'static>;
-
-    fn try_from(data: *mut AvbSlotVerifyData) -> Result<Self, Self::Error> {
-        is_not_null(data).map_err(|_| avb::SlotVerifyError::Io)?;
-        Ok(Self(data))
-    }
-}
-
-impl Drop for AvbSlotVerifyDataWrap {
-    fn drop(&mut self) {
-        // SAFETY: This is safe because `self.0` is checked nonnull when the
-        // instance is created. We can free this pointer when the instance is
-        // no longer needed.
-        unsafe {
-            avb_slot_verify_data_free(self.0);
-        }
-    }
-}
-
-impl AsRef<AvbSlotVerifyData> for AvbSlotVerifyDataWrap {
-    fn as_ref(&self) -> &AvbSlotVerifyData {
-        // This is safe because `self.0` is checked nonnull when the instance is created.
-        as_ref(self.0).unwrap()
-    }
-}
-
-impl AvbSlotVerifyDataWrap {
-    pub(crate) fn vbmeta_images(&self) -> Result<&[AvbVBMetaData], avb::SlotVerifyError> {
-        let data = self.as_ref();
-        is_not_null(data.vbmeta_images).map_err(|_| avb::SlotVerifyError::Io)?;
-        let vbmeta_images =
-        // SAFETY: It is safe as the raw pointer `data.vbmeta_images` is a nonnull pointer.
-            unsafe { slice::from_raw_parts(data.vbmeta_images, data.num_vbmeta_images) };
-        Ok(vbmeta_images)
-    }
-
-    pub(crate) fn loaded_partitions(&self) -> Result<&[AvbPartitionData], avb::SlotVerifyError> {
-        let data = self.as_ref();
-        is_not_null(data.loaded_partitions).map_err(|_| avb::SlotVerifyError::Io)?;
-        let loaded_partitions =
-        // SAFETY: It is safe as the raw pointer `data.loaded_partitions` is a nonnull pointer and
-        // is guaranteed by libavb to point to a valid `AvbPartitionData` array as part of the
-        // `AvbSlotVerifyData` struct.
-            unsafe { slice::from_raw_parts(data.loaded_partitions, data.num_loaded_partitions) };
-        Ok(loaded_partitions)
-    }
-
-    pub(crate) fn rollback_indexes(&self) -> &[u64] {
-        &self.as_ref().rollback_indexes
-    }
 }
