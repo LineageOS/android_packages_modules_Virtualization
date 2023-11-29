@@ -14,7 +14,8 @@
 
 //! Structs and functions used by all the descriptors.
 
-use crate::utils::{self, is_not_null};
+use crate::utils::is_not_null;
+use avb::{IoError, IoResult};
 use core::mem::MaybeUninit;
 
 /// # Safety
@@ -24,14 +25,14 @@ use core::mem::MaybeUninit;
 pub(super) unsafe fn get_valid_descriptor<T>(
     descriptor_ptr: *const T,
     descriptor_validate_and_byteswap: unsafe extern "C" fn(src: *const T, dest: *mut T) -> bool,
-) -> utils::Result<T> {
+) -> IoResult<T> {
     is_not_null(descriptor_ptr)?;
     // SAFETY: It is safe because the caller ensures that `descriptor_ptr` is a non-null pointer
     // pointing to a valid struct.
     let descriptor = unsafe {
         let mut desc = MaybeUninit::uninit();
         if !descriptor_validate_and_byteswap(descriptor_ptr, desc.as_mut_ptr()) {
-            return Err(avb::IoError::Io);
+            return Err(IoError::Io);
         }
         desc.assume_init()
     };
