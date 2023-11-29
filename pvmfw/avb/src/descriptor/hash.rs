@@ -16,7 +16,8 @@
 
 use super::common::get_valid_descriptor;
 use crate::partition::PartitionName;
-use crate::utils::{self, to_usize, usize_checked_add};
+use crate::utils::{to_usize, usize_checked_add};
+use avb::{IoError, IoResult};
 use avb_bindgen::{
     avb_hash_descriptor_validate_and_byteswap, AvbDescriptor, AvbHashDescriptor,
     AVB_SHA256_DIGEST_SIZE,
@@ -47,19 +48,19 @@ impl<'a> HashDescriptor<'a> {
     pub(super) unsafe fn from_descriptor_ptr(
         descriptor: *const AvbDescriptor,
         data: &'a [u8],
-    ) -> utils::Result<Self> {
+    ) -> IoResult<Self> {
         // SAFETY: It is safe as the raw pointer `descriptor` is non-null and points to
         // a valid `AvbDescriptor`.
         let h = unsafe { HashDescriptorHeader::from_descriptor_ptr(descriptor)? };
         let partition_name = data
             .get(h.partition_name_range()?)
-            .ok_or(avb::IoError::RangeOutsidePartition)?
+            .ok_or(IoError::RangeOutsidePartition)?
             .try_into()?;
         let digest = data
             .get(h.digest_range()?)
-            .ok_or(avb::IoError::RangeOutsidePartition)?
+            .ok_or(IoError::RangeOutsidePartition)?
             .try_into()
-            .map_err(|_| avb::IoError::InvalidValueSize)?;
+            .map_err(|_| IoError::InvalidValueSize)?;
         Ok(Self { partition_name, digest })
     }
 }
@@ -71,7 +72,7 @@ impl HashDescriptorHeader {
     ///
     /// Behavior is undefined if any of the following conditions are violated:
     /// * The `descriptor` pointer must be non-null and point to a valid `AvbDescriptor`.
-    unsafe fn from_descriptor_ptr(descriptor: *const AvbDescriptor) -> utils::Result<Self> {
+    unsafe fn from_descriptor_ptr(descriptor: *const AvbDescriptor) -> IoResult<Self> {
         // SAFETY: It is safe as the raw pointer `descriptor` is non-null and points to
         // a valid `AvbDescriptor`.
         unsafe {
@@ -83,16 +84,16 @@ impl HashDescriptorHeader {
         }
     }
 
-    fn partition_name_end(&self) -> utils::Result<usize> {
+    fn partition_name_end(&self) -> IoResult<usize> {
         usize_checked_add(size_of::<AvbHashDescriptor>(), to_usize(self.0.partition_name_len)?)
     }
 
-    fn partition_name_range(&self) -> utils::Result<Range<usize>> {
+    fn partition_name_range(&self) -> IoResult<Range<usize>> {
         let start = size_of::<AvbHashDescriptor>();
         Ok(start..(self.partition_name_end()?))
     }
 
-    fn digest_range(&self) -> utils::Result<Range<usize>> {
+    fn digest_range(&self) -> IoResult<Range<usize>> {
         let start = usize_checked_add(self.partition_name_end()?, to_usize(self.0.salt_len)?)?;
         let end = usize_checked_add(start, to_usize(self.0.digest_len)?)?;
         Ok(start..end)
