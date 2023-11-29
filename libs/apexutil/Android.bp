@@ -9,7 +9,9 @@ rust_defaults {
     srcs: ["src/lib.rs"],
     edition: "2021",
     rustlibs: [
+        "libapex_manifest_rs",
         "liblog_rust",
+        "libprotobuf",
         "libthiserror",
         "libvbmeta_rust",
         "libzip",
@@ -26,7 +28,12 @@ rust_test {
     defaults: ["libapexutil_rust.defaults"],
     prefer_rlib: true,
     test_suites: ["general-tests"],
-    data: ["tests/data/*"],
+    // We're reusing test APEXes from system/apex/apexd
+    data: [
+        ":apex.apexd_test",
+        ":apex.apexd_test_v2_no_pb",
+        ":gen_key_mismatch_with_image_apex",
+    ],
     rustlibs: [
         "libhex",
     ],
