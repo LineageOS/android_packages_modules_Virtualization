@@ -48,43 +48,43 @@
         interrupts = <0x0 0xF 0x4>;
         google,eh,ignore-gctrl-reset;
         status = "okay";
-        iommus = <&pviommu_0>, <&pviommu_1>;
+        iommus = <&pviommu_0 0xFF0>, <&pviommu_1 0xFF1>;
     };
 
     pviommu_0: pviommu0 {
         compatible = "pkvm,pviommu";
         id = <0x4>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     pviommu_1: pviommu1 {
         compatible = "pkvm,pviommu";
         id = <0x9>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     light@70000000 {
         compatible = "android,light";
         reg = <0x100 0x9>;
         interrupts = <0x0 0xF 0x5>;
-        iommus = <&pviommu_a>, <&pviommu_b>, <&pviommu_c>;
+        iommus = <&pviommu_a 0xFFA>, <&pviommu_b 0xFFB>, <&pviommu_c 0xFFC>;
     };
 
     pviommu_a: pviommua {
         compatible = "pkvm,pviommu";
         id = <0x40>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     pviommu_b: pviommub {
         compatible = "pkvm,pviommu";
         id = <0x50>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     pviommu_c: pviommuc {
         compatible = "pkvm,pviommu";
         id = <0x60>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 };
