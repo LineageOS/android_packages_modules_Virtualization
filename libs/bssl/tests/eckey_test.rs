@@ -57,8 +57,18 @@ fn subject_public_key_info_serialization() -> Result<()> {
 }
 
 #[test]
-fn cose_public_key_serialization() -> Result<()> {
+fn p256_cose_public_key_serialization() -> Result<()> {
     let mut ec_key = EcKey::new_p256()?;
+    check_cose_public_key_serialization(&mut ec_key)
+}
+
+#[test]
+fn p384_cose_public_key_serialization() -> Result<()> {
+    let mut ec_key = EcKey::new_p384()?;
+    check_cose_public_key_serialization(&mut ec_key)
+}
+
+fn check_cose_public_key_serialization(ec_key: &mut EcKey) -> Result<()> {
     ec_key.generate_key()?;
     let cose_key = ec_key.cose_public_key()?;
     let cose_key_data = cose_key.clone().to_vec().unwrap();
