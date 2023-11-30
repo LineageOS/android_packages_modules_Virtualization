@@ -127,6 +127,7 @@ unsafe fn prepare_authfs_service_socket() -> Result<OwnedFd> {
     Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
 }
 
+#[allow(clippy::eq_op)]
 fn try_main() -> Result<()> {
     let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
     let log_level = if debuggable { log::Level::Trace } else { log::Level::Info };
