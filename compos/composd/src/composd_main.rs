@@ -31,6 +31,7 @@ use log::{error, info};
 use std::panic;
 use std::sync::Arc;
 
+#[allow(clippy::eq_op)]
 fn try_main() -> Result<()> {
     let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
     let log_level = if debuggable { log::Level::Debug } else { log::Level::Info };
