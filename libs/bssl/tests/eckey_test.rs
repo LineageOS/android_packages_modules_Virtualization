@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bssl_avf::{sha256, ApiName, EcKey, EcdsaError, Error, PKey, Result};
+use bssl_avf::{sha256, ApiName, Digester, EcKey, EcdsaError, Error, PKey, Result};
 use coset::CborSerializable;
 use spki::{
     der::{AnyRef, Decode},
@@ -85,7 +85,9 @@ fn ecdsa_p256_signing_and_verification_succeed() -> Result<()> {
     let digest = sha256(MESSAGE1)?;
 
     let signature = ec_key.ecdsa_sign(&digest)?;
-    ec_key.ecdsa_verify(&signature, &digest)
+    ec_key.ecdsa_verify(&signature, &digest)?;
+    let pkey: PKey = ec_key.try_into()?;
+    pkey.verify(&signature, MESSAGE1, Some(Digester::sha256()))
 }
 
 #[test]
@@ -99,6 +101,12 @@ fn verifying_ecdsa_p256_signed_with_a_different_key_fails() -> Result<()> {
     ec_key2.generate_key()?;
     let err = ec_key2.ecdsa_verify(&signature, &digest).unwrap_err();
     let expected_err = Error::CallFailed(ApiName::ECDSA_verify, EcdsaError::BadSignature.into());
+    assert_eq!(expected_err, err);
+
+    let pkey: PKey = ec_key2.try_into()?;
+    let err = pkey.verify(&signature, MESSAGE1, Some(Digester::sha256())).unwrap_err();
+    let expected_err =
+        Error::CallFailed(ApiName::EVP_DigestVerify, EcdsaError::BadSignature.into());
     assert_eq!(expected_err, err);
     Ok(())
 }

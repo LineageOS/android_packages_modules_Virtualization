@@ -14,7 +14,12 @@
 
 //! Wrappers of the digest functions in BoringSSL digest.h.
 
-use bssl_ffi::{EVP_MD_size, EVP_sha256, EVP_sha512, EVP_MD};
+use crate::util::to_call_failed_error;
+use bssl_avf_error::{ApiName, Result};
+use bssl_ffi::{
+    EVP_MD_CTX_free, EVP_MD_CTX_new, EVP_MD_size, EVP_sha256, EVP_sha512, EVP_MD, EVP_MD_CTX,
+};
+use core::ptr::NonNull;
 
 /// Message digester wrapping `EVP_MD`.
 #[derive(Clone, Debug)]
@@ -45,5 +50,32 @@ impl Digester {
     pub fn size(&self) -> usize {
         // SAFETY: The inner pointer is fetched from EVP_* hash functions in BoringSSL digest.h
         unsafe { EVP_MD_size(self.0) }
+    }
+}
+
+/// Message digester context wrapping `EVP_MD_CTX`.
+#[derive(Clone, Debug)]
+pub struct DigesterContext(NonNull<EVP_MD_CTX>);
+
+impl Drop for DigesterContext {
+    fn drop(&mut self) {
+        // SAFETY: This function frees any resources owned by `EVP_MD_CTX` and resets it to a
+        // freshly initialised state and then frees the context.
+        // It is safe because `EVP_MD_CTX` has been allocated by BoringSSL and isn't used after
+        // this.
+        unsafe { EVP_MD_CTX_free(self.0.as_ptr()) }
+    }
+}
+
+impl DigesterContext {
+    /// Creates a new `DigesterContext` wrapping a freshly allocated and initialised `EVP_MD_CTX`.
+    pub fn new() -> Result<Self> {
+        // SAFETY: The returned pointer is checked below.
+        let ctx = unsafe { EVP_MD_CTX_new() };
+        NonNull::new(ctx).map(Self).ok_or(to_call_failed_error(ApiName::EVP_MD_CTX_new))
+    }
+
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut EVP_MD_CTX {
+        self.0.as_ptr()
     }
 }
