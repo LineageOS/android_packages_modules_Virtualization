@@ -54,13 +54,13 @@
     pviommu_0: pviommu0 {
         compatible = "pkvm,pviommu";
         id = <0x4>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     pviommu_1: pviommu1 {
         compatible = "pkvm,pviommu";
         id = <0x9>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     light@70000000 {
@@ -73,12 +73,12 @@
     pviommu_a: pviommua {
         compatible = "pkvm,pviommu";
         id = <0x40>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 
     pviommu_b: pviommub {
         compatible = "pkvm,pviommu";
         id = <0x9>;
-        #iommu-cells = <0>;
+        #iommu-cells = <1>;
     };
 };
