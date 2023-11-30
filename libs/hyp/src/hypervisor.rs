@@ -24,7 +24,9 @@ mod kvm;
 use crate::error::{Error, Result};
 use alloc::boxed::Box;
 use common::Hypervisor;
-pub use common::{MemSharingHypervisor, MmioGuardedHypervisor, MMIO_GUARD_GRANULE_SIZE};
+pub use common::{
+    DeviceAssigningHypervisor, MemSharingHypervisor, MmioGuardedHypervisor, MMIO_GUARD_GRANULE_SIZE,
+};
 pub use geniezone::GeniezoneError;
 use geniezone::GeniezoneHypervisor;
 use gunyah::GunyahHypervisor;
@@ -33,8 +35,6 @@ use kvm::{ProtectedKvmHypervisor, RegularKvmHypervisor};
 use once_cell::race::OnceBox;
 use smccc::hvc64;
 use uuid::Uuid;
-
-use self::common::DeviceAssigningHypervisor;
 
 enum HypervisorBackend {
     RegularKvm,

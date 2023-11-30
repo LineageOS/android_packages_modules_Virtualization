@@ -79,6 +79,7 @@ pub trait MemSharingHypervisor {
     fn granule(&self) -> Result<usize>;
 }
 
+/// Device assigning hypervisor
 pub trait DeviceAssigningHypervisor {
     /// Returns MMIO token.
     fn get_phys_mmio_token(&self, base_ipa: u64, size: u64) -> Result<u64>;
