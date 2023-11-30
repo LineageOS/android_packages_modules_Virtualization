@@ -733,19 +733,10 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 .isLessThan(atomVmExited.getElapsedTimeMillis());
     }
 
-    @Test
-    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-1-2", "9.17/C/1-3"})
-    public void testMicrodroidBoots() throws Exception {
+    private void testMicrodroidBootsWithBuilder(MicrodroidBuilder builder) throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
 
-        final String configPath = "assets/vm_config.json"; // path inside the APK
-        mMicrodroidDevice =
-                MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
-                        .debugLevel("full")
-                        .memoryMib(minMemorySize())
-                        .cpuTopology("match_host")
-                        .protectedVm(mProtectedVm)
-                        .build(getAndroidDevice());
+        mMicrodroidDevice = builder.build(getAndroidDevice());
         mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
         CommandRunner microdroid = new CommandRunner(mMicrodroidDevice);
 
@@ -805,6 +796,35 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                     .about(command_results())
                     .that(result)
                     .isSuccess();
+        }
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-1-2", "9.17/C/1-3"})
+    public void testMicrodroidBoots() throws Exception {
+        final String configPath = "assets/vm_config.json"; // path inside the APK
+        testMicrodroidBootsWithBuilder(
+                MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
+                        .debugLevel("full")
+                        .memoryMib(minMemorySize())
+                        .cpuTopology("match_host")
+                        .protectedVm(mProtectedVm));
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-1-2", "9.17/C/1-3"})
+    public void testMicrodroidBootsWithGki() throws Exception {
+        List<String> supportedVersions = getSupportedGKIVersions();
+        assumeFalse("no available gki", supportedVersions.isEmpty());
+        for (String ver : supportedVersions) {
+            final String configPath = "assets/vm_config.json"; // path inside the APK
+            testMicrodroidBootsWithBuilder(
+                    MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
+                            .debugLevel("full")
+                            .memoryMib(minMemorySize())
+                            .cpuTopology("match_host")
+                            .protectedVm(mProtectedVm)
+                            .gki(ver));
         }
     }
 
@@ -1031,21 +1051,28 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         && device.doesFileExist("/sys/bus/platform/drivers/vfio-platform"));
     }
 
-    private List<String> getAssignableDevices() throws Exception {
+    private List<String> parseStringArrayFieldsFromVmInfo(String header) throws Exception {
         CommandRunner android = new CommandRunner(getDevice());
         String result = android.run("/apex/com.android.virt/bin/vm", "info");
-        List<String> devices = new ArrayList<>();
+        List<String> ret = new ArrayList<>();
         for (String line : result.split("\n")) {
-            final String header = "Assignable devices: ";
             if (!line.startsWith(header)) continue;
 
             JSONArray jsonArray = new JSONArray(line.substring(header.length()));
             for (int i = 0; i < jsonArray.length(); i++) {
-                devices.add(jsonArray.getString(i));
+                ret.add(jsonArray.getString(i));
             }
             break;
         }
-        return devices;
+        return ret;
+    }
+
+    private List<String> getAssignableDevices() throws Exception {
+        return parseStringArrayFieldsFromVmInfo("Assignable devices: ");
+    }
+
+    private List<String> getSupportedGKIVersions() throws Exception {
+        return parseStringArrayFieldsFromVmInfo("Available gki versions: ");
     }
 
     private TestDevice getAndroidDevice() {
