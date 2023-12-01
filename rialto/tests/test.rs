@@ -26,10 +26,15 @@ use bssl_avf::{sha256, EcKey, EvpPKey};
 use ciborium::value::Value;
 use client_vm_csr::generate_attestation_key_and_csr;
 use coset::{CborSerializable, CoseMac0, CoseSign};
+use cstr::cstr;
+use diced_open_dice::{
+    retry_bcc_format_config_descriptor, retry_bcc_main_flow, Config, DiceArtifacts,
+    DiceConfigValues, DiceMode, InputValues, OwnedDiceArtifacts, HASH_SIZE, HIDDEN_SIZE,
+};
 use log::info;
 use service_vm_comm::{
     ClientVmAttestationParams, Csr, CsrPayload, EcdsaP256KeyPair, GenerateCertificateRequestParams,
-    Request, Response, VmType,
+    Request, RequestProcessingError, Response, VmType,
 };
 use service_vm_manager::ServiceVm;
 use std::fs;
@@ -48,6 +53,19 @@ use x509_parser::{
 const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
 const INSTANCE_IMG_PATH: &str = "/data/local/tmp/rialto_test/arm64/instance.img";
 const TEST_CERT_CHAIN_PATH: &str = "testdata/rkp_cert_chain.der";
+/// The following data are generated randomly with urandom.
+const CODE_HASH_MICRODROID: [u8; HASH_SIZE] = [
+    0x08, 0x78, 0xc2, 0x5b, 0xe7, 0xea, 0x3d, 0x62, 0x70, 0x22, 0xd9, 0x1c, 0x4f, 0x3c, 0x2e, 0x2f,
+    0x0f, 0x97, 0xa4, 0x6f, 0x6d, 0xd5, 0xe6, 0x4a, 0x6d, 0xbe, 0x34, 0x2e, 0x56, 0x04, 0xaf, 0xef,
+    0x74, 0x3f, 0xec, 0xb8, 0x44, 0x11, 0xf4, 0x2f, 0x05, 0xb2, 0x06, 0xa3, 0x0e, 0x75, 0xb7, 0x40,
+    0x9a, 0x4c, 0x58, 0xab, 0x96, 0xe7, 0x07, 0x97, 0x07, 0x86, 0x5c, 0xa1, 0x42, 0x12, 0xf0, 0x34,
+];
+const AUTHORITY_HASH_MICRODROID: [u8; HASH_SIZE] = [
+    0xc7, 0x97, 0x5b, 0xa9, 0x9e, 0xbf, 0x0b, 0xeb, 0xe7, 0x7f, 0x69, 0x8f, 0x8e, 0xcf, 0x04, 0x7d,
+    0x2c, 0x0f, 0x4d, 0xbe, 0xcb, 0xf5, 0xf1, 0x4c, 0x1d, 0x1c, 0xb7, 0x44, 0xdf, 0xf8, 0x40, 0x90,
+    0x09, 0x65, 0xab, 0x01, 0x34, 0x3e, 0xc2, 0xc4, 0xf7, 0xa2, 0x3a, 0x5c, 0x4e, 0x76, 0x4f, 0x42,
+    0xa8, 0x6c, 0xc9, 0xf1, 0x7b, 0x12, 0x80, 0xa4, 0xef, 0xa2, 0x4d, 0x72, 0xa1, 0x21, 0xe2, 0x47,
+];
 
 #[test]
 fn process_requests_in_protected_vm() -> Result<()> {
@@ -65,7 +83,7 @@ fn check_processing_requests(vm_type: VmType) -> Result<()> {
     check_processing_reverse_request(&mut vm)?;
     let key_pair = check_processing_generating_key_pair_request(&mut vm)?;
     check_processing_generating_certificate_request(&mut vm, &key_pair.maced_public_key)?;
-    check_attestation_request(&mut vm, &key_pair)?;
+    check_attestation_request(&mut vm, &key_pair, vm_type)?;
     Ok(())
 }
 
@@ -123,6 +141,7 @@ fn check_processing_generating_certificate_request(
 fn check_attestation_request(
     vm: &mut ServiceVm,
     remotely_provisioned_key_pair: &EcdsaP256KeyPair,
+    vm_type: VmType,
 ) -> Result<()> {
     /// The following data was generated randomly with urandom.
     const CHALLENGE: [u8; 16] = [
@@ -130,6 +149,7 @@ fn check_attestation_request(
         0x5c,
     ];
     let dice_artifacts = diced_sample_inputs::make_sample_bcc_and_cdis()?;
+    let dice_artifacts = extend_dice_artifacts_with_microdroid_payload(&dice_artifacts)?;
     let attestation_data = generate_attestation_key_and_csr(&CHALLENGE, &dice_artifacts)?;
     let cert_chain = fs::read(TEST_CERT_CHAIN_PATH)?;
     let (remaining, cert) = X509Certificate::from_der(&cert_chain)?;
@@ -151,6 +171,9 @@ fn check_attestation_request(
 
     match response {
         Response::RequestClientVmAttestation(certificate) => {
+            // The end-to-end test for non-protected VM attestation works because both the service
+            // VM and the client VM use the same fake DICE chain.
+            assert_eq!(vm_type, VmType::NonProtectedVm);
             check_certificate_for_client_vm(
                 &certificate,
                 &remotely_provisioned_key_pair.maced_public_key,
@@ -159,8 +182,41 @@ fn check_attestation_request(
             )?;
             Ok(())
         }
+        Response::Err(RequestProcessingError::InvalidDiceChain) => {
+            // The end-to-end test for protected VM attestation doesn't work because the service VM
+            // compares the fake DICE chain in the CSR with the real DICE chain.
+            // We cannot generate a valid DICE chain with the same payloads up to pvmfw.
+            assert_eq!(vm_type, VmType::ProtectedVm);
+            Ok(())
+        }
         _ => bail!("Incorrect response type: {response:?}"),
     }
+}
+
+fn extend_dice_artifacts_with_microdroid_payload(
+    dice_artifacts: &dyn DiceArtifacts,
+) -> Result<OwnedDiceArtifacts> {
+    let config_values = DiceConfigValues {
+        component_name: Some(cstr!("Microdroid payload")),
+        component_version: Some(1),
+        resettable: true,
+        ..Default::default()
+    };
+    let config_descriptor = retry_bcc_format_config_descriptor(&config_values)?;
+    let input_values = InputValues::new(
+        CODE_HASH_MICRODROID,
+        Config::Descriptor(config_descriptor.as_slice()),
+        AUTHORITY_HASH_MICRODROID,
+        DiceMode::kDiceModeDebug,
+        [0u8; HIDDEN_SIZE], // hidden
+    );
+    retry_bcc_main_flow(
+        dice_artifacts.cdi_attest(),
+        dice_artifacts.cdi_seal(),
+        dice_artifacts.bcc().unwrap(),
+        &input_values,
+    )
+    .context("Failed to run BCC main flow for Microdroid")
 }
 
 fn check_certificate_for_client_vm(
@@ -205,8 +261,13 @@ fn check_certificate_for_client_vm(
     let (remaining, extension) = parse_der(extension.value)?;
     assert!(remaining.is_empty());
     let attestation_ext = extension.as_sequence()?;
-    assert_eq!(1, attestation_ext.len());
+    assert_eq!(2, attestation_ext.len());
     assert_eq!(csr_payload.challenge, attestation_ext[0].as_slice()?);
+    let is_vm_secure = attestation_ext[1].as_bool()?;
+    assert!(
+        !is_vm_secure,
+        "The VM shouldn't be secure as the last payload added in the test is in Debug mode"
+    );
 
     // Checks other fields on the certificate
     assert_eq!(X509Version::V3, cert.version());
