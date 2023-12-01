@@ -17,15 +17,23 @@
 use crate::cbb::CbbFixed;
 use crate::digest::{Digester, DigesterContext};
 use crate::ec_key::EcKey;
-use crate::util::{check_int_result, to_call_failed_error};
+use crate::util::{
+    check_int_result, get_label_value, get_label_value_as_bytes, to_call_failed_error,
+};
 use alloc::vec::Vec;
-use bssl_avf_error::{ApiName, Result};
+use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
     CBB_flush, CBB_len, EVP_DigestVerify, EVP_DigestVerifyInit, EVP_PKEY_free, EVP_PKEY_new,
     EVP_PKEY_new_raw_public_key, EVP_PKEY_set1_EC_KEY, EVP_marshal_public_key, EVP_PKEY,
     EVP_PKEY_ED25519, EVP_PKEY_X25519,
 };
+use ciborium::Value;
 use core::ptr::{self, NonNull};
+use coset::{
+    iana::{self, EnumI64},
+    CoseKey, KeyType, Label,
+};
+use log::error;
 
 /// Wrapper of an `EVP_PKEY` object, representing a public or private key.
 pub struct PKey {
@@ -114,6 +122,43 @@ impl PKey {
         let pkey =
             NonNull::new(pkey).ok_or(to_call_failed_error(ApiName::EVP_PKEY_new_raw_public_key))?;
         Ok(Self { pkey, _inner_ec_key: None })
+    }
+
+    /// Creates a `PKey` from the given `cose_key`.
+    ///
+    /// The lifetime of the returned instance is not tied to the lifetime of the `cose_key` as the
+    /// data of `cose_key` is copied into the `EVP_PKEY` or `EC_KEY` object.
+    pub fn from_cose_public_key(cose_key: &CoseKey) -> Result<Self> {
+        match &cose_key.kty {
+            KeyType::Assigned(iana::KeyType::EC2) => {
+                EcKey::from_cose_public_key(cose_key)?.try_into()
+            }
+            KeyType::Assigned(iana::KeyType::OKP) => {
+                let curve_type =
+                    get_label_value(cose_key, Label::Int(iana::OkpKeyParameter::Crv.to_i64()))?;
+                let curve_type = match curve_type {
+                    crv if crv == &Value::from(iana::EllipticCurve::Ed25519.to_i64()) => {
+                        PKeyType::ED25519
+                    }
+                    crv if crv == &Value::from(iana::EllipticCurve::X25519.to_i64()) => {
+                        PKeyType::X25519
+                    }
+                    crv => {
+                        error!("Unsupported curve type in OKP COSE key: {:?}", crv);
+                        return Err(Error::Unimplemented);
+                    }
+                };
+                let x = get_label_value_as_bytes(
+                    cose_key,
+                    Label::Int(iana::OkpKeyParameter::X.to_i64()),
+                )?;
+                Self::new_raw_public_key(x, curve_type)
+            }
+            kty => {
+                error!("Unsupported key type in COSE key: {:?}", kty);
+                Err(Error::Unimplemented)
+            }
+        }
     }
 
     /// Verifies the given `signature` of the `message` using the current public key.

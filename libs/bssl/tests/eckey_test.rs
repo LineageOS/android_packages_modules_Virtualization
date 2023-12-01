@@ -72,7 +72,7 @@ fn check_cose_public_key_serialization(ec_key: &mut EcKey) -> Result<()> {
     ec_key.generate_key()?;
     let cose_key = ec_key.cose_public_key()?;
     let cose_key_data = cose_key.clone().to_vec().unwrap();
-    let deserialized_ec_key = EcKey::from_cose_public_key(&cose_key_data)?;
+    let deserialized_ec_key = EcKey::from_cose_public_key_slice(&cose_key_data)?;
 
     assert_eq!(cose_key, deserialized_ec_key.cose_public_key()?);
     Ok(())
@@ -88,7 +88,9 @@ fn ecdsa_p256_signing_and_verification_succeed() -> Result<()> {
 
     let signature = ec_key.ecdsa_sign(&digest)?;
     ec_key.ecdsa_verify(&signature, &digest)?;
-    let pkey: PKey = ec_key.try_into()?;
+    // Building a `PKey` from a temporary `CoseKey` should work as the lifetime
+    // of the `PKey` is not tied to the lifetime of the `CoseKey`.
+    let pkey = PKey::from_cose_public_key(&ec_key.cose_public_key()?)?;
     pkey.verify(&signature, MESSAGE1, Some(digester))
 }
 
@@ -101,7 +103,7 @@ fn ecdsa_p384_signing_and_verification_succeed() -> Result<()> {
 
     let signature = ec_key.ecdsa_sign(&digest)?;
     ec_key.ecdsa_verify(&signature, &digest)?;
-    let pkey: PKey = ec_key.try_into()?;
+    let pkey = PKey::from_cose_public_key(&ec_key.cose_public_key()?)?;
     pkey.verify(&signature, MESSAGE1, Some(digester))
 }
 
