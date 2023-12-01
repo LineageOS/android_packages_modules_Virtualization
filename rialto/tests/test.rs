@@ -22,7 +22,7 @@ use android_system_virtualizationservice::{
     binder::{ParcelFileDescriptor, ProcessState},
 };
 use anyhow::{bail, Context, Result};
-use bssl_avf::{sha256, EcKey, EvpPKey};
+use bssl_avf::{sha256, EcKey, PKey};
 use ciborium::value::Value;
 use client_vm_csr::generate_attestation_key_and_csr;
 use coset::{CborSerializable, CoseMac0, CoseSign};
@@ -246,7 +246,7 @@ fn check_certificate_for_client_vm(
         cose_sign.payload.as_ref().and_then(|v| CsrPayload::from_cbor_slice(v).ok()).unwrap();
     let subject_public_key = EcKey::from_cose_public_key(&csr_payload.public_key).unwrap();
     let expected_spki_data =
-        EvpPKey::try_from(subject_public_key).unwrap().subject_public_key_info().unwrap();
+        PKey::try_from(subject_public_key).unwrap().subject_public_key_info().unwrap();
     let (remaining, expected_spki) = SubjectPublicKeyInfo::from_der(&expected_spki_data)?;
     assert!(remaining.is_empty());
     assert_eq!(&expected_spki, cert.public_key());
