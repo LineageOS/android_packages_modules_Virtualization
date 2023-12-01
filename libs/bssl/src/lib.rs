@@ -21,6 +21,7 @@ extern crate alloc;
 mod aead;
 mod cbb;
 mod cbs;
+mod curve25519;
 mod digest;
 mod ec_key;
 mod err;
@@ -36,6 +37,7 @@ pub use bssl_avf_error::{ApiName, CipherError, EcError, EcdsaError, Error, Reaso
 pub use aead::{Aead, AeadContext, AES_GCM_NONCE_LENGTH};
 pub use cbb::CbbFixed;
 pub use cbs::Cbs;
+pub use curve25519::ed25519_verify;
 pub use digest::Digester;
 pub use ec_key::{EcKey, ZVec};
 pub use evp::{PKey, PKeyType};
