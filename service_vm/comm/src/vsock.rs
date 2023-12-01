@@ -18,7 +18,7 @@ const PROTECTED_VM_PORT: u32 = 5679;
 const NON_PROTECTED_VM_PORT: u32 = 5680;
 
 /// VM Type.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VmType {
     /// Protected VM.
     ProtectedVm,
