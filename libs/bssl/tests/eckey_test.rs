@@ -82,12 +82,27 @@ fn check_cose_public_key_serialization(ec_key: &mut EcKey) -> Result<()> {
 fn ecdsa_p256_signing_and_verification_succeed() -> Result<()> {
     let mut ec_key = EcKey::new_p256()?;
     ec_key.generate_key()?;
-    let digest = sha256(MESSAGE1)?;
+    let digester = Digester::sha256();
+    let digest = digester.digest(MESSAGE1)?;
+    assert_eq!(digest, sha256(MESSAGE1)?);
 
     let signature = ec_key.ecdsa_sign(&digest)?;
     ec_key.ecdsa_verify(&signature, &digest)?;
     let pkey: PKey = ec_key.try_into()?;
-    pkey.verify(&signature, MESSAGE1, Some(Digester::sha256()))
+    pkey.verify(&signature, MESSAGE1, Some(digester))
+}
+
+#[test]
+fn ecdsa_p384_signing_and_verification_succeed() -> Result<()> {
+    let mut ec_key = EcKey::new_p384()?;
+    ec_key.generate_key()?;
+    let digester = Digester::sha384();
+    let digest = digester.digest(MESSAGE1)?;
+
+    let signature = ec_key.ecdsa_sign(&digest)?;
+    ec_key.ecdsa_verify(&signature, &digest)?;
+    let pkey: PKey = ec_key.try_into()?;
+    pkey.verify(&signature, MESSAGE1, Some(digester))
 }
 
 #[test]

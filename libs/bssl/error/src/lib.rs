@@ -81,6 +81,7 @@ pub enum ApiName {
     EVP_AEAD_CTX_new,
     EVP_AEAD_CTX_open,
     EVP_AEAD_CTX_seal,
+    EVP_Digest,
     EVP_MD_CTX_new,
     EVP_PKEY_new,
     EVP_PKEY_new_raw_public_key,
