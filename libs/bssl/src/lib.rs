@@ -38,7 +38,7 @@ pub use cbb::CbbFixed;
 pub use cbs::Cbs;
 pub use digest::Digester;
 pub use ec_key::{EcKey, ZVec};
-pub use evp::EvpPKey;
+pub use evp::PKey;
 pub use hkdf::hkdf;
 pub use hmac::hmac_sha256;
 pub use rand::rand_bytes;

@@ -26,14 +26,14 @@ use bssl_ffi::{
 use core::ptr::NonNull;
 
 /// Wrapper of an `EVP_PKEY` object, representing a public or private key.
-pub struct EvpPKey {
+pub struct PKey {
     pkey: NonNull<EVP_PKEY>,
     /// Since this struct owns the inner key, the inner key remains valid as
     /// long as the pointer to `EVP_PKEY` is valid.
     _inner_key: EcKey,
 }
 
-impl Drop for EvpPKey {
+impl Drop for PKey {
     fn drop(&mut self) {
         // SAFETY: It is safe because `EVP_PKEY` has been allocated by BoringSSL and isn't
         // used after this.
@@ -48,7 +48,7 @@ fn new_pkey() -> Result<NonNull<EVP_PKEY>> {
     NonNull::new(key).ok_or(to_call_failed_error(ApiName::EVP_PKEY_new))
 }
 
-impl TryFrom<EcKey> for EvpPKey {
+impl TryFrom<EcKey> for PKey {
     type Error = bssl_avf_error::Error;
 
     fn try_from(key: EcKey) -> Result<Self> {
@@ -64,7 +64,7 @@ impl TryFrom<EcKey> for EvpPKey {
     }
 }
 
-impl EvpPKey {
+impl PKey {
     /// Returns a DER-encoded SubjectPublicKeyInfo structure as specified
     /// in RFC 5280 s4.1.2.7:
     ///
