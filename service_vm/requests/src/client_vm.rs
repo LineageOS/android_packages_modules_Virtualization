@@ -19,7 +19,7 @@ use crate::cert;
 use crate::dice::{validate_client_vm_dice_chain_prefix_match, ClientVmDiceChain};
 use crate::keyblob::decrypt_private_key;
 use alloc::vec::Vec;
-use bssl_avf::{rand_bytes, sha256, EcKey, EvpPKey};
+use bssl_avf::{rand_bytes, sha256, EcKey, PKey};
 use core::result;
 use coset::{CborSerializable, CoseSign};
 use der::{Decode, Encode};
@@ -66,7 +66,7 @@ pub(super) fn request_attestation(
     cose_sign.verify_signature(ATTESTATION_KEY_SIGNATURE_INDEX, aad, |signature, message| {
         ecdsa_verify(&ec_public_key, signature, message)
     })?;
-    let subject_public_key_info = EvpPKey::try_from(ec_public_key)?.subject_public_key_info()?;
+    let subject_public_key_info = PKey::try_from(ec_public_key)?.subject_public_key_info()?;
 
     // Builds the TBSCertificate.
     // The serial number can be up to 20 bytes according to RFC5280 s4.1.2.2.
