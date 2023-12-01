@@ -34,7 +34,6 @@ rust_ffi_static {
         "libvmbase",
         "libzerocopy_nostd",
         "libzeroize_nostd",
-        "libspin_nostd",
     ],
 }
 
