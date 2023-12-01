@@ -169,21 +169,6 @@ fn parse_remote_new_ro_dir_option(option: &str) -> Result<OptionRemoteRoDir> {
     })
 }
 
-fn from_hex_string(s: &str) -> Result<Vec<u8>> {
-    if s.len() % 2 == 1 {
-        bail!("Incomplete hex string: {}", s);
-    } else {
-        let results = (0..s.len())
-            .step_by(2)
-            .map(|i| {
-                u8::from_str_radix(&s[i..i + 2], 16)
-                    .map_err(|e| anyhow!("Cannot parse hex {}: {}", &s[i..i + 2], e))
-            })
-            .collect::<Result<Vec<_>>>();
-        Ok(results?)
-    }
-}
-
 fn new_remote_verified_file_entry(
     service: file::VirtFdService,
     remote_fd: i32,
@@ -193,7 +178,7 @@ fn new_remote_verified_file_entry(
         reader: LazyVerifiedReadonlyFile::prepare_by_fd(
             service,
             remote_fd,
-            from_hex_string(expected_digest)?,
+            hex::decode(expected_digest)?,
         ),
     })
 }
@@ -330,20 +315,5 @@ fn main() {
     if let Err(e) = try_main() {
         error!("failed with {:?}", e);
         std::process::exit(1);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_hex_string() {
-        assert_eq!(from_hex_string("deadbeef").unwrap(), vec![0xde, 0xad, 0xbe, 0xef]);
-        assert_eq!(from_hex_string("DEADBEEF").unwrap(), vec![0xde, 0xad, 0xbe, 0xef]);
-        assert_eq!(from_hex_string("").unwrap(), Vec::<u8>::new());
-
-        assert!(from_hex_string("deadbee").is_err());
-        assert!(from_hex_string("X").is_err());
     }
 }
