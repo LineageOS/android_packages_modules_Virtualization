@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bssl_avf::{sha256, ApiName, EcKey, EcdsaError, Error, EvpPKey, Result};
+use bssl_avf::{sha256, ApiName, EcKey, EcdsaError, Error, PKey, Result};
 use coset::CborSerializable;
 use spki::{
     der::{AnyRef, Decode},
@@ -43,7 +43,7 @@ fn ec_private_key_serialization() -> Result<()> {
 fn subject_public_key_info_serialization() -> Result<()> {
     let mut ec_key = EcKey::new_p256()?;
     ec_key.generate_key()?;
-    let pkey: EvpPKey = ec_key.try_into()?;
+    let pkey: PKey = ec_key.try_into()?;
     let subject_public_key_info = pkey.subject_public_key_info()?;
 
     let subject_public_key_info = SubjectPublicKeyInfo::from_der(&subject_public_key_info).unwrap();
