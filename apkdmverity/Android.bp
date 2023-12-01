@@ -15,6 +15,7 @@ rust_defaults {
         "libbitflags",
         "libclap",
         "libdm_rust",
+        "libhex",
         "libitertools",
         "liblibc",
         "libnix",
