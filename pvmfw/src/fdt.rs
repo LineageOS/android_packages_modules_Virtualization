@@ -201,6 +201,22 @@ fn patch_num_cpus(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
     Ok(())
 }
 
+fn read_vendor_public_key_from(fdt: &Fdt) -> libfdt::Result<Option<Vec<u8>>> {
+    if let Some(avf_node) = fdt.node(cstr!("/avf"))? {
+        if let Some(vendor_public_key) = avf_node.getprop(cstr!("vendor_public_key"))? {
+            return Ok(Some(vendor_public_key.to_vec()));
+        }
+    }
+    Ok(None)
+}
+
+fn patch_vendor_public_key(fdt: &mut Fdt, vendor_public_key: &[u8]) -> libfdt::Result<()> {
+    let mut root_node = fdt.root_mut()?;
+    let mut avf_node = root_node.add_subnode(cstr!("/avf"))?;
+    avf_node.setprop(cstr!("vendor_public_key"), vendor_public_key)?;
+    Ok(())
+}
+
 #[derive(Debug)]
 struct PciInfo {
     ranges: [PciAddrRange; 2],
@@ -593,6 +609,7 @@ pub struct DeviceTreeInfo {
     serial_info: SerialInfo,
     pub swiotlb_info: SwiotlbInfo,
     device_assignment: Option<DeviceAssignmentInfo>,
+    vendor_public_key: Option<Vec<u8>>,
 }
 
 impl DeviceTreeInfo {
@@ -701,6 +718,18 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         None => None,
     };
 
+    // TODO(b/285854379) : A temporary solution lives. This is for enabling
+    // microdroid vendor partition for non-protected VM as well. When passing
+    // DT path containing vendor_public_key via fstab, init stage will check
+    // if vendor_public_key exists in the init stage, regardless the protection.
+    // Adding this temporary solution will prevent fatal in init stage for
+    // protected VM. However, this data is not trustable without validating
+    // with vendor public key value comes from ABL.
+    let vendor_public_key = read_vendor_public_key_from(fdt).map_err(|e| {
+        error!("Failed to read vendor_public_key from DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
     Ok(DeviceTreeInfo {
         kernel_range,
         initrd_range,
@@ -711,6 +740,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         serial_info,
         swiotlb_info,
         device_assignment,
+        vendor_public_key,
     })
 }
 
@@ -765,6 +795,12 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
         // then VM DTBO's underlying slice is allocated.
         device_assignment.patch(fdt).map_err(|e| {
             error!("Failed to patch device assignment info to DT: {e}");
+            RebootReason::InvalidFdt
+        })?;
+    }
+    if let Some(vendor_public_key) = &info.vendor_public_key {
+        patch_vendor_public_key(fdt, vendor_public_key).map_err(|e| {
+            error!("Failed to patch vendor_public_key to DT: {e}");
             RebootReason::InvalidFdt
         })?;
     }
