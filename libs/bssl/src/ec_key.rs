@@ -17,7 +17,9 @@
 
 use crate::cbb::CbbFixed;
 use crate::cbs::Cbs;
-use crate::util::{check_int_result, to_call_failed_error};
+use crate::util::{
+    check_int_result, get_label_value, get_label_value_as_bytes, to_call_failed_error,
+};
 use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
@@ -33,7 +35,7 @@ use ciborium::Value;
 use core::ptr::{self, NonNull};
 use coset::{
     iana::{self, EnumI64},
-    CborSerializable, CoseKey, CoseKeyBuilder, Label,
+    CborSerializable, CoseKey, CoseKeyBuilder, KeyType, Label,
 };
 use log::error;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
@@ -79,13 +81,27 @@ impl EcKey {
     }
 
     /// Constructs an `EcKey` instance from the provided COSE_Key encoded public key slice.
-    pub fn from_cose_public_key(cose_key: &[u8]) -> Result<Self> {
+    pub fn from_cose_public_key_slice(cose_key: &[u8]) -> Result<Self> {
         let cose_key = CoseKey::from_slice(cose_key).map_err(|e| {
             error!("Failed to deserialize COSE_Key: {e:?}");
             Error::CoseKeyDecodingFailed
         })?;
+        Self::from_cose_public_key(&cose_key)
+    }
+
+    /// Constructs an `EcKey` instance from the provided `COSE_Key`.
+    ///
+    /// The lifetime of the returned `EcKey` is not tied to the lifetime of the `cose_key`,
+    /// because the affine coordinates stored in the `cose_key` are copied into the `EcKey`.
+    ///
+    /// Currently, only the EC P-256 and P-384 curves are supported.
+    pub fn from_cose_public_key(cose_key: &CoseKey) -> Result<Self> {
+        if cose_key.kty != KeyType::Assigned(iana::KeyType::EC2) {
+            error!("Only EC2 keys are supported. Key type in the COSE Key: {:?}", cose_key.kty);
+            return Err(Error::Unimplemented);
+        }
         let ec_key =
-            match get_label_value(&cose_key, Label::Int(iana::Ec2KeyParameter::Crv.to_i64()))? {
+            match get_label_value(cose_key, Label::Int(iana::Ec2KeyParameter::Crv.to_i64()))? {
                 crv if crv == &Value::from(P256_CURVE.to_i64()) => EcKey::new_p256()?,
                 crv if crv == &Value::from(P384_CURVE.to_i64()) => EcKey::new_p384()?,
                 crv => {
@@ -96,8 +112,8 @@ impl EcKey {
                     return Err(Error::Unimplemented);
                 }
             };
-        let x = get_label_value_as_bytes(&cose_key, Label::Int(iana::Ec2KeyParameter::X.to_i64()))?;
-        let y = get_label_value_as_bytes(&cose_key, Label::Int(iana::Ec2KeyParameter::Y.to_i64()))?;
+        let x = get_label_value_as_bytes(cose_key, Label::Int(iana::Ec2KeyParameter::X.to_i64()))?;
+        let y = get_label_value_as_bytes(cose_key, Label::Int(iana::Ec2KeyParameter::Y.to_i64()))?;
 
         let group = ec_key.ec_group()?;
         group.check_affine_coordinate_size(x)?;
@@ -307,17 +323,6 @@ impl EcKey {
         let len = unsafe { CBB_len(cbb.as_ref()) };
         Ok(buf.get(0..len).ok_or(to_call_failed_error(ApiName::CBB_len))?.to_vec().into())
     }
-}
-
-fn get_label_value_as_bytes(key: &CoseKey, label: Label) -> Result<&[u8]> {
-    Ok(get_label_value(key, label)?.as_bytes().ok_or_else(|| {
-        error!("Value not a bstr.");
-        Error::CoseKeyDecodingFailed
-    })?)
-}
-
-fn get_label_value(key: &CoseKey, label: Label) -> Result<&Value> {
-    Ok(&key.params.iter().find(|(k, _)| k == &label).ok_or(Error::CoseKeyDecodingFailed)?.1)
 }
 
 /// Wrapper of an `EC_GROUP` reference.
