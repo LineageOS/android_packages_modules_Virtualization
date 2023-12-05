@@ -265,60 +265,60 @@
 	pviommu_0: pviommu0 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_1: pviommu1 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_2: pviommu2 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_3: pviommu3 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_4: pviommu4 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_5: pviommu5 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_6: pviommu6 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_7: pviommu7 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_8: pviommu8 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 
 	pviommu_9: pviommu9 {
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
-		#iommu-cells = <0>;
+		#iommu-cells = <1>;
 	};
 };
