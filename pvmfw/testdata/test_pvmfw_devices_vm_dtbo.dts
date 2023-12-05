@@ -21,6 +21,33 @@
 			light {
 				compatible = "android,light";
 				version = <0x1 0x2>;
+				android,pvmfw,phy-reg = <0x0 0xF00000 0x1000>;
+				android,pvmfw,phy-iommu = <0x0 0x40000>, <0x0 0x50000>;
+				android,pvmfw,phy-sid = <4>, <5>;
+			};
+		};
+	};
+
+	fragment@led {
+		target-path = "/";
+		__overlay__ {
+			led {
+				compatible = "android,led";
+				prop = <0x555>;
+				android,pvmfw,phy-reg = <0x0 0x12000000 0x1000>;
+				android,pvmfw,phy-iommu = <0x0 0x12E40000>;
+				android,pvmfw,phy-sid = <3>;
+			};
+		};
+	};
+
+	fragment@backlight {
+		target-path = "/";
+		__overlay__ {
+			backlight {
+				compatible = "android,backlight";
+				android,backlight,ignore-gctrl-reset;
+				android,pvmfw,phy-reg = <0x0 0x300 0x100>;
 			};
 		};
 	};
@@ -28,5 +55,7 @@
 	__symbols__ {
 		rng = "/fragment@rng/__overlay__/rng";
 		sensor = "/fragment@sensor/__overlay__/light";
+		led = "/fragment@led/__overlay__/led";
+		backlight = "/fragment@backlight/__overlay__/backlight";
 	};
 };
