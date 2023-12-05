@@ -226,7 +226,8 @@ fn check_certificate_for_client_vm(
     parent_certificate: &X509Certificate,
 ) -> Result<()> {
     let cose_mac = CoseMac0::from_slice(maced_public_key)?;
-    let authority_public_key = EcKey::from_cose_public_key(&cose_mac.payload.unwrap()).unwrap();
+    let authority_public_key =
+        EcKey::from_cose_public_key_slice(&cose_mac.payload.unwrap()).unwrap();
     let (remaining, cert) = X509Certificate::from_der(certificate)?;
     assert!(remaining.is_empty());
 
@@ -244,7 +245,7 @@ fn check_certificate_for_client_vm(
     let cose_sign = CoseSign::from_slice(&csr.signed_csr_payload)?;
     let csr_payload =
         cose_sign.payload.as_ref().and_then(|v| CsrPayload::from_cbor_slice(v).ok()).unwrap();
-    let subject_public_key = EcKey::from_cose_public_key(&csr_payload.public_key).unwrap();
+    let subject_public_key = EcKey::from_cose_public_key_slice(&csr_payload.public_key).unwrap();
     let expected_spki_data =
         PKey::try_from(subject_public_key).unwrap().subject_public_key_info().unwrap();
     let (remaining, expected_spki) = SubjectPublicKeyInfo::from_der(&expected_spki_data)?;
