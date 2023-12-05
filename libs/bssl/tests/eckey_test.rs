@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bssl_avf::{sha256, ApiName, EcKey, EcdsaError, Error, PKey, Result};
+use bssl_avf::{sha256, ApiName, Digester, EcKey, EcdsaError, Error, PKey, Result};
 use coset::CborSerializable;
 use spki::{
     der::{AnyRef, Decode},
@@ -72,7 +72,7 @@ fn check_cose_public_key_serialization(ec_key: &mut EcKey) -> Result<()> {
     ec_key.generate_key()?;
     let cose_key = ec_key.cose_public_key()?;
     let cose_key_data = cose_key.clone().to_vec().unwrap();
-    let deserialized_ec_key = EcKey::from_cose_public_key(&cose_key_data)?;
+    let deserialized_ec_key = EcKey::from_cose_public_key_slice(&cose_key_data)?;
 
     assert_eq!(cose_key, deserialized_ec_key.cose_public_key()?);
     Ok(())
@@ -82,10 +82,29 @@ fn check_cose_public_key_serialization(ec_key: &mut EcKey) -> Result<()> {
 fn ecdsa_p256_signing_and_verification_succeed() -> Result<()> {
     let mut ec_key = EcKey::new_p256()?;
     ec_key.generate_key()?;
-    let digest = sha256(MESSAGE1)?;
+    let digester = Digester::sha256();
+    let digest = digester.digest(MESSAGE1)?;
+    assert_eq!(digest, sha256(MESSAGE1)?);
 
     let signature = ec_key.ecdsa_sign(&digest)?;
-    ec_key.ecdsa_verify(&signature, &digest)
+    ec_key.ecdsa_verify(&signature, &digest)?;
+    // Building a `PKey` from a temporary `CoseKey` should work as the lifetime
+    // of the `PKey` is not tied to the lifetime of the `CoseKey`.
+    let pkey = PKey::from_cose_public_key(&ec_key.cose_public_key()?)?;
+    pkey.verify(&signature, MESSAGE1, Some(digester))
+}
+
+#[test]
+fn ecdsa_p384_signing_and_verification_succeed() -> Result<()> {
+    let mut ec_key = EcKey::new_p384()?;
+    ec_key.generate_key()?;
+    let digester = Digester::sha384();
+    let digest = digester.digest(MESSAGE1)?;
+
+    let signature = ec_key.ecdsa_sign(&digest)?;
+    ec_key.ecdsa_verify(&signature, &digest)?;
+    let pkey = PKey::from_cose_public_key(&ec_key.cose_public_key()?)?;
+    pkey.verify(&signature, MESSAGE1, Some(digester))
 }
 
 #[test]
@@ -99,6 +118,12 @@ fn verifying_ecdsa_p256_signed_with_a_different_key_fails() -> Result<()> {
     ec_key2.generate_key()?;
     let err = ec_key2.ecdsa_verify(&signature, &digest).unwrap_err();
     let expected_err = Error::CallFailed(ApiName::ECDSA_verify, EcdsaError::BadSignature.into());
+    assert_eq!(expected_err, err);
+
+    let pkey: PKey = ec_key2.try_into()?;
+    let err = pkey.verify(&signature, MESSAGE1, Some(Digester::sha256())).unwrap_err();
+    let expected_err =
+        Error::CallFailed(ApiName::EVP_DigestVerify, EcdsaError::BadSignature.into());
     assert_eq!(expected_err, err);
     Ok(())
 }

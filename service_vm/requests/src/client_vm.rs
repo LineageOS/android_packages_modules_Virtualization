@@ -62,7 +62,7 @@ pub(super) fn request_attestation(
     // the DICE chain in `cose_sign`.
 
     // Verifies the second signature with the public key in the CSR payload.
-    let ec_public_key = EcKey::from_cose_public_key(&csr_payload.public_key)?;
+    let ec_public_key = EcKey::from_cose_public_key_slice(&csr_payload.public_key)?;
     cose_sign.verify_signature(ATTESTATION_KEY_SIGNATURE_INDEX, aad, |signature, message| {
         ecdsa_verify(&ec_public_key, signature, message)
     })?;
