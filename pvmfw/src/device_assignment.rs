@@ -452,8 +452,8 @@ mod tests {
     const VM_DTBO_FILE_PATH: &str = "test_pvmfw_devices_vm_dtbo.dtbo";
     const VM_DTBO_WITHOUT_SYMBOLS_FILE_PATH: &str =
         "test_pvmfw_devices_vm_dtbo_without_symbols.dtbo";
+    const FDT_WITHOUT_IOMMUS_FILE_PATH: &str = "test_pvmfw_devices_without_iommus.dtb";
     const FDT_FILE_PATH: &str = "test_pvmfw_devices_with_rng.dtb";
-    const FDT_WITH_IOMMU_FILE_PATH: &str = "test_pvmfw_devices_with_rng_iommu.dtb";
     const FDT_WITH_MULTIPLE_DEVICES_IOMMUS_FILE_PATH: &str =
         "test_pvmfw_devices_with_multiple_devices_iommus.dtb";
     const FDT_WITH_IOMMU_SHARING: &str = "test_pvmfw_devices_with_iommu_sharing.dtb";
@@ -464,7 +464,7 @@ mod tests {
         path: CString,
         reg: Vec<u8>,
         interrupts: Vec<u8>,
-        iommus: Vec<u32>, // pvIOMMU ids
+        iommus: Vec<u32>, // pvIOMMU id and vSID
     }
 
     impl AssignedDeviceNode {
@@ -536,6 +536,26 @@ mod tests {
     }
 
     #[test]
+    fn device_info_assigned_info_without_iommus() {
+        let mut fdt_data = fs::read(FDT_WITHOUT_IOMMUS_FILE_PATH).unwrap();
+        let mut vm_dtbo_data = fs::read(VM_DTBO_FILE_PATH).unwrap();
+        let fdt = Fdt::from_mut_slice(&mut fdt_data).unwrap();
+        let vm_dtbo = VmDtbo::from_mut_slice(&mut vm_dtbo_data).unwrap();
+
+        let device_info = DeviceAssignmentInfo::parse(fdt, vm_dtbo).unwrap().unwrap();
+
+        let expected = [AssignedDeviceInfo {
+            node_path: CString::new("/backlight").unwrap(),
+            dtbo_node_path: cstr!("/fragment@backlight/__overlay__/backlight").into(),
+            reg: into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]),
+            interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
+            iommus: vec![],
+        }];
+
+        assert_eq!(device_info.assigned_devices, expected);
+    }
+
+    #[test]
     fn device_info_assigned_info() {
         let mut fdt_data = fs::read(FDT_FILE_PATH).unwrap();
         let mut vm_dtbo_data = fs::read(VM_DTBO_FILE_PATH).unwrap();
@@ -549,7 +569,7 @@ mod tests {
             dtbo_node_path: cstr!("/fragment@rng/__overlay__/rng").into(),
             reg: into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]),
             interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
-            iommus: vec![],
+            iommus: vec![(PvIommu { id: 0x4 }, Vsid(0xFF0))],
         }];
 
         assert_eq!(device_info.assigned_devices, expected);
@@ -585,13 +605,19 @@ mod tests {
         let light = vm_dtbo.node(cstr!("/fragment@rng/__overlay__/light")).unwrap();
         assert_eq!(light, None);
 
+        let led = vm_dtbo.node(cstr!("/fragment@led/__overlay__/led")).unwrap();
+        assert_eq!(led, None);
+
+        let backlight = vm_dtbo.node(cstr!("/fragment@backlight/__overlay__/backlight")).unwrap();
+        assert_eq!(backlight, None);
+
         let symbols_node = vm_dtbo.symbols().unwrap();
         assert_eq!(symbols_node, None);
     }
 
     #[test]
     fn device_info_patch() {
-        let mut fdt_data = fs::read(FDT_FILE_PATH).unwrap();
+        let mut fdt_data = fs::read(FDT_WITHOUT_IOMMUS_FILE_PATH).unwrap();
         let mut vm_dtbo_data = fs::read(VM_DTBO_FILE_PATH).unwrap();
         let mut data = vec![0_u8; fdt_data.len() + vm_dtbo_data.len()];
         let fdt = Fdt::from_mut_slice(&mut fdt_data).unwrap();
@@ -610,14 +636,14 @@ mod tests {
         // Note: Intentionally not using AssignedDeviceNode for matching all props.
         type FdtResult<T> = libfdt::Result<T>;
         let expected: Vec<(FdtResult<&CStr>, FdtResult<Vec<u8>>)> = vec![
-            (Ok(cstr!("android,rng,ignore-gctrl-reset")), Ok(Vec::new())),
-            (Ok(cstr!("compatible")), Ok(Vec::from(*b"android,rng\0"))),
+            (Ok(cstr!("android,backlight,ignore-gctrl-reset")), Ok(Vec::new())),
+            (Ok(cstr!("compatible")), Ok(Vec::from(*b"android,backlight\0"))),
             (Ok(cstr!("interrupts")), Ok(into_fdt_prop(vec![0x0, 0xF, 0x4]))),
             (Ok(cstr!("iommus")), Ok(Vec::new())),
             (Ok(cstr!("reg")), Ok(into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]))),
         ];
 
-        let rng_node = platform_dt.node(cstr!("/rng")).unwrap().unwrap();
+        let rng_node = platform_dt.node(cstr!("/backlight")).unwrap().unwrap();
         let mut properties: Vec<_> = rng_node
             .properties()
             .unwrap()
@@ -634,7 +660,7 @@ mod tests {
 
     #[test]
     fn device_info_overlay_iommu() {
-        let mut fdt_data = fs::read(FDT_WITH_IOMMU_FILE_PATH).unwrap();
+        let mut fdt_data = fs::read(FDT_FILE_PATH).unwrap();
         let mut vm_dtbo_data = fs::read(VM_DTBO_FILE_PATH).unwrap();
         let fdt = Fdt::from_mut_slice(&mut fdt_data).unwrap();
         let vm_dtbo = VmDtbo::from_mut_slice(&mut vm_dtbo_data).unwrap();
@@ -691,13 +717,13 @@ mod tests {
                 path: CString::new("/rng").unwrap(),
                 reg: into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]),
                 interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
-                iommus: vec![0x4, 0xFF0, 0x9, 0xFF1],
+                iommus: vec![0x4, 0xFF0],
             },
             AssignedDeviceNode {
                 path: CString::new("/light").unwrap(),
                 reg: into_fdt_prop(vec![0x100, 0x9]),
                 interrupts: into_fdt_prop(vec![0x0, 0xF, 0x5]),
-                iommus: vec![0x40, 0xFFA, 0x50, 0xFFB, 0x60, 0xFFC],
+                iommus: vec![0x40, 0xFFA, 0x50, 0xFFB],
             },
         ];
 
@@ -706,7 +732,7 @@ mod tests {
             assert_eq!(node, Ok(expected));
         }
         let pviommus = collect_pviommus(platform_dt);
-        assert_eq!(pviommus, Ok(vec![0x4, 0x9, 0x40, 0x50, 0x60]));
+        assert_eq!(pviommus, Ok(vec![0x4, 0x40, 0x50]));
     }
 
     #[test]
@@ -734,13 +760,13 @@ mod tests {
                 path: CString::new("/rng").unwrap(),
                 reg: into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]),
                 interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
-                iommus: vec![0x4, 0xFF0, 0x9, 0xFF1],
+                iommus: vec![0x4, 0xFF0],
             },
             AssignedDeviceNode {
-                path: CString::new("/light").unwrap(),
+                path: CString::new("/led").unwrap(),
                 reg: into_fdt_prop(vec![0x100, 0x9]),
                 interrupts: into_fdt_prop(vec![0x0, 0xF, 0x5]),
-                iommus: vec![0x9, 0xFF1, 0x40, 0xFFA],
+                iommus: vec![0x4, 0xFF0],
             },
         ];
 
@@ -750,7 +776,7 @@ mod tests {
         }
 
         let pviommus = collect_pviommus(platform_dt);
-        assert_eq!(pviommus, Ok(vec![0x4, 0x9, 0x40]));
+        assert_eq!(pviommus, Ok(vec![0x4]));
     }
 
     #[test]
