@@ -31,7 +31,9 @@ use service_vm_comm::{
     ClientVmAttestationParams, Csr, CsrPayload, EcdsaP256KeyPair, GenerateCertificateRequestParams,
     Request, RequestProcessingError, Response, VmType,
 };
-use service_vm_fake_chain::client_vm::fake_client_vm_dice_artifacts;
+use service_vm_fake_chain::client_vm::{
+    fake_client_vm_dice_artifacts, fake_sub_components, SubComponent,
+};
 use service_vm_manager::ServiceVm;
 use std::fs;
 use std::fs::File;
@@ -41,7 +43,7 @@ use std::path::PathBuf;
 use vmclient::VmInstance;
 use x509_parser::{
     certificate::X509Certificate,
-    der_parser::{der::parse_der, oid, oid::Oid},
+    der_parser::{ber::BerObject, der::parse_der, oid, oid::Oid},
     prelude::FromDer,
     x509::{AlgorithmIdentifier, SubjectPublicKeyInfo, X509Version},
 };
@@ -175,6 +177,25 @@ fn check_attestation_request(
     }
 }
 
+fn check_vm_components(vm_components: &[BerObject]) -> Result<()> {
+    let expected_components = fake_sub_components();
+    assert_eq!(expected_components.len(), vm_components.len());
+    for i in 0..expected_components.len() {
+        check_vm_component(&vm_components[i], &expected_components[i])?;
+    }
+    Ok(())
+}
+
+fn check_vm_component(vm_component: &BerObject, expected_component: &SubComponent) -> Result<()> {
+    let vm_component = vm_component.as_sequence()?;
+    assert_eq!(4, vm_component.len());
+    assert_eq!(expected_component.name, vm_component[0].as_str()?);
+    assert_eq!(expected_component.version, vm_component[1].as_u64()?);
+    assert_eq!(expected_component.code_hash, vm_component[2].as_slice()?);
+    assert_eq!(expected_component.authority_hash, vm_component[3].as_slice()?);
+    Ok(())
+}
+
 fn check_certificate_for_client_vm(
     certificate: &[u8],
     maced_public_key: &[u8],
@@ -218,13 +239,15 @@ fn check_certificate_for_client_vm(
     let (remaining, extension) = parse_der(extension.value)?;
     assert!(remaining.is_empty());
     let attestation_ext = extension.as_sequence()?;
-    assert_eq!(2, attestation_ext.len());
+    assert_eq!(3, attestation_ext.len());
     assert_eq!(csr_payload.challenge, attestation_ext[0].as_slice()?);
     let is_vm_secure = attestation_ext[1].as_bool()?;
     assert!(
         !is_vm_secure,
         "The VM shouldn't be secure as the last payload added in the test is in Debug mode"
     );
+    let vm_components = attestation_ext[2].as_sequence()?;
+    check_vm_components(vm_components)?;
 
     // Checks other fields on the certificate
     assert_eq!(X509Version::V3, cert.version());

@@ -14,9 +14,11 @@
 
 //! Generation of certificates and attestation extensions.
 
+use crate::dice::SubComponent;
 use alloc::vec;
+use alloc::vec::Vec;
 use der::{
-    asn1::{BitStringRef, ObjectIdentifier, UIntRef},
+    asn1::{BitStringRef, ObjectIdentifier, UIntRef, Utf8StringRef},
     oid::AssociatedOid,
     Decode, Sequence,
 };
@@ -42,15 +44,17 @@ const AVF_ATTESTATION_EXTENSION_V1: ObjectIdentifier =
 /// ```asn1
 /// AttestationDescription ::= SEQUENCE {
 ///     attestationChallenge       OCTET_STRING,
+///     isVmSecure                 BOOLEAN,
+///     vmComponents               SEQUENCE OF VmComponent,
 /// }
 /// ```
-/// TODO(b/312448064): Add VM root of trust and payload information to the extension.
 #[derive(Debug, Clone, Sequence)]
 pub(crate) struct AttestationExtension<'a> {
     #[asn1(type = "OCTET STRING")]
     attestation_challenge: &'a [u8],
     /// Indicates whether the VM is operating under a secure configuration.
     is_vm_secure: bool,
+    vm_components: Vec<VmComponent<'a>>,
 }
 
 impl<'a> AssociatedOid for AttestationExtension<'a> {
@@ -58,8 +62,43 @@ impl<'a> AssociatedOid for AttestationExtension<'a> {
 }
 
 impl<'a> AttestationExtension<'a> {
-    pub(crate) fn new(attestation_challenge: &'a [u8], is_vm_secure: bool) -> Self {
-        Self { attestation_challenge, is_vm_secure }
+    pub(crate) fn new(
+        attestation_challenge: &'a [u8],
+        is_vm_secure: bool,
+        vm_components: Vec<VmComponent<'a>>,
+    ) -> Self {
+        Self { attestation_challenge, is_vm_secure, vm_components }
+    }
+}
+
+/// VM component information
+///
+/// ```asn1
+/// VmComponent ::= SEQUENCE {
+///    name               UTF8String,
+///    securityVersion    INTEGER,
+///    codeHash           OCTET STRING,
+///    authorityHash      OCTET STRING,
+/// }
+/// ```
+#[derive(Debug, Clone, Sequence)]
+pub(crate) struct VmComponent<'a> {
+    name: Utf8StringRef<'a>,
+    version: u64,
+    #[asn1(type = "OCTET STRING")]
+    code_hash: &'a [u8],
+    #[asn1(type = "OCTET STRING")]
+    authority_hash: &'a [u8],
+}
+
+impl<'a> VmComponent<'a> {
+    pub(crate) fn new(sub_component: &'a SubComponent) -> der::Result<Self> {
+        Ok(Self {
+            name: Utf8StringRef::new(&sub_component.name)?,
+            version: sub_component.version,
+            code_hash: &sub_component.code_hash,
+            authority_hash: &sub_component.authority_hash,
+        })
     }
 }
 
