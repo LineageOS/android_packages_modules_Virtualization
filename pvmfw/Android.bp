@@ -81,10 +81,10 @@ rust_test {
         ":test_pvmfw_devices_vm_dtbo",
         ":test_pvmfw_devices_vm_dtbo_without_symbols",
         ":test_pvmfw_devices_with_rng",
-        ":test_pvmfw_devices_with_rng_iommu",
         ":test_pvmfw_devices_with_multiple_devices_iommus",
         ":test_pvmfw_devices_with_iommu_sharing",
         ":test_pvmfw_devices_with_iommu_id_conflict",
+        ":test_pvmfw_devices_without_iommus",
     ],
     // To use libpvmfw_fdt_template for testing
     enabled: false,
@@ -129,10 +129,10 @@ genrule {
 }
 
 genrule {
-    name: "test_pvmfw_devices_with_rng_iommu",
+    name: "test_pvmfw_devices_without_iommus",
     defaults: ["dts_to_dtb"],
-    srcs: ["testdata/test_pvmfw_devices_with_rng_iommu.dts"],
-    out: ["test_pvmfw_devices_with_rng_iommu.dtb"],
+    srcs: ["testdata/test_pvmfw_devices_without_iommus.dts"],
+    out: ["test_pvmfw_devices_without_iommus.dtb"],
 }
 
 genrule {
