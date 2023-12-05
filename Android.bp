@@ -61,5 +61,5 @@ avf_flag_aware_rust_defaults {
 genrule_defaults {
     name: "dts_to_dtb",
     tools: ["dtc"],
-    cmd: "$(location dtc) -I dts -O dtb $(in) -o $(out)",
+    cmd: "FILES=($(in)) && $(location dtc) -I dts -O dtb $${FILES[-1]} -o $(out)",
 }
