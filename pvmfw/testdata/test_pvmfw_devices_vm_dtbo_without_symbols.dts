@@ -21,6 +21,22 @@
 			light {
 				compatible = "android,light";
 				version = <0x1 0x2>;
+				android,pvmfw,phy-reg = <0x0 0xF00000 0x1000>;
+				android,pvmfw,phy-iommu = <0x0 0x40000>, <0x0 0x50000>;
+				android,pvmfw,phy-sid = <4>, <5>;
+			};
+		};
+	};
+
+	fragment@led {
+		target-path = "/";
+		__overlay__ {
+			led {
+				compatible = "android,led";
+				prop;
+				android,pvmfw,phy-reg = <0x0 0x12F00000 0x1000>;
+				android,pvmfw,phy-iommu = <0x0 0x20000>, <0x0 0x30000>;
+				android,pvmfw,phy-sid = <7>, <8>;
 			};
 		};
 	};
