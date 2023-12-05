@@ -121,37 +121,43 @@ genrule {
     out: ["test_pvmfw_devices_vm_dtbo_without_symbols.dtbo"],
 }
 
+genrule_defaults {
+    name: "test_device_assignment_dts_to_dtb",
+    defaults: ["dts_to_dtb"],
+    srcs: ["testdata/test_crosvm_dt_base.dtsi"],
+}
+
 genrule {
     name: "test_pvmfw_devices_with_rng",
-    defaults: ["dts_to_dtb"],
+    defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_with_rng.dts"],
     out: ["test_pvmfw_devices_with_rng.dtb"],
 }
 
 genrule {
     name: "test_pvmfw_devices_without_iommus",
-    defaults: ["dts_to_dtb"],
+    defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_without_iommus.dts"],
     out: ["test_pvmfw_devices_without_iommus.dtb"],
 }
 
 genrule {
     name: "test_pvmfw_devices_with_multiple_devices_iommus",
-    defaults: ["dts_to_dtb"],
+    defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_with_multiple_devices_iommus.dts"],
     out: ["test_pvmfw_devices_with_multiple_devices_iommus.dtb"],
 }
 
 genrule {
     name: "test_pvmfw_devices_with_iommu_sharing",
-    defaults: ["dts_to_dtb"],
+    defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_with_iommu_sharing.dts"],
     out: ["test_pvmfw_devices_with_iommu_sharing.dtb"],
 }
 
 genrule {
     name: "test_pvmfw_devices_with_iommu_id_conflict",
-    defaults: ["dts_to_dtb"],
+    defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_with_iommu_id_conflict.dts"],
     out: ["test_pvmfw_devices_with_iommu_id_conflict.dtb"],
 }
