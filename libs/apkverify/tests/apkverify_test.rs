@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+use anyhow::Result;
 use apkverify::{
-    get_apk_digest, get_public_key_der, testing::assert_contains, verify, SignatureAlgorithmID,
+    extract_signed_data, get_apk_digest, testing::assert_contains, verify, SignatureAlgorithmID,
 };
 use apkzip::zip_sections;
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::info;
+use openssl::x509::X509;
 use std::fmt::Write;
 use std::io::{Seek, SeekFrom};
 use std::{fs, matches, path::Path};
@@ -286,20 +288,28 @@ fn validate_apk<P: AsRef<Path>>(apk_path: P, expected_algorithm_id: SignatureAlg
 /// * public key extracted from apk without verification
 /// * expected public key from the corresponding .der file
 fn validate_apk_public_key<P: AsRef<Path>>(apk_path: P) {
-    let public_key_from_verification = verify(&apk_path, SDK_INT);
-    let public_key_from_verification =
-        public_key_from_verification.expect("Error in verification result");
+    let signed_data_from_verification =
+        verify(&apk_path, SDK_INT).expect("Error in verification result");
+    let cert_from_verification = signed_data_from_verification.first_certificate_der().unwrap();
+    let public_key_from_verification = public_key_der_from_cert(cert_from_verification).unwrap();
 
     let expected_public_key_path = format!("{}.der", apk_path.as_ref().to_str().unwrap());
     assert_bytes_eq_to_data_in_file(&public_key_from_verification, expected_public_key_path);
 
-    let public_key_from_apk = get_public_key_der(&apk_path, SDK_INT);
-    let public_key_from_apk =
-        public_key_from_apk.expect("Error when extracting public key from apk");
+    let signed_data_from_apk = extract_signed_data(&apk_path, SDK_INT)
+        .expect("Error when extracting signed data from apk");
+    let cert_from_apk = signed_data_from_apk.first_certificate_der().unwrap();
+    // If the two certficiates are byte for byte identical (which they should be), then so are
+    // the public keys embedded in them.
     assert_eq!(
-        public_key_from_verification, public_key_from_apk,
-        "Public key extracted directly from apk does not match the public key from verification."
+        cert_from_verification, cert_from_apk,
+        "Certificate extracted directly from apk does not match the certificate from verification."
     );
+}
+
+fn public_key_der_from_cert(cert_der: &[u8]) -> Result<Vec<u8>> {
+    let cert = X509::from_der(cert_der)?;
+    Ok(cert.public_key()?.public_key_to_der()?)
 }
 
 /// Validates that the following apk_digest are equal:
