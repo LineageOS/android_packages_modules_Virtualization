@@ -14,6 +14,7 @@
 
 //! This module contains functions related to DICE.
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use ciborium::value::{Integer, Value};
 use core::cell::OnceCell;
@@ -34,6 +35,17 @@ const CONFIG_DESC: i64 = -4670548;
 const AUTHORITY_HASH: i64 = -4670549;
 const MODE: i64 = -4670551;
 const SUBJECT_PUBLIC_KEY: i64 = -4670552;
+
+const CONFIG_DESC_COMPONENT_NAME: i64 = -70002;
+const CONFIG_DESC_SUB_COMPONENTS: i64 = -71002;
+
+const SUB_COMPONENT_NAME: i64 = 1;
+const SUB_COMPONENT_VERSION: i64 = 2;
+const SUB_COMPONENT_CODE_HASH: i64 = 3;
+const SUB_COMPONENT_AUTHORITY_HASH: i64 = 4;
+
+const MICRODROID_KERNEL_COMPONENT_NAME: &str = "vm_entry";
+const MICRODROID_PAYLOAD_COMPONENT_NAME: &str = "Microdroid payload";
 
 /// Represents a partially decoded `DiceCertChain` from the client VM.
 /// The whole chain is defined as following:
@@ -85,7 +97,43 @@ impl ClientVmDiceChain {
             payloads.len() >= 3,
             "The client VM DICE chain must contain at least three DiceChainEntryPayloads"
         );
-        Ok(Self { payloads })
+        let chain = Self { payloads };
+        chain.validate_microdroid_components_names()?;
+        Ok(chain)
+    }
+
+    fn validate_microdroid_components_names(&self) -> Result<()> {
+        let microdroid_kernel_name = &self.microdroid_kernel().config_descriptor.component_name;
+        if MICRODROID_KERNEL_COMPONENT_NAME != microdroid_kernel_name {
+            error!(
+                "The second to last entry in the client VM DICE chain must describe the \
+                    Microdroid kernel. Got {}",
+                microdroid_kernel_name
+            );
+            return Err(RequestProcessingError::InvalidDiceChain);
+        }
+        let microdroid_payload_name = &self.microdroid_payload().config_descriptor.component_name;
+        if MICRODROID_PAYLOAD_COMPONENT_NAME != microdroid_payload_name {
+            error!(
+                "The last entry in the client VM DICE chain must describe the Microdroid \
+                    payload. Got {}",
+                microdroid_payload_name
+            );
+            return Err(RequestProcessingError::InvalidDiceChain);
+        }
+        Ok(())
+    }
+
+    fn microdroid_kernel(&self) -> &DiceChainEntryPayload {
+        &self.payloads[self.payloads.len() - 2]
+    }
+
+    fn microdroid_payload(&self) -> &DiceChainEntryPayload {
+        &self.payloads[self.payloads.len() - 1]
+    }
+
+    pub(crate) fn microdroid_payload_components(&self) -> Option<&Vec<SubComponent>> {
+        self.microdroid_payload().config_descriptor.sub_components.as_ref()
     }
 
     /// Returns true if all payloads in the DICE chain are in normal mode.
@@ -163,9 +211,7 @@ pub(crate) struct DiceChainEntryPayload {
     code_hash: [u8; HASH_SIZE],
     #[allow(dead_code)]
     authority_hash: [u8; HASH_SIZE],
-    /// TODO(b/313815907): Parse the config descriptor and read Apk/Apexes info in it.
-    #[allow(dead_code)]
-    config_descriptor: Vec<u8>,
+    config_descriptor: ConfigDescriptor,
 }
 
 impl DiceChainEntryPayload {
@@ -209,6 +255,7 @@ fn build_payload(entries: Vec<(Value, Value)>) -> Result<DiceChainEntryPayload> 
             }
             CONFIG_DESC => {
                 let config_descriptor = value_to_bytes(value, "config_descriptor")?;
+                let config_descriptor = ConfigDescriptor::from_slice(&config_descriptor)?;
                 builder.config_descriptor(config_descriptor)?;
             }
             _ => {}
@@ -217,8 +264,147 @@ fn build_payload(entries: Vec<(Value, Value)>) -> Result<DiceChainEntryPayload> 
     builder.build()
 }
 
+/// Represents a partially decoded `ConfigurationDescriptor`.
+///
+/// The whole `ConfigurationDescriptor` is defined in:
+///
+/// hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/
+/// generateCertificateRequestV2.cddl
+#[derive(Debug, Clone)]
+pub(crate) struct ConfigDescriptor {
+    component_name: String,
+    sub_components: Option<Vec<SubComponent>>,
+}
+
+impl ConfigDescriptor {
+    fn from_slice(data: &[u8]) -> Result<Self> {
+        let value = Value::from_slice(data)?;
+        let entries = value_to_map(value, "ConfigDescriptor")?;
+        let mut builder = ConfigDescriptorBuilder::default();
+        for (key, value) in entries.into_iter() {
+            let key: i64 = value_to_num(key, "ConfigDescriptor key")?;
+            match key {
+                CONFIG_DESC_COMPONENT_NAME => {
+                    let name = value_to_text(value, "ConfigDescriptor component_name")?;
+                    builder.component_name(name)?;
+                }
+                CONFIG_DESC_SUB_COMPONENTS => {
+                    let sub_components = value_to_array(value, "ConfigDescriptor sub_components")?;
+                    let sub_components = sub_components
+                        .into_iter()
+                        .map(SubComponent::try_from)
+                        .collect::<Result<Vec<_>>>()?;
+                    builder.sub_components(sub_components)?
+                }
+                _ => {}
+            }
+        }
+        builder.build()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct ConfigDescriptorBuilder {
+    component_name: OnceCell<String>,
+    sub_components: OnceCell<Vec<SubComponent>>,
+}
+
+impl ConfigDescriptorBuilder {
+    fn component_name(&mut self, component_name: String) -> Result<()> {
+        set_once(&self.component_name, component_name, "ConfigDescriptor component_name")
+    }
+
+    fn sub_components(&mut self, sub_components: Vec<SubComponent>) -> Result<()> {
+        set_once(&self.sub_components, sub_components, "ConfigDescriptor sub_components")
+    }
+
+    fn build(mut self) -> Result<ConfigDescriptor> {
+        let component_name =
+            take_value(&mut self.component_name, "ConfigDescriptor component_name")?;
+        let sub_components = self.sub_components.take();
+        Ok(ConfigDescriptor { component_name, sub_components })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SubComponent {
+    pub(crate) name: String,
+    pub(crate) version: u64,
+    pub(crate) code_hash: Vec<u8>,
+    pub(crate) authority_hash: Vec<u8>,
+}
+
+impl TryFrom<Value> for SubComponent {
+    type Error = RequestProcessingError;
+
+    fn try_from(value: Value) -> Result<Self> {
+        let entries = value_to_map(value, "SubComponent")?;
+        let mut builder = SubComponentBuilder::default();
+        for (key, value) in entries.into_iter() {
+            let key: i64 = value_to_num(key, "SubComponent key")?;
+            match key {
+                SUB_COMPONENT_NAME => {
+                    builder.name(value_to_text(value, "SubComponent component_name")?)?
+                }
+                SUB_COMPONENT_VERSION => {
+                    builder.version(value_to_num(value, "SubComponent version")?)?
+                }
+                SUB_COMPONENT_CODE_HASH => {
+                    builder.code_hash(value_to_bytes(value, "SubComponent code_hash")?)?
+                }
+                SUB_COMPONENT_AUTHORITY_HASH => {
+                    builder.authority_hash(value_to_bytes(value, "SubComponent authority_hash")?)?
+                }
+                k => {
+                    error!("Unknown key in SubComponent: {}", k);
+                    return Err(RequestProcessingError::InvalidDiceChain);
+                }
+            }
+        }
+        builder.build()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct SubComponentBuilder {
+    name: OnceCell<String>,
+    version: OnceCell<u64>,
+    code_hash: OnceCell<Vec<u8>>,
+    authority_hash: OnceCell<Vec<u8>>,
+}
+
+impl SubComponentBuilder {
+    fn name(&mut self, name: String) -> Result<()> {
+        set_once(&self.name, name, "SubComponent name")
+    }
+
+    fn version(&mut self, version: u64) -> Result<()> {
+        set_once(&self.version, version, "SubComponent version")
+    }
+
+    fn code_hash(&mut self, code_hash: Vec<u8>) -> Result<()> {
+        set_once(&self.code_hash, code_hash, "SubComponent code_hash")
+    }
+
+    fn authority_hash(&mut self, authority_hash: Vec<u8>) -> Result<()> {
+        set_once(&self.authority_hash, authority_hash, "SubComponent authority_hash")
+    }
+
+    fn build(mut self) -> Result<SubComponent> {
+        let name = take_value(&mut self.name, "SubComponent name")?;
+        let version = take_value(&mut self.version, "SubComponent version")?;
+        let code_hash = take_value(&mut self.code_hash, "SubComponent code_hash")?;
+        let authority_hash = take_value(&mut self.authority_hash, "SubComponent authority_hash")?;
+        Ok(SubComponent { name, version, code_hash, authority_hash })
+    }
+}
+
 fn value_to_array(v: Value, context: &'static str) -> coset::Result<Vec<Value>> {
     v.into_array().map_err(|e| to_unexpected_item_error(&e, "array", context))
+}
+
+fn value_to_text(v: Value, context: &'static str) -> coset::Result<String> {
+    v.into_text().map_err(|e| to_unexpected_item_error(&e, "tstr", context))
 }
 
 fn value_to_map(v: Value, context: &'static str) -> coset::Result<Vec<(Value, Value)>> {
@@ -273,7 +459,7 @@ struct PayloadBuilder {
     mode: OnceCell<DiceMode>,
     code_hash: OnceCell<[u8; HASH_SIZE]>,
     authority_hash: OnceCell<[u8; HASH_SIZE]>,
-    config_descriptor: OnceCell<Vec<u8>>,
+    config_descriptor: OnceCell<ConfigDescriptor>,
 }
 
 fn set_once<T>(field: &OnceCell<T>, value: T, field_name: &str) -> Result<()> {
@@ -307,7 +493,7 @@ impl PayloadBuilder {
         set_once(&self.authority_hash, authority_hash, "authority_hash")
     }
 
-    fn config_descriptor(&mut self, config_descriptor: Vec<u8>) -> Result<()> {
+    fn config_descriptor(&mut self, config_descriptor: ConfigDescriptor) -> Result<()> {
         set_once(&self.config_descriptor, config_descriptor, "config_descriptor")
     }
 
