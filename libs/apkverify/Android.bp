@@ -48,10 +48,12 @@ rust_test {
     test_suites: ["general-tests"],
     rustlibs: [
         "libandroid_logger",
+        "libanyhow",
         "libapkverify",
         "libapkzip",
         "libbyteorder",
         "liblog_rust",
+        "libopenssl",
         "libzip",
     ],
     data: ["tests/data/*"],

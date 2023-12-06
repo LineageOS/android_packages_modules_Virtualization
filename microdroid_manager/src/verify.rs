@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::instance::{ApexData, ApkData, MicrodroidData, RootHash};
+use crate::instance::{ApexData, ApkData, MicrodroidData};
 use crate::payload::{get_apex_data_from_payload, to_metadata};
 use crate::{is_strict_boot, is_verified_boot, MicrodroidError};
 use anyhow::{anyhow, ensure, Context, Result};
 use apkmanifest::get_manifest_info;
-use apkverify::{get_public_key_der, verify, V4Signature};
+use apkverify::{extract_signed_data, verify, V4Signature};
 use glob::glob;
 use itertools::sorted;
 use log::{info, warn};
 use microdroid_metadata::{write_metadata, Metadata};
+use openssl::sha::sha512;
 use rand::Fill;
 use rustutils::system_properties;
 use std::fs::OpenOptions;
@@ -190,10 +191,10 @@ pub fn verify_payload(
 
 fn get_data_from_apk(
     apk_path: &str,
-    root_hash: Box<RootHash>,
+    root_hash: Box<[u8]>,
     root_hash_trustful: bool,
 ) -> Result<ApkData> {
-    let pubkey = get_public_key_from_apk(apk_path, root_hash_trustful)?;
+    let cert_hash = get_cert_hash_from_apk(apk_path, root_hash_trustful)?.to_vec();
     // Read package name etc from the APK manifest. In the unlikely event that they aren't present
     // we use the default values. We simply put these values in the DICE node for the payload, and
     // users of that can decide how to handle blank information - there's no reason for us
@@ -203,8 +204,8 @@ fn get_data_from_apk(
         .unwrap_or_default();
 
     Ok(ApkData {
-        root_hash,
-        pubkey,
+        root_hash: root_hash.into(),
+        cert_hash,
         package_name: manifest_info.package,
         version_code: manifest_info.version_code,
     })
@@ -233,21 +234,22 @@ fn write_apex_payload_data(
     Ok(())
 }
 
-fn get_apk_root_hash_from_idsig<P: AsRef<Path>>(idsig_path: P) -> Result<Box<RootHash>> {
+fn get_apk_root_hash_from_idsig<P: AsRef<Path>>(idsig_path: P) -> Result<Box<[u8]>> {
     Ok(V4Signature::from_idsig_path(idsig_path)?.hashing_info.raw_root_hash)
 }
 
-fn get_public_key_from_apk(apk: &str, root_hash_trustful: bool) -> Result<Box<[u8]>> {
+fn get_cert_hash_from_apk(apk: &str, root_hash_trustful: bool) -> Result<[u8; 64]> {
     let current_sdk = get_current_sdk()?;
 
-    if !root_hash_trustful {
+    let signed_data = if !root_hash_trustful {
         verify(apk, current_sdk).context(MicrodroidError::PayloadVerificationFailed(format!(
             "failed to verify {}",
             apk
         )))
     } else {
-        get_public_key_der(apk, current_sdk)
-    }
+        extract_signed_data(apk, current_sdk)
+    }?;
+    Ok(sha512(signed_data.first_certificate_der()?))
 }
 
 fn get_current_sdk() -> Result<u32> {
@@ -260,7 +262,7 @@ struct ApkDmverityArgument<'a> {
     apk: &'a str,
     idsig: &'a str,
     name: &'a str,
-    saved_root_hash: Option<&'a RootHash>,
+    saved_root_hash: Option<&'a [u8]>,
 }
 
 fn run_apkdmverity(args: &[ApkDmverityArgument]) -> Result<Child> {
