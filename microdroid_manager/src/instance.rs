@@ -287,19 +287,17 @@ impl MicrodroidData {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApkData {
-    pub root_hash: Box<RootHash>,
-    pub pubkey: Box<[u8]>,
+    pub root_hash: Vec<u8>,
+    pub cert_hash: Vec<u8>,
     pub package_name: String,
     pub version_code: u64,
 }
 
 impl ApkData {
     pub fn root_hash_eq(&self, root_hash: &[u8]) -> bool {
-        self.root_hash.as_ref() == root_hash
+        self.root_hash == root_hash
     }
 }
-
-pub type RootHash = [u8];
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ApexData {
