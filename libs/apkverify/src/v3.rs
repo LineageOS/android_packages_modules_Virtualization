@@ -44,33 +44,15 @@ pub(crate) struct Signer {
     public_key: PKey<pkey::Public>,
 }
 
-impl Signer {
-    fn sdk_range(&self) -> RangeInclusive<u32> {
-        self.min_sdk..=self.max_sdk
-    }
-}
-
-struct SignedData {
+/// Contains the signed data part of an APK v3 signature.
+#[derive(Debug)]
+pub struct SignedData {
     digests: LengthPrefixed<Vec<LengthPrefixed<Digest>>>,
     certificates: LengthPrefixed<Vec<LengthPrefixed<X509Certificate>>>,
     min_sdk: u32,
     max_sdk: u32,
     #[allow(dead_code)]
     additional_attributes: LengthPrefixed<Vec<LengthPrefixed<AdditionalAttributes>>>,
-}
-
-impl SignedData {
-    fn sdk_range(&self) -> RangeInclusive<u32> {
-        self.min_sdk..=self.max_sdk
-    }
-
-    fn find_digest_by_algorithm(&self, algorithm_id: SignatureAlgorithmID) -> Result<&Digest> {
-        Ok(self
-            .digests
-            .iter()
-            .find(|&dig| dig.signature_algorithm_id == Some(algorithm_id))
-            .context(format!("Digest not found for algorithm: {:?}", algorithm_id))?)
-    }
 }
 
 #[derive(Debug)]
@@ -80,6 +62,7 @@ pub(crate) struct Signature {
     signature: LengthPrefixed<Bytes>,
 }
 
+#[derive(Debug)]
 struct Digest {
     signature_algorithm_id: Option<SignatureAlgorithmID>,
     digest: LengthPrefixed<Bytes>,
@@ -88,19 +71,19 @@ struct Digest {
 type X509Certificate = Bytes;
 type AdditionalAttributes = Bytes;
 
-/// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the public key
-/// associated with the signer in DER format.
-pub fn verify<P: AsRef<Path>>(apk_path: P, current_sdk: u32) -> Result<Box<[u8]>> {
+/// Verifies APK Signature Scheme v3 signatures of the provided APK and returns the SignedData from
+/// the signature.
+pub fn verify<P: AsRef<Path>>(apk_path: P, current_sdk: u32) -> Result<SignedData> {
     let apk = File::open(apk_path.as_ref())?;
     let (signer, mut sections) = extract_signer_and_apk_sections(apk, current_sdk)?;
     signer.verify(&mut sections)
 }
 
-/// Gets the public key (in DER format) that was used to sign the given APK/APEX file
-pub fn get_public_key_der<P: AsRef<Path>>(apk_path: P, current_sdk: u32) -> Result<Box<[u8]>> {
+/// Extracts the SignedData from the signature of the given APK. (The signature is not verified.)
+pub fn extract_signed_data<P: AsRef<Path>>(apk_path: P, current_sdk: u32) -> Result<SignedData> {
     let apk = File::open(apk_path.as_ref())?;
     let (signer, _) = extract_signer_and_apk_sections(apk, current_sdk)?;
-    Ok(signer.public_key.public_key_to_der()?.into_boxed_slice())
+    signer.parse_signed_data()
 }
 
 pub(crate) fn extract_signer_and_apk_sections<R: Read + Seek>(
@@ -123,6 +106,10 @@ pub(crate) fn extract_signer_and_apk_sections<R: Read + Seek>(
 }
 
 impl Signer {
+    fn sdk_range(&self) -> RangeInclusive<u32> {
+        self.min_sdk..=self.max_sdk
+    }
+
     /// Selects the signature that has the strongest supported `SignatureAlgorithmID`.
     /// The strongest signature is used in both v3 verification and v4 apk digest computation.
     pub(crate) fn strongest_signature(&self) -> Result<&Signature> {
@@ -143,27 +130,33 @@ impl Signer {
         Ok(digest.digest.as_ref().to_vec().into_boxed_slice())
     }
 
-    /// Verifies the strongest signature from signatures against signed data using public key.
-    /// Returns the verified signed data.
-    fn verify_signature(&self, strongest: &Signature) -> Result<SignedData> {
-        let mut verifier = strongest
+    /// Verifies a signature over the signed data using the public key.
+    fn verify_signature(&self, signature: &Signature) -> Result<()> {
+        let mut verifier = signature
             .signature_algorithm_id
             .context("Unsupported algorithm")?
             .new_verifier(&self.public_key)?;
         verifier.update(&self.signed_data)?;
-        ensure!(verifier.verify(&strongest.signature)?, "Signature is invalid.");
-        // It is now safe to parse signed data.
+        ensure!(verifier.verify(&signature.signature)?, "Signature is invalid.");
+        Ok(())
+    }
+
+    /// Returns the signed data, converted from bytes.
+    fn parse_signed_data(&self) -> Result<SignedData> {
         self.signed_data.slice(..).read()
     }
 
     /// The steps in this method implements APK Signature Scheme v3 verification step 3.
-    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<Box<[u8]>> {
+    fn verify<R: Read + Seek>(&self, sections: &mut ApkSections<R>) -> Result<SignedData> {
         // 1. Choose the strongest supported signature algorithm ID from signatures.
         let strongest = self.strongest_signature()?;
 
         // 2. Verify the corresponding signature from signatures against signed data using public
         // key.
-        let verified_signed_data = self.verify_signature(strongest)?;
+        self.verify_signature(strongest)?;
+
+        // It is now safe to parse signed data.
+        let verified_signed_data = self.parse_signed_data()?;
 
         // 3. Verify the min and max SDK versions in the signed data match those specified for the
         //    signer.
@@ -199,8 +192,7 @@ impl Signer {
 
         // 7. Verify that public key of the first certificate of certificates is identical to public
         //    key.
-        let cert = verified_signed_data.certificates.first().context("No certificates listed")?;
-        let cert = X509::from_der(cert.as_ref())?;
+        let cert = X509::from_der(verified_signed_data.first_certificate_der()?)?;
         ensure!(
             cert.public_key()?.public_eq(&self.public_key),
             "Public key mismatch between certificate and signature record"
@@ -209,7 +201,29 @@ impl Signer {
         // TODO(b/245914104)
         // 8. If the proof-of-rotation attribute exists for the signer verify that the
         // struct is valid and this signer is the last certificate in the list.
-        Ok(self.public_key.public_key_to_der()?.into_boxed_slice())
+
+        Ok(verified_signed_data)
+    }
+}
+
+impl SignedData {
+    /// Returns the first X.509 certificate in the signed data, encoded in DER form. (All other
+    /// certificates are ignored for v3; this certificate describes the public key that was actually
+    /// used to sign the APK.)
+    pub fn first_certificate_der(&self) -> Result<&[u8]> {
+        Ok(self.certificates.first().context("No certificates listed")?)
+    }
+
+    fn sdk_range(&self) -> RangeInclusive<u32> {
+        self.min_sdk..=self.max_sdk
+    }
+
+    fn find_digest_by_algorithm(&self, algorithm_id: SignatureAlgorithmID) -> Result<&Digest> {
+        Ok(self
+            .digests
+            .iter()
+            .find(|&dig| dig.signature_algorithm_id == Some(algorithm_id))
+            .context(format!("Digest not found for algorithm: {:?}", algorithm_id))?)
     }
 }
 
