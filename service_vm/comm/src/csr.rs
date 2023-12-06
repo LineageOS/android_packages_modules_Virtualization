@@ -55,8 +55,8 @@ impl Csr {
             return Err(CoseError::UnexpectedItem("array", "array with 2 items"));
         }
         Ok(Self {
-            signed_csr_payload: try_as_bytes(arr.remove(1), "signed_csr_payload")?,
-            dice_cert_chain: try_as_bytes(arr.remove(0), "dice_cert_chain")?,
+            signed_csr_payload: value_to_bytes(arr.remove(1), "signed_csr_payload")?,
+            dice_cert_chain: value_to_bytes(arr.remove(0), "dice_cert_chain")?,
         })
     }
 }
@@ -94,21 +94,28 @@ impl CsrPayload {
             return Err(CoseError::UnexpectedItem("array", "array with 2 items"));
         }
         Ok(Self {
-            challenge: try_as_bytes(arr.remove(1), "challenge")?,
-            public_key: try_as_bytes(arr.remove(0), "public_key")?,
+            challenge: value_to_bytes(arr.remove(1), "challenge")?,
+            public_key: value_to_bytes(arr.remove(0), "public_key")?,
         })
     }
 }
 
-/// Reads the provided value `v` as bytes array.
-pub fn try_as_bytes(v: Value, context: &str) -> coset::Result<Vec<u8>> {
-    if let Value::Bytes(data) = v {
-        Ok(data)
-    } else {
-        let v_type = cbor_value_type(&v);
-        error!("The provided value type '{v_type}' is not of type 'bytes': {context}");
-        Err(CoseError::UnexpectedItem(v_type, "bytes"))
-    }
+/// Converts the provided value `v` to bytes array.
+pub fn value_to_bytes(v: Value, context: &'static str) -> coset::Result<Vec<u8>> {
+    v.into_bytes().map_err(|e| to_unexpected_item_error(&e, "bstr", context))
+}
+
+/// Builds a `CoseError::UnexpectedItem` error when the provided value `v` is not of the expected
+/// type `expected_type` and logs the error message with the provided `context`.
+pub fn to_unexpected_item_error(
+    v: &Value,
+    expected_type: &'static str,
+    context: &'static str,
+) -> CoseError {
+    let v_type = cbor_value_type(v);
+    assert!(v_type != expected_type);
+    error!("The provided value type '{v_type}' is not of type '{expected_type}': {context}");
+    CoseError::UnexpectedItem(v_type, expected_type)
 }
 
 /// Reads the type of the provided value `v`.
