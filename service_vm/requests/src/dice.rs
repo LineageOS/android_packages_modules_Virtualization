@@ -15,7 +15,7 @@
 //! This module contains functions related to DICE.
 
 use alloc::vec::Vec;
-use ciborium::value::Value;
+use ciborium::value::{Integer, Value};
 use core::cell::OnceCell;
 use core::result;
 use coset::{
@@ -23,7 +23,9 @@ use coset::{
 };
 use diced_open_dice::{DiceMode, HASH_SIZE};
 use log::error;
-use service_vm_comm::{cbor_value_type, try_as_bytes, RequestProcessingError};
+use service_vm_comm::{
+    cbor_value_type, to_unexpected_item_error, value_to_bytes, RequestProcessingError,
+};
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
@@ -101,9 +103,9 @@ pub(crate) fn validate_client_vm_dice_chain_prefix_match(
     service_vm_dice_chain: &[u8],
 ) -> Result<Vec<Value>> {
     let client_vm_dice_chain =
-        try_as_value_array(Value::from_slice(client_vm_dice_chain)?, "client_vm_dice_chain")?;
+        value_to_array(Value::from_slice(client_vm_dice_chain)?, "client_vm_dice_chain")?;
     let service_vm_dice_chain =
-        try_as_value_array(Value::from_slice(service_vm_dice_chain)?, "service_vm_dice_chain")?;
+        value_to_array(Value::from_slice(service_vm_dice_chain)?, "service_vm_dice_chain")?;
     if service_vm_dice_chain.len() < 3 {
         // The service VM's DICE chain must contain the root key and at least two other entries
         // that describe:
@@ -180,10 +182,7 @@ impl DiceChainEntryPayload {
             error!("No payload found in the DICE chain entry");
             RequestProcessingError::InvalidDiceChain
         })?;
-        let payload = Value::from_slice(&payload)?;
-        let Value::Map(entries) = payload else {
-            return Err(CoseError::UnexpectedItem(cbor_value_type(&payload), "map").into());
-        };
+        let entries = value_to_map(Value::from_slice(&payload)?, "DiceChainEntryPayload")?;
         build_payload(entries)
     }
 }
@@ -191,41 +190,51 @@ impl DiceChainEntryPayload {
 fn build_payload(entries: Vec<(Value, Value)>) -> Result<DiceChainEntryPayload> {
     let mut builder = PayloadBuilder::default();
     for (key, value) in entries.into_iter() {
-        let Some(Ok(key)) = key.as_integer().map(i64::try_from) else {
-            error!("Invalid key found in the DICE chain entry: {:?}", key);
-            return Err(RequestProcessingError::InvalidDiceChain);
-        };
+        let key: i64 = value_to_num(key, "DiceChainEntryPayload key")?;
         match key {
             SUBJECT_PUBLIC_KEY => {
-                let subject_public_key = try_as_bytes(value, "subject_public_key")?;
+                let subject_public_key = value_to_bytes(value, "subject_public_key")?;
                 let subject_public_key = CoseKey::from_slice(&subject_public_key)?.try_into()?;
                 builder.subject_public_key(subject_public_key)?;
             }
             MODE => builder.mode(to_mode(value)?)?,
-            CODE_HASH => builder.code_hash(try_as_byte_array(value, "code_hash")?)?,
-            AUTHORITY_HASH => {
-                builder.authority_hash(try_as_byte_array(value, "authority_hash")?)?
+            CODE_HASH => {
+                let code_hash = value_to_byte_array(value, "DiceChainEntryPayload code_hash")?;
+                builder.code_hash(code_hash)?;
             }
-            CONFIG_DESC => builder.config_descriptor(try_as_bytes(value, "config_descriptor")?)?,
+            AUTHORITY_HASH => {
+                let authority_hash =
+                    value_to_byte_array(value, "DiceChainEntryPayload authority_hash")?;
+                builder.authority_hash(authority_hash)?;
+            }
+            CONFIG_DESC => {
+                let config_descriptor = value_to_bytes(value, "config_descriptor")?;
+                builder.config_descriptor(config_descriptor)?;
+            }
             _ => {}
         }
     }
     builder.build()
 }
 
-fn try_as_value_array(v: Value, context: &str) -> coset::Result<Vec<Value>> {
-    if let Value::Array(data) = v {
-        Ok(data)
-    } else {
-        let v_type = cbor_value_type(&v);
-        error!("The provided value type '{v_type}' is not of type 'bytes': {context}");
-        Err(CoseError::UnexpectedItem(v_type, "array"))
-    }
+fn value_to_array(v: Value, context: &'static str) -> coset::Result<Vec<Value>> {
+    v.into_array().map_err(|e| to_unexpected_item_error(&e, "array", context))
 }
 
-fn try_as_byte_array<const N: usize>(v: Value, context: &str) -> Result<[u8; N]> {
-    let data = try_as_bytes(v, context)?;
-    data.try_into().map_err(|e| {
+fn value_to_map(v: Value, context: &'static str) -> coset::Result<Vec<(Value, Value)>> {
+    v.into_map().map_err(|e| to_unexpected_item_error(&e, "map", context))
+}
+
+fn value_to_num<T: TryFrom<Integer>>(v: Value, context: &'static str) -> Result<T> {
+    let num = v.into_integer().map_err(|e| to_unexpected_item_error(&e, "int", context))?;
+    num.try_into().map_err(|_| {
+        error!("The provided value '{num:?}' is not a valid number: {context}");
+        RequestProcessingError::InvalidDiceChain
+    })
+}
+
+fn value_to_byte_array<const N: usize>(v: Value, context: &'static str) -> Result<[u8; N]> {
+    value_to_bytes(v, context)?.try_into().map_err(|e| {
         error!("The provided value '{context}' is not an array of length {N}: {e:?}");
         RequestProcessingError::InternalError
     })
