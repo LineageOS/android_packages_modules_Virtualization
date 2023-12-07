@@ -38,6 +38,9 @@ pub enum Error {
     /// Failed to decode the COSE_Key.
     CoseKeyDecodingFailed,
 
+    /// An error occurred when interacting with the coset crate.
+    CosetError,
+
     /// Unimplemented operation.
     Unimplemented,
 }
@@ -50,8 +53,18 @@ impl fmt::Display for Error {
             }
             Self::InternalError => write!(f, "An unexpected internal error occurred"),
             Self::CoseKeyDecodingFailed => write!(f, "Failed to decode the COSE_Key"),
+            Self::CosetError => {
+                write!(f, "An error occurred when interacting with the coset crate")
+            }
             Self::Unimplemented => write!(f, "Unimplemented operation"),
         }
+    }
+}
+
+impl From<coset::CoseError> for Error {
+    fn from(e: coset::CoseError) -> Self {
+        log::error!("Coset error: {e}");
+        Self::CosetError
     }
 }
 

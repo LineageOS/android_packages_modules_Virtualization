@@ -24,6 +24,7 @@ rust_library_rlib {
     rustlibs: [
         "libciborium_nostd",
         "libcoset_nostd",
+        "liblog_rust_nostd",
         "libserde_nostd",
     ],
 }
@@ -37,6 +38,7 @@ rust_library {
     rustlibs: [
         "libciborium",
         "libcoset",
+        "liblog_rust",
         "libserde",
     ],
 }
