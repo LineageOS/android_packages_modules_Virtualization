@@ -373,7 +373,7 @@ mod tests {
         let file = VerifiedFileEditor::new(InMemoryEditor::new());
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("3d248ca542a24fc62d1c43b916eae5016878e2533c88238480b26128a1f1af95")
+            hex::decode("3d248ca542a24fc62d1c43b916eae5016878e2533c88238480b26128a1f1af95")?
                 .as_slice()
         );
         Ok(())
@@ -386,7 +386,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 4096], 0)?, 4096);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af")
+            hex::decode("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af")?
                 .as_slice()
         );
 
@@ -395,7 +395,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 4097], 0)?, 4097);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("2901b849fda2d91e3929524561c4a47e77bb64734319759507b2029f18b9cc52")
+            hex::decode("2901b849fda2d91e3929524561c4a47e77bb64734319759507b2029f18b9cc52")?
                 .as_slice()
         );
 
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 10000], 0)?, 10000);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("7545409b556071554d18973a29b96409588c7cda4edd00d5586b27a11e1a523b")
+            hex::decode("7545409b556071554d18973a29b96409588c7cda4edd00d5586b27a11e1a523b")?
                 .as_slice()
         );
         Ok(())
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 5], 3)?, 5);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("a23fc5130d3d7b3323fc4b4a5e79d5d3e9ddf3a3f5872639e867713512c6702f")
+            hex::decode("a23fc5130d3d7b3323fc4b4a5e79d5d3e9ddf3a3f5872639e867713512c6702f")?
                 .as_slice()
         );
 
@@ -426,7 +426,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 6000], 4000)?, 6000);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("d16d4c1c186d757e646f76208b21254f50d7f07ea07b1505ff48b2a6f603f989")
+            hex::decode("d16d4c1c186d757e646f76208b21254f50d7f07ea07b1505ff48b2a6f603f989")?
                 .as_slice()
         );
         Ok(())
@@ -439,7 +439,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 4096], 4096)?, 4096);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("4df2aefd8c2a9101d1d8770dca3ede418232eabce766bb8e020395eae2e97103")
+            hex::decode("4df2aefd8c2a9101d1d8770dca3ede418232eabce766bb8e020395eae2e97103")?
                 .as_slice()
         );
 
@@ -448,7 +448,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 5000], 6000)?, 5000);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("47d5da26f6934484e260630a69eb2eebb21b48f69bc8fbf8486d1694b7dba94f")
+            hex::decode("47d5da26f6934484e260630a69eb2eebb21b48f69bc8fbf8486d1694b7dba94f")?
                 .as_slice()
         );
 
@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(file.write_at(&[1; 5], 16381)?, 5);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("8bd118821fb4aff26bb4b51d485cc481a093c68131b7f4f112e9546198449752")
+            hex::decode("8bd118821fb4aff26bb4b51d485cc481a093c68131b7f4f112e9546198449752")?
                 .as_slice()
         );
         Ok(())
@@ -470,34 +470,34 @@ mod tests {
         assert_eq!(file.write_at(&[1; 2048], 4096 + 2048)?, 2048);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("4c433d8640c888b629dc673d318cbb8d93b1eebcc784d9353e07f09f0dcfe707")
+            hex::decode("4c433d8640c888b629dc673d318cbb8d93b1eebcc784d9353e07f09f0dcfe707")?
                 .as_slice()
         );
         assert_eq!(file.write_at(&[1; 2048], 2048)?, 2048);
         assert_eq!(file.write_at(&[1; 2048], 4096)?, 2048);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("2a476d58eb80394052a3a783111e1458ac3ecf68a7878183fed86ca0ff47ec0d")
+            hex::decode("2a476d58eb80394052a3a783111e1458ac3ecf68a7878183fed86ca0ff47ec0d")?
                 .as_slice()
         );
         assert_eq!(file.write_at(&[0; 2048], 2048)?, 2048);
         assert_eq!(file.write_at(&[0; 2048], 4096)?, 2048);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("4c433d8640c888b629dc673d318cbb8d93b1eebcc784d9353e07f09f0dcfe707")
+            hex::decode("4c433d8640c888b629dc673d318cbb8d93b1eebcc784d9353e07f09f0dcfe707")?
                 .as_slice()
         );
         assert_eq!(file.write_at(&[1; 4096], 2048)?, 4096);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("2a476d58eb80394052a3a783111e1458ac3ecf68a7878183fed86ca0ff47ec0d")
+            hex::decode("2a476d58eb80394052a3a783111e1458ac3ecf68a7878183fed86ca0ff47ec0d")?
                 .as_slice()
         );
         assert_eq!(file.write_at(&[1; 2048], 8192)?, 2048);
         assert_eq!(file.write_at(&[1; 2048], 8192 + 2048)?, 2048);
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("23cbac08371e6ee838ebcc7ae6512b939d2226e802337be7b383c3e046047d24")
+            hex::decode("23cbac08371e6ee838ebcc7ae6512b939d2226e802337be7b383c3e046047d24")?
                 .as_slice()
         );
         Ok(())
@@ -555,7 +555,7 @@ mod tests {
 
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("fef1b4f19bb7a2cd944d7cdee44d1accb12726389ca5b0f61ac0f548ae40876f")
+            hex::decode("fef1b4f19bb7a2cd944d7cdee44d1accb12726389ca5b0f61ac0f548ae40876f")?
                 .as_slice()
         );
         Ok(())
@@ -572,7 +572,7 @@ mod tests {
 
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("9e0e2745c21e4e74065240936d2047340d96a466680c3c9d177b82433e7a0bb1")
+            hex::decode("9e0e2745c21e4e74065240936d2047340d96a466680c3c9d177b82433e7a0bb1")?
                 .as_slice()
         );
         Ok(())
@@ -589,7 +589,7 @@ mod tests {
 
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("fef1b4f19bb7a2cd944d7cdee44d1accb12726389ca5b0f61ac0f548ae40876f")
+            hex::decode("fef1b4f19bb7a2cd944d7cdee44d1accb12726389ca5b0f61ac0f548ae40876f")?
                 .as_slice()
         );
         Ok(())
@@ -621,17 +621,9 @@ mod tests {
 
         assert_eq!(
             file.calculate_fsverity_digest()?,
-            to_u8_vec("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af")
+            hex::decode("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af")?
                 .as_slice()
         );
         Ok(())
-    }
-
-    fn to_u8_vec(hex_str: &str) -> Vec<u8> {
-        assert!(hex_str.len() % 2 == 0);
-        (0..hex_str.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&hex_str[i..i + 2], 16).unwrap())
-            .collect()
     }
 }
