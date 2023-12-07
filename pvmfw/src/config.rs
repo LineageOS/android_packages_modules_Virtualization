@@ -288,6 +288,6 @@ impl<'a> Config<'a> {
 
     unsafe fn from_raw_range_mut(ptr: usize, range: NonEmptyRange) -> &'a mut [u8] {
         // SAFETY: The caller must ensure that the range is valid from ptr.
-        unsafe { slice::from_raw_parts_mut((ptr + range.start) as *mut u8, range.end()) }
+        unsafe { slice::from_raw_parts_mut((ptr + range.start) as *mut u8, range.len()) }
     }
 }
