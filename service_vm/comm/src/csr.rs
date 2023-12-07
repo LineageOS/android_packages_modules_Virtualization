@@ -17,9 +17,9 @@
 
 use alloc::vec;
 use alloc::vec::Vec;
+use cbor_util::{cbor_value_type, value_to_bytes};
 use ciborium::Value;
 use coset::{self, CborSerializable, CoseError};
-use log::error;
 
 /// Represents a CSR sent from the client VM to the service VM for attestation.
 ///
@@ -97,39 +97,5 @@ impl CsrPayload {
             challenge: value_to_bytes(arr.remove(1), "challenge")?,
             public_key: value_to_bytes(arr.remove(0), "public_key")?,
         })
-    }
-}
-
-/// Converts the provided value `v` to bytes array.
-pub fn value_to_bytes(v: Value, context: &'static str) -> coset::Result<Vec<u8>> {
-    v.into_bytes().map_err(|e| to_unexpected_item_error(&e, "bstr", context))
-}
-
-/// Builds a `CoseError::UnexpectedItem` error when the provided value `v` is not of the expected
-/// type `expected_type` and logs the error message with the provided `context`.
-pub fn to_unexpected_item_error(
-    v: &Value,
-    expected_type: &'static str,
-    context: &'static str,
-) -> CoseError {
-    let v_type = cbor_value_type(v);
-    assert!(v_type != expected_type);
-    error!("The provided value type '{v_type}' is not of type '{expected_type}': {context}");
-    CoseError::UnexpectedItem(v_type, expected_type)
-}
-
-/// Reads the type of the provided value `v`.
-pub fn cbor_value_type(v: &Value) -> &'static str {
-    match v {
-        Value::Integer(_) => "int",
-        Value::Bytes(_) => "bstr",
-        Value::Float(_) => "float",
-        Value::Text(_) => "tstr",
-        Value::Bool(_) => "bool",
-        Value::Null => "nul",
-        Value::Tag(_, _) => "tag",
-        Value::Array(_) => "array",
-        Value::Map(_) => "map",
-        _ => "other",
     }
 }

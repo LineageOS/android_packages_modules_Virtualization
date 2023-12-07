@@ -16,8 +16,6 @@
 
 use crate::err::get_error_reason_code;
 use bssl_avf_error::{ApiName, Error, Result};
-use ciborium::Value;
-use coset::{CoseKey, Label};
 use log::error;
 
 pub(crate) fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
@@ -36,15 +34,4 @@ pub(crate) fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
 
 pub(crate) fn to_call_failed_error(api_name: ApiName) -> Error {
     Error::CallFailed(api_name, get_error_reason_code())
-}
-
-pub(crate) fn get_label_value_as_bytes(key: &CoseKey, label: Label) -> Result<&[u8]> {
-    Ok(get_label_value(key, label)?.as_bytes().ok_or_else(|| {
-        error!("Value not a bstr.");
-        Error::CoseKeyDecodingFailed
-    })?)
-}
-
-pub(crate) fn get_label_value(key: &CoseKey, label: Label) -> Result<&Value> {
-    Ok(&key.params.iter().find(|(k, _)| k == &label).ok_or(Error::CoseKeyDecodingFailed)?.1)
 }
