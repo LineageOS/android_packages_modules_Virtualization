@@ -151,7 +151,7 @@ impl<'a> DmVerityTargetBuilder<'a> {
         };
 
         let root_digest = if let Some(root_digest) = self.root_digest {
-            hexstring_from(root_digest)
+            hex::encode(root_digest)
         } else {
             bail!("root digest is not set")
         };
@@ -159,7 +159,7 @@ impl<'a> DmVerityTargetBuilder<'a> {
         let salt = if self.salt.is_none() || self.salt.unwrap().is_empty() {
             "-".to_string() // Note. It's not an empty string!
         } else {
-            hexstring_from(self.salt.unwrap())
+            hex::encode(self.salt.unwrap())
         };
 
         // Step2: serialize the information according to the spec, which is ...
