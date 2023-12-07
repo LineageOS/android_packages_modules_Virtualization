@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn merkle_tree_empty_file() -> Result<()> {
         assert_eq!(
-            to_u8_vec("3d248ca542a24fc62d1c43b916eae5016878e2533c88238480b26128a1f1af95"),
+            hex::decode("3d248ca542a24fc62d1c43b916eae5016878e2533c88238480b26128a1f1af95")?,
             generate_fsverity_digest_sequentially(&Vec::new())?
         );
         Ok(())
@@ -169,7 +169,7 @@ mod tests {
     fn merkle_tree_file_size_less_than_or_equal_to_4k() -> Result<()> {
         // Test a file that contains 4096 '\01's.
         assert_eq!(
-            to_u8_vec("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af"),
+            hex::decode("cd0875ca59c7d37e962c5e8f5acd3770750ac80225e2df652ce5672fd34500af")?,
             generate_fsverity_digest_sequentially(&vec![1; 4096])?
         );
         Ok(())
@@ -180,24 +180,24 @@ mod tests {
         // Test files that contains >4096 '\01's.
 
         assert_eq!(
-            to_u8_vec("2901b849fda2d91e3929524561c4a47e77bb64734319759507b2029f18b9cc52"),
+            hex::decode("2901b849fda2d91e3929524561c4a47e77bb64734319759507b2029f18b9cc52")?,
             generate_fsverity_digest_sequentially(&vec![1; 4097])?
         );
 
         assert_eq!(
-            to_u8_vec("2a476d58eb80394052a3a783111e1458ac3ecf68a7878183fed86ca0ff47ec0d"),
+            hex::decode("2a476d58eb80394052a3a783111e1458ac3ecf68a7878183fed86ca0ff47ec0d")?,
             generate_fsverity_digest_sequentially(&vec![1; 8192])?
         );
 
         // Test with max size that still fits in 2 levels.
         assert_eq!(
-            to_u8_vec("26b7c190a34e19f420808ee7ec233b09fa6c34543b5a9d2950530114c205d14f"),
+            hex::decode("26b7c190a34e19f420808ee7ec233b09fa6c34543b5a9d2950530114c205d14f")?,
             generate_fsverity_digest_sequentially(&vec![1; 524288])?
         );
 
         // Test with data that requires 3 levels.
         assert_eq!(
-            to_u8_vec("316835d9be1c95b5cd55d07ae7965d651689efad186e26cbf680e40b683a3262"),
+            hex::decode("316835d9be1c95b5cd55d07ae7965d651689efad186e26cbf680e40b683a3262")?,
             generate_fsverity_digest_sequentially(&vec![1; 524289])?
         );
         Ok(())
@@ -215,7 +215,7 @@ mod tests {
         tree.update_hash(2, &hash, CHUNK_SIZE * 3);
 
         assert_eq!(
-            to_u8_vec("7d3c0d2e1dc54230b20ed875f5f3a4bd3f9873df601936b3ca8127d4db3548f3"),
+            hex::decode("7d3c0d2e1dc54230b20ed875f5f3a4bd3f9873df601936b3ca8127d4db3548f3")?,
             tree.calculate_fsverity_digest()?
         );
         Ok(())
@@ -267,13 +267,5 @@ mod tests {
             tree.update_hash(index, &hash, CHUNK_SIZE * index as u64 + chunk.len() as u64);
         }
         Ok(tree.calculate_fsverity_digest()?)
-    }
-
-    fn to_u8_vec(hex_str: &str) -> Vec<u8> {
-        assert!(hex_str.len() % 2 == 0);
-        (0..hex_str.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&hex_str[i..i + 2], 16).unwrap())
-            .collect()
     }
 }
