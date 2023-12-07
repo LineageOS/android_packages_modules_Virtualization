@@ -46,7 +46,7 @@ fn main() -> Result<()> {
 
     for (apk, idsig, name, roothash) in apks.tuples() {
         let roothash = if roothash != "none" {
-            Some(util::parse_hexstring(roothash).expect("failed to parse roothash"))
+            Some(hex::decode(roothash).expect("failed to parse roothash"))
         } else {
             None
         };
