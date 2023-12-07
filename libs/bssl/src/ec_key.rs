@@ -17,9 +17,7 @@
 
 use crate::cbb::CbbFixed;
 use crate::cbs::Cbs;
-use crate::util::{
-    check_int_result, get_label_value, get_label_value_as_bytes, to_call_failed_error,
-};
+use crate::util::{check_int_result, to_call_failed_error};
 use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
@@ -31,6 +29,7 @@ use bssl_ffi::{
     EC_KEY_set_public_key_affine_coordinates, EC_POINT_get_affine_coordinates,
     NID_X9_62_prime256v1, NID_secp384r1, BIGNUM, EC_GROUP, EC_KEY, EC_POINT,
 };
+use cbor_util::{get_label_value, get_label_value_as_bytes};
 use ciborium::Value;
 use core::ptr::{self, NonNull};
 use coset::{

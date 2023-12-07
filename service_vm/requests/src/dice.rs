@@ -16,7 +16,11 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use ciborium::value::{Integer, Value};
+use cbor_util::{
+    cbor_value_type, value_to_array, value_to_byte_array, value_to_bytes, value_to_map,
+    value_to_num, value_to_text,
+};
+use ciborium::value::Value;
 use core::cell::OnceCell;
 use core::result;
 use coset::{
@@ -24,9 +28,7 @@ use coset::{
 };
 use diced_open_dice::{DiceMode, HASH_SIZE};
 use log::error;
-use service_vm_comm::{
-    cbor_value_type, to_unexpected_item_error, value_to_bytes, RequestProcessingError,
-};
+use service_vm_comm::RequestProcessingError;
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
@@ -397,33 +399,6 @@ impl SubComponentBuilder {
         let authority_hash = take_value(&mut self.authority_hash, "SubComponent authority_hash")?;
         Ok(SubComponent { name, version, code_hash, authority_hash })
     }
-}
-
-fn value_to_array(v: Value, context: &'static str) -> coset::Result<Vec<Value>> {
-    v.into_array().map_err(|e| to_unexpected_item_error(&e, "array", context))
-}
-
-fn value_to_text(v: Value, context: &'static str) -> coset::Result<String> {
-    v.into_text().map_err(|e| to_unexpected_item_error(&e, "tstr", context))
-}
-
-fn value_to_map(v: Value, context: &'static str) -> coset::Result<Vec<(Value, Value)>> {
-    v.into_map().map_err(|e| to_unexpected_item_error(&e, "map", context))
-}
-
-fn value_to_num<T: TryFrom<Integer>>(v: Value, context: &'static str) -> Result<T> {
-    let num = v.into_integer().map_err(|e| to_unexpected_item_error(&e, "int", context))?;
-    num.try_into().map_err(|_| {
-        error!("The provided value '{num:?}' is not a valid number: {context}");
-        RequestProcessingError::InvalidDiceChain
-    })
-}
-
-fn value_to_byte_array<const N: usize>(v: Value, context: &'static str) -> Result<[u8; N]> {
-    value_to_bytes(v, context)?.try_into().map_err(|e| {
-        error!("The provided value '{context}' is not an array of length {N}: {e:?}");
-        RequestProcessingError::InternalError
-    })
 }
 
 fn to_mode(value: Value) -> Result<DiceMode> {
