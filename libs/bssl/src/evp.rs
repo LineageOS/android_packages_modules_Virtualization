@@ -17,9 +17,7 @@
 use crate::cbb::CbbFixed;
 use crate::digest::{Digester, DigesterContext};
 use crate::ec_key::EcKey;
-use crate::util::{
-    check_int_result, get_label_value, get_label_value_as_bytes, to_call_failed_error,
-};
+use crate::util::{check_int_result, to_call_failed_error};
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
 use bssl_ffi::{
@@ -27,6 +25,7 @@ use bssl_ffi::{
     EVP_PKEY_new_raw_public_key, EVP_PKEY_set1_EC_KEY, EVP_marshal_public_key, EVP_PKEY,
     EVP_PKEY_ED25519, EVP_PKEY_X25519,
 };
+use cbor_util::{get_label_value, get_label_value_as_bytes};
 use ciborium::Value;
 use core::ptr::{self, NonNull};
 use coset::{
