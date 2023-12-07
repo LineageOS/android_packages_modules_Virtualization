@@ -115,7 +115,7 @@ lazy_static! {
         wait_for_interface(BINDER_SERVICE_IDENTIFIER)
             .expect("Could not connect to VirtualizationServiceInternal");
     static ref MICRODROID_GKI_OS_NAME_PATTERN: Regex =
-        Regex::new(r"^microdroid_gki-\d+\.\d+$").expect("Failed to construct Regex");
+        Regex::new(r"^microdroid_gki-android\d+-\d+\.\d+$").expect("Failed to construct Regex");
 }
 
 fn create_or_update_idsig_file(
