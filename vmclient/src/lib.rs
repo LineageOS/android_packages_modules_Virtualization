@@ -74,11 +74,7 @@ fn posix_socketpair() -> Result<(OwnedFd, OwnedFd), io::Error> {
     // Create new POSIX socketpair, suitable for use with RpcBinder UDS bootstrap
     // transport. Make it O_CLOEXEC to align with how Rust creates file
     // descriptors (expected by SharedChild).
-    let (raw1, raw2) =
-        socketpair(AddressFamily::Unix, SockType::Stream, None, SockFlag::SOCK_CLOEXEC)?;
-
-    // SAFETY: Taking ownership of brand new FDs.
-    unsafe { Ok((OwnedFd::from_raw_fd(raw1), OwnedFd::from_raw_fd(raw2))) }
+    Ok(socketpair(AddressFamily::Unix, SockType::Stream, None, SockFlag::SOCK_CLOEXEC)?)
 }
 
 /// A running instance of virtmgr which is hosting a VirtualizationService
