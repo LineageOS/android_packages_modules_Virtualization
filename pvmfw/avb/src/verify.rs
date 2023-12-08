@@ -68,9 +68,9 @@ pub enum Capability {
 }
 
 impl Capability {
-    const KEY: &[u8] = b"com.android.virt.cap";
-    const REMOTE_ATTEST: &[u8] = b"remote_attest";
-    const SECRETKEEPER_PROTECTION: &[u8] = b"secretkeeper_protection";
+    const KEY: &'static [u8] = b"com.android.virt.cap";
+    const REMOTE_ATTEST: &'static [u8] = b"remote_attest";
+    const SECRETKEEPER_PROTECTION: &'static [u8] = b"secretkeeper_protection";
     const SEPARATOR: u8 = b'|';
 
     fn get_capabilities(property_value: &[u8]) -> Result<Vec<Self>, PvmfwVerifyError> {
