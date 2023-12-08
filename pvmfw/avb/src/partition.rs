@@ -29,9 +29,9 @@ pub(crate) enum PartitionName {
 impl PartitionName {
     pub(crate) const NUM_OF_KNOWN_PARTITIONS: usize = 3;
 
-    const KERNEL_PARTITION_NAME: &[u8] = b"boot\0";
-    const INITRD_NORMAL_PARTITION_NAME: &[u8] = b"initrd_normal\0";
-    const INITRD_DEBUG_PARTITION_NAME: &[u8] = b"initrd_debug\0";
+    const KERNEL_PARTITION_NAME: &'static [u8] = b"boot\0";
+    const INITRD_NORMAL_PARTITION_NAME: &'static [u8] = b"initrd_normal\0";
+    const INITRD_DEBUG_PARTITION_NAME: &'static [u8] = b"initrd_debug\0";
 
     pub(crate) fn as_cstr(&self) -> &CStr {
         CStr::from_bytes_with_nul(self.as_bytes()).unwrap()
