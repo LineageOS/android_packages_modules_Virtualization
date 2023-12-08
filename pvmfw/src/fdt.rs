@@ -644,6 +644,11 @@ pub fn sanitize_device_tree(
         RebootReason::InvalidFdt
     })?;
 
+    fdt.unpack().map_err(|e| {
+        error!("Failed to unpack DT for patching: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
     if let Some(device_assignment_info) = &info.device_assignment {
         let vm_dtbo = vm_dtbo.unwrap();
         device_assignment_info.filter(vm_dtbo).map_err(|e| {
@@ -662,6 +667,11 @@ pub fn sanitize_device_tree(
     }
 
     patch_device_tree(fdt, &info)?;
+
+    fdt.pack().map_err(|e| {
+        error!("Failed to unpack DT after patching: {e}");
+        RebootReason::InvalidFdt
+    })?;
 
     Ok(info)
 }
@@ -745,11 +755,6 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
 }
 
 fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootReason> {
-    fdt.unpack().map_err(|e| {
-        error!("Failed to unpack DT for patching: {e}");
-        RebootReason::InvalidFdt
-    })?;
-
     if let Some(initrd_range) = &info.initrd_range {
         patch_initrd_range(fdt, initrd_range).map_err(|e| {
             error!("Failed to patch initrd range to DT: {e}");
@@ -804,11 +809,6 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
             RebootReason::InvalidFdt
         })?;
     }
-
-    fdt.pack().map_err(|e| {
-        error!("Failed to pack DT after patching: {e}");
-        RebootReason::InvalidFdt
-    })?;
 
     Ok(())
 }
