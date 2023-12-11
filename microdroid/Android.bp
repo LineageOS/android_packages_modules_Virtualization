@@ -557,17 +557,17 @@ prebuilt_etc {
 }
 
 ///////////////////////////////////////
-// GKI-6.1 modules
+// GKI-android14-6.1 modules
 ///////////////////////////////////////
 prebuilt_etc {
-    name: "microdroid_gki-6.1.json",
-    src: "microdroid_gki-6.1.json",
+    name: "microdroid_gki-android14-6.1.json",
+    src: "microdroid_gki-android14-6.1.json",
 }
 
 avb_add_hash_footer {
-    name: "microdroid_gki-6.1_kernel_signed",
+    name: "microdroid_gki-android14-6.1_kernel_signed",
     defaults: ["microdroid_kernel_signed_defaults"],
-    filename: "microdroid_gki-6.1_kernel",
+    filename: "microdroid_gki-android14-6.1_kernel",
     arch: {
         arm64: {
             src: ":microdroid_gki_kernel_prebuilts-6.1-arm64",
@@ -577,33 +577,33 @@ avb_add_hash_footer {
         },
     },
     include_descriptors_from_images: [
-        ":microdroid_gki-6.1_initrd_normal_hashdesc",
-        ":microdroid_gki-6.1_initrd_debug_hashdesc",
+        ":microdroid_gki-android14-6.1_initrd_normal_hashdesc",
+        ":microdroid_gki-android14-6.1_initrd_debug_hashdesc",
     ],
 }
 
 prebuilt_etc {
-    name: "microdroid_gki-6.1_kernel",
+    name: "microdroid_gki-android14-6.1_kernel",
     src: ":empty_file",
     relative_install_path: "fs",
     arch: {
         arm64: {
-            src: ":microdroid_gki-6.1_kernel_signed",
+            src: ":microdroid_gki-android14-6.1_kernel_signed",
         },
         x86_64: {
-            src: ":microdroid_gki-6.1_kernel_signed",
+            src: ":microdroid_gki-android14-6.1_kernel_signed",
         },
     },
 }
 
 avb_gen_vbmeta_image {
-    name: "microdroid_gki-6.1_initrd_normal_hashdesc",
+    name: "microdroid_gki-android14-6.1_initrd_normal_hashdesc",
     defaults: ["microdroid_initrd_normal_defaults"],
-    src: ":microdroid_gki-6.1_initrd_normal",
+    src: ":microdroid_gki-android14-6.1_initrd_normal",
 }
 
 avb_gen_vbmeta_image {
-    name: "microdroid_gki-6.1_initrd_debug_hashdesc",
+    name: "microdroid_gki-android14-6.1_initrd_debug_hashdesc",
     defaults: ["microdroid_initrd_debug_defaults"],
-    src: ":microdroid_gki-6.1_initrd_debuggable",
+    src: ":microdroid_gki-android14-6.1_initrd_debuggable",
 }
