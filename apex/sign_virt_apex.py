@@ -411,7 +411,7 @@ def GenVbmetaImage(args, image, output, partition_name):
     RunCommand(args, cmd)
 
 
-gki_versions = ['6.1']
+gki_versions = ['android14-6.1']
 
 # dict of (key, file) for re-sign/verification. keys are un-versioned for readability.
 virt_apex_non_gki_files = {
