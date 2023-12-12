@@ -14,27 +14,90 @@
 
 //! Wrappers of the error handling functions in BoringSSL err.h.
 
+use alloc::string::{String, ToString};
 use bssl_avf_error::{CipherError, EcError, EcdsaError, GlobalError, ReasonCode};
-use bssl_sys::{self, ERR_get_error, ERR_GET_LIB_RUST, ERR_GET_REASON_RUST};
+use bssl_sys::{
+    self, ERR_get_error_line, ERR_lib_error_string, ERR_reason_error_string, ERR_GET_LIB_RUST,
+    ERR_GET_REASON_RUST,
+};
+use core::ffi::{c_char, CStr};
+use core::ptr;
+use log::{error, info};
 
 const NO_ERROR_REASON_CODE: i32 = 0;
 
-/// Returns the reason code for the least recent error and removes that
-/// error from the error queue.
-pub(crate) fn get_error_reason_code() -> ReasonCode {
-    let packed_error = get_packed_error();
+/// Processes the error queue till it is empty, logs the information for all the errors in
+/// the queue from the least recent to the most recent, and returns the reason code for the
+/// most recent error.
+pub(crate) fn process_error_queue() -> ReasonCode {
+    let mut reason_code = ReasonCode::NoError;
+    loop {
+        let code = process_least_recent_error();
+        if code == ReasonCode::NoError {
+            break;
+        }
+        reason_code = code;
+    }
+    reason_code
+}
+
+/// Removes the least recent error in the error queue and logs the error information.
+///
+/// Returns the reason code for the least recent error.
+fn process_least_recent_error() -> ReasonCode {
+    let mut file = ptr::null();
+    let mut line = 0;
+    // SAFETY: This function only reads the error queue and writes to the given
+    // pointers. It doesn't retain any references to the pointers.
+    let packed_error = unsafe { ERR_get_error_line(&mut file, &mut line) };
     let reason = get_reason(packed_error);
+    if reason == NO_ERROR_REASON_CODE {
+        info!("No error in the BoringSSL error queue");
+        return ReasonCode::NoError;
+    }
+
+    // SAFETY: Any non-null result is expected to point to a global const C string.
+    let file = unsafe { cstr_to_string(file, "<unknown file>") };
+    error!(
+        "BoringSSL error: {}:{}: lib = {}, reason = {}",
+        file,
+        line,
+        lib_error_string(packed_error),
+        reason_error_string(packed_error),
+    );
+
     let lib = get_lib(packed_error);
     map_to_reason_code(reason, lib)
 }
 
-/// Returns the packed error code for the least recent error and removes that
-/// error from the error queue.
+fn lib_error_string(packed_error: u32) -> String {
+    // SAFETY: This function only reads the given error code and returns a
+    // pointer to a static string.
+    let p = unsafe { ERR_lib_error_string(packed_error) };
+    // SAFETY: Any non-null result is expected to point to a global const C string.
+    unsafe { cstr_to_string(p, "<unknown library>") }
+}
+
+fn reason_error_string(packed_error: u32) -> String {
+    // SAFETY: This function only reads the given error code and returns a
+    // pointer to a static string.
+    let p = unsafe { ERR_reason_error_string(packed_error) };
+    // SAFETY: Any non-null result is expected to point to a global const C string.
+    unsafe { cstr_to_string(p, "<unknown reason>") }
+}
+
+/// Converts a C string pointer to a Rust string.
 ///
-/// Returns 0 if there are no errors in the queue.
-fn get_packed_error() -> u32 {
-    // SAFETY: This function only reads the error queue.
-    unsafe { ERR_get_error() }
+/// # Safety
+///
+/// The caller needs to ensure that the pointer is null or points to a valid C string.
+unsafe fn cstr_to_string(p: *const c_char, default: &str) -> String {
+    if p.is_null() {
+        return default.to_string();
+    }
+    // Safety: Safe given the requirements of this function.
+    let s = unsafe { CStr::from_ptr(p) };
+    s.to_str().unwrap_or(default).to_string()
 }
 
 fn get_reason(packed_error: u32) -> i32 {

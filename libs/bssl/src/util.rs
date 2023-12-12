@@ -14,14 +14,14 @@
 
 //! Utility functions.
 
-use crate::err::get_error_reason_code;
+use crate::err::process_error_queue;
 use bssl_avf_error::{ApiName, Error, Result};
 use log::error;
 
 pub(crate) fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
     match ret {
         1 => Ok(()),
-        0 => Err(Error::CallFailed(api_name, get_error_reason_code())),
+        0 => Err(Error::CallFailed(api_name, process_error_queue())),
         _ => {
             error!(
                 "Received a return value ({}) other than 0 or 1 from the BoringSSL API: {:?}",
@@ -33,5 +33,5 @@ pub(crate) fn check_int_result(ret: i32, api_name: ApiName) -> Result<()> {
 }
 
 pub(crate) fn to_call_failed_error(api_name: ApiName) -> Error {
-    Error::CallFailed(api_name, get_error_reason_code())
+    Error::CallFailed(api_name, process_error_queue())
 }
