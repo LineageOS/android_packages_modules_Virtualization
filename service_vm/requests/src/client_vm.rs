@@ -16,20 +16,15 @@
 //! client VM.
 
 use crate::cert;
-use crate::dice::{
-    validate_client_vm_dice_chain_prefix_match, ClientVmDiceChain, DiceChainEntryPayload,
-};
+use crate::dice::{validate_client_vm_dice_chain_prefix_match, ClientVmDiceChain};
 use crate::keyblob::decrypt_private_key;
 use alloc::vec::Vec;
-use bssl_avf::{rand_bytes, sha256, Digester, EcKey, PKey};
-use cbor_util::value_to_array;
-use ciborium::value::Value;
+use bssl_avf::{rand_bytes, sha256, EcKey, PKey};
 use core::result;
-use coset::{AsCborValue, CborSerializable, CoseSign, CoseSign1};
+use coset::{CborSerializable, CoseSign};
 use der::{Decode, Encode};
-use diced_open_dice::{DiceArtifacts, HASH_SIZE};
+use diced_open_dice::DiceArtifacts;
 use log::error;
-use microdroid_kernel_hashes::{INITRD_DEBUG_HASH, INITRD_NORMAL_HASH, KERNEL_HASH};
 use service_vm_comm::{ClientVmAttestationParams, Csr, CsrPayload, RequestProcessingError};
 use x509_cert::{certificate::Certificate, name::Name};
 
@@ -52,21 +47,12 @@ pub(super) fn request_attestation(
     // Validates the prefix of the Client VM DICE chain in the CSR.
     let service_vm_dice_chain =
         dice_artifacts.bcc().ok_or(RequestProcessingError::MissingDiceChain)?;
-    let service_vm_dice_chain =
-        value_to_array(Value::from_slice(service_vm_dice_chain)?, "service_vm_dice_chain")?;
     let client_vm_dice_chain =
-        value_to_array(Value::from_slice(&csr.dice_cert_chain)?, "client_vm_dice_chain")?;
-    validate_client_vm_dice_chain_prefix_match(&client_vm_dice_chain, &service_vm_dice_chain)?;
+        validate_client_vm_dice_chain_prefix_match(&csr.dice_cert_chain, service_vm_dice_chain)?;
     // Validates the signatures in the Client VM DICE chain and extracts the partially decoded
     // DiceChainEntryPayloads.
     let client_vm_dice_chain =
         ClientVmDiceChain::validate_signatures_and_parse_dice_chain(client_vm_dice_chain)?;
-
-    // The last entry in the service VM DICE chain describes the service VM, which should
-    // be signed with the same key as the kernel image.
-    let service_vm_entry = service_vm_dice_chain.last().unwrap();
-    validate_kernel_authority_hash(client_vm_dice_chain.microdroid_kernel(), service_vm_entry)?;
-    validate_kernel_code_hash(&client_vm_dice_chain)?;
 
     // AAD is empty as defined in service_vm/comm/client_vm_csr.cddl.
     let aad = &[];
@@ -134,61 +120,4 @@ fn ecdsa_verify(key: &EcKey, signature: &[u8], message: &[u8]) -> bssl_avf::Resu
 fn ecdsa_sign(key: &EcKey, message: &[u8]) -> bssl_avf::Result<Vec<u8>> {
     let digest = sha256(message)?;
     key.ecdsa_sign(&digest)
-}
-
-/// Validates that the authority hash of the Microdroid kernel in the Client VM DICE chain
-/// matches the authority hash of the service VM entry in the service VM DICE chain, because
-/// the Microdroid kernel is signed with the same key as the one used for the service VM.
-fn validate_kernel_authority_hash(
-    kernel: &DiceChainEntryPayload,
-    service_vm_entry: &Value,
-) -> Result<()> {
-    if expected_kernel_authority_hash(service_vm_entry)? == kernel.authority_hash {
-        Ok(())
-    } else {
-        error!("The authority hash of the Microdroid kernel does not match the expected value");
-        Err(RequestProcessingError::InvalidDiceChain)
-    }
-}
-
-/// Validates that the kernel code hash in the Client VM DICE chain matches the code hashes
-/// embedded during the build time.
-fn validate_kernel_code_hash(dice_chain: &ClientVmDiceChain) -> Result<()> {
-    let kernel = dice_chain.microdroid_kernel();
-    if expected_kernel_code_hash_normal()? == kernel.code_hash {
-        return Ok(());
-    }
-    if expected_kernel_code_hash_debug()? == kernel.code_hash {
-        if dice_chain.all_entries_are_secure() {
-            error!("The Microdroid kernel has debug initrd but the DICE chain is secure");
-            return Err(RequestProcessingError::InvalidDiceChain);
-        }
-        return Ok(());
-    }
-    error!("The kernel code hash in the Client VM DICE chain does not match any expected values");
-    Err(RequestProcessingError::InvalidDiceChain)
-}
-
-fn expected_kernel_code_hash_normal() -> bssl_avf::Result<Vec<u8>> {
-    let mut code_hash = [0u8; 64];
-    code_hash[0..32].copy_from_slice(KERNEL_HASH);
-    code_hash[32..].copy_from_slice(INITRD_NORMAL_HASH);
-    Digester::sha512().digest(&code_hash)
-}
-
-fn expected_kernel_code_hash_debug() -> bssl_avf::Result<Vec<u8>> {
-    let mut code_hash = [0u8; 64];
-    code_hash[0..32].copy_from_slice(KERNEL_HASH);
-    code_hash[32..].copy_from_slice(INITRD_DEBUG_HASH);
-    Digester::sha512().digest(&code_hash)
-}
-
-fn expected_kernel_authority_hash(service_vm_entry: &Value) -> Result<[u8; HASH_SIZE]> {
-    let cose_sign1 = CoseSign1::from_cbor_value(service_vm_entry.clone())?;
-    let payload = cose_sign1.payload.ok_or_else(|| {
-        error!("No payload found in the service VM DICE chain entry");
-        RequestProcessingError::InternalError
-    })?;
-    let service_vm = DiceChainEntryPayload::from_slice(&payload)?;
-    Ok(service_vm.authority_hash)
 }
