@@ -131,6 +131,13 @@ impl Entry {
     const COUNT: usize = Self::_VARIANT_COUNT as usize;
 }
 
+#[derive(Default)]
+pub struct Entries<'a> {
+    pub bcc: &'a mut [u8],
+    pub debug_policy: Option<&'a mut [u8]>,
+    pub vm_dtbo: Option<&'a mut [u8]>,
+}
+
 #[repr(packed)]
 #[derive(Clone, Copy, Debug, FromZeroes, FromBytes)]
 struct HeaderEntry {
@@ -260,7 +267,7 @@ impl<'a> Config<'a> {
     }
 
     /// Get slice containing the platform BCC.
-    pub fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>, Option<&mut [u8]>) {
+    pub fn get_entries(&mut self) -> Entries<'_> {
         // This assumes that the blobs are in-order w.r.t. the entries.
         let bcc_range = self.get_entry_range(Entry::Bcc);
         let dp_range = self.get_entry_range(Entry::DebugPolicy);
@@ -270,16 +277,17 @@ impl<'a> Config<'a> {
             info!("Found VM DTBO at {:?}", vm_dtbo_range);
         }
 
-        // SAFETY: When instantiate, ranges are validated to be in the body range without
+        // SAFETY: When instantiated, ranges are validated to be in the body range without
         // overlapping.
-        unsafe {
+        let (bcc, debug_policy, vm_dtbo) = unsafe {
             let ptr = self.body.as_mut_ptr() as usize;
             (
                 Self::from_raw_range_mut(ptr, bcc_range.unwrap()),
                 dp_range.map(|dp_range| Self::from_raw_range_mut(ptr, dp_range)),
                 vm_dtbo_range.map(|vm_dtbo_range| Self::from_raw_range_mut(ptr, vm_dtbo_range)),
             )
-        }
+        };
+        Entries { bcc, debug_policy, vm_dtbo }
     }
 
     fn get_entry_range(&self, entry: Entry) -> Option<NonEmptyRange> {
