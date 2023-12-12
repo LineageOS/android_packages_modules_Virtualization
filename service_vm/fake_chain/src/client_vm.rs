@@ -24,21 +24,16 @@ use core::result;
 use coset::CborSerializable;
 use cstr::cstr;
 use diced_open_dice::{
-    retry_bcc_format_config_descriptor, retry_bcc_main_flow, Config, DiceArtifacts,
+    hash, retry_bcc_format_config_descriptor, retry_bcc_main_flow, Config, DiceArtifacts,
     DiceConfigValues, DiceError, DiceMode, InputValues, OwnedDiceArtifacts, Result, HASH_SIZE,
     HIDDEN_SIZE,
 };
 use log::error;
+use microdroid_kernel_hashes::{INITRD_DEBUG_HASH, KERNEL_HASH};
 
 type CborResult<T> = result::Result<T, ciborium::value::Error>;
 
 /// All the following data are generated with urandom.
-const CODE_HASH_KERNEL: [u8; HASH_SIZE] = [
-    0xc8, 0x54, 0x6c, 0xad, 0x9d, 0xe7, 0x25, 0xc7, 0x2b, 0xed, 0x07, 0xe1, 0xe9, 0x1a, 0xb0, 0xd0,
-    0xa7, 0x7f, 0x43, 0xb9, 0xe4, 0x56, 0x79, 0x0d, 0x7d, 0xd8, 0xc5, 0xdd, 0xad, 0x0d, 0x31, 0x85,
-    0xaf, 0x94, 0x02, 0xd8, 0x9d, 0x70, 0xab, 0xba, 0xac, 0xc7, 0x12, 0x80, 0xec, 0x7b, 0x9b, 0x65,
-    0xec, 0x6b, 0xdd, 0x64, 0x94, 0xd0, 0x9a, 0x3a, 0x09, 0xf2, 0x49, 0xdb, 0x60, 0x3c, 0x50, 0x30,
-];
 const CODE_HASH_PAYLOAD: [u8; HASH_SIZE] = [
     0x08, 0x78, 0xc2, 0x5b, 0xe7, 0xea, 0x3d, 0x62, 0x70, 0x22, 0xd9, 0x1c, 0x4f, 0x3c, 0x2e, 0x2f,
     0x0f, 0x97, 0xa4, 0x6f, 0x6d, 0xd5, 0xe6, 0x4a, 0x6d, 0xbe, 0x34, 0x2e, 0x56, 0x04, 0xaf, 0xef,
@@ -111,7 +106,7 @@ pub fn fake_client_vm_dice_artifacts() -> Result<OwnedDiceArtifacts> {
     // so the authority hash is the same.
     let authority_hash = service_vm::AUTHORITY_HASH_SERVICE_VM;
     let input_values = InputValues::new(
-        CODE_HASH_KERNEL,
+        kernel_code_hash()?,
         Config::Descriptor(config_descriptor.as_slice()),
         authority_hash,
         DiceMode::kDiceModeDebug,
@@ -178,4 +173,9 @@ pub fn fake_sub_components() -> Vec<SubComponent> {
             authority_hash: APEX1_AUTHORITY_HASH.to_vec(),
         },
     ]
+}
+
+fn kernel_code_hash() -> Result<[u8; HASH_SIZE]> {
+    let code_hash = [KERNEL_HASH, INITRD_DEBUG_HASH].concat();
+    hash(&code_hash)
 }
