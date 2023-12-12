@@ -212,7 +212,7 @@ fn main_wrapper(
         RebootReason::InvalidConfig
     })?;
 
-    let (bcc_slice, debug_policy, vm_dtbo) = appended.get_entries();
+    let config_entries = appended.get_entries();
 
     // Up to this point, we were using the built-in static (from .rodata) page tables.
     MEMORY.lock().replace(MemoryTracker::new(
@@ -222,13 +222,19 @@ fn main_wrapper(
         Some(memory::appended_payload_range()),
     ));
 
-    let slices = MemorySlices::new(fdt, payload, payload_size, vm_dtbo)?;
+    let slices = MemorySlices::new(fdt, payload, payload_size, config_entries.vm_dtbo)?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
-    let next_bcc = crate::main(slices.fdt, slices.kernel, slices.ramdisk, bcc_slice, debug_policy)?;
+    let next_bcc = crate::main(
+        slices.fdt,
+        slices.kernel,
+        slices.ramdisk,
+        config_entries.bcc,
+        config_entries.debug_policy,
+    )?;
 
     // Writable-dirty regions will be flushed when MemoryTracker is dropped.
-    bcc_slice.zeroize();
+    config_entries.bcc.zeroize();
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
     MEMORY.lock().as_mut().unwrap().mmio_unmap_all().map_err(|e| {
@@ -432,10 +438,10 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    fn get_entries(&mut self) -> (&mut [u8], Option<&mut [u8]>, Option<&mut [u8]>) {
+    fn get_entries(&mut self) -> config::Entries<'_> {
         match self {
-            Self::Config(ref mut cfg) => cfg.get_entries(),
-            Self::LegacyBcc(ref mut bcc) => (bcc, None, None),
+            Self::Config(cfg) => cfg.get_entries(),
+            Self::LegacyBcc(bcc) => config::Entries { bcc, ..Default::default() },
         }
     }
 }
