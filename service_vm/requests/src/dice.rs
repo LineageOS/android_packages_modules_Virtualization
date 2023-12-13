@@ -16,15 +16,19 @@
 
 use alloc::string::String;
 use alloc::vec::Vec;
+use bssl_avf::{ed25519_verify, Digester, EcKey};
 use cbor_util::{
-    cbor_value_type, value_to_array, value_to_byte_array, value_to_bytes, value_to_map,
-    value_to_num, value_to_text,
+    cbor_value_type, get_label_value, get_label_value_as_bytes, value_to_array,
+    value_to_byte_array, value_to_bytes, value_to_map, value_to_num, value_to_text,
 };
 use ciborium::value::Value;
 use core::cell::OnceCell;
 use core::result;
 use coset::{
-    self, iana, AsCborValue, CborSerializable, CoseError, CoseKey, CoseSign1, KeyOperation,
+    self,
+    iana::{self, EnumI64},
+    Algorithm, AsCborValue, CborSerializable, CoseError, CoseKey, CoseSign1, KeyOperation, KeyType,
+    Label,
 };
 use diced_open_dice::{DiceMode, HASH_SIZE};
 use log::error;
@@ -58,7 +62,7 @@ const MICRODROID_PAYLOAD_COMPONENT_NAME: &str = "Microdroid payload";
 /// ]
 #[derive(Debug, Clone)]
 pub(crate) struct ClientVmDiceChain {
-    pub(crate) payloads: Vec<DiceChainEntryPayload>,
+    payloads: Vec<DiceChainEntryPayload>,
 }
 
 impl ClientVmDiceChain {
@@ -130,7 +134,7 @@ impl ClientVmDiceChain {
         &self.payloads[self.payloads.len() - 2]
     }
 
-    fn microdroid_payload(&self) -> &DiceChainEntryPayload {
+    pub(crate) fn microdroid_payload(&self) -> &DiceChainEntryPayload {
         &self.payloads[self.payloads.len() - 1]
     }
 
@@ -198,15 +202,69 @@ impl TryFrom<CoseKey> for PublicKey {
     }
 }
 
+impl PublicKey {
+    /// Verifies the signature of the provided message with the public key.
+    ///
+    /// This function supports the following key/algorithm types as specified in
+    /// hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/
+    /// generateCertificateRequestV2.cddl:
+    ///
+    /// PubKeyEd25519 / PubKeyECDSA256 / PubKeyECDSA384
+    pub(crate) fn verify(&self, signature: &[u8], message: &[u8]) -> Result<()> {
+        match &self.0.kty {
+            KeyType::Assigned(iana::KeyType::EC2) => {
+                let public_key = EcKey::from_cose_public_key(&self.0)?;
+                let Some(Algorithm::Assigned(alg)) = self.0.alg else {
+                    error!("Invalid algorithm in COSE key {:?}", self.0.alg);
+                    return Err(RequestProcessingError::InvalidDiceChain);
+                };
+                let digester = match alg {
+                    iana::Algorithm::ES256 => Digester::sha256(),
+                    iana::Algorithm::ES384 => Digester::sha384(),
+                    _ => {
+                        error!("Unsupported algorithm in EC2 key: {:?}", alg);
+                        return Err(RequestProcessingError::InvalidDiceChain);
+                    }
+                };
+                let digest = digester.digest(message)?;
+                Ok(public_key.ecdsa_verify(signature, &digest)?)
+            }
+            KeyType::Assigned(iana::KeyType::OKP) => {
+                let curve_type =
+                    get_label_value(&self.0, Label::Int(iana::OkpKeyParameter::Crv.to_i64()))?;
+                if curve_type != &Value::from(iana::EllipticCurve::Ed25519.to_i64()) {
+                    error!("Unsupported curve type in OKP COSE key: {:?}", curve_type);
+                    return Err(RequestProcessingError::OperationUnimplemented);
+                }
+                let x = get_label_value_as_bytes(
+                    &self.0,
+                    Label::Int(iana::OkpKeyParameter::X.to_i64()),
+                )?;
+                let public_key = x.try_into().map_err(|_| {
+                    error!("Invalid ED25519 public key size: {}", x.len());
+                    RequestProcessingError::InvalidDiceChain
+                })?;
+                let signature = signature.try_into().map_err(|_| {
+                    error!("Invalid ED25519 signature size: {}", signature.len());
+                    RequestProcessingError::InvalidDiceChain
+                })?;
+                Ok(ed25519_verify(message, signature, public_key)?)
+            }
+            kty => {
+                error!("Unsupported key type in COSE key: {:?}", kty);
+                Err(RequestProcessingError::OperationUnimplemented)
+            }
+        }
+    }
+}
+
 /// Represents a partially decoded `DiceChainEntryPayload`. The whole payload is defined in:
 ///
 /// hardware/interfaces/security/rkp/aidl/android/hardware/security/keymint/
 /// generateCertificateRequestV2.cddl
 #[derive(Debug, Clone)]
 pub(crate) struct DiceChainEntryPayload {
-    /// TODO(b/310931749): Verify the DICE chain entry using the subject public key.
-    #[allow(dead_code)]
-    subject_public_key: PublicKey,
+    pub(crate) subject_public_key: PublicKey,
     mode: DiceMode,
     /// TODO(b/271275206): Verify Microdroid kernel authority and code hashes.
     #[allow(dead_code)]
@@ -221,10 +279,13 @@ impl DiceChainEntryPayload {
     /// extracts payload from the value.
     fn validate_cose_signature_and_extract_payload(
         value: Value,
-        _authority_public_key: &PublicKey,
+        authority_public_key: &PublicKey,
     ) -> Result<Self> {
         let cose_sign1 = CoseSign1::from_cbor_value(value)?;
-        // TODO(b/310931749): Verify the DICE chain entry using `authority_public_key`.
+        let aad = &[]; // AAD is not used in DICE chain entry.
+        cose_sign1.verify_signature(aad, |signature, message| {
+            authority_public_key.verify(signature, message)
+        })?;
 
         let payload = cose_sign1.payload.ok_or_else(|| {
             error!("No payload found in the DICE chain entry");
