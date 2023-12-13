@@ -63,6 +63,28 @@ filegroup {
     srcs: [":avb_testkey_rsa4096"],
 }
 
+// Both SERVICE_VM_VERSION and SERVICE_VM_VERSION_STRING should represent the
+// same version number for the service VM.
+SERVICE_VM_VERSION = 1
+SERVICE_VM_VERSION_STRING = "1"
+
+genrule {
+    name: "service_vm_version_rs",
+    out: ["lib.rs"],
+    cmd: "(" +
+        "    echo '#![no_std]';" +
+        "    echo '#![allow(missing_docs)]';" +
+        "    echo 'pub const VERSION: u64 = " + SERVICE_VM_VERSION_STRING + ";'" +
+        ") > $(out)",
+}
+
+rust_library_rlib {
+    name: "libservice_vm_version",
+    crate_name: "service_vm_version",
+    defaults: ["vmbase_rlib_defaults"],
+    srcs: [":service_vm_version_rs"],
+}
+
 avb_add_hash_footer {
     name: "rialto_signed",
     src: ":empty_file",
@@ -70,6 +92,7 @@ avb_add_hash_footer {
     partition_name: "boot",
     private_key: ":rialto_sign_key",
     salt: rialto_salt,
+    rollback_index: SERVICE_VM_VERSION,
     props: [
         {
             name: "com.android.virt.cap",
