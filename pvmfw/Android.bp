@@ -26,6 +26,7 @@ rust_ffi_static {
         "libpvmfw_avb_nostd",
         "libpvmfw_embedded_key",
         "libpvmfw_fdt_template",
+        "libservice_vm_version",
         "libsmccc",
         "libstatic_assertions",
         "libtinyvec_nostd",

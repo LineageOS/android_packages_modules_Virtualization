@@ -141,6 +141,17 @@ pub fn get_or_generate_instance_salt(
             let decrypted = aead.open(&mut entry, payload).map_err(Error::FailedOpen)?;
 
             let body = EntryBody::read_from(decrypted).unwrap();
+            if dice_inputs.rkp_vm_marker {
+                // The RKP VM is allowed to run if it has passed the verified boot check and
+                // contains the expected version in its AVB footer.
+                // The comparison below with the previous boot information is skipped to enable the
+                // simultaneous update of the pvmfw and RKP VM.
+                // For instance, when both the pvmfw and RKP VM are updated, the code hash of the
+                // RKP VM will differ from the one stored in the instance image. In this case, the
+                // RKP VM is still allowed to run.
+                // This ensures that the updated RKP VM will retain the same CDIs in the next stage.
+                return Ok((false, body.salt));
+            }
             if body.code_hash != dice_inputs.code_hash {
                 Err(Error::RecordedCodeHashMismatch)
             } else if body.auth_hash != dice_inputs.auth_hash {
