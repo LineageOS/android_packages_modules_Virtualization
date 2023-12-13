@@ -24,6 +24,7 @@ rust_defaults {
     visibility: [
         "//packages/modules/Virtualization/rialto:__subpackages__",
     ],
+    prefer_rlib: true,
     rustlibs: [
         "libcstr",
     ],
@@ -40,6 +41,7 @@ rust_library {
         "libcoset",
         "libdiced_open_dice",
         "liblog_rust",
+        "libmicrodroid_kernel_hashes",
     ],
 }
 
