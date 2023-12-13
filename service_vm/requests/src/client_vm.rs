@@ -30,6 +30,7 @@ use x509_cert::{certificate::Certificate, name::Name};
 
 type Result<T> = result::Result<T, RequestProcessingError>;
 
+const DICE_CDI_LEAF_SIGNATURE_INDEX: usize = 0;
 const ATTESTATION_KEY_SIGNATURE_INDEX: usize = 1;
 
 pub(super) fn request_attestation(
@@ -58,8 +59,9 @@ pub(super) fn request_attestation(
     let aad = &[];
 
     // Verifies the first signature with the leaf private key in the DICE chain.
-    // TODO(b/310931749): Verify the first signature with CDI_Leaf_Pub of
-    // the DICE chain in `cose_sign`.
+    cose_sign.verify_signature(DICE_CDI_LEAF_SIGNATURE_INDEX, aad, |signature, message| {
+        client_vm_dice_chain.microdroid_payload().subject_public_key.verify(signature, message)
+    })?;
 
     // Verifies the second signature with the public key in the CSR payload.
     let ec_public_key = EcKey::from_cose_public_key_slice(&csr_payload.public_key)?;
