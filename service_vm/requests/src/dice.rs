@@ -130,7 +130,7 @@ impl ClientVmDiceChain {
         Ok(())
     }
 
-    fn microdroid_kernel(&self) -> &DiceChainEntryPayload {
+    pub(crate) fn microdroid_kernel(&self) -> &DiceChainEntryPayload {
         &self.payloads[self.payloads.len() - 2]
     }
 
@@ -151,15 +151,11 @@ impl ClientVmDiceChain {
 /// Validates that the `client_vm_dice_chain` matches the `service_vm_dice_chain` up to the pvmfw
 /// entry.
 ///
-/// Returns a CBOR value array of the client VM's DICE chain if the verification succeeds.
+/// Returns `Ok(())` if the verification succeeds.
 pub(crate) fn validate_client_vm_dice_chain_prefix_match(
-    client_vm_dice_chain: &[u8],
-    service_vm_dice_chain: &[u8],
-) -> Result<Vec<Value>> {
-    let client_vm_dice_chain =
-        value_to_array(Value::from_slice(client_vm_dice_chain)?, "client_vm_dice_chain")?;
-    let service_vm_dice_chain =
-        value_to_array(Value::from_slice(service_vm_dice_chain)?, "service_vm_dice_chain")?;
+    client_vm_dice_chain: &[Value],
+    service_vm_dice_chain: &[Value],
+) -> Result<()> {
     if service_vm_dice_chain.len() < 3 {
         // The service VM's DICE chain must contain the root key and at least two other entries
         // that describe:
@@ -184,7 +180,7 @@ pub(crate) fn validate_client_vm_dice_chain_prefix_match(
         );
         return Err(RequestProcessingError::InvalidDiceChain);
     }
-    Ok(client_vm_dice_chain)
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -266,11 +262,8 @@ impl PublicKey {
 pub(crate) struct DiceChainEntryPayload {
     pub(crate) subject_public_key: PublicKey,
     mode: DiceMode,
-    /// TODO(b/271275206): Verify Microdroid kernel authority and code hashes.
-    #[allow(dead_code)]
-    code_hash: [u8; HASH_SIZE],
-    #[allow(dead_code)]
-    authority_hash: [u8; HASH_SIZE],
+    pub(crate) code_hash: [u8; HASH_SIZE],
+    pub(crate) authority_hash: [u8; HASH_SIZE],
     config_descriptor: ConfigDescriptor,
 }
 
@@ -291,42 +284,42 @@ impl DiceChainEntryPayload {
             error!("No payload found in the DICE chain entry");
             RequestProcessingError::InvalidDiceChain
         })?;
-        let entries = value_to_map(Value::from_slice(&payload)?, "DiceChainEntryPayload")?;
-        build_payload(entries)
+        Self::from_slice(&payload)
     }
-}
 
-fn build_payload(entries: Vec<(Value, Value)>) -> Result<DiceChainEntryPayload> {
-    let mut builder = PayloadBuilder::default();
-    for (key, value) in entries.into_iter() {
-        let key: i64 = value_to_num(key, "DiceChainEntryPayload key")?;
-        match key {
-            SUBJECT_PUBLIC_KEY => {
-                let subject_public_key = value_to_bytes(value, "subject_public_key")?;
-                let subject_public_key = CoseKey::from_slice(&subject_public_key)?.try_into()?;
-                builder.subject_public_key(subject_public_key)?;
+    pub(crate) fn from_slice(data: &[u8]) -> Result<Self> {
+        let entries = value_to_map(Value::from_slice(data)?, "DiceChainEntryPayload")?;
+        let mut builder = PayloadBuilder::default();
+        for (key, value) in entries.into_iter() {
+            let key: i64 = value_to_num(key, "DiceChainEntryPayload key")?;
+            match key {
+                SUBJECT_PUBLIC_KEY => {
+                    let subject_public_key = value_to_bytes(value, "subject_public_key")?;
+                    let subject_public_key =
+                        CoseKey::from_slice(&subject_public_key)?.try_into()?;
+                    builder.subject_public_key(subject_public_key)?;
+                }
+                MODE => builder.mode(to_mode(value)?)?,
+                CODE_HASH => {
+                    let code_hash = value_to_byte_array(value, "DiceChainEntryPayload code_hash")?;
+                    builder.code_hash(code_hash)?;
+                }
+                AUTHORITY_HASH => {
+                    let authority_hash =
+                        value_to_byte_array(value, "DiceChainEntryPayload authority_hash")?;
+                    builder.authority_hash(authority_hash)?;
+                }
+                CONFIG_DESC => {
+                    let config_descriptor = value_to_bytes(value, "config_descriptor")?;
+                    let config_descriptor = ConfigDescriptor::from_slice(&config_descriptor)?;
+                    builder.config_descriptor(config_descriptor)?;
+                }
+                _ => {}
             }
-            MODE => builder.mode(to_mode(value)?)?,
-            CODE_HASH => {
-                let code_hash = value_to_byte_array(value, "DiceChainEntryPayload code_hash")?;
-                builder.code_hash(code_hash)?;
-            }
-            AUTHORITY_HASH => {
-                let authority_hash =
-                    value_to_byte_array(value, "DiceChainEntryPayload authority_hash")?;
-                builder.authority_hash(authority_hash)?;
-            }
-            CONFIG_DESC => {
-                let config_descriptor = value_to_bytes(value, "config_descriptor")?;
-                let config_descriptor = ConfigDescriptor::from_slice(&config_descriptor)?;
-                builder.config_descriptor(config_descriptor)?;
-            }
-            _ => {}
         }
+        builder.build()
     }
-    builder.build()
 }
-
 /// Represents a partially decoded `ConfigurationDescriptor`.
 ///
 /// The whole `ConfigurationDescriptor` is defined in:
