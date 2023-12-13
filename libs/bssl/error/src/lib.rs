@@ -91,6 +91,7 @@ pub enum ApiName {
     ECDSA_sign,
     ECDSA_size,
     ECDSA_verify,
+    ED25519_verify,
     EVP_AEAD_CTX_new,
     EVP_AEAD_CTX_open,
     EVP_AEAD_CTX_seal,
