@@ -262,14 +262,15 @@ fn node_add_subnode_with_namelen() {
     let subnode_name = cstr!("123456789");
 
     for len in 0..subnode_name.to_bytes().len() {
-        let mut node = fdt.node_mut(node_path).unwrap().unwrap();
-        assert!(node.subnode_with_namelen(subnode_name, len).unwrap().is_none());
+        let name = &subnode_name.to_bytes()[0..len];
+        let node = fdt.node(node_path).unwrap().unwrap();
+        assert_eq!(Ok(None), node.subnode_with_name_bytes(name));
 
         let mut node = fdt.node_mut(node_path).unwrap().unwrap();
         node.add_subnode_with_namelen(subnode_name, len).unwrap();
 
-        let mut node = fdt.node_mut(node_path).unwrap().unwrap();
-        assert!(node.subnode_with_namelen(subnode_name, len).unwrap().is_some());
+        let node = fdt.node(node_path).unwrap().unwrap();
+        assert_ne!(Ok(None), node.subnode_with_name_bytes(name));
     }
 
     let node_path = node_path.to_str().unwrap();
@@ -280,6 +281,48 @@ fn node_add_subnode_with_namelen() {
         let subnode = fdt.node(&path).unwrap().unwrap();
         assert_eq!(subnode.name(), Ok(name.as_c_str()));
     }
+}
+
+#[test]
+fn node_subnode() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let name = cstr!("node_a");
+    let root = fdt.root().unwrap();
+    let node = root.subnode(name).unwrap();
+    assert_ne!(None, node);
+    let node = node.unwrap();
+
+    assert_eq!(Ok(name), node.name());
+}
+
+#[test]
+fn node_subnode_with_name_bytes() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let name = b"node_aaaaa";
+    let root = fdt.root().unwrap();
+    let node = root.subnode_with_name_bytes(&name[0..6]).unwrap();
+    assert_ne!(None, node);
+    let node = node.unwrap();
+
+    assert_eq!(Ok(cstr!("node_a")), node.name());
+}
+
+#[test]
+fn node_subnode_borrow_checker() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let name = cstr!("node_a");
+    let node = {
+        let root = fdt.root().unwrap();
+        root.subnode(name).unwrap().unwrap()
+    };
+
+    assert_eq!(Ok(name), node.name());
 }
 
 #[test]
