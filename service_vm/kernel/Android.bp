@@ -1,0 +1,31 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+python_binary_host {
+    name: "extract_microdroid_kernel_hashes",
+    srcs: ["extract_microdroid_kernel_hashes.py"],
+}
+
+genrule {
+    name: "microdroid_kernel_hashes_rs",
+    srcs: [":microdroid_kernel"],
+    out: ["lib.rs"],
+    tools: [
+        "extract_microdroid_kernel_hashes",
+        "avbtool",
+    ],
+    cmd: "$(location extract_microdroid_kernel_hashes) $(location avbtool) $(in) > $(out)",
+}
+
+rust_library_rlib {
+    name: "libmicrodroid_kernel_hashes",
+    srcs: [":microdroid_kernel_hashes_rs"],
+    crate_name: "microdroid_kernel_hashes",
+    prefer_rlib: true,
+    no_stdlibs: true,
+    stdlibs: [
+        "libcompiler_builtins.rust_sysroot",
+        "libcore.rust_sysroot",
+    ],
+}

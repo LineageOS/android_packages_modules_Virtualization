@@ -24,6 +24,7 @@ rust_defaults {
         "libder_nostd",
         "libdiced_open_dice_nostd",
         "liblog_rust_nostd",
+        "libmicrodroid_kernel_hashes",
         "libserde_nostd",
         "libservice_vm_comm_nostd",
         "libspki_nostd",
