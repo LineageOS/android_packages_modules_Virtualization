@@ -15,8 +15,7 @@
 //! High-level FDT functions.
 
 use crate::bootargs::BootArgsIterator;
-use crate::device_assignment::DeviceAssignmentInfo;
-use crate::device_assignment::VmDtbo;
+use crate::device_assignment::{DeviceAssignmentInfo, VmDtbo};
 use crate::helpers::GUEST_PAGE_SIZE;
 use crate::Box;
 use crate::RebootReason;
@@ -721,10 +720,19 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
     validate_swiotlb_info(&swiotlb_info, &memory_range)?;
 
     let device_assignment = match vm_dtbo {
-        Some(vm_dtbo) => DeviceAssignmentInfo::parse(fdt, vm_dtbo).map_err(|e| {
-            error!("Failed to parse device assignment from DT and VM DTBO: {e}");
-            RebootReason::InvalidFdt
-        })?,
+        Some(vm_dtbo) => {
+            if let Some(hypervisor) = hyp::get_device_assigner() {
+                DeviceAssignmentInfo::parse(fdt, vm_dtbo, hypervisor).map_err(|e| {
+                    error!("Failed to parse device assignment from DT and VM DTBO: {e}");
+                    RebootReason::InvalidFdt
+                })?
+            } else {
+                warn!(
+                    "Device assignment is ignored because device assigning hypervisor is missing"
+                );
+                None
+            }
+        }
         None => None,
     };
 
