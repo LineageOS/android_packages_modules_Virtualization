@@ -74,6 +74,7 @@ rust_test {
     srcs: ["src/device_assignment.rs"],
     defaults: ["libpvmfw.test.defaults"],
     rustlibs: [
+        "libhyp",
         "liblibfdt",
         "liblog_rust",
         "libpvmfw_fdt_template",
@@ -85,6 +86,7 @@ rust_test {
         ":test_pvmfw_devices_with_multiple_devices_iommus",
         ":test_pvmfw_devices_with_iommu_sharing",
         ":test_pvmfw_devices_with_iommu_id_conflict",
+        ":test_pvmfw_devices_without_device",
         ":test_pvmfw_devices_without_iommus",
     ],
     // To use libpvmfw_fdt_template for testing
@@ -140,6 +142,13 @@ genrule {
     defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_without_iommus.dts"],
     out: ["test_pvmfw_devices_without_iommus.dtb"],
+}
+
+genrule {
+    name: "test_pvmfw_devices_without_device",
+    defaults: ["test_device_assignment_dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_without_device.dts"],
+    out: ["test_pvmfw_devices_without_device.dtb"],
 }
 
 genrule {
