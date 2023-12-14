@@ -57,7 +57,10 @@ aidl_interface {
 aidl_interface {
     name: "android.system.virtualmachineservice",
     srcs: ["android/system/virtualmachineservice/**/*.aidl"],
-    imports: ["android.system.virtualizationcommon"],
+    imports: [
+        "android.hardware.security.secretkeeper-V1",
+        "android.system.virtualizationcommon",
+    ],
     unstable: true,
     backend: {
         java: {

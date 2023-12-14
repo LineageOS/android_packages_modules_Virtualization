@@ -5,7 +5,11 @@ package {
 rust_defaults {
     name: "virtualizationmanager_defaults",
     crate_name: "virtualizationmanager",
-    defaults: ["avf_build_flags_rust"],
+    defaults: [
+        "avf_build_flags_rust",
+        "secretkeeper_use_latest_hal_aidl_rust",
+        "authgraph_use_latest_hal_aidl_rust",
+    ],
     edition: "2021",
     // Only build on targets which crosvm builds on.
     enabled: false,

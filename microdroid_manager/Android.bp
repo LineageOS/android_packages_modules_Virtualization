@@ -5,7 +5,10 @@ package {
 rust_defaults {
     name: "microdroid_manager_defaults",
     crate_name: "microdroid_manager",
-    defaults: ["avf_build_flags_rust"],
+    defaults: [
+        "avf_build_flags_rust",
+        "secretkeeper_use_latest_hal_aidl_rust",
+    ],
     srcs: ["src/main.rs"],
     edition: "2021",
     prefer_rlib: true,
@@ -43,6 +46,8 @@ rust_defaults {
         "libprotobuf",
         "librpcbinder_rs",
         "librustutils",
+        "libsecretkeeper_client",
+        "libsecretkeeper_comm_nostd",
         "libscopeguard",
         "libserde",
         "libserde_cbor",
@@ -51,6 +56,7 @@ rust_defaults {
         "libuuid",
         "libvsock",
         "librand",
+        "libzeroize",
     ],
     init_rc: ["microdroid_manager.rc"],
     multilib: {
