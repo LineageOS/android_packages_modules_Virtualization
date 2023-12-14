@@ -34,6 +34,7 @@ rust_library_rlib {
 rust_library {
     name: "libdiced_open_dice",
     defaults: ["libdiced_open_dice_defaults"],
+    host_supported: true,
     vendor_available: true,
     rustlibs: [
         "libopen_dice_android_bindgen",
