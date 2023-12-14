@@ -105,7 +105,6 @@ fn translate_error(err: &Error) -> (ErrorCode, String) {
             MicrodroidError::PayloadInvalidConfig(msg) => {
                 (ErrorCode::PAYLOAD_INVALID_CONFIG, msg.to_string())
             }
-
             // Connection failure won't be reported to VS; return the default value
             MicrodroidError::FailedToConnectToVirtualizationService(msg) => {
                 (ErrorCode::UNKNOWN, msg.to_string())
@@ -282,7 +281,8 @@ fn try_run_payload(
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
     let dice_artifacts = dice_derivation(dice, &instance_data, &payload_metadata)?;
-    let vm_secret = VmSecret::new(dice_artifacts).context("Failed to create VM secrets")?;
+    let vm_secret =
+        VmSecret::new(dice_artifacts, service).context("Failed to create VM secrets")?;
 
     if cfg!(dice_changes) {
         // Now that the DICE derivation is done, it's ok to allow payload code to run.
