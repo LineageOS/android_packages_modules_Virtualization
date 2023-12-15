@@ -827,7 +827,7 @@ pub fn modify_for_next_stage(
     bcc: &[u8],
     new_instance: bool,
     strict_boot: bool,
-    debug_policy: Option<&mut [u8]>,
+    debug_policy: Option<&[u8]>,
     debuggable: bool,
     kaslr_seed: u64,
 ) -> libfdt::Result<()> {
