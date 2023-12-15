@@ -107,7 +107,7 @@ fn build_subcomponent_list(instance_data: &MicrodroidData) -> Vec<Subcomponent> 
     apks.chain(apexes).collect()
 }
 
-// Returns a configuration descriptor of the given payload. See vm_config.cddl for a definition
+// Returns a configuration descriptor of the given payload. See vm_config.cddl for the definition
 // of the format.
 fn format_payload_config_descriptor(
     payload: &PayloadMetadata,
