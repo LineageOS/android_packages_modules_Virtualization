@@ -669,6 +669,7 @@ impl FileSystem for AuthFs {
         mode: u32,
         _flags: u32,
         umask: u32,
+        _security_ctx: Option<&CStr>,
     ) -> io::Result<(Entry, Option<Self::Handle>, FuseOpenOptions)> {
         let new_inode = self.create_new_entry_with_ref_count(
             parent,
@@ -852,6 +853,7 @@ impl FileSystem for AuthFs {
         name: &CStr,
         mode: u32,
         umask: u32,
+        _security_ctx: Option<&CStr>,
     ) -> io::Result<Entry> {
         let new_inode = self.create_new_entry_with_ref_count(
             parent,
