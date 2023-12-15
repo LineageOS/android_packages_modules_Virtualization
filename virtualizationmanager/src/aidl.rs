@@ -116,7 +116,7 @@ const SECRETKEEPER_IDENTIFIER: &str =
 
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
-/// Roughly estimated sufficient size for storing vendor public key into DTBO.
+/// Rough size for storing root digest of vendor hash descriptor into DTBO.
 const EMPTY_VENDOR_DT_OVERLAY_BUF_SIZE: usize = 10000;
 
 /// crosvm requires all partitions to be a multiple of 4KiB.
@@ -381,13 +381,17 @@ impl VirtualizationService {
             check_gdb_allowed(config)?;
         }
 
-        let vendor_public_key = extract_vendor_public_key(config)
-            .context("Failed to extract vendor public key")
-            .or_service_specific_exception(-1)?;
-        let dtbo_vendor = if let Some(vendor_public_key) = vendor_public_key {
+        let vendor_hashtree_descriptor_root_digest =
+            extract_vendor_hashtree_descriptor_root_digest(config)
+                .context("Failed to extract root digest of vendor")
+                .or_service_specific_exception(-1)?;
+        let dtbo_vendor = if let Some(vendor_hashtree_descriptor_root_digest) =
+            vendor_hashtree_descriptor_root_digest
+        {
+            let root_digest_hex = hex::encode(vendor_hashtree_descriptor_root_digest);
             let dtbo_for_vendor_image = temporary_directory.join("dtbo_vendor");
-            create_dtbo_for_vendor_image(&vendor_public_key, &dtbo_for_vendor_image)
-                .context("Failed to write vendor_public_key")
+            create_dtbo_for_vendor_image(root_digest_hex.as_bytes(), &dtbo_for_vendor_image)
+                .context("Failed to write root digest of vendor")
                 .or_service_specific_exception(-1)?;
             let file = File::open(dtbo_for_vendor_image)
                 .context("Failed to open dtbo_vendor")
@@ -571,7 +575,9 @@ impl VirtualizationService {
     }
 }
 
-fn extract_vendor_public_key(config: &VirtualMachineConfig) -> Result<Option<Vec<u8>>> {
+fn extract_vendor_hashtree_descriptor_root_digest(
+    config: &VirtualMachineConfig,
+) -> Result<Option<Vec<u8>>> {
     let VirtualMachineConfig::AppConfig(config) = config else {
         return Ok(None);
     };
@@ -586,15 +592,19 @@ fn extract_vendor_public_key(config: &VirtualMachineConfig) -> Result<Option<Vec
     let size = file.metadata().context("Failed to get metadata from microdroid-vendor.img")?.len();
     let vbmeta = VbMetaImage::verify_reader_region(&file, 0, size)
         .context("Failed to get vbmeta from microdroid-vendor.img")?;
-    let vendor_public_key = vbmeta
-        .public_key()
-        .ok_or(anyhow!("No public key is extracted from microdroid-vendor.img"))?
-        .to_vec();
 
-    Ok(Some(vendor_public_key))
+    for descriptor in vbmeta.descriptors()?.iter() {
+        if let vbmeta::Descriptor::Hashtree(_) = descriptor {
+            return Ok(Some(descriptor.to_hashtree()?.root_digest().to_vec()));
+        }
+    }
+    Err(anyhow!("No root digest is extracted from microdroid-vendor.img"))
 }
 
-fn create_dtbo_for_vendor_image(vendor_public_key: &[u8], dtbo: &PathBuf) -> Result<()> {
+fn create_dtbo_for_vendor_image(
+    vendor_hashtree_descriptor_root_digest: &[u8],
+    dtbo: &PathBuf,
+) -> Result<()> {
     if dtbo.exists() {
         return Err(anyhow!("DTBO file already exists"));
     }
@@ -622,10 +632,16 @@ fn create_dtbo_for_vendor_image(vendor_public_key: &[u8], dtbo: &PathBuf) -> Res
     let mut avf_node = overlay_node
         .add_subnode(avf_node_name.as_c_str())
         .map_err(|e| anyhow!("Failed to create avf node: {:?}", e))?;
-    let vendor_public_key_name = CString::new("vendor_public_key")?;
+    let vendor_hashtree_descriptor_root_digest_name =
+        CString::new("vendor_hashtree_descriptor_root_digest")?;
     avf_node
-        .setprop(vendor_public_key_name.as_c_str(), vendor_public_key)
-        .map_err(|e| anyhow!("Failed to set avf/vendor_public_key: {:?}", e))?;
+        .setprop(
+            vendor_hashtree_descriptor_root_digest_name.as_c_str(),
+            vendor_hashtree_descriptor_root_digest,
+        )
+        .map_err(|e| {
+            anyhow!("Failed to set avf/vendor_hashtree_descriptor_root_digest: {:?}", e)
+        })?;
 
     fdt.pack().map_err(|e| anyhow!("Failed to pack fdt: {:?}", e))?;
     let mut file = File::create(dtbo)?;
@@ -1528,13 +1544,14 @@ mod tests {
 
     #[test]
     fn test_create_dtbo_for_vendor_image() -> Result<()> {
-        let vendor_public_key = String::from("foo");
-        let vendor_public_key = vendor_public_key.as_bytes();
+        let vendor_hashtree_descriptor_root_digest = String::from("foo");
+        let vendor_hashtree_descriptor_root_digest =
+            vendor_hashtree_descriptor_root_digest.as_bytes();
 
         let tmp_dir = tempfile::TempDir::new()?;
         let dtbo_path = tmp_dir.path().to_path_buf().join("bar");
 
-        create_dtbo_for_vendor_image(vendor_public_key, &dtbo_path)?;
+        create_dtbo_for_vendor_image(vendor_hashtree_descriptor_root_digest, &dtbo_path)?;
 
         let data = std::fs::read(dtbo_path)?;
         let fdt = Fdt::from_slice(&data).unwrap();
@@ -1555,9 +1572,11 @@ mod tests {
         let Some(avf_node) = avf_node else {
             bail!("avf_node shouldn't be None.");
         };
-        let vendor_public_key_name = CString::new("vendor_public_key")?;
-        let key_from_dtbo = avf_node.getprop(vendor_public_key_name.as_c_str()).unwrap();
-        assert_eq!(key_from_dtbo, Some(vendor_public_key));
+        let vendor_hashtree_descriptor_root_digest_name =
+            CString::new("vendor_hashtree_descriptor_root_digest")?;
+        let digest_from_dtbo =
+            avf_node.getprop(vendor_hashtree_descriptor_root_digest_name.as_c_str()).unwrap();
+        assert_eq!(digest_from_dtbo, Some(vendor_hashtree_descriptor_root_digest));
 
         tmp_dir.close()?;
         Ok(())
@@ -1565,15 +1584,17 @@ mod tests {
 
     #[test]
     fn test_create_dtbo_for_vendor_image_throws_error_if_already_exists() -> Result<()> {
-        let vendor_public_key = String::from("foo");
-        let vendor_public_key = vendor_public_key.as_bytes();
+        let vendor_hashtree_descriptor_root_digest = String::from("foo");
+        let vendor_hashtree_descriptor_root_digest =
+            vendor_hashtree_descriptor_root_digest.as_bytes();
 
         let tmp_dir = tempfile::TempDir::new()?;
         let dtbo_path = tmp_dir.path().to_path_buf().join("bar");
 
-        create_dtbo_for_vendor_image(vendor_public_key, &dtbo_path)?;
+        create_dtbo_for_vendor_image(vendor_hashtree_descriptor_root_digest, &dtbo_path)?;
 
-        let ret_second_trial = create_dtbo_for_vendor_image(vendor_public_key, &dtbo_path);
+        let ret_second_trial =
+            create_dtbo_for_vendor_image(vendor_hashtree_descriptor_root_digest, &dtbo_path);
         assert!(ret_second_trial.is_err(), "should fail");
 
         tmp_dir.close()?;

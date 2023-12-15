@@ -200,19 +200,27 @@ fn patch_num_cpus(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
     Ok(())
 }
 
-fn read_vendor_public_key_from(fdt: &Fdt) -> libfdt::Result<Option<Vec<u8>>> {
+fn read_vendor_hashtree_descriptor_root_digest_from(fdt: &Fdt) -> libfdt::Result<Option<Vec<u8>>> {
     if let Some(avf_node) = fdt.node(cstr!("/avf"))? {
-        if let Some(vendor_public_key) = avf_node.getprop(cstr!("vendor_public_key"))? {
-            return Ok(Some(vendor_public_key.to_vec()));
+        if let Some(vendor_hashtree_descriptor_root_digest) =
+            avf_node.getprop(cstr!("vendor_hashtree_descriptor_root_digest"))?
+        {
+            return Ok(Some(vendor_hashtree_descriptor_root_digest.to_vec()));
         }
     }
     Ok(None)
 }
 
-fn patch_vendor_public_key(fdt: &mut Fdt, vendor_public_key: &[u8]) -> libfdt::Result<()> {
+fn patch_vendor_hashtree_descriptor_root_digest(
+    fdt: &mut Fdt,
+    vendor_hashtree_descriptor_root_digest: &[u8],
+) -> libfdt::Result<()> {
     let mut root_node = fdt.root_mut()?;
     let mut avf_node = root_node.add_subnode(cstr!("/avf"))?;
-    avf_node.setprop(cstr!("vendor_public_key"), vendor_public_key)?;
+    avf_node.setprop(
+        cstr!("vendor_hashtree_descriptor_root_digest"),
+        vendor_hashtree_descriptor_root_digest,
+    )?;
     Ok(())
 }
 
@@ -608,7 +616,7 @@ pub struct DeviceTreeInfo {
     serial_info: SerialInfo,
     pub swiotlb_info: SwiotlbInfo,
     device_assignment: Option<DeviceAssignmentInfo>,
-    vendor_public_key: Option<Vec<u8>>,
+    vendor_hashtree_descriptor_root_digest: Option<Vec<u8>>,
 }
 
 impl DeviceTreeInfo {
@@ -738,15 +746,17 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
 
     // TODO(b/285854379) : A temporary solution lives. This is for enabling
     // microdroid vendor partition for non-protected VM as well. When passing
-    // DT path containing vendor_public_key via fstab, init stage will check
-    // if vendor_public_key exists in the init stage, regardless the protection.
-    // Adding this temporary solution will prevent fatal in init stage for
-    // protected VM. However, this data is not trustable without validating
-    // with vendor public key value comes from ABL.
-    let vendor_public_key = read_vendor_public_key_from(fdt).map_err(|e| {
-        error!("Failed to read vendor_public_key from DT: {e}");
-        RebootReason::InvalidFdt
-    })?;
+    // DT path containing vendor_hashtree_descriptor_root_digest via fstab, init
+    // stage will check if vendor_hashtree_descriptor_root_digest exists in the
+    // init stage, regardless the protection. Adding this temporary solution
+    // will prevent fatal in init stage for protected VM. However, this data is
+    // not trustable without validating root digest of vendor hashtree
+    // descriptor comes from ABL.
+    let vendor_hashtree_descriptor_root_digest =
+        read_vendor_hashtree_descriptor_root_digest_from(fdt).map_err(|e| {
+            error!("Failed to read vendor_hashtree_descriptor_root_digest from DT: {e}");
+            RebootReason::InvalidFdt
+        })?;
 
     Ok(DeviceTreeInfo {
         kernel_range,
@@ -758,7 +768,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         serial_info,
         swiotlb_info,
         device_assignment,
-        vendor_public_key,
+        vendor_hashtree_descriptor_root_digest,
     })
 }
 
@@ -811,9 +821,12 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
             RebootReason::InvalidFdt
         })?;
     }
-    if let Some(vendor_public_key) = &info.vendor_public_key {
-        patch_vendor_public_key(fdt, vendor_public_key).map_err(|e| {
-            error!("Failed to patch vendor_public_key to DT: {e}");
+    if let Some(vendor_hashtree_descriptor_root_digest) =
+        &info.vendor_hashtree_descriptor_root_digest
+    {
+        patch_vendor_hashtree_descriptor_root_digest(fdt, vendor_hashtree_descriptor_root_digest)
+            .map_err(|e| {
+            error!("Failed to patch vendor_hashtree_descriptor_root_digest to DT: {e}");
             RebootReason::InvalidFdt
         })?;
     }
