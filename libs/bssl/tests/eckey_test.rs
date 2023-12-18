@@ -15,8 +15,8 @@
 use bssl_avf::{sha256, ApiName, Digester, EcKey, EcdsaError, Error, PKey, Result};
 use coset::CborSerializable;
 use spki::{
-    der::{AnyRef, Decode},
-    AlgorithmIdentifier, ObjectIdentifier, SubjectPublicKeyInfo,
+    der::{AnyRef, Decode, Encode},
+    AlgorithmIdentifier, ObjectIdentifier, SubjectPublicKeyInfoRef,
 };
 
 /// OID value for general-use NIST EC keys held in PKCS#8 and X.509; see RFC 5480 s2.1.1.
@@ -46,13 +46,14 @@ fn subject_public_key_info_serialization() -> Result<()> {
     let pkey: PKey = ec_key.try_into()?;
     let subject_public_key_info = pkey.subject_public_key_info()?;
 
-    let subject_public_key_info = SubjectPublicKeyInfo::from_der(&subject_public_key_info).unwrap();
+    let subject_public_key_info =
+        SubjectPublicKeyInfoRef::from_der(&subject_public_key_info).unwrap();
     let expected_algorithm = AlgorithmIdentifier {
         oid: X509_NIST_OID,
         parameters: Some(AnyRef::from(&ALGO_PARAM_P256_OID)),
     };
     assert_eq!(expected_algorithm, subject_public_key_info.algorithm);
-    assert!(!subject_public_key_info.subject_public_key.to_vec().is_empty());
+    assert!(!subject_public_key_info.subject_public_key.to_der().unwrap().is_empty());
     Ok(())
 }
 
