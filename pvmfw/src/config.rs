@@ -19,11 +19,10 @@ use core::mem;
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::result;
-use core::slice;
 use log::{info, warn};
 use static_assertions::const_assert_eq;
 use vmbase::util::RangeExt;
-use zerocopy::{FromBytes, FromZeroes, LayoutVerified};
+use zerocopy::{FromBytes, FromZeroes};
 
 /// Configuration data header.
 #[repr(C, packed)]
@@ -129,12 +128,14 @@ pub enum Entry {
 
 impl Entry {
     const COUNT: usize = Self::_VARIANT_COUNT as usize;
+
+    const ALL_ENTRIES: [Entry; Self::COUNT] = [Self::Bcc, Self::DebugPolicy, Self::VmDtbo];
 }
 
 #[derive(Default)]
 pub struct Entries<'a> {
     pub bcc: &'a mut [u8],
-    pub debug_policy: Option<&'a mut [u8]>,
+    pub debug_policy: Option<&'a [u8]>,
     pub vm_dtbo: Option<&'a mut [u8]>,
 }
 
@@ -203,7 +204,7 @@ impl<'a> Config<'a> {
         }
 
         let (header, rest) =
-            LayoutVerified::<_, Header>::new_from_prefix(bytes).ok_or(Error::HeaderMisaligned)?;
+            zerocopy::Ref::<_, Header>::new_from_prefix(bytes).ok_or(Error::HeaderMisaligned)?;
         let header = header.into_ref();
 
         if header.magic != Header::MAGIC {
@@ -230,7 +231,7 @@ impl<'a> Config<'a> {
         };
 
         let (header_entries, body) =
-            LayoutVerified::<_, [HeaderEntry]>::new_slice_from_prefix(rest, header.entry_count()?)
+            zerocopy::Ref::<_, [HeaderEntry]>::new_slice_from_prefix(rest, header.entry_count()?)
                 .ok_or(Error::BufferTooSmall)?;
 
         // Validate that we won't get an invalid alignment in the following due to padding to u64.
@@ -240,7 +241,7 @@ impl<'a> Config<'a> {
         let limits = header.body_lowest_bound()?..total_size;
         let mut ranges: [Option<NonEmptyRange>; Entry::COUNT] = [None; Entry::COUNT];
         let mut last_end = 0;
-        for entry in [Entry::Bcc, Entry::DebugPolicy, Entry::VmDtbo] {
+        for entry in Entry::ALL_ENTRIES {
             let Some(header_entry) = header_entries.get(entry as usize) else { continue };
             let entry_offset = header_entry.offset.try_into().unwrap();
             let entry_size = header_entry.size.try_into().unwrap();
@@ -266,36 +267,31 @@ impl<'a> Config<'a> {
         Ok(Self { body, ranges })
     }
 
-    /// Get slice containing the platform BCC.
-    pub fn get_entries(&mut self) -> Entries<'_> {
-        // This assumes that the blobs are in-order w.r.t. the entries.
-        let bcc_range = self.get_entry_range(Entry::Bcc);
-        let dp_range = self.get_entry_range(Entry::DebugPolicy);
-        let vm_dtbo_range = self.get_entry_range(Entry::VmDtbo);
-        // TODO(b/291191157): Provision device assignment with this.
-        if let Some(vm_dtbo_range) = vm_dtbo_range {
-            info!("Found VM DTBO at {:?}", vm_dtbo_range);
+    /// Locate the various config entries.
+    pub fn get_entries(self) -> Entries<'a> {
+        // We require the blobs to be in the same order as the `Entry` enum (and this is checked
+        // in `new` above)
+        // So we can just work through the body range and split off the parts we are interested in.
+        let mut offset = 0;
+        let mut body = self.body;
+
+        let mut entries: [Option<&mut [u8]>; Entry::COUNT] = Default::default();
+        for (i, range) in self.ranges.iter().enumerate() {
+            if let Some(range) = range {
+                body = &mut body[range.start - offset..];
+                let (chunk, rest) = body.split_at_mut(range.len());
+                offset = range.end();
+                body = rest;
+                entries[i] = Some(chunk);
+            }
         }
+        let [bcc, debug_policy, vm_dtbo] = entries;
 
-        // SAFETY: When instantiated, ranges are validated to be in the body range without
-        // overlapping.
-        let (bcc, debug_policy, vm_dtbo) = unsafe {
-            let ptr = self.body.as_mut_ptr() as usize;
-            (
-                Self::from_raw_range_mut(ptr, bcc_range.unwrap()),
-                dp_range.map(|dp_range| Self::from_raw_range_mut(ptr, dp_range)),
-                vm_dtbo_range.map(|vm_dtbo_range| Self::from_raw_range_mut(ptr, vm_dtbo_range)),
-            )
-        };
+        // The platform BCC has always been required.
+        let bcc = bcc.unwrap();
+
+        // We have no reason to mutate so drop the `mut`.
+        let debug_policy = debug_policy.map(|x| &*x);
         Entries { bcc, debug_policy, vm_dtbo }
-    }
-
-    fn get_entry_range(&self, entry: Entry) -> Option<NonEmptyRange> {
-        self.ranges[entry as usize]
-    }
-
-    unsafe fn from_raw_range_mut(ptr: usize, range: NonEmptyRange) -> &'a mut [u8] {
-        // SAFETY: The caller must ensure that the range is valid from ptr.
-        unsafe { slice::from_raw_parts_mut((ptr + range.start) as *mut u8, range.len()) }
     }
 }
