@@ -38,6 +38,7 @@ rust_defaults {
         "libclap",
         "libcommand_fds",
         "libdisk",
+        "libhex",
         "libhypervisor_props",
         "liblazy_static",
         "liblibc",
