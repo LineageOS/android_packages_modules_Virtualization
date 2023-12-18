@@ -371,3 +371,31 @@ fn node_descendants() {
         ]
     );
 }
+
+#[test]
+fn node_mut_delete_and_next_subnode() {
+    let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    let mut root = fdt.root_mut().unwrap();
+    let mut subnode_iter = root.first_subnode().unwrap();
+
+    while let Some(subnode) = subnode_iter {
+        if subnode.as_node().name() == Ok(cstr!("node_z")) {
+            subnode_iter = subnode.delete_and_next_subnode().unwrap();
+        } else {
+            subnode_iter = subnode.next_subnode().unwrap();
+        }
+    }
+
+    let root = fdt.root().unwrap();
+    let expected_names = vec![
+        Ok(cstr!("node_a")),
+        Ok(cstr!("node_b")),
+        Ok(cstr!("node_c")),
+        Ok(cstr!("__symbols__")),
+    ];
+    let subnode_names: Vec<_> = root.subnodes().unwrap().map(|node| node.name()).collect();
+
+    assert_eq!(expected_names, subnode_names);
+}

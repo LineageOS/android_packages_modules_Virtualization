@@ -777,6 +777,40 @@ impl<'a> FdtNodeMut<'a> {
         fdt_err(ret)
     }
 
+    /// Returns the first subnode of this
+    pub fn first_subnode(&'a mut self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_first_subnode(self.fdt.as_ptr(), self.offset) };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
+    /// Returns the next subnode that shares the same parent with this
+    pub fn next_subnode(self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
+
+        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
+    /// Deletes the current node and returns the next subnode
+    pub fn delete_and_next_subnode(mut self) -> Result<Option<Self>> {
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
+
+        let next_offset = fdt_err_or_option(ret)?;
+
+        if Some(self.offset) == next_offset {
+            return Err(FdtError::Internal);
+        }
+
+        // SAFETY: nop_self() only touches bytes of the self and its properties and subnodes, and
+        // doesn't alter any other blob in the tree. self.fdt and next_offset would remain valid.
+        unsafe { self.nop_self()? };
+
+        Ok(next_offset.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
     fn parent(&'a self) -> Result<FdtNode<'a>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
