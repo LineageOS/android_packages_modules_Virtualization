@@ -18,7 +18,7 @@ use crate::digest::Digester;
 use crate::sha::SHA256_DIGEST_LENGTH;
 use crate::util::to_call_failed_error;
 use bssl_avf_error::{ApiName, Result};
-use bssl_ffi::HMAC;
+use bssl_sys::HMAC;
 
 /// Computes the HMAC using SHA-256 for the given `data` with the given `key`.
 pub fn hmac_sha256(key: &[u8], data: &[u8]) -> Result<[u8; SHA256_DIGEST_LENGTH]> {

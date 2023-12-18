@@ -14,7 +14,7 @@
 
 //! Helpers for using BoringSSL CBS (crypto byte string) objects.
 
-use bssl_ffi::{CBS_init, CBS};
+use bssl_sys::{CBS_init, CBS};
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 

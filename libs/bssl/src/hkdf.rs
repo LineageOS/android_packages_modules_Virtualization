@@ -17,7 +17,7 @@
 use crate::digest::Digester;
 use crate::util::check_int_result;
 use bssl_avf_error::{ApiName, Result};
-use bssl_ffi::HKDF;
+use bssl_sys::HKDF;
 use zeroize::Zeroizing;
 
 /// Computes HKDF (as specified by [RFC 5869]) of initial keying material `secret` with

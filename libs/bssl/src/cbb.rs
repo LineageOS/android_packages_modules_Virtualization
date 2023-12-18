@@ -14,7 +14,7 @@
 
 //! Helpers for using BoringSSL CBB (crypto byte builder) objects.
 
-use bssl_ffi::{CBB_init_fixed, CBB};
+use bssl_sys::{CBB_init_fixed, CBB};
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 
