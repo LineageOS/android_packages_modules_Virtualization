@@ -63,7 +63,7 @@ fn main(
     signed_kernel: &[u8],
     ramdisk: Option<&[u8]>,
     current_bcc_handover: &[u8],
-    mut debug_policy: Option<&mut [u8]>,
+    mut debug_policy: Option<&[u8]>,
 ) -> Result<Range<usize>, RebootReason> {
     info!("pVM firmware");
     debug!("FDT: {:?}", fdt.as_ptr());

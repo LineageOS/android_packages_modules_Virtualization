@@ -207,7 +207,7 @@ fn main_wrapper(
     // then remapped by `init_page_table()`.
     let appended_data = unsafe { get_appended_data_slice() };
 
-    let mut appended = AppendedPayload::new(appended_data).ok_or_else(|| {
+    let appended = AppendedPayload::new(appended_data).ok_or_else(|| {
         error!("No valid configuration found");
         RebootReason::InvalidConfig
     })?;
@@ -438,7 +438,7 @@ impl<'a> AppendedPayload<'a> {
         }
     }
 
-    fn get_entries(&mut self) -> config::Entries<'_> {
+    fn get_entries(self) -> config::Entries<'a> {
         match self {
             Self::Config(cfg) => cfg.get_entries(),
             Self::LegacyBcc(bcc) => config::Entries { bcc, ..Default::default() },
