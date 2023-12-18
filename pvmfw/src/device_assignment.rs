@@ -183,6 +183,15 @@ impl VmDtbo {
     }
 }
 
+fn is_overlayable_node(dtbo_path: &CStr) -> bool {
+    dtbo_path
+        .to_bytes()
+        .split(|char| *char == b'/')
+        .filter(|&component| !component.is_empty())
+        .nth(1)
+        .map_or(false, |name| name == b"__overlay__")
+}
+
 impl AsRef<Fdt> for VmDtbo {
     fn as_ref(&self) -> &Fdt {
         &self.0
@@ -417,6 +426,9 @@ impl DeviceAssignmentInfo {
             let symbol_prop_value = symbol_prop.value()?;
             let dtbo_node_path = CStr::from_bytes_with_nul(symbol_prop_value)
                 .or(Err(DeviceAssignmentError::InvalidSymbols))?;
+            if !is_overlayable_node(dtbo_node_path) {
+                continue;
+            }
             let assigned_device =
                 AssignedDeviceInfo::parse(fdt, vm_dtbo, dtbo_node_path, &pviommus, hypervisor)?;
             if let Some(assigned_device) = assigned_device {
@@ -428,7 +440,15 @@ impl DeviceAssignmentInfo {
         if assigned_devices.is_empty() {
             return Ok(None);
         }
+
+        // Clean up any nodes that wouldn't be overlaid but may contain reference to filtered nodes.
+        // Otherwise, `fdt_apply_overlay()` would fail because of missing phandle reference.
         filtered_dtbo_paths.push(CString::new("/__symbols__").unwrap());
+        // TODO(b/277993056): Also filter other unused nodes/props in __local_fixups__
+        filtered_dtbo_paths.push(CString::new("/__local_fixups__/host").unwrap());
+
+        // Note: Any node without __overlay__ will be ignored by fdt_apply_overlay,
+        // so doesn't need to be filtered.
 
         Ok(Some(Self { pviommus: unique_pviommus, assigned_devices, filtered_dtbo_paths }))
     }
@@ -447,22 +467,6 @@ impl DeviceAssignmentInfo {
         for filtered_dtbo_path in &self.filtered_dtbo_paths {
             let node = vm_dtbo.node_mut(filtered_dtbo_path).unwrap().unwrap();
             node.nop()?;
-        }
-
-        // Filters pvmfw-specific properties in assigned device node.
-        const FILTERED_VM_DTBO_PROP: [&CStr; 3] = [
-            cstr!("android,pvmfw,phy-reg"),
-            cstr!("android,pvmfw,phy-iommu"),
-            cstr!("android,pvmfw,phy-sid"),
-        ];
-        for assigned_device in &self.assigned_devices {
-            let mut node = vm_dtbo.node_mut(&assigned_device.dtbo_node_path).unwrap().unwrap();
-            for prop in FILTERED_VM_DTBO_PROP {
-                match node.nop_property(prop) {
-                    Err(FdtError::NotFound) => Ok(()), // allows not exists
-                    other => other,
-                }?;
-            }
         }
 
         Ok(())
@@ -649,8 +653,8 @@ mod tests {
         let device_info = DeviceAssignmentInfo::parse(fdt, vm_dtbo, &hypervisor).unwrap().unwrap();
 
         let expected = [AssignedDeviceInfo {
-            node_path: CString::new("/backlight").unwrap(),
-            dtbo_node_path: cstr!("/fragment@backlight/__overlay__/backlight").into(),
+            node_path: CString::new("/bus0/backlight").unwrap(),
+            dtbo_node_path: cstr!("/fragment@backlight/__overlay__/bus0/backlight").into(),
             reg: vec![[0x9, 0xFF].into()],
             interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
             iommus: vec![],
@@ -721,7 +725,8 @@ mod tests {
         let led = vm_dtbo.node(cstr!("/fragment@led/__overlay__/led")).unwrap();
         assert_eq!(led, None);
 
-        let backlight = vm_dtbo.node(cstr!("/fragment@backlight/__overlay__/backlight")).unwrap();
+        let backlight =
+            vm_dtbo.node(cstr!("/fragment@backlight/__overlay__/bus0/backlight")).unwrap();
         assert_eq!(backlight, None);
 
         let symbols_node = vm_dtbo.symbols().unwrap();
@@ -750,6 +755,10 @@ mod tests {
         }
         device_info.patch(platform_dt).unwrap();
 
+        let rng_node = platform_dt.node(cstr!("/bus0/backlight")).unwrap().unwrap();
+        let phandle = rng_node.getprop_u32(cstr!("phandle")).unwrap();
+        assert_ne!(None, phandle);
+
         // Note: Intentionally not using AssignedDeviceNode for matching all props.
         type FdtResult<T> = libfdt::Result<T>;
         let expected: Vec<(FdtResult<&CStr>, FdtResult<Vec<u8>>)> = vec![
@@ -757,10 +766,10 @@ mod tests {
             (Ok(cstr!("compatible")), Ok(Vec::from(*b"android,backlight\0"))),
             (Ok(cstr!("interrupts")), Ok(into_fdt_prop(vec![0x0, 0xF, 0x4]))),
             (Ok(cstr!("iommus")), Ok(Vec::new())),
+            (Ok(cstr!("phandle")), Ok(into_fdt_prop(vec![phandle.unwrap()]))),
             (Ok(cstr!("reg")), Ok(into_fdt_prop(vec![0x0, 0x9, 0x0, 0xFF]))),
         ];
 
-        let rng_node = platform_dt.node(cstr!("/backlight")).unwrap().unwrap();
         let mut properties: Vec<_> = rng_node
             .properties()
             .unwrap()
