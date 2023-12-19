@@ -18,8 +18,8 @@ use crate::util::{check_int_result, to_call_failed_error};
 use bssl_avf_error::{ApiName, Result};
 use bssl_ffi::{
     EVP_AEAD_CTX_free, EVP_AEAD_CTX_new, EVP_AEAD_CTX_open, EVP_AEAD_CTX_seal,
-    EVP_AEAD_max_overhead, EVP_AEAD_nonce_length, EVP_aead_aes_256_gcm, EVP_AEAD, EVP_AEAD_CTX,
-    EVP_AEAD_DEFAULT_TAG_LENGTH,
+    EVP_AEAD_max_overhead, EVP_AEAD_nonce_length, EVP_aead_aes_256_gcm,
+    EVP_aead_aes_256_gcm_randnonce, EVP_AEAD, EVP_AEAD_CTX, EVP_AEAD_DEFAULT_TAG_LENGTH,
 };
 use core::ptr::NonNull;
 
@@ -46,6 +46,17 @@ impl Aead {
         // SAFETY: This function does not access any Rust variables and simply returns
         // a pointer to the static variable in BoringSSL.
         let p = unsafe { EVP_aead_aes_256_gcm() };
+        // SAFETY: The returned pointer should always be valid and points to a static
+        // `EVP_AEAD`.
+        Self(unsafe { &*p })
+    }
+
+    /// AES-256 in Galois Counter Mode with internal nonce generation.
+    /// The 12-byte nonce is appended to the tag and is generated internally.
+    pub fn aes_256_gcm_randnonce() -> Self {
+        // SAFETY: This function does not access any Rust variables and simply returns
+        // a pointer to the static variable in BoringSSL.
+        let p = unsafe { EVP_aead_aes_256_gcm_randnonce() };
         // SAFETY: The returned pointer should always be valid and points to a static
         // `EVP_AEAD`.
         Self(unsafe { &*p })
