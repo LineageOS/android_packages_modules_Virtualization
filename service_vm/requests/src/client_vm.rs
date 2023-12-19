@@ -103,7 +103,7 @@ pub(super) fn request_attestation(
         client_vm_dice_chain.all_entries_are_secure(),
         vm_components,
     )
-    .to_vec()?;
+    .to_der()?;
     let tbs_cert = cert::build_tbs_certificate(
         &serial_number,
         rkp_cert.tbs_certificate.subject,
@@ -122,9 +122,9 @@ pub(super) fn request_attestation(
                 RequestProcessingError::FailedToDecryptKeyBlob
             })?;
     let ec_private_key = EcKey::from_ec_private_key(private_key.as_slice())?;
-    let signature = ecdsa_sign(&ec_private_key, &tbs_cert.to_vec()?)?;
+    let signature = ecdsa_sign(&ec_private_key, &tbs_cert.to_der()?)?;
     let certificate = cert::build_certificate(tbs_cert, &signature)?;
-    Ok(certificate.to_vec()?)
+    Ok(certificate.to_der()?)
 }
 
 fn ecdsa_verify(key: &EcKey, signature: &[u8], message: &[u8]) -> bssl_avf::Result<()> {
