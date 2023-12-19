@@ -18,7 +18,7 @@ use crate::dice::SubComponent;
 use alloc::vec;
 use alloc::vec::Vec;
 use der::{
-    asn1::{BitStringRef, ObjectIdentifier, UIntRef, Utf8StringRef},
+    asn1::{BitString, ObjectIdentifier, OctetString, Utf8StringRef},
     oid::AssociatedOid,
     Decode, Sequence,
 };
@@ -27,6 +27,7 @@ use x509_cert::{
     certificate::{Certificate, TbsCertificate, Version},
     ext::Extension,
     name::Name,
+    serial_number::SerialNumber,
     time::Validity,
 };
 
@@ -111,14 +112,14 @@ impl<'a> VmComponent<'a> {
 ///   signature            BIT STRING
 /// }
 /// ```
-pub(crate) fn build_certificate<'a>(
-    tbs_cert: TbsCertificate<'a>,
-    signature: &'a [u8],
-) -> der::Result<Certificate<'a>> {
+pub(crate) fn build_certificate(
+    tbs_cert: TbsCertificate,
+    signature: &[u8],
+) -> der::Result<Certificate> {
     Ok(Certificate {
-        signature_algorithm: tbs_cert.signature,
+        signature_algorithm: tbs_cert.signature.clone(),
         tbs_certificate: tbs_cert,
-        signature: BitStringRef::new(0, signature)?,
+        signature: BitString::new(0, signature)?,
     })
 }
 
@@ -141,24 +142,24 @@ pub(crate) fn build_certificate<'a>(
 ///                        -- If present, version MUST be v3 --
 /// }
 /// ```
-pub(crate) fn build_tbs_certificate<'a>(
-    serial_number: &'a [u8],
-    issuer: Name<'a>,
-    subject: Name<'a>,
+pub(crate) fn build_tbs_certificate(
+    serial_number: &[u8],
+    issuer: Name,
+    subject: Name,
     validity: Validity,
-    subject_public_key_info: &'a [u8],
-    attestation_ext: &'a [u8],
-) -> der::Result<TbsCertificate<'a>> {
+    subject_public_key_info: &[u8],
+    attestation_ext: &[u8],
+) -> der::Result<TbsCertificate> {
     let signature = AlgorithmIdentifier { oid: ECDSA_WITH_SHA_256, parameters: None };
     let subject_public_key_info = SubjectPublicKeyInfo::from_der(subject_public_key_info)?;
     let extensions = vec![Extension {
         extn_id: AttestationExtension::OID,
         critical: false,
-        extn_value: attestation_ext,
+        extn_value: OctetString::new(attestation_ext)?,
     }];
     Ok(TbsCertificate {
         version: Version::V3,
-        serial_number: UIntRef::new(serial_number)?,
+        serial_number: SerialNumber::new(serial_number)?,
         signature,
         issuer,
         validity,
