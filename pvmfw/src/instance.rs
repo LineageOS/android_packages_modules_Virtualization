@@ -14,13 +14,11 @@
 
 //! Support for reading and writing to the instance.img.
 
-use crate::crypto;
-use crate::crypto::AeadCtx;
 use crate::dice::PartialInputs;
 use crate::gpt;
 use crate::gpt::Partition;
 use crate::gpt::Partitions;
-use bssl_avf::{self, hkdf, Digester};
+use bssl_avf::{self, hkdf, Aead, AeadContext, Digester};
 use core::fmt;
 use core::mem::size_of;
 use diced_open_dice::DiceMode;
@@ -40,12 +38,8 @@ use zerocopy::FromZeroes;
 pub enum Error {
     /// Unexpected I/O error while accessing the underlying disk.
     FailedIo(gpt::Error),
-    /// Failed to decrypt the entry.
-    FailedOpen(crypto::ErrorIterator),
     /// Failed to generate a random salt to be stored.
     FailedSaltGeneration(rand::Error),
-    /// Failed to encrypt the entry.
-    FailedSeal(crypto::ErrorIterator),
     /// Impossible to create a new instance.img entry.
     InstanceImageFull,
     /// Badly formatted instance.img header block.
@@ -72,21 +66,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::FailedIo(e) => write!(f, "Failed I/O to disk: {e}"),
-            Self::FailedOpen(e_iter) => {
-                writeln!(f, "Failed to open the instance.img partition:")?;
-                for e in *e_iter {
-                    writeln!(f, "\t{e}")?;
-                }
-                Ok(())
-            }
             Self::FailedSaltGeneration(e) => write!(f, "Failed to generate salt: {e}"),
-            Self::FailedSeal(e_iter) => {
-                writeln!(f, "Failed to seal the instance.img partition:")?;
-                for e in *e_iter {
-                    writeln!(f, "\t{e}")?;
-                }
-                Ok(())
-            }
             Self::InstanceImageFull => write!(f, "Failed to obtain a free instance.img partition"),
             Self::InvalidInstanceImageHeader => write!(f, "instance.img header is invalid"),
             Self::MissingInstanceImage => write!(f, "Failed to find the instance.img partition"),
@@ -124,6 +104,13 @@ pub fn get_or_generate_instance_salt(
     trace!("Found pvmfw instance.img entry: {entry:?}");
 
     let key = hkdf::<32>(secret, /* salt= */ &[], b"vm-instance", Digester::sha512())?;
+    let tag_len = None;
+    let aead_ctx = AeadContext::new(Aead::aes_256_gcm_randnonce(), key.as_slice(), tag_len)?;
+    let ad = &[];
+    // The nonce is generated internally for `aes_256_gcm_randnonce`, so no additional
+    // nonce is required.
+    let nonce = &[];
+
     let mut blk = [0; BLK_SIZE];
     match entry {
         PvmfwEntry::Existing { header_index, payload_size } => {
@@ -136,9 +123,7 @@ pub fn get_or_generate_instance_salt(
 
             let payload = &blk[..payload_size];
             let mut entry = [0; size_of::<EntryBody>()];
-            let aead =
-                AeadCtx::new_aes_256_gcm_randnonce(key.as_slice()).map_err(Error::FailedOpen)?;
-            let decrypted = aead.open(&mut entry, payload).map_err(Error::FailedOpen)?;
+            let decrypted = aead_ctx.open(payload, nonce, ad, &mut entry)?;
 
             let body = EntryBody::read_from(decrypted).unwrap();
             if dice_inputs.rkp_vm_marker {
@@ -166,12 +151,10 @@ pub fn get_or_generate_instance_salt(
             let salt = rand::random_array().map_err(Error::FailedSaltGeneration)?;
             let body = EntryBody::new(dice_inputs, &salt);
 
-            let aead =
-                AeadCtx::new_aes_256_gcm_randnonce(key.as_slice()).map_err(Error::FailedSeal)?;
             // We currently only support single-blk entries.
             let plaintext = body.as_bytes();
-            assert!(plaintext.len() + aead.aead().unwrap().max_overhead() < blk.len());
-            let encrypted = aead.seal(&mut blk, plaintext).map_err(Error::FailedSeal)?;
+            assert!(plaintext.len() + aead_ctx.aead().max_overhead() < blk.len());
+            let encrypted = aead_ctx.seal(plaintext, nonce, ad, &mut blk)?;
             let payload_size = encrypted.len();
             let payload_index = header_index + 1;
             instance_img.write_block(payload_index, &blk).map_err(Error::FailedIo)?;
