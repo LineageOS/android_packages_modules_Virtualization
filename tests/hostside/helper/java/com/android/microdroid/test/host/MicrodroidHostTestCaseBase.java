@@ -36,6 +36,8 @@ import com.android.tradefed.util.RunUtil;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
@@ -51,6 +53,9 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final int MICRODROID_ADB_CONNECT_MAX_ATTEMPTS =
             (int) (MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES * 60 * 1000
                 / MICRODROID_COMMAND_RETRY_INTERVAL_MILLIS);
+
+    protected static final Set<String> SUPPORTED_GKI_VERSIONS =
+            new HashSet(Arrays.asList("android14-6.1"));
 
     public static void prepareVirtualizationTestSetup(ITestDevice androidDevice)
             throws DeviceNotAvailableException {
