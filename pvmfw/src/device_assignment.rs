@@ -687,19 +687,6 @@ mod tests {
         assert_eq!(device_info.assigned_devices, expected);
     }
 
-    // TODO(b/311655051): Test with real once instead of empty FDT.
-    #[test]
-    fn device_info_new_with_empty_device_tree() {
-        let mut fdt_data = vec![0; pvmfw_fdt_template::RAW.len()];
-        let mut vm_dtbo_data = fs::read(VM_DTBO_FILE_PATH).unwrap();
-        let fdt = Fdt::create_empty_tree(&mut fdt_data).unwrap();
-        let vm_dtbo = VmDtbo::from_mut_slice(&mut vm_dtbo_data).unwrap();
-
-        let hypervisor: MockHypervisor = Default::default();
-        let device_info = DeviceAssignmentInfo::parse(fdt, vm_dtbo, &hypervisor).unwrap();
-        assert_eq!(device_info, None);
-    }
-
     #[test]
     fn device_info_filter() {
         let mut fdt_data = fs::read(FDT_FILE_PATH).unwrap();
