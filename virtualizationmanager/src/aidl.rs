@@ -15,8 +15,7 @@
 //! Implementation of the AIDL interface of the VirtualizationService.
 
 use crate::{get_calling_pid, get_calling_uid};
-use crate::atom::{
-    write_vm_booted_stats, write_vm_creation_stats};
+use crate::atom::{write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
 use crate::debug_config::DebugConfig;
@@ -73,7 +72,7 @@ use disk::QcowFile;
 use glob::glob;
 use lazy_static::lazy_static;
 use log::{debug, error, info, warn};
-use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
+use microdroid_payload_config::{ApkConfig, OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::unistd::pipe;
 use rpcbinder::RpcServer;
 use rustutils::system_properties;
@@ -366,21 +365,7 @@ impl VirtualizationService {
         // Allocating VM context checks the MANAGE_VIRTUAL_MACHINE permission.
         let (vm_context, cid, temporary_directory) = self.create_vm_context(requester_debug_pid)?;
 
-        let is_custom = match config {
-            VirtualMachineConfig::RawConfig(_) => true,
-            VirtualMachineConfig::AppConfig(config) => {
-                // Some features are reserved for platform apps only, even when using
-                // VirtualMachineAppConfig. Almost all of these features are grouped in the
-                // CustomConfig struct:
-                // - controlling CPUs;
-                // - specifying a config file in the APK; (this one is not part of CustomConfig)
-                // - gdbPort is set, meaning that crosvm will start a gdb server;
-                // - using anything other than the default kernel;
-                // - specifying devices to be assigned.
-                config.customConfig.is_some() || matches!(config.payload, Payload::ConfigPath(_))
-            }
-        };
-        if is_custom {
+        if is_custom_config(config) {
             check_use_custom_virtual_machine()?;
         }
 
@@ -565,6 +550,35 @@ impl VirtualizationService {
     }
 }
 
+/// Returns whether a VM config represents a "custom" virtual machine, which requires the
+/// USE_CUSTOM_VIRTUAL_MACHINE.
+fn is_custom_config(config: &VirtualMachineConfig) -> bool {
+    match config {
+        // Any raw (non-Microdroid) VM is considered custom.
+        VirtualMachineConfig::RawConfig(_) => true,
+        VirtualMachineConfig::AppConfig(config) => {
+            // Some features are reserved for platform apps only, even when using
+            // VirtualMachineAppConfig. Almost all of these features are grouped in the
+            // CustomConfig struct:
+            // - controlling CPUs;
+            // - gdbPort is set, meaning that crosvm will start a gdb server;
+            // - using anything other than the default kernel;
+            // - specifying devices to be assigned.
+            if config.customConfig.is_some() {
+                true
+            } else {
+                // Additional custom features not included in CustomConfig:
+                // - specifying a config file;
+                // - specifying extra APKs.
+                match &config.payload {
+                    Payload::ConfigPath(_) => true,
+                    Payload::PayloadConfig(payload_config) => !payload_config.extraApks.is_empty(),
+                }
+            }
+        }
+    }
+}
+
 fn write_zero_filler(zero_filler_path: &Path) -> Result<()> {
     let file = OpenOptions::new()
         .create_new(true)
@@ -694,12 +708,28 @@ fn load_app_config(
         None
     };
 
-    let vm_payload_config = match &config.payload {
+    let vm_payload_config;
+    let extra_apk_files: Vec<_>;
+    match &config.payload {
         Payload::ConfigPath(config_path) => {
-            load_vm_payload_config_from_file(&apk_file, config_path.as_str())
-                .with_context(|| format!("Couldn't read config from {}", config_path))?
+            vm_payload_config =
+                load_vm_payload_config_from_file(&apk_file, config_path.as_str())
+                    .with_context(|| format!("Couldn't read config from {}", config_path))?;
+            extra_apk_files = vm_payload_config
+                .extra_apks
+                .iter()
+                .enumerate()
+                .map(|(i, apk)| {
+                    File::open(PathBuf::from(&apk.path))
+                        .with_context(|| format!("Failed to open extra apk #{i} {}", apk.path))
+                })
+                .collect::<Result<_>>()?;
         }
-        Payload::PayloadConfig(payload_config) => create_vm_payload_config(payload_config)?,
+        Payload::PayloadConfig(payload_config) => {
+            vm_payload_config = create_vm_payload_config(payload_config)?;
+            extra_apk_files =
+                payload_config.extraApks.iter().map(clone_file).collect::<binder::Result<_>>()?;
+        }
     };
 
     // For now, the only supported OS is Microdroid and Microdroid GKI
@@ -747,6 +777,7 @@ fn load_app_config(
         temporary_directory,
         apk_file,
         idsig_file,
+        extra_apk_files,
         &vm_payload_config,
         &mut vm_config,
     )?;
@@ -774,11 +805,17 @@ fn create_vm_payload_config(
 
     let task = Task { type_: TaskType::MicrodroidLauncher, command: payload_binary_name.clone() };
     let name = payload_config.osName.clone();
+
+    // The VM only cares about how many there are, these names are actually ignored.
+    let extra_apk_count = payload_config.extraApks.len();
+    let extra_apks =
+        (0..extra_apk_count).map(|i| ApkConfig { path: format!("extra-apk-{i}") }).collect();
+
     Ok(VmPayloadConfig {
         os: OsConfig { name },
         task: Some(task),
         apexes: vec![],
-        extra_apks: vec![],
+        extra_apks,
         prefer_staged: false,
         export_tombstones: None,
         enable_authfs: false,
@@ -1193,12 +1230,25 @@ fn check_no_devices(config: &VirtualMachineConfig) -> binder::Result<()> {
     Ok(())
 }
 
+fn check_no_extra_apks(config: &VirtualMachineConfig) -> binder::Result<()> {
+    let VirtualMachineConfig::AppConfig(config) = config else { return Ok(()) };
+    let Payload::PayloadConfig(payload_config) = &config.payload else { return Ok(()) };
+    if !payload_config.extraApks.is_empty() {
+        return Err(anyhow!("multi-tenant feature is disabled"))
+            .or_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION);
+    }
+    Ok(())
+}
+
 fn check_config_features(config: &VirtualMachineConfig) -> binder::Result<()> {
     if !cfg!(vendor_modules) {
         check_no_vendor_modules(config)?;
     }
     if !cfg!(device_assignment) {
         check_no_devices(config)?;
+    }
+    if !cfg!(multi_tenant) {
+        check_no_extra_apks(config)?;
     }
     Ok(())
 }
