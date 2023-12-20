@@ -900,7 +900,9 @@ fn run_vm(
         .arg("--socket")
         .arg(add_preserved_fd(&mut preserved_fds, &control_server_socket.as_raw_descriptor()));
 
-    // TODO(b/285855436): Pass dtbo_vendor after --device-tree-overlay crosvm option is supported.
+    if let Some(dtbo_vendor) = &config.dtbo_vendor {
+        command.arg("--device-tree-overlay").arg(add_preserved_fd(&mut preserved_fds, dtbo_vendor));
+    }
 
     append_platform_devices(&mut command, &mut preserved_fds, &config)?;
 
