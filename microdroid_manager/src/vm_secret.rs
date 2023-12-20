@@ -161,7 +161,7 @@ fn store_secret(
     _dice_chain: &OwnedDiceArtifacts,
 ) -> Result<()> {
     // Start a new secretkeeper session!
-    let session = SkSession::new(secretkeeper).map_err(anyhow_err)?;
+    let mut session = SkSession::new(secretkeeper).map_err(anyhow_err)?;
     let store_request = StoreSecretRequest {
         id: Id(id),
         secret: Secret(*secret),
@@ -188,7 +188,7 @@ fn get_secret(
     _dice_chain: &OwnedDiceArtifacts,
 ) -> Result<[u8; SECRET_SIZE]> {
     // Start a new secretkeeper session!
-    let session = SkSession::new(secretkeeper).map_err(anyhow_err)?;
+    let mut session = SkSession::new(secretkeeper).map_err(anyhow_err)?;
     let get_request = GetSecretRequest {
         id: Id(id),
         // TODO(b/291233371): Construct policy out of dice_chain.
