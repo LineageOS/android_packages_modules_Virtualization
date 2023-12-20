@@ -31,7 +31,6 @@ rust_protobuf {
     protos: ["metadata.proto"],
     source_stem: "microdroid_metadata",
     host_supported: true,
-    use_protobuf3: true,
     apex_available: [
         "com.android.virt",
     ],
