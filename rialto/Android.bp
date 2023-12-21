@@ -142,7 +142,7 @@ rust_test {
         "libservice_vm_fake_chain",
         "libservice_vm_manager",
         "libvmclient",
-        "libx509_parser",
+        "libx509_cert_nostd",
     ],
     data: [
         ":rialto_unsigned",
