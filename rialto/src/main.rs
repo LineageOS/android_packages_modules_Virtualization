@@ -28,7 +28,7 @@ use crate::communication::VsockStream;
 use crate::error::{Error, Result};
 use crate::fdt::read_dice_range_from;
 use alloc::boxed::Box;
-use bssl_ffi::CRYPTO_library_init;
+use bssl_sys::CRYPTO_library_init;
 use ciborium_io::Write;
 use core::num::NonZeroUsize;
 use core::slice;

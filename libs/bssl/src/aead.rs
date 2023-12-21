@@ -16,7 +16,7 @@
 
 use crate::util::{check_int_result, to_call_failed_error};
 use bssl_avf_error::{ApiName, Result};
-use bssl_ffi::{
+use bssl_sys::{
     EVP_AEAD_CTX_free, EVP_AEAD_CTX_new, EVP_AEAD_CTX_open, EVP_AEAD_CTX_seal,
     EVP_AEAD_max_overhead, EVP_AEAD_nonce_length, EVP_aead_aes_256_gcm,
     EVP_aead_aes_256_gcm_randnonce, EVP_AEAD, EVP_AEAD_CTX, EVP_AEAD_DEFAULT_TAG_LENGTH,
