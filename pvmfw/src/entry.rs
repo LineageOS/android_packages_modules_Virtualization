@@ -17,7 +17,7 @@
 use crate::config;
 use crate::fdt;
 use crate::memory;
-use bssl_ffi::CRYPTO_library_init;
+use bssl_sys::CRYPTO_library_init;
 use core::arch::asm;
 use core::mem::{drop, size_of};
 use core::num::NonZeroUsize;
