@@ -32,6 +32,7 @@ pub use result::{FdtError, Result};
 use core::ffi::{c_int, c_void, CStr};
 use core::ops::Range;
 use cstr::cstr;
+use libfdt::get_slice_at_ptr;
 use result::{fdt_err, fdt_err_expect_zero, fdt_err_or_option};
 use zerocopy::AsBytes as _;
 
@@ -218,13 +219,7 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the node name.
     pub fn name(&self) -> Result<&'a CStr> {
-        let mut len: c_int = 0;
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor). On success, the
-        // function returns valid null terminating string and otherwise returned values are dropped.
-        let name = unsafe { libfdt_bindgen::fdt_get_name(self.fdt.as_ptr(), self.offset, &mut len) }
-            as *const c_void;
-        let len = usize::try_from(fdt_err(len)?).unwrap();
-        let name = self.fdt.get_from_ptr(name, len + 1)?;
+        let name = self.fdt.get_name(self.offset)?;
         CStr::from_bytes_with_nul(name).map_err(|_| FdtError::Internal)
     }
 
@@ -910,20 +905,7 @@ impl Fdt {
     }
 
     fn get_from_ptr(&self, ptr: *const c_void, len: usize) -> Result<&[u8]> {
-        let ptr = ptr as usize;
-        let offset = ptr.checked_sub(self.as_ptr() as usize).ok_or(FdtError::Internal)?;
-        self.buffer.get(offset..(offset + len)).ok_or(FdtError::Internal)
-    }
-
-    fn string(&self, offset: c_int) -> Result<&CStr> {
-        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-        let res = unsafe { libfdt_bindgen::fdt_string(self.as_ptr(), offset) };
-        if res.is_null() {
-            return Err(FdtError::Internal);
-        }
-
-        // SAFETY: Non-null return from fdt_string() is valid null-terminating string within FDT.
-        Ok(unsafe { CStr::from_ptr(res) })
+        get_slice_at_ptr(self.as_fdt_slice(), ptr.cast(), len).ok_or(FdtError::Internal)
     }
 
     /// Returns a shared pointer to the device tree.

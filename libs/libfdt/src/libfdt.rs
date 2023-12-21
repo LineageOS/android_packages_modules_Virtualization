@@ -186,6 +186,18 @@ pub(crate) unsafe trait Libfdt {
         Ok(fdt_err(ret)?.try_into().unwrap())
     }
 
+    /// Safe wrapper around `fdt_get_name()` (C function).
+    fn get_name(&self, node: c_int) -> Result<&[u8]> {
+        let fdt = self.as_fdt_slice().as_ptr().cast();
+        let mut len = 0;
+        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor). On success, the
+        // function returns valid null terminating string and otherwise returned values are dropped.
+        let name = unsafe { libfdt_bindgen::fdt_get_name(fdt, node, &mut len) };
+        let len = usize::try_from(fdt_err(len)?).unwrap().checked_add(1).unwrap();
+
+        get_slice_at_ptr(self.as_fdt_slice(), name.cast(), len).ok_or(FdtError::Internal)
+    }
+
     /// Safe wrapper around `fdt_find_max_phandle()` (C function).
     fn find_max_phandle(&self) -> Result<Phandle> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
@@ -196,6 +208,19 @@ pub(crate) unsafe trait Libfdt {
         fdt_err_expect_zero(ret)?;
 
         phandle.try_into()
+    }
+
+    /// Safe wrapper around `fdt_string()` (C function).
+    fn string(&self, offset: c_int) -> Result<&CStr> {
+        let fdt = self.as_fdt_slice().as_ptr().cast();
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ptr = unsafe { libfdt_bindgen::fdt_string(fdt, offset) };
+        if ptr.is_null() {
+            return Err(FdtError::Internal);
+        }
+
+        // SAFETY: Non-null return from fdt_string() is valid null-terminating string within FDT.
+        Ok(unsafe { CStr::from_ptr(ptr) })
     }
 }
 
@@ -238,4 +263,18 @@ pub(crate) unsafe trait LibfdtMut {
 
         fdt_err(ret)
     }
+}
+
+pub(crate) fn get_slice_at_ptr(s: &[u8], p: *const u8, len: usize) -> Option<&[u8]> {
+    let offset = get_slice_ptr_offset(s, p)?;
+
+    s.get(offset..offset.checked_add(len)?)
+}
+
+fn get_slice_ptr_offset(s: &[u8], p: *const u8) -> Option<usize> {
+    s.as_ptr_range().contains(&p).then(|| {
+        // SAFETY: Both pointers are in bounds, derive from the same object, and size_of::<T>()=1.
+        (unsafe { p.offset_from(s.as_ptr()) }) as usize
+        // TODO(stable_feature(ptr_sub_ptr)): p.sub_ptr()
+    })
 }
