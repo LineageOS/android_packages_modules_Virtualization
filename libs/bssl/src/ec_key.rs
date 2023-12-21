@@ -21,7 +21,7 @@ use crate::util::{check_int_result, to_call_failed_error};
 use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
-use bssl_ffi::{
+use bssl_sys::{
     BN_bin2bn, BN_bn2bin_padded, BN_clear_free, BN_new, CBB_flush, CBB_len, ECDSA_sign, ECDSA_size,
     ECDSA_verify, EC_GROUP_get_curve_name, EC_GROUP_new_by_curve_name, EC_KEY_check_key,
     EC_KEY_free, EC_KEY_generate_key, EC_KEY_get0_group, EC_KEY_get0_public_key,

@@ -22,7 +22,7 @@ rust_library_rlib {
     ],
     rustlibs: [
         "libbssl_avf_error_nostd",
-        "libbssl_ffi_nostd",
+        "libbssl_sys_nostd",
         "libcbor_util_nostd",
         "libciborium_nostd",
         "libcoset_nostd",

@@ -17,8 +17,8 @@
 use crate::util::check_int_result;
 use bssl_avf_error::{ApiName, Result};
 
-const ED25519_PUBLIC_KEY_LEN: usize = bssl_ffi::ED25519_PUBLIC_KEY_LEN as usize;
-const ED25519_SIGNATURE_LEN: usize = bssl_ffi::ED25519_SIGNATURE_LEN as usize;
+const ED25519_PUBLIC_KEY_LEN: usize = bssl_sys::ED25519_PUBLIC_KEY_LEN as usize;
+const ED25519_SIGNATURE_LEN: usize = bssl_sys::ED25519_SIGNATURE_LEN as usize;
 
 /// Verifies the signature of a message with the given ED25519 public key.
 pub fn ed25519_verify(
@@ -28,7 +28,7 @@ pub fn ed25519_verify(
 ) -> Result<()> {
     // SAFETY: The function only reads the parameters within their bounds.
     let ret = unsafe {
-        bssl_ffi::ED25519_verify(
+        bssl_sys::ED25519_verify(
             message.as_ptr(),
             message.len(),
             signature.as_ptr(),
