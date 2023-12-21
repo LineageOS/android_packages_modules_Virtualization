@@ -35,6 +35,7 @@ rust_defaults {
         "liblibc",
         "liblog_rust",
         "libnix",
+        "libopenssl",
         "librkpd_client",
         "librustutils",
         "libvmclient",
@@ -45,7 +46,6 @@ rust_defaults {
         "libserde_xml_rs",
         "libservice_vm_comm",
         "libservice_vm_manager",
-        "libx509_parser",
     ],
     apex_available: ["com.android.virt"],
 }
