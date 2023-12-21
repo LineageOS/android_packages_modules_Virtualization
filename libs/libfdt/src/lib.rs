@@ -18,6 +18,7 @@
 #![no_std]
 
 mod iterators;
+mod libfdt;
 mod result;
 
 pub use iterators::{
@@ -845,9 +846,10 @@ impl Fdt {
     ///
     /// Fails if the FDT does not pass validation.
     pub fn from_slice(fdt: &[u8]) -> Result<&Self> {
-        // SAFETY: The FDT will be validated before it is returned.
+        libfdt::check_full(fdt)?;
+        // SAFETY: The FDT was validated.
         let fdt = unsafe { Self::unchecked_from_slice(fdt) };
-        fdt.check_full()?;
+
         Ok(fdt)
     }
 
@@ -855,30 +857,18 @@ impl Fdt {
     ///
     /// Fails if the FDT does not pass validation.
     pub fn from_mut_slice(fdt: &mut [u8]) -> Result<&mut Self> {
-        // SAFETY: The FDT will be validated before it is returned.
+        libfdt::check_full(fdt)?;
+        // SAFETY: The FDT was validated.
         let fdt = unsafe { Self::unchecked_from_mut_slice(fdt) };
-        fdt.check_full()?;
+
         Ok(fdt)
     }
 
     /// Creates an empty Flattened Device Tree with a mutable slice.
     pub fn create_empty_tree(fdt: &mut [u8]) -> Result<&mut Self> {
-        // SAFETY: fdt_create_empty_tree() only write within the specified length,
-        //          and returns error if buffer was insufficient.
-        //          There will be no memory write outside of the given fdt.
-        let ret = unsafe {
-            libfdt_bindgen::fdt_create_empty_tree(
-                fdt.as_mut_ptr().cast::<c_void>(),
-                fdt.len() as i32,
-            )
-        };
-        fdt_err_expect_zero(ret)?;
+        libfdt::create_empty_tree(fdt)?;
 
-        // SAFETY: The FDT will be validated before it is returned.
-        let fdt = unsafe { Self::unchecked_from_mut_slice(fdt) };
-        fdt.check_full()?;
-
-        Ok(fdt)
+        Self::from_mut_slice(fdt)
     }
 
     /// Wraps a slice containing a Flattened Device Tree.
@@ -1069,16 +1059,6 @@ impl Fdt {
         };
 
         fdt_err_or_option(ret)
-    }
-
-    fn check_full(&self) -> Result<()> {
-        // SAFETY: Only performs read accesses within the limits of the slice. If successful, this
-        // call guarantees to other unsafe calls that the header contains a valid totalsize (w.r.t.
-        // 'len' i.e. the self.fdt slice) that those C functions can use to perform bounds
-        // checking. The library doesn't maintain an internal state (such as pointers) between
-        // calls as it expects the client code to keep track of the objects (DT, nodes, ...).
-        let ret = unsafe { libfdt_bindgen::fdt_check_full(self.as_ptr(), self.capacity()) };
-        fdt_err_expect_zero(ret)
     }
 
     fn get_from_ptr(&self, ptr: *const c_void, len: usize) -> Result<&[u8]> {
