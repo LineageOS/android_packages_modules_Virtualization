@@ -40,12 +40,13 @@ use std::fs::File;
 use std::io;
 use std::panic;
 use std::path::PathBuf;
+use std::str::FromStr;
 use vmclient::VmInstance;
-use x509_parser::{
-    certificate::X509Certificate,
-    der_parser::{ber::BerObject, der::parse_der, oid, oid::Oid},
-    prelude::FromDer,
-    x509::{AlgorithmIdentifier, SubjectPublicKeyInfo, X509Version},
+use x509_cert::{
+    certificate::{Certificate, Version},
+    der::{self, asn1, Decode, Encode},
+    name::Name,
+    spki::{AlgorithmIdentifier, ObjectIdentifier, SubjectPublicKeyInfo},
 };
 
 const UNSIGNED_RIALTO_PATH: &str = "/data/local/tmp/rialto_test/arm64/rialto_unsigned.bin";
@@ -136,7 +137,12 @@ fn check_attestation_request(
     let dice_artifacts = fake_client_vm_dice_artifacts()?;
     let attestation_data = generate_attestation_key_and_csr(&CHALLENGE, &dice_artifacts)?;
     let cert_chain = fs::read(TEST_CERT_CHAIN_PATH)?;
-    let (remaining, cert) = X509Certificate::from_der(&cert_chain)?;
+    // The certificate chain contains several certificates, but we only need the first one.
+    // Parsing the data with trailing data always fails with a `TrailingData` error.
+    let cert_len: usize = match Certificate::from_der(&cert_chain).unwrap_err().kind() {
+        der::ErrorKind::TrailingData { decoded, .. } => decoded.try_into().unwrap(),
+        e => bail!("Unexpected error: {e}"),
+    };
 
     // Builds the mock parameters for the client VM attestation.
     // The `csr` and `remotely_provisioned_key_blob` parameters are extracted from the same
@@ -146,7 +152,7 @@ fn check_attestation_request(
     let params = ClientVmAttestationParams {
         csr: attestation_data.csr.clone().into_cbor_vec()?,
         remotely_provisioned_key_blob: remotely_provisioned_key_pair.key_blob.to_vec(),
-        remotely_provisioned_cert: cert_chain[..(cert_chain.len() - remaining.len())].to_vec(),
+        remotely_provisioned_cert: cert_chain[..cert_len].to_vec(),
     };
     let request = Request::RequestClientVmAttestation(params);
 
@@ -162,7 +168,7 @@ fn check_attestation_request(
                 &certificate,
                 &remotely_provisioned_key_pair.maced_public_key,
                 &attestation_data.csr,
-                &cert,
+                &Certificate::from_der(&cert_chain[..cert_len]).unwrap(),
             )?;
             Ok(())
         }
@@ -177,22 +183,26 @@ fn check_attestation_request(
     }
 }
 
-fn check_vm_components(vm_components: &[BerObject]) -> Result<()> {
+fn check_vm_components(vm_components: &asn1::SequenceOf<asn1::Any, 4>) -> Result<()> {
     let expected_components = fake_sub_components();
     assert_eq!(expected_components.len(), vm_components.len());
-    for i in 0..expected_components.len() {
-        check_vm_component(&vm_components[i], &expected_components[i])?;
+    for (i, expected_component) in expected_components.iter().enumerate() {
+        check_vm_component(vm_components.get(i).unwrap(), expected_component)?;
     }
     Ok(())
 }
 
-fn check_vm_component(vm_component: &BerObject, expected_component: &SubComponent) -> Result<()> {
-    let vm_component = vm_component.as_sequence()?;
+fn check_vm_component(vm_component: &asn1::Any, expected_component: &SubComponent) -> Result<()> {
+    let vm_component = vm_component.decode_as::<asn1::SequenceOf<asn1::Any, 4>>().unwrap();
     assert_eq!(4, vm_component.len());
-    assert_eq!(expected_component.name, vm_component[0].as_str()?);
-    assert_eq!(expected_component.version, vm_component[1].as_u64()?);
-    assert_eq!(expected_component.code_hash, vm_component[2].as_slice()?);
-    assert_eq!(expected_component.authority_hash, vm_component[3].as_slice()?);
+    let name = vm_component.get(0).unwrap().decode_as::<asn1::Utf8StringRef>().unwrap();
+    assert_eq!(expected_component.name, name.as_ref());
+    let version = vm_component.get(1).unwrap().decode_as::<u64>().unwrap();
+    assert_eq!(expected_component.version, version);
+    let code_hash = vm_component.get(2).unwrap().decode_as::<asn1::OctetString>().unwrap();
+    assert_eq!(expected_component.code_hash, code_hash.as_bytes());
+    let authority_hash = vm_component.get(3).unwrap().decode_as::<asn1::OctetString>().unwrap();
+    assert_eq!(expected_component.authority_hash, authority_hash.as_bytes());
     Ok(())
 }
 
@@ -200,22 +210,22 @@ fn check_certificate_for_client_vm(
     certificate: &[u8],
     maced_public_key: &[u8],
     csr: &Csr,
-    parent_certificate: &X509Certificate,
+    parent_certificate: &Certificate,
 ) -> Result<()> {
     let cose_mac = CoseMac0::from_slice(maced_public_key)?;
     let authority_public_key =
         EcKey::from_cose_public_key_slice(&cose_mac.payload.unwrap()).unwrap();
-    let (remaining, cert) = X509Certificate::from_der(certificate)?;
-    assert!(remaining.is_empty());
+    let cert = Certificate::from_der(certificate).unwrap();
 
     // Checks the certificate signature against the authority public key.
-    const ECDSA_WITH_SHA_256: Oid<'static> = oid!(1.2.840 .10045 .4 .3 .2);
-    let expected_algorithm =
-        AlgorithmIdentifier { algorithm: ECDSA_WITH_SHA_256, parameters: None };
+    const ECDSA_WITH_SHA_256: ObjectIdentifier =
+        ObjectIdentifier::new_unwrap("1.2.840.10045.4.3.2");
+    let expected_algorithm = AlgorithmIdentifier { oid: ECDSA_WITH_SHA_256, parameters: None };
     assert_eq!(expected_algorithm, cert.signature_algorithm);
-    let digest = sha256(cert.tbs_certificate.as_ref()).unwrap();
+    let tbs_cert = cert.tbs_certificate;
+    let digest = sha256(&tbs_cert.to_der().unwrap()).unwrap();
     authority_public_key
-        .ecdsa_verify(cert.signature_value.as_ref(), &digest)
+        .ecdsa_verify(cert.signature.raw_bytes(), &digest)
         .expect("Failed to verify the certificate signature with the authority public key");
 
     // Checks that the certificate's subject public key is equal to the key in the CSR.
@@ -225,38 +235,39 @@ fn check_certificate_for_client_vm(
     let subject_public_key = EcKey::from_cose_public_key_slice(&csr_payload.public_key).unwrap();
     let expected_spki_data =
         PKey::try_from(subject_public_key).unwrap().subject_public_key_info().unwrap();
-    let (remaining, expected_spki) = SubjectPublicKeyInfo::from_der(&expected_spki_data)?;
-    assert!(remaining.is_empty());
-    assert_eq!(&expected_spki, cert.public_key());
+    let expected_spki = SubjectPublicKeyInfo::from_der(&expected_spki_data).unwrap();
+    assert_eq!(expected_spki, tbs_cert.subject_public_key_info);
 
     // Checks the certificate extension.
-    const ATTESTATION_EXTENSION_OID: Oid<'static> = oid!(1.3.6 .1 .4 .1 .11129 .2 .1 .29 .1);
-    let extensions = cert.extensions();
+    const ATTESTATION_EXTENSION_OID: ObjectIdentifier =
+        ObjectIdentifier::new_unwrap("1.3.6.1.4.1.11129.2.1.29.1");
+    let extensions = tbs_cert.extensions.unwrap();
     assert_eq!(1, extensions.len());
     let extension = &extensions[0];
-    assert_eq!(ATTESTATION_EXTENSION_OID, extension.oid);
+    assert_eq!(ATTESTATION_EXTENSION_OID, extension.extn_id);
     assert!(!extension.critical);
-    let (remaining, extension) = parse_der(extension.value)?;
-    assert!(remaining.is_empty());
-    let attestation_ext = extension.as_sequence()?;
+    let attestation_ext =
+        asn1::SequenceOf::<asn1::Any, 3>::from_der(extension.extn_value.as_bytes()).unwrap();
     assert_eq!(3, attestation_ext.len());
-    assert_eq!(csr_payload.challenge, attestation_ext[0].as_slice()?);
-    let is_vm_secure = attestation_ext[1].as_bool()?;
+    let challenge = attestation_ext.get(0).unwrap().decode_as::<asn1::OctetString>().unwrap();
+    assert_eq!(csr_payload.challenge, challenge.as_bytes());
+    let is_vm_secure = attestation_ext.get(1).unwrap().decode_as::<bool>().unwrap();
     assert!(
         !is_vm_secure,
         "The VM shouldn't be secure as the last payload added in the test is in Debug mode"
     );
-    let vm_components = attestation_ext[2].as_sequence()?;
-    check_vm_components(vm_components)?;
+    let vm_components =
+        attestation_ext.get(2).unwrap().decode_as::<asn1::SequenceOf<asn1::Any, 4>>().unwrap();
+    check_vm_components(&vm_components)?;
 
     // Checks other fields on the certificate
-    assert_eq!(X509Version::V3, cert.version());
-    assert_eq!(parent_certificate.validity(), cert.validity());
+    assert_eq!(Version::V3, tbs_cert.version);
+    assert_eq!(parent_certificate.tbs_certificate.validity, tbs_cert.validity);
     assert_eq!(
-        String::from("CN=Android Protected Virtual Machine Key"),
-        cert.subject().to_string()
+        Name::from_str("CN=Android Protected Virtual Machine Key").unwrap(),
+        tbs_cert.subject
     );
-    assert_eq!(parent_certificate.subject(), cert.issuer());
+    assert_eq!(parent_certificate.tbs_certificate.subject, tbs_cert.issuer);
 
     Ok(())
 }
