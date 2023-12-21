@@ -54,7 +54,7 @@ use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
 use vsock::{VsockListener, VsockStream};
 use nix::unistd::{chown, Uid};
-use x509_parser::{traits::FromDer, certificate::X509Certificate};
+use openssl::x509::X509;
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;
@@ -313,10 +313,10 @@ fn get_assignable_devices() -> binder::Result<Devices> {
 fn split_x509_certificate_chain(mut cert_chain: &[u8]) -> Result<Vec<Certificate>> {
     let mut out = Vec::new();
     while !cert_chain.is_empty() {
-        let (remaining, _) = X509Certificate::from_der(cert_chain)?;
-        let end = cert_chain.len() - remaining.len();
+        let cert = X509::from_der(cert_chain)?;
+        let end = cert.to_der()?.len();
         out.push(Certificate { encodedCertificate: cert_chain[..end].to_vec() });
-        cert_chain = remaining;
+        cert_chain = &cert_chain[end..];
     }
     Ok(out)
 }
@@ -606,8 +606,8 @@ mod tests {
 
         assert_eq!(4, cert_chain.len());
         for cert in cert_chain {
-            let (remaining, _) = X509Certificate::from_der(&cert.encodedCertificate)?;
-            assert!(remaining.is_empty());
+            let x509_cert = X509::from_der(&cert.encodedCertificate)?;
+            assert_eq!(x509_cert.to_der()?.len(), cert.encodedCertificate.len());
         }
         Ok(())
     }
