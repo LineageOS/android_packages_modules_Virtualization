@@ -32,6 +32,7 @@ rust_defaults {
         "libavflog",
         "libbinder_rs",
         "libhypervisor_props",
+        "liblazy_static",
         "liblibc",
         "liblog_rust",
         "libnix",

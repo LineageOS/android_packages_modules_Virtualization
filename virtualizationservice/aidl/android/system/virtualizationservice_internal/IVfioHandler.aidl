@@ -20,16 +20,22 @@ import android.system.virtualizationservice.VirtualMachineDebugInfo;
 import android.system.virtualizationservice_internal.AtomVmBooted;
 import android.system.virtualizationservice_internal.AtomVmCreationRequested;
 import android.system.virtualizationservice_internal.AtomVmExited;
+import android.system.virtualizationservice_internal.IBoundDevice;
 import android.system.virtualizationservice_internal.IGlobalVmContext;
 
 /** VFIO related methods which should be done as root. */
 interface IVfioHandler {
+    parcelable VfioDev {
+        String sysfsPath;
+        String dtboLabel;
+    }
     /**
      * Bind given devices to vfio driver.
      *
-     * @param devices paths of sysfs nodes of devices to assign.
+     * @param devices a list of pairs (sysfs path, DTBO node label) for devices.
+     * @return IBoundDevice list representing a VFIO bound devices.
      */
-    void bindDevicesToVfioDriver(in String[] devices);
+    IBoundDevice[] bindDevicesToVfioDriver(in VfioDev[] devices);
 
     /**
      * Store VM DTBO via the file descriptor.
