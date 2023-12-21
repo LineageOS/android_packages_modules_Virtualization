@@ -18,7 +18,7 @@ use crate::util::{check_int_result, to_call_failed_error};
 use alloc::vec;
 use alloc::vec::Vec;
 use bssl_avf_error::{ApiName, Error, Result};
-use bssl_ffi::{
+use bssl_sys::{
     EVP_Digest, EVP_MD_CTX_free, EVP_MD_CTX_new, EVP_MD_size, EVP_sha256, EVP_sha384, EVP_sha512,
     EVP_MAX_MD_SIZE, EVP_MD, EVP_MD_CTX,
 };

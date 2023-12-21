@@ -16,10 +16,10 @@
 
 use crate::util::to_call_failed_error;
 use bssl_avf_error::{ApiName, Result};
-use bssl_ffi::SHA256;
+use bssl_sys::SHA256;
 
 /// The length of a SHA256 digest.
-pub(crate) const SHA256_DIGEST_LENGTH: usize = bssl_ffi::SHA256_DIGEST_LENGTH as usize;
+pub(crate) const SHA256_DIGEST_LENGTH: usize = bssl_sys::SHA256_DIGEST_LENGTH as usize;
 
 /// Computes the SHA256 digest of the provided `data``.
 pub fn sha256(data: &[u8]) -> Result<[u8; SHA256_DIGEST_LENGTH]> {

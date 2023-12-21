@@ -16,7 +16,7 @@
 
 use crate::util::check_int_result;
 use bssl_avf_error::{ApiName, Result};
-use bssl_ffi::RAND_bytes;
+use bssl_sys::RAND_bytes;
 
 /// Fills the given `dest` with random data.
 pub fn rand_bytes(dest: &mut [u8]) -> Result<()> {
