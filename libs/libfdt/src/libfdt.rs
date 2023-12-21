@@ -21,7 +21,7 @@
 use core::ffi::{c_int, CStr};
 use core::ptr;
 
-use crate::{fdt_err, fdt_err_expect_zero, fdt_err_or_option, FdtError, Result};
+use crate::{fdt_err, fdt_err_expect_zero, fdt_err_or_option, FdtError, Phandle, Result};
 
 // Function names are the C function names without the `fdt_` prefix.
 
@@ -74,6 +74,16 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) and the
         // function respects the passed number of characters.
         let ret = unsafe { libfdt_bindgen::fdt_path_offset_namelen(fdt, path, len) };
+
+        fdt_err_or_option(ret)
+    }
+
+    /// Safe wrapper around `fdt_node_offset_by_phandle()` (C function).
+    fn node_offset_by_phandle(&self, phandle: Phandle) -> Result<Option<c_int>> {
+        let fdt = self.as_fdt_slice().as_ptr().cast();
+        let phandle = phandle.into();
+        // SAFETY: Accesses are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_phandle(fdt, phandle) };
 
         fdt_err_or_option(ret)
     }
@@ -174,6 +184,18 @@ pub(crate) unsafe trait Libfdt {
         let ret = unsafe { libfdt_bindgen::fdt_size_cells(fdt, node) };
 
         Ok(fdt_err(ret)?.try_into().unwrap())
+    }
+
+    /// Safe wrapper around `fdt_find_max_phandle()` (C function).
+    fn find_max_phandle(&self) -> Result<Phandle> {
+        let fdt = self.as_fdt_slice().as_ptr().cast();
+        let mut phandle = 0;
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe { libfdt_bindgen::fdt_find_max_phandle(fdt, &mut phandle) };
+
+        fdt_err_expect_zero(ret)?;
+
+        phandle.try_into()
     }
 }
 

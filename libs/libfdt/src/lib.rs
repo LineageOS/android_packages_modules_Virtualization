@@ -17,10 +17,12 @@
 
 #![no_std]
 
+mod ctypes;
 mod iterators;
 mod libfdt;
 mod result;
 
+pub use ctypes::Phandle;
 pub use iterators::{
     AddressRange, CellIterator, CompatibleIterator, DescendantsIterator, MemRegIterator,
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
@@ -407,41 +409,6 @@ impl<'a> FdtNode<'a> {
 impl<'a> PartialEq for FdtNode<'a> {
     fn eq(&self, other: &Self) -> bool {
         self.fdt.as_ptr() == other.fdt.as_ptr() && self.offset == other.offset
-    }
-}
-
-/// Phandle of a FDT node
-#[repr(transparent)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Phandle(u32);
-
-impl Phandle {
-    /// Minimum valid value for device tree phandles.
-    pub const MIN: Self = Self(1);
-    /// Maximum valid value for device tree phandles.
-    pub const MAX: Self = Self(libfdt_bindgen::FDT_MAX_PHANDLE);
-
-    /// Creates a new Phandle
-    pub const fn new(value: u32) -> Option<Self> {
-        if Self::MIN.0 <= value && value <= Self::MAX.0 {
-            Some(Self(value))
-        } else {
-            None
-        }
-    }
-}
-
-impl From<Phandle> for u32 {
-    fn from(phandle: Phandle) -> u32 {
-        phandle.0
-    }
-}
-
-impl TryFrom<u32> for Phandle {
-    type Error = FdtError;
-
-    fn try_from(value: u32) -> Result<Self> {
-        Self::new(value).ok_or(FdtError::BadPhandle)
     }
 }
 
@@ -896,30 +863,21 @@ impl Fdt {
 
     /// Returns max phandle in the tree.
     pub fn max_phandle(&self) -> Result<Phandle> {
-        let mut phandle: u32 = 0;
-        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-        let ret = unsafe { libfdt_bindgen::fdt_find_max_phandle(self.as_ptr(), &mut phandle) };
-
-        fdt_err_expect_zero(ret)?;
-        phandle.try_into()
+        self.find_max_phandle()
     }
 
     /// Returns a node with the phandle
     pub fn node_with_phandle(&self, phandle: Phandle) -> Result<Option<FdtNode>> {
-        let offset = self.node_offset_with_phandle(phandle)?;
+        let offset = self.node_offset_by_phandle(phandle)?;
+
         Ok(offset.map(|offset| FdtNode { fdt: self, offset }))
     }
 
     /// Returns a mutable node with the phandle
     pub fn node_mut_with_phandle(&mut self, phandle: Phandle) -> Result<Option<FdtNodeMut>> {
-        let offset = self.node_offset_with_phandle(phandle)?;
-        Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
-    }
+        let offset = self.node_offset_by_phandle(phandle)?;
 
-    fn node_offset_with_phandle(&self, phandle: Phandle) -> Result<Option<c_int>> {
-        // SAFETY: Accesses are constrained to the DT totalsize.
-        let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_phandle(self.as_ptr(), phandle.0) };
-        fdt_err_or_option(ret)
+        Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
     /// Returns the mutable root node of the tree.
