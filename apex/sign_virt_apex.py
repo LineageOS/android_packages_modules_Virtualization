@@ -107,6 +107,7 @@ def ParseArgs(argv):
         action='store_true',
         help='This will NOT update the vbmeta related bootconfigs while signing the apex.\
             Used for testing only!!')
+    parser.add_argument('--do_not_validate_avb_version', action='store_true', help='Do not validate the avb_version when updating vbmeta bootconfig. Only use in tests!')
     args = parser.parse_args(argv)
     # preprocess --key_override into a map
     args.key_overrides = {}
@@ -324,7 +325,8 @@ def UpdateVbmetaBootconfig(args, initrds, vbmeta_img):
             detach_bootconfigs(initrd, tmp_initrd, tmp_bc)
             bc_file = open(tmp_bc, "rt", encoding="utf-8")
             bc_data = bc_file.read()
-            validate_avb_version(bc_data)
+            if not args.do_not_validate_avb_version:
+                validate_avb_version(bc_data)
             bc_data = update_vbmeta_digest(bc_data)
             bc_data = update_vbmeta_size(bc_data)
             bc_file.close()
