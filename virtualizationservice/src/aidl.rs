@@ -28,15 +28,17 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
     AtomVmBooted::AtomVmBooted,
     AtomVmCreationRequested::AtomVmCreationRequested,
     AtomVmExited::AtomVmExited,
+    IBoundDevice::IBoundDevice,
     IGlobalVmContext::{BnGlobalVmContext, IGlobalVmContext},
-    IVirtualizationServiceInternal::BoundDevice::BoundDevice,
     IVirtualizationServiceInternal::IVirtualizationServiceInternal,
     IVfioHandler::{BpVfioHandler, IVfioHandler},
+    IVfioHandler::VfioDev::VfioDev,
 };
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
 use anyhow::{anyhow, ensure, Context, Result};
 use avflog::LogResult;
 use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong, IntoBinderResult};
+use lazy_static::lazy_static;
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
 use rkpd_client::get_rkpd_attestation_key;
@@ -70,6 +72,12 @@ const GUEST_CID_MAX: Cid = 65535;
 const SYSPROP_LAST_CID: &str = "virtualizationservice.state.last_cid";
 
 const CHUNK_RECV_MAX_LEN: usize = 1024;
+
+lazy_static! {
+    static ref VFIO_SERVICE: Strong<dyn IVfioHandler> =
+        wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())
+            .expect("Could not connect to VfioHandler");
+}
 
 fn is_valid_guest_cid(cid: Cid) -> bool {
     (GUEST_CID_MIN..=GUEST_CID_MAX).contains(&cid)
@@ -219,24 +227,26 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             .collect::<Vec<_>>())
     }
 
-    fn bindDevicesToVfioDriver(&self, devices: &[String]) -> binder::Result<Vec<BoundDevice>> {
+    fn bindDevicesToVfioDriver(
+        &self,
+        devices: &[String],
+    ) -> binder::Result<Vec<Strong<dyn IBoundDevice>>> {
         check_use_custom_virtual_machine()?;
 
-        let vfio_service: Strong<dyn IVfioHandler> =
-            wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())?;
-        vfio_service.bindDevicesToVfioDriver(devices)?;
-
-        Ok(get_assignable_devices()?
+        let devices = get_assignable_devices()?
             .device
             .into_iter()
             .filter_map(|x| {
                 if devices.contains(&x.sysfs_path) {
-                    Some(BoundDevice { sysfsPath: x.sysfs_path, dtboLabel: x.dtbo_label })
+                    Some(VfioDev { sysfsPath: x.sysfs_path, dtboLabel: x.dtbo_label })
                 } else {
+                    warn!("device {} is not assignable", x.sysfs_path);
                     None
                 }
             })
-            .collect::<Vec<_>>())
+            .collect::<Vec<VfioDev>>();
+
+        VFIO_SERVICE.bindDevicesToVfioDriver(devices.as_slice())
     }
 
     fn getDtboFile(&self) -> binder::Result<ParcelFileDescriptor> {
@@ -424,10 +434,7 @@ impl GlobalState {
 
             // Open a write-only file descriptor for vfio_handler.
             let write_fd = File::create(&path).context("Failed to create VM DTBO file")?;
-
-            let vfio_service: Strong<dyn IVfioHandler> =
-                wait_for_interface(<BpVfioHandler as IVfioHandler>::get_descriptor())?;
-            vfio_service.writeVmDtbo(&ParcelFileDescriptor::new(write_fd))?;
+            VFIO_SERVICE.writeVmDtbo(&ParcelFileDescriptor::new(write_fd))?;
 
             // Open read-only. This FD will be cached and returned to clients.
             let read_fd = File::open(&path).context("Failed to open VM DTBO file")?;
