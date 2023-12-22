@@ -82,12 +82,15 @@ rust_test {
     data: [
         ":test_pvmfw_devices_vm_dtbo",
         ":test_pvmfw_devices_vm_dtbo_without_symbols",
+        ":test_pvmfw_devices_vm_dtbo_with_duplicated_iommus",
         ":test_pvmfw_devices_with_rng",
         ":test_pvmfw_devices_with_multiple_devices_iommus",
         ":test_pvmfw_devices_with_iommu_sharing",
         ":test_pvmfw_devices_with_iommu_id_conflict",
         ":test_pvmfw_devices_without_device",
         ":test_pvmfw_devices_without_iommus",
+        ":test_pvmfw_devices_with_duplicated_pviommus",
+        ":test_pvmfw_devices_with_multiple_reg_iommus",
     ],
     // To use libpvmfw_fdt_template for testing
     enabled: false,
@@ -122,6 +125,13 @@ genrule {
     defaults: ["dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_vm_dtbo_without_symbols.dts"],
     out: ["test_pvmfw_devices_vm_dtbo_without_symbols.dtbo"],
+}
+
+genrule {
+    name: "test_pvmfw_devices_vm_dtbo_with_duplicated_iommus",
+    defaults: ["dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_vm_dtbo_with_duplicated_iommus.dts"],
+    out: ["test_pvmfw_devices_vm_dtbo_with_duplicated_iommus.dtbo"],
 }
 
 genrule_defaults {
@@ -170,6 +180,20 @@ genrule {
     defaults: ["test_device_assignment_dts_to_dtb"],
     srcs: ["testdata/test_pvmfw_devices_with_iommu_id_conflict.dts"],
     out: ["test_pvmfw_devices_with_iommu_id_conflict.dtb"],
+}
+
+genrule {
+    name: "test_pvmfw_devices_with_duplicated_pviommus",
+    defaults: ["test_device_assignment_dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_with_duplicated_pviommus.dts"],
+    out: ["test_pvmfw_devices_with_duplicated_pviommus.dtb"],
+}
+
+genrule {
+    name: "test_pvmfw_devices_with_multiple_reg_iommus",
+    defaults: ["test_device_assignment_dts_to_dtb"],
+    srcs: ["testdata/test_pvmfw_devices_with_multiple_reg_iommus.dts"],
+    out: ["test_pvmfw_devices_with_multiple_reg_iommus.dtb"],
 }
 
 cc_binary {
