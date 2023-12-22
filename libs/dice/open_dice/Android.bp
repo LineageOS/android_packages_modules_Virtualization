@@ -57,6 +57,7 @@ rust_library {
     visibility: [
         "//packages/modules/Virtualization:__subpackages__",
         "//system/authgraph/tests:__subpackages__",
+        "//system/secretkeeper/client:__subpackages__",
     ],
     apex_available: [
         "//apex_available:platform",
