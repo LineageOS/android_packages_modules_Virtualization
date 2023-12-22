@@ -675,6 +675,8 @@ pub fn sanitize_device_tree(
 
     patch_device_tree(fdt, &info)?;
 
+    // TODO(b/317201360): Ensure no overlapping in <reg> among devices
+
     fdt.pack().map_err(|e| {
         error!("Failed to unpack DT after patching: {e}");
         RebootReason::InvalidFdt

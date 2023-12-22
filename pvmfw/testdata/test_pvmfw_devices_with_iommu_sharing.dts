@@ -15,9 +15,9 @@
 
     led@70000000 {
         compatible = "android,led";
-        reg = <0x0 0x100 0x0 0x9>;
+        reg = <0x0 0x1000 0x0 0x9>;
         interrupts = <0x0 0xF 0x5>;
-        iommus = <&pviommu_0 0xFF0>;
+        iommus = <&pviommu_0 0xFF1>;
     };
 
     pviommu_0: pviommu0 {
