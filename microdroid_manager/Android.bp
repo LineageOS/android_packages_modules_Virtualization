@@ -29,6 +29,7 @@ rust_defaults {
         "libclient_vm_csr",
         "libciborium",
         "libcoset",
+        "libdice_policy",
         "libdiced_open_dice",
         "libdiced_sample_inputs",
         "libglob",

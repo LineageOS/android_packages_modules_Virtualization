@@ -20,11 +20,13 @@ use android_hardware_security_secretkeeper::aidl::android::hardware::security::s
 use secretkeeper_comm::data_types::request::Request;
 use binder::{Strong};
 use coset::CborSerializable;
+use dice_policy::{ConstraintSpec, ConstraintType, DicePolicy};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
 use keystore2_crypto::ZVec;
 use openssl::hkdf::hkdf;
 use openssl::md::Md;
 use openssl::sha;
+use secretkeeper_client::dice::OwnedDiceArtifactsWithExplicitKey;
 use secretkeeper_client::SkSession;
 use secretkeeper_comm::data_types::{Id, ID_SIZE, Secret, SECRET_SIZE};
 use secretkeeper_comm::data_types::response::Response;
@@ -35,6 +37,10 @@ use secretkeeper_comm::data_types::error::SecretkeeperError;
 use zeroize::Zeroizing;
 
 const ENCRYPTEDSTORE_KEY_IDENTIFIER: &str = "encryptedstore_key";
+const AUTHORITY_HASH: i64 = -4670549;
+const MODE: i64 = -4670551;
+const CONFIG_DESC: i64 = -4670548;
+const SECURITY_VERSION: i64 = -70005;
 
 // Generated using hexdump -vn32 -e'14/1 "0x%02X, " 1 "\n"' /dev/urandom
 const SALT_ENCRYPTED_STORE: &[u8] = &[
@@ -47,10 +53,11 @@ const SALT_PAYLOAD_SERVICE: &[u8] = &[
 ];
 
 // TODO(b/291213394): Remove this once policy is generated from dice_chain
-const HYPOTHETICAL_DICE_POLICY: [u8; 43] = [
-    0x83, 0x01, 0x81, 0x83, 0x01, 0x80, 0xA1, 0x01, 0x00, 0x82, 0x83, 0x01, 0x81, 0x01, 0x73, 0x74,
-    0x65, 0x73, 0x74, 0x69, 0x6E, 0x67, 0x5F, 0x64, 0x69, 0x63, 0x65, 0x5F, 0x70, 0x6F, 0x6C, 0x69,
-    0x63, 0x79, 0x83, 0x02, 0x82, 0x03, 0x18, 0x64, 0x19, 0xE9, 0x75,
+const HYPOTHETICAL_DICE_POLICY: [u8; 49] = [
+    0x84, 0x01, 0x81, 0x83, 0x01, 0x80, 0x01, 0x81, 0x83, 0x01, 0x80, 0x43, 0xa1, 0x01, 0x00, 0x82,
+    0x83, 0x01, 0x81, 0x01, 0x73, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x64, 0x69, 0x63,
+    0x65, 0x5f, 0x70, 0x6f, 0x6c, 0x69, 0x63, 0x79, 0x83, 0x02, 0x82, 0x03, 0x18, 0x64, 0x19, 0xe9,
+    0x75,
 ];
 // TODO(b/291213394): Differentiate the Id of nPVM based on 'salt'
 const ID_NP_VM: [u8; ID_SIZE] = [
@@ -73,13 +80,13 @@ pub enum VmSecret {
     // with downgraded images will not have access to VM's secret.
     // V2 secrets require hardware support - Secretkeeper HAL, which (among other things)
     // is backed by tamper-evident storage, providing rollback protection to these secrets.
-    V2 { dice: OwnedDiceArtifacts, skp_secret: ZVec },
+    V2 { dice_artifacts: OwnedDiceArtifactsWithExplicitKey, skp_secret: ZVec },
     // V1 secrets are not protected against rollback of boot images.
     // They are reliable only if rollback of images was prevented by verified boot ie,
     // each stage (including pvmfw/Microdroid/Microdroid Manager) prevents downgrade of next
     // stage. These are now legacy secrets & used only when Secretkeeper HAL is not supported
     // by device.
-    V1 { dice: OwnedDiceArtifacts },
+    V1 { dice_artifacts: OwnedDiceArtifacts },
 }
 
 fn get_id() -> [u8; ID_SIZE] {
@@ -98,47 +105,70 @@ impl VmSecret {
         ensure!(dice_artifacts.bcc().is_some(), "Dice chain missing");
 
         if let Some(sk_service) = is_sk_supported(vm_service)? {
+            let explicit_dice =
+                OwnedDiceArtifactsWithExplicitKey::from_owned_artifacts(dice_artifacts)?;
+            let explicit_dice_chain = explicit_dice
+                .explicit_key_dice_chain()
+                .ok_or(anyhow!("Missing explicit dice chain, this is unusual"))?;
+            let _policy = sealing_policy(explicit_dice_chain).map_err(anyhow_err)?;
+
+            // Start a new session with Secretkeeper!
+            let mut session = SkSession::new(sk_service)?;
             let id = get_id();
             let mut skp_secret = Zeroizing::new([0u8; SECRET_SIZE]);
             if super::is_strict_boot() {
                 if super::is_new_instance() {
                     *skp_secret = rand::random();
-                    store_secret(sk_service.clone(), id, skp_secret.clone(), &dice_artifacts)?;
+                    store_secret(
+                        &mut session,
+                        id,
+                        skp_secret.clone(),
+                        // TODO: Use _policy instead!
+                        HYPOTHETICAL_DICE_POLICY.to_vec(),
+                    )?;
                 } else {
                     // Subsequent run of the pVM -> get the secret stored in Secretkeeper.
-                    *skp_secret = get_secret(sk_service.clone(), id, &dice_artifacts)?;
+                    *skp_secret = get_secret(&mut session, id, None)?;
                 }
             } else {
                 // TODO(b/291213394): Non protected VM don't need to use Secretkeeper, remove this
                 // once we have sufficient testing on protected VM.
-                store_secret(sk_service.clone(), id, SKP_SECRET_NP_VM.into(), &dice_artifacts)?;
-                *skp_secret = get_secret(sk_service.clone(), id, &dice_artifacts)?;
+                store_secret(
+                    &mut session,
+                    id,
+                    SKP_SECRET_NP_VM.into(),
+                    // TODO: Use the _policy above.
+                    HYPOTHETICAL_DICE_POLICY.to_vec(),
+                )?;
+                *skp_secret = get_secret(&mut session, id, None)?;
             }
             return Ok(Self::V2 {
-                dice: dice_artifacts,
+                dice_artifacts: explicit_dice,
                 skp_secret: ZVec::try_from(skp_secret.to_vec())?,
             });
         }
         //  Use V1 secrets if Secretkeeper is not supported.
-        Ok(Self::V1 { dice: dice_artifacts })
+        Ok(Self::V1 { dice_artifacts })
     }
 
-    pub fn dice(&self) -> &OwnedDiceArtifacts {
+    pub fn dice_artifacts(&self) -> &dyn DiceArtifacts {
         match self {
-            Self::V2 { dice, .. } => dice,
-            Self::V1 { dice } => dice,
+            Self::V2 { dice_artifacts, .. } => dice_artifacts,
+            Self::V1 { dice_artifacts } => dice_artifacts,
         }
     }
 
     fn get_vm_secret(&self, salt: &[u8], identifier: &[u8], key: &mut [u8]) -> Result<()> {
         match self {
-            Self::V2 { dice, skp_secret } => {
+            Self::V2 { dice_artifacts, skp_secret } => {
                 let mut hasher = sha::Sha256::new();
-                hasher.update(dice.cdi_seal());
+                hasher.update(dice_artifacts.cdi_seal());
                 hasher.update(skp_secret);
                 hkdf(key, Md::sha256(), &hasher.finish(), salt, identifier)?
             }
-            Self::V1 { dice } => hkdf(key, Md::sha256(), dice.cdi_seal(), salt, identifier)?,
+            Self::V1 { dice_artifacts } => {
+                hkdf(key, Md::sha256(), dice_artifacts.cdi_seal(), salt, identifier)?
+            }
         }
         Ok(())
     }
@@ -154,24 +184,49 @@ impl VmSecret {
     }
 }
 
+// Construct a sealing policy on the dice chain. VMs uses the following set of constraint for
+// protecting secrets against rollback of boot images.
+// 1. ExactMatch on AUTHORITY_HASH (Required ie, each DiceChainEntry must have it).
+// 2. ExactMatch on MODE (Required) - Secret should be inaccessible if any of the runtime
+//    configuration changes. For ex, the secrets stored with a boot stage being in Normal mode
+//    should be inaccessible when the same stage is booted in Debug mode.
+// 3. GreaterOrEqual on SECURITY_VERSION (Optional): The secrets will be accessible if version of
+//    any image is greater or equal to the set version. This is an optional field, certain
+//    components may chose to prevent booting of rollback images for ex, ABL is expected to provide
+//    rollback protection of pvmfw. Such components may chose to not put SECURITY_VERSION in the
+//    corresponding DiceChainEntry.
+// TODO(b/291219197) : Add constraints on Extra apks as well!
+fn sealing_policy(dice: &[u8]) -> Result<Vec<u8>, String> {
+    let constraint_spec = [
+        ConstraintSpec::new(
+            ConstraintType::ExactMatch,
+            vec![AUTHORITY_HASH],
+            /* Optional */ false,
+        ),
+        ConstraintSpec::new(ConstraintType::ExactMatch, vec![MODE], /* Optional */ false),
+        ConstraintSpec::new(
+            ConstraintType::GreaterOrEqual,
+            vec![CONFIG_DESC, SECURITY_VERSION],
+            /* Optional */ true,
+        ),
+    ];
+
+    DicePolicy::from_dice_chain(dice, &constraint_spec)?
+        .to_vec()
+        .map_err(|e| format!("DicePolicy construction failed {e:?}"))
+}
+
 fn store_secret(
-    secretkeeper: binder::Strong<dyn ISecretkeeper>,
+    session: &mut SkSession,
     id: [u8; ID_SIZE],
     secret: Zeroizing<[u8; SECRET_SIZE]>,
-    _dice_chain: &OwnedDiceArtifacts,
+    sealing_policy: Vec<u8>,
 ) -> Result<()> {
-    // Start a new secretkeeper session!
-    let mut session = SkSession::new(secretkeeper).map_err(anyhow_err)?;
-    let store_request = StoreSecretRequest {
-        id: Id(id),
-        secret: Secret(*secret),
-        // TODO(b/291233371): Construct policy out of dice_chain.
-        sealing_policy: HYPOTHETICAL_DICE_POLICY.to_vec(),
-    };
+    let store_request = StoreSecretRequest { id: Id(id), secret: Secret(*secret), sealing_policy };
     log::info!("Secretkeeper operation: {:?}", store_request);
 
     let store_request = store_request.serialize_to_packet().to_vec().map_err(anyhow_err)?;
-    let store_response = session.secret_management_request(&store_request).map_err(anyhow_err)?;
+    let store_response = session.secret_management_request(&store_request)?;
     let store_response = ResponsePacket::from_slice(&store_response).map_err(anyhow_err)?;
     let response_type = store_response.response_type().map_err(anyhow_err)?;
     ensure!(
@@ -183,21 +238,14 @@ fn store_secret(
 }
 
 fn get_secret(
-    secretkeeper: binder::Strong<dyn ISecretkeeper>,
+    session: &mut SkSession,
     id: [u8; ID_SIZE],
-    _dice_chain: &OwnedDiceArtifacts,
+    updated_sealing_policy: Option<Vec<u8>>,
 ) -> Result<[u8; SECRET_SIZE]> {
-    // Start a new secretkeeper session!
-    let mut session = SkSession::new(secretkeeper).map_err(anyhow_err)?;
-    let get_request = GetSecretRequest {
-        id: Id(id),
-        // TODO(b/291233371): Construct policy out of dice_chain.
-        updated_sealing_policy: None,
-    };
+    let get_request = GetSecretRequest { id: Id(id), updated_sealing_policy };
     log::info!("Secretkeeper operation: {:?}", get_request);
-
     let get_request = get_request.serialize_to_packet().to_vec().map_err(anyhow_err)?;
-    let get_response = session.secret_management_request(&get_request).map_err(anyhow_err)?;
+    let get_response = session.secret_management_request(&get_request)?;
     let get_response = ResponsePacket::from_slice(&get_response).map_err(anyhow_err)?;
     let response_type = get_response.response_type().map_err(anyhow_err)?;
     ensure!(
