@@ -32,7 +32,6 @@ import static com.google.common.truth.TruthJUnit.assume;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
-import static org.junit.Assume.assumeFalse;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
@@ -2107,13 +2106,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void configuringVendorDiskImageRequiresCustomPermission() throws Exception {
         assumeSupportedDevice();
-        assumeFalse(
-                "Cuttlefish doesn't support device tree under /sys/firmware/devicetree/base",
-                isCuttlefish());
-        // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
-        // after introducing verification based on DT and fstab in microdroid vendor partition.
-        assumeFalse(
-                "boot with vendor partition is failing in HWASAN enabled Microdroid.", isHwasan());
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
         File vendorDiskImage =
@@ -2139,13 +2131,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void bootsWithVendorPartition() throws Exception {
         assumeSupportedDevice();
-        assumeFalse(
-                "Cuttlefish doesn't support device tree under /sys/firmware/devicetree/base",
-                isCuttlefish());
-        // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
-        // after introducing verification based on DT and fstab in microdroid vendor partition.
-        assumeFalse(
-                "boot with vendor partition is failing in HWASAN enabled Microdroid.", isHwasan());
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
@@ -2177,13 +2162,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void creationFailsWithUnsignedVendorPartition() throws Exception {
         assumeSupportedDevice();
-        assumeFalse(
-                "Cuttlefish doesn't support device tree under /sys/firmware/devicetree/base",
-                isCuttlefish());
-        // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
-        // after introducing verification based on DT and fstab in microdroid vendor partition.
-        assumeFalse(
-                "boot with vendor partition is failing in HWASAN enabled Microdroid.", isHwasan());
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
