@@ -62,10 +62,6 @@ public abstract class MicrodroidDeviceTestBase {
         return getDeviceProperties().isCuttlefish();
     }
 
-    public static boolean isHwasan() {
-        return getDeviceProperties().isHwasan();
-    }
-
     public static boolean isUserBuild() {
         return getDeviceProperties().isUserBuild();
     }
