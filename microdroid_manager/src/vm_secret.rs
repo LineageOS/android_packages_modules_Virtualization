@@ -52,13 +52,6 @@ const SALT_PAYLOAD_SERVICE: &[u8] = &[
     0x55, 0xF8, 0x08, 0x23, 0x81, 0x5F, 0xF5, 0x16, 0x20, 0x3E, 0xBE, 0xBA, 0xB7, 0xA8, 0x43, 0x92,
 ];
 
-// TODO(b/291213394): Remove this once policy is generated from dice_chain
-const HYPOTHETICAL_DICE_POLICY: [u8; 49] = [
-    0x84, 0x01, 0x81, 0x83, 0x01, 0x80, 0x01, 0x81, 0x83, 0x01, 0x80, 0x43, 0xa1, 0x01, 0x00, 0x82,
-    0x83, 0x01, 0x81, 0x01, 0x73, 0x74, 0x65, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x64, 0x69, 0x63,
-    0x65, 0x5f, 0x70, 0x6f, 0x6c, 0x69, 0x63, 0x79, 0x83, 0x02, 0x82, 0x03, 0x18, 0x64, 0x19, 0xe9,
-    0x75,
-];
 // TODO(b/291213394): Differentiate the Id of nPVM based on 'salt'
 const ID_NP_VM: [u8; ID_SIZE] = [
     0xF1, 0xB2, 0xED, 0x3B, 0xD1, 0xBD, 0xF0, 0x7D, 0xE1, 0xF0, 0x01, 0xFC, 0x61, 0x71, 0xD3, 0x42,
@@ -110,36 +103,24 @@ impl VmSecret {
             let explicit_dice_chain = explicit_dice
                 .explicit_key_dice_chain()
                 .ok_or(anyhow!("Missing explicit dice chain, this is unusual"))?;
-            let _policy = sealing_policy(explicit_dice_chain).map_err(anyhow_err)?;
+            let policy = sealing_policy(explicit_dice_chain).map_err(anyhow_err)?;
 
             // Start a new session with Secretkeeper!
-            let mut session = SkSession::new(sk_service)?;
+            let mut session = SkSession::new(sk_service, &explicit_dice)?;
             let id = get_id();
             let mut skp_secret = Zeroizing::new([0u8; SECRET_SIZE]);
             if super::is_strict_boot() {
                 if super::is_new_instance() {
                     *skp_secret = rand::random();
-                    store_secret(
-                        &mut session,
-                        id,
-                        skp_secret.clone(),
-                        // TODO: Use _policy instead!
-                        HYPOTHETICAL_DICE_POLICY.to_vec(),
-                    )?;
+                    store_secret(&mut session, id, skp_secret.clone(), policy)?;
                 } else {
                     // Subsequent run of the pVM -> get the secret stored in Secretkeeper.
-                    *skp_secret = get_secret(&mut session, id, None)?;
+                    *skp_secret = get_secret(&mut session, id, Some(policy))?;
                 }
             } else {
                 // TODO(b/291213394): Non protected VM don't need to use Secretkeeper, remove this
                 // once we have sufficient testing on protected VM.
-                store_secret(
-                    &mut session,
-                    id,
-                    SKP_SECRET_NP_VM.into(),
-                    // TODO: Use the _policy above.
-                    HYPOTHETICAL_DICE_POLICY.to_vec(),
-                )?;
+                store_secret(&mut session, id, SKP_SECRET_NP_VM.into(), policy)?;
                 *skp_secret = get_secret(&mut session, id, None)?;
             }
             return Ok(Self::V2 {
