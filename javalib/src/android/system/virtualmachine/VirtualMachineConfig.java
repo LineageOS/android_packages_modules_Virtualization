@@ -66,7 +66,7 @@ public final class VirtualMachineConfig {
     private static String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
-    private static final int VERSION = 6;
+    private static final int VERSION = 7;
     private static final String KEY_VERSION = "version";
     private static final String KEY_PACKAGENAME = "packageName";
     private static final String KEY_APKPATH = "apkPath";
@@ -80,6 +80,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_VM_OUTPUT_CAPTURED = "vmOutputCaptured";
     private static final String KEY_VM_CONSOLE_INPUT_SUPPORTED = "vmConsoleInputSupported";
     private static final String KEY_VENDOR_DISK_IMAGE_PATH = "vendorDiskImagePath";
+    private static final String KEY_OS = "os";
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
@@ -173,6 +174,8 @@ public final class VirtualMachineConfig {
 
     @Nullable private final File mVendorDiskImage;
 
+    private final String mOs;
+
     private VirtualMachineConfig(
             @Nullable String packageName,
             @Nullable String apkPath,
@@ -185,7 +188,8 @@ public final class VirtualMachineConfig {
             long encryptedStorageBytes,
             boolean vmOutputCaptured,
             boolean vmConsoleInputSupported,
-            @Nullable File vendorDiskImage) {
+            @Nullable File vendorDiskImage,
+            @NonNull String os) {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
         mApkPath = apkPath;
@@ -199,6 +203,7 @@ public final class VirtualMachineConfig {
         mVmOutputCaptured = vmOutputCaptured;
         mVmConsoleInputSupported = vmConsoleInputSupported;
         mVendorDiskImage = vendorDiskImage;
+        mOs = os;
     }
 
     /** Loads a config from a file. */
@@ -280,6 +285,11 @@ public final class VirtualMachineConfig {
             builder.setVendorDiskImage(new File(vendorDiskImagePath));
         }
 
+        String os = b.getString(KEY_OS);
+        if (os != null) {
+            builder.setOs(os);
+        }
+
         return builder.build();
     }
 
@@ -318,6 +328,7 @@ public final class VirtualMachineConfig {
         if (mVendorDiskImage != null) {
             b.putString(KEY_VENDOR_DISK_IMAGE_PATH, mVendorDiskImage.getAbsolutePath());
         }
+        b.putString(KEY_OS, mOs);
         b.writeToStream(output);
     }
 
@@ -447,6 +458,19 @@ public final class VirtualMachineConfig {
     }
 
     /**
+     * Returns the OS of the VM.
+     *
+     * @see Builder#setOs
+     * @hide
+     */
+    @TestApi
+    @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
+    @NonNull
+    public String getOs() {
+        return mOs;
+    }
+
+    /**
      * Tests if this config is compatible with other config. Being compatible means that the configs
      * can be interchangeably used for the same virtual machine; they do not change the VM identity
      * or secrets. Such changes include varying the number of CPUs or the size of the RAM. Changes
@@ -469,7 +493,8 @@ public final class VirtualMachineConfig {
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
                 && Objects.equals(this.mPackageName, other.mPackageName)
-                && Objects.equals(this.mApkPath, other.mApkPath);
+                && Objects.equals(this.mApkPath, other.mApkPath)
+                && Objects.equals(this.mOs, other.mOs);
     }
 
     /**
@@ -493,6 +518,7 @@ public final class VirtualMachineConfig {
         if (mPayloadBinaryName != null) {
             VirtualMachinePayloadConfig payloadConfig = new VirtualMachinePayloadConfig();
             payloadConfig.payloadBinaryName = mPayloadBinaryName;
+            payloadConfig.osName = mOs;
             vsConfig.payload =
                     VirtualMachineAppConfig.Payload.payloadConfig(payloadConfig);
         } else {
@@ -591,6 +617,8 @@ public final class VirtualMachineConfig {
      */
     @SystemApi
     public static final class Builder {
+        private final String DEFAULT_OS = "microdroid";
+
         @Nullable private final String mPackageName;
         @Nullable private String mApkPath;
         @Nullable private String mPayloadConfigPath;
@@ -604,6 +632,7 @@ public final class VirtualMachineConfig {
         private boolean mVmOutputCaptured = false;
         private boolean mVmConsoleInputSupported = false;
         @Nullable private File mVendorDiskImage;
+        private String mOs = DEFAULT_OS;
 
         /**
          * Creates a builder for the given context.
@@ -678,7 +707,8 @@ public final class VirtualMachineConfig {
                     mEncryptedStorageBytes,
                     mVmOutputCaptured,
                     mVmConsoleInputSupported,
-                    mVendorDiskImage);
+                    mVendorDiskImage,
+                    mOs);
         }
 
         /**
@@ -908,6 +938,21 @@ public final class VirtualMachineConfig {
         @NonNull
         public Builder setVendorDiskImage(@NonNull File vendorDiskImage) {
             mVendorDiskImage = vendorDiskImage;
+            return this;
+        }
+
+        /**
+         * Sets an OS for the VM. Defaults to {@code "microdroid"}.
+         *
+         * <p>See {@link VirtualMachineManager#getSupportedOSList} for available OS names.
+         *
+         * @hide
+         */
+        @TestApi
+        @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
+        @NonNull
+        public Builder setOs(@NonNull String os) {
+            mOs = requireNonNull(os, "os must not be null");
             return this;
         }
     }

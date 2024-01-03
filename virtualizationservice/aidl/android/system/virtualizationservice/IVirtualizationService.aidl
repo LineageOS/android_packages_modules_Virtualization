@@ -66,6 +66,11 @@ interface IVirtualizationService {
      */
     AssignableDevice[] getAssignableDevices();
 
+    /**
+     * Get a list of supported OSes.
+     */
+    String[] getSupportedOSList();
+
     /** Returns whether given feature is enabled. */
     boolean isFeatureEnabled(in String feature);
 }
