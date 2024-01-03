@@ -57,7 +57,10 @@ public class DebugPolicyHostTests extends MicrodroidHostTestCaseBase {
     @NonNull private static final String PACKAGE_NAME = "com.android.microdroid.test";
     @NonNull private static final String MICRODROID_DEBUG_FULL = "full";
     @NonNull private static final String MICRODROID_DEBUG_NONE = "none";
-    @NonNull private static final String MICRODROID_CONFIG_PATH = "assets/vm_config_apex.json";
+
+    @NonNull
+    private static final String MICRODROID_CONFIG_PATH = "assets/microdroid/vm_config_apex.json";
+
     @NonNull private static final String MICRODROID_LOG_PATH = TEST_ROOT + "log.txt";
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 30000; // 30 seconds
     private static final int BOOT_FAILURE_WAIT_TIME_MS = 10000; // 10 seconds
