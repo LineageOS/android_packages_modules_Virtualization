@@ -200,8 +200,10 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         }
     }
 
-    private BootTimeStats runBootTimeTest(
+    private void runBootTimeTest(
             String name,
+            String payloadConfig,
+            boolean fullDebug,
             Function<VirtualMachineConfig.Builder, VirtualMachineConfig.Builder> fnConfig)
             throws VirtualMachineException, InterruptedException, IOException {
         assume().withMessage("Skip on CF; too slow").that(isCuttlefish()).isFalse();
@@ -212,9 +214,12 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         for (int i = 0; i < trialCount; i++) {
             VirtualMachineConfig.Builder builder =
                     newVmConfigBuilder()
-                            .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
+                            .setPayloadConfigPath(payloadConfig)
                             .setMemoryBytes(256 * ONE_MEBI)
                             .setDebugLevel(DEBUG_LEVEL_NONE);
+            if (fullDebug) {
+                builder = builder.setDebugLevel(DEBUG_LEVEL_FULL).setVmOutputCaptured(true);
+            }
             VirtualMachineConfig config = fnConfig.apply(builder).build();
             forceCreateNewVirtualMachine(name, config);
 
@@ -222,42 +227,44 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             assertThat(result.payloadStarted).isTrue();
             stats.collect(result);
         }
-        return stats;
+
+        reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
+        if (fullDebug) {
+            reportMetrics(stats.get(BootTimeMetric.VM_START), "vm_starting_time", "ms");
+            reportMetrics(stats.get(BootTimeMetric.BOOTLOADER), "bootloader_time", "ms");
+            reportMetrics(stats.get(BootTimeMetric.KERNEL), "kernel_boot_time", "ms");
+            reportMetrics(stats.get(BootTimeMetric.USERSPACE), "userspace_boot_time", "ms");
+        }
     }
 
     @Test
     public void testMicrodroidBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
-        BootTimeStats stats =
-                runBootTimeTest(
-                        "test_vm_boot_time",
-                        (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_ONE_CPU));
-        reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
+        runBootTimeTest(
+                "test_vm_boot_time",
+                "assets/vm_config.json",
+                /* fullDebug */ false,
+                (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_ONE_CPU));
     }
 
     @Test
     public void testMicrodroidHostCpuTopologyBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
-        BootTimeStats stats =
-                runBootTimeTest(
-                        "test_vm_boot_time_host_topology",
-                        (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_MATCH_HOST));
-        reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
+        runBootTimeTest(
+                "test_vm_boot_time_host_topology",
+                "assets/vm_config.json",
+                /* fullDebug */ false,
+                (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_MATCH_HOST));
     }
 
     @Test
     public void testMicrodroidDebugBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
-        BootTimeStats stats =
-                runBootTimeTest(
-                        "test_vm_boot_time_debug",
-                        (builder) ->
-                                builder.setDebugLevel(DEBUG_LEVEL_FULL).setVmOutputCaptured(true));
-        reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.VM_START), "vm_starting_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.BOOTLOADER), "bootloader_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.KERNEL), "kernel_boot_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.USERSPACE), "userspace_boot_time", "ms");
+        runBootTimeTest(
+                "test_vm_boot_time_debug",
+                "assets/vm_config.json",
+                /* fullDebug */ true,
+                (builder) -> builder);
     }
 
     @Test
@@ -281,18 +288,11 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
         File vendorDiskImage =
                 new File("/data/local/tmp/microdroid-bench/microdroid_vendor_image.img");
-        BootTimeStats stats =
-                runBootTimeTest(
-                        "test_vm_boot_time_debug_with_vendor_partition",
-                        (builder) ->
-                                builder.setDebugLevel(DEBUG_LEVEL_FULL)
-                                        .setVmOutputCaptured(true)
-                                        .setVendorDiskImage(vendorDiskImage));
-        reportMetrics(stats.get(BootTimeMetric.TOTAL), "boot_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.VM_START), "vm_starting_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.BOOTLOADER), "bootloader_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.KERNEL), "kernel_boot_time", "ms");
-        reportMetrics(stats.get(BootTimeMetric.USERSPACE), "userspace_boot_time", "ms");
+        runBootTimeTest(
+                "test_vm_boot_time_debug_with_vendor_partition",
+                "assets/vm_config.json",
+                /* fullDebug */ true,
+                (builder) -> builder.setVendorDiskImage(vendorDiskImage));
     }
 
     @Test
