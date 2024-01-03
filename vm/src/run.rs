@@ -269,7 +269,7 @@ fn run(
     };
     let console_in =
         if let Some(console_in_path) = console_in_path {
-            Some(File::create(console_in_path).with_context(|| {
+            Some(File::open(console_in_path).with_context(|| {
                 format!("Failed to open console input file {:?}", console_in_path)
             })?)
         } else {
