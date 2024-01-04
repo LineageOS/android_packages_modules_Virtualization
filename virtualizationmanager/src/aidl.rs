@@ -1392,22 +1392,22 @@ impl IVirtualMachineService for VirtualMachineService {
     }
 
     fn getSecretkeeper(&self) -> binder::Result<Option<Strong<dyn ISecretkeeper>>> {
-        let sk = match binder::get_interface(SECRETKEEPER_IDENTIFIER) {
-            Ok(sk) => {
-                Some(BnSecretkeeper::new_binder(SecretkeeperProxy(sk), BinderFeatures::default()))
-            }
-            Err(StatusCode::NAME_NOT_FOUND) => None,
-            Err(e) => {
-                error!("unexpected error while fetching connection to Secretkeeper {:?}", e);
-                return Err(e.into());
-            }
+        let sk = if is_secretkeeper_present() {
+            Some(binder::wait_for_interface(SECRETKEEPER_IDENTIFIER)?)
+        } else {
+            None
         };
-        Ok(sk)
+        Ok(sk.map(|s| BnSecretkeeper::new_binder(SecretkeeperProxy(s), BinderFeatures::default())))
     }
 
     fn requestAttestation(&self, csr: &[u8]) -> binder::Result<Vec<Certificate>> {
         GLOBAL_SERVICE.requestAttestation(csr, get_calling_uid() as i32)
     }
+}
+
+fn is_secretkeeper_present() -> bool {
+    binder::is_declared(SECRETKEEPER_IDENTIFIER)
+        .expect("Could not check for declared Secretkeeper interface")
 }
 
 impl VirtualMachineService {
