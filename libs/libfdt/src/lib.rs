@@ -487,7 +487,7 @@ impl<'a> FdtNode<'a> {
     }
 
     /// Returns an iterator of descendants
-    pub fn descendants(&'a self) -> DescendantsIterator<'a> {
+    pub fn descendants(&self) -> DescendantsIterator<'a> {
         DescendantsIterator::new(self)
     }
 
