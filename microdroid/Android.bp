@@ -394,16 +394,6 @@ flag_aware_microdroid_vbmeta {
             partitions: ["microdroid_vendor"],
         },
     },
-    // TODO(b/312809093): Remove hard-coded property after figuring out the
-    // long-term solution for microdroid vendor partition SPL. The hard-coded
-    // value is the minimum value of SPL that microdroid vendor partition will
-    // have. It's for passing the check 'IsStandaloneImageRollback'.
-    avb_properties: [
-        {
-            key: "com.android.build.microdroid-vendor.security_patch",
-            value: "2023-12-05",
-        },
-    ],
 }
 
 prebuilt_etc {
