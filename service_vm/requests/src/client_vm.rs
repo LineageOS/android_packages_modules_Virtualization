@@ -22,7 +22,7 @@ use crate::dice::{
 use crate::keyblob::decrypt_private_key;
 use alloc::vec::Vec;
 use bssl_avf::{rand_bytes, sha256, Digester, EcKey, PKey};
-use cbor_util::value_to_array;
+use cbor_util::parse_value_array;
 use ciborium::value::Value;
 use core::result;
 use coset::{AsCborValue, CborSerializable, CoseSign, CoseSign1};
@@ -53,10 +53,8 @@ pub(super) fn request_attestation(
     // Validates the prefix of the Client VM DICE chain in the CSR.
     let service_vm_dice_chain =
         dice_artifacts.bcc().ok_or(RequestProcessingError::MissingDiceChain)?;
-    let service_vm_dice_chain =
-        value_to_array(Value::from_slice(service_vm_dice_chain)?, "service_vm_dice_chain")?;
-    let client_vm_dice_chain =
-        value_to_array(Value::from_slice(&csr.dice_cert_chain)?, "client_vm_dice_chain")?;
+    let service_vm_dice_chain = parse_value_array(service_vm_dice_chain, "service_vm_dice_chain")?;
+    let client_vm_dice_chain = parse_value_array(&csr.dice_cert_chain, "client_vm_dice_chain")?;
     validate_client_vm_dice_chain_prefix_match(&client_vm_dice_chain, &service_vm_dice_chain)?;
     // Validates the signatures in the Client VM DICE chain and extracts the partially decoded
     // DiceChainEntryPayloads.
