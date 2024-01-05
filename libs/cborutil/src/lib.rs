@@ -21,7 +21,7 @@ extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 use ciborium::value::{Integer, Value};
-use coset::{CoseError, CoseKey, Label, Result};
+use coset::{CborSerializable, CoseError, CoseKey, Label, Result};
 use log::error;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -41,6 +41,11 @@ pub fn deserialize<T: DeserializeOwned>(mut data: &[u8]) -> Result<T> {
     } else {
         Err(CoseError::ExtraneousData)
     }
+}
+
+/// Parses the given CBOR-encoded byte slice as a value array.
+pub fn parse_value_array(data: &[u8], context: &'static str) -> Result<Vec<Value>> {
+    value_to_array(Value::from_slice(data)?, context)
 }
 
 /// Converts the provided value `v` to a value array.
