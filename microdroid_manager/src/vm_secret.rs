@@ -52,13 +52,6 @@ const SALT_PAYLOAD_SERVICE: &[u8] = &[
     0x55, 0xF8, 0x08, 0x23, 0x81, 0x5F, 0xF5, 0x16, 0x20, 0x3E, 0xBE, 0xBA, 0xB7, 0xA8, 0x43, 0x92,
 ];
 
-// TODO(b/291213394): Differentiate the Id of nPVM based on 'salt'
-const ID_NP_VM: [u8; ID_SIZE] = [
-    0xF1, 0xB2, 0xED, 0x3B, 0xD1, 0xBD, 0xF0, 0x7D, 0xE1, 0xF0, 0x01, 0xFC, 0x61, 0x71, 0xD3, 0x42,
-    0xE5, 0x8A, 0xAF, 0x33, 0x6C, 0x11, 0xDC, 0xC8, 0x6F, 0xAE, 0x12, 0x5C, 0x26, 0x44, 0x6B, 0x86,
-    0xCC, 0x24, 0xFD, 0xBF, 0x91, 0x4A, 0x54, 0x84, 0xF9, 0x01, 0x59, 0x25, 0x70, 0x89, 0x38, 0x8D,
-    0x5E, 0xE6, 0x91, 0xDF, 0x68, 0x60, 0x69, 0x26, 0xBE, 0xFE, 0x79, 0x58, 0xF7, 0xEA, 0x81, 0x7D,
-];
 const SKP_SECRET_NP_VM: [u8; SECRET_SIZE] = [
     0xA9, 0x89, 0x97, 0xFE, 0xAE, 0x97, 0x55, 0x4B, 0x32, 0x35, 0xF0, 0xE8, 0x93, 0xDA, 0xEA, 0x24,
     0x06, 0xAC, 0x36, 0x8B, 0x3C, 0x95, 0x50, 0x16, 0x67, 0x71, 0x65, 0x26, 0xEB, 0xD0, 0xC3, 0x98,
@@ -82,54 +75,46 @@ pub enum VmSecret {
     V1 { dice_artifacts: OwnedDiceArtifacts },
 }
 
-fn get_id() -> [u8; ID_SIZE] {
-    if super::is_strict_boot() {
-        todo!("Id for protected VM is not implemented");
-    } else {
-        ID_NP_VM
-    }
-}
-
 impl VmSecret {
     pub fn new(
+        id: [u8; ID_SIZE],
         dice_artifacts: OwnedDiceArtifacts,
         vm_service: &Strong<dyn IVirtualMachineService>,
-    ) -> Result<VmSecret> {
+    ) -> Result<Self> {
         ensure!(dice_artifacts.bcc().is_some(), "Dice chain missing");
 
-        if let Some(sk_service) = is_sk_supported(vm_service)? {
-            let explicit_dice =
-                OwnedDiceArtifactsWithExplicitKey::from_owned_artifacts(dice_artifacts)?;
-            let explicit_dice_chain = explicit_dice
-                .explicit_key_dice_chain()
-                .ok_or(anyhow!("Missing explicit dice chain, this is unusual"))?;
-            let policy = sealing_policy(explicit_dice_chain).map_err(anyhow_err)?;
+        let Some(sk_service) = is_sk_supported(vm_service)? else {
+            // Use V1 secrets if Secretkeeper is not supported.
+            return Ok(Self::V1 { dice_artifacts });
+        };
+        let explicit_dice =
+            OwnedDiceArtifactsWithExplicitKey::from_owned_artifacts(dice_artifacts)?;
+        let explicit_dice_chain = explicit_dice
+            .explicit_key_dice_chain()
+            .ok_or(anyhow!("Missing explicit dice chain, this is unusual"))?;
+        let policy = sealing_policy(explicit_dice_chain).map_err(anyhow_err)?;
 
-            // Start a new session with Secretkeeper!
-            let mut session = SkSession::new(sk_service, &explicit_dice)?;
-            let id = get_id();
-            let mut skp_secret = Zeroizing::new([0u8; SECRET_SIZE]);
-            if super::is_strict_boot() {
-                if super::is_new_instance() {
-                    *skp_secret = rand::random();
-                    store_secret(&mut session, id, skp_secret.clone(), policy)?;
-                } else {
-                    // Subsequent run of the pVM -> get the secret stored in Secretkeeper.
-                    *skp_secret = get_secret(&mut session, id, Some(policy))?;
-                }
+        // Start a new session with Secretkeeper!
+        let mut session = SkSession::new(sk_service, &explicit_dice)?;
+        let mut skp_secret = Zeroizing::new([0u8; SECRET_SIZE]);
+        if super::is_strict_boot() {
+            if super::is_new_instance() {
+                *skp_secret = rand::random();
+                store_secret(&mut session, id, skp_secret.clone(), policy)?;
             } else {
-                // TODO(b/291213394): Non protected VM don't need to use Secretkeeper, remove this
-                // once we have sufficient testing on protected VM.
-                store_secret(&mut session, id, SKP_SECRET_NP_VM.into(), policy)?;
-                *skp_secret = get_secret(&mut session, id, None)?;
+                // Subsequent run of the pVM -> get the secret stored in Secretkeeper.
+                *skp_secret = get_secret(&mut session, id, Some(policy))?;
             }
-            return Ok(Self::V2 {
-                dice_artifacts: explicit_dice,
-                skp_secret: ZVec::try_from(skp_secret.to_vec())?,
-            });
+        } else {
+            // TODO(b/291213394): Non protected VM don't need to use Secretkeeper, remove this
+            // once we have sufficient testing on protected VM.
+            store_secret(&mut session, id, SKP_SECRET_NP_VM.into(), policy)?;
+            *skp_secret = get_secret(&mut session, id, None)?;
         }
-        //  Use V1 secrets if Secretkeeper is not supported.
-        Ok(Self::V1 { dice_artifacts })
+        Ok(Self::V2 {
+            dice_artifacts: explicit_dice,
+            skp_secret: ZVec::try_from(skp_secret.to_vec())?,
+        })
     }
 
     pub fn dice_artifacts(&self) -> &dyn DiceArtifacts {
