@@ -84,6 +84,7 @@ impl Header {
     const MAGIC: u32 = u32::from_ne_bytes(*b"pvmf");
     const VERSION_1_0: Version = Version { major: 1, minor: 0 };
     const VERSION_1_1: Version = Version { major: 1, minor: 1 };
+    const VERSION_1_2: Version = Version { major: 1, minor: 2 };
 
     pub fn total_size(&self) -> usize {
         self.total_size as usize
@@ -105,8 +106,9 @@ impl Header {
         let last_entry = match self.version {
             Self::VERSION_1_0 => Entry::DebugPolicy,
             Self::VERSION_1_1 => Entry::VmDtbo,
+            Self::VERSION_1_2 => Entry::VmBaseDtbo,
             v @ Version { major: 1, .. } => {
-                const LATEST: Version = Header::VERSION_1_1;
+                const LATEST: Version = Header::VERSION_1_2;
                 warn!("Parsing unknown config data version {v} as version {LATEST}");
                 return Ok(Entry::COUNT);
             }
@@ -122,6 +124,7 @@ pub enum Entry {
     Bcc,
     DebugPolicy,
     VmDtbo,
+    VmBaseDtbo,
     #[allow(non_camel_case_types)] // TODO: Use mem::variant_count once stable.
     _VARIANT_COUNT,
 }
@@ -129,7 +132,8 @@ pub enum Entry {
 impl Entry {
     const COUNT: usize = Self::_VARIANT_COUNT as usize;
 
-    const ALL_ENTRIES: [Entry; Self::COUNT] = [Self::Bcc, Self::DebugPolicy, Self::VmDtbo];
+    const ALL_ENTRIES: [Entry; Self::COUNT] =
+        [Self::Bcc, Self::DebugPolicy, Self::VmDtbo, Self::VmBaseDtbo];
 }
 
 #[derive(Default)]
@@ -137,6 +141,7 @@ pub struct Entries<'a> {
     pub bcc: &'a mut [u8],
     pub debug_policy: Option<&'a [u8]>,
     pub vm_dtbo: Option<&'a mut [u8]>,
+    pub vm_base_dtbo: Option<&'a mut [u8]>,
 }
 
 #[repr(packed)]
@@ -285,13 +290,13 @@ impl<'a> Config<'a> {
                 entries[i] = Some(chunk);
             }
         }
-        let [bcc, debug_policy, vm_dtbo] = entries;
+        let [bcc, debug_policy, vm_dtbo, vm_base_dtbo] = entries;
 
         // The platform BCC has always been required.
         let bcc = bcc.unwrap();
 
         // We have no reason to mutate so drop the `mut`.
         let debug_policy = debug_policy.map(|x| &*x);
-        Entries { bcc, debug_policy, vm_dtbo }
+        Entries { bcc, debug_policy, vm_dtbo, vm_base_dtbo }
     }
 }

@@ -88,6 +88,7 @@ impl<'a> MemorySlices<'a> {
         kernel: usize,
         kernel_size: usize,
         vm_dtbo: Option<&mut [u8]>,
+        vm_base_dtbo: Option<&mut [u8]>,
     ) -> Result<Self, RebootReason> {
         let fdt_size = NonZeroUsize::new(crosvm::FDT_MAX_SIZE).unwrap();
         // TODO - Only map the FDT as read-only, until we modify it right before jump_to_payload()
@@ -101,7 +102,7 @@ impl<'a> MemorySlices<'a> {
         // SAFETY: The tracker validated the range to be in main memory, mapped, and not overlap.
         let fdt = unsafe { slice::from_raw_parts_mut(range.start as *mut u8, range.len()) };
 
-        let info = fdt::sanitize_device_tree(fdt, vm_dtbo)?;
+        let info = fdt::sanitize_device_tree(fdt, vm_dtbo, vm_base_dtbo)?;
         let fdt = libfdt::Fdt::from_mut_slice(fdt).map_err(|e| {
             error!("Failed to load sanitized FDT: {e}");
             RebootReason::InvalidFdt
@@ -227,7 +228,13 @@ fn main_wrapper(
         Some(memory::appended_payload_range()),
     ));
 
-    let slices = MemorySlices::new(fdt, payload, payload_size, config_entries.vm_dtbo)?;
+    let slices = MemorySlices::new(
+        fdt,
+        payload,
+        payload_size,
+        config_entries.vm_dtbo,
+        config_entries.vm_base_dtbo,
+    )?;
 
     // This wrapper allows main() to be blissfully ignorant of platform details.
     let next_bcc = crate::main(
