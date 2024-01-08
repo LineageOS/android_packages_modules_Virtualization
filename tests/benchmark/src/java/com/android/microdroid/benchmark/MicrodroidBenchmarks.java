@@ -248,6 +248,16 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void testMicrodroidGkiBootTime()
+            throws VirtualMachineException, InterruptedException, IOException {
+        runBootTimeTest(
+                "test_vm_boot_time",
+                "assets/vm_config_gki-android14-6.1.json",
+                /* reportDetailed */ false,
+                (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_ONE_CPU));
+    }
+
+    @Test
     public void testMicrodroidHostCpuTopologyBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
         runBootTimeTest(
@@ -258,12 +268,32 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     }
 
     @Test
+    public void testMicrodroidGkiHostCpuTopologyBootTime()
+            throws VirtualMachineException, InterruptedException, IOException {
+        runBootTimeTest(
+                "test_vm_boot_time_host_topology",
+                "assets/vm_config_gki-android14-6.1.json",
+                /* reportDetailed */ false,
+                (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_MATCH_HOST));
+    }
+
+    @Test
     public void testMicrodroidDebugBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
         runBootTimeTest(
                 "test_vm_boot_time_debug",
                 "assets/vm_config.json",
                 /* fullDebug */ true,
+                (builder) -> builder);
+    }
+
+    @Test
+    public void testMicrodroidGkiDebugBootTime()
+            throws VirtualMachineException, InterruptedException, IOException {
+        runBootTimeTest(
+                "test_vm_boot_time_debug",
+                "assets/vm_config_gki-android14-6.1.json",
+                /* reportDetailed */ true,
                 (builder) -> builder);
     }
 
