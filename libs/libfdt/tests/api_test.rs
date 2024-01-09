@@ -399,3 +399,94 @@ fn node_mut_delete_and_next_subnode() {
 
     assert_eq!(expected_names, subnode_names);
 }
+
+#[test]
+fn node_mut_delete_and_next_node() {
+    let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    let expected_nodes = vec![
+        (Ok(cstr!("node_b")), 1),
+        (Ok(cstr!("node_c")), 1),
+        (Ok(cstr!("node_z")), 1),
+        (Ok(cstr!("node_za")), 2),
+        (Ok(cstr!("node_zb")), 2),
+        (Ok(cstr!("__symbols__")), 1),
+    ];
+
+    let mut expected_nodes_iter = expected_nodes.iter();
+    let mut iter = fdt.root_mut().unwrap().next_node(0).unwrap();
+    while let Some((node, depth)) = iter {
+        let node_name = node.as_node().name();
+        if node_name == Ok(cstr!("node_a")) || node_name == Ok(cstr!("node_zz")) {
+            iter = node.delete_and_next_node(depth).unwrap();
+        } else {
+            // Note: Checking name here is easier than collecting names and assert_eq!(),
+            //       because we can't keep name references while iterating with FdtNodeMut.
+            let expected_node = expected_nodes_iter.next();
+            assert_eq!(expected_node, Some(&(node_name, depth)));
+            iter = node.next_node(depth).unwrap();
+        }
+    }
+    assert_eq!(None, expected_nodes_iter.next());
+
+    let root = fdt.root().unwrap();
+    let all_descendants: Vec<_> =
+        root.descendants().map(|(node, depth)| (node.name(), depth)).collect();
+    assert_eq!(expected_nodes, all_descendants);
+}
+
+#[test]
+#[ignore] // Borrow checker test. Compilation success is sufficient.
+fn node_name_lifetime() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let name = {
+        let root = fdt.root().unwrap();
+        root.name()
+        // Make root to be dropped
+    };
+    assert_eq!(Ok(cstr!("")), name);
+}
+
+#[test]
+#[ignore] // Borrow checker test. Compilation success is sufficient.
+fn node_subnode_lifetime() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let name = {
+        let node_a = {
+            let root = fdt.root().unwrap();
+            root.subnode(cstr!("node_a")).unwrap()
+            // Make root to be dropped
+        };
+        assert_ne!(None, node_a);
+        node_a.unwrap().name()
+        // Make node_a to be dropped
+    };
+    assert_eq!(Ok(cstr!("node_a")), name);
+}
+
+#[test]
+#[ignore] // Borrow checker test. Compilation success is sufficient.
+fn node_descendants_lifetime() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let first_descendant_name = {
+        let (first_descendant, _) = {
+            let mut descendants_iter = {
+                let root = fdt.root().unwrap();
+                root.descendants()
+                // Make root to be dropped
+            };
+            descendants_iter.next().unwrap()
+            // Make descendants_iter to be dropped
+        };
+        first_descendant.name()
+        // Make first_descendant to be dropped
+    };
+    assert_eq!(Ok(cstr!("node_a")), first_descendant_name);
+}
