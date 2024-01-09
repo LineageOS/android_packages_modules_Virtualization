@@ -141,7 +141,11 @@ The configuration data is described using the following [header]:
 +-------------------------------+
 |           [Entry 2]           | <-- Entry 2 is present since version 1.1
 |  offset = (THIRD - HEAD)      |
-|  size = (THIRD_END - SECOND)  |
+|  size = (THIRD_END - THIRD)   |
++-------------------------------+
+|           [Entry 3]           | <-- Entry 3 is present since version 1.2
+|  offset = (FOURTH - HEAD)     |
+|  size = (FOURTH_END - FOURTH) |
 +-------------------------------+
 |              ...              |
 +-------------------------------+
@@ -149,16 +153,20 @@ The configuration data is described using the following [header]:
 +~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+
 | (Padding to 8-byte alignment) |
 +===============================+ <-- FIRST
-|        {First blob: BCC}      |
+|       {First blob: BCC}       |
 +~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+ <-- FIRST_END
 | (Padding to 8-byte alignment) |
 +===============================+ <-- SECOND
-|        {Second blob: DP}      |
+|       {Second blob: DP}       |
 +~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+ <-- SECOND_END
 | (Padding to 8-byte alignment) |
 +===============================+ <-- THIRD
-|        {Third blob: VM DTBO}  |
+|     {Third blob: VM DTBO}     |
 +~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+ <-- THIRD_END
+| (Padding to 8-byte alignment) |
++===============================+ <-- FOURTH
+| {Fourth blob: VM reference DT}|
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~+ <-- FOURTH_END
 | (Padding to 8-byte alignment) |
 +===============================+
 |              ...              |
@@ -185,10 +193,31 @@ blos it refers to. In version 1.0, it describes two blobs:
 - entry 1 may point to a [DTBO] to be applied to the pVM device tree. See
   [debug policy][debug_policy] for an example.
 
-In version 1.1, new blob is added.
+In version 1.1, a third blob is added.
 
 - entry 2 may point to a [DTBO] that describes VM DTBO for device assignment.
   pvmfw will provision assigned devices with the VM DTBO.
+
+In version 1.2, a fourth blob is added.
+
+- entry 3 if present contains the VM reference DT. This defines properties that
+  may be included in the device tree passed to a protected VM. pvmfw validates
+  that if any of these properties is included in the VM's device tree, the
+  property value exactly matches what is in the VM reference DT.
+
+  The bootloader should ensure that the same properties, with the same values,
+  are added under the "/avf/reference" node in the host Android device tree.
+
+  This provides a mechanism to allow configuration information to be securely
+  passed to the VM via the host. pvmfw does not interpret the content of VM
+  reference DT, nor does it apply it to the VM's device tree, it just ensures
+  that if matching properties are present in the VM device tree they contain the
+  correct values.
+
+<!--
+  TODO(b/319192461): Attach link explaining about Microdroid vendor partition
+  TODO(b/291232226): Attach link explaining about Secretkeeper
+-->
 
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/main/Documentation/dt-object-internal.txt
