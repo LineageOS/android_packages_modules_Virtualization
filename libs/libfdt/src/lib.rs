@@ -487,7 +487,7 @@ impl<'a> FdtNode<'a> {
     }
 
     /// Returns an iterator of descendants
-    pub fn descendants(&'a self) -> DescendantsIterator<'a> {
+    pub fn descendants(&self) -> DescendantsIterator<'a> {
         DescendantsIterator::new(self)
     }
 
@@ -809,6 +809,41 @@ impl<'a> FdtNodeMut<'a> {
         unsafe { self.nop_self()? };
 
         Ok(next_offset.map(|offset| Self { fdt: self.fdt, offset }))
+    }
+
+    fn next_node_offset(&self, depth: usize) -> Result<Option<(c_int, usize)>> {
+        let mut next_depth: c_int = depth.try_into().or(Err(FdtError::BadValue))?;
+        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
+        let ret = unsafe {
+            libfdt_bindgen::fdt_next_node(self.fdt.as_ptr(), self.offset, &mut next_depth)
+        };
+        let Ok(next_depth) = usize::try_from(next_depth) else {
+            return Ok(None);
+        };
+        Ok(fdt_err_or_option(ret)?.map(|offset| (offset, next_depth)))
+    }
+
+    /// Returns the next node
+    pub fn next_node(self, depth: usize) -> Result<Option<(Self, usize)>> {
+        Ok(self
+            .next_node_offset(depth)?
+            .map(|(offset, next_depth)| (FdtNodeMut { fdt: self.fdt, offset }, next_depth)))
+    }
+
+    /// Deletes this and returns the next node
+    pub fn delete_and_next_node(mut self, depth: usize) -> Result<Option<(Self, usize)>> {
+        // Skip all would-be-removed descendants.
+        let mut iter = self.next_node_offset(depth)?;
+        while let Some((descendant_offset, descendant_depth)) = iter {
+            if descendant_depth <= depth {
+                break;
+            }
+            let descendant = FdtNodeMut { fdt: self.fdt, offset: descendant_offset };
+            iter = descendant.next_node_offset(descendant_depth)?;
+        }
+        // SAFETY: This consumes self, so invalid node wouldn't be used any further
+        unsafe { self.nop_self()? };
+        Ok(iter.map(|(offset, next_depth)| (FdtNodeMut { fdt: self.fdt, offset }, next_depth)))
     }
 
     fn parent(&'a self) -> Result<FdtNode<'a>> {
