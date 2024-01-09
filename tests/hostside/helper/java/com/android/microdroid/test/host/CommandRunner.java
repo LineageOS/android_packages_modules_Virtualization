@@ -66,9 +66,7 @@ public class CommandRunner {
 
     public String runWithTimeout(long timeoutMillis, String... cmd)
             throws DeviceNotAvailableException {
-        CommandResult result =
-                mDevice.executeShellV2Command(
-                        join(cmd), timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS);
+        CommandResult result = runForResultWithTimeout(timeoutMillis, cmd);
         if (result.getStatus() != CommandStatus.SUCCESS) {
             fail(join(cmd) + " has failed: " + result);
         }
