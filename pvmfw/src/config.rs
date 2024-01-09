@@ -141,7 +141,7 @@ pub struct Entries<'a> {
     pub bcc: &'a mut [u8],
     pub debug_policy: Option<&'a [u8]>,
     pub vm_dtbo: Option<&'a mut [u8]>,
-    pub vm_base_dtbo: Option<&'a mut [u8]>,
+    pub vm_base_dtbo: Option<&'a [u8]>,
 }
 
 #[repr(packed)]
@@ -297,6 +297,8 @@ impl<'a> Config<'a> {
 
         // We have no reason to mutate so drop the `mut`.
         let debug_policy = debug_policy.map(|x| &*x);
+        let vm_base_dtbo = vm_base_dtbo.map(|x| &*x);
+
         Entries { bcc, debug_policy, vm_dtbo, vm_base_dtbo }
     }
 }
