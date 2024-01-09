@@ -45,7 +45,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -413,11 +412,16 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
 
         for (int round = 0; round < ROUND_COUNT; ++round) {
             reInstallApex(REINSTALL_APEX_TIMEOUT_SEC);
-            if (isWithCompos) {
-                compileStagedApex(COMPILE_STAGED_APEX_TIMEOUT_SEC);
+            try {
+                if (isWithCompos) {
+                    compileStagedApex(COMPILE_STAGED_APEX_TIMEOUT_SEC);
+                }
+            } finally {
+                // If compilation fails, we still have a staged APEX, and we need to reboot to
+                // clean that up for further tests.
+                getDevice().nonBlockingReboot();
+                waitForBootCompleted();
             }
-            getDevice().nonBlockingReboot();
-            waitForBootCompleted();
 
             double elapsedSec = getDmesgBootTime();
             bootDmesgTime.add(elapsedSec);
@@ -458,8 +462,9 @@ public final class AVFHostTestCase extends MicrodroidHostTestCaseBase {
             try {
                 CommandRunner android = new CommandRunner(getDevice());
 
-                String result = android.run(
-                        COMPOSD_CMD_BIN + " staged-apex-compile");
+                String result =
+                        android.runWithTimeout(
+                                3 * 60 * 1000, COMPOSD_CMD_BIN + " staged-apex-compile");
                 assertWithMessage("Failed to compile staged APEX. Reason: " + result)
                     .that(result).ignoringCase().contains("all ok");
 
