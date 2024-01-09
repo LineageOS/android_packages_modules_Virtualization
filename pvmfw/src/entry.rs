@@ -88,7 +88,7 @@ impl<'a> MemorySlices<'a> {
         kernel: usize,
         kernel_size: usize,
         vm_dtbo: Option<&mut [u8]>,
-        vm_base_dtbo: Option<&mut [u8]>,
+        vm_base_dtbo: Option<&[u8]>,
     ) -> Result<Self, RebootReason> {
         let fdt_size = NonZeroUsize::new(crosvm::FDT_MAX_SIZE).unwrap();
         // TODO - Only map the FDT as read-only, until we modify it right before jump_to_payload()
