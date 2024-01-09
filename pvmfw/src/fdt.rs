@@ -651,7 +651,7 @@ impl DeviceTreeInfo {
 pub fn sanitize_device_tree(
     fdt: &mut [u8],
     vm_dtbo: Option<&mut [u8]>,
-    vm_base_dtbo: Option<&mut [u8]>,
+    vm_base_dtbo: Option<&[u8]>,
 ) -> Result<DeviceTreeInfo, RebootReason> {
     let fdt = Fdt::from_mut_slice(fdt).map_err(|e| {
         error!("Failed to load FDT: {e}");
@@ -696,7 +696,7 @@ pub fn sanitize_device_tree(
     }
 
     if let Some(vm_base_dtbo) = vm_base_dtbo {
-        let vm_base_dtbo = Fdt::from_mut_slice(vm_base_dtbo).map_err(|e| {
+        let vm_base_dtbo = Fdt::from_slice(vm_base_dtbo).map_err(|e| {
             error!("Failed to load VM base DTBO: {e}");
             RebootReason::InvalidFdt
         })?;
