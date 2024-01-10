@@ -220,6 +220,14 @@ def AppendPropArgument(cmd, descriptors):
         result = re.match(r"(.+) -> '(.+)'", prop)
         cmd.append(result.group(1) + ":" + result.group(2))
 
+
+def check_no_size_change_on_resigned_image(image_path, original_image_info, resigned_image_info):
+    assert original_image_info is not None, f'no avbinfo on original image: {image_path}'
+    assert resigned_image_info is not None, f'no avbinfo on resigned image: {image_path}'
+    assert original_image_info['Header Block'] == resigned_image_info['Header Block'], f'header block size mismatch: {image_path}'
+    assert original_image_info['Authentication Block'] == resigned_image_info['Authentication Block'], f'authentication block size mismatch: {image_path}'
+    assert original_image_info['Auxiliary Block'] == resigned_image_info['Auxiliary Block'], f'auxiliary block size mismatch: {image_path}'
+
 def AddHashFooter(args, key, image_path, partition_name, additional_descriptors=None):
     if os.path.basename(image_path) in args.key_overrides:
         key = args.key_overrides[os.path.basename(image_path)]
@@ -245,7 +253,8 @@ def AddHashFooter(args, key, image_path, partition_name, additional_descriptors=
         if 'Rollback Index' in info:
             cmd.extend(['--rollback_index', info['Rollback Index']])
         RunCommand(args, cmd)
-
+        resigned_info, _ = AvbInfo(args, image_path)
+        check_no_size_change_on_resigned_image(image_path, info, resigned_info)
 
 def AddHashTreeFooter(args, key, image_path):
     if os.path.basename(image_path) in args.key_overrides:
@@ -270,6 +279,8 @@ def AddHashTreeFooter(args, key, image_path):
         if args.signing_args:
             cmd.extend(shlex.split(args.signing_args))
         RunCommand(args, cmd)
+        resigned_info, _ = AvbInfo(args, image_path)
+        check_no_size_change_on_resigned_image(image_path, info, resigned_info)
 
 
 def UpdateVbmetaBootconfig(args, initrds, vbmeta_img):
@@ -385,6 +396,8 @@ def MakeVbmetaImage(args, key, vbmeta_img, images=None, chained_partitions=None)
             cmd.extend(shlex.split(args.signing_args))
 
         RunCommand(args, cmd)
+        resigned_info, _ = AvbInfo(args, vbmeta_img)
+        check_no_size_change_on_resigned_image(vbmeta_img, info, resigned_info)
         # libavb expects to be able to read the maximum vbmeta size, so we must provide a partition
         # which matches this or the read will fail.
         with open(vbmeta_img, 'a', encoding='utf8') as f:
