@@ -391,7 +391,9 @@ flag_aware_microdroid_vbmeta {
     ],
     soong_config_variables: {
         release_avf_enable_vendor_modules: {
-            partitions: ["microdroid_vendor"],
+            conditions_default: {
+                partitions: ["microdroid_vendor"],
+            },
         },
     },
 }
