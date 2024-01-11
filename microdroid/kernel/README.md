@@ -19,13 +19,13 @@ repo sync
 For ARM64
 ```bash
 tools/bazel clean
-tools/bazel run --config=fast --lto=thin //common-modules/virtual-device:microdroid_aarch64_dist -- --dist_dir=out/dist
+tooln/bazel run --config=fast //common:kernel_aarch64_microdroid_dist -- --dist_dir=out/dist
 ```
 
 For x86\_64,
 ```bash
 tools/bazel clean
-tools/bazel run --config=fast --lto=thin //common-modules/virtual-device:microdroid_x86_64_dist -- --dist_dir=out/dist
+tools/bazel run --config=fast //common:kernel_x86_64_microdroid_dist -- --dist_dir=out/dist
 ```
 
 Note that
@@ -39,12 +39,12 @@ is fixed, do the clean build by invoking `tools/bazel clean` before the build co
 
 For ARM64
 ```bash
-tools/bazel run //common-modules/virtual-device:microdroid_aarch64_config -- menuconfig
+tools/bazel run //common:kernel_aarch64_microdroid_config -- menuconfig
 ```
 
 For x86\_64
 ```bash
-tools/bazel run //common-modules/virtual-device:microdroid_x86_64_config -- menuconfig
+tools/bazel run //common:kernel_x86_64_microdroid_config -- menuconfig
 ```
 
 ## How to update Microdroid kernel prebuilts
