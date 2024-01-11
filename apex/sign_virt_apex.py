@@ -422,6 +422,7 @@ virt_apex_non_gki_files = {
     'super.img': 'etc/fs/microdroid_super.img',
     'initrd_normal.img': 'etc/microdroid_initrd_normal.img',
     'initrd_debuggable.img': 'etc/microdroid_initrd_debuggable.img',
+    'rialto': 'etc/rialto.bin',
 }
 
 def TargetFiles(input_dir):
@@ -512,6 +513,10 @@ def SignVirtApex(args):
                 f'gki-{ver}_initrd_normal.img',
                 f'gki-{ver}_initrd_debuggable.img')
 
+    # Re-sign rialto if it exists. Rialto only exists in arm64 environment.
+    if os.path.exists(files['rialto']):
+        Async(AddHashFooter, args, key, files['rialto'], partition_name='boot')
+
 
 def VerifyVirtApex(args):
     key = args.key
@@ -537,6 +542,9 @@ def VerifyVirtApex(args):
     for k, f in files.items():
         if IsInitrdImage(k):
             # TODO(b/245277660): Verify that ramdisks contain the correct vbmeta digest
+            continue
+        if k == 'rialto' and not os.path.exists(f):
+            # Rialto only exists in arm64 environment.
             continue
         if k == 'super.img':
             Async(check_avb_pubkey, system_a_img)
