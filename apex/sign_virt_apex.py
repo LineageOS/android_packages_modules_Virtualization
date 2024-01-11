@@ -212,11 +212,18 @@ def AvbInfo(args, image_path):
 def LookUp(pairs, key):
     return [v for (k, v) in pairs if k == key]
 
+# Extract properties from the descriptors of original vbmeta image,
+# append to command as parameter.
+def AppendPropArgument(cmd, descriptors):
+    for prop in LookUp(descriptors, 'Prop'):
+        cmd.append('--prop')
+        result = re.match(r"(.+) -> '(.+)'", prop)
+        cmd.append(result.group(1) + ":" + result.group(2))
 
 def AddHashFooter(args, key, image_path, partition_name, additional_descriptors=None):
     if os.path.basename(image_path) in args.key_overrides:
         key = args.key_overrides[os.path.basename(image_path)]
-    info, _ = AvbInfo(args, image_path)
+    info, descriptors = AvbInfo(args, image_path)
     if info:
         image_size = ReadBytesSize(info['Image size'])
         algorithm = info['Algorithm']
@@ -228,6 +235,7 @@ def AddHashFooter(args, key, image_path, partition_name, additional_descriptors=
                '--partition_name', partition_name,
                '--partition_size', partition_size,
                '--image', image_path]
+        AppendPropArgument(cmd, descriptors)
         if args.signing_args:
             cmd.extend(shlex.split(args.signing_args))
         if additional_descriptors:
@@ -258,6 +266,7 @@ def AddHashTreeFooter(args, key, image_path):
                '--do_not_generate_fec',
                '--hash_algorithm', hash_algorithm,
                '--image', image_path]
+        AppendPropArgument(cmd, descriptors)
         if args.signing_args:
             cmd.extend(shlex.split(args.signing_args))
         RunCommand(args, cmd)
