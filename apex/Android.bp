@@ -99,6 +99,9 @@ avf_flag_aware_apex_defaults {
                 "virtualizationservice",
             ],
             filesystems: microdroid_filesystem_images,
+            prebuilts: [
+                "rialto_bin",
+            ],
         },
         x86_64: {
             binaries: [
@@ -119,7 +122,6 @@ avf_flag_aware_apex_defaults {
         "microdroid_initrd_normal",
         "microdroid.json",
         "microdroid_kernel",
-        "rialto_bin",
     ],
     host_required: [
         "vm_shell",
