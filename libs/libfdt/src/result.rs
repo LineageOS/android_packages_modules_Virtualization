@@ -95,45 +95,82 @@ impl fmt::Display for FdtError {
 pub type Result<T> = result::Result<T, FdtError>;
 
 pub(crate) fn fdt_err(val: c_int) -> Result<c_int> {
-    if val >= 0 {
-        Ok(val)
-    } else {
-        Err(match -val as _ {
-            libfdt_bindgen::FDT_ERR_NOTFOUND => FdtError::NotFound,
-            libfdt_bindgen::FDT_ERR_EXISTS => FdtError::Exists,
-            libfdt_bindgen::FDT_ERR_NOSPACE => FdtError::NoSpace,
-            libfdt_bindgen::FDT_ERR_BADOFFSET => FdtError::BadOffset,
-            libfdt_bindgen::FDT_ERR_BADPATH => FdtError::BadPath,
-            libfdt_bindgen::FDT_ERR_BADPHANDLE => FdtError::BadPhandle,
-            libfdt_bindgen::FDT_ERR_BADSTATE => FdtError::BadState,
-            libfdt_bindgen::FDT_ERR_TRUNCATED => FdtError::Truncated,
-            libfdt_bindgen::FDT_ERR_BADMAGIC => FdtError::BadMagic,
-            libfdt_bindgen::FDT_ERR_BADVERSION => FdtError::BadVersion,
-            libfdt_bindgen::FDT_ERR_BADSTRUCTURE => FdtError::BadStructure,
-            libfdt_bindgen::FDT_ERR_BADLAYOUT => FdtError::BadLayout,
-            libfdt_bindgen::FDT_ERR_INTERNAL => FdtError::Internal,
-            libfdt_bindgen::FDT_ERR_BADNCELLS => FdtError::BadNCells,
-            libfdt_bindgen::FDT_ERR_BADVALUE => FdtError::BadValue,
-            libfdt_bindgen::FDT_ERR_BADOVERLAY => FdtError::BadOverlay,
-            libfdt_bindgen::FDT_ERR_NOPHANDLES => FdtError::NoPhandles,
-            libfdt_bindgen::FDT_ERR_BADFLAGS => FdtError::BadFlags,
-            libfdt_bindgen::FDT_ERR_ALIGNMENT => FdtError::Alignment,
-            _ => FdtError::Unknown(val),
-        })
-    }
+    FdtRawResult::from(val).try_into()
 }
 
 pub(crate) fn fdt_err_expect_zero(val: c_int) -> Result<()> {
-    match fdt_err(val)? {
-        0 => Ok(()),
-        _ => Err(FdtError::Unknown(val)),
-    }
+    FdtRawResult::from(val).try_into()
 }
 
 pub(crate) fn fdt_err_or_option(val: c_int) -> Result<Option<c_int>> {
-    match fdt_err(val) {
-        Ok(val) => Ok(Some(val)),
-        Err(FdtError::NotFound) => Ok(None),
-        Err(e) => Err(e),
+    FdtRawResult::from(val).try_into()
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FdtRawResult(c_int);
+
+impl From<c_int> for FdtRawResult {
+    fn from(value: c_int) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<FdtRawResult> for c_int {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        use libfdt_bindgen::{
+            FDT_ERR_ALIGNMENT, FDT_ERR_BADFLAGS, FDT_ERR_BADLAYOUT, FDT_ERR_BADMAGIC,
+            FDT_ERR_BADNCELLS, FDT_ERR_BADOFFSET, FDT_ERR_BADOVERLAY, FDT_ERR_BADPATH,
+            FDT_ERR_BADPHANDLE, FDT_ERR_BADSTATE, FDT_ERR_BADSTRUCTURE, FDT_ERR_BADVALUE,
+            FDT_ERR_BADVERSION, FDT_ERR_EXISTS, FDT_ERR_INTERNAL, FDT_ERR_NOPHANDLES,
+            FDT_ERR_NOSPACE, FDT_ERR_NOTFOUND, FDT_ERR_TRUNCATED,
+        };
+        match res.0 {
+            x if x >= 0 => Ok(x),
+            x if x == -(FDT_ERR_NOTFOUND as c_int) => Err(FdtError::NotFound),
+            x if x == -(FDT_ERR_EXISTS as c_int) => Err(FdtError::Exists),
+            x if x == -(FDT_ERR_NOSPACE as c_int) => Err(FdtError::NoSpace),
+            x if x == -(FDT_ERR_BADOFFSET as c_int) => Err(FdtError::BadOffset),
+            x if x == -(FDT_ERR_BADPATH as c_int) => Err(FdtError::BadPath),
+            x if x == -(FDT_ERR_BADPHANDLE as c_int) => Err(FdtError::BadPhandle),
+            x if x == -(FDT_ERR_BADSTATE as c_int) => Err(FdtError::BadState),
+            x if x == -(FDT_ERR_TRUNCATED as c_int) => Err(FdtError::Truncated),
+            x if x == -(FDT_ERR_BADMAGIC as c_int) => Err(FdtError::BadMagic),
+            x if x == -(FDT_ERR_BADVERSION as c_int) => Err(FdtError::BadVersion),
+            x if x == -(FDT_ERR_BADSTRUCTURE as c_int) => Err(FdtError::BadStructure),
+            x if x == -(FDT_ERR_BADLAYOUT as c_int) => Err(FdtError::BadLayout),
+            x if x == -(FDT_ERR_INTERNAL as c_int) => Err(FdtError::Internal),
+            x if x == -(FDT_ERR_BADNCELLS as c_int) => Err(FdtError::BadNCells),
+            x if x == -(FDT_ERR_BADVALUE as c_int) => Err(FdtError::BadValue),
+            x if x == -(FDT_ERR_BADOVERLAY as c_int) => Err(FdtError::BadOverlay),
+            x if x == -(FDT_ERR_NOPHANDLES as c_int) => Err(FdtError::NoPhandles),
+            x if x == -(FDT_ERR_BADFLAGS as c_int) => Err(FdtError::BadFlags),
+            x if x == -(FDT_ERR_ALIGNMENT as c_int) => Err(FdtError::Alignment),
+            x => Err(FdtError::Unknown(x)),
+        }
+    }
+}
+
+impl TryFrom<FdtRawResult> for Option<c_int> {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        match res.try_into() {
+            Ok(n) => Ok(Some(n)),
+            Err(FdtError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl TryFrom<FdtRawResult> for () {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        match res.try_into()? {
+            0 => Ok(()),
+            n => Err(FdtError::Unknown(n)),
+        }
     }
 }
