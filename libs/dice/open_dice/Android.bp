@@ -55,6 +55,7 @@ rust_library {
         "libopen_dice_android",
     ],
     visibility: [
+        "//hardware/interfaces/security/secretkeeper/aidl/vts",
         "//packages/modules/Virtualization:__subpackages__",
         "//system/authgraph/tests:__subpackages__",
         "//system/secretkeeper/client:__subpackages__",
