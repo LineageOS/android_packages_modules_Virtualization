@@ -45,11 +45,14 @@ use log::{error, info};
 use microdroid_metadata::PayloadMetadata;
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::sys::signal::Signal;
+use openssl::hkdf::hkdf;
+use openssl::md::Md;
 use payload::load_metadata;
 use rpcbinder::RpcSession;
 use rustutils::sockets::android_get_control_socket;
 use rustutils::system_properties;
 use rustutils::system_properties::PropertyWatcher;
+use secretkeeper_comm::data_types::ID_SIZE;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::env;
 use std::ffi::CString;
@@ -281,8 +284,19 @@ fn try_run_payload(
     // To minimize the exposure to untrusted data, derive dice profile as soon as possible.
     info!("DICE derivation for payload");
     let dice_artifacts = dice_derivation(dice, &instance_data, &payload_metadata)?;
+    // TODO(b/291213394): This will be the Id for non-pVM only, instance_data.salt is all 0
+    // for protected VM, implement a mechanism for pVM!
+    let mut vm_id = [0u8; ID_SIZE];
+    hkdf(
+        &mut vm_id,
+        Md::sha256(),
+        &instance_data.salt,
+        /* salt */ b"",
+        /* info */ b"VM_ID",
+    )
+    .context("hkdf failed")?;
     let vm_secret =
-        VmSecret::new(dice_artifacts, service).context("Failed to create VM secrets")?;
+        VmSecret::new(vm_id, dice_artifacts, service).context("Failed to create VM secrets")?;
 
     if cfg!(dice_changes) {
         // Now that the DICE derivation is done, it's ok to allow payload code to run.
