@@ -23,7 +23,6 @@ use anyhow::{anyhow, Context, Result};
 use avflog::LogResult;
 use binder::{Interface, BinderFeatures, ExceptionCode, Strong, IntoBinderResult, Status};
 use client_vm_csr::{generate_attestation_key_and_csr, ClientVmAttestationData};
-use diced_open_dice::DiceArtifacts;
 use log::info;
 use rpcbinder::RpcServer;
 use crate::vm_secret::VmSecret;
@@ -57,7 +56,7 @@ impl IVmPayloadService for VmPayloadService {
 
     fn getDiceAttestationChain(&self) -> binder::Result<Vec<u8>> {
         self.check_restricted_apis_allowed()?;
-        if let Some(bcc) = self.secret.dice().bcc() {
+        if let Some(bcc) = self.secret.dice_artifacts().bcc() {
             Ok(bcc.to_vec())
         } else {
             Err(anyhow!("bcc is none")).or_binder_exception(ExceptionCode::ILLEGAL_STATE)
@@ -66,13 +65,13 @@ impl IVmPayloadService for VmPayloadService {
 
     fn getDiceAttestationCdi(&self) -> binder::Result<Vec<u8>> {
         self.check_restricted_apis_allowed()?;
-        Ok(self.secret.dice().cdi_attest().to_vec())
+        Ok(self.secret.dice_artifacts().cdi_attest().to_vec())
     }
 
     fn requestAttestation(&self, challenge: &[u8]) -> binder::Result<AttestationResult> {
         self.check_restricted_apis_allowed()?;
         let ClientVmAttestationData { private_key, csr } =
-            generate_attestation_key_and_csr(challenge, self.secret.dice())
+            generate_attestation_key_and_csr(challenge, self.secret.dice_artifacts())
                 .map_err(|e| {
                     Status::new_service_specific_error_str(
                         STATUS_FAILED_TO_PREPARE_CSR_AND_KEY,
