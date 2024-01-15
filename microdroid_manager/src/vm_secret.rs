@@ -20,7 +20,7 @@ use android_hardware_security_secretkeeper::aidl::android::hardware::security::s
 use secretkeeper_comm::data_types::request::Request;
 use binder::{Strong};
 use coset::CborSerializable;
-use dice_policy::{ConstraintSpec, ConstraintType, DicePolicy};
+use dice_policy::{ConstraintSpec, ConstraintType, DicePolicy, MissingAction};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
 use keystore2_crypto::ZVec;
 use openssl::hkdf::hkdf;
@@ -164,16 +164,12 @@ impl VmSecret {
 // TODO(b/291219197) : Add constraints on Extra apks as well!
 fn sealing_policy(dice: &[u8]) -> Result<Vec<u8>, String> {
     let constraint_spec = [
-        ConstraintSpec::new(
-            ConstraintType::ExactMatch,
-            vec![AUTHORITY_HASH],
-            /* Optional */ false,
-        ),
-        ConstraintSpec::new(ConstraintType::ExactMatch, vec![MODE], /* Optional */ false),
+        ConstraintSpec::new(ConstraintType::ExactMatch, vec![AUTHORITY_HASH], MissingAction::Fail),
+        ConstraintSpec::new(ConstraintType::ExactMatch, vec![MODE], MissingAction::Fail),
         ConstraintSpec::new(
             ConstraintType::GreaterOrEqual,
             vec![CONFIG_DESC, SECURITY_VERSION],
-            /* Optional */ true,
+            MissingAction::Ignore,
         ),
     ];
 
