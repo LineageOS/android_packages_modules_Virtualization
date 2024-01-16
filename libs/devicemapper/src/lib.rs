@@ -235,7 +235,7 @@ rdroidtest::test_main!();
 mod tests {
     use super::*;
     use crypt::{CipherType, DmCryptTargetBuilder};
-    use rdroidtest::test;
+    use rdroidtest::{ignore_if, rdroidtest};
     use rustutils::system_properties;
     use std::fs::{read, File, OpenOptions};
     use std::io::Write;
@@ -292,22 +292,24 @@ mod tests {
         }
     }
 
-    test!(mapping_again_keeps_data_xts);
+    #[rdroidtest]
     fn mapping_again_keeps_data_xts() {
         mapping_again_keeps_data(&KEY_SET_XTS, "name1");
     }
 
-    test!(mapping_again_keeps_data_hctr2, ignore_if: !is_hctr2_supported());
+    #[rdroidtest]
+    #[ignore_if(!is_hctr2_supported())]
     fn mapping_again_keeps_data_hctr2() {
         mapping_again_keeps_data(&KEY_SET_HCTR2, "name2");
     }
 
-    test!(data_inaccessible_with_diff_key_xts);
+    #[rdroidtest]
     fn data_inaccessible_with_diff_key_xts() {
         data_inaccessible_with_diff_key(&KEY_SET_XTS, "name3");
     }
 
-    test!(data_inaccessible_with_diff_key_hctr2, ignore_if: !is_hctr2_supported());
+    #[rdroidtest]
+    #[ignore_if(!is_hctr2_supported())]
     fn data_inaccessible_with_diff_key_hctr2() {
         data_inaccessible_with_diff_key(&KEY_SET_HCTR2, "name4");
     }
@@ -325,8 +327,8 @@ mod tests {
             backing_file,
             0,
             sz,
-            /*direct_io*/ true,
-            /*writable*/ true,
+            /* direct_io */ true,
+            /* writable */ true,
         )
         .unwrap();
         let device_diff = device.to_owned() + "_diff";
@@ -357,7 +359,8 @@ mod tests {
 
     fn data_inaccessible_with_diff_key(keyset: &KeySet, device: &str) {
         // This test creates 2 different crypt devices using different keys backed
-        // by same data_device -> Write data on dev1 -> Check the data is visible but not the same on dev2
+        // by same data_device -> Write data on dev1 -> Check the data is visible but not the same
+        // on dev2
         let dm = DeviceMapper::new().unwrap();
         let inputimg = include_bytes!("../testdata/rand8k");
         let sz = inputimg.len() as u64;
@@ -368,8 +371,8 @@ mod tests {
             backing_file,
             0,
             sz,
-            /*direct_io*/ true,
-            /*writable*/ true,
+            /* direct_io */ true,
+            /* writable */ true,
         )
         .unwrap();
         let device_diff = device.to_owned() + "_diff";
