@@ -161,7 +161,7 @@ rdroidtest::test_main!();
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use rdroidtest::test;
+    use rdroidtest::{ignore_if, rdroidtest};
     use std::fs::{File, OpenOptions};
     use std::io::Write;
     use std::ops::Deref;
@@ -232,7 +232,8 @@ mod tests {
         });
     }
 
-    test!(correct_inputs, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn correct_inputs() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -245,7 +246,8 @@ mod tests {
     }
 
     // A single byte change in the APK file causes an IO error
-    test!(incorrect_apk, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn incorrect_apk() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -262,7 +264,8 @@ mod tests {
     }
 
     // A single byte change in the merkle tree also causes an IO error
-    test!(incorrect_merkle_tree, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn incorrect_merkle_tree() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -286,7 +289,8 @@ mod tests {
     // APK is not altered when the verity device is created, but later modified. IO error should
     // occur when trying to read the data around the modified location. This is the main scenario
     // that we'd like to protect.
-    test!(tampered_apk, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn tampered_apk() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -307,7 +311,8 @@ mod tests {
 
     // idsig file is not alread when the verity device is created, but later modified. Unlike to
     // the APK case, this doesn't occur IO error because the merkle tree is already cached.
-    test!(tampered_idsig, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn tampered_idsig() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -324,7 +329,8 @@ mod tests {
     }
 
     // test if both files are already block devices
-    test!(inputs_are_block_devices, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn inputs_are_block_devices() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -374,7 +380,8 @@ mod tests {
     }
 
     // test with custom roothash
-    test!(correct_custom_roothash, ignore_if: should_skip());
+    #[rdroidtest]
+    #[ignore_if(should_skip())]
     fn correct_custom_roothash() {
         let apk = include_bytes!("../testdata/test.apk");
         let idsig = include_bytes!("../testdata/test.apk.idsig");
@@ -396,7 +403,7 @@ mod tests {
         );
     }
 
-    test!(verify_command);
+    #[rdroidtest]
     fn verify_command() {
         // Check that the command parsing has been configured in a valid way.
         clap_command().debug_assert();
