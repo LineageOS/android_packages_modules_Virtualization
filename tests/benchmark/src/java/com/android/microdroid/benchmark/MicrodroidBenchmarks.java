@@ -119,7 +119,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void setup() throws IOException {
         grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
-        prepareTestSetup(mProtectedVm);
+        prepareTestSetup(mProtectedVm, null /* gki */);
         setMaxPerformanceTaskProfile();
         mInstrumentation = getInstrumentation();
     }

@@ -53,7 +53,10 @@ public class PvmfwImgTest extends MicrodroidHostTestCaseBase {
     @NonNull private static final String PACKAGE_FILE_NAME = "MicrodroidTestApp.apk";
     @NonNull private static final String PACKAGE_NAME = "com.android.microdroid.test";
     @NonNull private static final String MICRODROID_DEBUG_FULL = "full";
-    @NonNull private static final String MICRODROID_CONFIG_PATH = "assets/vm_config_apex.json";
+
+    @NonNull
+    private static final String MICRODROID_CONFIG_PATH = "assets/microdroid/vm_config_apex.json";
+
     private static final int BOOT_COMPLETE_TIMEOUT_MS = 30000; // 30 seconds
     private static final int BOOT_FAILURE_WAIT_TIME_MS = 10000; // 10 seconds
 

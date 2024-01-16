@@ -36,6 +36,7 @@ import com.android.tradefed.util.RunUtil;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -55,7 +56,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
                 / MICRODROID_COMMAND_RETRY_INTERVAL_MILLIS);
 
     protected static final Set<String> SUPPORTED_GKI_VERSIONS =
-            new HashSet(Arrays.asList("android14-6.1"));
+            Collections.unmodifiableSet(new HashSet(Arrays.asList("android14-6.1")));
 
     public static void prepareVirtualizationTestSetup(ITestDevice androidDevice)
             throws DeviceNotAvailableException {
