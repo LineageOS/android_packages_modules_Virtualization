@@ -486,6 +486,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(minimal.isEncryptedStorageEnabled()).isFalse();
         assertThat(minimal.getEncryptedStorageBytes()).isEqualTo(0);
         assertThat(minimal.isVmOutputCaptured()).isEqualTo(false);
+        assertThat(minimal.getOs()).isEqualTo("microdroid");
 
         // Maximal has everything that can be set to some non-default value. (And has different
         // values than minimal for the required fields.)
@@ -511,10 +512,20 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThat(maximal.isEncryptedStorageEnabled()).isTrue();
         assertThat(maximal.getEncryptedStorageBytes()).isEqualTo(1_000_000);
         assertThat(maximal.isVmOutputCaptured()).isEqualTo(true);
+        assertThat(maximal.getOs()).isEqualTo("microdroid");
 
         assertThat(minimal.isCompatibleWith(maximal)).isFalse();
         assertThat(minimal.isCompatibleWith(minimal)).isTrue();
         assertThat(maximal.isCompatibleWith(maximal)).isTrue();
+
+        VirtualMachineConfig os =
+                newVmConfigBuilder()
+                        .setPayloadBinaryName("binary.so")
+                        .setOs("microdroid_gki-android14-6.1")
+                        .build();
+        assertThat(os.getPayloadBinaryName()).isEqualTo("binary.so");
+        assertThat(os.getOs()).isEqualTo("microdroid_gki-android14-6.1");
+        assertThat(os.isCompatibleWith(minimal)).isFalse();
     }
 
     @Test
@@ -626,6 +637,11 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setProtectedVm(isProtectedVm())
                         .setPayloadBinaryName("binary.so");
         assertConfigCompatible(currentContextConfig, otherContextBuilder).isFalse();
+
+        VirtualMachineConfig microdroidOsConfig = newBaselineBuilder().setOs("microdroid").build();
+        VirtualMachineConfig.Builder otherOsBuilder =
+                newBaselineBuilder().setOs("microdroid_gki-android14-6.1");
+        assertConfigCompatible(microdroidOsConfig, otherOsBuilder).isFalse();
     }
 
     private VirtualMachineConfig.Builder newBaselineBuilder() {
