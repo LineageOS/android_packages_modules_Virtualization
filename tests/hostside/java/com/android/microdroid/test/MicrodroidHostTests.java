@@ -1094,8 +1094,15 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         return parseStringArrayFieldsFromVmInfo("Assignable devices: ");
     }
 
+    private List<String> getSupportedOSList() throws Exception {
+        return parseStringArrayFieldsFromVmInfo("Available OS list: ");
+    }
+
     private List<String> getSupportedGKIVersions() throws Exception {
-        return parseStringArrayFieldsFromVmInfo("Available gki versions: ");
+        return getSupportedOSList().stream()
+                .filter(os -> os.startsWith("microdroid_gki-"))
+                .map(os -> os.replaceFirst("^microdroid_gki-", ""))
+                .collect(Collectors.toList());
     }
 
     private TestDevice getAndroidDevice() {

@@ -69,12 +69,12 @@ use binder::{
     IntoBinderResult,
 };
 use disk::QcowFile;
+use glob::glob;
 use lazy_static::lazy_static;
 use libfdt::Fdt;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::unistd::pipe;
-use regex::Regex;
 use rpcbinder::RpcServer;
 use rustutils::system_properties;
 use semver::VersionReq;
@@ -83,6 +83,7 @@ use std::convert::TryInto;
 use std::ffi::{CStr, CString};
 use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Write};
+use std::iter;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::os::unix::raw::pid_t;
@@ -126,8 +127,8 @@ lazy_static! {
     pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> =
         wait_for_interface(BINDER_SERVICE_IDENTIFIER)
             .expect("Could not connect to VirtualizationServiceInternal");
-    static ref MICRODROID_GKI_OS_NAME_PATTERN: Regex =
-        Regex::new(r"^microdroid_gki-android\d+-\d+\.\d+$").expect("Failed to construct Regex");
+    static ref SUPPORTED_OS_NAMES: HashSet<String> =
+        get_supported_os_names().expect("Failed to get list of supported os names");
 }
 
 fn create_or_update_idsig_file(
@@ -287,6 +288,11 @@ impl IVirtualizationService for VirtualizationService {
     fn getAssignableDevices(&self) -> binder::Result<Vec<AssignableDevice>> {
         // Delegate to the global service, including checking the permission.
         GLOBAL_SERVICE.getAssignableDevices()
+    }
+
+    /// Get a list of supported OSes.
+    fn getSupportedOSList(&self) -> binder::Result<Vec<String>> {
+        Ok(Vec::from_iter(SUPPORTED_OS_NAMES.iter().cloned()))
     }
 
     /// Returns whether given feature is enabled
@@ -728,14 +734,32 @@ fn append_kernel_param(param: &str, vm_config: &mut VirtualMachineRawConfig) {
     }
 }
 
-fn is_valid_os(os_name: &str) -> bool {
-    if os_name == MICRODROID_OS_NAME {
-        true
-    } else if cfg!(vendor_modules) && MICRODROID_GKI_OS_NAME_PATTERN.is_match(os_name) {
-        PathBuf::from(format!("/apex/com.android.virt/etc/{}.json", os_name)).exists()
-    } else {
-        false
+fn extract_os_name_from_config_path(config: &Path) -> Option<String> {
+    if config.extension()?.to_str()? != "json" {
+        return None;
     }
+
+    Some(config.with_extension("").file_name()?.to_str()?.to_owned())
+}
+
+fn extract_os_names_from_configs(config_glob_pattern: &str) -> Result<HashSet<String>> {
+    let configs = glob(config_glob_pattern)?.collect::<Result<Vec<_>, _>>()?;
+    let os_names =
+        configs.iter().filter_map(|x| extract_os_name_from_config_path(x)).collect::<HashSet<_>>();
+
+    Ok(os_names)
+}
+
+fn get_supported_os_names() -> Result<HashSet<String>> {
+    if !cfg!(vendor_modules) {
+        return Ok(iter::once(MICRODROID_OS_NAME.to_owned()).collect());
+    }
+
+    extract_os_names_from_configs("/apex/com.android.virt/etc/microdroid*.json")
+}
+
+fn is_valid_os(os_name: &str) -> bool {
+    SUPPORTED_OS_NAMES.contains(os_name)
 }
 
 fn load_app_config(
@@ -1591,6 +1615,72 @@ mod tests {
         assert!(ret_second_trial.is_err(), "should fail");
 
         tmp_dir.close()?;
+        Ok(())
+    }
+
+    fn test_extract_os_name_from_config_path(
+        path: &Path,
+        expected_result: Option<&str>,
+    ) -> Result<()> {
+        let result = extract_os_name_from_config_path(path);
+        if result.as_deref() != expected_result {
+            bail!("Expected {:?} but was {:?}", expected_result, &result)
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_os_name_from_microdroid_config() -> Result<()> {
+        test_extract_os_name_from_config_path(
+            Path::new("/apex/com.android.virt/etc/microdroid.json"),
+            Some("microdroid"),
+        )
+    }
+
+    #[test]
+    fn test_extract_os_name_from_microdroid_gki_config() -> Result<()> {
+        test_extract_os_name_from_config_path(
+            Path::new("/apex/com.android.virt/etc/microdroid_gki-android14-6.1.json"),
+            Some("microdroid_gki-android14-6.1"),
+        )
+    }
+
+    #[test]
+    fn test_extract_os_name_from_invalid_path() -> Result<()> {
+        test_extract_os_name_from_config_path(
+            Path::new("/apex/com.android.virt/etc/microdroid.img"),
+            None,
+        )
+    }
+
+    #[test]
+    fn test_extract_os_name_from_configs() -> Result<()> {
+        let tmp_dir = tempfile::TempDir::new()?;
+        let tmp_dir_path = tmp_dir.path().to_owned();
+
+        let mut os_names: HashSet<String> = HashSet::new();
+        os_names.insert("microdroid".to_owned());
+        os_names.insert("microdroid_gki-android14-6.1".to_owned());
+        os_names.insert("microdroid_gki-android15-6.1".to_owned());
+
+        // config files
+        for os_name in &os_names {
+            std::fs::write(tmp_dir_path.join(os_name.to_owned() + ".json"), b"")?;
+        }
+
+        // fake files not related to configs
+        std::fs::write(tmp_dir_path.join("microdroid_super.img"), b"")?;
+        std::fs::write(tmp_dir_path.join("microdroid_foobar.apk"), b"")?;
+
+        let glob_pattern = match tmp_dir_path.join("microdroid*.json").to_str() {
+            Some(s) => s.to_owned(),
+            None => bail!("tmp_dir_path {:?} is not UTF-8", tmp_dir_path),
+        };
+
+        let result = extract_os_names_from_configs(&glob_pattern)?;
+        if result != os_names {
+            bail!("Expected {:?} but was {:?}", os_names, result);
+        }
         Ok(())
     }
 }

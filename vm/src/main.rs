@@ -27,7 +27,6 @@ use binder::{ProcessState, Strong};
 use clap::{Args, Parser};
 use create_idsig::command_create_idsig;
 use create_partition::command_create_partition;
-use glob::glob;
 use run::{command_run, command_run_app, command_run_microdroid};
 use std::num::NonZeroU16;
 use std::path::{Path, PathBuf};
@@ -316,12 +315,6 @@ fn command_list(service: &dyn IVirtualizationService) -> Result<(), Error> {
     Ok(())
 }
 
-fn extract_gki_version(gki_config: &Path) -> Option<&str> {
-    let name = gki_config.file_name()?;
-    let name_str = name.to_str()?;
-    name_str.strip_prefix("microdroid_gki-")?.strip_suffix(".json")
-}
-
 /// Print information about supported VM types.
 fn command_info() -> Result<(), Error> {
     let non_protected_vm_supported = hypervisor_props::is_vm_supported()?;
@@ -361,11 +354,8 @@ fn command_info() -> Result<(), Error> {
     let devices = devices.into_iter().map(|x| x.node).collect::<Vec<_>>();
     println!("Assignable devices: {}", serde_json::to_string(&devices)?);
 
-    let gki_configs =
-        glob("/apex/com.android.virt/etc/microdroid_gki-*.json")?.collect::<Result<Vec<_>, _>>()?;
-    let gki_versions =
-        gki_configs.iter().filter_map(|x| extract_gki_version(x)).collect::<Vec<_>>();
-    println!("Available gki versions: {}", serde_json::to_string(&gki_versions)?);
+    let os_list = get_service()?.getSupportedOSList()?;
+    println!("Available OS list: {}", serde_json::to_string(&os_list)?);
 
     Ok(())
 }

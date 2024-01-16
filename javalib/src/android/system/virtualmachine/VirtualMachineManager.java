@@ -18,6 +18,7 @@ package android.system.virtualmachine;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -39,6 +40,8 @@ import com.android.internal.annotations.GuardedBy;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -315,6 +318,25 @@ public class VirtualMachineManager {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns a list of supported OS names.
+     *
+     * @hide
+     */
+    @TestApi
+    @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
+    @NonNull
+    public List<String> getSupportedOSList() throws VirtualMachineException {
+        synchronized (sCreateLock) {
+            VirtualizationService service = VirtualizationService.getInstance();
+            try {
+                return Arrays.asList(service.getBinder().getSupportedOSList());
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            }
+        }
     }
 
     /**
