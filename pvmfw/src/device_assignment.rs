@@ -601,7 +601,7 @@ pub struct DeviceAssignmentInfo {
 }
 
 impl DeviceAssignmentInfo {
-    const PVIOMMU_COMPATIBLE: &CStr = cstr!("pkvm,pviommu");
+    const PVIOMMU_COMPATIBLE: &'static CStr = cstr!("pkvm,pviommu");
 
     /// Parses pvIOMMUs in fdt
     // Note: This will validate pvIOMMU ids' uniqueness, even when unassigned.
