@@ -177,7 +177,7 @@ struct Header {
 }
 
 impl Header {
-    const MAGIC: &[u8] = b"Android-VM-instance";
+    const MAGIC: &'static [u8] = b"Android-VM-instance";
     const VERSION_1: u16 = 1;
 
     pub fn is_valid(&self) -> bool {
