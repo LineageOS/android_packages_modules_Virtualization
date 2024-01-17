@@ -228,7 +228,7 @@ fn enable_fsverity_to_all() -> Result<()> {
     let odrefresh_current_dir = Path::new(ODREFRESH_OUTPUT_ROOT_DIR).join(CURRENT_ARTIFACTS_SUBDIR);
     let pending_dir = Path::new(ODREFRESH_OUTPUT_ROOT_DIR).join(PENDING_ARTIFACTS_SUBDIR);
     let mut reader =
-        File::open(&pending_dir.join("compos.info")).context("Failed to open compos.info")?;
+        File::open(pending_dir.join("compos.info")).context("Failed to open compos.info")?;
     let compos_info = OdsignInfo::parse_from_reader(&mut reader).context("Failed to parse")?;
 
     for path_str in compos_info.file_hashes.keys() {
