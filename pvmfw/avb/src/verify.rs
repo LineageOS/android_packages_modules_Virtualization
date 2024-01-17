@@ -14,16 +14,21 @@
 
 //! This module handles the pvmfw payload verification.
 
-use crate::descriptor::{Descriptors, Digest};
 use crate::ops::{Ops, Payload};
 use crate::partition::PartitionName;
 use crate::PvmfwVerifyError;
 use alloc::vec;
 use alloc::vec::Vec;
-use avb::{PartitionData, SlotVerifyError, SlotVerifyNoDataResult, VbmetaData};
+use avb::{
+    Descriptor, DescriptorError, DescriptorResult, HashDescriptor, PartitionData,
+    PropertyDescriptor, SlotVerifyError, SlotVerifyNoDataResult, VbmetaData,
+};
 
 // We use this for the rollback_index field if SlotVerifyData has empty rollback_indexes
 const DEFAULT_ROLLBACK_INDEX: u64 = 0;
+
+/// SHA256 digest type for kernel and initrd.
+pub type Digest = [u8; 32];
 
 /// Verified data returned when the payload verification succeeds.
 #[derive(Debug, PartialEq, Eq)]
@@ -68,15 +73,21 @@ pub enum Capability {
 }
 
 impl Capability {
-    const KEY: &'static [u8] = b"com.android.virt.cap";
+    const KEY: &'static str = "com.android.virt.cap";
     const REMOTE_ATTEST: &'static [u8] = b"remote_attest";
     const SECRETKEEPER_PROTECTION: &'static [u8] = b"secretkeeper_protection";
     const SEPARATOR: u8 = b'|';
 
-    fn get_capabilities(property_value: &[u8]) -> Result<Vec<Self>, PvmfwVerifyError> {
+    /// Returns the capabilities indicated in `descriptor`, or error if the descriptor has
+    /// unexpected contents.
+    fn get_capabilities(descriptor: &PropertyDescriptor) -> Result<Vec<Self>, PvmfwVerifyError> {
+        if descriptor.key != Self::KEY {
+            return Err(PvmfwVerifyError::UnknownVbmetaProperty);
+        }
+
         let mut res = Vec::new();
 
-        for v in property_value.split(|b| *b == Self::SEPARATOR) {
+        for v in descriptor.value.split(|b| *b == Self::SEPARATOR) {
             let cap = match v {
                 Self::REMOTE_ATTEST => Self::RemoteAttest,
                 Self::SECRETKEEPER_PROTECTION => Self::SecretkeeperProtection,
@@ -106,16 +117,6 @@ fn verify_vbmeta_is_from_kernel_partition(vbmeta_image: &VbmetaData) -> SlotVeri
     }
 }
 
-fn verify_vbmeta_has_only_one_hash_descriptor(
-    descriptors: &Descriptors,
-) -> SlotVerifyNoDataResult<()> {
-    if descriptors.num_hash_descriptor() == 1 {
-        Ok(())
-    } else {
-        Err(SlotVerifyError::InvalidMetadata)
-    }
-}
-
 fn verify_loaded_partition_has_expected_length(
     loaded_partitions: &[PartitionData],
     partition_name: PartitionName,
@@ -142,15 +143,91 @@ fn verify_loaded_partition_has_expected_length(
 /// Verifies that the vbmeta contains at most one property descriptor and it indicates the
 /// vm type is service VM.
 fn verify_property_and_get_capabilities(
-    descriptors: &Descriptors,
+    descriptors: &[Descriptor],
 ) -> Result<Vec<Capability>, PvmfwVerifyError> {
-    if !descriptors.has_property_descriptor() {
-        return Ok(vec![]);
+    let mut iter = descriptors.iter().filter_map(|d| match d {
+        Descriptor::Property(p) => Some(p),
+        _ => None,
+    });
+
+    let descriptor = match iter.next() {
+        // No property descriptors -> no capabilities.
+        None => return Ok(vec![]),
+        Some(d) => d,
+    };
+
+    // Multiple property descriptors -> error.
+    if iter.next().is_some() {
+        return Err(DescriptorError::InvalidContents.into());
     }
-    descriptors
-        .find_property_value(Capability::KEY)
-        .ok_or(PvmfwVerifyError::UnknownVbmetaProperty)
-        .and_then(Capability::get_capabilities)
+
+    Capability::get_capabilities(descriptor)
+}
+
+/// Hash descriptors extracted from a vbmeta image.
+///
+/// We always have a kernel hash descriptor and may have initrd normal or debug descriptors.
+struct HashDescriptors<'a> {
+    kernel: &'a HashDescriptor<'a>,
+    initrd_normal: Option<&'a HashDescriptor<'a>>,
+    initrd_debug: Option<&'a HashDescriptor<'a>>,
+}
+
+impl<'a> HashDescriptors<'a> {
+    /// Extracts the hash descriptors from all vbmeta descriptors. Any unexpected hash descriptor
+    /// is an error.
+    fn get(descriptors: &'a [Descriptor<'a>]) -> DescriptorResult<Self> {
+        let mut kernel = None;
+        let mut initrd_normal = None;
+        let mut initrd_debug = None;
+
+        for descriptor in descriptors.iter().filter_map(|d| match d {
+            Descriptor::Hash(h) => Some(h),
+            _ => None,
+        }) {
+            let target = match descriptor
+                .partition_name
+                .as_bytes()
+                .try_into()
+                .map_err(|_| DescriptorError::InvalidContents)?
+            {
+                PartitionName::Kernel => &mut kernel,
+                PartitionName::InitrdNormal => &mut initrd_normal,
+                PartitionName::InitrdDebug => &mut initrd_debug,
+            };
+
+            if target.is_some() {
+                // Duplicates of the same partition name is an error.
+                return Err(DescriptorError::InvalidContents);
+            }
+            target.replace(descriptor);
+        }
+
+        // Kernel is required, the others are optional.
+        Ok(Self {
+            kernel: kernel.ok_or(DescriptorError::InvalidContents)?,
+            initrd_normal,
+            initrd_debug,
+        })
+    }
+
+    /// Returns an error if either initrd descriptor exists.
+    fn verify_no_initrd(&self) -> Result<(), PvmfwVerifyError> {
+        match self.initrd_normal.or(self.initrd_debug) {
+            Some(_) => Err(SlotVerifyError::InvalidMetadata.into()),
+            None => Ok(()),
+        }
+    }
+}
+
+/// Returns a copy of the SHA256 digest in `descriptor`, or error if the sizes don't match.
+fn copy_digest(descriptor: &HashDescriptor) -> SlotVerifyNoDataResult<Digest> {
+    let mut digest = Digest::default();
+    if descriptor.digest.len() != digest.len() {
+        return Err(SlotVerifyError::InvalidMetadata);
+    }
+    digest.clone_from_slice(descriptor.digest);
+    Ok(digest)
 }
 
 /// Verifies the given initrd partition, and checks that the resulting contents looks like expected.
@@ -186,15 +263,15 @@ pub fn verify_payload<'a>(
     verify_only_one_vbmeta_exists(vbmeta_images)?;
     let vbmeta_image = &vbmeta_images[0];
     verify_vbmeta_is_from_kernel_partition(vbmeta_image)?;
-    let descriptors = Descriptors::from_vbmeta(vbmeta_image)?;
+    let descriptors = vbmeta_image.descriptors()?;
+    let hash_descriptors = HashDescriptors::get(&descriptors)?;
     let capabilities = verify_property_and_get_capabilities(&descriptors)?;
-    let kernel_descriptor = descriptors.find_hash_descriptor(PartitionName::Kernel)?;
 
     if initrd.is_none() {
-        verify_vbmeta_has_only_one_hash_descriptor(&descriptors)?;
+        hash_descriptors.verify_no_initrd()?;
         return Ok(VerifiedBootData {
             debug_level: DebugLevel::None,
-            kernel_digest: *kernel_descriptor.digest,
+            kernel_digest: copy_digest(hash_descriptors.kernel)?,
             initrd_digest: None,
             public_key: trusted_public_key,
             capabilities,
@@ -204,19 +281,19 @@ pub fn verify_payload<'a>(
 
     let initrd = initrd.unwrap();
     let mut initrd_ops = Ops::new(&payload);
-    let (debug_level, initrd_partition_name) =
+    let (debug_level, initrd_descriptor) =
         if verify_initrd(&mut initrd_ops, PartitionName::InitrdNormal, initrd).is_ok() {
-            (DebugLevel::None, PartitionName::InitrdNormal)
+            (DebugLevel::None, hash_descriptors.initrd_normal)
         } else if verify_initrd(&mut initrd_ops, PartitionName::InitrdDebug, initrd).is_ok() {
-            (DebugLevel::Full, PartitionName::InitrdDebug)
+            (DebugLevel::Full, hash_descriptors.initrd_debug)
         } else {
             return Err(SlotVerifyError::Verification(None).into());
         };
-    let initrd_descriptor = descriptors.find_hash_descriptor(initrd_partition_name)?;
+    let initrd_descriptor = initrd_descriptor.ok_or(DescriptorError::InvalidContents)?;
     Ok(VerifiedBootData {
         debug_level,
-        kernel_digest: *kernel_descriptor.digest,
-        initrd_digest: Some(*initrd_descriptor.digest),
+        kernel_digest: copy_digest(hash_descriptors.kernel)?,
+        initrd_digest: Some(copy_digest(initrd_descriptor)?),
         public_key: trusted_public_key,
         capabilities,
         rollback_index,

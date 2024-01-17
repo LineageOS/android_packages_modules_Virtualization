@@ -15,7 +15,7 @@
 //! This module contains the error thrown by the payload verification API
 //! and other errors used in the library.
 
-use avb::{IoError, SlotVerifyError};
+use avb::{DescriptorError, SlotVerifyError};
 use core::fmt;
 
 /// Wrapper around `SlotVerifyError` to add custom pvmfw errors.
@@ -25,7 +25,7 @@ pub enum PvmfwVerifyError {
     /// Passthrough `SlotVerifyError` with no `SlotVerifyData`.
     AvbError(SlotVerifyError<'static>),
     /// VBMeta has invalid descriptors.
-    InvalidDescriptors(IoError),
+    InvalidDescriptors(DescriptorError),
     /// Unknown vbmeta property.
     UnknownVbmetaProperty,
 }
@@ -34,6 +34,12 @@ impl From<SlotVerifyError<'_>> for PvmfwVerifyError {
     fn from(error: SlotVerifyError) -> Self {
         // We don't use verification data on failure, drop it to get a `'static` lifetime.
         Self::AvbError(error.without_verify_data())
+    }
+}
+
+impl From<DescriptorError> for PvmfwVerifyError {
+    fn from(error: DescriptorError) -> Self {
+        Self::InvalidDescriptors(error)
     }
 }
 
