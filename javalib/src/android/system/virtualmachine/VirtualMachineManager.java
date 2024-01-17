@@ -116,7 +116,12 @@ public class VirtualMachineManager {
     @Retention(RetentionPolicy.SOURCE)
     @StringDef(
             prefix = "FEATURE_",
-            value = {FEATURE_DICE_CHANGES, FEATURE_MULTI_TENANT, FEATURE_VENDOR_MODULES})
+            value = {
+                FEATURE_DICE_CHANGES,
+                FEATURE_MULTI_TENANT,
+                FEATURE_REMOTE_ATTESTATION,
+                FEATURE_VENDOR_MODULES
+            })
     public @interface Features {}
 
     /**
@@ -134,6 +139,15 @@ public class VirtualMachineManager {
      */
     @TestApi
     public static final String FEATURE_MULTI_TENANT = IVirtualizationService.FEATURE_MULTI_TENANT;
+
+    /**
+     * Feature to allow remote attestation in Microdroid.
+     *
+     * @hide
+     */
+    @TestApi
+    public static final String FEATURE_REMOTE_ATTESTATION =
+            IVirtualizationService.FEATURE_REMOTE_ATTESTATION;
 
     /**
      * Feature to allow vendor modules in Microdroid.
