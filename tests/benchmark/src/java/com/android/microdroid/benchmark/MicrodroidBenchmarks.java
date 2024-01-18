@@ -66,6 +66,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -91,12 +92,23 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private static final String MICRODROID_IMG_PREFIX = "microdroid_";
     private static final String MICRODROID_IMG_SUFFIX = ".img";
 
-    @Parameterized.Parameters(name = "protectedVm={0}")
-    public static Object[] protectedVmConfigs() {
-        return new Object[] {false, true};
+    @Parameterized.Parameters(name = "protectedVm={0},gki={1}")
+    public static Collection<Object[]> params() {
+        List<Object[]> ret = new ArrayList<>();
+        ret.add(new Object[] {true /* protectedVm */, null /* use microdroid kernel */});
+        ret.add(new Object[] {false /* protectedVm */, null /* use microdroid kernel */});
+        for (String gki : SUPPORTED_GKI_VERSIONS) {
+            ret.add(new Object[] {true /* protectedVm */, gki});
+            ret.add(new Object[] {false /* protectedVm */, gki});
+        }
+        return ret;
     }
 
-    @Parameterized.Parameter public boolean mProtectedVm;
+    @Parameterized.Parameter(0)
+    public boolean mProtectedVm;
+
+    @Parameterized.Parameter(1)
+    public String mGki;
 
     private final MetricsProcessor mMetricsProcessor = new MetricsProcessor(METRIC_NAME_PREFIX);
 
@@ -119,7 +131,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void setup() throws IOException {
         grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
-        prepareTestSetup(mProtectedVm, null /* gki */);
+        prepareTestSetup(mProtectedVm, mGki);
         setMaxPerformanceTaskProfile();
         mInstrumentation = getInstrumentation();
     }
@@ -240,38 +252,17 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             throws VirtualMachineException, InterruptedException, IOException {
         runBootTimeTest(
                 "test_vm_boot_time",
-                "assets/vm_config.json",
+                "assets/" + os() + "/vm_config.json",
                 /* fullDebug */ false,
                 (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_ONE_CPU));
     }
-
-    @Test
-    public void testMicrodroidGkiBootTime()
-            throws VirtualMachineException, InterruptedException, IOException {
-        runBootTimeTest(
-                "test_vm_boot_time",
-                "assets/vm_config_gki-android14-6.1.json",
-                /* reportDetailed */ false,
-                (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_ONE_CPU));
-    }
-
     @Test
     public void testMicrodroidHostCpuTopologyBootTime()
             throws VirtualMachineException, InterruptedException, IOException {
         runBootTimeTest(
                 "test_vm_boot_time_host_topology",
-                "assets/vm_config.json",
+                "assets/" + os() + "/vm_config.json",
                 /* fullDebug */ false,
-                (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_MATCH_HOST));
-    }
-
-    @Test
-    public void testMicrodroidGkiHostCpuTopologyBootTime()
-            throws VirtualMachineException, InterruptedException, IOException {
-        runBootTimeTest(
-                "test_vm_boot_time_host_topology",
-                "assets/vm_config_gki-android14-6.1.json",
-                /* reportDetailed */ false,
                 (builder) -> builder.setCpuTopology(CPU_TOPOLOGY_MATCH_HOST));
     }
 
@@ -280,18 +271,8 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
             throws VirtualMachineException, InterruptedException, IOException {
         runBootTimeTest(
                 "test_vm_boot_time_debug",
-                "assets/vm_config.json",
+                "assets/" + os() + "/vm_config.json",
                 /* fullDebug */ true,
-                (builder) -> builder);
-    }
-
-    @Test
-    public void testMicrodroidGkiDebugBootTime()
-            throws VirtualMachineException, InterruptedException, IOException {
-        runBootTimeTest(
-                "test_vm_boot_time_debug",
-                "assets/vm_config_gki-android14-6.1.json",
-                /* reportDetailed */ true,
                 (builder) -> builder);
     }
 
@@ -318,7 +299,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 new File("/data/local/tmp/microdroid-bench/microdroid_vendor_image.img");
         runBootTimeTest(
                 "test_vm_boot_time_debug_with_vendor_partition",
-                "assets/vm_config.json",
+                "assets/" + os() + "/vm_config.json",
                 /* fullDebug */ true,
                 (builder) -> builder.setVendorDiskImage(vendorDiskImage));
     }
@@ -347,7 +328,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     @Test
     public void testVsockTransferFromHostToVM() throws Exception {
         VirtualMachineConfig config =
-                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/" + os() + "/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
         List<Double> transferRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
@@ -373,7 +354,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     private void testVirtioBlkReadRate(boolean isRand) throws Exception {
         VirtualMachineConfig config =
-                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/" + os() + "/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
         List<Double> readRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
@@ -519,7 +500,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void testMemoryUsage() throws Exception {
         final String vmName = "test_vm_mem_usage";
         VirtualMachineConfig config =
-                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/" + os() + "/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryBytes(256 * ONE_MEBI)
                         .build();
@@ -605,7 +586,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void testMemoryReclaim() throws Exception {
         final String vmName = "test_vm_mem_reclaim";
         VirtualMachineConfig config =
-                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/" + os() + "/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryBytes(256 * ONE_MEBI)
                         .build();
@@ -830,7 +811,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     @Test
     public void testVmKillTime() throws Exception {
         VirtualMachineConfig config =
-                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/" + os() + "/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
         List<Double> vmKillTime = new ArrayList<>(TEST_TRIAL_COUNT);
