@@ -214,14 +214,17 @@ In version 1.2, a fourth blob is added.
   that if matching properties are present in the VM device tree they contain the
   correct values.
 
+  One use case for this mechanism is passing the [public key of the
+  Secretkeeper][secretkeeper_key] HAL implementation to each VM.
+
 <!--
   TODO(b/319192461): Attach link explaining about Microdroid vendor partition
-  TODO(b/291232226): Attach link explaining about Secretkeeper
 -->
 
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/main/Documentation/dt-object-internal.txt
 [debug_policy]: ../docs/debug/README.md#debug-policy
+[secretkeeper_key]: https://android.googlesource.com/platform/system/secretkeeper/+/refs/heads/main/README.md#secretkeeper-public-key
 
 #### Virtual Platform Boot Certificate Chain Handover
 
