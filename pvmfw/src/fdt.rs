@@ -202,7 +202,7 @@ fn patch_num_cpus(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
 }
 
 /// Read candidate properties' names from DT which could be overlaid
-fn parse_vm_base_dtbo(fdt: &Fdt) -> libfdt::Result<BTreeMap<CString, Vec<u8>>> {
+fn parse_vm_ref_dt(fdt: &Fdt) -> libfdt::Result<BTreeMap<CString, Vec<u8>>> {
     let mut property_map = BTreeMap::new();
     if let Some(avf_node) = fdt.node(cstr!("/avf"))? {
         for property in avf_node.properties()? {
@@ -217,29 +217,28 @@ fn parse_vm_base_dtbo(fdt: &Fdt) -> libfdt::Result<BTreeMap<CString, Vec<u8>>> {
     Ok(property_map)
 }
 
-/// Overlay VM base DTBO into VM DT based on the props_info. Property is overlaid in vm_dt only
-/// when it exists both in vm_base_dtbo and props_info. If the values mismatch, it returns error.
-fn apply_vm_base_dtbo(
+/// Overlay VM reference DT into VM DT based on the props_info. Property is overlaid in vm_dt only
+/// when it exists both in vm_ref_dt and props_info. If the values mismatch, it returns error.
+fn validate_vm_ref_dt(
     vm_dt: &mut Fdt,
-    vm_base_dtbo: &Fdt,
+    vm_ref_dt: &Fdt,
     props_info: &BTreeMap<CString, Vec<u8>>,
 ) -> libfdt::Result<()> {
     let mut root_vm_dt = vm_dt.root_mut()?;
     let mut avf_vm_dt = root_vm_dt.add_subnode(cstr!("avf"))?;
-    // TODO(b/318431677): Validate nodes beyond /fragment@0/__overlay__/avf and use apply_overlay.
-    let avf_vm_base_dtbo =
-        vm_base_dtbo.node(cstr!("/fragment@0/__overlay__/avf"))?.ok_or(FdtError::NotFound)?;
+    // TODO(b/318431677): Validate nodes beyond /avf.
+    let avf_node = vm_ref_dt.node(cstr!("/avf"))?.ok_or(FdtError::NotFound)?;
     for (name, value) in props_info.iter() {
-        if let Some(value_in_vm_base_dtbo) = avf_vm_base_dtbo.getprop(name)? {
-            if value != value_in_vm_base_dtbo {
+        if let Some(ref_value) = avf_node.getprop(name)? {
+            if value != ref_value {
                 error!(
-                    "Property mismatches while applying overlay VM base DTBO. \
-                    Name:{:?}, Value from host as hex:{:x?}, Value from VM base DTBO as hex:{:x?}",
-                    name, value, value_in_vm_base_dtbo
+                    "Property mismatches while applying overlay VM reference DT. \
+                    Name:{:?}, Value from host as hex:{:x?}, Value from VM reference DT as hex:{:x?}",
+                    name, value, ref_value
                 );
                 return Err(FdtError::BadValue);
             }
-            avf_vm_dt.setprop(name, value_in_vm_base_dtbo)?;
+            avf_vm_dt.setprop(name, ref_value)?;
         }
     }
     Ok(())
@@ -637,7 +636,7 @@ pub struct DeviceTreeInfo {
     serial_info: SerialInfo,
     pub swiotlb_info: SwiotlbInfo,
     device_assignment: Option<DeviceAssignmentInfo>,
-    vm_base_dtbo_props_info: BTreeMap<CString, Vec<u8>>,
+    vm_ref_dt_props_info: BTreeMap<CString, Vec<u8>>,
 }
 
 impl DeviceTreeInfo {
@@ -651,7 +650,7 @@ impl DeviceTreeInfo {
 pub fn sanitize_device_tree(
     fdt: &mut [u8],
     vm_dtbo: Option<&mut [u8]>,
-    vm_base_dtbo: Option<&[u8]>,
+    vm_ref_dt: Option<&[u8]>,
 ) -> Result<DeviceTreeInfo, RebootReason> {
     let fdt = Fdt::from_mut_slice(fdt).map_err(|e| {
         error!("Failed to load FDT: {e}");
@@ -695,14 +694,14 @@ pub fn sanitize_device_tree(
         }
     }
 
-    if let Some(vm_base_dtbo) = vm_base_dtbo {
-        let vm_base_dtbo = Fdt::from_slice(vm_base_dtbo).map_err(|e| {
-            error!("Failed to load VM base DTBO: {e}");
+    if let Some(vm_ref_dt) = vm_ref_dt {
+        let vm_ref_dt = Fdt::from_slice(vm_ref_dt).map_err(|e| {
+            error!("Failed to load VM reference DT: {e}");
             RebootReason::InvalidFdt
         })?;
 
-        apply_vm_base_dtbo(fdt, vm_base_dtbo, &info.vm_base_dtbo_props_info).map_err(|e| {
-            error!("Failed to apply VM base DTBO: {e}");
+        validate_vm_ref_dt(fdt, vm_ref_dt, &info.vm_ref_dt_props_info).map_err(|e| {
+            error!("Failed to apply VM reference DT: {e}");
             RebootReason::InvalidFdt
         })?;
     }
@@ -780,7 +779,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         None => None,
     };
 
-    let vm_base_dtbo_props_info = parse_vm_base_dtbo(fdt).map_err(|e| {
+    let vm_ref_dt_props_info = parse_vm_ref_dt(fdt).map_err(|e| {
         error!("Failed to read names of properties under /avf from DT: {e}");
         RebootReason::InvalidFdt
     })?;
@@ -795,7 +794,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         serial_info,
         swiotlb_info,
         device_assignment,
-        vm_base_dtbo_props_info,
+        vm_ref_dt_props_info,
     })
 }
 
