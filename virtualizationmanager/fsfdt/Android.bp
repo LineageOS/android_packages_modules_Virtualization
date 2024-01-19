@@ -1,0 +1,32 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_binary {
+    name: "fsfdt",
+    crate_name: "fsfdt",
+    defaults: ["avf_build_flags_rust"],
+    edition: "2021",
+    srcs: ["src/main.rs"],
+    prefer_rlib: true,
+    rustlibs: [
+        "libanyhow",
+        "libclap",
+        "libfsfdt",
+        "liblibfdt",
+    ],
+}
+
+rust_library_rlib {
+    name: "libfsfdt",
+    crate_name: "fsfdt",
+    defaults: ["avf_build_flags_rust"],
+    edition: "2021",
+    srcs: ["src/lib.rs"],
+    prefer_rlib: true,
+    rustlibs: [
+        "liblibfdt",
+        "libanyhow",
+    ],
+    apex_available: ["com.android.virt"],
+}
