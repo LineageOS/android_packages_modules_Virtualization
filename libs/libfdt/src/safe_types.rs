@@ -99,3 +99,69 @@ impl From<NodeOffset> for c_int {
         offset.0
     }
 }
+
+/// Safe zero-cost wrapper around libfdt device tree property offsets.
+///
+/// This type should only be obtained from properly wrapped successful libfdt calls.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct PropOffset(c_int);
+
+impl TryFrom<FdtRawResult> for PropOffset {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        Ok(Self(res.try_into()?))
+    }
+}
+
+impl TryFrom<FdtRawResult> for Option<PropOffset> {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        match res.try_into() {
+            Ok(n) => Ok(Some(n)),
+            Err(FdtError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl From<PropOffset> for c_int {
+    fn from(offset: PropOffset) -> Self {
+        offset.0
+    }
+}
+
+/// Safe zero-cost wrapper around libfdt device tree string offsets.
+///
+/// This type should only be obtained from properly wrapped successful libfdt calls.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct StringOffset(pub c_int); // TODO(ptosi): Move fdt_property wrapper here and remove pub.
+
+impl TryFrom<FdtRawResult> for StringOffset {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        Ok(Self(res.try_into()?))
+    }
+}
+
+impl TryFrom<FdtRawResult> for Option<StringOffset> {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        match res.try_into() {
+            Ok(n) => Ok(Some(n)),
+            Err(FdtError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl From<StringOffset> for c_int {
+    fn from(offset: StringOffset) -> Self {
+        offset.0
+    }
+}
