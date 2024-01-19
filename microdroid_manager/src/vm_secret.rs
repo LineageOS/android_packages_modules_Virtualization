@@ -20,7 +20,7 @@ use android_hardware_security_secretkeeper::aidl::android::hardware::security::s
 use secretkeeper_comm::data_types::request::Request;
 use binder::{Strong};
 use coset::CborSerializable;
-use dice_policy_builder::{ConstraintSpec, ConstraintType, policy_for_dice_chain, MissingAction};
+use dice_policy_builder::{CertIndex, ConstraintSpec, ConstraintType, policy_for_dice_chain, MissingAction, WILDCARD_FULL_ARRAY};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
 use keystore2_crypto::ZVec;
 use openssl::hkdf::hkdf;
@@ -41,6 +41,12 @@ const AUTHORITY_HASH: i64 = -4670549;
 const MODE: i64 = -4670551;
 const CONFIG_DESC: i64 = -4670548;
 const SECURITY_VERSION: i64 = -70005;
+const SUBCOMPONENT_DESCRIPTORS: i64 = -71002;
+const SUBCOMPONENT_SECURITY_VERSION: i64 = 2;
+const SUBCOMPONENT_AUTHORITY_HASH: i64 = 4;
+// Index of DiceChainEntry corresponding to Payload (relative to the end considering DICE Chain
+// as an array)
+const PAYLOAD_INDEX_FROM_END: usize = 0;
 
 // Generated using hexdump -vn32 -e'14/1 "0x%02X, " 1 "\n"' /dev/urandom
 const SALT_ENCRYPTED_STORE: &[u8] = &[
@@ -161,15 +167,51 @@ impl VmSecret {
 //    components may chose to prevent booting of rollback images for ex, ABL is expected to provide
 //    rollback protection of pvmfw. Such components may chose to not put SECURITY_VERSION in the
 //    corresponding DiceChainEntry.
-// TODO(b/291219197) : Add constraints on Extra apks as well!
+//  4. For each Subcomponent on the last DiceChainEntry (which corresponds to VM payload, See
+//     microdroid_manager/src/vm_config.cddl):
+//       - GreaterOrEqual on SECURITY_VERSION (Required)
+//       - ExactMatch on AUTHORITY_HASH (Required).
 fn sealing_policy(dice: &[u8]) -> Result<Vec<u8>, String> {
     let constraint_spec = [
-        ConstraintSpec::new(ConstraintType::ExactMatch, vec![AUTHORITY_HASH], MissingAction::Fail),
-        ConstraintSpec::new(ConstraintType::ExactMatch, vec![MODE], MissingAction::Fail),
+        ConstraintSpec::new(
+            ConstraintType::ExactMatch,
+            vec![AUTHORITY_HASH],
+            MissingAction::Fail,
+            CertIndex::All,
+        ),
+        ConstraintSpec::new(
+            ConstraintType::ExactMatch,
+            vec![MODE],
+            MissingAction::Fail,
+            CertIndex::All,
+        ),
         ConstraintSpec::new(
             ConstraintType::GreaterOrEqual,
             vec![CONFIG_DESC, SECURITY_VERSION],
             MissingAction::Ignore,
+            CertIndex::All,
+        ),
+        ConstraintSpec::new(
+            ConstraintType::GreaterOrEqual,
+            vec![
+                CONFIG_DESC,
+                SUBCOMPONENT_DESCRIPTORS,
+                WILDCARD_FULL_ARRAY,
+                SUBCOMPONENT_SECURITY_VERSION,
+            ],
+            MissingAction::Fail,
+            CertIndex::FromEnd(PAYLOAD_INDEX_FROM_END),
+        ),
+        ConstraintSpec::new(
+            ConstraintType::ExactMatch,
+            vec![
+                CONFIG_DESC,
+                SUBCOMPONENT_DESCRIPTORS,
+                WILDCARD_FULL_ARRAY,
+                SUBCOMPONENT_AUTHORITY_HASH,
+            ],
+            MissingAction::Fail,
+            CertIndex::FromEnd(PAYLOAD_INDEX_FROM_END),
         ),
     ];
 
