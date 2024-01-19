@@ -304,7 +304,7 @@ pub struct SubnodeIterator<'a> {
 }
 
 impl<'a> SubnodeIterator<'a> {
-    pub(crate) fn new(node: &'a FdtNode) -> Result<Self, FdtError> {
+    pub(crate) fn new(node: &FdtNode<'a>) -> Result<Self, FdtError> {
         let subnode = node.first_subnode()?;
 
         Ok(Self { subnode })

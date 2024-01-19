@@ -471,6 +471,28 @@ fn node_subnode_lifetime() {
 
 #[test]
 #[ignore] // Borrow checker test. Compilation success is sufficient.
+fn node_subnodess_lifetime() {
+    let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
+    let fdt = Fdt::from_slice(&data).unwrap();
+
+    let first_subnode_name = {
+        let first_subnode = {
+            let mut subnodes_iter = {
+                let root = fdt.root().unwrap();
+                root.subnodes().unwrap()
+                // Make root to be dropped
+            };
+            subnodes_iter.next().unwrap()
+            // Make subnodess_iter to be dropped
+        };
+        first_subnode.name()
+        // Make first_subnode to be dropped
+    };
+    assert_eq!(Ok(cstr!("node_a")), first_subnode_name);
+}
+
+#[test]
+#[ignore] // Borrow checker test. Compilation success is sufficient.
 fn node_descendants_lifetime() {
     let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
