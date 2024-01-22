@@ -112,7 +112,7 @@ public abstract class MicrodroidDeviceTestBase {
 
     private Context mCtx;
     private boolean mProtectedVm;
-    private String mOs;
+    private String mGki;
 
     protected Context getContext() {
         return mCtx;
@@ -122,8 +122,17 @@ public abstract class MicrodroidDeviceTestBase {
         return mCtx.getSystemService(VirtualMachineManager.class);
     }
 
-    public VirtualMachineConfig.Builder newVmConfigBuilder() {
-        return new VirtualMachineConfig.Builder(mCtx).setProtectedVm(mProtectedVm).setOs(mOs);
+    public VirtualMachineConfig.Builder newVmConfigBuilderWithPayloadConfig(String configPath) {
+        return new VirtualMachineConfig.Builder(mCtx)
+                .setProtectedVm(mProtectedVm)
+                .setPayloadConfigPath(configPath);
+    }
+
+    public VirtualMachineConfig.Builder newVmConfigBuilderWithPayloadBinary(String binaryPath) {
+        return new VirtualMachineConfig.Builder(mCtx)
+                .setProtectedVm(mProtectedVm)
+                .setOs(os())
+                .setPayloadBinaryName(binaryPath);
     }
 
     protected final boolean isProtectedVm() {
@@ -131,7 +140,7 @@ public abstract class MicrodroidDeviceTestBase {
     }
 
     protected final String os() {
-        return mOs;
+        return mGki != null ? "microdroid_gki-" + mGki : "microdroid";
     }
 
     /**
@@ -155,7 +164,7 @@ public abstract class MicrodroidDeviceTestBase {
                 .isTrue();
 
         mProtectedVm = protectedVm;
-        mOs = gki != null ? "microdroid_gki-" + gki : "microdroid";
+        mGki = gki;
 
         int capabilities = getVirtualMachineManager().getCapabilities();
         if (protectedVm) {
@@ -169,8 +178,8 @@ public abstract class MicrodroidDeviceTestBase {
         }
 
         try {
-            assume().withMessage("Skip where requested OS \"" + mOs + "\" isn't supported")
-                    .that(mOs)
+            assume().withMessage("Skip where requested OS \"" + os() + "\" isn't supported")
+                    .that(os())
                     .isIn(getVirtualMachineManager().getSupportedOSList());
         } catch (VirtualMachineException e) {
             Log.e(TAG, "Error getting supported OS list", e);

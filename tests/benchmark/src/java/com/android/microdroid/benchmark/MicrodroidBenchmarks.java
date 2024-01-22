@@ -134,8 +134,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     private boolean canBootMicrodroidWithMemory(int mem)
             throws VirtualMachineException, InterruptedException, IOException {
         VirtualMachineConfig normalConfig =
-                newVmConfigBuilder()
-                        .setPayloadBinaryName("MicrodroidIdleNativeLib.so")
+                newVmConfigBuilderWithPayloadBinary("MicrodroidIdleNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryBytes(mem * ONE_MEBI)
                         .build();
@@ -213,8 +212,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         BootTimeStats stats = new BootTimeStats(trialCount);
         for (int i = 0; i < trialCount; i++) {
             VirtualMachineConfig.Builder builder =
-                    newVmConfigBuilder()
-                            .setPayloadConfigPath(payloadConfig)
+                    newVmConfigBuilderWithPayloadBinary("MicrodroidIdleNativeLib.so")
                             .setMemoryBytes(256 * ONE_MEBI)
                             .setDebugLevel(DEBUG_LEVEL_NONE);
             if (fullDebug) {
@@ -349,8 +347,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     @Test
     public void testVsockTransferFromHostToVM() throws Exception {
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadConfigPath("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
         List<Double> transferRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
@@ -376,8 +373,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     private void testVirtioBlkReadRate(boolean isRand) throws Exception {
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadConfigPath("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
         List<Double> readRates = new ArrayList<>(IO_TEST_TRIAL_COUNT);
@@ -523,8 +519,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void testMemoryUsage() throws Exception {
         final String vmName = "test_vm_mem_usage";
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadConfigPath("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryBytes(256 * ONE_MEBI)
                         .build();
@@ -610,8 +605,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     public void testMemoryReclaim() throws Exception {
         final String vmName = "test_vm_mem_reclaim";
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadConfigPath("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .setMemoryBytes(256 * ONE_MEBI)
                         .build();
@@ -730,8 +724,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         final int NUM_REQUESTS = 10_000;
 
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                newVmConfigBuilderWithPayloadBinary("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
 
@@ -779,8 +772,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         final int NUM_REQUESTS = 10_000;
 
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadBinaryName("MicrodroidTestNativeLib.so")
+                newVmConfigBuilderWithPayloadBinary("MicrodroidTestNativeLib.so")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
 
@@ -838,8 +830,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
     @Test
     public void testVmKillTime() throws Exception {
         VirtualMachineConfig config =
-                newVmConfigBuilder()
-                        .setPayloadConfigPath("assets/vm_config_io.json")
+                newVmConfigBuilderWithPayloadConfig("assets/vm_config_io.json")
                         .setDebugLevel(DEBUG_LEVEL_NONE)
                         .build();
         List<Double> vmKillTime = new ArrayList<>(TEST_TRIAL_COUNT);
