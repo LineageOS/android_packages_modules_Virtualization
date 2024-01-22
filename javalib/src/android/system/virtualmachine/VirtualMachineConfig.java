@@ -174,7 +174,8 @@ public final class VirtualMachineConfig {
 
     @Nullable private final File mVendorDiskImage;
 
-    private final String mOs;
+    /** OS name of the VM using payload binaries. null if the VM uses a payload config file. */
+    @Nullable private final String mOs;
 
     private VirtualMachineConfig(
             @Nullable String packageName,
@@ -189,7 +190,7 @@ public final class VirtualMachineConfig {
             boolean vmOutputCaptured,
             boolean vmConsoleInputSupported,
             @Nullable File vendorDiskImage,
-            @NonNull String os) {
+            @Nullable String os) {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
         mApkPath = apkPath;
@@ -458,14 +459,14 @@ public final class VirtualMachineConfig {
     }
 
     /**
-     * Returns the OS of the VM.
+     * Returns the OS of the VM using a payload binary. Returns null if the VM uses payload config.
      *
      * @see Builder#setOs
      * @hide
      */
     @TestApi
     @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
-    @NonNull
+    @Nullable
     public String getOs() {
         return mOs;
     }
@@ -632,7 +633,7 @@ public final class VirtualMachineConfig {
         private boolean mVmOutputCaptured = false;
         private boolean mVmConsoleInputSupported = false;
         @Nullable private File mVendorDiskImage;
-        private String mOs = DEFAULT_OS;
+        @Nullable private String mOs;
 
         /**
          * Creates a builder for the given context.
@@ -672,14 +673,24 @@ public final class VirtualMachineConfig {
                 throw new IllegalStateException("apkPath or packageName must be specified");
             }
 
+            String os = null;
             if (mPayloadBinaryName == null) {
                 if (mPayloadConfigPath == null) {
                     throw new IllegalStateException("setPayloadBinaryName must be called");
+                }
+                if (mOs != null) {
+                    throw new IllegalStateException(
+                            "setPayloadConfigPath and setOs may not both be called");
                 }
             } else {
                 if (mPayloadConfigPath != null) {
                     throw new IllegalStateException(
                             "setPayloadBinaryName and setPayloadConfigPath may not both be called");
+                }
+                if (mOs != null) {
+                    os = mOs;
+                } else {
+                    os = DEFAULT_OS;
                 }
             }
 
@@ -708,7 +719,7 @@ public final class VirtualMachineConfig {
                     mVmOutputCaptured,
                     mVmConsoleInputSupported,
                     mVendorDiskImage,
-                    mOs);
+                    os);
         }
 
         /**
