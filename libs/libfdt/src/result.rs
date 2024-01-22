@@ -14,7 +14,7 @@
 
 //! Rust types related to the libfdt C integer results.
 
-use core::ffi::c_int;
+use core::ffi::{c_int, c_uint};
 use core::fmt;
 use core::result;
 
@@ -94,18 +94,6 @@ impl fmt::Display for FdtError {
 /// Result type with FdtError enum.
 pub type Result<T> = result::Result<T, FdtError>;
 
-pub(crate) fn fdt_err(val: c_int) -> Result<c_int> {
-    FdtRawResult::from(val).try_into()
-}
-
-pub(crate) fn fdt_err_expect_zero(val: c_int) -> Result<()> {
-    FdtRawResult::from(val).try_into()
-}
-
-pub(crate) fn fdt_err_or_option(val: c_int) -> Result<Option<c_int>> {
-    FdtRawResult::from(val).try_into()
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct FdtRawResult(c_int);
 
@@ -153,6 +141,34 @@ impl TryFrom<FdtRawResult> for c_int {
 }
 
 impl TryFrom<FdtRawResult> for Option<c_int> {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        match res.try_into() {
+            Ok(n) => Ok(Some(n)),
+            Err(FdtError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl TryFrom<FdtRawResult> for c_uint {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        Ok(c_int::try_from(res)?.try_into().unwrap())
+    }
+}
+
+impl TryFrom<FdtRawResult> for usize {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        Ok(c_int::try_from(res)?.try_into().unwrap())
+    }
+}
+
+impl TryFrom<FdtRawResult> for Option<usize> {
     type Error = FdtError;
 
     fn try_from(res: FdtRawResult) -> Result<Self> {

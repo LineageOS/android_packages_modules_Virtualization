@@ -33,7 +33,6 @@ use core::ffi::{c_int, c_void, CStr};
 use core::ops::Range;
 use cstr::cstr;
 use libfdt::get_slice_at_ptr;
-use result::{fdt_err, fdt_err_expect_zero, fdt_err_or_option};
 use zerocopy::AsBytes as _;
 
 use crate::libfdt::{Libfdt, LibfdtMut};

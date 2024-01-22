@@ -22,7 +22,8 @@ use core::ffi::{c_int, CStr};
 use core::mem;
 use core::ptr;
 
-use crate::{fdt_err, fdt_err_expect_zero, fdt_err_or_option, FdtError, Phandle, Result};
+use crate::result::FdtRawResult;
+use crate::{FdtError, Phandle, Result};
 
 // Function names are the C function names without the `fdt_` prefix.
 
@@ -35,7 +36,7 @@ pub(crate) fn create_empty_tree(fdt: &mut [u8]) -> Result<()> {
     //          There will be no memory write outside of the given fdt.
     let ret = unsafe { libfdt_bindgen::fdt_create_empty_tree(fdt, len) };
 
-    fdt_err_expect_zero(ret)
+    FdtRawResult::from(ret).try_into()
 }
 
 /// Safe wrapper around `fdt_check_full()` (C function).
@@ -49,7 +50,7 @@ pub(crate) fn check_full(fdt: &[u8]) -> Result<()> {
     // calls as it expects the client code to keep track of the objects (DT, nodes, ...).
     let ret = unsafe { libfdt_bindgen::fdt_check_full(fdt, len) };
 
-    fdt_err_expect_zero(ret)
+    FdtRawResult::from(ret).try_into()
 }
 
 /// Wrapper for the read-only libfdt.h functions.
@@ -76,7 +77,7 @@ pub(crate) unsafe trait Libfdt {
         // function respects the passed number of characters.
         let ret = unsafe { libfdt_bindgen::fdt_path_offset_namelen(fdt, path, len) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_node_offset_by_phandle()` (C function).
@@ -86,7 +87,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_phandle(fdt, phandle) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_node_offset_by_compatible()` (C function).
@@ -96,7 +97,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_compatible(fdt, prev, compatible) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_next_node()` (C function).
@@ -106,7 +107,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_node(fdt, node, &mut depth) };
 
-        match fdt_err_or_option(ret)? {
+        match FdtRawResult::from(ret).try_into()? {
             Some(offset) if depth >= 0 => {
                 let depth = depth.try_into().unwrap();
                 Ok(Some((offset, depth)))
@@ -123,7 +124,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_parent_offset(fdt, node) };
 
-        fdt_err(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_supernode_atdepth_offset()` (C function).
@@ -138,7 +139,7 @@ pub(crate) unsafe trait Libfdt {
             // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
             unsafe { libfdt_bindgen::fdt_supernode_atdepth_offset(fdt, node, depth, nodedepth) };
 
-        fdt_err(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_subnode_offset_namelen()` (C function).
@@ -149,7 +150,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_subnode_offset_namelen(fdt, parent, name, namelen) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
     /// Safe wrapper around `fdt_first_subnode()` (C function).
     fn first_subnode(&self, node: c_int) -> Result<Option<c_int>> {
@@ -157,7 +158,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_first_subnode(fdt, node) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_next_subnode()` (C function).
@@ -166,7 +167,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_subnode(fdt, node) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_address_cells()` (C function).
@@ -175,7 +176,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_address_cells(fdt, node) };
 
-        Ok(fdt_err(ret)?.try_into().unwrap())
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_size_cells()` (C function).
@@ -184,7 +185,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_size_cells(fdt, node) };
 
-        Ok(fdt_err(ret)?.try_into().unwrap())
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_get_name()` (C function).
@@ -194,7 +195,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor). On success, the
         // function returns valid null terminating string and otherwise returned values are dropped.
         let name = unsafe { libfdt_bindgen::fdt_get_name(fdt, node, &mut len) };
-        let len = usize::try_from(fdt_err(len)?).unwrap().checked_add(1).unwrap();
+        let len = usize::try_from(FdtRawResult::from(len))?.checked_add(1).unwrap();
 
         get_slice_at_ptr(self.as_fdt_slice(), name.cast(), len).ok_or(FdtError::Internal)
     }
@@ -210,8 +211,7 @@ pub(crate) unsafe trait Libfdt {
             // function respects the passed number of characters.
             unsafe { libfdt_bindgen::fdt_getprop_namelen(fdt, node, name, namelen, &mut len) };
 
-        if let Some(len) = fdt_err_or_option(len)? {
-            let len = usize::try_from(len).unwrap();
+        if let Some(len) = FdtRawResult::from(len).try_into()? {
             let bytes = get_slice_at_ptr(self.as_fdt_slice(), prop.cast(), len);
 
             Ok(Some(bytes.ok_or(FdtError::Internal)?))
@@ -227,7 +227,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let prop = unsafe { libfdt_bindgen::fdt_get_property_by_offset(fdt, offset, &mut len) };
 
-        let data_len = fdt_err(len)?.try_into().unwrap();
+        let data_len = FdtRawResult::from(len).try_into()?;
         // TODO(stable_feature(offset_of)): mem::offset_of!(fdt_property, data).
         let data_offset = memoffset::offset_of!(libfdt_bindgen::fdt_property, data);
         let len = data_offset.checked_add(data_len).ok_or(FdtError::Internal)?;
@@ -252,7 +252,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_first_property_offset(fdt, node) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_next_property_offset()` (C function).
@@ -261,7 +261,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_property_offset(fdt, prev) };
 
-        fdt_err_or_option(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_find_max_phandle()` (C function).
@@ -271,7 +271,7 @@ pub(crate) unsafe trait Libfdt {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_find_max_phandle(fdt, &mut phandle) };
 
-        fdt_err_expect_zero(ret)?;
+        FdtRawResult::from(ret).try_into()?;
 
         phandle.try_into()
     }
@@ -321,7 +321,7 @@ pub(crate) unsafe trait LibfdtMut {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_nop_node(fdt, node) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_add_subnode_namelen()` (C function).
@@ -332,7 +332,7 @@ pub(crate) unsafe trait LibfdtMut {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_add_subnode_namelen(fdt, node, name, namelen) };
 
-        fdt_err(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_setprop()` (C function).
@@ -345,7 +345,7 @@ pub(crate) unsafe trait LibfdtMut {
         //          (validated by underlying libfdt).
         let ret = unsafe { libfdt_bindgen::fdt_setprop(fdt, node, name, value, len) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_setprop_placeholder()` (C function).
@@ -358,7 +358,7 @@ pub(crate) unsafe trait LibfdtMut {
             // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
             unsafe { libfdt_bindgen::fdt_setprop_placeholder(fdt, node, name, len, &mut data) };
 
-        fdt_err_expect_zero(ret)?;
+        FdtRawResult::from(ret).try_into()?;
 
         get_mut_slice_at_ptr(self.as_fdt_slice_mut(), data.cast(), size).ok_or(FdtError::Internal)
     }
@@ -373,7 +373,7 @@ pub(crate) unsafe trait LibfdtMut {
         //          (validated by underlying libfdt).
         let ret = unsafe { libfdt_bindgen::fdt_setprop_inplace(fdt, node, name, value, len) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_appendprop()` (C function).
@@ -385,7 +385,7 @@ pub(crate) unsafe trait LibfdtMut {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_appendprop(fdt, node, name, value, len) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_appendprop_addrrange()` (C function).
@@ -404,7 +404,7 @@ pub(crate) unsafe trait LibfdtMut {
             libfdt_bindgen::fdt_appendprop_addrrange(fdt, parent, node, name, addr, size)
         };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_delprop()` (C function).
@@ -417,7 +417,7 @@ pub(crate) unsafe trait LibfdtMut {
         // being called when FdtNode instances are in use.
         let ret = unsafe { libfdt_bindgen::fdt_delprop(fdt, node, name) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe wrapper around `fdt_nop_property()` (C function).
@@ -428,7 +428,7 @@ pub(crate) unsafe trait LibfdtMut {
         // library locates the node's property.
         let ret = unsafe { libfdt_bindgen::fdt_nop_property(fdt, node, name) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Safe and aliasing-compatible wrapper around `fdt_open_into()` (C function).
@@ -451,7 +451,7 @@ pub(crate) unsafe trait LibfdtMut {
         // SAFETY: Accesses (R/W) are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_pack(fdt) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 
     /// Wrapper around `fdt_overlay_apply()` (C function).
@@ -470,7 +470,7 @@ pub(crate) unsafe trait LibfdtMut {
         // but that's our caller's responsibility.
         let ret = unsafe { libfdt_bindgen::fdt_overlay_apply(fdt, overlay) };
 
-        fdt_err_expect_zero(ret)
+        FdtRawResult::from(ret).try_into()
     }
 }
 
@@ -508,7 +508,7 @@ fn open_into(fdt: *const u8, dest: &mut [u8]) -> Result<()> {
     // size, reflected in its fdt_header::totalsize.
     let ret = unsafe { libfdt_bindgen::fdt_open_into(fdt, dest, len) };
 
-    fdt_err_expect_zero(ret)
+    FdtRawResult::from(ret).try_into()
 }
 
 // TODO(stable_feature(pointer_is_aligned)): p.is_aligned()
