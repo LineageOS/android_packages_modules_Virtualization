@@ -138,6 +138,53 @@ are @SystemApi, thus available only to privileged apps.
 If you are looking for an example usage of the APIs, you may refer to the [demo
 app](https://android.googlesource.com/platform/packages/modules/Virtualization/+/refs/heads/master/demo/).
 
+
+## Running Microdroid with vendor image
+
+With using `vm` tool, execute the following commands to launch a VM with vendor
+partition.
+
+```sh
+adb shell /apex/com.android.virt/bin/vm run-microdroid \
+--vendor $VENDOR_IMAGE
+```
+
+### Verification of vendor image
+
+Since vendor image of Microdroid is not part of `com.android.virt` APEX, the
+verification process of vendor partition is different from others.
+
+Vendor image uses its hashtree digest for the verifying its data, generated
+by `add_hashtree_footer` in `avbtool`. The value could be seen with following
+command:
+
+```sh
+avbtool info_image --image $VENDOR_IMAGE
+```
+
+Fixed path in VM for vendor hashtree digest is written in [fstab.microdroid].
+During first stage init of VM, [dm-verity] is set up based on vendor hashtree
+digest by reading [fstab.microdroid].
+
+For non-pVM, virtualizationmanager creates [DTBO] containing vendor hashtree
+digest, and passes to the VM via crosvm option. The vendor hashtree digest is
+obtained by virtualizationmanager from the host Android DT under
+`/avf/reference/`, which may be populated by the [bootloader].
+
+For pVM, VM reference DT included in [pvmfw config data] is additionally used
+for validating vendor hashtree digest. [Bootloader][bootloader] should append
+vendor hashtree digest into VM reference DT based on [fstab.microdroid]. Vendor
+hashtree digest could be appended as property into descriptors in host Android's
+vendor image by [Makefile] when Microdroid vendor image module is defined, so
+that a [bootloader] can extract the value and populate into VM reference DT.
+
+[fstab.microdroid]: fstab.microdroid
+[dm-verity]: https://source.android.com/docs/security/features/verifiedboot/dm-verity
+[DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/main/Documentation/dt-object-internal.txt
+[pvmfw config data]: ../pvmfw/README.md#configuration-data-format
+[bootloader]: https://source.android.com/docs/core/architecture/bootloader
+[Makefile]: https://cs.android.com/android/platform/superproject/main/+/main:build/make/core/Makefile
+
 ## Debugging Microdroid
 
 Refer to [Debugging protected VMs](../docs/debug/README.md).
