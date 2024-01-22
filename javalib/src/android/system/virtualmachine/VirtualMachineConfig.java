@@ -494,7 +494,6 @@ public final class VirtualMachineConfig {
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
                 && Objects.equals(this.mPackageName, other.mPackageName)
-                && Objects.equals(this.mApkPath, other.mApkPath)
                 && Objects.equals(this.mOs, other.mOs);
     }
 
