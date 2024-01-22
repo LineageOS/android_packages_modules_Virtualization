@@ -27,7 +27,6 @@ pub use iterators::{
 use core::cmp::max;
 use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
-use core::mem;
 use core::ops::Range;
 use core::ptr;
 use core::result;
@@ -201,6 +200,14 @@ impl TryFrom<c_int> for SizeCells {
 #[derive(Debug)]
 struct FdtPropertyStruct(libfdt_bindgen::fdt_property);
 
+impl AsRef<FdtPropertyStruct> for libfdt_bindgen::fdt_property {
+    fn as_ref(&self) -> &FdtPropertyStruct {
+        let ptr = self as *const _ as *const _;
+        // SAFETY: Types have the same layout (transparent) so the valid reference remains valid.
+        unsafe { &*ptr }
+    }
+}
+
 impl FdtPropertyStruct {
     fn from_offset(fdt: &Fdt, offset: c_int) -> Result<&Self> {
         let mut len = 0;
@@ -212,7 +219,8 @@ impl FdtPropertyStruct {
             return Err(FdtError::Internal); // shouldn't happen.
         }
         // SAFETY: prop is only returned when it points to valid libfdt_bindgen.
-        Ok(unsafe { &*prop.cast::<FdtPropertyStruct>() })
+        let prop = unsafe { &*prop };
+        Ok(prop.as_ref())
     }
 
     fn name_offset(&self) -> c_int {
@@ -855,10 +863,7 @@ impl<'a> FdtNodeMut<'a> {
     }
 
     fn parent(&'a self) -> Result<FdtNode<'a>> {
-        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-        let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
-
-        Ok(FdtNode { fdt: &*self.fdt, offset: fdt_err(ret)? })
+        self.as_node().parent()
     }
 
     /// Returns the compatible node of the given name that is next after this node.
@@ -979,22 +984,22 @@ impl Fdt {
     ///
     /// # Safety
     ///
-    /// The returned FDT might be invalid, only use on slices containing a valid DT.
+    /// It is undefined to call this function on a slice that does not contain a valid device tree.
     pub unsafe fn unchecked_from_slice(fdt: &[u8]) -> &Self {
-        // SAFETY: Fdt is a wrapper around a [u8], so the transmute is valid. The caller is
-        // responsible for ensuring that it is actually a valid FDT.
-        unsafe { mem::transmute::<&[u8], &Self>(fdt) }
+        let self_ptr = fdt as *const _ as *const _;
+        // SAFETY: The pointer is non-null, dereferenceable, and points to allocated memory.
+        unsafe { &*self_ptr }
     }
 
     /// Wraps a mutable slice containing a Flattened Device Tree.
     ///
     /// # Safety
     ///
-    /// The returned FDT might be invalid, only use on slices containing a valid DT.
+    /// It is undefined to call this function on a slice that does not contain a valid device tree.
     pub unsafe fn unchecked_from_mut_slice(fdt: &mut [u8]) -> &mut Self {
-        // SAFETY: Fdt is a wrapper around a [u8], so the transmute is valid. The caller is
-        // responsible for ensuring that it is actually a valid FDT.
-        unsafe { mem::transmute::<&mut [u8], &mut Self>(fdt) }
+        let self_mut_ptr = fdt as *mut _ as *mut _;
+        // SAFETY: The pointer is non-null, dereferenceable, and points to allocated memory.
+        unsafe { &mut *self_mut_ptr }
     }
 
     /// Updates this FDT from a slice containing another FDT.
