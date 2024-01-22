@@ -7,7 +7,7 @@ package android.system.virtualmachine {
   }
 
   public final class VirtualMachineConfig {
-    method @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES") @NonNull public String getOs();
+    method @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES") @Nullable public String getOs();
     method @Nullable public String getPayloadConfigPath();
     method public boolean isVmConsoleInputSupported();
   }

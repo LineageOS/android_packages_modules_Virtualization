@@ -109,6 +109,9 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
         if config.payload_binary_name.is_some() {
             bail!("Only one of --config-path or --payload-binary-name can be defined")
         }
+        if config.microdroid.gki().is_some() {
+            bail!("--gki cannot be defined with --config-path. Use 'os' field in the config file")
+        }
         Payload::ConfigPath(config_path)
     } else if let Some(payload_binary_name) = config.payload_binary_name {
         let os_name = if let Some(ver) = config.microdroid.gki() {
