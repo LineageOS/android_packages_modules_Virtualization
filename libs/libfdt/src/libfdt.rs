@@ -286,6 +286,13 @@ pub(crate) unsafe trait Libfdt {
 
         CStr::from_bytes_until_nul(bytes).map_err(|_| FdtError::Internal)
     }
+
+    /// Safe wrapper around `fdt_open_into()` (C function).
+    fn open_into(&self, dest: &mut [u8]) -> Result<()> {
+        let fdt = self.as_fdt_slice().as_ptr().cast();
+
+        open_into(fdt, dest)
+    }
 }
 
 /// Wrapper for the read-write libfdt.h functions.
@@ -423,6 +430,48 @@ pub(crate) unsafe trait LibfdtMut {
 
         fdt_err_expect_zero(ret)
     }
+
+    /// Safe and aliasing-compatible wrapper around `fdt_open_into()` (C function).
+    ///
+    /// The C API allows both input (`const void*`) and output (`void *`) to point to the same
+    /// memory region but the borrow checker would reject an API such as
+    ///
+    ///     self.open_into(&mut self.buffer)
+    ///
+    /// so this wrapper is provided to implement such a common aliasing case.
+    fn open_into_self(&mut self) -> Result<()> {
+        let fdt = self.as_fdt_slice_mut();
+
+        open_into(fdt.as_ptr().cast(), fdt)
+    }
+
+    /// Safe wrapper around `fdt_pack()` (C function).
+    fn pack(&mut self) -> Result<()> {
+        let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        // SAFETY: Accesses (R/W) are constrained to the DT totalsize (validated by ctor).
+        let ret = unsafe { libfdt_bindgen::fdt_pack(fdt) };
+
+        fdt_err_expect_zero(ret)
+    }
+
+    /// Wrapper around `fdt_overlay_apply()` (C function).
+    ///
+    /// # Safety
+    ///
+    /// This function safely wraps the C function call but is unsafe because the caller must
+    ///
+    /// - discard `overlay` as a &LibfdtMut because libfdt corrupts its header before returning;
+    /// - on error, discard `self` as a &LibfdtMut for the same reason.
+    unsafe fn overlay_apply(&mut self, overlay: &mut Self) -> Result<()> {
+        let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let overlay = overlay.as_fdt_slice_mut().as_mut_ptr().cast();
+        // SAFETY: Both pointers are valid because they come from references, and fdt_overlay_apply
+        // doesn't keep them after it returns. It may corrupt their contents if there is an error,
+        // but that's our caller's responsibility.
+        let ret = unsafe { libfdt_bindgen::fdt_overlay_apply(fdt, overlay) };
+
+        fdt_err_expect_zero(ret)
+    }
 }
 
 pub(crate) fn get_slice_at_ptr(s: &[u8], p: *const u8, len: usize) -> Option<&[u8]> {
@@ -447,6 +496,19 @@ fn get_slice_ptr_offset(s: &[u8], p: *const u8) -> Option<usize> {
         (unsafe { p.offset_from(s.as_ptr()) }) as usize
         // TODO(stable_feature(ptr_sub_ptr)): p.sub_ptr()
     })
+}
+
+fn open_into(fdt: *const u8, dest: &mut [u8]) -> Result<()> {
+    let fdt = fdt.cast();
+    let len = dest.len().try_into().map_err(|_| FdtError::Internal)?;
+    let dest = dest.as_mut_ptr().cast();
+    // SAFETY: Reads the whole fdt slice (based on the validated totalsize) and, if it fits, copies
+    // it to the (properly mutable) dest buffer of size len. On success, the resulting dest
+    // contains a valid DT with the nodes and properties of the original one but of a different
+    // size, reflected in its fdt_header::totalsize.
+    let ret = unsafe { libfdt_bindgen::fdt_open_into(fdt, dest, len) };
+
+    fdt_err_expect_zero(ret)
 }
 
 // TODO(stable_feature(pointer_is_aligned)): p.is_aligned()
