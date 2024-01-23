@@ -19,6 +19,7 @@
 //! adapted to their use-cases (e.g. alloc-based userspace or statically allocated no_std).
 
 use core::ffi::{c_int, CStr};
+use core::mem;
 use core::ptr;
 
 use crate::{fdt_err, fdt_err_expect_zero, fdt_err_or_option, FdtError, Phandle, Result};
@@ -225,13 +226,24 @@ pub(crate) unsafe trait Libfdt {
         let fdt = self.as_fdt_slice().as_ptr().cast();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let prop = unsafe { libfdt_bindgen::fdt_get_property_by_offset(fdt, offset, &mut len) };
-        if prop.is_null() {
-            fdt_err(len)?;
-            return Err(FdtError::Internal); // shouldn't happen.
+
+        let data_len = fdt_err(len)?.try_into().unwrap();
+        // TODO(stable_feature(offset_of)): mem::offset_of!(fdt_property, data).
+        let data_offset = memoffset::offset_of!(libfdt_bindgen::fdt_property, data);
+        let len = data_offset.checked_add(data_len).ok_or(FdtError::Internal)?;
+
+        if !is_aligned(prop) || get_slice_at_ptr(self.as_fdt_slice(), prop.cast(), len).is_none() {
+            return Err(FdtError::Internal);
         }
 
-        // SAFETY: prop is only returned when it points to valid libfdt_bindgen.
-        Ok(unsafe { &*prop })
+        // SAFETY: The pointer is properly aligned, struct is fully contained in the DT slice.
+        let prop = unsafe { &*prop };
+
+        if data_len != u32::from_be(prop.len).try_into().unwrap() {
+            return Err(FdtError::BadLayout);
+        }
+
+        Ok(prop)
     }
 
     /// Safe wrapper around `fdt_first_property_offset()` (C function).
@@ -435,4 +447,9 @@ fn get_slice_ptr_offset(s: &[u8], p: *const u8) -> Option<usize> {
         (unsafe { p.offset_from(s.as_ptr()) }) as usize
         // TODO(stable_feature(ptr_sub_ptr)): p.sub_ptr()
     })
+}
+
+// TODO(stable_feature(pointer_is_aligned)): p.is_aligned()
+fn is_aligned<T>(p: *const T) -> bool {
+    (p as usize) % mem::align_of::<T>() == 0
 }
