@@ -214,17 +214,19 @@ In version 1.2, a fourth blob is added.
   that if matching properties are present in the VM device tree they contain the
   correct values.
 
-  One use case for this mechanism is passing the [public key of the
-  Secretkeeper][secretkeeper_key] HAL implementation to each VM.
+  Use-cases of VM reference DT include:
 
-<!--
-  TODO(b/319192461): Attach link explaining about Microdroid vendor partition
--->
+  - Passing the [public key of the Secretkeeper][secretkeeper_key] HAL
+    implementation to each VM.
+
+  - Passing the [vendor hashtree digest][vendor_hashtree_digest] to run
+    Microdroid with verified vendor image.
 
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/main/Documentation/dt-object-internal.txt
 [debug_policy]: ../docs/debug/README.md#debug-policy
 [secretkeeper_key]: https://android.googlesource.com/platform/system/secretkeeper/+/refs/heads/main/README.md#secretkeeper-public-key
+[vendor_hashtree_digest]: ../microdroid/README.md#verification-of-vendor-image
 
 #### Virtual Platform Boot Certificate Chain Handover
 
