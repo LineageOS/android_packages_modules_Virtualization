@@ -261,12 +261,33 @@ pub(crate) unsafe trait LibfdtMut {
 
         fdt_err(ret)
     }
+
+    /// Safe wrapper around `fdt_setprop_placeholder()` (C function).
+    fn setprop_placeholder(&mut self, node: c_int, name: &CStr, size: usize) -> Result<&mut [u8]> {
+        let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let name = name.as_ptr();
+        let len = size.try_into().unwrap();
+        let mut data = ptr::null_mut();
+        let ret =
+            // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
+            unsafe { libfdt_bindgen::fdt_setprop_placeholder(fdt, node, name, len, &mut data) };
+
+        fdt_err_expect_zero(ret)?;
+
+        get_mut_slice_at_ptr(self.as_fdt_slice_mut(), data.cast(), size).ok_or(FdtError::Internal)
+    }
 }
 
 pub(crate) fn get_slice_at_ptr(s: &[u8], p: *const u8, len: usize) -> Option<&[u8]> {
     let offset = get_slice_ptr_offset(s, p)?;
 
     s.get(offset..offset.checked_add(len)?)
+}
+
+fn get_mut_slice_at_ptr(s: &mut [u8], p: *mut u8, len: usize) -> Option<&mut [u8]> {
+    let offset = get_slice_ptr_offset(s, p)?;
+
+    s.get_mut(offset..offset.checked_add(len)?)
 }
 
 fn get_slice_from_ptr(s: &[u8], p: *const u8) -> Option<&[u8]> {

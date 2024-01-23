@@ -528,27 +528,13 @@ impl<'a> FdtNodeMut<'a> {
 
     /// Trims the size of the given property to new_size.
     pub fn trimprop(&mut self, name: &CStr, new_size: usize) -> Result<()> {
-        let (prop, len) =
-            FdtNode::getprop_internal(self.fdt, self.offset, name)?.ok_or(FdtError::NotFound)?;
-        if len == new_size {
-            return Ok(());
-        }
-        if new_size > len {
-            return Err(FdtError::NoSpace);
-        }
+        let prop = self.as_node().getprop(name)?.ok_or(FdtError::NotFound)?;
 
-        // SAFETY: new_size is smaller than the old size
-        let ret = unsafe {
-            libfdt_bindgen::fdt_setprop(
-                self.fdt.as_mut_ptr(),
-                self.offset,
-                name.as_ptr(),
-                prop.cast::<c_void>(),
-                new_size.try_into().map_err(|_| FdtError::BadValue)?,
-            )
-        };
-
-        fdt_err_expect_zero(ret)
+        match prop.len() {
+            x if x == new_size => Ok(()),
+            x if x < new_size => Err(FdtError::NoSpace),
+            _ => self.fdt.setprop_placeholder(self.offset, name, new_size).map(|_| ()),
+        }
     }
 
     /// Returns reference to the containing device tree.
