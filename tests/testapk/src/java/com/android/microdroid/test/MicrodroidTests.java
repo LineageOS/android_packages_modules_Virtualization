@@ -616,9 +616,12 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                     .isFalse();
         }
 
+        // Changes that were incompatible but are currently compatible, but not guaranteed to be
+        // so in the API spec.
+        assertConfigCompatible(baseline, newBaselineBuilder().setApkPath("/different")).isTrue();
+
         // Changes that are currently incompatible for ease of implementation, but this might change
         // in the future.
-        assertConfigCompatible(baseline, newBaselineBuilder().setApkPath("/different")).isFalse();
         assertConfigCompatible(baseline, newBaselineBuilder().setEncryptedStorageBytes(100_000))
                 .isFalse();
 
