@@ -215,12 +215,10 @@ pub(crate) unsafe trait Libfdt {
         let fdt = self.as_fdt_slice().as_ptr().cast();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ptr = unsafe { libfdt_bindgen::fdt_string(fdt, offset) };
-        if ptr.is_null() {
-            return Err(FdtError::Internal);
-        }
+        let bytes =
+            get_slice_from_ptr(self.as_fdt_slice(), ptr.cast()).ok_or(FdtError::Internal)?;
 
-        // SAFETY: Non-null return from fdt_string() is valid null-terminating string within FDT.
-        Ok(unsafe { CStr::from_ptr(ptr) })
+        CStr::from_bytes_until_nul(bytes).map_err(|_| FdtError::Internal)
     }
 }
 
@@ -269,6 +267,10 @@ pub(crate) fn get_slice_at_ptr(s: &[u8], p: *const u8, len: usize) -> Option<&[u
     let offset = get_slice_ptr_offset(s, p)?;
 
     s.get(offset..offset.checked_add(len)?)
+}
+
+fn get_slice_from_ptr(s: &[u8], p: *const u8) -> Option<&[u8]> {
+    s.get(get_slice_ptr_offset(s, p)?..)
 }
 
 fn get_slice_ptr_offset(s: &[u8], p: *const u8) -> Option<usize> {
