@@ -27,7 +27,7 @@ pub use iterators::{
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
 pub use result::{FdtError, Result};
-pub use safe_types::{NodeOffset, Phandle, PropOffset, StringOffset};
+pub use safe_types::{FdtHeader, NodeOffset, Phandle, PropOffset, StringOffset};
 
 use core::ffi::{c_void, CStr};
 use core::ops::Range;
@@ -778,13 +778,14 @@ impl Fdt {
         self.buffer.as_ptr().cast()
     }
 
-    fn header(&self) -> &libfdt_bindgen::fdt_header {
-        let p = self.as_ptr().cast();
+    fn header(&self) -> &FdtHeader {
+        let p = self.as_ptr().cast::<libfdt_bindgen::fdt_header>();
         // SAFETY: A valid FDT (verified by constructor) must contain a valid fdt_header.
-        unsafe { &*p }
+        let header = unsafe { &*p };
+        header.as_ref()
     }
 
     fn totalsize(&self) -> usize {
-        u32::from_be(self.header().totalsize) as usize
+        self.header().totalsize.get().try_into().unwrap()
     }
 }
