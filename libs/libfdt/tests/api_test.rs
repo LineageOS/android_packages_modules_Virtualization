@@ -19,6 +19,7 @@
 use core::ffi::CStr;
 use cstr::cstr;
 use libfdt::{Fdt, FdtError, FdtNodeMut, Phandle};
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::fs;
 use std::ops::Range;
@@ -448,6 +449,22 @@ fn node_name_lifetime() {
         // Make root to be dropped
     };
     assert_eq!(Ok(cstr!("")), name);
+}
+
+#[test]
+fn node_mut_add_subnodes() {
+    let mut data = vec![0_u8; 1000];
+    let fdt = Fdt::create_empty_tree(&mut data).unwrap();
+
+    let mut root = fdt.root_mut().unwrap();
+    let names = [cstr!("a"), cstr!("b")];
+    root.add_subnodes(&names).unwrap();
+
+    let expected: HashSet<_> = names.into_iter().collect();
+    let subnodes = fdt.root().unwrap().subnodes().unwrap();
+    let names: HashSet<_> = subnodes.map(|node| node.name().unwrap()).collect();
+
+    assert_eq!(expected, names);
 }
 
 #[test]
