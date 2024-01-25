@@ -468,7 +468,7 @@ impl<'a> FdtNode<'a> {
     }
 
     /// Returns an iterator of subnodes
-    pub fn subnodes(&'a self) -> Result<SubnodeIterator<'a>> {
+    pub fn subnodes(&self) -> Result<SubnodeIterator<'a>> {
         SubnodeIterator::new(self)
     }
 
