@@ -276,10 +276,6 @@ pub struct FdtNode<'a> {
 }
 
 impl<'a> FdtNode<'a> {
-    /// Creates immutable node from a mutable node at the same offset.
-    pub fn from_mut(other: &'a FdtNodeMut) -> Self {
-        FdtNode { fdt: other.fdt, offset: other.offset }
-    }
     /// Returns parent node.
     pub fn parent(&self) -> Result<Self> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.

@@ -35,7 +35,6 @@ use libfdt::AddressRange;
 use libfdt::CellIterator;
 use libfdt::Fdt;
 use libfdt::FdtError;
-use libfdt::FdtNode;
 use libfdt::FdtNodeMut;
 use log::debug;
 use log::error;
@@ -499,11 +498,8 @@ fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<
     let name = cstr!("ns16550a");
     let mut next = fdt.root_mut()?.next_compatible(name);
     while let Some(current) = next? {
-        let reg = FdtNode::from_mut(&current)
-            .reg()?
-            .ok_or(FdtError::NotFound)?
-            .next()
-            .ok_or(FdtError::NotFound)?;
+        let reg =
+            current.as_node().reg()?.ok_or(FdtError::NotFound)?.next().ok_or(FdtError::NotFound)?;
         next = if !serial_info.addrs.contains(&reg.addr) {
             current.delete_and_next_compatible(name)
         } else {
