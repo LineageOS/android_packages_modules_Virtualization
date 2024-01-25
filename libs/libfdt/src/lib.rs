@@ -750,6 +750,14 @@ impl<'a> FdtNodeMut<'a> {
         FdtNode { fdt: self.fdt, offset: self.offset }
     }
 
+    /// Adds new subnodes to the given node.
+    pub fn add_subnodes(&mut self, names: &[&CStr]) -> Result<()> {
+        for name in names {
+            self.add_subnode_offset(name.to_bytes())?;
+        }
+        Ok(())
+    }
+
     /// Adds a new subnode to the given node and return it as a FdtNodeMut on success.
     pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
         let offset = self.add_subnode_offset(name.to_bytes())?;
