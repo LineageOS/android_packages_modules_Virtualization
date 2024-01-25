@@ -126,7 +126,7 @@ public final class VirtualMachineConfig {
 
     /**
      * Run VM with vCPU topology matching the physical CPU topology of the host. Usually takes
-     * longer to boot and cosumes more resources compared to a single vCPU. Typically a good option
+     * longer to boot and consumes more resources compared to a single vCPU. Typically a good option
      * for long-running workloads that benefit from parallel execution.
      *
      * @hide
