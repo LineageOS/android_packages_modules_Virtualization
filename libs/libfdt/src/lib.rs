@@ -24,7 +24,6 @@ pub use iterators::{
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
 
-use core::cmp::max;
 use core::ffi::{c_int, c_void, CStr};
 use core::fmt;
 use core::ops::Range;
@@ -1002,19 +1001,22 @@ impl Fdt {
         unsafe { &mut *self_mut_ptr }
     }
 
-    /// Updates this FDT from a slice containing another FDT.
-    pub fn copy_from_slice(&mut self, new_fdt: &[u8]) -> Result<()> {
-        if self.buffer.len() < new_fdt.len() {
-            Err(FdtError::NoSpace)
-        } else {
-            let totalsize = self.totalsize();
-            self.buffer[..new_fdt.len()].clone_from_slice(new_fdt);
-            // Zeroize the remaining part. We zeroize up to the size of the original DT because
-            // zeroizing the entire buffer (max 2MB) is not necessary and may increase the VM boot
-            // time.
-            self.buffer[new_fdt.len()..max(new_fdt.len(), totalsize)].fill(0_u8);
-            Ok(())
+    /// Updates this FDT from another FDT.
+    pub fn clone_from(&mut self, other: &Self) -> Result<()> {
+        let new_len = other.buffer.len();
+        if self.buffer.len() < new_len {
+            return Err(FdtError::NoSpace);
         }
+
+        let zeroed_len = self.totalsize().checked_sub(new_len);
+        let (cloned, zeroed) = self.buffer.split_at_mut(new_len);
+
+        cloned.clone_from_slice(&other.buffer);
+        if let Some(len) = zeroed_len {
+            zeroed[..len].fill(0);
+        }
+
+        Ok(())
     }
 
     /// Unpacks the DT to cover the whole slice it is contained in.
