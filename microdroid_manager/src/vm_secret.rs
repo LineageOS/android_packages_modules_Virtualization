@@ -20,7 +20,7 @@ use android_hardware_security_secretkeeper::aidl::android::hardware::security::s
 use secretkeeper_comm::data_types::request::Request;
 use binder::{Strong};
 use coset::CborSerializable;
-use dice_policy::{ConstraintSpec, ConstraintType, DicePolicy, MissingAction};
+use dice_policy_builder::{ConstraintSpec, ConstraintType, policy_for_dice_chain, MissingAction};
 use diced_open_dice::{DiceArtifacts, OwnedDiceArtifacts};
 use keystore2_crypto::ZVec;
 use openssl::hkdf::hkdf;
@@ -173,7 +173,7 @@ fn sealing_policy(dice: &[u8]) -> Result<Vec<u8>, String> {
         ),
     ];
 
-    DicePolicy::from_dice_chain(dice, &constraint_spec)?
+    policy_for_dice_chain(dice, &constraint_spec)?
         .to_vec()
         .map_err(|e| format!("DicePolicy construction failed {e:?}"))
 }
