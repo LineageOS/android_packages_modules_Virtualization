@@ -17,17 +17,17 @@
 
 #![no_std]
 
-mod ctypes;
 mod iterators;
 mod libfdt;
 mod result;
+mod safe_types;
 
-pub use ctypes::Phandle;
 pub use iterators::{
     AddressRange, CellIterator, CompatibleIterator, DescendantsIterator, MemRegIterator,
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
 pub use result::{FdtError, Result};
+pub use safe_types::{NodeOffset, Phandle};
 
 use core::ffi::{c_int, c_void, CStr};
 use core::ops::Range;
@@ -147,7 +147,7 @@ impl<'a> FdtProperty<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct FdtNode<'a> {
     fdt: &'a Fdt,
-    offset: c_int,
+    offset: NodeOffset,
 }
 
 impl<'a> FdtNode<'a> {
@@ -355,7 +355,7 @@ impl<'a> PartialEq for FdtNode<'a> {
 #[derive(Debug)]
 pub struct FdtNodeMut<'a> {
     fdt: &'a mut Fdt,
-    offset: c_int,
+    offset: NodeOffset,
 }
 
 impl<'a> FdtNodeMut<'a> {
@@ -525,7 +525,7 @@ impl<'a> FdtNodeMut<'a> {
         self.delete_and_next(next_offset)
     }
 
-    fn delete_and_next(self, next_offset: Option<c_int>) -> Result<Option<Self>> {
+    fn delete_and_next(self, next_offset: Option<NodeOffset>) -> Result<Option<Self>> {
         if Some(self.offset) == next_offset {
             return Err(FdtError::Internal);
         }
@@ -748,7 +748,11 @@ impl Fdt {
         Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
-    fn next_node_skip_subnodes(&self, node: c_int, depth: usize) -> Result<Option<(c_int, usize)>> {
+    fn next_node_skip_subnodes(
+        &self,
+        node: NodeOffset,
+        depth: usize,
+    ) -> Result<Option<(NodeOffset, usize)>> {
         let mut iter = self.next_node(node, depth)?;
         while let Some((offset, next_depth)) = iter {
             if next_depth <= depth {
