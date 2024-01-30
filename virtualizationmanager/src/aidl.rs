@@ -82,7 +82,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 use std::ffi::{CStr, CString};
 use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
-use std::io::{BufRead, BufReader, Error, ErrorKind, Write};
+use std::io::{BufRead, BufReader, Error, ErrorKind, Seek, SeekFrom, Write};
 use std::iter;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
@@ -159,6 +159,9 @@ fn create_or_update_idsig_file(
         // We will anyway overwrite the file to the v4signature generated from input_fd.
     }
 
+    output
+        .seek(SeekFrom::Start(0))
+        .context("failed to move cursor to start on the idsig output")?;
     output.set_len(0).context("failed to set_len on the idsig output")?;
     sig.write_into(&mut output).context("failed to write idsig")?;
     Ok(())
@@ -243,9 +246,14 @@ impl IVirtualizationService for VirtualizationService {
             .with_context(|| format!("Invalid size: {}", size_bytes))
             .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT)?;
         let size_bytes = round_up(size_bytes, PARTITION_GRANULARITY_BYTES);
-        let image = clone_file(image_fd)?;
+        let mut image = clone_file(image_fd)?;
         // initialize the file. Any data in the file will be erased.
+        image
+            .seek(SeekFrom::Start(0))
+            .context("failed to move cursor to start")
+            .or_service_specific_exception(-1)?;
         image.set_len(0).context("Failed to reset a file").or_service_specific_exception(-1)?;
+
         let mut part = QcowFile::new(image, size_bytes)
             .context("Failed to create QCOW2 image")
             .or_service_specific_exception(-1)?;
@@ -1544,6 +1552,40 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_create_or_update_idsig_on_non_empty_file() -> Result<()> {
+        use std::io::Read;
+
+        // Pick any APK
+        let mut apk = File::open("/system/priv-app/Shell/Shell.apk").unwrap();
+        let idsig_empty = tempfile::tempfile().unwrap();
+        let mut idsig_invalid = tempfile::tempfile().unwrap();
+        idsig_invalid.write_all(b"Oops")?;
+
+        // Create new idsig
+        create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk.try_clone()?),
+            &ParcelFileDescriptor::new(idsig_empty.try_clone()?),
+        )?;
+        apk.rewind()?;
+
+        // Update idsig_invalid
+        create_or_update_idsig_file(
+            &ParcelFileDescriptor::new(apk.try_clone()?),
+            &ParcelFileDescriptor::new(idsig_invalid.try_clone()?),
+        )?;
+
+        // Ensure the 2 idsig files have same size!
+        assert!(
+            idsig_empty.metadata()?.len() == idsig_invalid.metadata()?.len(),
+            "idsig files differ in size"
+        );
+        // Ensure the 2 idsig files have same content!
+        for (b1, b2) in idsig_empty.bytes().zip(idsig_invalid.bytes()) {
+            assert!(b1.unwrap() == b2.unwrap(), "idsig files differ")
+        }
+        Ok(())
+    }
     #[test]
     fn test_append_kernel_param_first_param() {
         let mut vm_config = VirtualMachineRawConfig { ..Default::default() };
