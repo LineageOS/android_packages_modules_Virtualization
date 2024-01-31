@@ -33,12 +33,17 @@ import com.android.tradefed.testtype.junit4.BaseHostJUnit4Test;
 import com.android.tradefed.util.CommandResult;
 import com.android.tradefed.util.RunUtil;
 
+import org.json.JSONArray;
+
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
@@ -163,5 +168,36 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
         assertWithMessage("Package " + packageName + " not found")
                 .that(pathLine).startsWith("package:");
         return pathLine.substring("package:".length());
+    }
+
+    public List<String> parseStringArrayFieldsFromVmInfo(String header) throws Exception {
+        CommandRunner android = new CommandRunner(getDevice());
+        String result = android.run("/apex/com.android.virt/bin/vm", "info");
+        List<String> ret = new ArrayList<>();
+        for (String line : result.split("\n")) {
+            if (!line.startsWith(header)) continue;
+
+            JSONArray jsonArray = new JSONArray(line.substring(header.length()));
+            for (int i = 0; i < jsonArray.length(); i++) {
+                ret.add(jsonArray.getString(i));
+            }
+            break;
+        }
+        return ret;
+    }
+
+    public List<String> getAssignableDevices() throws Exception {
+        return parseStringArrayFieldsFromVmInfo("Assignable devices: ");
+    }
+
+    public List<String> getSupportedOSList() throws Exception {
+        return parseStringArrayFieldsFromVmInfo("Available OS list: ");
+    }
+
+    public List<String> getSupportedGKIVersions() throws Exception {
+        return getSupportedOSList().stream()
+                .filter(os -> os.startsWith("microdroid_gki-"))
+                .map(os -> os.replaceFirst("^microdroid_gki-", ""))
+                .collect(Collectors.toList());
     }
 }
