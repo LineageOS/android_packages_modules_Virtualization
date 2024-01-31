@@ -1075,37 +1075,6 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                         && device.doesFileExist("/sys/bus/platform/drivers/vfio-platform"));
     }
 
-    private List<String> parseStringArrayFieldsFromVmInfo(String header) throws Exception {
-        CommandRunner android = new CommandRunner(getDevice());
-        String result = android.run("/apex/com.android.virt/bin/vm", "info");
-        List<String> ret = new ArrayList<>();
-        for (String line : result.split("\n")) {
-            if (!line.startsWith(header)) continue;
-
-            JSONArray jsonArray = new JSONArray(line.substring(header.length()));
-            for (int i = 0; i < jsonArray.length(); i++) {
-                ret.add(jsonArray.getString(i));
-            }
-            break;
-        }
-        return ret;
-    }
-
-    private List<String> getAssignableDevices() throws Exception {
-        return parseStringArrayFieldsFromVmInfo("Assignable devices: ");
-    }
-
-    private List<String> getSupportedOSList() throws Exception {
-        return parseStringArrayFieldsFromVmInfo("Available OS list: ");
-    }
-
-    private List<String> getSupportedGKIVersions() throws Exception {
-        return getSupportedOSList().stream()
-                .filter(os -> os.startsWith("microdroid_gki-"))
-                .map(os -> os.replaceFirst("^microdroid_gki-", ""))
-                .collect(Collectors.toList());
-    }
-
     private TestDevice getAndroidDevice() {
         TestDevice androidDevice = (TestDevice) getDevice();
         assertThat(androidDevice).isNotNull();
