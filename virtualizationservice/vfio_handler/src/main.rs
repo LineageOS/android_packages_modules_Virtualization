@@ -24,7 +24,7 @@ use android_system_virtualizationservice_internal::aidl::android::system::virtua
     IVfioHandler,
 };
 use binder::{register_lazy_service, BinderFeatures, ProcessState};
-use log::{info, Level};
+use log::{info, LevelFilter};
 
 const LOG_TAG: &str = "VfioHandler";
 
@@ -32,8 +32,8 @@ fn main() {
     android_logger::init_once(
         Config::default()
             .with_tag(LOG_TAG)
-            .with_min_level(Level::Info)
-            .with_log_id(android_logger::LogId::System),
+            .with_max_level(LevelFilter::Info)
+            .with_log_buffer(android_logger::LogId::System),
     );
 
     let service = VfioHandler::init();

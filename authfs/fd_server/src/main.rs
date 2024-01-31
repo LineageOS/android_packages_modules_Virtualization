@@ -123,7 +123,9 @@ fn convert_args(args: Args) -> Result<(BTreeMap<i32, FdConfig>, Option<OwnedFd>)
 
 fn main() -> Result<()> {
     android_logger::init_once(
-        android_logger::Config::default().with_tag("fd_server").with_min_level(log::Level::Debug),
+        android_logger::Config::default()
+            .with_tag("fd_server")
+            .with_max_level(log::LevelFilter::Debug),
     );
 
     let args = Args::parse();
