@@ -34,9 +34,9 @@ use std::sync::Arc;
 #[allow(clippy::eq_op)]
 fn try_main() -> Result<()> {
     let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
-    let log_level = if debuggable { log::Level::Debug } else { log::Level::Info };
+    let log_level = if debuggable { log::LevelFilter::Debug } else { log::LevelFilter::Info };
     android_logger::init_once(
-        android_logger::Config::default().with_tag("composd").with_min_level(log_level),
+        android_logger::Config::default().with_tag("composd").with_max_level(log_level),
     );
 
     // Redirect panic messages to logcat.

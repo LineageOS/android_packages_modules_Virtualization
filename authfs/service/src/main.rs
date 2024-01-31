@@ -130,9 +130,9 @@ unsafe fn prepare_authfs_service_socket() -> Result<OwnedFd> {
 #[allow(clippy::eq_op)]
 fn try_main() -> Result<()> {
     let debuggable = env!("TARGET_BUILD_VARIANT") != "user";
-    let log_level = if debuggable { log::Level::Trace } else { log::Level::Info };
+    let log_level = if debuggable { log::LevelFilter::Trace } else { log::LevelFilter::Info };
     android_logger::init_once(
-        android_logger::Config::default().with_tag("authfs_service").with_min_level(log_level),
+        android_logger::Config::default().with_tag("authfs_service").with_max_level(log_level),
     );
 
     clean_up_working_directory()?;
