@@ -37,7 +37,7 @@ fn main() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("encryptedstore")
-            .with_min_level(log::Level::Info),
+            .with_max_level(log::LevelFilter::Info),
     );
 
     if let Err(e) = try_main() {

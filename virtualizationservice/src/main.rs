@@ -27,7 +27,7 @@ use android_logger::{Config, FilterBuilder};
 use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::IVirtualizationServiceInternal::BnVirtualizationServiceInternal;
 use anyhow::Error;
 use binder::{register_lazy_service, BinderFeatures, ProcessState, ThreadState};
-use log::{info, Level};
+use log::{info, LevelFilter};
 use std::fs::{create_dir, read_dir};
 use std::os::unix::raw::{pid_t, uid_t};
 use std::path::Path;
@@ -48,8 +48,8 @@ fn main() {
     android_logger::init_once(
         Config::default()
             .with_tag(LOG_TAG)
-            .with_min_level(Level::Info)
-            .with_log_id(android_logger::LogId::System)
+            .with_max_level(LevelFilter::Info)
+            .with_log_buffer(android_logger::LogId::System)
             .with_filter(
                 // Reduce logspam by silencing logs from the disk crate which don't provide much
                 // information to us.

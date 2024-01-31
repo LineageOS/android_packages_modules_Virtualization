@@ -171,7 +171,7 @@ fn try_main() -> Result<()> {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("microdroid_manager")
-            .with_min_level(log::Level::Info),
+            .with_max_level(log::LevelFilter::Info),
     );
     info!("started.");
 
