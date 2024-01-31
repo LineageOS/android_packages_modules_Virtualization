@@ -57,13 +57,13 @@ class VirtualizationService {
     private VirtualizationService() throws VirtualMachineException {
         int clientFd = nativeSpawn();
         if (clientFd < 0) {
-            throw new VirtualMachineException("Could not spawn VirtualizationService");
+            throw new VirtualMachineException("Could not spawn Virtualization Manager");
         }
         mClientFd = ParcelFileDescriptor.adoptFd(clientFd);
 
         IBinder binder = nativeConnect(mClientFd.getFd());
         if (binder == null) {
-            throw new VirtualMachineException("Could not connect to VirtualizationService");
+            throw new VirtualMachineException("Could not connect to Virtualization Manager");
         }
         mBinder = IVirtualizationService.Stub.asInterface(binder);
     }
