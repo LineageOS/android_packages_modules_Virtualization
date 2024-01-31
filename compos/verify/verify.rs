@@ -60,8 +60,8 @@ fn main() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("compos_verify")
-            .with_min_level(log::Level::Info)
-            .with_log_id(LogId::System), // Needed to log successfully early in boot
+            .with_max_level(log::LevelFilter::Info)
+            .with_log_buffer(LogId::System), // Needed to log successfully early in boot
     );
 
     // Redirect panic messages to logcat.

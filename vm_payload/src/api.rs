@@ -24,7 +24,7 @@ use binder::{
     Strong, ExceptionCode,
 };
 use lazy_static::lazy_static;
-use log::{error, info, Level};
+use log::{error, info, LevelFilter};
 use rpcbinder::{RpcServer, RpcSession};
 use openssl::{ec::EcKey, sha::sha256, ecdsa::EcdsaSig};
 use std::convert::Infallible;
@@ -67,7 +67,7 @@ fn get_vm_payload_service() -> Result<Strong<dyn IVmPayloadService>> {
 /// Make sure our logging goes to logcat. It is harmless to call this more than once.
 fn initialize_logging() {
     android_logger::init_once(
-        android_logger::Config::default().with_tag("vm_payload").with_min_level(Level::Info),
+        android_logger::Config::default().with_tag("vm_payload").with_max_level(LevelFilter::Info),
     );
 }
 

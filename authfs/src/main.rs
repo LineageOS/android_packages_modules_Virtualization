@@ -293,9 +293,9 @@ fn remote_fd_to_path_buf(fd: i32) -> PathBuf {
 fn try_main() -> Result<()> {
     let args = Args::parse();
 
-    let log_level = if args.debug { log::Level::Debug } else { log::Level::Info };
+    let log_level = if args.debug { log::LevelFilter::Debug } else { log::LevelFilter::Info };
     android_logger::init_once(
-        android_logger::Config::default().with_tag("authfs").with_min_level(log_level),
+        android_logger::Config::default().with_tag("authfs").with_max_level(log_level),
     );
 
     let service = file::get_rpc_binder_service(args.cid)?;

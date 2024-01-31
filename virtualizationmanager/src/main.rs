@@ -27,7 +27,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
 use anyhow::{bail, Context, Result};
 use binder::{BinderFeatures, ProcessState};
 use lazy_static::lazy_static;
-use log::{info, Level};
+use log::{info, LevelFilter};
 use rpcbinder::{FileDescriptorTransportMode, RpcServer};
 use std::os::unix::io::{FromRawFd, OwnedFd, RawFd};
 use clap::Parser;
@@ -107,8 +107,8 @@ fn main() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag(LOG_TAG)
-            .with_min_level(Level::Info)
-            .with_log_id(android_logger::LogId::System),
+            .with_max_level(LevelFilter::Info)
+            .with_log_buffer(android_logger::LogId::System),
     );
 
     check_vm_support().unwrap();

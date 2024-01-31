@@ -40,7 +40,9 @@ fn main() {
 
 fn try_main() -> Result<()> {
     android_logger::init_once(
-        android_logger::Config::default().with_tag("compsvc").with_min_level(log::Level::Debug),
+        android_logger::Config::default()
+            .with_tag("compsvc")
+            .with_max_level(log::LevelFilter::Debug),
     );
     // Redirect panic messages to logcat.
     panic::set_hook(Box::new(|panic_info| {
