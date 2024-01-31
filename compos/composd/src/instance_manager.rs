@@ -90,7 +90,7 @@ fn new_vm_parameters() -> Result<VmParameters> {
 fn compos_memory_mib() -> Result<i32> {
     // Enough memory to complete odrefresh in the VM, for older versions of ART that don't set the
     // property explicitly.
-    const DEFAULT_MEMORY_MIB: u32 = 400;
+    const DEFAULT_MEMORY_MIB: u32 = 600;
 
     let art_requested_mib =
         read_property("composd.vm.art.memory_mib.config")?.unwrap_or(DEFAULT_MEMORY_MIB);
