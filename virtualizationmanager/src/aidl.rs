@@ -22,6 +22,7 @@ use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance,
 use crate::debug_config::DebugConfig;
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images, add_microdroid_vendor_image};
 use crate::selinux::{getfilecon, SeContext};
+use crate::reference_dt;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::{
     Certificate::Certificate,
@@ -71,7 +72,6 @@ use binder::{
 use disk::QcowFile;
 use glob::glob;
 use lazy_static::lazy_static;
-use libfdt::Fdt;
 use log::{debug, error, info, warn};
 use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::unistd::pipe;
@@ -80,7 +80,7 @@ use rustutils::system_properties;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Seek, SeekFrom, Write};
 use std::iter;
@@ -89,7 +89,6 @@ use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::os::unix::raw::pid_t;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
-use vbmeta::VbMetaImage;
 use vmconfig::VmConfig;
 use vsock::VsockStream;
 use zip::ZipArchive;
@@ -116,9 +115,6 @@ const SECRETKEEPER_IDENTIFIER: &str =
     "android.hardware.security.secretkeeper.ISecretkeeper/nonsecure";
 
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
-
-/// Rough size for storing root digest of vendor hash descriptor into DTBO.
-const EMPTY_VENDOR_DT_OVERLAY_BUF_SIZE: usize = 10000;
 
 /// crosvm requires all partitions to be a multiple of 4KiB.
 const PARTITION_GRANULARITY_BYTES: u64 = 4096;
@@ -395,25 +391,12 @@ impl VirtualizationService {
             check_gdb_allowed(config)?;
         }
 
-        let vendor_hashtree_descriptor_root_digest =
-            extract_vendor_hashtree_descriptor_root_digest(config)
-                .context("Failed to extract root digest of vendor")
-                .or_service_specific_exception(-1)?;
-        let dtbo_vendor = if let Some(vendor_hashtree_descriptor_root_digest) =
-            vendor_hashtree_descriptor_root_digest
-        {
-            let root_digest_hex = hex::encode(vendor_hashtree_descriptor_root_digest);
-            let dtbo_for_vendor_image = temporary_directory.join("dtbo_vendor");
-            create_dtbo_for_vendor_image(root_digest_hex.as_bytes(), &dtbo_for_vendor_image)
-                .context("Failed to write root digest of vendor")
-                .or_service_specific_exception(-1)?;
-            let file = File::open(dtbo_for_vendor_image)
-                .context("Failed to open dtbo_vendor")
-                .or_service_specific_exception(-1)?;
-            Some(file)
-        } else {
-            None
-        };
+        let reference_dt = reference_dt::parse_reference_dt(&temporary_directory)
+            .context("Failed to create VM reference DT")
+            .or_service_specific_exception(-1)?;
+        if reference_dt.is_none() {
+            warn!("VM reference DT doesn't exist");
+        }
 
         let debug_level = match config {
             VirtualMachineConfig::AppConfig(config) => config.debugLevel,
@@ -530,7 +513,7 @@ impl VirtualizationService {
                     .getDtboFile()?
                     .as_ref()
                     .try_clone()
-                    .context("Failed to create File from ParcelFileDescriptor")
+                    .context("Failed to create VM DTBO from ParcelFileDescriptor")
                     .or_binder_exception(ExceptionCode::BAD_PARCELABLE)?,
             );
             (devices, Some(dtbo_file))
@@ -563,7 +546,7 @@ impl VirtualizationService {
             gdb_port,
             vfio_devices,
             dtbo,
-            dtbo_vendor,
+            reference_dt,
         };
         let instance = Arc::new(
             VmInstance::new(
@@ -580,80 +563,6 @@ impl VirtualizationService {
         state.add_vm(Arc::downgrade(&instance));
         Ok(VirtualMachine::create(instance))
     }
-}
-
-fn extract_vendor_hashtree_descriptor_root_digest(
-    config: &VirtualMachineConfig,
-) -> Result<Option<Vec<u8>>> {
-    let VirtualMachineConfig::AppConfig(config) = config else {
-        return Ok(None);
-    };
-    let Some(custom_config) = &config.customConfig else {
-        return Ok(None);
-    };
-    let Some(file) = custom_config.vendorImage.as_ref() else {
-        return Ok(None);
-    };
-
-    let file = clone_file(file)?;
-    let size = file.metadata().context("Failed to get metadata from microdroid-vendor.img")?.len();
-    let vbmeta = VbMetaImage::verify_reader_region(&file, 0, size)
-        .context("Failed to get vbmeta from microdroid-vendor.img")?;
-
-    for descriptor in vbmeta.descriptors()?.iter() {
-        if let vbmeta::Descriptor::Hashtree(_) = descriptor {
-            return Ok(Some(descriptor.to_hashtree()?.root_digest().to_vec()));
-        }
-    }
-    Err(anyhow!("No root digest is extracted from microdroid-vendor.img"))
-}
-
-fn create_dtbo_for_vendor_image(
-    vendor_hashtree_descriptor_root_digest: &[u8],
-    dtbo: &PathBuf,
-) -> Result<()> {
-    if dtbo.exists() {
-        return Err(anyhow!("DTBO file already exists"));
-    }
-
-    let mut buf = vec![0; EMPTY_VENDOR_DT_OVERLAY_BUF_SIZE];
-    let fdt = Fdt::create_empty_tree(buf.as_mut_slice())
-        .map_err(|e| anyhow!("Failed to create FDT: {:?}", e))?;
-    let mut root = fdt.root_mut().map_err(|e| anyhow!("Failed to get root node: {:?}", e))?;
-
-    let fragment_node_name = CString::new("fragment@0")?;
-    let mut fragment_node = root
-        .add_subnode(fragment_node_name.as_c_str())
-        .map_err(|e| anyhow!("Failed to create fragment node: {:?}", e))?;
-    let target_path_prop_name = CString::new("target-path")?;
-    let target_path = CString::new("/")?;
-    fragment_node
-        .setprop(target_path_prop_name.as_c_str(), target_path.to_bytes_with_nul())
-        .map_err(|e| anyhow!("Failed to set target-path: {:?}", e))?;
-    let overlay_node_name = CString::new("__overlay__")?;
-    let mut overlay_node = fragment_node
-        .add_subnode(overlay_node_name.as_c_str())
-        .map_err(|e| anyhow!("Failed to create overlay node: {:?}", e))?;
-
-    let avf_node_name = CString::new("avf")?;
-    let mut avf_node = overlay_node
-        .add_subnode(avf_node_name.as_c_str())
-        .map_err(|e| anyhow!("Failed to create avf node: {:?}", e))?;
-    let vendor_hashtree_descriptor_root_digest_name =
-        CString::new("vendor_hashtree_descriptor_root_digest")?;
-    avf_node
-        .setprop(
-            vendor_hashtree_descriptor_root_digest_name.as_c_str(),
-            vendor_hashtree_descriptor_root_digest,
-        )
-        .map_err(|e| {
-            anyhow!("Failed to set avf/vendor_hashtree_descriptor_root_digest: {:?}", e)
-        })?;
-
-    fdt.pack().map_err(|e| anyhow!("Failed to pack fdt: {:?}", e))?;
-    let mut file = File::create(dtbo)?;
-    file.write_all(fdt.as_slice())?;
-    Ok(file.flush()?)
 }
 
 fn write_zero_filler(zero_filler_path: &Path) -> Result<()> {
@@ -1599,65 +1508,6 @@ mod tests {
             VirtualMachineRawConfig { params: Some("foo=5".to_owned()), ..Default::default() };
         append_kernel_param("bar=42", &mut vm_config);
         assert_eq!(vm_config.params, Some("foo=5 bar=42".to_owned()))
-    }
-
-    #[test]
-    fn test_create_dtbo_for_vendor_image() -> Result<()> {
-        let vendor_hashtree_descriptor_root_digest = String::from("foo");
-        let vendor_hashtree_descriptor_root_digest =
-            vendor_hashtree_descriptor_root_digest.as_bytes();
-
-        let tmp_dir = tempfile::TempDir::new()?;
-        let dtbo_path = tmp_dir.path().to_path_buf().join("bar");
-
-        create_dtbo_for_vendor_image(vendor_hashtree_descriptor_root_digest, &dtbo_path)?;
-
-        let data = std::fs::read(dtbo_path)?;
-        let fdt = Fdt::from_slice(&data).unwrap();
-
-        let fragment_node_path = CString::new("/fragment@0")?;
-        let fragment_node = fdt.node(fragment_node_path.as_c_str()).unwrap();
-        let Some(fragment_node) = fragment_node else {
-            bail!("fragment_node shouldn't be None.");
-        };
-        let target_path_prop_name = CString::new("target-path")?;
-        let target_path_from_dtbo =
-            fragment_node.getprop(target_path_prop_name.as_c_str()).unwrap();
-        let target_path_expected = CString::new("/")?;
-        assert_eq!(target_path_from_dtbo, Some(target_path_expected.to_bytes_with_nul()));
-
-        let avf_node_path = CString::new("/fragment@0/__overlay__/avf")?;
-        let avf_node = fdt.node(avf_node_path.as_c_str()).unwrap();
-        let Some(avf_node) = avf_node else {
-            bail!("avf_node shouldn't be None.");
-        };
-        let vendor_hashtree_descriptor_root_digest_name =
-            CString::new("vendor_hashtree_descriptor_root_digest")?;
-        let digest_from_dtbo =
-            avf_node.getprop(vendor_hashtree_descriptor_root_digest_name.as_c_str()).unwrap();
-        assert_eq!(digest_from_dtbo, Some(vendor_hashtree_descriptor_root_digest));
-
-        tmp_dir.close()?;
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_dtbo_for_vendor_image_throws_error_if_already_exists() -> Result<()> {
-        let vendor_hashtree_descriptor_root_digest = String::from("foo");
-        let vendor_hashtree_descriptor_root_digest =
-            vendor_hashtree_descriptor_root_digest.as_bytes();
-
-        let tmp_dir = tempfile::TempDir::new()?;
-        let dtbo_path = tmp_dir.path().to_path_buf().join("bar");
-
-        create_dtbo_for_vendor_image(vendor_hashtree_descriptor_root_digest, &dtbo_path)?;
-
-        let ret_second_trial =
-            create_dtbo_for_vendor_image(vendor_hashtree_descriptor_root_digest, &dtbo_path);
-        assert!(ret_second_trial.is_err(), "should fail");
-
-        tmp_dir.close()?;
-        Ok(())
     }
 
     fn test_extract_os_name_from_config_path(
