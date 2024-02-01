@@ -194,7 +194,8 @@ fn make_metadata_file(
     let payload_metadata = match &app_config.payload {
         Payload::PayloadConfig(payload_config) => PayloadMetadata::Config(PayloadConfig {
             payload_binary_name: payload_config.payloadBinaryName.clone(),
-            ..Default::default()
+            extra_apk_count: payload_config.extraApks.len().try_into()?,
+            special_fields: Default::default(),
         }),
         Payload::ConfigPath(config_path) => {
             PayloadMetadata::ConfigPath(format!("/mnt/apk/{}", config_path))
@@ -258,10 +259,11 @@ fn make_payload_disk(
     debug_config: &DebugConfig,
     apk_file: File,
     idsig_file: File,
+    extra_apk_files: Vec<File>,
     vm_payload_config: &VmPayloadConfig,
     temporary_directory: &Path,
 ) -> Result<DiskImage> {
-    if vm_payload_config.extra_apks.len() != app_config.extraIdsigs.len() {
+    if extra_apk_files.len() != app_config.extraIdsigs.len() {
         bail!(
             "payload config has {} apks, but app config has {} idsigs",
             vm_payload_config.extra_apks.len(),
@@ -309,26 +311,23 @@ fn make_payload_disk(
     });
 
     // we've already checked that extra_apks and extraIdsigs are in the same size.
-    let extra_apks = &vm_payload_config.extra_apks;
     let extra_idsigs = &app_config.extraIdsigs;
-    for (i, (extra_apk, extra_idsig)) in extra_apks.iter().zip(extra_idsigs.iter()).enumerate() {
+    for (i, (extra_apk_file, extra_idsig)) in
+        extra_apk_files.into_iter().zip(extra_idsigs.iter()).enumerate()
+    {
         partitions.push(Partition {
-            label: format!("extra-apk-{}", i),
-            image: Some(ParcelFileDescriptor::new(
-                File::open(PathBuf::from(&extra_apk.path)).with_context(|| {
-                    format!("Failed to open the extra apk #{} {}", i, extra_apk.path)
-                })?,
-            )),
+            label: format!("extra-apk-{i}"),
+            image: Some(ParcelFileDescriptor::new(extra_apk_file)),
             writable: false,
         });
 
         partitions.push(Partition {
-            label: format!("extra-idsig-{}", i),
+            label: format!("extra-idsig-{i}"),
             image: Some(ParcelFileDescriptor::new(
                 extra_idsig
                     .as_ref()
                     .try_clone()
-                    .with_context(|| format!("Failed to clone the extra idsig #{}", i))?,
+                    .with_context(|| format!("Failed to clone the extra idsig #{i}"))?,
             )),
             writable: false,
         });
@@ -459,12 +458,14 @@ pub fn add_microdroid_system_images(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] // TODO: Fewer arguments
 pub fn add_microdroid_payload_images(
     config: &VirtualMachineAppConfig,
     debug_config: &DebugConfig,
     temporary_directory: &Path,
     apk_file: File,
     idsig_file: File,
+    extra_apk_files: Vec<File>,
     vm_payload_config: &VmPayloadConfig,
     vm_config: &mut VirtualMachineRawConfig,
 ) -> Result<()> {
@@ -473,6 +474,7 @@ pub fn add_microdroid_payload_images(
         debug_config,
         apk_file,
         idsig_file,
+        extra_apk_files,
         vm_payload_config,
         temporary_directory,
     )?);

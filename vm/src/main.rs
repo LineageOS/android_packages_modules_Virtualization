@@ -34,7 +34,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug)]
 struct Idsigs(Vec<PathBuf>);
 
-#[derive(Args)]
+#[derive(Args, Default)]
 /// Collection of flags that are at VM level and therefore applicable to all subcommands
 pub struct CommonConfig {
     /// Name of VM
@@ -59,7 +59,7 @@ pub struct CommonConfig {
     protected: bool,
 }
 
-#[derive(Args)]
+#[derive(Args, Default)]
 /// Collection of flags for debugging
 pub struct DebugConfig {
     /// Debug level of the VM. Supported values: "full" (default), and "none".
@@ -84,7 +84,7 @@ pub struct DebugConfig {
     gdb: Option<NonZeroU16>,
 }
 
-#[derive(Args)]
+#[derive(Args, Default)]
 /// Collection of flags that are Microdroid specific
 pub struct MicrodroidConfig {
     /// Path to the file backing the storage.
@@ -145,7 +145,7 @@ impl MicrodroidConfig {
     }
 }
 
-#[derive(Args)]
+#[derive(Args, Default)]
 /// Flags for the run_app subcommand
 pub struct RunAppConfig {
     #[command(flatten)]
@@ -175,12 +175,30 @@ pub struct RunAppConfig {
     #[arg(alias = "payload_path")]
     payload_binary_name: Option<String>,
 
+    /// Paths to extra apk files.
+    #[cfg(multi_tenant)]
+    #[arg(long = "extra-apk")]
+    #[clap(conflicts_with = "config_path")]
+    extra_apks: Vec<PathBuf>,
+
     /// Paths to extra idsig files.
     #[arg(long = "extra-idsig")]
     extra_idsigs: Vec<PathBuf>,
 }
 
-#[derive(Args)]
+impl RunAppConfig {
+    #[cfg(multi_tenant)]
+    fn extra_apks(&self) -> &[PathBuf] {
+        &self.extra_apks
+    }
+
+    #[cfg(not(multi_tenant))]
+    fn extra_apks(&self) -> &[PathBuf] {
+        &[]
+    }
+}
+
+#[derive(Args, Default)]
 /// Flags for the run_microdroid subcommand
 pub struct RunMicrodroidConfig {
     #[command(flatten)]
@@ -199,7 +217,7 @@ pub struct RunMicrodroidConfig {
     work_dir: Option<PathBuf>,
 }
 
-#[derive(Args)]
+#[derive(Args, Default)]
 /// Flags for the run subcommand
 pub struct RunCustomVmConfig {
     #[command(flatten)]

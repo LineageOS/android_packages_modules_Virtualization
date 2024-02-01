@@ -43,7 +43,7 @@ use keystore2_crypto::ZVec;
 use libc::VMADDR_CID_HOST;
 use log::{error, info};
 use microdroid_metadata::PayloadMetadata;
-use microdroid_payload_config::{OsConfig, Task, TaskType, VmPayloadConfig};
+use microdroid_payload_config::{ApkConfig, OsConfig, Task, TaskType, VmPayloadConfig};
 use nix::sys::signal::Signal;
 use openssl::hkdf::hkdf;
 use openssl::md::Md;
@@ -580,11 +580,15 @@ fn load_config(payload_metadata: PayloadMetadata) -> Result<VmPayloadConfig> {
                 type_: TaskType::MicrodroidLauncher,
                 command: payload_config.payload_binary_name,
             };
+            // We don't care about the paths, only the number of extra APKs really matters.
+            let extra_apks = (0..payload_config.extra_apk_count)
+                .map(|i| ApkConfig { path: format!("extra-apk-{i}") })
+                .collect();
             Ok(VmPayloadConfig {
                 os: OsConfig { name: "microdroid".to_owned() },
                 task: Some(task),
                 apexes: vec![],
-                extra_apks: vec![],
+                extra_apks,
                 prefer_staged: false,
                 export_tombstones: None,
                 enable_authfs: false,
