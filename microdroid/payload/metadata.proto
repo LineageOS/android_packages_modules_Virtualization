@@ -74,4 +74,8 @@ message PayloadConfig {
   // Required.
   // Name of the payload binary file inside the APK.
   string payload_binary_name = 1;
+
+  // Optional.
+  // The number of extra APKs that are present.
+  uint32 extra_apk_count = 2;
 }
