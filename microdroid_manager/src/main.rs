@@ -68,11 +68,11 @@ use std::time::Duration;
 use vm_secret::VmSecret;
 
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
-const AVF_STRICT_BOOT: &str = "/sys/firmware/devicetree/base/chosen/avf,strict-boot";
-const AVF_NEW_INSTANCE: &str = "/sys/firmware/devicetree/base/chosen/avf,new-instance";
-const AVF_DEBUG_POLICY_RAMDUMP: &str = "/sys/firmware/devicetree/base/avf/guest/common/ramdump";
+const AVF_STRICT_BOOT: &str = "/proc/device-tree/chosen/avf,strict-boot";
+const AVF_NEW_INSTANCE: &str = "/proc/device-tree/chosen/avf,new-instance";
+const AVF_DEBUG_POLICY_RAMDUMP: &str = "/proc/device-tree/avf/guest/common/ramdump";
 const DEBUG_MICRODROID_NO_VERIFIED_BOOT: &str =
-    "/sys/firmware/devicetree/base/virtualization/guest/debug-microdroid,no-verified-boot";
+    "/proc/device-tree/virtualization/guest/debug-microdroid,no-verified-boot";
 
 const ENCRYPTEDSTORE_BIN: &str = "/system/bin/encryptedstore";
 const ZIPFUSE_BIN: &str = "/system/bin/zipfuse";

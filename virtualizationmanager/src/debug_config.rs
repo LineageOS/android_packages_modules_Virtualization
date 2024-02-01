@@ -45,7 +45,7 @@ impl DPPath {
         // unwrap() is safe for to_str() because node_path and prop_name were &str.
         PathBuf::from(
             [
-                "/sys/firmware/devicetree/base",
+                "/proc/device-tree",
                 self.node_path.to_str().unwrap(),
                 "/",
                 self.prop_name.to_str().unwrap(),

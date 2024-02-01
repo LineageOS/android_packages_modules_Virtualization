@@ -2105,8 +2105,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void configuringVendorDiskImageRequiresCustomPermission() throws Exception {
         assumeSupportedDevice();
         assumeFalse(
-                "Cuttlefish doesn't support device tree under /sys/firmware/devicetree/base",
-                isCuttlefish());
+                "Cuttlefish doesn't support device tree under /proc/device-tree", isCuttlefish());
         // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
         // after introducing verification based on DT and fstab in microdroid vendor partition.
         assumeFalse(
@@ -2136,8 +2135,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void bootsWithVendorPartition() throws Exception {
         assumeSupportedDevice();
         assumeFalse(
-                "Cuttlefish doesn't support device tree under /sys/firmware/devicetree/base",
-                isCuttlefish());
+                "Cuttlefish doesn't support device tree under /proc/device-tree", isCuttlefish());
         // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
         // after introducing verification based on DT and fstab in microdroid vendor partition.
         assumeFalse(
@@ -2177,8 +2175,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     public void creationFailsWithUnsignedVendorPartition() throws Exception {
         assumeSupportedDevice();
         assumeFalse(
-                "Cuttlefish doesn't support device tree under /sys/firmware/devicetree/base",
-                isCuttlefish());
+                "Cuttlefish doesn't support device tree under /proc/device-tree", isCuttlefish());
         // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
         // after introducing verification based on DT and fstab in microdroid vendor partition.
         assumeFalse(

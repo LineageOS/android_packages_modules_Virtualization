@@ -29,11 +29,10 @@ fn get_debug_policy_bool(path: &'static str) -> Option<bool> {
 }
 
 fn main() -> Result<(), PropertyWatcherError> {
-    // If VM is debuggable or debug policy says so, send logs to outside ot the VM via the serial console.
-    // Otherwise logs are internally consumed at /dev/null
+    // If VM is debuggable or debug policy says so, send logs to outside ot the VM via the serial
+    // console. Otherwise logs are internally consumed at /dev/null
     let log_path = if system_properties::read_bool("ro.boot.microdroid.debuggable", false)?
-        || get_debug_policy_bool("/sys/firmware/devicetree/base/avf/guest/common/log")
-            .unwrap_or_default()
+        || get_debug_policy_bool("/proc/device-tree/avf/guest/common/log").unwrap_or_default()
     {
         "/dev/hvc2"
     } else {
@@ -42,8 +41,7 @@ fn main() -> Result<(), PropertyWatcherError> {
     system_properties::write("ro.log.file_logger.path", log_path)?;
 
     let (adbd_enabled, debuggable) = if system_properties::read_bool("ro.boot.adb.enabled", false)?
-        || get_debug_policy_bool("/sys/firmware/devicetree/base/avf/guest/microdroid/adb")
-            .unwrap_or_default()
+        || get_debug_policy_bool("/proc/device-tree/avf/guest/microdroid/adb").unwrap_or_default()
     {
         // debuggable is required for adb root and bypassing adb authorization.
         ("1", "1")
