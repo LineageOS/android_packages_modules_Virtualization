@@ -16,7 +16,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use libfdt::Fdt;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
@@ -25,6 +25,9 @@ use std::path::Path;
 pub trait FsFdt<'a> {
     /// Creates a Fdt from /proc/device-tree style directory by wrapping a mutable slice
     fn from_fs(fs_path: &Path, fdt_buffer: &'a mut [u8]) -> Result<&'a mut Self>;
+
+    /// Appends a FDT from /proc/device-tree style directory at the given node path
+    fn append(&mut self, fdt_node_path: &CStr, fs_path: &Path) -> Result<()>;
 }
 
 impl<'a> FsFdt<'a> for Fdt {
@@ -32,6 +35,12 @@ impl<'a> FsFdt<'a> for Fdt {
         let fdt = Fdt::create_empty_tree(fdt_buffer)
             .map_err(|e| anyhow!("Failed to create FDT, {e:?}"))?;
 
+        fdt.append(&CString::new("").unwrap(), fs_path)?;
+
+        Ok(fdt)
+    }
+
+    fn append(&mut self, fdt_node_path: &CStr, fs_path: &Path) -> Result<()> {
         // Recursively traverse fs_path with DFS algorithm.
         let mut stack = vec![fs_path.to_path_buf()];
         while let Some(dir_path) = stack.pop() {
@@ -39,14 +48,15 @@ impl<'a> FsFdt<'a> for Fdt {
                 .strip_prefix(fs_path)
                 .context("Internal error. Path does not have expected prefix")?
                 .as_os_str();
-            let fdt_path =
-                CString::from_vec_with_nul([b"/", relative_path.as_bytes(), b"\0"].concat())
-                    .context("Internal error. Path is not a valid Fdt path")?;
+            let fdt_path = CString::from_vec_with_nul(
+                [fdt_node_path.to_bytes(), b"/", relative_path.as_bytes(), b"\0"].concat(),
+            )
+            .context("Internal error. Path is not a valid Fdt path")?;
 
-            let mut node = fdt
+            let mut node = self
                 .node_mut(&fdt_path)
                 .map_err(|e| anyhow!("Failed to write FDT, {e:?}"))?
-                .ok_or_else(|| anyhow!("Internal error when writing VM reference DT"))?;
+                .ok_or_else(|| anyhow!("Failed to find {fdt_node_path:?} in FDT"))?;
 
             let mut subnode_names = vec![];
             let entries =
@@ -85,6 +95,6 @@ impl<'a> FsFdt<'a> for Fdt {
                 .map_err(|e| anyhow!("Failed to add node, {e:?}"))?;
         }
 
-        Ok(fdt)
+        Ok(())
     }
 }
