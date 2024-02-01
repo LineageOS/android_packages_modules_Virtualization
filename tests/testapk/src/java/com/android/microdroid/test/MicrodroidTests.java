@@ -481,29 +481,32 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // Minimal has as little as specified as possible; everything that can be is defaulted.
         VirtualMachineConfig.Builder minimalBuilder =
                 new VirtualMachineConfig.Builder(getContext())
-                        .setPayloadBinaryName("binary.so")
+                        .setPayloadConfigPath("config/path")
                         .setProtectedVm(isProtectedVm());
         VirtualMachineConfig minimal = minimalBuilder.build();
 
         assertThat(minimal.getApkPath()).isNull();
+        assertThat(minimal.getExtraApks()).isEmpty();
         assertThat(minimal.getDebugLevel()).isEqualTo(DEBUG_LEVEL_NONE);
         assertThat(minimal.getMemoryBytes()).isEqualTo(0);
         assertThat(minimal.getCpuTopology()).isEqualTo(CPU_TOPOLOGY_ONE_CPU);
-        assertThat(minimal.getPayloadBinaryName()).isEqualTo("binary.so");
-        assertThat(minimal.getPayloadConfigPath()).isNull();
+        assertThat(minimal.getPayloadBinaryName()).isNull();
+        assertThat(minimal.getPayloadConfigPath()).isEqualTo("config/path");
         assertThat(minimal.isProtectedVm()).isEqualTo(isProtectedVm());
         assertThat(minimal.isEncryptedStorageEnabled()).isFalse();
         assertThat(minimal.getEncryptedStorageBytes()).isEqualTo(0);
         assertThat(minimal.isVmOutputCaptured()).isEqualTo(false);
-        assertThat(minimal.getOs()).isEqualTo("microdroid");
+        assertThat(minimal.getOs()).isNull();
 
         // Maximal has everything that can be set to some non-default value. (And has different
         // values than minimal for the required fields.)
         VirtualMachineConfig.Builder maximalBuilder =
                 new VirtualMachineConfig.Builder(getContext())
                         .setProtectedVm(mProtectedVm)
-                        .setPayloadConfigPath("config/path")
+                        .setPayloadBinaryName("binary.so")
                         .setApkPath("/apk/path")
+                        .addExtraApk("package.name1:split")
+                        .addExtraApk("package.name2")
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .setMemoryBytes(42)
                         .setCpuTopology(CPU_TOPOLOGY_MATCH_HOST)
@@ -512,25 +515,28 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachineConfig maximal = maximalBuilder.build();
 
         assertThat(maximal.getApkPath()).isEqualTo("/apk/path");
+        assertThat(maximal.getExtraApks())
+                .containsExactly("package.name1:split", "package.name2")
+                .inOrder();
         assertThat(maximal.getDebugLevel()).isEqualTo(DEBUG_LEVEL_FULL);
         assertThat(maximal.getMemoryBytes()).isEqualTo(42);
         assertThat(maximal.getCpuTopology()).isEqualTo(CPU_TOPOLOGY_MATCH_HOST);
-        assertThat(maximal.getPayloadBinaryName()).isNull();
-        assertThat(maximal.getPayloadConfigPath()).isEqualTo("config/path");
+        assertThat(maximal.getPayloadBinaryName()).isEqualTo("binary.so");
+        assertThat(maximal.getPayloadConfigPath()).isNull();
         assertThat(maximal.isProtectedVm()).isEqualTo(isProtectedVm());
         assertThat(maximal.isEncryptedStorageEnabled()).isTrue();
         assertThat(maximal.getEncryptedStorageBytes()).isEqualTo(1_000_000);
         assertThat(maximal.isVmOutputCaptured()).isEqualTo(true);
-        assertThat(maximal.getOs()).isNull();
+        assertThat(maximal.getOs()).isEqualTo("microdroid");
 
         assertThat(minimal.isCompatibleWith(maximal)).isFalse();
         assertThat(minimal.isCompatibleWith(minimal)).isTrue();
         assertThat(maximal.isCompatibleWith(maximal)).isTrue();
 
-        VirtualMachineConfig os = minimalBuilder.setOs("microdroid_gki-android14-6.1").build();
+        VirtualMachineConfig os = maximalBuilder.setOs("microdroid_gki-android14-6.1").build();
         assertThat(os.getPayloadBinaryName()).isEqualTo("binary.so");
         assertThat(os.getOs()).isEqualTo("microdroid_gki-android14-6.1");
-        assertThat(os.isCompatibleWith(minimal)).isFalse();
+        assertThat(os.isCompatibleWith(maximal)).isFalse();
     }
 
     @Test
@@ -542,6 +548,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // All your null are belong to me.
         assertThrows(NullPointerException.class, () -> new VirtualMachineConfig.Builder(null));
         assertThrows(NullPointerException.class, () -> builder.setApkPath(null));
+        assertThrows(NullPointerException.class, () -> builder.addExtraApk(null));
         assertThrows(NullPointerException.class, () -> builder.setPayloadConfigPath(null));
         assertThrows(NullPointerException.class, () -> builder.setPayloadBinaryName(null));
         assertThrows(NullPointerException.class, () -> builder.setVendorDiskImage(null));
@@ -607,6 +614,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .isTrue();
 
         // Changes that must be incompatible, since they must change the VM identity.
+        assertConfigCompatible(baseline, newBaselineBuilder().addExtraApk("foo")).isFalse();
         assertConfigCompatible(baseline, newBaselineBuilder().setDebugLevel(DEBUG_LEVEL_FULL))
                 .isFalse();
         assertConfigCompatible(baseline, newBaselineBuilder().setPayloadBinaryName("different"))
@@ -931,7 +939,34 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         vm,
                         (ts, tr) -> {
                             tr.mExtraApkTestProp =
-                                    ts.readProperty("debug.microdroid.test.extra_apk");
+                                    ts.readProperty(
+                                            "debug.microdroid.test.extra_apk_build_manifest");
+                        });
+        assertThat(testResults.mExtraApkTestProp).isEqualTo("PASS");
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void extraApkInVmConfig() throws Exception {
+        assumeSupportedDevice();
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_MULTI_TENANT);
+
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+        VirtualMachineConfig config =
+                newVmConfigBuilderWithPayloadBinary("MicrodroidTestNativeLib.so")
+                        .setMemoryBytes(minMemoryRequired())
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .addExtraApk(VM_SHARE_APP_PACKAGE_NAME)
+                        .build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("test_vm_extra_apk", config);
+
+        TestResults testResults =
+                runVmTestService(
+                        TAG,
+                        vm,
+                        (ts, tr) -> {
+                            tr.mExtraApkTestProp =
+                                    ts.readProperty("debug.microdroid.test.extra_apk_vm_share");
                         });
         assertThat(testResults.mExtraApkTestProp).isEqualTo("PASS");
     }

@@ -349,7 +349,7 @@ Result<void> start_test_service() {
     return {};
 }
 
-Result<void> verify_apk() {
+Result<void> verify_build_manifest() {
     const char* path = "/mnt/extra-apk/0/assets/build_manifest.pb";
 
     std::string str;
@@ -364,6 +364,17 @@ Result<void> verify_apk() {
     return {};
 }
 
+Result<void> verify_vm_share() {
+    const char* path = "/mnt/extra-apk/0/assets/vmshareapp.txt";
+
+    std::string str;
+    if (!android::base::ReadFileToString(path, &str)) {
+        return ErrnoError() << "failed to read vmshareapp.txt";
+    }
+
+    return {};
+}
+
 } // Anonymous namespace
 
 extern "C" int AVmPayload_main() {
@@ -372,8 +383,10 @@ extern "C" int AVmPayload_main() {
     // Make sure we can call into other shared libraries.
     testlib_sub();
 
-    // Extra apks may be missing; this is not a fatal error
-    report_test("extra_apk", verify_apk());
+    // Report various things that aren't always fatal - these are checked in MicrodroidTests as
+    // appropriate.
+    report_test("extra_apk_build_manifest", verify_build_manifest());
+    report_test("extra_apk_vm_share", verify_vm_share());
 
     __system_property_set("debug.microdroid.app.run", "true");
 
