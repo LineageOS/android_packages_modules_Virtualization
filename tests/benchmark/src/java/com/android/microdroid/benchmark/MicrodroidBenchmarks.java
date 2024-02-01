@@ -278,9 +278,7 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
 
     @Test
     public void testMicrodroidDebugBootTime_withVendorPartition() throws Exception {
-        assume().withMessage(
-                        "Cuttlefish doesn't support device tree under"
-                                + " /sys/firmware/devicetree/base")
+        assume().withMessage("Cuttlefish doesn't support device tree under" + " /proc/device-tree")
                 .that(isCuttlefish())
                 .isFalse();
         // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid

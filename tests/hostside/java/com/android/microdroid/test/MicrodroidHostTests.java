@@ -938,7 +938,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assumeFalse("Unlocked devices may have AVF debug policy", lockProp.equals("orange"));
 
         // Test that AVF debug policy doesn't exist.
-        boolean hasDebugPolicy = device.doesFileExist("/sys/firmware/devicetree/base/avf");
+        boolean hasDebugPolicy = device.doesFileExist("/proc/device-tree/avf");
         assertThat(hasDebugPolicy).isFalse();
     }
 
