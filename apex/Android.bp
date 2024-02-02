@@ -32,7 +32,26 @@ virt_apex {
     },
 }
 
-apex_defaults {
+soong_config_module_type {
+    name: "avf_flag_aware_apex_defaults",
+    module_type: "apex_defaults",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_avf_enable_device_assignment",
+        "release_avf_enable_llpvm_changes",
+        "release_avf_enable_remote_attestation",
+        "release_avf_enable_vendor_modules",
+    ],
+    properties: [
+        "androidManifest",
+        "arch",
+        "prebuilts",
+        "systemserverclasspath_fragments",
+        "vintf_fragments",
+    ],
+}
+
+avf_flag_aware_apex_defaults {
     name: "com.android.virt_common",
     // TODO(jiyong): make it updatable
     updatable: false,
@@ -65,22 +84,13 @@ apex_defaults {
         "libsso",
         "libutils",
     ],
-}
-
-soong_config_module_type {
-    name: "avf_flag_aware_apex_defaults",
-    module_type: "apex_defaults",
-    config_namespace: "ANDROID",
-    bool_variables: [
-        "release_avf_enable_device_assignment",
-        "release_avf_enable_remote_attestation",
-        "release_avf_enable_vendor_modules",
-    ],
-    properties: [
-        "arch",
-        "prebuilts",
-        "vintf_fragments",
-    ],
+    soong_config_variables: {
+        release_avf_enable_llpvm_changes: {
+            systemserverclasspath_fragments: [
+                "com.android.virt-systemserver-fragment",
+            ],
+        },
+    },
 }
 
 avf_flag_aware_apex_defaults {
@@ -142,6 +152,9 @@ avf_flag_aware_apex_defaults {
                     binaries: ["vfio_handler"],
                 },
             },
+        },
+        release_avf_enable_llpvm_changes: {
+            androidManifest: "AndroidManifest.xml",
         },
         release_avf_enable_vendor_modules: {
             prebuilts: [
@@ -320,5 +333,31 @@ bootclasspath_fragment {
             // android.sysprop.*, renamed by jarjar
             "com.android.system.virtualmachine.sysprop",
         ],
+    },
+}
+
+soong_config_module_type {
+    name: "avf_flag_aware_systemserverclasspath_fragment",
+    module_type: "systemserverclasspath_fragment",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_avf_enable_llpvm_changes",
+    ],
+    properties: [
+        "enabled",
+    ],
+}
+
+avf_flag_aware_systemserverclasspath_fragment {
+    name: "com.android.virt-systemserver-fragment",
+    contents: [
+        "service-virtualization",
+    ],
+    apex_available: ["com.android.virt"],
+    enabled: false,
+    soong_config_variables: {
+        release_avf_enable_llpvm_changes: {
+            enabled: true,
+        },
     },
 }
