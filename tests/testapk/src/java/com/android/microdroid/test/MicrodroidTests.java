@@ -543,6 +543,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         assertThrows(NullPointerException.class, () -> builder.setApkPath(null));
         assertThrows(NullPointerException.class, () -> builder.setPayloadConfigPath(null));
         assertThrows(NullPointerException.class, () -> builder.setPayloadBinaryName(null));
+        assertThrows(NullPointerException.class, () -> builder.setVendorDiskImage(null));
         assertThrows(NullPointerException.class, () -> builder.setOs(null));
 
         // Individual property checks.
