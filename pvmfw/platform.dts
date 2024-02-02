@@ -57,96 +57,432 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <0>;
+			operating-points-v2 = <&opp_table0>;
+			opp_table0: opp-table-0 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <1>;
+			operating-points-v2 = <&opp_table1>;
+			opp_table1: opp-table-1 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <2>;
+			operating-points-v2 = <&opp_table2>;
+			opp_table2: opp-table-2 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <3>;
+			operating-points-v2 = <&opp_table3>;
+			opp_table3: opp-table-3 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@4 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <4>;
+			operating-points-v2 = <&opp_table4>;
+			opp_table4: opp-table-4 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@5 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <5>;
+			operating-points-v2 = <&opp_table5>;
+			opp_table5: opp-table-5 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@6 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <6>;
+			operating-points-v2 = <&opp_table6>;
+			opp_table6: opp-table-6 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@7 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <7>;
+			operating-points-v2 = <&opp_table7>;
+			opp_table7: opp-table-7 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@8 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <8>;
+			operating-points-v2 = <&opp_table8>;
+			opp_table8: opp-table-8 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@9 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <9>;
+			operating-points-v2 = <&opp_table9>;
+			opp_table9: opp-table-9 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@10 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <10>;
+			operating-points-v2 = <&opp_table10>;
+			opp_table10: opp-table-10 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@11 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <11>;
+			operating-points-v2 = <&opp_table11>;
+			opp_table11: opp-table-11 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@12 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <12>;
+			operating-points-v2 = <&opp_table12>;
+			opp_table12: opp-table-12 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@13 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <13>;
+			operating-points-v2 = <&opp_table13>;
+			opp_table13: opp-table-13 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@14 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <14>;
+			operating-points-v2 = <&opp_table14>;
+			opp_table14: opp-table-14 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 		cpu@15 {
 			device_type = "cpu";
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <15>;
+			operating-points-v2 = <&opp_table15>;
+			opp_table15: opp-table-15 {
+				compatible = "operating-points-v2";
+
+				opp1 { opp-hz = <PLACEHOLDER2>; };
+				opp2 { opp-hz = <PLACEHOLDER2>; };
+				opp3 { opp-hz = <PLACEHOLDER2>; };
+				opp4 { opp-hz = <PLACEHOLDER2>; };
+				opp5 { opp-hz = <PLACEHOLDER2>; };
+				opp6 { opp-hz = <PLACEHOLDER2>; };
+				opp7 { opp-hz = <PLACEHOLDER2>; };
+				opp8 { opp-hz = <PLACEHOLDER2>; };
+				opp9 { opp-hz = <PLACEHOLDER2>; };
+				opp10 { opp-hz = <PLACEHOLDER2>; };
+				opp11 { opp-hz = <PLACEHOLDER2>; };
+				opp12 { opp-hz = <PLACEHOLDER2>; };
+				opp13 { opp-hz = <PLACEHOLDER2>; };
+				opp14 { opp-hz = <PLACEHOLDER2>; };
+				opp15 { opp-hz = <PLACEHOLDER2>; };
+				opp16 { opp-hz = <PLACEHOLDER2>; };
+			};
 		};
 	};
 
@@ -320,5 +656,10 @@
 		compatible = "pkvm,pviommu";
 		id = <PLACEHOLDER>;
 		#iommu-cells = <1>;
+	};
+
+	cpufreq {
+		compatible = "virtual,android-v-only-cpufreq";
+		reg = <0x1040000 PLACEHOLDER2>;
 	};
 };

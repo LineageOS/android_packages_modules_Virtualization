@@ -35,6 +35,7 @@ use libfdt::AddressRange;
 use libfdt::CellIterator;
 use libfdt::Fdt;
 use libfdt::FdtError;
+use libfdt::FdtNode;
 use libfdt::FdtNodeMut;
 use log::debug;
 use log::error;
@@ -54,12 +55,15 @@ use zerocopy::AsBytes as _;
 pub enum FdtValidationError {
     /// Invalid CPU count.
     InvalidCpuCount(usize),
+    /// Invalid VCpufreq Range.
+    InvalidVcpufreq(u64, u64),
 }
 
 impl fmt::Display for FdtValidationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::InvalidCpuCount(num_cpus) => write!(f, "Invalid CPU count: {num_cpus}"),
+            Self::InvalidVcpufreq(addr, size) => write!(f, "Invalid vcpufreq regs: {addr}, {size}"),
         }
     }
 }
@@ -172,15 +176,41 @@ fn patch_memory_range(fdt: &mut Fdt, memory_range: &Range<usize>) -> libfdt::Res
         .setprop_inplace(cstr!("reg"), [addr.to_be(), size.to_be()].as_bytes())
 }
 
+//TODO: Need to add info for cpu capacity
 #[derive(Debug, Default)]
-struct CpuInfo {}
+struct CpuInfo {
+    opptable_info: Option<ArrayVec<[u64; CpuInfo::MAX_OPPTABLES]>>,
+}
+
+impl CpuInfo {
+    const MAX_OPPTABLES: usize = 16;
+}
+
+fn read_opp_info_from(
+    opp_node: FdtNode,
+) -> libfdt::Result<ArrayVec<[u64; CpuInfo::MAX_OPPTABLES]>> {
+    let mut table = ArrayVec::new();
+    for subnode in opp_node.subnodes()? {
+        let prop = subnode.getprop_u64(cstr!("opp-hz"))?.ok_or(FdtError::NotFound)?;
+        table.push(prop);
+    }
+
+    Ok(table)
+}
 
 fn read_cpu_info_from(fdt: &Fdt) -> libfdt::Result<ArrayVec<[CpuInfo; DeviceTreeInfo::MAX_CPUS]>> {
     let mut cpus = ArrayVec::new();
-
     let mut cpu_nodes = fdt.compatible_nodes(cstr!("arm,arm-v8"))?;
-    for _cpu in cpu_nodes.by_ref().take(cpus.capacity()) {
-        let info = CpuInfo {};
+    for cpu in cpu_nodes.by_ref().take(cpus.capacity()) {
+        let opp_phandle = cpu.getprop_u32(cstr!("operating-points-v2"))?;
+        let opptable_info = if let Some(phandle) = opp_phandle {
+            let phandle = phandle.try_into()?;
+            let node = fdt.node_with_phandle(phandle)?.ok_or(FdtError::NotFound)?;
+            Some(read_opp_info_from(node)?)
+        } else {
+            None
+        };
+        let info = CpuInfo { opptable_info };
         cpus.push(info);
     }
     if cpu_nodes.next().is_some() {
@@ -198,12 +228,80 @@ fn validate_cpu_info(cpus: &[CpuInfo]) -> Result<(), FdtValidationError> {
     Ok(())
 }
 
+fn read_vcpufreq_info(fdt: &Fdt) -> libfdt::Result<Option<VcpufreqInfo>> {
+    if let Some(node) = fdt.node(cstr!("/cpufreq"))? {
+        let mut regs = node.reg()?.ok_or(FdtError::NotFound)?;
+        let reg = regs.next().ok_or(FdtError::NotFound)?;
+        return Ok(Some(VcpufreqInfo { addr: reg.addr, size: reg.size.unwrap() }));
+    };
+
+    Ok(None)
+}
+
+fn validate_vcpufreq_info(
+    vcpufreq_info: &VcpufreqInfo,
+    cpus: &[CpuInfo],
+) -> Result<(), FdtValidationError> {
+    const VCPUFREQ_BASE_ADDR: u64 = 0x1040000;
+    const VCPUFREQ_SIZE: u64 = 0x8;
+
+    let base = vcpufreq_info.addr;
+    let size = vcpufreq_info.size;
+    if base != VCPUFREQ_BASE_ADDR {
+        error!("vcpufreq base address {:#x} is not {:#x}", base, VCPUFREQ_BASE_ADDR);
+        return Err(FdtValidationError::InvalidVcpufreq(base, size));
+    };
+    let expected_size = VCPUFREQ_SIZE * cpus.len() as u64;
+    if size != expected_size {
+        error!("vcpufreq reg size {:#x} is not {:#x}", size, expected_size);
+        return Err(FdtValidationError::InvalidVcpufreq(base, size));
+    };
+
+    Ok(())
+}
+
+fn patch_opptable(
+    node: FdtNodeMut,
+    opptable: ArrayVec<[u64; DeviceTreeInfo::MAX_CPUS]>,
+) -> libfdt::Result<()> {
+    let oppcompat = cstr!("operating-points-v2");
+    let next = node.next_compatible(oppcompat)?.ok_or(FdtError::NoSpace)?;
+    let mut next_subnode = next.first_subnode()?;
+
+    for entry in opptable {
+        let mut subnode = next_subnode.ok_or(FdtError::NoSpace)?;
+        subnode.setprop_inplace(cstr!("opp-hz"), &entry.to_be_bytes())?;
+        next_subnode = subnode.next_subnode()?;
+    }
+
+    while let Some(current) = next_subnode {
+        next_subnode = current.delete_and_next_subnode()?;
+    }
+    Ok(())
+}
+
+// TODO(ptosi): Rework FdtNodeMut and replace this function.
+fn get_nth_compatible<'a>(
+    fdt: &'a mut Fdt,
+    n: usize,
+    compat: &CStr,
+) -> libfdt::Result<Option<FdtNodeMut<'a>>> {
+    let mut node = fdt.root_mut()?.next_compatible(compat)?;
+    for _ in 0..n {
+        node = node.ok_or(FdtError::NoSpace)?.next_compatible(compat)?;
+    }
+    Ok(node)
+}
+
 fn patch_cpus(fdt: &mut Fdt, cpus: &[CpuInfo]) -> libfdt::Result<()> {
     const COMPAT: &CStr = cstr!("arm,arm-v8");
-    let mut next = fdt.root_mut()?.next_compatible(COMPAT)?;
-    for _cpu in cpus {
-        next = next.ok_or(FdtError::NoSpace)?.next_compatible(COMPAT)?;
+    for (idx, cpu) in cpus.iter().enumerate() {
+        let cur = get_nth_compatible(fdt, idx, COMPAT)?.ok_or(FdtError::NoSpace)?;
+        if let Some(opptable) = cpu.opptable_info {
+            patch_opptable(cur, opptable)?;
+        }
     }
+    let mut next = get_nth_compatible(fdt, cpus.len(), COMPAT)?;
     while let Some(current) = next {
         next = current.delete_and_next_compatible(COMPAT)?;
     }
@@ -628,6 +726,21 @@ fn patch_timer(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
 }
 
 #[derive(Debug)]
+struct VcpufreqInfo {
+    addr: u64,
+    size: u64,
+}
+
+fn patch_vcpufreq(fdt: &mut Fdt, vcpufreq_info: &Option<VcpufreqInfo>) -> libfdt::Result<()> {
+    let mut node = fdt.node_mut(cstr!("/cpufreq"))?.unwrap();
+    if let Some(info) = vcpufreq_info {
+        node.setprop_addrrange_inplace(cstr!("reg"), info.addr, info.size)
+    } else {
+        node.nop()
+    }
+}
+
+#[derive(Debug)]
 pub struct DeviceTreeInfo {
     pub kernel_range: Option<Range<usize>>,
     pub initrd_range: Option<Range<usize>>,
@@ -639,6 +752,7 @@ pub struct DeviceTreeInfo {
     pub swiotlb_info: SwiotlbInfo,
     device_assignment: Option<DeviceAssignmentInfo>,
     vm_ref_dt_props_info: BTreeMap<CString, Vec<u8>>,
+    vcpufreq_info: Option<VcpufreqInfo>,
 }
 
 impl DeviceTreeInfo {
@@ -751,6 +865,17 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         RebootReason::InvalidFdt
     })?;
 
+    let vcpufreq_info = read_vcpufreq_info(fdt).map_err(|e| {
+        error!("Failed to read vcpufreq info from DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    if let Some(ref info) = vcpufreq_info {
+        validate_vcpufreq_info(info, &cpus).map_err(|e| {
+            error!("Failed to validate vcpufreq info from DT: {e}");
+            RebootReason::InvalidFdt
+        })?;
+    }
+
     let pci_info = read_pci_info_from(fdt).map_err(|e| {
         error!("Failed to read pci info from DT: {e}");
         RebootReason::InvalidFdt
@@ -801,6 +926,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         swiotlb_info,
         device_assignment,
         vm_ref_dt_props_info,
+        vcpufreq_info,
     })
 }
 
@@ -823,6 +949,10 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
     }
     patch_cpus(fdt, &info.cpus).map_err(|e| {
         error!("Failed to patch cpus to DT: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    patch_vcpufreq(fdt, &info.vcpufreq_info).map_err(|e| {
+        error!("Failed to patch vcpufreq info to DT: {e}");
         RebootReason::InvalidFdt
     })?;
     patch_pci_info(fdt, &info.pci_info).map_err(|e| {
