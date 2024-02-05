@@ -47,6 +47,7 @@ use vmbase::layout::{crosvm::MEM_START, MAX_VIRT_ADDR};
 use vmbase::memory::SIZE_4KB;
 use vmbase::util::flatten;
 use vmbase::util::RangeExt as _;
+use zerocopy::AsBytes as _;
 
 /// An enumeration of errors that can occur during the FDT validation.
 #[derive(Clone, Debug)]
@@ -164,10 +165,11 @@ fn read_and_validate_memory_range(fdt: &Fdt) -> Result<Range<usize>, RebootReaso
 }
 
 fn patch_memory_range(fdt: &mut Fdt, memory_range: &Range<usize>) -> libfdt::Result<()> {
-    let size = memory_range.len() as u64;
+    let addr = u64::try_from(MEM_START).unwrap();
+    let size = u64::try_from(memory_range.len()).unwrap();
     fdt.node_mut(cstr!("/memory"))?
         .ok_or(FdtError::NotFound)?
-        .setprop_inplace(cstr!("reg"), flatten(&[MEM_START.to_be_bytes(), size.to_be_bytes()]))
+        .setprop_inplace(cstr!("reg"), [addr.to_be(), size.to_be()].as_bytes())
 }
 
 /// Read the number of CPUs from DT
@@ -607,17 +609,11 @@ fn patch_timer(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
         *v = v.to_be();
     }
 
-    // SAFETY: array size is the same
-    let value = unsafe {
-        core::mem::transmute::<
-            [u32; NUM_INTERRUPTS * CELLS_PER_INTERRUPT],
-            [u8; NUM_INTERRUPTS * CELLS_PER_INTERRUPT * size_of::<u32>()],
-        >(value.into_inner())
-    };
+    let value = value.into_inner();
 
     let mut node =
         fdt.root_mut()?.next_compatible(cstr!("arm,armv8-timer"))?.ok_or(FdtError::NotFound)?;
-    node.setprop_inplace(cstr!("interrupts"), value.as_slice())
+    node.setprop_inplace(cstr!("interrupts"), value.as_bytes())
 }
 
 #[derive(Debug)]
