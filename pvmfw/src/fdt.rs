@@ -581,14 +581,9 @@ fn patch_gic(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
     range1.addr = addr - size;
     range1.size = Some(size);
 
-    let range0 = range0.to_cells();
-    let range1 = range1.to_cells();
-    let value = [
-        range0.0,          // addr
-        range0.1.unwrap(), //size
-        range1.0,          // addr
-        range1.1.unwrap(), //size
-    ];
+    let (addr0, size0) = range0.to_cells();
+    let (addr1, size1) = range1.to_cells();
+    let value = [addr0, size0.unwrap(), addr1, size1.unwrap()];
 
     let mut node =
         fdt.root_mut()?.next_compatible(cstr!("arm,gic-v3"))?.ok_or(FdtError::NotFound)?;
