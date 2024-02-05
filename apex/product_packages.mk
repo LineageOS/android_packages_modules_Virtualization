@@ -44,3 +44,15 @@ ifdef RELEASE_AVF_ENABLE_DEVICE_ASSIGNMENT
     $(error RELEASE_AVF_ENABLE_VENDOR_MODULES must also be enabled)
   endif
 endif
+
+ifdef RELEASE_AVF_ENABLE_LLPVM_CHANGES
+  ifndef RELEASE_AVF_ENABLE_DICE_CHANGES
+    $(error RELEASE_AVF_ENABLE_DICE_CHANGES must also be enabled)
+  endif
+endif
+
+ifdef RELEASE_AVF_ENABLE_REMOTE_ATTESTATION
+  ifndef RELEASE_AVF_ENABLE_DICE_CHANGES
+    $(error RELEASE_AVF_ENABLE_DICE_CHANGES must also be enabled)
+  endif
+endif
