@@ -949,7 +949,8 @@ public final class VirtualMachineConfig {
         @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
         @NonNull
         public Builder setVendorDiskImage(@NonNull File vendorDiskImage) {
-            mVendorDiskImage = vendorDiskImage;
+            mVendorDiskImage =
+                    requireNonNull(vendorDiskImage, "vendor disk image must not be null");
             return this;
         }
 
