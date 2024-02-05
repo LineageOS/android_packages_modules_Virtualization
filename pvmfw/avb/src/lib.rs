@@ -18,13 +18,10 @@
 
 extern crate alloc;
 
-mod descriptor;
 mod error;
 mod ops;
 mod partition;
-mod utils;
 mod verify;
 
-pub use descriptor::Digest;
 pub use error::PvmfwVerifyError;
-pub use verify::{verify_payload, Capability, DebugLevel, VerifiedBootData};
+pub use verify::{verify_payload, Capability, DebugLevel, Digest, VerifiedBootData};
