@@ -9,7 +9,6 @@ rust_library_rlib {
     srcs: ["src/lib.rs"],
     prefer_rlib: true,
     rustlibs: [
-        "libavb_bindgen_nostd",
         "libavb_rs_nostd",
         "libtinyvec_nostd",
     ],

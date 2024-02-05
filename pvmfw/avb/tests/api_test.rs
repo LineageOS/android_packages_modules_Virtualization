@@ -17,7 +17,7 @@
 mod utils;
 
 use anyhow::{anyhow, Result};
-use avb::{IoError, SlotVerifyError};
+use avb::{DescriptorError, SlotVerifyError};
 use avb_bindgen::{AvbFooter, AvbVBMetaImageHeader};
 use pvmfw_avb::{verify_payload, Capability, DebugLevel, PvmfwVerifyError, VerifiedBootData};
 use std::{fs, mem::size_of, ptr};
@@ -88,7 +88,7 @@ fn payload_with_non_initrd_descriptor_fails_verification_with_no_initrd() -> Res
         &fs::read(TEST_IMG_WITH_NON_INITRD_HASHDESC_PATH)?,
         /* initrd= */ None,
         &load_trusted_public_key()?,
-        PvmfwVerifyError::InvalidDescriptors(IoError::NoSuchPartition),
+        PvmfwVerifyError::InvalidDescriptors(DescriptorError::InvalidContents),
     )
 }
 
@@ -98,7 +98,7 @@ fn payload_with_non_initrd_descriptor_fails_verification_with_initrd() -> Result
         &fs::read(TEST_IMG_WITH_INITRD_AND_NON_INITRD_DESC_PATH)?,
         &load_latest_initrd_normal()?,
         &load_trusted_public_key()?,
-        PvmfwVerifyError::InvalidDescriptors(IoError::NoSuchPartition),
+        PvmfwVerifyError::InvalidDescriptors(DescriptorError::InvalidContents),
     )
 }
 
@@ -142,7 +142,7 @@ fn payload_with_multiple_props_fails_verification_with_no_initrd() -> Result<()>
         &fs::read(TEST_IMG_WITH_MULTIPLE_PROPS_PATH)?,
         /* initrd= */ None,
         &load_trusted_public_key()?,
-        PvmfwVerifyError::InvalidDescriptors(IoError::Io),
+        PvmfwVerifyError::InvalidDescriptors(DescriptorError::InvalidContents),
     )
 }
 
