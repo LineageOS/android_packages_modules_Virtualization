@@ -73,6 +73,7 @@ import com.google.common.truth.BooleanSubject;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
@@ -2132,6 +2133,10 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .contains("android.permission.USE_CUSTOM_VIRTUAL_MACHINE permission");
     }
 
+    // TODO(b/323768068): Enable this test when we can inject vendor hashkey for test purpose.
+    // After introducing VM reference DT, non-pVM cannot trust test_microdroid_vendor_image.img
+    // as well, because it doesn't pass the hashtree digest of testing image into VM.
+    @Ignore
     @Test
     public void bootsWithVendorPartition() throws Exception {
         assumeSupportedDevice();
@@ -2142,10 +2147,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         // after introducing verification based on DT and fstab in microdroid vendor partition.
         assumeFalse(
                 "Boot with vendor partition is failing in HWASAN enabled Microdroid.", isHwasan());
-        assumeFalse(
-                "Skip test for protected VM, pvmfw config data doesn't contain any information of"
-                        + " test images, such as root digest.",
-                isProtectedVm());
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
@@ -2197,8 +2198,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .build();
 
         VirtualMachine vm = forceCreateNewVirtualMachine("test_boot_with_unsigned_vendor", config);
-        assertThrowsVmExceptionContaining(
-                () -> vm.run(), "Failed to get vbmeta from microdroid-vendor.img");
+        BootResult bootResult = tryBootVm(TAG, "test_boot_with_unsigned_vendor");
+        assertThat(bootResult.payloadStarted).isFalse();
+        assertThat(bootResult.deathReason).isEqualTo(VirtualMachineCallback.STOP_REASON_REBOOT);
     }
 
     @Test
