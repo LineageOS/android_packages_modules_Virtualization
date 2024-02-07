@@ -37,7 +37,7 @@ fn setup() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("apkverify_test")
-            .with_min_level(log::Level::Info),
+            .with_max_level(log::LevelFilter::Info),
     );
     info!("Test starting");
 }

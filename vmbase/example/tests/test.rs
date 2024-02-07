@@ -42,7 +42,9 @@ const EMPTY_DISK_IMAGE_PATH: &str =
 #[test]
 fn test_run_example_vm() -> Result<(), Error> {
     android_logger::init_once(
-        android_logger::Config::default().with_tag("vmbase").with_min_level(log::Level::Debug),
+        android_logger::Config::default()
+            .with_tag("vmbase")
+            .with_max_level(log::LevelFilter::Debug),
     );
 
     // Redirect panic messages to logcat.
