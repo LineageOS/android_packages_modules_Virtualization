@@ -287,7 +287,9 @@ fn check_csr(csr: Vec<u8>) -> Result<()> {
 
 fn start_service_vm(vm_type: VmType) -> Result<ServiceVm> {
     android_logger::init_once(
-        android_logger::Config::default().with_tag("rialto").with_min_level(log::Level::Debug),
+        android_logger::Config::default()
+            .with_tag("rialto")
+            .with_max_level(log::LevelFilter::Debug),
     );
     // Redirect panic messages to logcat.
     panic::set_hook(Box::new(|panic_info| {
