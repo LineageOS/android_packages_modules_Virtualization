@@ -1,4 +1,5 @@
 package {
+    default_team: "trendy_team_virtualization",
     default_applicable_licenses: ["microdroid_crashdump_kernel_license"],
 }
 
