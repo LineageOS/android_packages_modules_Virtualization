@@ -57,6 +57,7 @@ import java.util.concurrent.TimeUnit;
 public abstract class MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidDeviceTestBase";
     private final String MAX_PERFORMANCE_TASK_PROFILE = "CPUSET_SP_TOP_APP";
+    protected static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
 
     public static boolean isCuttlefish() {
         return getDeviceProperties().isCuttlefish();
@@ -150,6 +151,12 @@ public abstract class MicrodroidDeviceTestBase {
                     .that(capabilities & VirtualMachineManager.CAPABILITY_NON_PROTECTED_VM)
                     .isNotEqualTo(0);
         }
+    }
+
+    protected void assumeSupportedDevice() {
+        assume().withMessage("Skip on 5.4 kernel. b/218303240")
+                .that(KERNEL_VERSION)
+                .isNotEqualTo("5.4");
     }
 
     public abstract static class VmEventListener implements VirtualMachineCallback {

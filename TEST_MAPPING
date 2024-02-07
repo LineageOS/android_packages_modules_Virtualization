@@ -10,6 +10,9 @@
       "name": "MicrodroidTestApp"
     },
     {
+      "name": "MicrodroidTestAppNoPerm"
+    },
+    {
       "name": "art_standalone_dexpreopt_tests"
     },
     {
