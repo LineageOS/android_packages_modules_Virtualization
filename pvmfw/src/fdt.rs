@@ -488,11 +488,17 @@ impl SerialInfo {
 }
 
 fn read_serial_info_from(fdt: &Fdt) -> libfdt::Result<SerialInfo> {
-    let mut addrs: ArrayVec<[u64; SerialInfo::MAX_SERIALS]> = Default::default();
-    for node in fdt.compatible_nodes(cstr!("ns16550a"))?.take(SerialInfo::MAX_SERIALS) {
+    let mut addrs = ArrayVec::new();
+
+    let mut serial_nodes = fdt.compatible_nodes(cstr!("ns16550a"))?;
+    for node in serial_nodes.by_ref().take(addrs.capacity()) {
         let reg = node.first_reg()?;
         addrs.push(reg.addr);
     }
+    if serial_nodes.next().is_some() {
+        warn!("DT has more than {} UART nodes: discarding extra nodes.", addrs.capacity());
+    }
+
     Ok(SerialInfo { addrs })
 }
 
