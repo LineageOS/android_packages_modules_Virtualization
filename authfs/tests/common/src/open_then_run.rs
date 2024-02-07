@@ -161,7 +161,7 @@ fn main() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("open_then_run")
-            .with_min_level(log::Level::Debug),
+            .with_max_level(log::LevelFilter::Debug),
     );
 
     if let Err(e) = try_main() {
