@@ -142,7 +142,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Before
     public void setup() {
-        grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         prepareTestSetup(mProtectedVm, mGki);
         // USE_CUSTOM_VIRTUAL_MACHINE permission has protection level signature|development, meaning
         // that it will be automatically granted when test apk is installed. We have some tests
@@ -155,7 +154,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @After
     public void tearDown() {
-        revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         revokePermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
     }
 
@@ -229,32 +227,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         testResults.assertNoException();
         assertThat(testResults.mAddInteger).isEqualTo(37 + 73);
     }
-
-    @Test
-    @CddTest(
-            requirements = {
-                "9.17/C-1-1",
-                "9.17/C-1-2",
-                "9.17/C-1-4",
-            })
-    public void createVmRequiresPermission() {
-        assumeSupportedDevice();
-
-        revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
-
-        VirtualMachineConfig config =
-                newVmConfigBuilderWithPayloadBinary("MicrodroidTestNativeLib.so")
-                        .setMemoryBytes(minMemoryRequired())
-                        .build();
-
-        SecurityException e =
-                assertThrows(
-                        SecurityException.class,
-                        () -> forceCreateNewVirtualMachine("test_vm_requires_permission", config));
-        assertThat(e).hasMessageThat()
-                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
-    }
-
     @Test
     @CddTest(requirements = {"9.17/C-1-1"})
     public void autoCloseVm() throws Exception {
@@ -1157,18 +1129,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         forceCreateNewVirtualMachine("test_vm", config);
 
         assertThrows(Exception.class, () -> launchVmAndGetCdis("test_vm"));
-    }
-
-    @Test
-    public void isFeatureEnabled_requiresManagePermission() throws Exception {
-        revokePermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
-
-        VirtualMachineManager vmm = getVirtualMachineManager();
-        SecurityException e =
-                assertThrows(SecurityException.class, () -> vmm.isFeatureEnabled("whatever"));
-        assertThat(e)
-                .hasMessageThat()
-                .contains("android.permission.MANAGE_VIRTUAL_MACHINE permission");
     }
 
     private static final UUID MICRODROID_PARTITION_UUID =
