@@ -5,6 +5,7 @@ package {
 
 cc_binary {
     name: "vm_demo_native",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["main.cpp"],
     static_libs: [
         "libbase",

@@ -5,6 +5,7 @@ package {
 
 cc_defaults {
     name: "microdroid_metadata_default",
+    defaults: ["avf_build_flags_cc"],
     host_supported: true,
     srcs: [
         "metadata.proto",
