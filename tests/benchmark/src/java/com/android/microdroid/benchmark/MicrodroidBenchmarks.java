@@ -49,6 +49,7 @@ import com.android.microdroid.testservice.ITestService;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -276,6 +277,10 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 (builder) -> builder);
     }
 
+    // TODO(b/323768068): Enable this test when we can inject vendor digest for test purpose.
+    // After introducing VM reference DT, non-pVM cannot trust test_microdroid_vendor_image.img
+    // as well, because it doesn't pass the hashtree digest of testing image into VM.
+    @Ignore
     @Test
     public void testMicrodroidDebugBootTime_withVendorPartition() throws Exception {
         assume().withMessage("Cuttlefish doesn't support device tree under" + " /proc/device-tree")
@@ -285,11 +290,6 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
         // after introducing verification based on DT and fstab in microdroid vendor partition.
         assume().withMessage("Boot with vendor partition is failing in HWASAN enabled Microdroid.")
                 .that(isHwasan())
-                .isFalse();
-        assume().withMessage(
-                        "Skip test for protected VM, pvmfw config data doesn't contain any"
-                                + " information of test images, such as root digest.")
-                .that(mProtectedVm)
                 .isFalse();
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
 
