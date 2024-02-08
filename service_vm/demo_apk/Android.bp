@@ -4,9 +4,9 @@ package {
 }
 
 android_app {
-    name: "ServiceVmClientTestApp",
+    name: "VmAttestationDemoApp",
     installable: true,
-    jni_libs: ["libservice_vm_client"],
+    jni_libs: ["libvm_attestation_payload"],
     jni_uses_platform_apis: true,
     use_embedded_native_libs: true,
     sdk_version: "system_current",
@@ -15,8 +15,8 @@ android_app {
 }
 
 rust_defaults {
-    name: "service_vm_client_defaults",
-    crate_name: "service_vm_client",
+    name: "vm_attestation_payload_defaults",
+    crate_name: "vm_attestation_payload",
     defaults: ["avf_build_flags_rust"],
     srcs: ["src/main.rs"],
     prefer_rlib: true,
@@ -29,6 +29,6 @@ rust_defaults {
 }
 
 rust_ffi {
-    name: "libservice_vm_client",
-    defaults: ["service_vm_client_defaults"],
+    name: "libvm_attestation_payload",
+    defaults: ["vm_attestation_payload_defaults"],
 }

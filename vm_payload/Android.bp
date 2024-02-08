@@ -53,7 +53,7 @@ rust_bindgen {
     ],
     visibility: [
         "//packages/modules/Virtualization/compos",
-        "//packages/modules/Virtualization/service_vm/test_apk",
+        "//packages/modules/Virtualization/service_vm:__subpackages__",
     ],
     shared_libs: [
         "libvm_payload#current",
