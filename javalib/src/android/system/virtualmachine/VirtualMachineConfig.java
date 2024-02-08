@@ -49,7 +49,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.zip.ZipFile;
 
@@ -67,7 +70,7 @@ public final class VirtualMachineConfig {
     private static String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
-    private static final int VERSION = 7;
+    private static final int VERSION = 8;
     private static final String KEY_VERSION = "version";
     private static final String KEY_PACKAGENAME = "packageName";
     private static final String KEY_APKPATH = "apkPath";
@@ -82,6 +85,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_VM_CONSOLE_INPUT_SUPPORTED = "vmConsoleInputSupported";
     private static final String KEY_VENDOR_DISK_IMAGE_PATH = "vendorDiskImagePath";
     private static final String KEY_OS = "os";
+    private static final String KEY_EXTRA_APKS = "extraApks";
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
@@ -140,6 +144,8 @@ public final class VirtualMachineConfig {
     /** Absolute path to the APK file containing the VM payload. */
     @Nullable private final String mApkPath;
 
+    private final List<String> mExtraApks;
+
     @DebugLevel private final int mDebugLevel;
 
     /**
@@ -181,6 +187,7 @@ public final class VirtualMachineConfig {
     private VirtualMachineConfig(
             @Nullable String packageName,
             @Nullable String apkPath,
+            List<String> extraApks,
             @Nullable String payloadConfigPath,
             @Nullable String payloadBinaryName,
             @DebugLevel int debugLevel,
@@ -195,6 +202,11 @@ public final class VirtualMachineConfig {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
         mApkPath = apkPath;
+        mExtraApks =
+                extraApks.isEmpty()
+                        ? Collections.emptyList()
+                        : Collections.unmodifiableList(
+                                Arrays.asList(extraApks.toArray(new String[0])));
         mPayloadConfigPath = payloadConfigPath;
         mPayloadBinaryName = payloadBinaryName;
         mDebugLevel = debugLevel;
@@ -292,6 +304,13 @@ public final class VirtualMachineConfig {
             builder.setOs(os);
         }
 
+        String[] extraApks = b.getStringArray(KEY_EXTRA_APKS);
+        if (extraApks != null) {
+            for (String extraApk : extraApks) {
+                builder.addExtraApk(extraApk);
+            }
+        }
+
         return builder.build();
     }
 
@@ -331,6 +350,10 @@ public final class VirtualMachineConfig {
             b.putString(KEY_VENDOR_DISK_IMAGE_PATH, mVendorDiskImage.getAbsolutePath());
         }
         b.putString(KEY_OS, mOs);
+        if (!mExtraApks.isEmpty()) {
+            String[] extraApks = mExtraApks.toArray(new String[0]);
+            b.putStringArray(KEY_EXTRA_APKS, extraApks);
+        }
         b.writeToStream(output);
     }
 
@@ -344,6 +367,19 @@ public final class VirtualMachineConfig {
     @Nullable
     public String getApkPath() {
         return mApkPath;
+    }
+
+    /**
+     * Returns the package names of any extra APKs that have been requested for the VM. They are
+     * returned in the order in which they were added via {@link Builder#addExtraApk}.
+     *
+     * @hide
+     */
+    @TestApi
+    @FlaggedApi("RELEASE_AVF_ENABLE_MULTI_TENANT_MICRODROID_VM")
+    @NonNull
+    public List<String> getExtraApks() {
+        return mExtraApks;
     }
 
     /**
@@ -495,7 +531,8 @@ public final class VirtualMachineConfig {
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
                 && Objects.equals(this.mPackageName, other.mPackageName)
-                && Objects.equals(this.mOs, other.mOs);
+                && Objects.equals(this.mOs, other.mOs)
+                && Objects.equals(this.mExtraApks, other.mExtraApks);
     }
 
     /**
@@ -623,6 +660,7 @@ public final class VirtualMachineConfig {
 
         @Nullable private final String mPackageName;
         @Nullable private String mApkPath;
+        private final List<String> mExtraApks = new ArrayList<>();
         @Nullable private String mPayloadConfigPath;
         @Nullable private String mPayloadBinaryName;
         @DebugLevel private int mDebugLevel = DEBUG_LEVEL_NONE;
@@ -683,6 +721,10 @@ public final class VirtualMachineConfig {
                     throw new IllegalStateException(
                             "setPayloadConfigPath and setOs may not both be called");
                 }
+                if (!mExtraApks.isEmpty()) {
+                    throw new IllegalStateException(
+                            "setPayloadConfigPath and addExtraApk may not both be called");
+                }
             } else {
                 if (mPayloadConfigPath != null) {
                     throw new IllegalStateException(
@@ -710,6 +752,7 @@ public final class VirtualMachineConfig {
             return new VirtualMachineConfig(
                     packageName,
                     apkPath,
+                    mExtraApks,
                     mPayloadConfigPath,
                     mPayloadBinaryName,
                     mDebugLevel,
@@ -738,6 +781,21 @@ public final class VirtualMachineConfig {
                 throw new IllegalArgumentException("APK path must be an absolute path");
             }
             mApkPath = apkPath;
+            return this;
+        }
+
+        /**
+         * Specify the package name of an extra APK to be included in the VM. Each extra APK is
+         * mounted, in unzipped form, inside the VM, allowing access to the code and/or data within
+         * it. The VM entry point must be in the main APK.
+         *
+         * @hide
+         */
+        @TestApi
+        @FlaggedApi("RELEASE_AVF_ENABLE_MULTI_TENANT_MICRODROID_VM")
+        @NonNull
+        public Builder addExtraApk(@NonNull String packageName) {
+            mExtraApks.add(requireNonNull(packageName, "extra APK package name must not be null"));
             return this;
         }
 
