@@ -19,10 +19,7 @@ service composd /apex/com.android.compos/bin/composd
     interface aidl android.system.composd
     disabled
     oneshot
-    # Explicitly specify empty capabilities, otherwise composd will inherit all
-    # the capabilities from init.
-    # Note: whether a process can use capabilities is controlled by SELinux, so
-    # inheriting all the capabilities from init is not a security issue.
-    # However, for defense-in-depth and just for the sake of bookkeeping it's
-    # better to explicitly state that composd doesn't need any capabilities.
+    # We need SYS_NICE in order to allow the crosvm child process to use it.
+    # (b/322197421). composd itself never uses it (and isn't allowed to by
+    # SELinux).
     capabilities SYS_NICE
