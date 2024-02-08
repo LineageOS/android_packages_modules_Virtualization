@@ -25,4 +25,4 @@ service composd /apex/com.android.compos/bin/composd
     # inheriting all the capabilities from init is not a security issue.
     # However, for defense-in-depth and just for the sake of bookkeeping it's
     # better to explicitly state that composd doesn't need any capabilities.
-    capabilities
+    capabilities SYS_NICE
