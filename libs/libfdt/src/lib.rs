@@ -18,141 +18,21 @@
 #![no_std]
 
 mod iterators;
+mod libfdt;
+mod result;
 
 pub use iterators::{
     AddressRange, CellIterator, CompatibleIterator, DescendantsIterator, MemRegIterator,
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
+pub use result::{FdtError, Result};
 
-use core::cmp::max;
 use core::ffi::{c_int, c_void, CStr};
-use core::fmt;
-use core::mem;
 use core::ops::Range;
 use core::ptr;
-use core::result;
 use cstr::cstr;
+use result::{fdt_err, fdt_err_expect_zero, fdt_err_or_option};
 use zerocopy::AsBytes as _;
-
-/// Error type corresponding to libfdt error codes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FdtError {
-    /// FDT_ERR_NOTFOUND
-    NotFound,
-    /// FDT_ERR_EXISTS
-    Exists,
-    /// FDT_ERR_NOSPACE
-    NoSpace,
-    /// FDT_ERR_BADOFFSET
-    BadOffset,
-    /// FDT_ERR_BADPATH
-    BadPath,
-    /// FDT_ERR_BADPHANDLE
-    BadPhandle,
-    /// FDT_ERR_BADSTATE
-    BadState,
-    /// FDT_ERR_TRUNCATED
-    Truncated,
-    /// FDT_ERR_BADMAGIC
-    BadMagic,
-    /// FDT_ERR_BADVERSION
-    BadVersion,
-    /// FDT_ERR_BADSTRUCTURE
-    BadStructure,
-    /// FDT_ERR_BADLAYOUT
-    BadLayout,
-    /// FDT_ERR_INTERNAL
-    Internal,
-    /// FDT_ERR_BADNCELLS
-    BadNCells,
-    /// FDT_ERR_BADVALUE
-    BadValue,
-    /// FDT_ERR_BADOVERLAY
-    BadOverlay,
-    /// FDT_ERR_NOPHANDLES
-    NoPhandles,
-    /// FDT_ERR_BADFLAGS
-    BadFlags,
-    /// FDT_ERR_ALIGNMENT
-    Alignment,
-    /// Unexpected error code
-    Unknown(i32),
-}
-
-impl fmt::Display for FdtError {
-    /// Prints error messages from libfdt.h documentation.
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::NotFound => write!(f, "The requested node or property does not exist"),
-            Self::Exists => write!(f, "Attempted to create an existing node or property"),
-            Self::NoSpace => write!(f, "Insufficient buffer space to contain the expanded tree"),
-            Self::BadOffset => write!(f, "Structure block offset is out-of-bounds or invalid"),
-            Self::BadPath => write!(f, "Badly formatted path"),
-            Self::BadPhandle => write!(f, "Invalid phandle length or value"),
-            Self::BadState => write!(f, "Received incomplete device tree"),
-            Self::Truncated => write!(f, "Device tree or sub-block is improperly terminated"),
-            Self::BadMagic => write!(f, "Device tree header missing its magic number"),
-            Self::BadVersion => write!(f, "Device tree has a version which can't be handled"),
-            Self::BadStructure => write!(f, "Device tree has a corrupt structure block"),
-            Self::BadLayout => write!(f, "Device tree sub-blocks in unsupported order"),
-            Self::Internal => write!(f, "libfdt has failed an internal assertion"),
-            Self::BadNCells => write!(f, "Bad format or value of #address-cells or #size-cells"),
-            Self::BadValue => write!(f, "Unexpected property value"),
-            Self::BadOverlay => write!(f, "Overlay cannot be applied"),
-            Self::NoPhandles => write!(f, "Device tree doesn't have any phandle available anymore"),
-            Self::BadFlags => write!(f, "Invalid flag or invalid combination of flags"),
-            Self::Alignment => write!(f, "Device tree base address is not 8-byte aligned"),
-            Self::Unknown(e) => write!(f, "Unknown libfdt error '{e}'"),
-        }
-    }
-}
-
-/// Result type with FdtError enum.
-pub type Result<T> = result::Result<T, FdtError>;
-
-fn fdt_err(val: c_int) -> Result<c_int> {
-    if val >= 0 {
-        Ok(val)
-    } else {
-        Err(match -val as _ {
-            libfdt_bindgen::FDT_ERR_NOTFOUND => FdtError::NotFound,
-            libfdt_bindgen::FDT_ERR_EXISTS => FdtError::Exists,
-            libfdt_bindgen::FDT_ERR_NOSPACE => FdtError::NoSpace,
-            libfdt_bindgen::FDT_ERR_BADOFFSET => FdtError::BadOffset,
-            libfdt_bindgen::FDT_ERR_BADPATH => FdtError::BadPath,
-            libfdt_bindgen::FDT_ERR_BADPHANDLE => FdtError::BadPhandle,
-            libfdt_bindgen::FDT_ERR_BADSTATE => FdtError::BadState,
-            libfdt_bindgen::FDT_ERR_TRUNCATED => FdtError::Truncated,
-            libfdt_bindgen::FDT_ERR_BADMAGIC => FdtError::BadMagic,
-            libfdt_bindgen::FDT_ERR_BADVERSION => FdtError::BadVersion,
-            libfdt_bindgen::FDT_ERR_BADSTRUCTURE => FdtError::BadStructure,
-            libfdt_bindgen::FDT_ERR_BADLAYOUT => FdtError::BadLayout,
-            libfdt_bindgen::FDT_ERR_INTERNAL => FdtError::Internal,
-            libfdt_bindgen::FDT_ERR_BADNCELLS => FdtError::BadNCells,
-            libfdt_bindgen::FDT_ERR_BADVALUE => FdtError::BadValue,
-            libfdt_bindgen::FDT_ERR_BADOVERLAY => FdtError::BadOverlay,
-            libfdt_bindgen::FDT_ERR_NOPHANDLES => FdtError::NoPhandles,
-            libfdt_bindgen::FDT_ERR_BADFLAGS => FdtError::BadFlags,
-            libfdt_bindgen::FDT_ERR_ALIGNMENT => FdtError::Alignment,
-            _ => FdtError::Unknown(val),
-        })
-    }
-}
-
-fn fdt_err_expect_zero(val: c_int) -> Result<()> {
-    match fdt_err(val)? {
-        0 => Ok(()),
-        _ => Err(FdtError::Unknown(val)),
-    }
-}
-
-fn fdt_err_or_option(val: c_int) -> Result<Option<c_int>> {
-    match fdt_err(val) {
-        Ok(val) => Ok(Some(val)),
-        Err(FdtError::NotFound) => Ok(None),
-        Err(e) => Err(e),
-    }
-}
 
 /// Value of a #address-cells property.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -162,14 +42,14 @@ enum AddrCells {
     Triple = 3,
 }
 
-impl TryFrom<c_int> for AddrCells {
+impl TryFrom<usize> for AddrCells {
     type Error = FdtError;
 
-    fn try_from(res: c_int) -> Result<Self> {
-        match fdt_err(res)? {
-            x if x == Self::Single as c_int => Ok(Self::Single),
-            x if x == Self::Double as c_int => Ok(Self::Double),
-            x if x == Self::Triple as c_int => Ok(Self::Triple),
+    fn try_from(value: usize) -> Result<Self> {
+        match value {
+            x if x == Self::Single as _ => Ok(Self::Single),
+            x if x == Self::Double as _ => Ok(Self::Double),
+            x if x == Self::Triple as _ => Ok(Self::Triple),
             _ => Err(FdtError::BadNCells),
         }
     }
@@ -183,14 +63,14 @@ enum SizeCells {
     Double = 2,
 }
 
-impl TryFrom<c_int> for SizeCells {
+impl TryFrom<usize> for SizeCells {
     type Error = FdtError;
 
-    fn try_from(res: c_int) -> Result<Self> {
-        match fdt_err(res)? {
-            x if x == Self::None as c_int => Ok(Self::None),
-            x if x == Self::Single as c_int => Ok(Self::Single),
-            x if x == Self::Double as c_int => Ok(Self::Double),
+    fn try_from(value: usize) -> Result<Self> {
+        match value {
+            x if x == Self::None as _ => Ok(Self::None),
+            x if x == Self::Single as _ => Ok(Self::Single),
+            x if x == Self::Double as _ => Ok(Self::Double),
             _ => Err(FdtError::BadNCells),
         }
     }
@@ -200,6 +80,14 @@ impl TryFrom<c_int> for SizeCells {
 #[repr(transparent)]
 #[derive(Debug)]
 struct FdtPropertyStruct(libfdt_bindgen::fdt_property);
+
+impl AsRef<FdtPropertyStruct> for libfdt_bindgen::fdt_property {
+    fn as_ref(&self) -> &FdtPropertyStruct {
+        let ptr = self as *const _ as *const _;
+        // SAFETY: Types have the same layout (transparent) so the valid reference remains valid.
+        unsafe { &*ptr }
+    }
+}
 
 impl FdtPropertyStruct {
     fn from_offset(fdt: &Fdt, offset: c_int) -> Result<&Self> {
@@ -212,7 +100,8 @@ impl FdtPropertyStruct {
             return Err(FdtError::Internal); // shouldn't happen.
         }
         // SAFETY: prop is only returned when it points to valid libfdt_bindgen.
-        Ok(unsafe { &*prop.cast::<FdtPropertyStruct>() })
+        let prop = unsafe { &*prop };
+        Ok(prop.as_ref())
     }
 
     fn name_offset(&self) -> c_int {
@@ -224,7 +113,7 @@ impl FdtPropertyStruct {
     }
 
     fn data_ptr(&self) -> *const c_void {
-        self.0.data.as_ptr().cast::<_>()
+        self.0.data.as_ptr().cast()
     }
 }
 
@@ -257,7 +146,11 @@ impl<'a> FdtProperty<'a> {
             // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
             unsafe { libfdt_bindgen::fdt_next_property_offset(self.fdt.as_ptr(), self.offset) };
 
-        fdt_err_or_option(ret)?.map(|offset| Self::new(self.fdt, offset)).transpose()
+        if let Some(offset) = fdt_err_or_option(ret)? {
+            Ok(Some(Self::new(self.fdt, offset)?))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -269,16 +162,13 @@ pub struct FdtNode<'a> {
 }
 
 impl<'a> FdtNode<'a> {
-    /// Creates immutable node from a mutable node at the same offset.
-    pub fn from_mut(other: &'a FdtNodeMut) -> Self {
-        FdtNode { fdt: other.fdt, offset: other.offset }
-    }
     /// Returns parent node.
     pub fn parent(&self) -> Result<Self> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
+        let offset = fdt_err(ret)?;
 
-        Ok(Self { fdt: self.fdt, offset: fdt_err(ret)? })
+        Ok(Self { fdt: self.fdt, offset })
     }
 
     /// Returns supernode with depth. Note that root is at depth 0.
@@ -292,8 +182,9 @@ impl<'a> FdtNode<'a> {
                 ptr::null_mut(),
             )
         };
+        let offset = fdt_err(ret)?;
 
-        Ok(Self { fdt: self.fdt, offset: fdt_err(ret)? })
+        Ok(Self { fdt: self.fdt, offset })
     }
 
     /// Returns the standard (deprecated) device_type <string> property.
@@ -303,9 +194,7 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the standard reg <prop-encoded-array> property.
     pub fn reg(&self) -> Result<Option<RegIterator<'a>>> {
-        let reg = cstr!("reg");
-
-        if let Some(cells) = self.getprop_cells(reg)? {
+        if let Some(cells) = self.getprop_cells(cstr!("reg"))? {
             let parent = self.parent()?;
 
             let addr_cells = parent.address_cells()?;
@@ -319,8 +208,7 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the standard ranges property.
     pub fn ranges<A, P, S>(&self) -> Result<Option<RangesIterator<'a, A, P, S>>> {
-        let ranges = cstr!("ranges");
-        if let Some(cells) = self.getprop_cells(ranges)? {
+        if let Some(cells) = self.getprop_cells(cstr!("ranges"))? {
             let parent = self.parent()?;
             let addr_cells = self.address_cells()?;
             let parent_addr_cells = parent.address_cells()?;
@@ -350,12 +238,11 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the value of a given <string> property.
     pub fn getprop_str(&self, name: &CStr) -> Result<Option<&CStr>> {
-        let value = if let Some(bytes) = self.getprop(name)? {
-            Some(CStr::from_bytes_with_nul(bytes).map_err(|_| FdtError::BadValue)?)
+        if let Some(bytes) = self.getprop(name)? {
+            Ok(Some(CStr::from_bytes_with_nul(bytes).map_err(|_| FdtError::BadValue)?))
         } else {
-            None
-        };
-        Ok(value)
+            Ok(None)
+        }
     }
 
     /// Returns the value of a given property as an array of cells.
@@ -369,22 +256,20 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the value of a given <u32> property.
     pub fn getprop_u32(&self, name: &CStr) -> Result<Option<u32>> {
-        let value = if let Some(bytes) = self.getprop(name)? {
-            Some(u32::from_be_bytes(bytes.try_into().map_err(|_| FdtError::BadValue)?))
+        if let Some(bytes) = self.getprop(name)? {
+            Ok(Some(u32::from_be_bytes(bytes.try_into().map_err(|_| FdtError::BadValue)?)))
         } else {
-            None
-        };
-        Ok(value)
+            Ok(None)
+        }
     }
 
     /// Returns the value of a given <u64> property.
     pub fn getprop_u64(&self, name: &CStr) -> Result<Option<u64>> {
-        let value = if let Some(bytes) = self.getprop(name)? {
-            Some(u64::from_be_bytes(bytes.try_into().map_err(|_| FdtError::BadValue)?))
+        if let Some(bytes) = self.getprop(name)? {
+            Ok(Some(u64::from_be_bytes(bytes.try_into().map_err(|_| FdtError::BadValue)?)))
         } else {
-            None
-        };
-        Ok(value)
+            Ok(None)
+        }
     }
 
     /// Returns the value of a given property.
@@ -392,7 +277,7 @@ impl<'a> FdtNode<'a> {
         if let Some((prop, len)) = Self::getprop_internal(self.fdt, self.offset, name)? {
             Ok(Some(self.fdt.get_from_ptr(prop, len)?))
         } else {
-            Ok(None) // property was not found
+            Ok(None)
         }
     }
 
@@ -444,8 +329,9 @@ impl<'a> FdtNode<'a> {
                 compatible.as_ptr(),
             )
         };
+        let offset = fdt_err_or_option(ret)?;
 
-        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     /// Returns the first range of `reg` in this node.
@@ -455,16 +341,16 @@ impl<'a> FdtNode<'a> {
 
     fn address_cells(&self) -> Result<AddrCells> {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
-        unsafe { libfdt_bindgen::fdt_address_cells(self.fdt.as_ptr(), self.offset) }
-            .try_into()
-            .map_err(|_| FdtError::Internal)
+        let ret = unsafe { libfdt_bindgen::fdt_address_cells(self.fdt.as_ptr(), self.offset) };
+
+        usize::try_from(ret).map_err(|_| FdtError::Internal)?.try_into()
     }
 
     fn size_cells(&self) -> Result<SizeCells> {
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
-        unsafe { libfdt_bindgen::fdt_size_cells(self.fdt.as_ptr(), self.offset) }
-            .try_into()
-            .map_err(|_| FdtError::Internal)
+        let ret = unsafe { libfdt_bindgen::fdt_size_cells(self.fdt.as_ptr(), self.offset) };
+
+        usize::try_from(ret).map_err(|_| FdtError::Internal)?.try_into()
     }
 
     /// Returns an iterator of subnodes
@@ -475,15 +361,17 @@ impl<'a> FdtNode<'a> {
     fn first_subnode(&self) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_first_subnode(self.fdt.as_ptr(), self.offset) };
+        let offset = fdt_err_or_option(ret)?;
 
-        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     fn next_subnode(&self) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
+        let offset = fdt_err_or_option(ret)?;
 
-        Ok(fdt_err_or_option(ret)?.map(|offset| FdtNode { fdt: self.fdt, offset }))
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     /// Returns an iterator of descendants
@@ -497,10 +385,14 @@ impl<'a> FdtNode<'a> {
         let ret = unsafe {
             libfdt_bindgen::fdt_next_node(self.fdt.as_ptr(), self.offset, &mut next_depth)
         };
-        let Ok(next_depth) = usize::try_from(next_depth) else {
+        let Ok(depth) = usize::try_from(next_depth) else {
             return Ok(None);
         };
-        Ok(fdt_err_or_option(ret)?.map(|offset| (FdtNode { fdt: self.fdt, offset }, next_depth)))
+        if let Some(offset) = fdt_err_or_option(ret)? {
+            Ok(Some((Self { fdt: self.fdt, offset }, depth)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns an iterator of properties
@@ -513,7 +405,11 @@ impl<'a> FdtNode<'a> {
             // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
             unsafe { libfdt_bindgen::fdt_first_property_offset(self.fdt.as_ptr(), self.offset) };
 
-        fdt_err_or_option(ret)?.map(|offset| FdtProperty::new(self.fdt, offset)).transpose()
+        if let Some(offset) = fdt_err_or_option(ret)? {
+            Ok(Some(FdtProperty::new(self.fdt, offset)?))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Returns the phandle
@@ -530,13 +426,16 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the subnode of the given name. The name doesn't need to be nul-terminated.
     pub fn subnode(&self, name: &CStr) -> Result<Option<Self>> {
-        let offset = self.subnode_offset(name.to_bytes())?;
+        let name = name.to_bytes();
+        let offset = self.subnode_offset(name)?;
+
         Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     /// Returns the subnode of the given name bytes
     pub fn subnode_with_name_bytes(&self, name: &[u8]) -> Result<Option<Self>> {
         let offset = self.subnode_offset(name)?;
+
         Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
@@ -760,14 +659,18 @@ impl<'a> FdtNodeMut<'a> {
 
     /// Adds a new subnode to the given node and return it as a FdtNodeMut on success.
     pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
-        let offset = self.add_subnode_offset(name.to_bytes())?;
+        let name = name.to_bytes();
+        let offset = self.add_subnode_offset(name)?;
+
         Ok(Self { fdt: self.fdt, offset })
     }
 
     /// Adds a new subnode to the given node with name and namelen, and returns it as a FdtNodeMut
     /// on success.
     pub fn add_subnode_with_namelen(&'a mut self, name: &CStr, namelen: usize) -> Result<Self> {
-        let offset = { self.add_subnode_offset(&name.to_bytes()[..namelen])? };
+        let name = &name.to_bytes()[..namelen];
+        let offset = self.add_subnode_offset(name)?;
+
         Ok(Self { fdt: self.fdt, offset })
     }
 
@@ -789,34 +692,28 @@ impl<'a> FdtNodeMut<'a> {
     pub fn first_subnode(&'a mut self) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_first_subnode(self.fdt.as_ptr(), self.offset) };
+        let offset = fdt_err_or_option(ret)?;
 
-        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     /// Returns the next subnode that shares the same parent with this
     pub fn next_subnode(self) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
+        let offset = fdt_err_or_option(ret)?;
 
-        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     /// Deletes the current node and returns the next subnode
-    pub fn delete_and_next_subnode(mut self) -> Result<Option<Self>> {
+    pub fn delete_and_next_subnode(self) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_subnode(self.fdt.as_ptr(), self.offset) };
 
         let next_offset = fdt_err_or_option(ret)?;
 
-        if Some(self.offset) == next_offset {
-            return Err(FdtError::Internal);
-        }
-
-        // SAFETY: nop_self() only touches bytes of the self and its properties and subnodes, and
-        // doesn't alter any other blob in the tree. self.fdt and next_offset would remain valid.
-        unsafe { self.nop_self()? };
-
-        Ok(next_offset.map(|offset| Self { fdt: self.fdt, offset }))
+        self.delete_and_next(next_offset)
     }
 
     fn next_node_offset(&self, depth: usize) -> Result<Option<(c_int, usize)>> {
@@ -833,32 +730,37 @@ impl<'a> FdtNodeMut<'a> {
 
     /// Returns the next node
     pub fn next_node(self, depth: usize) -> Result<Option<(Self, usize)>> {
-        Ok(self
-            .next_node_offset(depth)?
-            .map(|(offset, next_depth)| (FdtNodeMut { fdt: self.fdt, offset }, next_depth)))
+        let next = self.next_node_offset(depth)?;
+
+        Ok(next.map(|(offset, depth)| (Self { fdt: self.fdt, offset }, depth)))
     }
 
-    /// Deletes this and returns the next node
-    pub fn delete_and_next_node(mut self, depth: usize) -> Result<Option<(Self, usize)>> {
-        // Skip all would-be-removed descendants.
+    fn next_node_skip_subnodes(&mut self, depth: usize) -> Result<Option<(c_int, usize)>> {
         let mut iter = self.next_node_offset(depth)?;
         while let Some((descendant_offset, descendant_depth)) = iter {
             if descendant_depth <= depth {
-                break;
+                return Ok(Some((descendant_offset, descendant_depth)));
             }
             let descendant = FdtNodeMut { fdt: self.fdt, offset: descendant_offset };
             iter = descendant.next_node_offset(descendant_depth)?;
         }
-        // SAFETY: This consumes self, so invalid node wouldn't be used any further
-        unsafe { self.nop_self()? };
-        Ok(iter.map(|(offset, next_depth)| (FdtNodeMut { fdt: self.fdt, offset }, next_depth)))
+
+        Ok(None)
+    }
+
+    /// Deletes this and returns the next node
+    pub fn delete_and_next_node(mut self, depth: usize) -> Result<Option<(Self, usize)>> {
+        let next_node = self.next_node_skip_subnodes(depth)?;
+        if let Some((offset, depth)) = next_node {
+            let next_node = self.delete_and_next(Some(offset))?.unwrap();
+            Ok(Some((next_node, depth)))
+        } else {
+            Ok(None)
+        }
     }
 
     fn parent(&'a self) -> Result<FdtNode<'a>> {
-        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-        let ret = unsafe { libfdt_bindgen::fdt_parent_offset(self.fdt.as_ptr(), self.offset) };
-
-        Ok(FdtNode { fdt: &*self.fdt, offset: fdt_err(ret)? })
+        self.as_node().parent()
     }
 
     /// Returns the compatible node of the given name that is next after this node.
@@ -871,8 +773,9 @@ impl<'a> FdtNodeMut<'a> {
                 compatible.as_ptr(),
             )
         };
+        let offset = fdt_err_or_option(ret)?;
 
-        Ok(fdt_err_or_option(ret)?.map(|offset| Self { fdt: self.fdt, offset }))
+        Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
     }
 
     /// Deletes the node effectively by overwriting this node and its subtree with nop tags.
@@ -887,7 +790,7 @@ impl<'a> FdtNodeMut<'a> {
     // node, and delete the current node, the Rust borrow checker kicks in. The next node has a
     // mutable reference to DT, so we can't use current node (which also has a mutable reference to
     // DT).
-    pub fn delete_and_next_compatible(mut self, compatible: &CStr) -> Result<Option<Self>> {
+    pub fn delete_and_next_compatible(self, compatible: &CStr) -> Result<Option<Self>> {
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe {
             libfdt_bindgen::fdt_node_offset_by_compatible(
@@ -898,6 +801,10 @@ impl<'a> FdtNodeMut<'a> {
         };
         let next_offset = fdt_err_or_option(ret)?;
 
+        self.delete_and_next(next_offset)
+    }
+
+    fn delete_and_next(mut self, next_offset: Option<c_int>) -> Result<Option<Self>> {
         if Some(self.offset) == next_offset {
             return Err(FdtError::Internal);
         }
@@ -939,9 +846,10 @@ impl Fdt {
     ///
     /// Fails if the FDT does not pass validation.
     pub fn from_slice(fdt: &[u8]) -> Result<&Self> {
-        // SAFETY: The FDT will be validated before it is returned.
+        libfdt::check_full(fdt)?;
+        // SAFETY: The FDT was validated.
         let fdt = unsafe { Self::unchecked_from_slice(fdt) };
-        fdt.check_full()?;
+
         Ok(fdt)
     }
 
@@ -949,67 +857,58 @@ impl Fdt {
     ///
     /// Fails if the FDT does not pass validation.
     pub fn from_mut_slice(fdt: &mut [u8]) -> Result<&mut Self> {
-        // SAFETY: The FDT will be validated before it is returned.
+        libfdt::check_full(fdt)?;
+        // SAFETY: The FDT was validated.
         let fdt = unsafe { Self::unchecked_from_mut_slice(fdt) };
-        fdt.check_full()?;
+
         Ok(fdt)
     }
 
     /// Creates an empty Flattened Device Tree with a mutable slice.
     pub fn create_empty_tree(fdt: &mut [u8]) -> Result<&mut Self> {
-        // SAFETY: fdt_create_empty_tree() only write within the specified length,
-        //          and returns error if buffer was insufficient.
-        //          There will be no memory write outside of the given fdt.
-        let ret = unsafe {
-            libfdt_bindgen::fdt_create_empty_tree(
-                fdt.as_mut_ptr().cast::<c_void>(),
-                fdt.len() as i32,
-            )
-        };
-        fdt_err_expect_zero(ret)?;
+        libfdt::create_empty_tree(fdt)?;
 
-        // SAFETY: The FDT will be validated before it is returned.
-        let fdt = unsafe { Self::unchecked_from_mut_slice(fdt) };
-        fdt.check_full()?;
-
-        Ok(fdt)
+        Self::from_mut_slice(fdt)
     }
 
     /// Wraps a slice containing a Flattened Device Tree.
     ///
     /// # Safety
     ///
-    /// The returned FDT might be invalid, only use on slices containing a valid DT.
+    /// It is undefined to call this function on a slice that does not contain a valid device tree.
     pub unsafe fn unchecked_from_slice(fdt: &[u8]) -> &Self {
-        // SAFETY: Fdt is a wrapper around a [u8], so the transmute is valid. The caller is
-        // responsible for ensuring that it is actually a valid FDT.
-        unsafe { mem::transmute::<&[u8], &Self>(fdt) }
+        let self_ptr = fdt as *const _ as *const _;
+        // SAFETY: The pointer is non-null, dereferenceable, and points to allocated memory.
+        unsafe { &*self_ptr }
     }
 
     /// Wraps a mutable slice containing a Flattened Device Tree.
     ///
     /// # Safety
     ///
-    /// The returned FDT might be invalid, only use on slices containing a valid DT.
+    /// It is undefined to call this function on a slice that does not contain a valid device tree.
     pub unsafe fn unchecked_from_mut_slice(fdt: &mut [u8]) -> &mut Self {
-        // SAFETY: Fdt is a wrapper around a [u8], so the transmute is valid. The caller is
-        // responsible for ensuring that it is actually a valid FDT.
-        unsafe { mem::transmute::<&mut [u8], &mut Self>(fdt) }
+        let self_mut_ptr = fdt as *mut _ as *mut _;
+        // SAFETY: The pointer is non-null, dereferenceable, and points to allocated memory.
+        unsafe { &mut *self_mut_ptr }
     }
 
-    /// Updates this FDT from a slice containing another FDT.
-    pub fn copy_from_slice(&mut self, new_fdt: &[u8]) -> Result<()> {
-        if self.buffer.len() < new_fdt.len() {
-            Err(FdtError::NoSpace)
-        } else {
-            let totalsize = self.totalsize();
-            self.buffer[..new_fdt.len()].clone_from_slice(new_fdt);
-            // Zeroize the remaining part. We zeroize up to the size of the original DT because
-            // zeroizing the entire buffer (max 2MB) is not necessary and may increase the VM boot
-            // time.
-            self.buffer[new_fdt.len()..max(new_fdt.len(), totalsize)].fill(0_u8);
-            Ok(())
+    /// Updates this FDT from another FDT.
+    pub fn clone_from(&mut self, other: &Self) -> Result<()> {
+        let new_len = other.buffer.len();
+        if self.buffer.len() < new_len {
+            return Err(FdtError::NoSpace);
         }
+
+        let zeroed_len = self.totalsize().checked_sub(new_len);
+        let (cloned, zeroed) = self.buffer.split_at_mut(new_len);
+
+        cloned.clone_from_slice(&other.buffer);
+        if let Some(len) = zeroed_len {
+            zeroed[..len].fill(0);
+        }
+
+        Ok(())
     }
 
     /// Unpacks the DT to cover the whole slice it is contained in.
@@ -1056,11 +955,8 @@ impl Fdt {
     ///
     /// NOTE: This does not support individual "/memory@XXXX" banks.
     pub fn memory(&self) -> Result<MemRegIterator> {
-        let memory_node_name = cstr!("/memory");
-        let memory_device_type = cstr!("memory");
-
-        let node = self.node(memory_node_name)?.ok_or(FdtError::NotFound)?;
-        if node.device_type()? != Some(memory_device_type) {
+        let node = self.node(cstr!("/memory"))?.ok_or(FdtError::NotFound)?;
+        if node.device_type()? != Some(cstr!("memory")) {
             return Err(FdtError::BadValue);
         }
         node.reg()?.ok_or(FdtError::BadValue).map(MemRegIterator::new)
@@ -1098,7 +994,9 @@ impl Fdt {
 
     /// Returns a tree node by its full path.
     pub fn node(&self, path: &CStr) -> Result<Option<FdtNode>> {
-        Ok(self.path_offset(path.to_bytes())?.map(|offset| FdtNode { fdt: self, offset }))
+        let offset = self.path_offset(path.to_bytes())?;
+
+        Ok(offset.map(|offset| FdtNode { fdt: self, offset }))
     }
 
     /// Iterate over nodes with a given compatible string.
@@ -1141,7 +1039,9 @@ impl Fdt {
 
     /// Returns a mutable tree node by its full path.
     pub fn node_mut(&mut self, path: &CStr) -> Result<Option<FdtNodeMut>> {
-        Ok(self.path_offset(path.to_bytes())?.map(|offset| FdtNodeMut { fdt: self, offset }))
+        let offset = self.path_offset(path.to_bytes())?;
+
+        Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
     /// Returns the device tree as a slice (may be smaller than the containing buffer).
@@ -1159,16 +1059,6 @@ impl Fdt {
         };
 
         fdt_err_or_option(ret)
-    }
-
-    fn check_full(&self) -> Result<()> {
-        // SAFETY: Only performs read accesses within the limits of the slice. If successful, this
-        // call guarantees to other unsafe calls that the header contains a valid totalsize (w.r.t.
-        // 'len' i.e. the self.fdt slice) that those C functions can use to perform bounds
-        // checking. The library doesn't maintain an internal state (such as pointers) between
-        // calls as it expects the client code to keep track of the objects (DT, nodes, ...).
-        let ret = unsafe { libfdt_bindgen::fdt_check_full(self.as_ptr(), self.capacity()) };
-        fdt_err_expect_zero(ret)
     }
 
     fn get_from_ptr(&self, ptr: *const c_void, len: usize) -> Result<&[u8]> {
@@ -1190,7 +1080,7 @@ impl Fdt {
 
     /// Returns a shared pointer to the device tree.
     pub fn as_ptr(&self) -> *const c_void {
-        self.buffer.as_ptr().cast::<_>()
+        self.buffer.as_ptr().cast()
     }
 
     fn as_mut_ptr(&mut self) -> *mut c_void {
@@ -1202,7 +1092,7 @@ impl Fdt {
     }
 
     fn header(&self) -> &libfdt_bindgen::fdt_header {
-        let p = self.as_ptr().cast::<_>();
+        let p = self.as_ptr().cast();
         // SAFETY: A valid FDT (verified by constructor) must contain a valid fdt_header.
         unsafe { &*p }
     }

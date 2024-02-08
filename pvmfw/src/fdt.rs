@@ -35,7 +35,6 @@ use libfdt::AddressRange;
 use libfdt::CellIterator;
 use libfdt::Fdt;
 use libfdt::FdtError;
-use libfdt::FdtNode;
 use libfdt::FdtNodeMut;
 use log::debug;
 use log::error;
@@ -515,11 +514,8 @@ fn patch_serial_info(fdt: &mut Fdt, serial_info: &SerialInfo) -> libfdt::Result<
     let name = cstr!("ns16550a");
     let mut next = fdt.root_mut()?.next_compatible(name);
     while let Some(current) = next? {
-        let reg = FdtNode::from_mut(&current)
-            .reg()?
-            .ok_or(FdtError::NotFound)?
-            .next()
-            .ok_or(FdtError::NotFound)?;
+        let reg =
+            current.as_node().reg()?.ok_or(FdtError::NotFound)?.next().ok_or(FdtError::NotFound)?;
         next = if !serial_info.addrs.contains(&reg.addr) {
             current.delete_and_next_compatible(name)
         } else {
@@ -675,7 +671,9 @@ pub fn sanitize_device_tree(
 
     let info = parse_device_tree(fdt, vm_dtbo.as_deref())?;
 
-    fdt.copy_from_slice(pvmfw_fdt_template::RAW).map_err(|e| {
+    // SAFETY: We trust that the template (hardcoded in our RO data) is a valid DT.
+    let fdt_template = unsafe { Fdt::unchecked_from_slice(pvmfw_fdt_template::RAW) };
+    fdt.clone_from(fdt_template).map_err(|e| {
         error!("Failed to instantiate FDT from the template DT: {e}");
         RebootReason::InvalidFdt
     })?;
@@ -949,7 +947,7 @@ fn apply_debug_policy(
     // SAFETY: on failure, the corrupted DT is restored using the backup.
     if let Err(e) = unsafe { fdt.apply_overlay(overlay) } {
         warn!("Failed to apply debug policy: {e}. Recovering...");
-        fdt.copy_from_slice(backup_fdt.as_slice())?;
+        fdt.clone_from(backup_fdt)?;
         // A successful restoration is considered success because an invalid debug policy
         // shouldn't DOS the pvmfw
         Ok(false)

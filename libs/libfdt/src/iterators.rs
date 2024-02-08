@@ -23,6 +23,8 @@ use core::ffi::CStr;
 use core::marker::PhantomData;
 use core::{mem::size_of, ops::Range, slice::ChunksExact};
 
+use zerocopy::transmute;
+
 /// Iterator over nodes sharing a same compatible string.
 pub struct CompatibleIterator<'a> {
     node: FdtNode<'a>,
@@ -132,12 +134,6 @@ impl<'a> Iterator for RegIterator<'a> {
     }
 }
 
-// Converts two cells into bytes of the same size
-fn two_cells_to_bytes(cells: [u32; 2]) -> [u8; 2 * size_of::<u32>()] {
-    // SAFETY: the size of the two arrays are the same
-    unsafe { core::mem::transmute::<[u32; 2], [u8; 2 * size_of::<u32>()]>(cells) }
-}
-
 impl Reg<u64> {
     const NUM_CELLS: usize = 2;
     /// Converts addr and (optional) size to the format that is consumable by libfdt.
@@ -145,14 +141,10 @@ impl Reg<u64> {
         &self,
     ) -> ([u8; Self::NUM_CELLS * size_of::<u32>()], Option<[u8; Self::NUM_CELLS * size_of::<u32>()]>)
     {
-        let addr =
-            two_cells_to_bytes([((self.addr >> 32) as u32).to_be(), (self.addr as u32).to_be()]);
-        let size = if self.size.is_some() {
-            let size = self.size.unwrap();
-            Some(two_cells_to_bytes([((size >> 32) as u32).to_be(), (size as u32).to_be()]))
-        } else {
-            None
-        };
+        let addr = transmute!([((self.addr >> 32) as u32).to_be(), (self.addr as u32).to_be()]);
+        let size =
+            self.size.map(|sz| transmute!([((sz >> 32) as u32).to_be(), (sz as u32).to_be()]));
+
         (addr, size)
     }
 }
@@ -288,12 +280,8 @@ impl AddressRange<(u32, u64), u64, u64> {
             ((self.size >> 32) as u32).to_be(),
             (self.size as u32).to_be(),
         ];
-        // SAFETY: the size of the two arrays are the same
-        unsafe {
-            core::mem::transmute::<[u32; Self::SIZE_CELLS], [u8; Self::SIZE_CELLS * size_of::<u32>()]>(
-                buf,
-            )
-        }
+
+        transmute!(buf)
     }
 }
 
