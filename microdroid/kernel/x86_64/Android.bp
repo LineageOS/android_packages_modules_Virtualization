@@ -13,7 +13,6 @@
 // limitations under the License.
 
 package {
-    default_team: "trendy_team_virtualization",
     default_applicable_licenses: ["microdroid_kernel_prebuilts_6.1_x86_64_license"],
 }
 
