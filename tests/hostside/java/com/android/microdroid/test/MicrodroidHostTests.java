@@ -90,7 +90,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
     private static final String SHELL_PACKAGE_NAME = "com.android.shell";
     private static final String VIRT_APEX = "/apex/com.android.virt/";
 
-    private static final int MIN_MEM_ARM64 = 160;
+    private static final int MIN_MEM_ARM64 = 170;
     private static final int MIN_MEM_X86_64 = 196;
 
     private static final int BOOT_COMPLETE_TIMEOUT = 30000; // 30 seconds

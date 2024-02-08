@@ -159,7 +159,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     private static final long ONE_MEBI = 1024 * 1024;
 
-    private static final long MIN_MEM_ARM64 = 160 * ONE_MEBI;
+    private static final long MIN_MEM_ARM64 = 170 * ONE_MEBI;
     private static final long MIN_MEM_X86_64 = 196 * ONE_MEBI;
     private static final String EXAMPLE_STRING = "Literally any string!! :)";
 
