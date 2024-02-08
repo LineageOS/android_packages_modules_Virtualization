@@ -652,21 +652,9 @@ impl<'a> FdtNodeMut<'a> {
         Ok(next.map(|(offset, depth)| (Self { fdt: self.fdt, offset }, depth)))
     }
 
-    fn next_node_skip_subnodes(&mut self, depth: usize) -> Result<Option<(c_int, usize)>> {
-        let mut iter = self.fdt.next_node(self.offset, depth)?;
-        while let Some((descendant_offset, descendant_depth)) = iter {
-            if descendant_depth <= depth {
-                return Ok(Some((descendant_offset, descendant_depth)));
-            }
-            iter = self.fdt.next_node(descendant_offset, descendant_depth)?;
-        }
-
-        Ok(None)
-    }
-
     /// Deletes this and returns the next node
-    pub fn delete_and_next_node(mut self, depth: usize) -> Result<Option<(Self, usize)>> {
-        let next_node = self.next_node_skip_subnodes(depth)?;
+    pub fn delete_and_next_node(self, depth: usize) -> Result<Option<(Self, usize)>> {
+        let next_node = self.fdt.next_node_skip_subnodes(self.offset, depth)?;
         if let Some((offset, depth)) = next_node {
             let next_node = self.delete_and_next(Some(offset))?.unwrap();
             Ok(Some((next_node, depth)))
@@ -944,6 +932,18 @@ impl Fdt {
         let offset = self.path_offset_namelen(path.to_bytes())?;
 
         Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
+    }
+
+    fn next_node_skip_subnodes(&self, node: c_int, depth: usize) -> Result<Option<(c_int, usize)>> {
+        let mut iter = self.next_node(node, depth)?;
+        while let Some((offset, next_depth)) = iter {
+            if next_depth <= depth {
+                return Ok(Some((offset, next_depth)));
+            }
+            iter = self.next_node(offset, next_depth)?;
+        }
+
+        Ok(None)
     }
 
     /// Returns the device tree as a slice (may be smaller than the containing buffer).
