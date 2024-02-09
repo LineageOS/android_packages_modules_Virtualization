@@ -68,6 +68,7 @@ android_test {
 // (MicrodroidTestApp) can start a payload defined in the another app (MicrodroidVmShareApp).
 cc_defaults {
     name: "MicrodroidTestNativeLibDefaults",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/testbinary.cpp"],
     stl: "libc++_static",
     header_libs: ["vm_payload_restricted_headers"],
@@ -99,12 +100,14 @@ cc_library_shared {
 
 cc_library_shared {
     name: "MicrodroidTestNativeLibSub",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/testlib.cpp"],
     stl: "libc++_static",
 }
 
 cc_library_shared {
     name: "MicrodroidIdleNativeLib",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/idlebinary.cpp"],
     header_libs: ["vm_payload_headers"],
     stl: "libc++_static",
@@ -113,6 +116,7 @@ cc_library_shared {
 // An empty payload missing AVmPayload_main
 cc_library_shared {
     name: "MicrodroidEmptyNativeLib",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/emptybinary.cpp"],
     stl: "none",
 }
@@ -120,6 +124,7 @@ cc_library_shared {
 // A payload that exits immediately on start
 cc_library_shared {
     name: "MicrodroidExitNativeLib",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/exitbinary.cpp"],
     header_libs: ["vm_payload_headers"],
     stl: "libc++_static",
@@ -128,6 +133,7 @@ cc_library_shared {
 // A payload which tries to link against libselinux, one of private libraries
 cc_library_shared {
     name: "MicrodroidPrivateLinkingNativeLib",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/idlebinary.cpp"],
     header_libs: ["vm_payload_headers"],
     // HACK: linking against "libselinux" will embed libselinux.so into the apk
@@ -139,6 +145,7 @@ cc_library_shared {
 // A payload that crashes immediately on start
 cc_library_shared {
     name: "MicrodroidCrashNativeLib",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/crashbinary.cpp"],
     header_libs: ["vm_payload_headers"],
     stl: "libc++_static",
