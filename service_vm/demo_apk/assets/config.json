@@ -4,7 +4,7 @@
     },
     "task": {
       "type": "microdroid_launcher",
-      "command": "libservice_vm_client.so"
+      "command": "libvm_attestation_payload.so"
     },
     "export_tombstones": true
   }
