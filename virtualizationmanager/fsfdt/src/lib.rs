@@ -98,3 +98,56 @@ impl<'a> FsFdt<'a> for Fdt {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::io::Write;
+    use std::process::Command;
+    use tempfile::NamedTempFile;
+
+    const TEST_FS_FDT_ROOT_PATH: &str = "testdata/fs";
+    const BUF_SIZE_MAX: usize = 1024;
+
+    fn dts_from_fs(path: &Path) -> String {
+        let path = path.to_str().unwrap();
+        let res = Command::new("./dtc_static")
+            .args(["-f", "-s", "-I", "fs", "-O", "dts", path])
+            .output()
+            .unwrap();
+        assert!(res.status.success(), "{res:?}");
+        String::from_utf8(res.stdout).unwrap()
+    }
+
+    fn dts_from_dtb(path: &Path) -> String {
+        let path = path.to_str().unwrap();
+        let res = Command::new("./dtc_static")
+            .args(["-f", "-s", "-I", "dtb", "-O", "dts", path])
+            .output()
+            .unwrap();
+        assert!(res.status.success(), "{res:?}");
+        String::from_utf8(res.stdout).unwrap()
+    }
+
+    fn to_temp_file(fdt: &Fdt) -> Result<NamedTempFile> {
+        let mut file = NamedTempFile::new()?;
+        file.as_file_mut().write_all(fdt.as_slice())?;
+        file.as_file_mut().sync_all()?;
+
+        Ok(file)
+    }
+
+    #[test]
+    fn test_from_fs() {
+        let fs_path = Path::new(TEST_FS_FDT_ROOT_PATH);
+
+        let mut data = vec![0_u8; BUF_SIZE_MAX];
+        let fdt = Fdt::from_fs(fs_path, &mut data).unwrap();
+        let file = to_temp_file(fdt).unwrap();
+
+        let expected = dts_from_fs(fs_path);
+        let actual = dts_from_dtb(file.path());
+
+        assert_eq!(&expected, &actual);
+    }
+}
