@@ -5,6 +5,7 @@ package {
 
 cc_defaults {
     name: "compos_key_defaults",
+    defaults: ["avf_build_flags_cc"],
     apex_available: ["com.android.compos"],
 
     shared_libs: [

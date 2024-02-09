@@ -4,6 +4,7 @@ package {
 
 cc_library_shared {
     name: "libapkmanifest_native",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["native/*.cpp"],
     shared_libs: [
         "libandroidfw",
