@@ -37,7 +37,7 @@ use fdtpci::PciInfo;
 use hyp::{get_mem_sharer, get_mmio_guard};
 use libfdt::FdtError;
 use log::{debug, error, info};
-use service_vm_comm::{RequestProcessingError, Response, ServiceVmRequest, VmType};
+use service_vm_comm::{ServiceVmRequest, VmType};
 use service_vm_fake_chain::service_vm;
 use service_vm_requests::process_request;
 use virtio_drivers::{
@@ -177,15 +177,7 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
     while let ServiceVmRequest::Process(req) = vsock_stream.read_request()? {
-        let mut response = process_request(req, bcc_handover.as_ref());
-        // TODO(b/185878400): We don't want to issue a certificate to pVM when the client VM
-        // attestation is unfinished. The following code should be removed once the
-        // verification is completed.
-        if vm_type() == VmType::ProtectedVm
-            && matches!(response, Response::RequestClientVmAttestation(_))
-        {
-            response = Response::Err(RequestProcessingError::OperationUnimplemented);
-        }
+        let response = process_request(req, bcc_handover.as_ref());
         vsock_stream.write_response(&response)?;
         vsock_stream.flush()?;
     }

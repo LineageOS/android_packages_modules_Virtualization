@@ -224,6 +224,6 @@ fn status_to_cstr(status: attestation_status_t) -> &'static CStr {
     // static string.
     let message = unsafe { AVmAttestationResult_resultToString(status) };
     // SAFETY: The pointer returned by `AVmAttestationResult_resultToString` is guaranteed to
-    // point to a valid C String.
+    // point to a valid C String that lives forever.
     unsafe { CStr::from_ptr(message) }
 }
