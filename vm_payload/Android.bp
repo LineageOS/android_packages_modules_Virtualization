@@ -63,6 +63,7 @@ rust_bindgen {
 // Shared library for clients to link against.
 cc_library_shared {
     name: "libvm_payload",
+    defaults: ["avf_build_flags_cc"],
     shared_libs: [
         "libbinder_ndk",
         "libbinder_rpc_unstable",
@@ -84,6 +85,7 @@ cc_library_shared {
 // declaration of AVmPayload_main().
 cc_library_headers {
     name: "vm_payload_headers",
+    defaults: ["avf_build_flags_cc"],
     apex_available: ["com.android.compos"],
     export_include_dirs: ["include"],
 }
@@ -91,6 +93,7 @@ cc_library_headers {
 // Restricted headers for use by internal clients & associated tests.
 cc_library_headers {
     name: "vm_payload_restricted_headers",
+    defaults: ["avf_build_flags_cc"],
     header_libs: ["vm_payload_headers"],
     export_header_lib_headers: ["vm_payload_headers"],
     export_include_dirs: ["include-restricted"],

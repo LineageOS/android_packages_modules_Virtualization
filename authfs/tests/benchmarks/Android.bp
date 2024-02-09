@@ -29,6 +29,7 @@ java_test_host {
 
 cc_binary {
     name: "measure_io",
+    defaults: ["avf_build_flags_cc"],
     srcs: [
         "src/measure_io.cpp",
     ],

@@ -34,6 +34,7 @@ android_test {
 
 cc_library_shared {
     name: "MicrodroidBenchmarkNativeLib",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["src/native/*.cpp"],
     local_include_dirs: ["src/native/include"],
     static_libs: [
