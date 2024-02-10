@@ -5,6 +5,7 @@ package {
 
 cc_binary {
     name: "microdroid_launcher",
+    defaults: ["avf_build_flags_cc"],
     srcs: ["main.cpp"],
     shared_libs: [
         "libbase",
