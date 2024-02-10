@@ -375,6 +375,10 @@ impl IVirtFdService for FdService {
     }
 }
 
+// FFI types like `c_long` vary on 32/64-bit, and the check is only needed on
+// 64-bit conversions. Fixing this lint makes the code less readable.
+#[allow(unknown_lints)]
+#[allow(clippy::unnecessary_fallible_conversions)]
 fn try_into_fs_stat(st: Statvfs) -> Result<FsStat, std::num::TryFromIntError> {
     Ok(FsStat {
         blockSize: st.block_size().try_into()?,
