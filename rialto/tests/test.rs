@@ -23,9 +23,9 @@ use android_system_virtualizationservice::{
 };
 use anyhow::{bail, Context, Result};
 use bssl_avf::{sha256, EcKey, PKey};
-use ciborium::value::Value;
 use client_vm_csr::generate_attestation_key_and_csr;
 use coset::{CborSerializable, CoseMac0, CoseSign};
+use hwtrust::{rkp, session::Session};
 use log::info;
 use service_vm_comm::{
     ClientVmAttestationParams, Csr, CsrPayload, EcdsaP256KeyPair, GenerateCertificateRequestParams,
@@ -37,7 +37,6 @@ use service_vm_fake_chain::client_vm::{
 use service_vm_manager::ServiceVm;
 use std::fs;
 use std::fs::File;
-use std::io;
 use std::panic;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -272,16 +271,8 @@ fn check_certificate_for_client_vm(
     Ok(())
 }
 
-/// TODO(b/300625792): Check the CSR with libhwtrust once the CSR is complete.
 fn check_csr(csr: Vec<u8>) -> Result<()> {
-    let mut reader = io::Cursor::new(csr);
-    let csr: Value = ciborium::from_reader(&mut reader)?;
-    match csr {
-        Value::Array(arr) => {
-            assert_eq!(4, arr.len());
-        }
-        _ => bail!("Incorrect CSR format: {csr:?}"),
-    }
+    let _csr = rkp::Csr::from_cbor(&Session::default(), &csr[..]).context("Failed to parse CSR")?;
     Ok(())
 }
 

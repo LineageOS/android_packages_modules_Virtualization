@@ -76,13 +76,10 @@ pub(super) fn generate_certificate_request(
         public_keys.push(public_key.to_cbor_value()?);
     }
     // Builds `CsrPayload`.
-    // TODO(b/299256925): The device information is currently empty as we do not
-    // have sufficient details to include.
-    let device_info = Value::Map(Vec::new());
     let csr_payload = cbor!([
         Value::Integer(CSR_PAYLOAD_SCHEMA_V3.into()),
         Value::Text(String::from(CERTIFICATE_TYPE)),
-        device_info,
+        device_info(),
         Value::Array(public_keys),
     ])?;
     let csr_payload = cbor_util::serialize(&csr_payload)?;
@@ -105,6 +102,22 @@ pub(super) fn generate_certificate_request(
         signed_data,
     ])?;
     Ok(cbor_util::serialize(&auth_req)?)
+}
+
+/// Generates the device info required by the RKP server as a temporary placeholder.
+/// More details in b/301592917.
+fn device_info() -> Value {
+    cbor!({"brand" => "aosp-avf",
+    "manufacturer" => "aosp-avf",
+    "product" => "avf",
+    "model" => "avf",
+    "device" => "avf",
+    "vbmeta_digest" => Value::Bytes(vec![0u8; 0]),
+    "system_patch_level" => 202402,
+    "boot_patch_level" => 20240202,
+    "vendor_patch_level" => 20240202,
+    "fused" => 1})
+    .unwrap()
 }
 
 fn derive_hmac_key(dice_artifacts: &dyn DiceArtifacts) -> Result<Zeroizing<[u8; HMAC_KEY_LENGTH]>> {
