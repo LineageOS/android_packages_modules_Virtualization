@@ -477,7 +477,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setProtectedVm(mProtectedVm)
                         .setPayloadBinaryName("binary.so")
                         .setApkPath("/apk/path")
-                        .addExtraApk("package.name1:split")
+                        .addExtraApk("package.name1")
                         .addExtraApk("package.name2")
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .setMemoryBytes(42)
@@ -488,7 +488,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
         assertThat(maximal.getApkPath()).isEqualTo("/apk/path");
         assertThat(maximal.getExtraApks())
-                .containsExactly("package.name1:split", "package.name2")
+                .containsExactly("package.name1", "package.name2")
                 .inOrder();
         assertThat(maximal.getDebugLevel()).isEqualTo(DEBUG_LEVEL_FULL);
         assertThat(maximal.getMemoryBytes()).isEqualTo(42);
