@@ -1001,8 +1001,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setDebugLevel(fromLevel)
                         .setVmOutputCaptured(false);
         VirtualMachineConfig normalConfig = builder.build();
-        forceCreateNewVirtualMachine("test_vm", normalConfig);
-        assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
+        assertThat(tryBootVmWithConfig(normalConfig, "test_vm").payloadStarted).isTrue();
 
         // Try to run the VM again with the previous instance.img
         // We need to make sure that no changes on config don't invalidate the identity, to compare
@@ -1203,8 +1202,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
 
-        forceCreateNewVirtualMachine(vmName, config);
-        assertThat(tryBootVm(TAG, vmName).payloadStarted).isTrue();
+        assertThat(tryBootVmWithConfig(config, vmName).payloadStarted).isTrue();
         File instanceImgPath = getVmFile(vmName, "instance.img");
         return new RandomAccessFile(instanceImgPath, "rw");
     }
@@ -1257,13 +1255,12 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
     @Test
     public void bootFailsWhenConfigIsInvalid() throws Exception {
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
-        VirtualMachineConfig normalConfig =
+        VirtualMachineConfig config =
                 newVmConfigBuilderWithPayloadConfig("assets/" + os() + "/vm_config_no_task.json")
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
-        forceCreateNewVirtualMachine("test_vm_invalid_config", normalConfig);
 
-        BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_config");
+        BootResult bootResult = tryBootVmWithConfig(config, "test_vm_invalid_config");
         assertThat(bootResult.payloadStarted).isFalse();
         assertThat(bootResult.deathReason).isEqualTo(
                 VirtualMachineCallback.STOP_REASON_MICRODROID_INVALID_PAYLOAD_CONFIG);
@@ -1271,15 +1268,47 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     public void bootFailsWhenBinaryNameIsInvalid() throws Exception {
-        VirtualMachineConfig.Builder builder =
-                newVmConfigBuilderWithPayloadBinary("DoesNotExist.so");
-        VirtualMachineConfig normalConfig = builder.setDebugLevel(DEBUG_LEVEL_FULL).build();
-        forceCreateNewVirtualMachine("test_vm_invalid_binary_path", normalConfig);
+        VirtualMachineConfig config =
+                newVmConfigBuilderWithPayloadBinary("DoesNotExist.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
 
-        BootResult bootResult = tryBootVm(TAG, "test_vm_invalid_binary_path");
+        BootResult bootResult = tryBootVmWithConfig(config, "test_vm_invalid_binary_path");
         assertThat(bootResult.payloadStarted).isFalse();
         assertThat(bootResult.deathReason)
                 .isEqualTo(VirtualMachineCallback.STOP_REASON_MICRODROID_UNKNOWN_RUNTIME_ERROR);
+    }
+
+    @Test
+    public void bootFailsWhenApkPathIsInvalid() {
+        VirtualMachineConfig config =
+                newVmConfigBuilderWithPayloadBinary("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setApkPath("/does/not/exist")
+                        .build();
+
+        assertThrowsVmExceptionContaining(
+                () -> tryBootVmWithConfig(config, "test_vm_invalid_apk_path"),
+                "Failed to open APK");
+    }
+
+    @Test
+    public void bootFailsWhenExtraApkPackageIsInvalid() {
+        VirtualMachineConfig config =
+                newVmConfigBuilderWithPayloadBinary("MicrodroidTestNativeLib.so")
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .addExtraApk("com.example.nosuch.package")
+                        .build();
+        assertThrowsVmExceptionContaining(
+                () -> tryBootVmWithConfig(config, "test_vm_invalid_extra_apk_package"),
+                "Extra APK package not found");
+    }
+
+    private BootResult tryBootVmWithConfig(VirtualMachineConfig config, String vmName)
+            throws Exception {
+        try (VirtualMachine ignored = forceCreateNewVirtualMachine(vmName, config)) {
+            return tryBootVm(TAG, vmName);
+        }
     }
 
     // Checks whether microdroid_launcher started but payload failed. reason must be recorded in the
@@ -2190,8 +2219,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .build();
 
-        VirtualMachine vm = forceCreateNewVirtualMachine("test_boot_with_unsigned_vendor", config);
-        BootResult bootResult = tryBootVm(TAG, "test_boot_with_unsigned_vendor");
+        BootResult bootResult = tryBootVmWithConfig(config, "test_boot_with_unsigned_vendor");
         assertThat(bootResult.payloadStarted).isFalse();
         assertThat(bootResult.deathReason).isEqualTo(VirtualMachineCallback.STOP_REASON_REBOOT);
     }
