@@ -211,7 +211,7 @@ public class VirtualMachineManager {
      *
      * @see #getOrCreate
      * @throws VirtualMachineException if the virtual machine exists but could not be successfully
-     *     retrieved.
+     *     retrieved. This can be resolved by calling {@link #delete} on the VM.
      * @hide
      */
     @SystemApi
