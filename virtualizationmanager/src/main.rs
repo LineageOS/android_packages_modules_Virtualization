@@ -19,8 +19,8 @@ mod atom;
 mod composite;
 mod crosvm;
 mod debug_config;
+mod dt_overlay;
 mod payload;
-mod reference_dt;
 mod selinux;
 
 use crate::aidl::{GLOBAL_SERVICE, VirtualizationService};
