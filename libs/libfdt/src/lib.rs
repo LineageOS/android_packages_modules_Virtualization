@@ -17,10 +17,12 @@
 
 #![no_std]
 
+mod ctypes;
 mod iterators;
 mod libfdt;
 mod result;
 
+pub use ctypes::Phandle;
 pub use iterators::{
     AddressRange, CellIterator, CompatibleIterator, DescendantsIterator, MemRegIterator,
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
@@ -30,6 +32,7 @@ pub use result::{FdtError, Result};
 use core::ffi::{c_int, c_void, CStr};
 use core::ops::Range;
 use cstr::cstr;
+use libfdt::get_slice_at_ptr;
 use result::{fdt_err, fdt_err_expect_zero, fdt_err_or_option};
 use zerocopy::AsBytes as _;
 
@@ -92,17 +95,7 @@ impl AsRef<FdtPropertyStruct> for libfdt_bindgen::fdt_property {
 
 impl FdtPropertyStruct {
     fn from_offset(fdt: &Fdt, offset: c_int) -> Result<&Self> {
-        let mut len = 0;
-        let prop =
-            // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-            unsafe { libfdt_bindgen::fdt_get_property_by_offset(fdt.as_ptr(), offset, &mut len) };
-        if prop.is_null() {
-            fdt_err(len)?;
-            return Err(FdtError::Internal); // shouldn't happen.
-        }
-        // SAFETY: prop is only returned when it points to valid libfdt_bindgen.
-        let prop = unsafe { &*prop };
-        Ok(prop.as_ref())
+        Ok(fdt.get_property_by_offset(offset)?.as_ref())
     }
 
     fn name_offset(&self) -> c_int {
@@ -143,11 +136,7 @@ impl<'a> FdtProperty<'a> {
     }
 
     fn next_property(&self) -> Result<Option<Self>> {
-        let ret =
-            // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-            unsafe { libfdt_bindgen::fdt_next_property_offset(self.fdt.as_ptr(), self.offset) };
-
-        if let Some(offset) = fdt_err_or_option(ret)? {
+        if let Some(offset) = self.fdt.next_property_offset(self.offset)? {
             Ok(Some(Self::new(self.fdt, offset)?))
         } else {
             Ok(None)
@@ -216,13 +205,7 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the node name.
     pub fn name(&self) -> Result<&'a CStr> {
-        let mut len: c_int = 0;
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor). On success, the
-        // function returns valid null terminating string and otherwise returned values are dropped.
-        let name = unsafe { libfdt_bindgen::fdt_get_name(self.fdt.as_ptr(), self.offset, &mut len) }
-            as *const c_void;
-        let len = usize::try_from(fdt_err(len)?).unwrap();
-        let name = self.fdt.get_from_ptr(name, len + 1)?;
+        let name = self.fdt.get_name(self.offset)?;
         CStr::from_bytes_with_nul(name).map_err(|_| FdtError::Internal)
     }
 
@@ -264,44 +247,7 @@ impl<'a> FdtNode<'a> {
 
     /// Returns the value of a given property.
     pub fn getprop(&self, name: &CStr) -> Result<Option<&'a [u8]>> {
-        if let Some((prop, len)) = Self::getprop_internal(self.fdt, self.offset, name)? {
-            Ok(Some(self.fdt.get_from_ptr(prop, len)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Returns the pointer and size of the property named `name`, in a node at offset `offset`, in
-    /// a device tree `fdt`. The pointer is guaranteed to be non-null, in which case error returns.
-    fn getprop_internal(
-        fdt: &'a Fdt,
-        offset: c_int,
-        name: &CStr,
-    ) -> Result<Option<(*const c_void, usize)>> {
-        let mut len: i32 = 0;
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) and the
-        // function respects the passed number of characters.
-        let prop = unsafe {
-            libfdt_bindgen::fdt_getprop_namelen(
-                fdt.as_ptr(),
-                offset,
-                name.as_ptr(),
-                // *_namelen functions don't include the trailing nul terminator in 'len'.
-                name.to_bytes().len().try_into().map_err(|_| FdtError::BadPath)?,
-                &mut len as *mut i32,
-            )
-        } as *const u8;
-
-        let Some(len) = fdt_err_or_option(len)? else {
-            return Ok(None); // Property was not found.
-        };
-        let len = usize::try_from(len).unwrap();
-
-        if prop.is_null() {
-            // We expected an error code in len but still received a valid value?!
-            return Err(FdtError::Internal);
-        }
-        Ok(Some((prop.cast::<c_void>(), len)))
+        self.fdt.getprop_namelen(self.offset, name.to_bytes())
     }
 
     /// Returns reference to the containing device tree.
@@ -365,11 +311,7 @@ impl<'a> FdtNode<'a> {
     }
 
     fn first_property(&self) -> Result<Option<FdtProperty<'a>>> {
-        let ret =
-            // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-            unsafe { libfdt_bindgen::fdt_first_property_offset(self.fdt.as_ptr(), self.offset) };
-
-        if let Some(offset) = fdt_err_or_option(ret)? {
+        if let Some(offset) = self.fdt.first_property_offset(self.offset)? {
             Ok(Some(FdtProperty::new(self.fdt, offset)?))
         } else {
             Ok(None)
@@ -410,41 +352,6 @@ impl<'a> PartialEq for FdtNode<'a> {
     }
 }
 
-/// Phandle of a FDT node
-#[repr(transparent)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Phandle(u32);
-
-impl Phandle {
-    /// Minimum valid value for device tree phandles.
-    pub const MIN: Self = Self(1);
-    /// Maximum valid value for device tree phandles.
-    pub const MAX: Self = Self(libfdt_bindgen::FDT_MAX_PHANDLE);
-
-    /// Creates a new Phandle
-    pub const fn new(value: u32) -> Option<Self> {
-        if Self::MIN.0 <= value && value <= Self::MAX.0 {
-            Some(Self(value))
-        } else {
-            None
-        }
-    }
-}
-
-impl From<Phandle> for u32 {
-    fn from(phandle: Phandle) -> u32 {
-        phandle.0
-    }
-}
-
-impl TryFrom<u32> for Phandle {
-    type Error = FdtError;
-
-    fn try_from(value: u32) -> Result<Self> {
-        Self::new(value).ok_or(FdtError::BadPhandle)
-    }
-}
-
 /// Mutable FDT node.
 #[derive(Debug)]
 pub struct FdtNodeMut<'a> {
@@ -455,54 +362,20 @@ pub struct FdtNodeMut<'a> {
 impl<'a> FdtNodeMut<'a> {
     /// Appends a property name-value (possibly empty) pair to the given node.
     pub fn appendprop<T: AsRef<[u8]>>(&mut self, name: &CStr, value: &T) -> Result<()> {
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
-        let ret = unsafe {
-            libfdt_bindgen::fdt_appendprop(
-                self.fdt.as_mut_ptr(),
-                self.offset,
-                name.as_ptr(),
-                value.as_ref().as_ptr().cast::<c_void>(),
-                value.as_ref().len().try_into().map_err(|_| FdtError::BadValue)?,
-            )
-        };
-
-        fdt_err_expect_zero(ret)
+        self.fdt.appendprop(self.offset, name, value.as_ref())
     }
 
     /// Appends a (address, size) pair property to the given node.
     pub fn appendprop_addrrange(&mut self, name: &CStr, addr: u64, size: u64) -> Result<()> {
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
-        let ret = unsafe {
-            libfdt_bindgen::fdt_appendprop_addrrange(
-                self.fdt.as_mut_ptr(),
-                self.parent()?.offset,
-                self.offset,
-                name.as_ptr(),
-                addr,
-                size,
-            )
-        };
-
-        fdt_err_expect_zero(ret)
+        let parent = self.parent()?.offset;
+        self.fdt.appendprop_addrrange(parent, self.offset, name, addr, size)
     }
 
     /// Sets a property name-value pair to the given node.
     ///
     /// This may create a new prop or replace existing value.
     pub fn setprop(&mut self, name: &CStr, value: &[u8]) -> Result<()> {
-        // SAFETY: New value size is constrained to the DT totalsize
-        //          (validated by underlying libfdt).
-        let ret = unsafe {
-            libfdt_bindgen::fdt_setprop(
-                self.fdt.as_mut_ptr(),
-                self.offset,
-                name.as_ptr(),
-                value.as_ptr().cast::<c_void>(),
-                value.len().try_into().map_err(|_| FdtError::BadValue)?,
-            )
-        };
-
-        fdt_err_expect_zero(ret)
+        self.fdt.setprop(self.offset, name, value)
     }
 
     /// Sets the value of the given property with the given value, and ensure that the given
@@ -510,18 +383,7 @@ impl<'a> FdtNodeMut<'a> {
     ///
     /// This can only be used to replace existing value.
     pub fn setprop_inplace(&mut self, name: &CStr, value: &[u8]) -> Result<()> {
-        // SAFETY: fdt size is not altered
-        let ret = unsafe {
-            libfdt_bindgen::fdt_setprop_inplace(
-                self.fdt.as_mut_ptr(),
-                self.offset,
-                name.as_ptr(),
-                value.as_ptr().cast::<c_void>(),
-                value.len().try_into().map_err(|_| FdtError::BadValue)?,
-            )
-        };
-
-        fdt_err_expect_zero(ret)
+        self.fdt.setprop_inplace(self.offset, name, value)
     }
 
     /// Sets the value of the given (address, size) pair property with the given value, and
@@ -530,63 +392,35 @@ impl<'a> FdtNodeMut<'a> {
     /// This can only be used to replace existing value.
     pub fn setprop_addrrange_inplace(&mut self, name: &CStr, addr: u64, size: u64) -> Result<()> {
         let pair = [addr.to_be(), size.to_be()];
-        self.setprop_inplace(name, pair.as_bytes())
+        self.fdt.setprop_inplace(self.offset, name, pair.as_bytes())
     }
 
     /// Sets a flag-like empty property.
     ///
     /// This may create a new prop or replace existing value.
     pub fn setprop_empty(&mut self, name: &CStr) -> Result<()> {
-        self.setprop(name, &[])
+        self.fdt.setprop(self.offset, name, &[])
     }
 
     /// Deletes the given property.
     pub fn delprop(&mut self, name: &CStr) -> Result<()> {
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) when the
-        // library locates the node's property. Removing the property may shift the offsets of
-        // other nodes and properties but the borrow checker should prevent this function from
-        // being called when FdtNode instances are in use.
-        let ret = unsafe {
-            libfdt_bindgen::fdt_delprop(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
-        };
-
-        fdt_err_expect_zero(ret)
+        self.fdt.delprop(self.offset, name)
     }
 
     /// Deletes the given property effectively from DT, by setting it with FDT_NOP.
     pub fn nop_property(&mut self, name: &CStr) -> Result<()> {
-        // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) when the
-        // library locates the node's property.
-        let ret = unsafe {
-            libfdt_bindgen::fdt_nop_property(self.fdt.as_mut_ptr(), self.offset, name.as_ptr())
-        };
-
-        fdt_err_expect_zero(ret)
+        self.fdt.nop_property(self.offset, name)
     }
 
     /// Trims the size of the given property to new_size.
     pub fn trimprop(&mut self, name: &CStr, new_size: usize) -> Result<()> {
-        let (prop, len) =
-            FdtNode::getprop_internal(self.fdt, self.offset, name)?.ok_or(FdtError::NotFound)?;
-        if len == new_size {
-            return Ok(());
-        }
-        if new_size > len {
-            return Err(FdtError::NoSpace);
-        }
+        let prop = self.as_node().getprop(name)?.ok_or(FdtError::NotFound)?;
 
-        // SAFETY: new_size is smaller than the old size
-        let ret = unsafe {
-            libfdt_bindgen::fdt_setprop(
-                self.fdt.as_mut_ptr(),
-                self.offset,
-                name.as_ptr(),
-                prop.cast::<c_void>(),
-                new_size.try_into().map_err(|_| FdtError::BadValue)?,
-            )
-        };
-
-        fdt_err_expect_zero(ret)
+        match prop.len() {
+            x if x == new_size => Ok(()),
+            x if x < new_size => Err(FdtError::NoSpace),
+            _ => self.fdt.setprop_placeholder(self.offset, name, new_size).map(|_| ()),
+        }
     }
 
     /// Returns reference to the containing device tree.
@@ -896,30 +730,21 @@ impl Fdt {
 
     /// Returns max phandle in the tree.
     pub fn max_phandle(&self) -> Result<Phandle> {
-        let mut phandle: u32 = 0;
-        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-        let ret = unsafe { libfdt_bindgen::fdt_find_max_phandle(self.as_ptr(), &mut phandle) };
-
-        fdt_err_expect_zero(ret)?;
-        phandle.try_into()
+        self.find_max_phandle()
     }
 
     /// Returns a node with the phandle
     pub fn node_with_phandle(&self, phandle: Phandle) -> Result<Option<FdtNode>> {
-        let offset = self.node_offset_with_phandle(phandle)?;
+        let offset = self.node_offset_by_phandle(phandle)?;
+
         Ok(offset.map(|offset| FdtNode { fdt: self, offset }))
     }
 
     /// Returns a mutable node with the phandle
     pub fn node_mut_with_phandle(&mut self, phandle: Phandle) -> Result<Option<FdtNodeMut>> {
-        let offset = self.node_offset_with_phandle(phandle)?;
-        Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
-    }
+        let offset = self.node_offset_by_phandle(phandle)?;
 
-    fn node_offset_with_phandle(&self, phandle: Phandle) -> Result<Option<c_int>> {
-        // SAFETY: Accesses are constrained to the DT totalsize.
-        let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_phandle(self.as_ptr(), phandle.0) };
-        fdt_err_or_option(ret)
+        Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
     /// Returns the mutable root node of the tree.
@@ -952,20 +777,7 @@ impl Fdt {
     }
 
     fn get_from_ptr(&self, ptr: *const c_void, len: usize) -> Result<&[u8]> {
-        let ptr = ptr as usize;
-        let offset = ptr.checked_sub(self.as_ptr() as usize).ok_or(FdtError::Internal)?;
-        self.buffer.get(offset..(offset + len)).ok_or(FdtError::Internal)
-    }
-
-    fn string(&self, offset: c_int) -> Result<&CStr> {
-        // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
-        let res = unsafe { libfdt_bindgen::fdt_string(self.as_ptr(), offset) };
-        if res.is_null() {
-            return Err(FdtError::Internal);
-        }
-
-        // SAFETY: Non-null return from fdt_string() is valid null-terminating string within FDT.
-        Ok(unsafe { CStr::from_ptr(res) })
+        get_slice_at_ptr(self.as_fdt_slice(), ptr.cast(), len).ok_or(FdtError::Internal)
     }
 
     /// Returns a shared pointer to the device tree.
