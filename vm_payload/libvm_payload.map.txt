@@ -8,6 +8,7 @@ LIBVM_PAYLOAD {
     AVmPayload_getApkContentsPath;       # systemapi introduced=UpsideDownCake
     AVmPayload_getEncryptedStoragePath;  # systemapi introduced=UpsideDownCake
     AVmPayload_requestAttestation;       # systemapi introduced=VanillaIceCream
+    AVmPayload_requestAttestationForTesting; # systemapi introduced=VanillaIceCream
     AVmAttestationResult_getPrivateKey;  # systemapi introduced=VanillaIceCream
     AVmAttestationResult_sign;           # systemapi introduced=VanillaIceCream
     AVmAttestationResult_free;           # systemapi introduced=VanillaIceCream

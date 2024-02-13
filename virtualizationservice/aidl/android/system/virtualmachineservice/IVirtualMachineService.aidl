@@ -51,10 +51,11 @@ interface IVirtualMachineService {
      * Requests a certificate chain for the provided certificate signing request (CSR).
      *
      * @param csr The certificate signing request.
+     * @param testMode Whether the request is for test purposes.
      * @return A sequence of DER-encoded X.509 certificates that make up the attestation
      *         key's certificate chain. The attestation key is provided in the CSR.
      */
-    Certificate[] requestAttestation(in byte[] csr);
+    Certificate[] requestAttestation(in byte[] csr, in boolean testMode);
 
     /**
      * Request connection to Secretkeeper. This is used by pVM to store Anti-Rollback protected

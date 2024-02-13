@@ -39,6 +39,9 @@ use std::sync::{
 };
 use vm_payload_status_bindgen::attestation_status_t;
 
+/// Maximum size of an ECDSA signature for EC P-256 key is 72 bytes.
+const MAX_ECDSA_P256_SIGNATURE_SIZE: usize = 72;
+
 lazy_static! {
     static ref VM_APK_CONTENTS_PATH_C: CString =
         CString::new(VM_APK_CONTENTS_PATH).expect("CString::new failed");
@@ -273,15 +276,66 @@ fn try_get_dice_attestation_cdi() -> Result<Vec<u8>> {
 /// Behavior is undefined if any of the following conditions are violated:
 ///
 /// * `challenge` must be [valid] for reads of `challenge_size` bytes.
-/// * `res` must be [valid] to write the attestation result.
-/// * The region of memory beginning at `challenge` with `challenge_size` bytes must not
-///  overlap with the region of memory `res` points to.
 ///
 /// [valid]: ptr#safety
 #[no_mangle]
 pub unsafe extern "C" fn AVmPayload_requestAttestation(
     challenge: *const u8,
     challenge_size: usize,
+    res: &mut *mut AttestationResult,
+) -> attestation_status_t {
+    // SAFETY: The caller guarantees that `challenge` is valid for reads and `res` is valid
+    // for writes.
+    unsafe {
+        request_attestation(
+            challenge,
+            challenge_size,
+            false, // test_mode
+            res,
+        )
+    }
+}
+
+/// Requests the remote attestation of the client VM for testing.
+///
+/// # Safety
+///
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `challenge` must be [valid] for reads of `challenge_size` bytes.
+///
+/// [valid]: ptr#safety
+#[no_mangle]
+pub unsafe extern "C" fn AVmPayload_requestAttestationForTesting(
+    challenge: *const u8,
+    challenge_size: usize,
+    res: &mut *mut AttestationResult,
+) -> attestation_status_t {
+    // SAFETY: The caller guarantees that `challenge` is valid for reads and `res` is valid
+    // for writes.
+    unsafe {
+        request_attestation(
+            challenge,
+            challenge_size,
+            true, // test_mode
+            res,
+        )
+    }
+}
+
+/// Requests the remote attestation of the client VM.
+///
+/// # Safety
+///
+/// Behavior is undefined if any of the following conditions are violated:
+///
+/// * `challenge` must be [valid] for reads of `challenge_size` bytes.
+///
+/// [valid]: ptr#safety
+unsafe fn request_attestation(
+    challenge: *const u8,
+    challenge_size: usize,
+    test_mode: bool,
     res: &mut *mut AttestationResult,
 ) -> attestation_status_t {
     initialize_logging();
@@ -297,7 +351,7 @@ pub unsafe extern "C" fn AVmPayload_requestAttestation(
         unsafe { std::slice::from_raw_parts(challenge, challenge_size) }
     };
     let service = unwrap_or_abort(get_vm_payload_service());
-    match service.requestAttestation(challenge) {
+    match service.requestAttestation(challenge, test_mode) {
         Ok(attestation_res) => {
             *res = Box::into_raw(Box::new(attestation_res));
             attestation_status_t::ATTESTATION_OK
@@ -400,27 +454,36 @@ pub unsafe extern "C" fn AVmAttestationResult_sign(
     data: *mut u8,
     size: usize,
 ) -> usize {
+    // A DER-encoded ECDSA signature can have varying sizes even with the same EC Key and message,
+    // due to the encoding of the random values r and s that are part of the signature.
+    if size == 0 {
+        return MAX_ECDSA_P256_SIGNATURE_SIZE;
+    }
     if message_size == 0 {
         panic!("Message to be signed must not be empty.")
     }
     // SAFETY: See the requirements on `message` above.
     let message = unsafe { std::slice::from_raw_parts(message, message_size) };
     let signature = unwrap_or_abort(try_ecdsa_sign(message, &res.privateKey));
-    if size != 0 {
-        let data = NonNull::new(data).expect("data must not be null when size > 0");
-        // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
-        // the length of either buffer, and the caller ensures that `signature` cannot overlap
-        // `data`. We allow data to be null, which is never valid, but only if size == 0
-        // which is checked above.
-        unsafe {
-            ptr::copy_nonoverlapping(
-                signature.as_ptr(),
-                data.as_ptr(),
-                std::cmp::min(signature.len(), size),
-            )
-        };
+    let data = NonNull::new(data).expect("data must not be null when size > 0");
+    // SAFETY: See the requirements on `data` above. The number of bytes copied doesn't exceed
+    // the length of either buffer, and the caller ensures that `signature` cannot overlap
+    // `data`. We allow data to be null, which is never valid, but only if size == 0
+    // which is checked above.
+    unsafe {
+        ptr::copy_nonoverlapping(
+            signature.as_ptr(),
+            data.as_ptr(),
+            usize::min(signature.len(), size),
+        )
+    };
+    if size < signature.len() {
+        // If the buffer is too small, return the maximum size of the signature to allow the caller
+        // to allocate a buffer large enough to call this function again.
+        MAX_ECDSA_P256_SIGNATURE_SIZE
+    } else {
+        signature.len()
     }
-    signature.len()
 }
 
 fn try_ecdsa_sign(message: &[u8], der_encoded_ec_private_key: &[u8]) -> Result<Vec<u8>> {

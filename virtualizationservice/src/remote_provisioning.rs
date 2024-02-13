@@ -145,7 +145,7 @@ fn check_protected_vm_is_supported() -> BinderResult<()> {
     }
 }
 
-fn to_service_specific_error(response: Response) -> Status {
+pub(crate) fn to_service_specific_error(response: Response) -> Status {
     match response {
         Response::Err(e) => match e {
             RequestProcessingError::InvalidMac => {
