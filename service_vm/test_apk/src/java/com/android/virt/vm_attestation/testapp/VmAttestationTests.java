@@ -25,26 +25,41 @@ import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.junit.runners.BlockJUnit4ClassRunner;
+import org.junit.runners.Parameterized;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 import com.android.virt.vm_attestation.testservice.IAttestationService;
 
-@RunWith(BlockJUnit4ClassRunner.class)
+@RunWith(Parameterized.class)
 public class VmAttestationTests extends MicrodroidDeviceTestBase {
     private static final String TAG = "VmAttestationTest";
     private static final String DEFAULT_CONFIG = "assets/config.json";
+
+    @Parameterized.Parameter(0)
+    public String mGki;
+
+    @Parameterized.Parameters(name = "gki={0}")
+    public static Collection<Object[]> params() {
+        List<Object[]> ret = new ArrayList<>();
+        ret.add(new Object[] {null /* use microdroid kernel */});
+        for (String gki : SUPPORTED_GKI_VERSIONS) {
+            ret.add(new Object[] {gki});
+        }
+        return ret;
+    }
 
     @Before
     public void setup() throws IOException {
         grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
         grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
-        // TODO(b/318333789): Test using GKI as guest kernel.
-        prepareTestSetup(true /* protectedVm */, null /* use microdroid kernel */);
+        prepareTestSetup(true /* protectedVm */, mGki);
         setMaxPerformanceTaskProfile();
     }
 
