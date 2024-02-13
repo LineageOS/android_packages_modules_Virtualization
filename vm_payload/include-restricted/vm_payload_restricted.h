@@ -55,4 +55,25 @@ size_t AVmPayload_getDiceAttestationChain(void* _Nullable data, size_t size);
  */
 size_t AVmPayload_getDiceAttestationCdi(void* _Nullable data, size_t size);
 
+/**
+ * Requests attestation for the VM for testing only.
+ *
+ * This function is only for testing and will not return a real RKP server backed
+ * certificate chain.
+ *
+ * Prior to calling this function, the caller must provision a key pair to be used in
+ * this function with `VirtualMachineManager#enableTestAttestation`.
+ *
+ * \param challenge A pointer to the challenge buffer.
+ * \param challenge_size size of the challenge. The maximum supported challenge size is
+ *          64 bytes. The status ATTESTATION_ERROR_INVALID_CHALLENGE will be returned if
+ *          an invalid challenge is passed.
+ * \param result The remote attestation result will be filled here if the attestation
+ *               succeeds. The result remains valid until it is freed with
+ *              `AVmPayload_freeAttestationResult`.
+ */
+attestation_status_t AVmPayload_requestAttestationForTesting(
+        const void* _Nonnull challenge, size_t challenge_size,
+        struct AVmAttestationResult* _Nullable* _Nonnull result) __INTRODUCED_IN(__ANDROID_API_V__);
+
 __END_DECLS

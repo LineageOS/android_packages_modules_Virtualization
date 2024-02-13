@@ -211,7 +211,7 @@ size_t AVmAttestationResult_getPrivateKey(const struct AVmAttestationResult* _No
  * If `size` is smaller than the total size of the signature, the signature will be
  * truncated to this `size`.
  *
- * \return The total size of the signature.
+ * \return The size of the signature, or the size needed if the supplied buffer is too small.
  *
  * [RFC 6979]: https://datatracker.ietf.org/doc/html/rfc6979
  */
