@@ -19,9 +19,9 @@ use crate::atom::{write_vm_booted_stats, write_vm_creation_stats};
 use crate::composite::make_composite_image;
 use crate::crosvm::{CrosvmConfig, DiskFile, PayloadState, VmContext, VmInstance, VmState};
 use crate::debug_config::DebugConfig;
+use crate::dt_overlay::{create_device_tree_overlay, VM_DT_OVERLAY_MAX_SIZE, VM_DT_OVERLAY_PATH};
 use crate::payload::{add_microdroid_payload_images, add_microdroid_system_images, add_microdroid_vendor_image};
 use crate::selinux::{getfilecon, SeContext};
-use crate::reference_dt;
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
 use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::{
     Certificate::Certificate,
@@ -68,6 +68,7 @@ use binder::{
     Status, StatusCode, Strong,
     IntoBinderResult,
 };
+use cstr::cstr;
 use disk::QcowFile;
 use glob::glob;
 use lazy_static::lazy_static;
@@ -79,6 +80,7 @@ use rustutils::system_properties;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::convert::TryInto;
+use std::fs;
 use std::ffi::CStr;
 use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Seek, SeekFrom, Write};
@@ -117,6 +119,8 @@ const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
 /// crosvm requires all partitions to be a multiple of 4KiB.
 const PARTITION_GRANULARITY_BYTES: u64 = 4096;
+
+const VM_REFERENCE_DT_ON_HOST_PATH: &str = "/proc/device-tree/avf/reference";
 
 lazy_static! {
     pub static ref GLOBAL_SERVICE: Strong<dyn IVirtualizationServiceInternal> =
@@ -376,12 +380,36 @@ impl VirtualizationService {
             check_gdb_allowed(config)?;
         }
 
-        let reference_dt = reference_dt::parse_reference_dt(&temporary_directory)
-            .context("Failed to create VM reference DT")
-            .or_service_specific_exception(-1)?;
-        if reference_dt.is_none() {
-            warn!("VM reference DT doesn't exist");
-        }
+        // Currently, VirtMgr adds the host copy of reference DT & an untrusted prop (instance-id)
+        let host_ref_dt = Path::new(VM_REFERENCE_DT_ON_HOST_PATH);
+        let host_ref_dt = if host_ref_dt.exists()
+            && read_dir(host_ref_dt).or_service_specific_exception(-1)?.next().is_some()
+        {
+            Some(host_ref_dt)
+        } else {
+            warn!("VM reference DT doesn't exist in host DT");
+            None
+        };
+
+        let untrusted_props = if cfg!(llpvm_changes) {
+            // TODO(b/291213394): Replace this with a per-VM instance Id.
+            let instance_id = b"sixtyfourbyteslonghardcoded_indeed_sixtyfourbyteslonghardcoded_h";
+            vec![(cstr!("instance-id"), &instance_id[..])]
+        } else {
+            vec![]
+        };
+
+        let device_tree_overlay = if host_ref_dt.is_some() || !untrusted_props.is_empty() {
+            let dt_output = temporary_directory.join(VM_DT_OVERLAY_PATH);
+            let mut data = [0_u8; VM_DT_OVERLAY_MAX_SIZE];
+            let fdt = create_device_tree_overlay(&mut data, host_ref_dt, &untrusted_props)
+                .map_err(|e| anyhow!("Failed to create DT overlay, {e:?}"))
+                .or_service_specific_exception(-1)?;
+            fs::write(&dt_output, fdt.as_slice()).or_service_specific_exception(-1)?;
+            Some(File::open(dt_output).or_service_specific_exception(-1)?)
+        } else {
+            None
+        };
 
         let debug_level = match config {
             VirtualMachineConfig::AppConfig(config) => config.debugLevel,
@@ -531,7 +559,7 @@ impl VirtualizationService {
             gdb_port,
             vfio_devices,
             dtbo,
-            reference_dt,
+            device_tree_overlay,
         };
         let instance = Arc::new(
             VmInstance::new(
