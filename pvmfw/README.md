@@ -195,7 +195,8 @@ blos it refers to. In version 1.0, it describes two blobs:
 
 In version 1.1, a third blob is added.
 
-- entry 2 may point to a [DTBO] that describes VM DTBO for device assignment.
+- entry 2 may point to a [DTBO] that describes VM DA DTBO for
+  [device assignment][device_assignment].
   pvmfw will provision assigned devices with the VM DTBO.
 
 In version 1.2, a fourth blob is added.
@@ -225,6 +226,7 @@ In version 1.2, a fourth blob is added.
 [header]: src/config.rs
 [DTBO]: https://android.googlesource.com/platform/external/dtc/+/refs/heads/main/Documentation/dt-object-internal.txt
 [debug_policy]: ../docs/debug/README.md#debug-policy
+[device_assignment]: ../docs/device_assignment.md
 [secretkeeper_key]: https://android.googlesource.com/platform/system/secretkeeper/+/refs/heads/main/README.md#secretkeeper-public-key
 [vendor_hashtree_digest]: ../microdroid/README.md#verification-of-vendor-image
 
