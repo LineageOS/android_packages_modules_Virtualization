@@ -1,0 +1,93 @@
+/*
+ * Copyright (C) 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.android.virt.vm_attestation.testapp;
+
+import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.TruthJUnit.assume;
+import static android.system.virtualmachine.VirtualMachineConfig.DEBUG_LEVEL_FULL;
+
+import android.system.virtualmachine.VirtualMachine;
+import android.system.virtualmachine.VirtualMachineConfig;
+import android.system.virtualmachine.VirtualMachineManager;
+
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.BlockJUnit4ClassRunner;
+import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
+import com.android.virt.vm_attestation.testservice.IAttestationService;
+
+@RunWith(BlockJUnit4ClassRunner.class)
+public class VmAttestationTests extends MicrodroidDeviceTestBase {
+    private static final String TAG = "VmAttestationTest";
+    private static final String DEFAULT_CONFIG = "assets/config.json";
+
+    @Before
+    public void setup() throws IOException {
+        grantPermission(VirtualMachine.MANAGE_VIRTUAL_MACHINE_PERMISSION);
+        grantPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION);
+        // TODO(b/318333789): Test using GKI as guest kernel.
+        prepareTestSetup(true /* protectedVm */, null /* use microdroid kernel */);
+        setMaxPerformanceTaskProfile();
+    }
+
+    @Test
+    public void requestingAttestationSucceeds() throws Exception {
+        assume().withMessage("Remote attestation is not supported on CF.")
+                .that(isCuttlefish())
+                .isFalse();
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_REMOTE_ATTESTATION);
+
+        VirtualMachineConfig.Builder builder =
+                newVmConfigBuilderWithPayloadConfig(DEFAULT_CONFIG)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .setVmOutputCaptured(true);
+        VirtualMachineConfig config = builder.build();
+        VirtualMachine vm = forceCreateNewVirtualMachine("attestation_client", config);
+
+        vm.enableTestAttestation();
+        CompletableFuture<Exception> exception = new CompletableFuture<>();
+        CompletableFuture<Boolean> payloadReady = new CompletableFuture<>();
+        VmEventListener listener =
+                new VmEventListener() {
+                    @Override
+                    public void onPayloadReady(VirtualMachine vm) {
+                        payloadReady.complete(true);
+                        try {
+                            IAttestationService service =
+                                    IAttestationService.Stub.asInterface(
+                                            vm.connectToVsockServer(IAttestationService.PORT));
+                            android.os.Trace.beginSection("runningVmRequestsAttestation");
+                            service.requestAttestationForTesting();
+                            android.os.Trace.endSection();
+                            service.validateAttestationResult();
+                        } catch (Exception e) {
+                            exception.complete(e);
+                        } finally {
+                            forceStop(vm);
+                        }
+                    }
+                };
+
+        listener.runToFinish(TAG, vm);
+        assertThat(payloadReady.getNow(false)).isTrue();
+        assertThat(exception.getNow(null)).isNull();
+    }
+}
