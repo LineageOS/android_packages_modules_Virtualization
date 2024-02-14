@@ -229,13 +229,19 @@ fn validate_cpu_info(cpus: &[CpuInfo]) -> Result<(), FdtValidationError> {
 }
 
 fn read_vcpufreq_info(fdt: &Fdt) -> libfdt::Result<Option<VcpufreqInfo>> {
-    if let Some(node) = fdt.node(cstr!("/cpufreq"))? {
-        let mut regs = node.reg()?.ok_or(FdtError::NotFound)?;
-        let reg = regs.next().ok_or(FdtError::NotFound)?;
-        return Ok(Some(VcpufreqInfo { addr: reg.addr, size: reg.size.unwrap() }));
+    let mut nodes = fdt.compatible_nodes(cstr!("virtual,android-v-only-cpufreq"))?;
+    let Some(node) = nodes.next() else {
+        return Ok(None);
     };
 
-    Ok(None)
+    if nodes.next().is_some() {
+        warn!("DT has more than 1 cpufreq node: discarding extra nodes.");
+    }
+
+    let mut regs = node.reg()?.ok_or(FdtError::NotFound)?;
+    let reg = regs.next().ok_or(FdtError::NotFound)?;
+
+    Ok(Some(VcpufreqInfo { addr: reg.addr, size: reg.size.unwrap() }))
 }
 
 fn validate_vcpufreq_info(
@@ -262,10 +268,15 @@ fn validate_vcpufreq_info(
 
 fn patch_opptable(
     node: FdtNodeMut,
-    opptable: ArrayVec<[u64; DeviceTreeInfo::MAX_CPUS]>,
+    opptable: Option<ArrayVec<[u64; DeviceTreeInfo::MAX_CPUS]>>,
 ) -> libfdt::Result<()> {
     let oppcompat = cstr!("operating-points-v2");
     let next = node.next_compatible(oppcompat)?.ok_or(FdtError::NoSpace)?;
+
+    let Some(opptable) = opptable else {
+        return next.nop();
+    };
+
     let mut next_subnode = next.first_subnode()?;
 
     for entry in opptable {
@@ -297,9 +308,7 @@ fn patch_cpus(fdt: &mut Fdt, cpus: &[CpuInfo]) -> libfdt::Result<()> {
     const COMPAT: &CStr = cstr!("arm,arm-v8");
     for (idx, cpu) in cpus.iter().enumerate() {
         let cur = get_nth_compatible(fdt, idx, COMPAT)?.ok_or(FdtError::NoSpace)?;
-        if let Some(opptable) = cpu.opptable_info {
-            patch_opptable(cur, opptable)?;
-        }
+        patch_opptable(cur, cpu.opptable_info)?;
     }
     let mut next = get_nth_compatible(fdt, cpus.len(), COMPAT)?;
     while let Some(current) = next {
