@@ -21,6 +21,7 @@ use diced_open_dice::{
     Hash, InputValues, HIDDEN_SIZE,
 };
 use pvmfw_avb::{Capability, DebugLevel, Digest, VerifiedBootData};
+use zerocopy::AsBytes;
 
 fn to_dice_mode(debug_level: DebugLevel) -> DiceMode {
     match debug_level {
@@ -72,10 +73,28 @@ impl PartialInputs {
             Config::Descriptor(config),
             self.auth_hash,
             self.mode,
-            *salt,
+            self.make_hidden(salt)?,
         );
         let _ = bcc_handover_main_flow(current_bcc_handover, &dice_inputs, next_bcc)?;
         Ok(())
+    }
+
+    fn make_hidden(&self, salt: &[u8; HIDDEN_SIZE]) -> diced_open_dice::Result<[u8; HIDDEN_SIZE]> {
+        // We want to make sure we get a different sealing CDI for:
+        // - VMs with different salt values
+        // - An RKP VM and any other VM (regardless of salt)
+        // The hidden input for DICE affects the sealing CDI (but the values in the config
+        // descriptor do not).
+        // Since the hidden input has to be a fixed size, create it as a hash of the values we
+        // want included.
+        #[derive(AsBytes)]
+        #[repr(C, packed)]
+        struct HiddenInput {
+            rkp_vm_marker: bool,
+            salt: [u8; HIDDEN_SIZE],
+        }
+
+        hash(HiddenInput { rkp_vm_marker: self.rkp_vm_marker, salt: *salt }.as_bytes())
     }
 
     fn generate_config_descriptor<'a>(
