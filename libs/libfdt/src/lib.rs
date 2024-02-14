@@ -459,7 +459,7 @@ impl<'a> FdtNodeMut<'a> {
     }
 
     /// Returns the first subnode of this
-    pub fn first_subnode(&'a mut self) -> Result<Option<Self>> {
+    pub fn first_subnode(self) -> Result<Option<Self>> {
         let offset = self.fdt.first_subnode(self.offset)?;
 
         Ok(offset.map(|offset| Self { fdt: self.fdt, offset }))
