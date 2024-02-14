@@ -68,7 +68,11 @@ impl IVmPayloadService for VmPayloadService {
         Ok(self.secret.dice_artifacts().cdi_attest().to_vec())
     }
 
-    fn requestAttestation(&self, challenge: &[u8]) -> binder::Result<AttestationResult> {
+    fn requestAttestation(
+        &self,
+        challenge: &[u8],
+        test_mode: bool,
+    ) -> binder::Result<AttestationResult> {
         self.check_restricted_apis_allowed()?;
         let ClientVmAttestationData { private_key, csr } =
             generate_attestation_key_and_csr(challenge, self.secret.dice_artifacts())
@@ -88,7 +92,7 @@ impl IVmPayloadService for VmPayloadService {
                 )
             })
             .with_log()?;
-        let cert_chain = self.virtual_machine_service.requestAttestation(&csr)?;
+        let cert_chain = self.virtual_machine_service.requestAttestation(&csr, test_mode)?;
         Ok(AttestationResult {
             privateKey: private_key.as_slice().to_vec(),
             certificateChain: cert_chain,

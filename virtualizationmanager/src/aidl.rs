@@ -38,6 +38,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::FEATURE_MULTI_TENANT,
     IVirtualizationService::FEATURE_VENDOR_MODULES,
     IVirtualizationService::FEATURE_DICE_CHANGES,
+    IVirtualizationService::FEATURE_REMOTE_ATTESTATION,
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
     PartitionType::PartitionType,
@@ -307,12 +308,17 @@ impl IVirtualizationService for VirtualizationService {
         match feature {
             FEATURE_DICE_CHANGES => Ok(cfg!(dice_changes)),
             FEATURE_MULTI_TENANT => Ok(cfg!(multi_tenant)),
+            FEATURE_REMOTE_ATTESTATION => Ok(cfg!(remote_attestation)),
             FEATURE_VENDOR_MODULES => Ok(cfg!(vendor_modules)),
             _ => {
                 warn!("unknown feature {feature}");
                 Ok(false)
             }
         }
+    }
+
+    fn enableTestAttestation(&self) -> binder::Result<()> {
+        GLOBAL_SERVICE.enableTestAttestation()
     }
 }
 
@@ -1391,8 +1397,8 @@ impl IVirtualMachineService for VirtualMachineService {
         Ok(sk.map(|s| BnSecretkeeper::new_binder(SecretkeeperProxy(s), BinderFeatures::default())))
     }
 
-    fn requestAttestation(&self, csr: &[u8]) -> binder::Result<Vec<Certificate>> {
-        GLOBAL_SERVICE.requestAttestation(csr, get_calling_uid() as i32)
+    fn requestAttestation(&self, csr: &[u8], test_mode: bool) -> binder::Result<Vec<Certificate>> {
+        GLOBAL_SERVICE.requestAttestation(csr, get_calling_uid() as i32, test_mode)
     }
 }
 

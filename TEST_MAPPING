@@ -12,6 +12,9 @@
       "name": "MicrodroidTestApp"
     },
     {
+      "name": "VmAttestationTestApp"
+    },
+    {
       "name": "CustomPvmfwHostTestCases"
     },
     {

@@ -24,6 +24,7 @@ import android.system.virtualizationservice.VirtualMachineDebugInfo;
 interface IVirtualizationService {
     const String FEATURE_DICE_CHANGES = "com.android.kvm.DICE_CHANGES";
     const String FEATURE_MULTI_TENANT = "com.android.kvm.MULTI_TENANT";
+    const String FEATURE_REMOTE_ATTESTATION = "com.android.kvm.REMOTE_ATTESTATION";
     const String FEATURE_VENDOR_MODULES = "com.android.kvm.VENDOR_MODULES";
 
     /**
@@ -73,4 +74,10 @@ interface IVirtualizationService {
 
     /** Returns whether given feature is enabled. */
     boolean isFeatureEnabled(in String feature);
+
+    /**
+     * Provisions a key pair for the VM attestation testing, a fake certificate will be
+     * associated to the fake key pair when the VM requests attestation in testing mode.
+     */
+    void enableTestAttestation();
 }

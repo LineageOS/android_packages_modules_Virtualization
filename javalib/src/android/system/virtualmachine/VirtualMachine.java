@@ -42,6 +42,7 @@ import static android.system.virtualmachine.VirtualMachineCallback.STOP_REASON_V
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.FlaggedApi;
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
@@ -1199,6 +1200,28 @@ public class VirtualMachine implements AutoCloseable {
     @NonNull
     public File getRootDir() {
         return mVmRootPath;
+    }
+
+    /**
+     * Enables the VM to request attestation in testing mode.
+     *
+     * <p>This function provisions a key pair for the VM attestation testing, a fake certificate
+     * will be associated to the fake key pair when the VM requests attestation in testing mode.
+     *
+     * <p>The provisioned key pair can only be used in subsequent calls to {@link
+     * AVmPayload_requestAttestationForTesting} within a running VM.
+     *
+     * @hide
+     */
+    @TestApi
+    @RequiresPermission(USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
+    @FlaggedApi("RELEASE_AVF_ENABLE_REMOTE_ATTESTATION")
+    public void enableTestAttestation() throws VirtualMachineException {
+        try {
+            mVirtualizationService.getBinder().enableTestAttestation();
+        } catch (RemoteException e) {
+            throw e.rethrowAsRuntimeException();
+        }
     }
 
     /**
