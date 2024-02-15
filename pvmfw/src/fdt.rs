@@ -63,7 +63,9 @@ impl fmt::Display for FdtValidationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::InvalidCpuCount(num_cpus) => write!(f, "Invalid CPU count: {num_cpus}"),
-            Self::InvalidVcpufreq(addr, size) => write!(f, "Invalid vcpufreq regs: {addr}, {size}"),
+            Self::InvalidVcpufreq(addr, size) => {
+                write!(f, "Invalid vcpufreq region: ({addr:#x}, {size:#x})")
+            }
         }
     }
 }
@@ -240,8 +242,9 @@ fn read_vcpufreq_info(fdt: &Fdt) -> libfdt::Result<Option<VcpufreqInfo>> {
 
     let mut regs = node.reg()?.ok_or(FdtError::NotFound)?;
     let reg = regs.next().ok_or(FdtError::NotFound)?;
+    let size = reg.size.ok_or(FdtError::NotFound)?;
 
-    Ok(Some(VcpufreqInfo { addr: reg.addr, size: reg.size.unwrap() }))
+    Ok(Some(VcpufreqInfo { addr: reg.addr, size }))
 }
 
 fn validate_vcpufreq_info(
@@ -249,19 +252,15 @@ fn validate_vcpufreq_info(
     cpus: &[CpuInfo],
 ) -> Result<(), FdtValidationError> {
     const VCPUFREQ_BASE_ADDR: u64 = 0x1040000;
-    const VCPUFREQ_SIZE: u64 = 0x8;
+    const VCPUFREQ_SIZE_PER_CPU: u64 = 0x8;
 
     let base = vcpufreq_info.addr;
     let size = vcpufreq_info.size;
-    if base != VCPUFREQ_BASE_ADDR {
-        error!("vcpufreq base address {:#x} is not {:#x}", base, VCPUFREQ_BASE_ADDR);
+    let expected_size = VCPUFREQ_SIZE_PER_CPU * cpus.len() as u64;
+
+    if (base, size) != (VCPUFREQ_BASE_ADDR, expected_size) {
         return Err(FdtValidationError::InvalidVcpufreq(base, size));
-    };
-    let expected_size = VCPUFREQ_SIZE * cpus.len() as u64;
-    if size != expected_size {
-        error!("vcpufreq reg size {:#x} is not {:#x}", size, expected_size);
-        return Err(FdtValidationError::InvalidVcpufreq(base, size));
-    };
+    }
 
     Ok(())
 }
@@ -288,6 +287,7 @@ fn patch_opptable(
     while let Some(current) = next_subnode {
         next_subnode = current.delete_and_next_subnode()?;
     }
+
     Ok(())
 }
 
