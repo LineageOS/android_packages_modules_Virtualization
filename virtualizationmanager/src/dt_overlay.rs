@@ -57,20 +57,19 @@ pub(crate) fn create_device_tree_overlay<'a>(
 
     let fdt =
         Fdt::create_empty_tree(buffer).map_err(|e| anyhow!("Failed to create empty Fdt: {e:?}"))?;
-    let mut root = fdt.root_mut().map_err(|e| anyhow!("Failed to get root: {e:?}"))?;
+    let root = fdt.root_mut().map_err(|e| anyhow!("Failed to get root: {e:?}"))?;
     let mut node =
         root.add_subnode(cstr!("fragment@0")).map_err(|e| anyhow!("Failed to fragment: {e:?}"))?;
     node.setprop(cstr!("target-path"), b"/\0")
         .map_err(|e| anyhow!("Failed to set target-path: {e:?}"))?;
-    let mut node = node
+    let node = node
         .add_subnode(cstr!("__overlay__"))
         .map_err(|e| anyhow!("Failed to __overlay__ node: {e:?}"))?;
 
     if !untrusted_props.is_empty() {
         let mut node = node
             .add_subnode(AVF_NODE_NAME)
-            .map_err(|e| anyhow!("Failed to add avf node: {e:?}"))?;
-        let mut node = node
+            .map_err(|e| anyhow!("Failed to add avf node: {e:?}"))?
             .add_subnode(UNTRUSTED_NODE_NAME)
             .map_err(|e| anyhow!("Failed to add /avf/untrusted node: {e:?}"))?;
         for (name, value) in untrusted_props {

@@ -267,8 +267,8 @@ fn node_add_subnode_with_namelen() {
         let node = fdt.node(node_path).unwrap().unwrap();
         assert_eq!(Ok(None), node.subnode_with_name_bytes(name));
 
-        let mut node = fdt.node_mut(node_path).unwrap().unwrap();
-        node.add_subnode_with_namelen(subnode_name, len).unwrap();
+        let node = fdt.node_mut(node_path).unwrap().unwrap();
+        let _ = node.add_subnode_with_namelen(subnode_name, len).unwrap();
 
         let node = fdt.node(node_path).unwrap().unwrap();
         assert_ne!(Ok(None), node.subnode_with_name_bytes(name));
@@ -456,7 +456,7 @@ fn node_mut_add_subnodes() {
     let mut data = vec![0_u8; 1000];
     let fdt = Fdt::create_empty_tree(&mut data).unwrap();
 
-    let mut root = fdt.root_mut().unwrap();
+    let root = fdt.root_mut().unwrap();
     let names = [cstr!("a"), cstr!("b")];
     root.add_subnodes(&names).unwrap();
 
