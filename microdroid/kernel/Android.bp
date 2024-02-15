@@ -55,6 +55,9 @@ avf_microdroid_kernel_prebuilt {
             android14_61: {
                 srcs: ["android14-6.1/arm64/kernel-6.1"],
             },
+            android15_61: {
+                srcs: ["android15-6.1/arm64/kernel-6.1"],
+            },
             // In case release configuration doesn't specify value of the
             // RELEASE_AVF_MICRODROID_KERNEL_VERSION fallback to the kernel we
             // already released.
@@ -73,6 +76,9 @@ avf_microdroid_kernel_prebuilt {
         release_avf_microdroid_kernel_version: {
             android14_61: {
                 srcs: ["android14-6.1/x86_64/kernel-6.1"],
+            },
+            android15_61: {
+                srcs: ["android15-6.1/x86_64/kernel-6.1"],
             },
             // In case release configuration doesn't specify value of the
             // RELEASE_AVF_MICRODROID_KERNEL_VERSION fallback to the kernel we
