@@ -40,6 +40,8 @@ import android.system.virtualizationservice.VirtualMachineAppConfig;
 import android.system.virtualizationservice.VirtualMachinePayloadConfig;
 import android.util.Log;
 
+import com.android.system.virtualmachine.flags.Flags;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -376,7 +378,7 @@ public final class VirtualMachineConfig {
      * @hide
      */
     @TestApi
-    @FlaggedApi("RELEASE_AVF_ENABLE_MULTI_TENANT_MICRODROID_VM")
+    @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
     @NonNull
     public List<String> getExtraApks() {
         return mExtraApks;
@@ -502,7 +504,7 @@ public final class VirtualMachineConfig {
      * @hide
      */
     @TestApi
-    @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
+    @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
     @Nullable
     public String getOs() {
         return mOs;
@@ -792,7 +794,7 @@ public final class VirtualMachineConfig {
          * @hide
          */
         @TestApi
-        @FlaggedApi("RELEASE_AVF_ENABLE_MULTI_TENANT_MICRODROID_VM")
+        @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
         @NonNull
         public Builder addExtraApk(@NonNull String packageName) {
             mExtraApks.add(requireNonNull(packageName, "extra APK package name must not be null"));
@@ -1003,8 +1005,8 @@ public final class VirtualMachineConfig {
          * @hide
          */
         @TestApi
+        @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
         @RequiresPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
-        @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
         @NonNull
         public Builder setVendorDiskImage(@NonNull File vendorDiskImage) {
             mVendorDiskImage =
@@ -1020,7 +1022,7 @@ public final class VirtualMachineConfig {
          * @hide
          */
         @TestApi
-        @FlaggedApi("RELEASE_AVF_ENABLE_VENDOR_MODULES")
+        @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
         @NonNull
         public Builder setOs(@NonNull String os) {
             mOs = requireNonNull(os, "os must not be null");
