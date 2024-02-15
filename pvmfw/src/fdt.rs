@@ -21,6 +21,7 @@ use crate::Box;
 use crate::RebootReason;
 use alloc::collections::BTreeMap;
 use alloc::ffi::CString;
+use alloc::format;
 use alloc::vec::Vec;
 use core::cmp::max;
 use core::cmp::min;
@@ -37,6 +38,7 @@ use libfdt::Fdt;
 use libfdt::FdtError;
 use libfdt::FdtNode;
 use libfdt::FdtNodeMut;
+use libfdt::Phandle;
 use log::debug;
 use log::error;
 use log::info;
@@ -200,10 +202,63 @@ fn read_opp_info_from(
     Ok(table)
 }
 
-fn read_cpu_info_from(fdt: &Fdt) -> libfdt::Result<ArrayVec<[CpuInfo; DeviceTreeInfo::MAX_CPUS]>> {
+#[derive(Debug, Default)]
+struct ClusterTopology {
+    // TODO: Support multi-level clusters & threads.
+    cores: [Option<usize>; ClusterTopology::MAX_CORES_PER_CLUSTER],
+}
+
+impl ClusterTopology {
+    const MAX_CORES_PER_CLUSTER: usize = 6;
+}
+
+#[derive(Debug, Default)]
+struct CpuTopology {
+    // TODO: Support sockets.
+    clusters: [Option<ClusterTopology>; CpuTopology::MAX_CLUSTERS],
+}
+
+impl CpuTopology {
+    const MAX_CLUSTERS: usize = 3;
+}
+
+fn read_cpu_map_from(fdt: &Fdt) -> libfdt::Result<Option<BTreeMap<Phandle, (usize, usize)>>> {
+    let Some(cpu_map) = fdt.node(cstr!("/cpus/cpu-map"))? else {
+        return Ok(None);
+    };
+
+    let mut topology = BTreeMap::new();
+    for n in 0..CpuTopology::MAX_CLUSTERS {
+        let name = CString::new(format!("cluster{n}")).unwrap();
+        let Some(cluster) = cpu_map.subnode(&name)? else {
+            break;
+        };
+        for m in 0..ClusterTopology::MAX_CORES_PER_CLUSTER {
+            let name = CString::new(format!("core{n}")).unwrap();
+            let Some(core) = cluster.subnode(&name)? else {
+                break;
+            };
+            let cpu = core.getprop_u32(cstr!("cpu"))?.ok_or(FdtError::NotFound)?;
+            let prev = topology.insert(cpu.try_into()?, (n, m));
+            if prev.is_some() {
+                return Err(FdtError::BadValue);
+            }
+        }
+    }
+
+    Ok(Some(topology))
+}
+
+fn read_cpu_info_from(
+    fdt: &Fdt,
+) -> libfdt::Result<(ArrayVec<[CpuInfo; DeviceTreeInfo::MAX_CPUS]>, Option<CpuTopology>)> {
     let mut cpus = ArrayVec::new();
+
+    let cpu_map = read_cpu_map_from(fdt)?;
+    let mut topology: CpuTopology = Default::default();
+
     let mut cpu_nodes = fdt.compatible_nodes(cstr!("arm,arm-v8"))?;
-    for cpu in cpu_nodes.by_ref().take(cpus.capacity()) {
+    for (idx, cpu) in cpu_nodes.by_ref().take(cpus.capacity()).enumerate() {
         let cpu_capacity = cpu.getprop_u32(cstr!("capacity-dmips-mhz"))?;
         let opp_phandle = cpu.getprop_u32(cstr!("operating-points-v2"))?;
         let opptable_info = if let Some(phandle) = opp_phandle {
@@ -215,12 +270,24 @@ fn read_cpu_info_from(fdt: &Fdt) -> libfdt::Result<ArrayVec<[CpuInfo; DeviceTree
         };
         let info = CpuInfo { opptable_info, cpu_capacity };
         cpus.push(info);
+
+        if let Some(ref cpu_map) = cpu_map {
+            let phandle = cpu.get_phandle()?.ok_or(FdtError::NotFound)?;
+            let (cluster, core) = cpu_map.get(&phandle).ok_or(FdtError::BadValue)?;
+            let cluster = topology.clusters[*cluster].get_or_insert(Default::default());
+            let mut core = cluster.cores[*core];
+            if core.is_some() {
+                return Err(FdtError::BadValue);
+            }
+            let _ = core.insert(idx);
+        }
     }
+
     if cpu_nodes.next().is_some() {
         warn!("DT has more than {} CPU nodes: discarding extra nodes.", cpus.capacity());
     }
 
-    Ok(cpus)
+    Ok((cpus, cpu_map.map(|_| topology)))
 }
 
 fn validate_cpu_info(cpus: &[CpuInfo]) -> Result<(), FdtValidationError> {
@@ -304,10 +371,17 @@ fn get_nth_compatible<'a>(
     Ok(node)
 }
 
-fn patch_cpus(fdt: &mut Fdt, cpus: &[CpuInfo]) -> libfdt::Result<()> {
+fn patch_cpus(
+    fdt: &mut Fdt,
+    cpus: &[CpuInfo],
+    topology: &Option<CpuTopology>,
+) -> libfdt::Result<()> {
     const COMPAT: &CStr = cstr!("arm,arm-v8");
+    let mut cpu_phandles = Vec::new();
     for (idx, cpu) in cpus.iter().enumerate() {
         let mut cur = get_nth_compatible(fdt, idx, COMPAT)?.ok_or(FdtError::NoSpace)?;
+        let phandle = cur.as_node().get_phandle()?.unwrap();
+        cpu_phandles.push(phandle);
         if let Some(cpu_capacity) = cpu.cpu_capacity {
             cur.setprop_inplace(cstr!("capacity-dmips-mhz"), &cpu_capacity.to_be_bytes())?;
         }
@@ -317,6 +391,33 @@ fn patch_cpus(fdt: &mut Fdt, cpus: &[CpuInfo]) -> libfdt::Result<()> {
     while let Some(current) = next {
         next = current.delete_and_next_compatible(COMPAT)?;
     }
+
+    if let Some(topology) = topology {
+        for (n, cluster) in topology.clusters.iter().enumerate() {
+            let path = CString::new(format!("/cpus/cpu-map/cluster{n}")).unwrap();
+            let cluster_node = fdt.node_mut(&path)?.unwrap();
+            if let Some(cluster) = cluster {
+                let mut iter = cluster_node.first_subnode()?;
+                for core in cluster.cores {
+                    let mut core_node = iter.unwrap();
+                    iter = if let Some(core_idx) = core {
+                        let phandle = *cpu_phandles.get(core_idx).unwrap();
+                        let value = u32::from(phandle).to_be_bytes();
+                        core_node.setprop_inplace(cstr!("cpu"), &value)?;
+                        core_node.next_subnode()?
+                    } else {
+                        core_node.delete_and_next_subnode()?
+                    };
+                }
+                assert!(iter.is_none());
+            } else {
+                cluster_node.nop()?;
+            }
+        }
+    } else {
+        fdt.node_mut(cstr!("/cpus/cpu-map"))?.unwrap().nop()?;
+    }
+
     Ok(())
 }
 
@@ -759,6 +860,7 @@ pub struct DeviceTreeInfo {
     pub memory_range: Range<usize>,
     bootargs: Option<CString>,
     cpus: ArrayVec<[CpuInfo; DeviceTreeInfo::MAX_CPUS]>,
+    cpu_topology: Option<CpuTopology>,
     pci_info: PciInfo,
     serial_info: SerialInfo,
     pub swiotlb_info: SwiotlbInfo,
@@ -868,7 +970,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         RebootReason::InvalidFdt
     })?;
 
-    let cpus = read_cpu_info_from(fdt).map_err(|e| {
+    let (cpus, cpu_topology) = read_cpu_info_from(fdt).map_err(|e| {
         error!("Failed to read CPU info from DT: {e}");
         RebootReason::InvalidFdt
     })?;
@@ -933,6 +1035,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         memory_range,
         bootargs,
         cpus,
+        cpu_topology,
         pci_info,
         serial_info,
         swiotlb_info,
@@ -959,7 +1062,7 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
             RebootReason::InvalidFdt
         })?;
     }
-    patch_cpus(fdt, &info.cpus).map_err(|e| {
+    patch_cpus(fdt, &info.cpus, &info.cpu_topology).map_err(|e| {
         error!("Failed to patch cpus to DT: {e}");
         RebootReason::InvalidFdt
     })?;
