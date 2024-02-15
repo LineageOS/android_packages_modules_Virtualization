@@ -185,7 +185,7 @@ struct CpuInfo {
 }
 
 impl CpuInfo {
-    const MAX_OPPTABLES: usize = 16;
+    const MAX_OPPTABLES: usize = 20;
 }
 
 fn read_opp_info_from(
@@ -267,7 +267,7 @@ fn validate_vcpufreq_info(
 
 fn patch_opptable(
     node: FdtNodeMut,
-    opptable: Option<ArrayVec<[u64; DeviceTreeInfo::MAX_CPUS]>>,
+    opptable: Option<ArrayVec<[u64; CpuInfo::MAX_OPPTABLES]>>,
 ) -> libfdt::Result<()> {
     let oppcompat = cstr!("operating-points-v2");
     let next = node.next_compatible(oppcompat)?.ok_or(FdtError::NoSpace)?;
