@@ -118,7 +118,7 @@ pub struct CrosvmConfig {
     pub gdb_port: Option<NonZeroU16>,
     pub vfio_devices: Vec<VfioDevice>,
     pub dtbo: Option<File>,
-    pub reference_dt: Option<File>,
+    pub device_tree_overlay: Option<File>,
 }
 
 /// A disk image to pass to crosvm for a VM.
@@ -896,10 +896,8 @@ fn run_vm(
         .arg("--socket")
         .arg(add_preserved_fd(&mut preserved_fds, &control_server_socket.as_raw_descriptor()));
 
-    if let Some(reference_dt) = &config.reference_dt {
-        command
-            .arg("--device-tree-overlay")
-            .arg(add_preserved_fd(&mut preserved_fds, reference_dt));
+    if let Some(dt_overlay) = &config.device_tree_overlay {
+        command.arg("--device-tree-overlay").arg(add_preserved_fd(&mut preserved_fds, dt_overlay));
     }
 
     append_platform_devices(&mut command, &mut preserved_fds, &config)?;
