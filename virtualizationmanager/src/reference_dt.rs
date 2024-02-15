@@ -55,7 +55,7 @@ fn parse_reference_dt_internal(dir_path: &Path, fdt_path: &Path) -> Result<Optio
         .add_subnode(cstr!("__overlay__"))
         .map_err(|e| anyhow!("Failed to create the __overlay__, {e:?}"))?;
 
-    fdt.append(cstr!("/fragment@0/__overlay__"), dir_path)?;
+    fdt.overlay_onto(cstr!("/fragment@0/__overlay__"), dir_path)?;
 
     fdt.pack().map_err(|e| anyhow!("Failed to pack VM reference DT, {e:?}"))?;
     fs::write(fdt_path, fdt.as_slice())?;
