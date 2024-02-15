@@ -45,7 +45,7 @@ pub extern "C" fn AVmPayload_main() {
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("service_vm_client")
-            .with_min_level(log::Level::Debug),
+            .with_max_level(log::LevelFilter::Debug),
     );
     // Redirect panic messages to logcat.
     panic::set_hook(Box::new(|panic_info| {
