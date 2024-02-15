@@ -38,6 +38,7 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualizationService::FEATURE_MULTI_TENANT,
     IVirtualizationService::FEATURE_VENDOR_MODULES,
     IVirtualizationService::FEATURE_DICE_CHANGES,
+    IVirtualizationService::FEATURE_LLPVM_CHANGES,
     IVirtualizationService::FEATURE_REMOTE_ATTESTATION,
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
@@ -311,6 +312,7 @@ impl IVirtualizationService for VirtualizationService {
         // TODO(b/298012279): make this scalable.
         match feature {
             FEATURE_DICE_CHANGES => Ok(cfg!(dice_changes)),
+            FEATURE_LLPVM_CHANGES => Ok(cfg!(llpvm_changes)),
             FEATURE_MULTI_TENANT => Ok(cfg!(multi_tenant)),
             FEATURE_REMOTE_ATTESTATION => Ok(cfg!(remote_attestation)),
             FEATURE_VENDOR_MODULES => Ok(cfg!(vendor_modules)),
