@@ -76,6 +76,7 @@ import android.util.JsonReader;
 import android.util.Log;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.system.virtualmachine.flags.Flags;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -1215,7 +1216,7 @@ public class VirtualMachine implements AutoCloseable {
      */
     @TestApi
     @RequiresPermission(USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
-    @FlaggedApi("RELEASE_AVF_ENABLE_REMOTE_ATTESTATION")
+    @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
     public void enableTestAttestation() throws VirtualMachineException {
         try {
             mVirtualizationService.getBinder().enableTestAttestation();
