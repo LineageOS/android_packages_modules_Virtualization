@@ -603,10 +603,14 @@ fn is_custom_config(config: &VirtualMachineConfig) -> bool {
             } else {
                 // Additional custom features not included in CustomConfig:
                 // - specifying a config file;
-                // - specifying extra APKs.
+                // - specifying extra APKs;
+                // - specifying an OS other than Microdroid.
                 match &config.payload {
                     Payload::ConfigPath(_) => true,
-                    Payload::PayloadConfig(payload_config) => !payload_config.extraApks.is_empty(),
+                    Payload::PayloadConfig(payload_config) => {
+                        !payload_config.extraApks.is_empty()
+                            || payload_config.osName != MICRODROID_OS_NAME
+                    }
                 }
             }
         }
