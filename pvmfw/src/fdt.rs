@@ -234,7 +234,7 @@ fn read_cpu_map_from(fdt: &Fdt) -> libfdt::Result<Option<BTreeMap<Phandle, (usiz
             break;
         };
         for m in 0..ClusterTopology::MAX_CORES_PER_CLUSTER {
-            let name = CString::new(format!("core{n}")).unwrap();
+            let name = CString::new(format!("core{m}")).unwrap();
             let Some(core) = cluster.subnode(&name)? else {
                 break;
             };
@@ -273,13 +273,12 @@ fn read_cpu_info_from(
 
         if let Some(ref cpu_map) = cpu_map {
             let phandle = cpu.get_phandle()?.ok_or(FdtError::NotFound)?;
-            let (cluster, core) = cpu_map.get(&phandle).ok_or(FdtError::BadValue)?;
+            let (cluster, core_idx) = cpu_map.get(&phandle).ok_or(FdtError::BadValue)?;
             let cluster = topology.clusters[*cluster].get_or_insert(Default::default());
-            let mut core = cluster.cores[*core];
-            if core.is_some() {
+            if cluster.cores[*core_idx].is_some() {
                 return Err(FdtError::BadValue);
             }
-            let _ = core.insert(idx);
+            cluster.cores[*core_idx] = Some(idx);
         }
     }
 
