@@ -29,3 +29,4 @@ How-Tos:
 * [Building and running a demo app in C++](demo_native/README.md)
 * [Debugging](docs/debug)
 * [Using custom VM](docs/custom_vm.md)
+* [Device assignment](docs/device_assignment.md)
