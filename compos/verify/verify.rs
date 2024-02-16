@@ -18,7 +18,7 @@
 //!  public key. The tool is intended to be run by odsign during boot.
 
 use android_logger::LogId;
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use binder::ProcessState;
 use clap::{Parser, ValueEnum};
 use compos_common::compos_client::{ComposClient, VmCpuTopology, VmParameters};
@@ -28,9 +28,10 @@ use compos_common::odrefresh::{
 };
 use compos_common::{
     COMPOS_DATA_ROOT, CURRENT_INSTANCE_DIR, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE,
-    IDSIG_MANIFEST_EXT_APK_FILE, INSTANCE_IMAGE_FILE, TEST_INSTANCE_DIR,
+    IDSIG_MANIFEST_EXT_APK_FILE, INSTANCE_ID_FILE, INSTANCE_IMAGE_FILE, TEST_INSTANCE_DIR,
 };
 use log::error;
+use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::panic;
@@ -90,11 +91,17 @@ fn try_main() -> Result<()> {
         bail!("{:?} is not a directory", instance_dir);
     }
 
+    let instance_id_file = instance_dir.join(INSTANCE_ID_FILE);
     let instance_image = instance_dir.join(INSTANCE_IMAGE_FILE);
     let idsig = instance_dir.join(IDSIG_FILE);
     let idsig_manifest_apk = instance_dir.join(IDSIG_MANIFEST_APK_FILE);
     let idsig_manifest_ext_apk = instance_dir.join(IDSIG_MANIFEST_EXT_APK_FILE);
 
+    let instance_id: [u8; 64] = if cfg!(llpvm_changes) {
+        fs::read(instance_id_file)?.try_into().map_err(|_| anyhow!("Failed to get instance_id"))?
+    } else {
+        [0u8; 64]
+    };
     let instance_image = File::open(instance_image).context("Failed to open instance image")?;
 
     let info = artifacts_dir.join("compos.info");
@@ -110,6 +117,7 @@ fn try_main() -> Result<()> {
     let virtualization_service = virtmgr.connect()?;
     let vm_instance = ComposClient::start(
         &*virtualization_service,
+        instance_id,
         instance_image,
         &idsig,
         &idsig_manifest_apk,
