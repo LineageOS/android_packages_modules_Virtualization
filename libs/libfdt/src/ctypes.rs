@@ -14,6 +14,7 @@
 
 //! Safe zero-cost wrappers around integer values used by libfdt.
 
+use crate::result::FdtRawResult;
 use crate::{FdtError, Result};
 
 /// Wrapper guaranteed to contain a valid phandle.
@@ -48,5 +49,13 @@ impl TryFrom<u32> for Phandle {
 
     fn try_from(value: u32) -> Result<Self> {
         Self::new(value).ok_or(FdtError::BadPhandle)
+    }
+}
+
+impl TryFrom<FdtRawResult> for Phandle {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        Self::new(res.try_into()?).ok_or(FdtError::BadPhandle)
     }
 }
