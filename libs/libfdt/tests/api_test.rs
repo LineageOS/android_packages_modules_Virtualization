@@ -378,7 +378,7 @@ fn node_mut_delete_and_next_subnode() {
     let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
     let fdt = Fdt::from_mut_slice(&mut data).unwrap();
 
-    let mut root = fdt.root_mut().unwrap();
+    let root = fdt.root_mut().unwrap();
     let mut subnode_iter = root.first_subnode().unwrap();
 
     while let Some(subnode) = subnode_iter {

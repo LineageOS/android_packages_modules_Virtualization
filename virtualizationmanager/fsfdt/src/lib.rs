@@ -26,8 +26,8 @@ pub trait FsFdt<'a> {
     /// Creates a Fdt from /proc/device-tree style directory by wrapping a mutable slice
     fn from_fs(fs_path: &Path, fdt_buffer: &'a mut [u8]) -> Result<&'a mut Self>;
 
-    /// Appends a FDT from /proc/device-tree style directory at the given node path
-    fn append(&mut self, fdt_node_path: &CStr, fs_path: &Path) -> Result<()>;
+    /// Overlay an FDT from /proc/device-tree style directory at the given node path
+    fn overlay_onto(&mut self, fdt_node_path: &CStr, fs_path: &Path) -> Result<()>;
 }
 
 impl<'a> FsFdt<'a> for Fdt {
@@ -35,12 +35,12 @@ impl<'a> FsFdt<'a> for Fdt {
         let fdt = Fdt::create_empty_tree(fdt_buffer)
             .map_err(|e| anyhow!("Failed to create FDT, {e:?}"))?;
 
-        fdt.append(&CString::new("").unwrap(), fs_path)?;
+        fdt.overlay_onto(&CString::new("").unwrap(), fs_path)?;
 
         Ok(fdt)
     }
 
-    fn append(&mut self, fdt_node_path: &CStr, fs_path: &Path) -> Result<()> {
+    fn overlay_onto(&mut self, fdt_node_path: &CStr, fs_path: &Path) -> Result<()> {
         // Recursively traverse fs_path with DFS algorithm.
         let mut stack = vec![fs_path.to_path_buf()];
         while let Some(dir_path) = stack.pop() {
@@ -56,7 +56,7 @@ impl<'a> FsFdt<'a> for Fdt {
             let mut node = self
                 .node_mut(&fdt_path)
                 .map_err(|e| anyhow!("Failed to write FDT, {e:?}"))?
-                .ok_or_else(|| anyhow!("Failed to find {fdt_node_path:?} in FDT"))?;
+                .ok_or_else(|| anyhow!("Failed to find {fdt_path:?} in FDT"))?;
 
             let mut subnode_names = vec![];
             let entries =
@@ -90,9 +90,21 @@ impl<'a> FsFdt<'a> for Fdt {
             // FDT library may omit address in node name when comparing their name, so sort to add
             // node without address first.
             subnode_names.sort();
-            let subnode_names_c_str: Vec<_> = subnode_names.iter().map(|x| x.as_c_str()).collect();
-            node.add_subnodes(&subnode_names_c_str)
-                .map_err(|e| anyhow!("Failed to add node, {e:?}"))?;
+            let subnode_names: Vec<_> = subnode_names
+                .iter()
+                .filter_map(|name| {
+                    // Filter out subnode names which are already present in the target parent node!
+                    let name = name.as_c_str();
+                    let is_present_res = node.as_node().subnode(name);
+                    match is_present_res {
+                        Ok(Some(_)) => None,
+                        Ok(None) => Some(Ok(name)),
+                        Err(e) => Some(Err(e)),
+                    }
+                })
+                .collect::<Result<_, _>>()
+                .map_err(|e| anyhow!("Failed to filter subnodes, {e:?}"))?;
+            node.add_subnodes(&subnode_names).map_err(|e| anyhow!("Failed to add node, {e:?}"))?;
         }
 
         Ok(())
@@ -149,5 +161,8 @@ mod test {
         let actual = dts_from_dtb(file.path());
 
         assert_eq!(&expected, &actual);
+        // Again append fdt from TEST_FS_FDT_ROOT_PATH at root & ensure it succeeds when some
+        // subnode are already present.
+        fdt.overlay_onto(&CString::new("/").unwrap(), fs_path).unwrap();
     }
 }
