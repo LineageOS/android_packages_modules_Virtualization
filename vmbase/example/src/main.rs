@@ -181,7 +181,7 @@ fn modify_fdt(writer: &mut Fdt) {
     info!("FDT successfully unpacked.");
 
     let path = cstr!("/memory");
-    let mut node = writer.node_mut(path).unwrap().unwrap();
+    let node = writer.node_mut(path).unwrap().unwrap();
     let name = cstr!("child");
     let mut child = node.add_subnode(name).unwrap();
     info!("Created subnode '{}/{}'.", path.to_str().unwrap(), name.to_str().unwrap());
