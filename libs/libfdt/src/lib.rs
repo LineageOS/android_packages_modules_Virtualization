@@ -669,7 +669,7 @@ impl Fdt {
     ///
     /// NOTE: This does not support individual "/memory@XXXX" banks.
     pub fn memory(&self) -> Result<MemRegIterator> {
-        let node = self.root()?.subnode(cstr!("memory"))?.ok_or(FdtError::NotFound)?;
+        let node = self.root().subnode(cstr!("memory"))?.ok_or(FdtError::NotFound)?;
         if node.device_type()? != Some(cstr!("memory")) {
             return Err(FdtError::BadValue);
         }
@@ -683,7 +683,7 @@ impl Fdt {
 
     /// Returns the standard /chosen node.
     pub fn chosen(&self) -> Result<Option<FdtNode>> {
-        self.root()?.subnode(cstr!("chosen"))
+        self.root().subnode(cstr!("chosen"))
     }
 
     /// Returns the standard /chosen node as mutable.
@@ -692,13 +692,13 @@ impl Fdt {
     }
 
     /// Returns the root node of the tree.
-    pub fn root(&self) -> Result<FdtNode> {
-        Ok(FdtNode { fdt: self, offset: NodeOffset::ROOT })
+    pub fn root(&self) -> FdtNode {
+        FdtNode { fdt: self, offset: NodeOffset::ROOT }
     }
 
     /// Returns the standard /__symbols__ node.
     pub fn symbols(&self) -> Result<Option<FdtNode>> {
-        self.root()?.subnode(cstr!("__symbols__"))
+        self.root().subnode(cstr!("__symbols__"))
     }
 
     /// Returns the standard /__symbols__ node as mutable
@@ -738,8 +738,8 @@ impl Fdt {
     }
 
     /// Returns the mutable root node of the tree.
-    pub fn root_mut(&mut self) -> Result<FdtNodeMut> {
-        Ok(FdtNodeMut { fdt: self, offset: NodeOffset::ROOT })
+    pub fn root_mut(&mut self) -> FdtNodeMut {
+        FdtNodeMut { fdt: self, offset: NodeOffset::ROOT }
     }
 
     /// Returns a mutable tree node by its full path.

@@ -33,7 +33,7 @@ pub struct CompatibleIterator<'a> {
 
 impl<'a> CompatibleIterator<'a> {
     pub(crate) fn new(fdt: &'a Fdt, compatible: &'a CStr) -> Result<Self, FdtError> {
-        let node = fdt.root()?;
+        let node = fdt.root();
         Ok(Self { node, compatible })
     }
 }
