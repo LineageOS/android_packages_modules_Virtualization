@@ -443,7 +443,7 @@ fn validate_vm_ref_dt(
     vm_ref_dt: &Fdt,
     props_info: &BTreeMap<CString, Vec<u8>>,
 ) -> libfdt::Result<()> {
-    let mut root_vm_dt = vm_dt.root_mut()?;
+    let root_vm_dt = vm_dt.root_mut()?;
     let mut avf_vm_dt = root_vm_dt.add_subnode(cstr!("avf"))?;
     // TODO(b/318431677): Validate nodes beyond /avf.
     let avf_node = vm_ref_dt.node(cstr!("/avf"))?.ok_or(FdtError::NotFound)?;

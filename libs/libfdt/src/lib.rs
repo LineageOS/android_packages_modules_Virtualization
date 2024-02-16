@@ -434,7 +434,7 @@ impl<'a> FdtNodeMut<'a> {
     }
 
     /// Adds new subnodes to the given node.
-    pub fn add_subnodes(&mut self, names: &[&CStr]) -> Result<()> {
+    pub fn add_subnodes(self, names: &[&CStr]) -> Result<()> {
         for name in names {
             self.fdt.add_subnode_namelen(self.offset, name.to_bytes())?;
         }
@@ -442,7 +442,7 @@ impl<'a> FdtNodeMut<'a> {
     }
 
     /// Adds a new subnode to the given node and return it as a FdtNodeMut on success.
-    pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
+    pub fn add_subnode(self, name: &CStr) -> Result<Self> {
         let name = name.to_bytes();
         let offset = self.fdt.add_subnode_namelen(self.offset, name)?;
 
@@ -451,7 +451,7 @@ impl<'a> FdtNodeMut<'a> {
 
     /// Adds a new subnode to the given node with name and namelen, and returns it as a FdtNodeMut
     /// on success.
-    pub fn add_subnode_with_namelen(&'a mut self, name: &CStr, namelen: usize) -> Result<Self> {
+    pub fn add_subnode_with_namelen(self, name: &CStr, namelen: usize) -> Result<Self> {
         let name = &name.to_bytes()[..namelen];
         let offset = self.fdt.add_subnode_namelen(self.offset, name)?;
 
