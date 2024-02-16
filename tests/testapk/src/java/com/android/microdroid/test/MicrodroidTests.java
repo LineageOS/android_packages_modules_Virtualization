@@ -590,6 +590,9 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .isFalse();
         assertConfigCompatible(baseline, newBaselineBuilder().setPayloadBinaryName("different"))
                 .isFalse();
+        assertConfigCompatible(
+                        baseline, newBaselineBuilder().setVendorDiskImage(new File("/foo/bar")))
+                .isFalse();
         int capabilities = getVirtualMachineManager().getCapabilities();
         if ((capabilities & CAPABILITY_PROTECTED_VM) != 0
                 && (capabilities & CAPABILITY_NON_PROTECTED_VM) != 0) {
@@ -639,6 +642,7 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachineConfig.Builder otherOsBuilder =
                 newBaselineBuilder().setOs("microdroid_gki-android14-6.1");
         assertConfigCompatible(microdroidOsConfig, otherOsBuilder).isFalse();
+
     }
 
     private VirtualMachineConfig.Builder newBaselineBuilder() {
