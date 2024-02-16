@@ -57,6 +57,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <0>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table0>;
 			opp_table0: opp-table-0 {
 				compatible = "operating-points-v2";
@@ -88,6 +89,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <1>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table1>;
 			opp_table1: opp-table-1 {
 				compatible = "operating-points-v2";
@@ -119,6 +121,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <2>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table2>;
 			opp_table2: opp-table-2 {
 				compatible = "operating-points-v2";
@@ -150,6 +153,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <3>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table3>;
 			opp_table3: opp-table-3 {
 				compatible = "operating-points-v2";
@@ -181,6 +185,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <4>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table4>;
 			opp_table4: opp-table-4 {
 				compatible = "operating-points-v2";
@@ -212,6 +217,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <5>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table5>;
 			opp_table5: opp-table-5 {
 				compatible = "operating-points-v2";
@@ -243,6 +249,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <6>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table6>;
 			opp_table6: opp-table-6 {
 				compatible = "operating-points-v2";
@@ -274,6 +281,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <7>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table7>;
 			opp_table7: opp-table-7 {
 				compatible = "operating-points-v2";
@@ -305,7 +313,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <8>;
-
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table8>;
 			opp_table8: opp-table-8 {
 				compatible = "operating-points-v2";
@@ -337,6 +345,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <9>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table9>;
 			opp_table9: opp-table-9 {
 				compatible = "operating-points-v2";
@@ -368,6 +377,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <10>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table10>;
 			opp_table10: opp-table-10 {
 				compatible = "operating-points-v2";
@@ -399,6 +409,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <11>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table11>;
 			opp_table11: opp-table-11 {
 				compatible = "operating-points-v2";
@@ -430,6 +441,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <12>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table12>;
 			opp_table12: opp-table-12 {
 				compatible = "operating-points-v2";
@@ -461,6 +473,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <13>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table13>;
 			opp_table13: opp-table-13 {
 				compatible = "operating-points-v2";
@@ -492,6 +505,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <14>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table14>;
 			opp_table14: opp-table-14 {
 				compatible = "operating-points-v2";
@@ -523,6 +537,7 @@
 			compatible = "arm,arm-v8";
 			enable-method = "psci";
 			reg = <15>;
+			capacity-dmips-mhz = <PLACEHOLDER>;
 			operating-points-v2 = <&opp_table15>;
 			opp_table15: opp-table-15 {
 				compatible = "operating-points-v2";
