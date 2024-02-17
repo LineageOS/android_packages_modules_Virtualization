@@ -35,6 +35,7 @@ rust_defaults {
         "libavflog",
         "libbase_rust",
         "libbinder_rs",
+        "libcfg_if",
         "libclap",
         "libcstr",
         "libcommand_fds",
