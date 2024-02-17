@@ -33,6 +33,7 @@ java_sdk_library {
     srcs: ["src/**/*.java"],
     static_libs: [
         "android.system.virtualizationservice-java",
+        "avf_aconfig_flags_java",
         // For android.sysprop.HypervisorProperties
         "PlatformProperties",
     ],

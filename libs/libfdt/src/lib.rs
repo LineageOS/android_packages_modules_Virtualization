@@ -33,7 +33,6 @@ use core::ffi::{c_int, c_void, CStr};
 use core::ops::Range;
 use cstr::cstr;
 use libfdt::get_slice_at_ptr;
-use result::{fdt_err, fdt_err_expect_zero, fdt_err_or_option};
 use zerocopy::AsBytes as _;
 
 use crate::libfdt::{Libfdt, LibfdtMut};
@@ -434,7 +433,7 @@ impl<'a> FdtNodeMut<'a> {
     }
 
     /// Adds new subnodes to the given node.
-    pub fn add_subnodes(&mut self, names: &[&CStr]) -> Result<()> {
+    pub fn add_subnodes(self, names: &[&CStr]) -> Result<()> {
         for name in names {
             self.fdt.add_subnode_namelen(self.offset, name.to_bytes())?;
         }
@@ -442,7 +441,7 @@ impl<'a> FdtNodeMut<'a> {
     }
 
     /// Adds a new subnode to the given node and return it as a FdtNodeMut on success.
-    pub fn add_subnode(&'a mut self, name: &CStr) -> Result<Self> {
+    pub fn add_subnode(self, name: &CStr) -> Result<Self> {
         let name = name.to_bytes();
         let offset = self.fdt.add_subnode_namelen(self.offset, name)?;
 
@@ -451,7 +450,7 @@ impl<'a> FdtNodeMut<'a> {
 
     /// Adds a new subnode to the given node with name and namelen, and returns it as a FdtNodeMut
     /// on success.
-    pub fn add_subnode_with_namelen(&'a mut self, name: &CStr, namelen: usize) -> Result<Self> {
+    pub fn add_subnode_with_namelen(self, name: &CStr, namelen: usize) -> Result<Self> {
         let name = &name.to_bytes()[..namelen];
         let offset = self.fdt.add_subnode_namelen(self.offset, name)?;
 
@@ -637,40 +636,30 @@ impl Fdt {
 
     /// Unpacks the DT to cover the whole slice it is contained in.
     pub fn unpack(&mut self) -> Result<()> {
-        // SAFETY: "Opens" the DT in-place (supported use-case) by updating its header and
-        // internal structures to make use of the whole self.fdt slice but performs no accesses
-        // outside of it and leaves the DT in a state that will be detected by other functions.
-        let ret = unsafe {
-            libfdt_bindgen::fdt_open_into(
-                self.as_ptr(),
-                self.as_mut_ptr(),
-                self.capacity().try_into().map_err(|_| FdtError::Internal)?,
-            )
-        };
-        fdt_err_expect_zero(ret)
+        self.open_into_self()
     }
 
     /// Packs the DT to take a minimum amount of memory.
     ///
     /// Doesn't shrink the underlying memory slice.
     pub fn pack(&mut self) -> Result<()> {
-        // SAFETY: "Closes" the DT in-place by updating its header and relocating its structs.
-        let ret = unsafe { libfdt_bindgen::fdt_pack(self.as_mut_ptr()) };
-        fdt_err_expect_zero(ret)
+        LibfdtMut::pack(self)
     }
 
     /// Applies a DT overlay on the base DT.
     ///
     /// # Safety
     ///
-    /// On failure, the library corrupts the DT and overlay so both must be discarded.
-    pub unsafe fn apply_overlay<'a>(&'a mut self, overlay: &'a mut Fdt) -> Result<&'a mut Self> {
-        let ret =
-        // SAFETY: Both pointers are valid because they come from references, and fdt_overlay_apply
-        // doesn't keep them after it returns. It may corrupt their contents if there is an error,
-        // but that's our caller's responsibility.
-            unsafe { libfdt_bindgen::fdt_overlay_apply(self.as_mut_ptr(), overlay.as_mut_ptr()) };
-        fdt_err_expect_zero(ret)?;
+    /// As libfdt corrupts the input DT on failure, `self` should be discarded on error:
+    ///
+    ///     let fdt = fdt.apply_overlay(overlay)?;
+    ///
+    /// Furthermore, `overlay` is _always_ corrupted by libfdt and will never refer to a valid
+    /// `Fdt` after this function returns and must therefore be discarded by the caller.
+    pub unsafe fn apply_overlay<'a>(&'a mut self, overlay: &mut Fdt) -> Result<&'a mut Self> {
+        // SAFETY: Our caller will properly discard overlay and/or self as needed.
+        unsafe { self.overlay_apply(overlay) }?;
+
         Ok(self)
     }
 
@@ -783,14 +772,6 @@ impl Fdt {
     /// Returns a shared pointer to the device tree.
     pub fn as_ptr(&self) -> *const c_void {
         self.buffer.as_ptr().cast()
-    }
-
-    fn as_mut_ptr(&mut self) -> *mut c_void {
-        self.buffer.as_mut_ptr().cast::<_>()
-    }
-
-    fn capacity(&self) -> usize {
-        self.buffer.len()
     }
 
     fn header(&self) -> &libfdt_bindgen::fdt_header {
