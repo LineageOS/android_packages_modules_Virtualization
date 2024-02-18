@@ -37,6 +37,8 @@ java_test_host {
         "lpunpack",
         "sign_virt_apex",
         "simg2img",
+        "dtdiff",
+        "dtc", // for dtdiff
     ],
     // java_test_host doesn't have data_native_libs but jni_libs can be used to put
     // native modules under ./lib directory.
@@ -51,5 +53,6 @@ java_test_host {
         "liblp",
         "libsparse",
         "libz",
+        "libfdt", // for dtc
     ],
 }
