@@ -812,7 +812,11 @@ fn run_vm(
     if config.host_cpu_topology {
         if cfg!(virt_cpufreq) {
             command.arg("--host-cpu-topology");
-            command.arg("--virt-cpufreq");
+            cfg_if::cfg_if! {
+                if #[cfg(any(target_arch = "aarch64"))] {
+                    command.arg("--virt-cpufreq");
+                }
+            }
         } else if let Some(cpus) = get_num_cpus() {
             command.arg("--cpus").arg(cpus.to_string());
         } else {
