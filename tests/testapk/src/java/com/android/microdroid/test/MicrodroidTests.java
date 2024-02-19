@@ -118,8 +118,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Rule public Timeout globalTimeout = Timeout.seconds(300);
 
-    private static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
-
     @Parameterized.Parameters(name = "protectedVm={0},gki={1}")
     public static Collection<Object[]> params() {
         List<Object[]> ret = new ArrayList<>();
@@ -2312,10 +2310,4 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         return 0;
     }
 
-    private void assumeSupportedDevice() {
-        assume()
-                .withMessage("Skip on 5.4 kernel. b/218303240")
-                .that(KERNEL_VERSION)
-                .isNotEqualTo("5.4");
-    }
 }
