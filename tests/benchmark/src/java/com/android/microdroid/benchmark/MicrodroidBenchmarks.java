@@ -415,8 +415,9 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 long guestRss = 0;
                 long guestPss = 0;
                 boolean hasGuestMaps = false;
-                for (ProcessUtil.SMapEntry entry :
-                        ProcessUtil.getProcessSmaps(vmPid, shellExecutor)) {
+                List<ProcessUtil.SMapEntry> smaps =
+                        ProcessUtil.getProcessSmaps(vmPid, shellExecutor);
+                for (ProcessUtil.SMapEntry entry : smaps) {
                     long rss = entry.metrics.get("Rss");
                     long pss = entry.metrics.get("Pss");
                     if (entry.name.contains("crosvm_guest")) {
@@ -429,8 +430,12 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                     }
                 }
                 if (!hasGuestMaps) {
+                    StringBuilder sb = new StringBuilder();
+                    for (ProcessUtil.SMapEntry entry : smaps) {
+                        sb.append(entry.toString());
+                    }
                     throw new IllegalStateException(
-                            "found no crosvm_guest smap entry in crosvm process");
+                            "found no crosvm_guest smap entry in crosvm process: " + sb);
                 }
                 mHostRss = hostRss;
                 mHostPss = hostPss;

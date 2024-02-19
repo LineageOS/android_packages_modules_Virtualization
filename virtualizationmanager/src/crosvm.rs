@@ -450,20 +450,20 @@ impl VmInstance {
                 let mut vm_metric = self.vm_metric.lock().unwrap();
 
                 // Get CPU Information
-                if let Ok(guest_time) = get_guest_time(pid) {
-                    vm_metric.cpu_guest_time = Some(guest_time);
-                } else {
-                    error!("Failed to parse /proc/[pid]/stat");
+                match get_guest_time(pid) {
+                    Ok(guest_time) => vm_metric.cpu_guest_time = Some(guest_time),
+                    Err(e) => error!("Failed to get guest CPU time: {e:?}"),
                 }
 
                 // Get Memory Information
-                if let Ok(rss) = get_rss(pid) {
-                    vm_metric.rss = match &vm_metric.rss {
-                        Some(x) => Some(Rss::extract_max(x, &rss)),
-                        None => Some(rss),
+                match get_rss(pid) {
+                    Ok(rss) => {
+                        vm_metric.rss = match &vm_metric.rss {
+                            Some(x) => Some(Rss::extract_max(x, &rss)),
+                            None => Some(rss),
+                        }
                     }
-                } else {
-                    error!("Failed to parse /proc/[pid]/smaps");
+                    Err(e) => error!("Failed to get guest RSS: {}", e),
                 }
             }
 
