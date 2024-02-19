@@ -33,13 +33,24 @@ public final class ProcessUtil {
     public static class SMapEntry {
         public String name;
         public Map<String, Long> metrics;
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("name: " + name + "\n");
+            metrics.forEach(
+                    (k, v) -> {
+                        sb.append("  " + k + ": " + v + "\n");
+                    });
+            return sb.toString();
+        }
     }
 
     /** Gets metrics key and values mapping of specified process id */
     public static List<SMapEntry> getProcessSmaps(int pid, Function<String, String> shellExecutor)
             throws IOException {
         String path = "/proc/" + pid + "/smaps";
-        return parseMemoryInfo(shellExecutor.apply("cat " + path + " || true"));
+        return parseMemoryInfo(shellExecutor.apply("cat " + path));
     }
 
     /** Gets metrics key and values mapping of specified process id */
