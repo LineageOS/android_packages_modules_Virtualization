@@ -18,12 +18,12 @@
 //! user-friendly higher-level types, allowing the trait to be shared between different ones,
 //! adapted to their use-cases (e.g. alloc-based userspace or statically allocated no_std).
 
-use core::ffi::{c_int, CStr};
+use core::ffi::CStr;
 use core::mem;
 use core::ptr;
 
 use crate::result::FdtRawResult;
-use crate::{FdtError, NodeOffset, Phandle, Result};
+use crate::{FdtError, NodeOffset, Phandle, PropOffset, Result, StringOffset};
 
 // Function names are the C function names without the `fdt_` prefix.
 
@@ -240,9 +240,10 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_get_property_by_offset()` (C function).
-    fn get_property_by_offset(&self, offset: c_int) -> Result<&libfdt_bindgen::fdt_property> {
+    fn get_property_by_offset(&self, offset: PropOffset) -> Result<&libfdt_bindgen::fdt_property> {
         let mut len = 0;
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let offset = offset.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let prop = unsafe { libfdt_bindgen::fdt_get_property_by_offset(fdt, offset, &mut len) };
 
@@ -266,7 +267,7 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_first_property_offset()` (C function).
-    fn first_property_offset(&self, node: NodeOffset) -> Result<Option<c_int>> {
+    fn first_property_offset(&self, node: NodeOffset) -> Result<Option<PropOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
         let node = node.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
@@ -276,8 +277,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_next_property_offset()` (C function).
-    fn next_property_offset(&self, prev: c_int) -> Result<Option<c_int>> {
+    fn next_property_offset(&self, prev: PropOffset) -> Result<Option<PropOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let prev = prev.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_property_offset(fdt, prev) };
 
@@ -297,8 +299,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_string()` (C function).
-    fn string(&self, offset: c_int) -> Result<&CStr> {
+    fn string(&self, offset: StringOffset) -> Result<&CStr> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let offset = offset.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ptr = unsafe { libfdt_bindgen::fdt_string(fdt, offset) };
         let bytes =
