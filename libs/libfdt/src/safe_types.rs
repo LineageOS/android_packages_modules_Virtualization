@@ -14,6 +14,8 @@
 
 //! Safe zero-cost wrappers around integer values used by libfdt.
 
+use core::ffi::c_int;
+
 use crate::result::FdtRawResult;
 use crate::{FdtError, Result};
 
@@ -57,5 +59,43 @@ impl TryFrom<FdtRawResult> for Phandle {
 
     fn try_from(res: FdtRawResult) -> Result<Self> {
         Self::new(res.try_into()?).ok_or(FdtError::BadPhandle)
+    }
+}
+
+/// Safe zero-cost wrapper around libfdt device tree node offsets.
+///
+/// This type should only be obtained from properly wrapped successful libfdt calls.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct NodeOffset(c_int);
+
+impl NodeOffset {
+    /// Offset of the root node; 0, by definition.
+    pub const ROOT: Self = Self(0);
+}
+
+impl TryFrom<FdtRawResult> for NodeOffset {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        Ok(Self(res.try_into()?))
+    }
+}
+
+impl TryFrom<FdtRawResult> for Option<NodeOffset> {
+    type Error = FdtError;
+
+    fn try_from(res: FdtRawResult) -> Result<Self> {
+        match res.try_into() {
+            Ok(n) => Ok(Some(n)),
+            Err(FdtError::NotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl From<NodeOffset> for c_int {
+    fn from(offset: NodeOffset) -> Self {
+        offset.0
     }
 }
