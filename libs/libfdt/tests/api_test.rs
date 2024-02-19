@@ -438,6 +438,22 @@ fn node_mut_delete_and_next_node() {
 }
 
 #[test]
+fn node_mut_delete_and_next_node_with_last_node() {
+    let mut data = fs::read(TEST_TREE_WITH_EMPTY_MEMORY_RANGE_PATH).unwrap();
+    let fdt = Fdt::from_mut_slice(&mut data).unwrap();
+
+    let mut iter = fdt.root_mut().unwrap().next_node(0).unwrap();
+    while let Some((node, depth)) = iter {
+        iter = node.delete_and_next_node(depth).unwrap();
+    }
+
+    let root = fdt.root().unwrap();
+    let all_descendants: Vec<_> =
+        root.descendants().map(|(node, depth)| (node.name(), depth)).collect();
+    assert!(all_descendants.is_empty(), "{all_descendants:?}");
+}
+
+#[test]
 #[ignore] // Borrow checker test. Compilation success is sufficient.
 fn node_name_lifetime() {
     let data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();

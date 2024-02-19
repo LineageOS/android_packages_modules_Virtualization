@@ -493,6 +493,7 @@ impl<'a> FdtNodeMut<'a> {
             let next_node = self.delete_and_next(Some(offset))?.unwrap();
             Ok(Some((next_node, depth)))
         } else {
+            self.delete_and_next(None)?;
             Ok(None)
         }
     }
