@@ -14,38 +14,31 @@
 
 //! Implementation of the AIDL interface of the VirtualizationService.
 
-use crate::{get_calling_pid, get_calling_uid, REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME};
 use crate::atom::{forward_vm_booted_atom, forward_vm_creation_atom, forward_vm_exited_atom};
-use crate::rkpvm::{request_attestation, generate_ecdsa_p256_key_pair};
 use crate::remote_provisioning;
+use crate::rkpvm::{generate_ecdsa_p256_key_pair, request_attestation};
+use crate::{get_calling_pid, get_calling_uid, REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME};
 use android_os_permissions_aidl::aidl::android::os::IPermissionController;
-use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon::Certificate::Certificate;
-use android_system_virtualizationservice::{
-    aidl::android::system::virtualizationservice::AssignableDevice::AssignableDevice,
-    aidl::android::system::virtualizationservice::VirtualMachineDebugInfo::VirtualMachineDebugInfo,
-    binder::ParcelFileDescriptor,
-};
-use android_system_virtualizationservice_internal::aidl::android::system::virtualizationservice_internal::{
-    AtomVmBooted::AtomVmBooted,
-    AtomVmCreationRequested::AtomVmCreationRequested,
-    AtomVmExited::AtomVmExited,
-    IBoundDevice::IBoundDevice,
-    IGlobalVmContext::{BnGlobalVmContext, IGlobalVmContext},
-    IVirtualizationServiceInternal::IVirtualizationServiceInternal,
-    IVfioHandler::{BpVfioHandler, IVfioHandler},
-    IVfioHandler::VfioDev::VfioDev,
-};
-use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
+use android_system_virtualizationcommon::aidl::android::system::virtualizationcommon;
+use android_system_virtualizationservice::aidl::android::system::virtualizationservice;
+use android_system_virtualizationservice_internal as android_vs_internal;
+use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice;
+use android_vs_internal::aidl::android::system::virtualizationservice_internal;
 use anyhow::{anyhow, ensure, Context, Result};
 use avflog::LogResult;
-use binder::{self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, LazyServiceGuard, Status, Strong, IntoBinderResult};
-use service_vm_comm::Response;
+use binder::{
+    self, wait_for_interface, BinderFeatures, ExceptionCode, Interface, IntoBinderResult,
+    LazyServiceGuard, ParcelFileDescriptor, Status, Strong,
+};
 use lazy_static::lazy_static;
 use libc::VMADDR_CID_HOST;
 use log::{error, info, warn};
+use nix::unistd::{chown, Uid};
+use openssl::x509::X509;
 use rkpd_client::get_rkpd_attestation_key;
 use rustutils::system_properties;
 use serde::Deserialize;
+use service_vm_comm::Response;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, create_dir, remove_dir_all, remove_file, set_permissions, File, Permissions};
 use std::io::{Read, Write};
@@ -54,9 +47,22 @@ use std::os::unix::raw::{pid_t, uid_t};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
 use tombstoned_client::{DebuggerdDumpType, TombstonedConnection};
+use virtualizationcommon::Certificate::Certificate;
+use virtualizationservice::{
+    AssignableDevice::AssignableDevice, VirtualMachineDebugInfo::VirtualMachineDebugInfo,
+};
+use virtualizationservice_internal::{
+    AtomVmBooted::AtomVmBooted,
+    AtomVmCreationRequested::AtomVmCreationRequested,
+    AtomVmExited::AtomVmExited,
+    IBoundDevice::IBoundDevice,
+    IGlobalVmContext::{BnGlobalVmContext, IGlobalVmContext},
+    IVfioHandler::VfioDev::VfioDev,
+    IVfioHandler::{BpVfioHandler, IVfioHandler},
+    IVirtualizationServiceInternal::IVirtualizationServiceInternal,
+};
+use virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
 use vsock::{VsockListener, VsockStream};
-use nix::unistd::{chown, Uid};
-use openssl::x509::X509;
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
 pub type Cid = u32;
