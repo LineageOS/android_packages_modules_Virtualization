@@ -59,6 +59,8 @@ pub enum FdtValidationError {
     InvalidCpuCount(usize),
     /// Invalid VCpufreq Range.
     InvalidVcpufreq(u64, u64),
+    /// Forbidden /avf/untrusted property.
+    ForbiddenUntrustedProp(&'static CStr),
 }
 
 impl fmt::Display for FdtValidationError {
@@ -67,6 +69,9 @@ impl fmt::Display for FdtValidationError {
             Self::InvalidCpuCount(num_cpus) => write!(f, "Invalid CPU count: {num_cpus}"),
             Self::InvalidVcpufreq(addr, size) => {
                 write!(f, "Invalid vcpufreq region: ({addr:#x}, {size:#x})")
+            }
+            Self::ForbiddenUntrustedProp(name) => {
+                write!(f, "Forbidden /avf/untrusted property '{name:?}'")
             }
         }
     }
@@ -420,6 +425,24 @@ fn patch_cpus(
     Ok(())
 }
 
+/// Reads the /avf/untrusted DT node, which the host can use to pass properties (no subnodes) to
+/// the guest that don't require being validated by pvmfw.
+fn parse_untrusted_props(fdt: &Fdt) -> libfdt::Result<BTreeMap<CString, Vec<u8>>> {
+    let mut props = BTreeMap::new();
+    if let Some(node) = fdt.node(cstr!("/avf/untrusted"))? {
+        for property in node.properties()? {
+            let name = property.name()?;
+            let value = property.value()?;
+            props.insert(CString::from(name), value.to_vec());
+        }
+        if node.subnodes()?.next().is_some() {
+            warn!("Discarding unexpected /avf/untrusted subnodes.");
+        }
+    }
+
+    Ok(props)
+}
+
 /// Read candidate properties' names from DT which could be overlaid
 fn parse_vm_ref_dt(fdt: &Fdt) -> libfdt::Result<BTreeMap<CString, Vec<u8>>> {
     let mut property_map = BTreeMap::new();
@@ -434,6 +457,19 @@ fn parse_vm_ref_dt(fdt: &Fdt) -> libfdt::Result<BTreeMap<CString, Vec<u8>>> {
         }
     }
     Ok(property_map)
+}
+
+fn validate_untrusted_props(props: &BTreeMap<CString, Vec<u8>>) -> Result<(), FdtValidationError> {
+    const FORBIDDEN_PROPS: &[&CStr] =
+        &[cstr!("compatible"), cstr!("linux,phandle"), cstr!("phandle")];
+
+    for name in FORBIDDEN_PROPS {
+        if props.contains_key(*name) {
+            return Err(FdtValidationError::ForbiddenUntrustedProp(name));
+        }
+    }
+
+    Ok(())
 }
 
 /// Overlay VM reference DT into VM DT based on the props_info. Property is overlaid in vm_dt only
@@ -837,6 +873,23 @@ fn patch_timer(fdt: &mut Fdt, num_cpus: usize) -> libfdt::Result<()> {
     node.setprop_inplace(cstr!("interrupts"), value.as_bytes())
 }
 
+fn patch_untrusted_props(fdt: &mut Fdt, props: &BTreeMap<CString, Vec<u8>>) -> libfdt::Result<()> {
+    let avf_node = if let Some(node) = fdt.node_mut(cstr!("/avf"))? {
+        node
+    } else {
+        fdt.root_mut()?.add_subnode(cstr!("avf"))?
+    };
+
+    // The node shouldn't already be present; if it is, return the error.
+    let mut node = avf_node.add_subnode(cstr!("untrusted"))?;
+
+    for (name, value) in props {
+        node.setprop(name, value)?;
+    }
+
+    Ok(())
+}
+
 #[derive(Debug)]
 struct VcpufreqInfo {
     addr: u64,
@@ -864,6 +917,7 @@ pub struct DeviceTreeInfo {
     serial_info: SerialInfo,
     pub swiotlb_info: SwiotlbInfo,
     device_assignment: Option<DeviceAssignmentInfo>,
+    untrusted_props: BTreeMap<CString, Vec<u8>>,
     vm_ref_dt_props_info: BTreeMap<CString, Vec<u8>>,
     vcpufreq_info: Option<VcpufreqInfo>,
 }
@@ -1023,6 +1077,15 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         None => None,
     };
 
+    let untrusted_props = parse_untrusted_props(fdt).map_err(|e| {
+        error!("Failed to read untrusted properties: {e}");
+        RebootReason::InvalidFdt
+    })?;
+    validate_untrusted_props(&untrusted_props).map_err(|e| {
+        error!("Failed to validate untrusted properties: {e}");
+        RebootReason::InvalidFdt
+    })?;
+
     let vm_ref_dt_props_info = parse_vm_ref_dt(fdt).map_err(|e| {
         error!("Failed to read names of properties under /avf from DT: {e}");
         RebootReason::InvalidFdt
@@ -1039,6 +1102,7 @@ fn parse_device_tree(fdt: &Fdt, vm_dtbo: Option<&VmDtbo>) -> Result<DeviceTreeIn
         serial_info,
         swiotlb_info,
         device_assignment,
+        untrusted_props,
         vm_ref_dt_props_info,
         vcpufreq_info,
     })
@@ -1097,6 +1161,10 @@ fn patch_device_tree(fdt: &mut Fdt, info: &DeviceTreeInfo) -> Result<(), RebootR
             RebootReason::InvalidFdt
         })?;
     }
+    patch_untrusted_props(fdt, &info.untrusted_props).map_err(|e| {
+        error!("Failed to patch untrusted properties: {e}");
+        RebootReason::InvalidFdt
+    })?;
 
     Ok(())
 }
