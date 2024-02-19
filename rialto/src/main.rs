@@ -177,7 +177,9 @@ unsafe fn try_main(fdt_addr: usize) -> Result<()> {
 
     let mut vsock_stream = VsockStream::new(socket_device, host_addr())?;
     while let ServiceVmRequest::Process(req) = vsock_stream.read_request()? {
+        info!("Received request: {}", req.name());
         let response = process_request(req, bcc_handover.as_ref());
+        info!("Sending response: {}", response.name());
         vsock_stream.write_response(&response)?;
         vsock_stream.flush()?;
     }
