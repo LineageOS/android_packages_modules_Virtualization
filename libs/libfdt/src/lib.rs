@@ -27,9 +27,9 @@ pub use iterators::{
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
 pub use result::{FdtError, Result};
-pub use safe_types::{NodeOffset, Phandle};
+pub use safe_types::{NodeOffset, Phandle, PropOffset, StringOffset};
 
-use core::ffi::{c_int, c_void, CStr};
+use core::ffi::{c_void, CStr};
 use core::ops::Range;
 use cstr::cstr;
 use libfdt::get_slice_at_ptr;
@@ -93,12 +93,12 @@ impl AsRef<FdtPropertyStruct> for libfdt_bindgen::fdt_property {
 }
 
 impl FdtPropertyStruct {
-    fn from_offset(fdt: &Fdt, offset: c_int) -> Result<&Self> {
+    fn from_offset(fdt: &Fdt, offset: PropOffset) -> Result<&Self> {
         Ok(fdt.get_property_by_offset(offset)?.as_ref())
     }
 
-    fn name_offset(&self) -> c_int {
-        u32::from_be(self.0.nameoff).try_into().unwrap()
+    fn name_offset(&self) -> StringOffset {
+        StringOffset(u32::from_be(self.0.nameoff).try_into().unwrap())
     }
 
     fn data_len(&self) -> usize {
@@ -114,12 +114,12 @@ impl FdtPropertyStruct {
 #[derive(Clone, Copy, Debug)]
 pub struct FdtProperty<'a> {
     fdt: &'a Fdt,
-    offset: c_int,
+    offset: PropOffset,
     property: &'a FdtPropertyStruct,
 }
 
 impl<'a> FdtProperty<'a> {
-    fn new(fdt: &'a Fdt, offset: c_int) -> Result<Self> {
+    fn new(fdt: &'a Fdt, offset: PropOffset) -> Result<Self> {
         let property = FdtPropertyStruct::from_offset(fdt, offset)?;
         Ok(Self { fdt, offset, property })
     }
