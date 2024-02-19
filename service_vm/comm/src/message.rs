@@ -56,6 +56,18 @@ pub enum Request {
     RequestClientVmAttestation(ClientVmAttestationParams),
 }
 
+impl Request {
+    /// Returns the name of the request.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Reverse(_) => "Reverse",
+            Self::GenerateEcdsaP256KeyPair => "GenerateEcdsaP256KeyPair",
+            Self::GenerateCertificateRequest(_) => "GenerateCertificateRequest",
+            Self::RequestClientVmAttestation(_) => "RequestClientVmAttestation",
+        }
+    }
+}
+
 /// Represents the params passed to `Request::RequestClientVmAttestation`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClientVmAttestationParams {
@@ -96,6 +108,19 @@ pub enum Response {
 
     /// Encountered an error during the request processing.
     Err(RequestProcessingError),
+}
+
+impl Response {
+    /// Returns the name of the response.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Reverse(_) => "Reverse",
+            Self::GenerateEcdsaP256KeyPair(_) => "GenerateEcdsaP256KeyPair",
+            Self::GenerateCertificateRequest(_) => "GenerateCertificateRequest",
+            Self::RequestClientVmAttestation(_) => "RequestClientVmAttestation",
+            Self::Err(_) => "Err",
+        }
+    }
 }
 
 /// Errors related to request processing.
