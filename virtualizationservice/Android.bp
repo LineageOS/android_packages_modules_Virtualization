@@ -23,6 +23,7 @@ rust_defaults {
     rustlibs: [
         "android.hardware.security.rkp-V3-rust",
         "android.system.virtualizationcommon-rust",
+        "android.system.virtualizationmaintenance-rust",
         "android.system.virtualizationservice-rust",
         "android.system.virtualizationservice_internal-rust",
         "android.system.virtualmachineservice-rust",
