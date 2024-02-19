@@ -19,6 +19,67 @@ use core::ffi::c_int;
 use crate::result::FdtRawResult;
 use crate::{FdtError, Result};
 
+use zerocopy::byteorder::big_endian;
+use zerocopy::{FromBytes, FromZeroes};
+
+macro_rules! assert_offset_eq {
+    // TODO(stable_feature(offset_of)): mem::offset_of
+    // TODO(const_feature(assert_eq)): assert_eq!()
+    ($t:ty, $u:ty, $id:ident) => {
+        static_assertions::const_assert_eq!(
+            memoffset::offset_of!($t, $id),
+            memoffset::offset_of!($u, $id),
+        );
+    };
+}
+
+/// Thin wrapper around `libfdt_bindgen::fdt_header` for transparent endianness handling.
+#[repr(C)]
+#[derive(Debug, FromZeroes, FromBytes)]
+pub struct FdtHeader {
+    /// magic word FDT_MAGIC
+    pub magic: big_endian::U32,
+    /// total size of DT block
+    pub totalsize: big_endian::U32,
+    /// offset to structure
+    pub off_dt_struct: big_endian::U32,
+    /// offset to strings
+    pub off_dt_strings: big_endian::U32,
+    /// offset to memory reserve map
+    pub off_mem_rsvmap: big_endian::U32,
+    /// format version
+    pub version: big_endian::U32,
+    /// last compatible version
+    pub last_comp_version: big_endian::U32,
+    /* version 2 fields below */
+    /// Which physical CPU id we're booting on
+    pub boot_cpuid_phys: big_endian::U32,
+    /* version 3 fields below */
+    /// size of the strings block
+    pub size_dt_strings: big_endian::U32,
+    /* version 17 fields below */
+    /// size of the structure block
+    pub size_dt_struct: big_endian::U32,
+}
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, magic);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, totalsize);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, off_dt_struct);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, off_dt_strings);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, off_mem_rsvmap);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, version);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, last_comp_version);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, boot_cpuid_phys);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, size_dt_strings);
+assert_offset_eq!(libfdt_bindgen::fdt_header, FdtHeader, size_dt_struct);
+
+impl AsRef<FdtHeader> for libfdt_bindgen::fdt_header {
+    fn as_ref(&self) -> &FdtHeader {
+        let ptr = self as *const _ as *const _;
+        // SAFETY: Types have the same layout (u32 and U32 have the same storage) and alignment.
+        unsafe { &*ptr }
+    }
+}
+
 /// Wrapper guaranteed to contain a valid phandle.
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
