@@ -1084,6 +1084,13 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         }
 
         mOs = (mGki != null) ? "microdroid_gki-" + mGki : "microdroid";
+
+        new CommandRunner(getDevice())
+                .tryRun(
+                        "pm",
+                        "grant",
+                        SHELL_PACKAGE_NAME,
+                        "android.permission.USE_CUSTOM_VIRTUAL_MACHINE");
     }
 
     @After
@@ -1098,21 +1105,13 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 mTestLogs, getDevice(), LOG_PATH, "vm.log-" + mTestName.getMethodName());
 
         getDevice().uninstallPackage(PACKAGE_NAME);
-
-        // testCustomVirtualMachinePermission revokes this permission. Grant it again as cleanup
-        new CommandRunner(getDevice())
-                .tryRun(
-                        "pm",
-                        "grant",
-                        SHELL_PACKAGE_NAME,
-                        "android.permission.USE_CUSTOM_VIRTUAL_MACHINE");
     }
 
-    private void assumeProtectedVm() throws Exception {
+    private void assumeProtectedVm() {
         assumeTrue("This test is only for protected VM.", mProtectedVm);
     }
 
-    private void assumeNonProtectedVm() throws Exception {
+    private void assumeNonProtectedVm() {
         assumeFalse("This test is only for non-protected VM.", mProtectedVm);
     }
 
