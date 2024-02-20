@@ -46,9 +46,8 @@ java_genrule {
     srcs: [
         ":measure_io",
     ],
-    cmd: "out_dir=$$(dirname $(out))" +
-        "&& bin_dir=\"bin\" " +
-        "&& mkdir -p $$out_dir/$$bin_dir" +
-        "&& cp $(in) $$out_dir/$$bin_dir" +
-        "&& jar cf $(out) -C $$out_dir $$bin_dir",
+    tools: ["soong_zip"],
+    cmd: "mkdir -p $(genDir)/bin" +
+        "&& cp $(in) $(genDir)/bin" +
+        "&& $(location soong_zip) -jar -o $(out) -C $(genDir) -D $(genDir)/bin",
 }
