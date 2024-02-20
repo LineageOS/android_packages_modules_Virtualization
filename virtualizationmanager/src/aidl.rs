@@ -554,7 +554,6 @@ impl VirtualizationService {
             memory_mib: config.memoryMib.try_into().ok().and_then(NonZeroU32::new),
             cpus,
             host_cpu_topology,
-            task_profiles: config.taskProfiles.clone(),
             console_out_fd,
             console_in_fd,
             log_fd,
@@ -782,7 +781,6 @@ fn load_app_config(
         if let Some(file) = custom_config.customKernelImage.as_ref() {
             vm_config.kernel = Some(ParcelFileDescriptor::new(clone_file(file)?))
         }
-        vm_config.taskProfiles = custom_config.taskProfiles.clone();
         vm_config.gdbPort = custom_config.gdbPort;
 
         if let Some(file) = custom_config.vendorImage.as_ref() {

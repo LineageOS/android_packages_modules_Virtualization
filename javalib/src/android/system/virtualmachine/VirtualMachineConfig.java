@@ -587,7 +587,6 @@ public final class VirtualMachineConfig {
         if (mVendorDiskImage != null) {
             VirtualMachineAppConfig.CustomConfig customConfig =
                     new VirtualMachineAppConfig.CustomConfig();
-            customConfig.taskProfiles = EMPTY_STRING_ARRAY;
             customConfig.devices = EMPTY_STRING_ARRAY;
             try {
                 customConfig.vendorImage =

@@ -62,8 +62,6 @@ pub struct VmParameters {
     pub debug_mode: bool,
     /// CPU topology of the VM. Defaults to 1 vCPU.
     pub cpu_topology: VmCpuTopology,
-    /// List of task profiles to apply to the VM
-    pub task_profiles: Vec<String>,
     /// If present, overrides the amount of RAM to give the VM
     pub memory_mib: Option<i32>,
     /// Whether the VM prefers staged APEXes or activated ones (false; default)
@@ -131,10 +129,7 @@ impl ComposClient {
             protectedVm: protected_vm,
             memoryMib: parameters.memory_mib.unwrap_or(0), // 0 means use the default
             cpuTopology: cpu_topology,
-            customConfig: Some(CustomConfig {
-                taskProfiles: parameters.task_profiles.clone(),
-                ..Default::default()
-            }),
+            customConfig: Some(CustomConfig { ..Default::default() }),
         });
 
         // Let logs go to logcat.
@@ -144,7 +139,7 @@ impl ComposClient {
             service,
             &config,
             console_fd,
-            /*console_in_fd */ None,
+            /* console_in_fd */ None,
             log_fd,
             Some(callback),
         )
