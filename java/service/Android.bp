@@ -23,8 +23,13 @@ java_library {
     ],
     defaults: [
         "framework-system-server-module-defaults",
+        "platform_service_defaults",
     ],
-    sdk_version: "system_server_current",
+    libs: [
+        "framework",
+        "services.core",
+    ],
+    sdk_version: "core_platform",
     apex_available: ["com.android.virt"],
     installable: true,
 }
