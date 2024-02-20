@@ -17,19 +17,19 @@
 
 #![no_std]
 
-mod ctypes;
 mod iterators;
 mod libfdt;
 mod result;
+mod safe_types;
 
-pub use ctypes::Phandle;
 pub use iterators::{
     AddressRange, CellIterator, CompatibleIterator, DescendantsIterator, MemRegIterator,
     PropertyIterator, RangesIterator, Reg, RegIterator, SubnodeIterator,
 };
 pub use result::{FdtError, Result};
+pub use safe_types::{FdtHeader, NodeOffset, Phandle, PropOffset, StringOffset};
 
-use core::ffi::{c_int, c_void, CStr};
+use core::ffi::{c_void, CStr};
 use core::ops::Range;
 use cstr::cstr;
 use libfdt::get_slice_at_ptr;
@@ -93,12 +93,12 @@ impl AsRef<FdtPropertyStruct> for libfdt_bindgen::fdt_property {
 }
 
 impl FdtPropertyStruct {
-    fn from_offset(fdt: &Fdt, offset: c_int) -> Result<&Self> {
+    fn from_offset(fdt: &Fdt, offset: PropOffset) -> Result<&Self> {
         Ok(fdt.get_property_by_offset(offset)?.as_ref())
     }
 
-    fn name_offset(&self) -> c_int {
-        u32::from_be(self.0.nameoff).try_into().unwrap()
+    fn name_offset(&self) -> StringOffset {
+        StringOffset(u32::from_be(self.0.nameoff).try_into().unwrap())
     }
 
     fn data_len(&self) -> usize {
@@ -114,12 +114,12 @@ impl FdtPropertyStruct {
 #[derive(Clone, Copy, Debug)]
 pub struct FdtProperty<'a> {
     fdt: &'a Fdt,
-    offset: c_int,
+    offset: PropOffset,
     property: &'a FdtPropertyStruct,
 }
 
 impl<'a> FdtProperty<'a> {
-    fn new(fdt: &'a Fdt, offset: c_int) -> Result<Self> {
+    fn new(fdt: &'a Fdt, offset: PropOffset) -> Result<Self> {
         let property = FdtPropertyStruct::from_offset(fdt, offset)?;
         Ok(Self { fdt, offset, property })
     }
@@ -147,7 +147,7 @@ impl<'a> FdtProperty<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct FdtNode<'a> {
     fdt: &'a Fdt,
-    offset: c_int,
+    offset: NodeOffset,
 }
 
 impl<'a> FdtNode<'a> {
@@ -355,7 +355,7 @@ impl<'a> PartialEq for FdtNode<'a> {
 #[derive(Debug)]
 pub struct FdtNodeMut<'a> {
     fdt: &'a mut Fdt,
-    offset: c_int,
+    offset: NodeOffset,
 }
 
 impl<'a> FdtNodeMut<'a> {
@@ -492,6 +492,7 @@ impl<'a> FdtNodeMut<'a> {
             let next_node = self.delete_and_next(Some(offset))?.unwrap();
             Ok(Some((next_node, depth)))
         } else {
+            self.delete_and_next(None)?;
             Ok(None)
         }
     }
@@ -525,7 +526,7 @@ impl<'a> FdtNodeMut<'a> {
         self.delete_and_next(next_offset)
     }
 
-    fn delete_and_next(self, next_offset: Option<c_int>) -> Result<Option<Self>> {
+    fn delete_and_next(self, next_offset: Option<NodeOffset>) -> Result<Option<Self>> {
         if Some(self.offset) == next_offset {
             return Err(FdtError::Internal);
         }
@@ -668,7 +669,7 @@ impl Fdt {
     ///
     /// NOTE: This does not support individual "/memory@XXXX" banks.
     pub fn memory(&self) -> Result<MemRegIterator> {
-        let node = self.node(cstr!("/memory"))?.ok_or(FdtError::NotFound)?;
+        let node = self.root()?.subnode(cstr!("memory"))?.ok_or(FdtError::NotFound)?;
         if node.device_type()? != Some(cstr!("memory")) {
             return Err(FdtError::BadValue);
         }
@@ -682,7 +683,7 @@ impl Fdt {
 
     /// Returns the standard /chosen node.
     pub fn chosen(&self) -> Result<Option<FdtNode>> {
-        self.node(cstr!("/chosen"))
+        self.root()?.subnode(cstr!("chosen"))
     }
 
     /// Returns the standard /chosen node as mutable.
@@ -692,12 +693,12 @@ impl Fdt {
 
     /// Returns the root node of the tree.
     pub fn root(&self) -> Result<FdtNode> {
-        self.node(cstr!("/"))?.ok_or(FdtError::Internal)
+        Ok(FdtNode { fdt: self, offset: NodeOffset::ROOT })
     }
 
     /// Returns the standard /__symbols__ node.
     pub fn symbols(&self) -> Result<Option<FdtNode>> {
-        self.node(cstr!("/__symbols__"))
+        self.root()?.subnode(cstr!("__symbols__"))
     }
 
     /// Returns the standard /__symbols__ node as mutable
@@ -738,7 +739,7 @@ impl Fdt {
 
     /// Returns the mutable root node of the tree.
     pub fn root_mut(&mut self) -> Result<FdtNodeMut> {
-        self.node_mut(cstr!("/"))?.ok_or(FdtError::Internal)
+        Ok(FdtNodeMut { fdt: self, offset: NodeOffset::ROOT })
     }
 
     /// Returns a mutable tree node by its full path.
@@ -748,7 +749,11 @@ impl Fdt {
         Ok(offset.map(|offset| FdtNodeMut { fdt: self, offset }))
     }
 
-    fn next_node_skip_subnodes(&self, node: c_int, depth: usize) -> Result<Option<(c_int, usize)>> {
+    fn next_node_skip_subnodes(
+        &self,
+        node: NodeOffset,
+        depth: usize,
+    ) -> Result<Option<(NodeOffset, usize)>> {
         let mut iter = self.next_node(node, depth)?;
         while let Some((offset, next_depth)) = iter {
             if next_depth <= depth {
@@ -774,13 +779,14 @@ impl Fdt {
         self.buffer.as_ptr().cast()
     }
 
-    fn header(&self) -> &libfdt_bindgen::fdt_header {
-        let p = self.as_ptr().cast();
+    fn header(&self) -> &FdtHeader {
+        let p = self.as_ptr().cast::<libfdt_bindgen::fdt_header>();
         // SAFETY: A valid FDT (verified by constructor) must contain a valid fdt_header.
-        unsafe { &*p }
+        let header = unsafe { &*p };
+        header.as_ref()
     }
 
     fn totalsize(&self) -> usize {
-        u32::from_be(self.header().totalsize) as usize
+        self.header().totalsize.get().try_into().unwrap()
     }
 }

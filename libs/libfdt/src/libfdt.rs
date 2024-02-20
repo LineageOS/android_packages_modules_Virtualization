@@ -18,12 +18,12 @@
 //! user-friendly higher-level types, allowing the trait to be shared between different ones,
 //! adapted to their use-cases (e.g. alloc-based userspace or statically allocated no_std).
 
-use core::ffi::{c_int, CStr};
+use core::ffi::CStr;
 use core::mem;
 use core::ptr;
 
 use crate::result::FdtRawResult;
-use crate::{FdtError, Phandle, Result};
+use crate::{FdtError, NodeOffset, Phandle, PropOffset, Result, StringOffset};
 
 // Function names are the C function names without the `fdt_` prefix.
 
@@ -68,7 +68,7 @@ pub(crate) unsafe trait Libfdt {
     fn as_fdt_slice(&self) -> &[u8];
 
     /// Safe wrapper around `fdt_path_offset_namelen()` (C function).
-    fn path_offset_namelen(&self, path: &[u8]) -> Result<Option<c_int>> {
+    fn path_offset_namelen(&self, path: &[u8]) -> Result<Option<NodeOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
         // *_namelen functions don't include the trailing nul terminator in 'len'.
         let len = path.len().try_into().map_err(|_| FdtError::BadPath)?;
@@ -81,7 +81,7 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_node_offset_by_phandle()` (C function).
-    fn node_offset_by_phandle(&self, phandle: Phandle) -> Result<Option<c_int>> {
+    fn node_offset_by_phandle(&self, phandle: Phandle) -> Result<Option<NodeOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
         let phandle = phandle.into();
         // SAFETY: Accesses are constrained to the DT totalsize.
@@ -91,8 +91,13 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_node_offset_by_compatible()` (C function).
-    fn node_offset_by_compatible(&self, prev: c_int, compatible: &CStr) -> Result<Option<c_int>> {
+    fn node_offset_by_compatible(
+        &self,
+        prev: NodeOffset,
+        compatible: &CStr,
+    ) -> Result<Option<NodeOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let prev = prev.into();
         let compatible = compatible.as_ptr();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_node_offset_by_compatible(fdt, prev, compatible) };
@@ -101,8 +106,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_next_node()` (C function).
-    fn next_node(&self, node: c_int, depth: usize) -> Result<Option<(c_int, usize)>> {
+    fn next_node(&self, node: NodeOffset, depth: usize) -> Result<Option<(NodeOffset, usize)>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         let mut depth = depth.try_into().unwrap();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_node(fdt, node, &mut depth) };
@@ -119,8 +125,9 @@ pub(crate) unsafe trait Libfdt {
     /// Safe wrapper around `fdt_parent_offset()` (C function).
     ///
     /// Note that this function returns a `Err` when called on a root.
-    fn parent_offset(&self, node: c_int) -> Result<c_int> {
+    fn parent_offset(&self, node: NodeOffset) -> Result<NodeOffset> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_parent_offset(fdt, node) };
 
@@ -131,8 +138,9 @@ pub(crate) unsafe trait Libfdt {
     ///
     /// Note that this function returns a `Err` when called on a node at a depth shallower than
     /// the provided `depth`.
-    fn supernode_atdepth_offset(&self, node: c_int, depth: usize) -> Result<c_int> {
+    fn supernode_atdepth_offset(&self, node: NodeOffset, depth: usize) -> Result<NodeOffset> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         let depth = depth.try_into().unwrap();
         let nodedepth = ptr::null_mut();
         let ret =
@@ -143,8 +151,13 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_subnode_offset_namelen()` (C function).
-    fn subnode_offset_namelen(&self, parent: c_int, name: &[u8]) -> Result<Option<c_int>> {
+    fn subnode_offset_namelen(
+        &self,
+        parent: NodeOffset,
+        name: &[u8],
+    ) -> Result<Option<NodeOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let parent = parent.into();
         let namelen = name.len().try_into().unwrap();
         let name = name.as_ptr().cast();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
@@ -153,8 +166,9 @@ pub(crate) unsafe trait Libfdt {
         FdtRawResult::from(ret).try_into()
     }
     /// Safe wrapper around `fdt_first_subnode()` (C function).
-    fn first_subnode(&self, node: c_int) -> Result<Option<c_int>> {
+    fn first_subnode(&self, node: NodeOffset) -> Result<Option<NodeOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_first_subnode(fdt, node) };
 
@@ -162,8 +176,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_next_subnode()` (C function).
-    fn next_subnode(&self, node: c_int) -> Result<Option<c_int>> {
+    fn next_subnode(&self, node: NodeOffset) -> Result<Option<NodeOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_subnode(fdt, node) };
 
@@ -171,8 +186,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_address_cells()` (C function).
-    fn address_cells(&self, node: c_int) -> Result<usize> {
+    fn address_cells(&self, node: NodeOffset) -> Result<usize> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_address_cells(fdt, node) };
 
@@ -180,8 +196,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_size_cells()` (C function).
-    fn size_cells(&self, node: c_int) -> Result<usize> {
+    fn size_cells(&self, node: NodeOffset) -> Result<usize> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_size_cells(fdt, node) };
 
@@ -189,8 +206,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_get_name()` (C function).
-    fn get_name(&self, node: c_int) -> Result<&[u8]> {
+    fn get_name(&self, node: NodeOffset) -> Result<&[u8]> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         let mut len = 0;
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor). On success, the
         // function returns valid null terminating string and otherwise returned values are dropped.
@@ -201,8 +219,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_getprop_namelen()` (C function).
-    fn getprop_namelen(&self, node: c_int, name: &[u8]) -> Result<Option<&[u8]>> {
+    fn getprop_namelen(&self, node: NodeOffset, name: &[u8]) -> Result<Option<&[u8]>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         let namelen = name.len().try_into().map_err(|_| FdtError::BadPath)?;
         let name = name.as_ptr().cast();
         let mut len = 0;
@@ -221,9 +240,10 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_get_property_by_offset()` (C function).
-    fn get_property_by_offset(&self, offset: c_int) -> Result<&libfdt_bindgen::fdt_property> {
+    fn get_property_by_offset(&self, offset: PropOffset) -> Result<&libfdt_bindgen::fdt_property> {
         let mut len = 0;
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let offset = offset.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let prop = unsafe { libfdt_bindgen::fdt_get_property_by_offset(fdt, offset, &mut len) };
 
@@ -247,8 +267,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_first_property_offset()` (C function).
-    fn first_property_offset(&self, node: c_int) -> Result<Option<c_int>> {
+    fn first_property_offset(&self, node: NodeOffset) -> Result<Option<PropOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_first_property_offset(fdt, node) };
 
@@ -256,8 +277,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_next_property_offset()` (C function).
-    fn next_property_offset(&self, prev: c_int) -> Result<Option<c_int>> {
+    fn next_property_offset(&self, prev: PropOffset) -> Result<Option<PropOffset>> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let prev = prev.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ret = unsafe { libfdt_bindgen::fdt_next_property_offset(fdt, prev) };
 
@@ -277,8 +299,9 @@ pub(crate) unsafe trait Libfdt {
     }
 
     /// Safe wrapper around `fdt_string()` (C function).
-    fn string(&self, offset: c_int) -> Result<&CStr> {
+    fn string(&self, offset: StringOffset) -> Result<&CStr> {
         let fdt = self.as_fdt_slice().as_ptr().cast();
+        let offset = offset.into();
         // SAFETY: Accesses (read-only) are constrained to the DT totalsize.
         let ptr = unsafe { libfdt_bindgen::fdt_string(fdt, offset) };
         let bytes =
@@ -316,8 +339,9 @@ pub(crate) unsafe trait LibfdtMut {
     fn as_fdt_slice_mut(&mut self) -> &mut [u8];
 
     /// Safe wrapper around `fdt_nop_node()` (C function).
-    fn nop_node(&mut self, node: c_int) -> Result<()> {
+    fn nop_node(&mut self, node: NodeOffset) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe { libfdt_bindgen::fdt_nop_node(fdt, node) };
 
@@ -325,8 +349,9 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_add_subnode_namelen()` (C function).
-    fn add_subnode_namelen(&mut self, node: c_int, name: &[u8]) -> Result<c_int> {
+    fn add_subnode_namelen(&mut self, node: NodeOffset, name: &[u8]) -> Result<NodeOffset> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let namelen = name.len().try_into().unwrap();
         let name = name.as_ptr().cast();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
@@ -336,8 +361,9 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_setprop()` (C function).
-    fn setprop(&mut self, node: c_int, name: &CStr, value: &[u8]) -> Result<()> {
+    fn setprop(&mut self, node: NodeOffset, name: &CStr, value: &[u8]) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let name = name.as_ptr();
         let len = value.len().try_into().map_err(|_| FdtError::BadValue)?;
         let value = value.as_ptr().cast();
@@ -349,8 +375,14 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_setprop_placeholder()` (C function).
-    fn setprop_placeholder(&mut self, node: c_int, name: &CStr, size: usize) -> Result<&mut [u8]> {
+    fn setprop_placeholder(
+        &mut self,
+        node: NodeOffset,
+        name: &CStr,
+        size: usize,
+    ) -> Result<&mut [u8]> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let name = name.as_ptr();
         let len = size.try_into().unwrap();
         let mut data = ptr::null_mut();
@@ -364,8 +396,9 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_setprop_inplace()` (C function).
-    fn setprop_inplace(&mut self, node: c_int, name: &CStr, value: &[u8]) -> Result<()> {
+    fn setprop_inplace(&mut self, node: NodeOffset, name: &CStr, value: &[u8]) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let name = name.as_ptr();
         let len = value.len().try_into().map_err(|_| FdtError::BadValue)?;
         let value = value.as_ptr().cast();
@@ -377,8 +410,9 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_appendprop()` (C function).
-    fn appendprop(&mut self, node: c_int, name: &CStr, value: &[u8]) -> Result<()> {
+    fn appendprop(&mut self, node: NodeOffset, name: &CStr, value: &[u8]) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let name = name.as_ptr();
         let len = value.len().try_into().map_err(|_| FdtError::BadValue)?;
         let value = value.as_ptr().cast();
@@ -391,13 +425,15 @@ pub(crate) unsafe trait LibfdtMut {
     /// Safe wrapper around `fdt_appendprop_addrrange()` (C function).
     fn appendprop_addrrange(
         &mut self,
-        parent: c_int,
-        node: c_int,
+        parent: NodeOffset,
+        node: NodeOffset,
         name: &CStr,
         addr: u64,
         size: u64,
     ) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let parent = parent.into();
+        let node = node.into();
         let name = name.as_ptr();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor).
         let ret = unsafe {
@@ -408,8 +444,9 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_delprop()` (C function).
-    fn delprop(&mut self, node: c_int, name: &CStr) -> Result<()> {
+    fn delprop(&mut self, node: NodeOffset, name: &CStr) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let name = name.as_ptr();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) when the
         // library locates the node's property. Removing the property may shift the offsets of
@@ -421,8 +458,9 @@ pub(crate) unsafe trait LibfdtMut {
     }
 
     /// Safe wrapper around `fdt_nop_property()` (C function).
-    fn nop_property(&mut self, node: c_int, name: &CStr) -> Result<()> {
+    fn nop_property(&mut self, node: NodeOffset, name: &CStr) -> Result<()> {
         let fdt = self.as_fdt_slice_mut().as_mut_ptr().cast();
+        let node = node.into();
         let name = name.as_ptr();
         // SAFETY: Accesses are constrained to the DT totalsize (validated by ctor) when the
         // library locates the node's property.
