@@ -47,7 +47,6 @@ pub fn forward_vm_creation_atom(atom: &AtomVmCreationRequested) {
         cpu_affinity: "", // deprecated
         memory_mib: atom.memoryMib,
         apexes: &atom.apexes,
-        // TODO(seungjaeyoo) Fill information about task_profile
         // TODO(seungjaeyoo) Fill information about disk_image for raw config
     };
 

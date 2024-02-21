@@ -60,11 +60,6 @@ parcelable VirtualMachineRawConfig {
     @utf8InCpp String platformVersion;
 
     /**
-     * List of task profile names to apply for the VM
-     */
-    String[] taskProfiles;
-
-    /**
      * Port at which crosvm will start a gdb server to debug guest kernel.
      * If set to zero, then gdb server won't be started.
      */
