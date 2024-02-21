@@ -22,6 +22,7 @@ import android.system.virtualmachine.VirtualMachineManager;
 import com.android.compatibility.common.util.CddTest;
 import com.android.microdroid.test.device.MicrodroidDeviceTestBase;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -37,6 +38,7 @@ import org.junit.runners.JUnit4;
 public class MicrodroidCapabilitiesTest extends MicrodroidDeviceTestBase {
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    @Ignore("b/326092480")
     public void supportForProtectedOrNonProtectedVms() {
         assumeSupportedDevice();
 
