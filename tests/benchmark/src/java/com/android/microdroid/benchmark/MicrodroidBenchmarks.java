@@ -276,9 +276,9 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 (builder) -> builder);
     }
 
-    @Test
-    public void testMicrodroidDebugBootTime_withVendorPartition() throws Exception {
-        assume().withMessage("Cuttlefish doesn't support device tree under" + " /proc/device-tree")
+    private void testMicrodroidDebugBootTime_withVendorBase(File vendorDiskImage) throws Exception {
+        // TODO(b/325094712): Boot fails with vendor partition in Cuttlefish.
+        assume().withMessage("Cuttlefish doesn't support device tree under /proc/device-tree")
                 .that(isCuttlefish())
                 .isFalse();
         // TODO(b/317567210): Boots fails with vendor partition in HWASAN enabled microdroid
@@ -287,16 +287,32 @@ public class MicrodroidBenchmarks extends MicrodroidDeviceTestBase {
                 .that(isHwasan())
                 .isFalse();
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_VENDOR_MODULES);
-
-        File vendorDiskImage = new File("/vendor/etc/avf/microdroid/microdroid_vendor.img");
-        assume().withMessage("Microdroid vendor image doesn't exist, skip")
-                .that(vendorDiskImage.exists())
-                .isTrue();
         runBootTimeTest(
                 "test_vm_boot_time_debug_with_vendor_partition",
                 "assets/" + os() + "/vm_config.json",
                 /* fullDebug */ true,
                 (builder) -> builder.setVendorDiskImage(vendorDiskImage));
+    }
+
+    @Test
+    public void testMicrodroidDebugBootTime_withVendorPartition() throws Exception {
+        File vendorDiskImage = new File("/vendor/etc/avf/microdroid/microdroid_vendor.img");
+        assume().withMessage("Microdroid vendor image doesn't exist, skip")
+                .that(vendorDiskImage.exists())
+                .isTrue();
+        testMicrodroidDebugBootTime_withVendorBase(vendorDiskImage);
+    }
+
+    @Test
+    public void testMicrodroidDebugBootTime_withCustomVendorPartition() throws Exception {
+        assume().withMessage(
+                        "Skip test for protected VM, pvmfw config data doesn't contain any"
+                                + " information of test images, such as root digest.")
+                .that(mProtectedVm)
+                .isFalse();
+        File vendorDiskImage =
+                new File("/data/local/tmp/microdroid-bench/microdroid_vendor_image.img");
+        testMicrodroidDebugBootTime_withVendorBase(vendorDiskImage);
     }
 
     @Test
