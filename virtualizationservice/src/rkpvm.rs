@@ -35,7 +35,7 @@ pub(crate) fn request_attestation(
     let request = Request::RequestClientVmAttestation(params);
     match vm.process_request(request).context("Failed to process request")? {
         Response::RequestClientVmAttestation(cert) => Ok(cert),
-        _ => bail!("Incorrect response type"),
+        other => bail!("Incorrect response type {other:?}"),
     }
 }
 
