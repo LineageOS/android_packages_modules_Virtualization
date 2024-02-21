@@ -12,6 +12,7 @@ rust_defaults {
     rustlibs: [
         "android.system.virtualizationservice-rust",
         "libanyhow",
+        "libavf_features",
         "libbinder_rs",
         "libclap",
         "libenv_logger",

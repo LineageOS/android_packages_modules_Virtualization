@@ -35,10 +35,6 @@ use android_system_virtualizationservice::aidl::android::system::virtualizations
     IVirtualMachine::{BnVirtualMachine, IVirtualMachine},
     IVirtualMachineCallback::IVirtualMachineCallback,
     IVirtualizationService::IVirtualizationService,
-    IVirtualizationService::FEATURE_MULTI_TENANT,
-    IVirtualizationService::FEATURE_VENDOR_MODULES,
-    IVirtualizationService::FEATURE_DICE_CHANGES,
-    IVirtualizationService::FEATURE_REMOTE_ATTESTATION,
     MemoryTrimLevel::MemoryTrimLevel,
     Partition::Partition,
     PartitionType::PartitionType,
@@ -306,19 +302,7 @@ impl IVirtualizationService for VirtualizationService {
     /// Returns whether given feature is enabled
     fn isFeatureEnabled(&self, feature: &str) -> binder::Result<bool> {
         check_manage_access()?;
-
-        // This approach is quite cumbersome, but will do the work for the short term.
-        // TODO(b/298012279): make this scalable.
-        match feature {
-            FEATURE_DICE_CHANGES => Ok(cfg!(dice_changes)),
-            FEATURE_MULTI_TENANT => Ok(cfg!(multi_tenant)),
-            FEATURE_REMOTE_ATTESTATION => Ok(cfg!(remote_attestation)),
-            FEATURE_VENDOR_MODULES => Ok(cfg!(vendor_modules)),
-            _ => {
-                warn!("unknown feature {feature}");
-                Ok(false)
-            }
-        }
+        Ok(avf_features::is_feature_enabled(feature))
     }
 
     fn enableTestAttestation(&self) -> binder::Result<()> {
@@ -603,10 +587,14 @@ fn is_custom_config(config: &VirtualMachineConfig) -> bool {
             } else {
                 // Additional custom features not included in CustomConfig:
                 // - specifying a config file;
-                // - specifying extra APKs.
+                // - specifying extra APKs;
+                // - specifying an OS other than Microdroid.
                 match &config.payload {
                     Payload::ConfigPath(_) => true,
-                    Payload::PayloadConfig(payload_config) => !payload_config.extraApks.is_empty(),
+                    Payload::PayloadConfig(payload_config) => {
+                        !payload_config.extraApks.is_empty()
+                            || payload_config.osName != MICRODROID_OS_NAME
+                    }
                 }
             }
         }

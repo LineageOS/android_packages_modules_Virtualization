@@ -530,6 +530,7 @@ public final class VirtualMachineConfig {
                 && this.mEncryptedStorageBytes == other.mEncryptedStorageBytes
                 && this.mVmOutputCaptured == other.mVmOutputCaptured
                 && this.mVmConsoleInputSupported == other.mVmConsoleInputSupported
+                && (this.mVendorDiskImage == null) == (other.mVendorDiskImage == null)
                 && Objects.equals(this.mPayloadConfigPath, other.mPayloadConfigPath)
                 && Objects.equals(this.mPayloadBinaryName, other.mPayloadBinaryName)
                 && Objects.equals(this.mPackageName, other.mPackageName)
@@ -1023,6 +1024,7 @@ public final class VirtualMachineConfig {
          */
         @TestApi
         @FlaggedApi(Flags.FLAG_AVF_V_TEST_APIS)
+        @RequiresPermission(VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION)
         @NonNull
         public Builder setOs(@NonNull String os) {
             mOs = requireNonNull(os, "os must not be null");
