@@ -31,15 +31,18 @@ pub(crate) const VM_DT_OVERLAY_MAX_SIZE: usize = 2000;
 /// * `dt_path` - (Optional) Path to (proc style) device tree to be included in the overlay.
 /// * `untrusted_props` - Include a property in /avf/untrusted node. This node is used to specify
 ///   host provided properties such as `instance-id`.
+/// * `trusted_props` - Include a property in /avf node. This overwrites nodes included with
+///   `dt_path`. In pVM, pvmfw will reject if it doesn't match the value in pvmfw config.
 ///
-/// Example: with `create_device_tree_overlay(_, _, [("instance-id", _),])`
+/// Example: with `create_device_tree_overlay(_, _, [("instance-id", _),], [("digest", _),])`
 /// ```
 ///   {
 ///     fragment@0 {
 ///         target-path = "/";
 ///         __overlay__ {
 ///             avf {
-///                 untrusted { instance-id = [0x01 0x23 .. ] }
+///                 digest = [ 0xaa 0xbb .. ]
+///                 untrusted { instance-id = [ 0x01 0x23 .. ] }
 ///               }
 ///             };
 ///         };
@@ -50,36 +53,54 @@ pub(crate) fn create_device_tree_overlay<'a>(
     buffer: &'a mut [u8],
     dt_path: Option<&'a Path>,
     untrusted_props: &[(&'a CStr, &'a [u8])],
+    trusted_props: &[(&'a CStr, &'a [u8])],
 ) -> Result<&'a mut Fdt> {
-    if dt_path.is_none() && untrusted_props.is_empty() {
+    if dt_path.is_none() && untrusted_props.is_empty() && trusted_props.is_empty() {
         return Err(anyhow!("Expected at least one device tree addition"));
     }
 
     let fdt =
         Fdt::create_empty_tree(buffer).map_err(|e| anyhow!("Failed to create empty Fdt: {e:?}"))?;
-    let root = fdt.root_mut().map_err(|e| anyhow!("Failed to get root: {e:?}"))?;
-    let mut node =
-        root.add_subnode(cstr!("fragment@0")).map_err(|e| anyhow!("Failed to fragment: {e:?}"))?;
-    node.setprop(cstr!("target-path"), b"/\0")
-        .map_err(|e| anyhow!("Failed to set target-path: {e:?}"))?;
-    let node = node
+    let root = fdt.root_mut().map_err(|e| anyhow!("Failed to get root node: {e:?}"))?;
+    let mut fragment = root
+        .add_subnode(cstr!("fragment@0"))
+        .map_err(|e| anyhow!("Failed to add fragment node: {e:?}"))?;
+    fragment
+        .setprop(cstr!("target-path"), b"/\0")
+        .map_err(|e| anyhow!("Failed to set target-path property: {e:?}"))?;
+    let overlay = fragment
         .add_subnode(cstr!("__overlay__"))
-        .map_err(|e| anyhow!("Failed to __overlay__ node: {e:?}"))?;
+        .map_err(|e| anyhow!("Failed to add __overlay__ node: {e:?}"))?;
+    let avf =
+        overlay.add_subnode(AVF_NODE_NAME).map_err(|e| anyhow!("Failed to add avf node: {e:?}"))?;
 
     if !untrusted_props.is_empty() {
-        let mut node = node
-            .add_subnode(AVF_NODE_NAME)
-            .map_err(|e| anyhow!("Failed to add avf node: {e:?}"))?
+        let mut untrusted = avf
             .add_subnode(UNTRUSTED_NODE_NAME)
-            .map_err(|e| anyhow!("Failed to add /avf/untrusted node: {e:?}"))?;
+            .map_err(|e| anyhow!("Failed to add untrusted node: {e:?}"))?;
         for (name, value) in untrusted_props {
-            node.setprop(name, value).map_err(|e| anyhow!("Failed to set property: {e:?}"))?;
+            untrusted
+                .setprop(name, value)
+                .map_err(|e| anyhow!("Failed to set untrusted property: {e:?}"))?;
         }
     }
 
+    // Read dt_path from host DT and overlay onto fdt.
     if let Some(path) = dt_path {
         fdt.overlay_onto(cstr!("/fragment@0/__overlay__"), path)?;
     }
+
+    if !trusted_props.is_empty() {
+        let mut avf = fdt
+            .node_mut(cstr!("/fragment@0/__overlay__/avf"))
+            .map_err(|e| anyhow!("Failed to search avf node: {e:?}"))?
+            .ok_or(anyhow!("Failed to get avf node"))?;
+        for (name, value) in trusted_props {
+            avf.setprop(name, value)
+                .map_err(|e| anyhow!("Failed to set trusted property: {e:?}"))?;
+        }
+    }
+
     fdt.pack().map_err(|e| anyhow!("Failed to pack DT overlay, {e:?}"))?;
 
     Ok(fdt)
@@ -92,7 +113,7 @@ mod tests {
     #[test]
     fn empty_overlays_not_allowed() {
         let mut buffer = vec![0_u8; VM_DT_OVERLAY_MAX_SIZE];
-        let res = create_device_tree_overlay(&mut buffer, None, &[]);
+        let res = create_device_tree_overlay(&mut buffer, None, &[], &[]);
         assert!(res.is_err());
     }
 
@@ -102,12 +123,32 @@ mod tests {
         let prop_name = cstr!("XOXO");
         let prop_val_input = b"OXOX";
         let fdt =
-            create_device_tree_overlay(&mut buffer, None, &[(prop_name, prop_val_input)]).unwrap();
+            create_device_tree_overlay(&mut buffer, None, &[(prop_name, prop_val_input)], &[])
+                .unwrap();
 
         let prop_value_dt = fdt
             .node(cstr!("/fragment@0/__overlay__/avf/untrusted"))
             .unwrap()
             .expect("/avf/untrusted node doesn't exist")
+            .getprop(prop_name)
+            .unwrap()
+            .expect("Prop not found!");
+        assert_eq!(prop_value_dt, prop_val_input, "Unexpected property value");
+    }
+
+    #[test]
+    fn trusted_prop_test() {
+        let mut buffer = vec![0_u8; VM_DT_OVERLAY_MAX_SIZE];
+        let prop_name = cstr!("XOXOXO");
+        let prop_val_input = b"OXOXOX";
+        let fdt =
+            create_device_tree_overlay(&mut buffer, None, &[], &[(prop_name, prop_val_input)])
+                .unwrap();
+
+        let prop_value_dt = fdt
+            .node(cstr!("/fragment@0/__overlay__/avf"))
+            .unwrap()
+            .expect("/avf node doesn't exist")
             .getprop(prop_name)
             .unwrap()
             .expect("Prop not found!");
