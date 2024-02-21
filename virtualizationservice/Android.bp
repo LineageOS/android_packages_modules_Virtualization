@@ -39,7 +39,6 @@ rust_defaults {
         "libopenssl",
         "librkpd_client",
         "librustutils",
-        "libvmclient",
         "libstatslog_virtualization_rust",
         "libtombstoned_client_rust",
         "libvsock",
