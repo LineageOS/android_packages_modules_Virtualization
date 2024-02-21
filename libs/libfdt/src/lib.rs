@@ -478,14 +478,38 @@ impl<'a> FdtNodeMut<'a> {
         self.delete_and_next(next_offset)
     }
 
-    /// Returns the next node
+    /// Returns the next node. Use this API to travel descendant of a node.
+    ///
+    /// Returned depth is relative to the initial node that had called with any of next node APIs.
+    /// Returns None if end of FDT reached or depth becomes negative.
+    ///
+    /// See also: [`next_node_skip_subnodes`], and [`delete_and_next_node`]
     pub fn next_node(self, depth: usize) -> Result<Option<(Self, usize)>> {
         let next = self.fdt.next_node(self.offset, depth)?;
 
         Ok(next.map(|(offset, depth)| (Self { fdt: self.fdt, offset }, depth)))
     }
 
-    /// Deletes this and returns the next node
+    /// Returns the next node skipping subnodes. Use this API to travel descendants of a node while
+    /// ignoring certain node.
+    ///
+    /// Returned depth is relative to the initial node that had called with any of next node APIs.
+    /// Returns None if end of FDT reached or depth becomes negative.
+    ///
+    /// See also: [`next_node`], and [`delete_and_next_node`]
+    pub fn next_node_skip_subnodes(self, depth: usize) -> Result<Option<(Self, usize)>> {
+        let next = self.fdt.next_node_skip_subnodes(self.offset, depth)?;
+
+        Ok(next.map(|(offset, depth)| (Self { fdt: self.fdt, offset }, depth)))
+    }
+
+    /// Deletes this and returns the next node. Use this API to travel descendants of a node while
+    /// removing certain node.
+    ///
+    /// Returned depth is relative to the initial node that had called with any of next node APIs.
+    /// Returns None if end of FDT reached or depth becomes negative.
+    ///
+    /// See also: [`next_node`], and [`next_node_skip_subnodes`]
     pub fn delete_and_next_node(self, depth: usize) -> Result<Option<(Self, usize)>> {
         let next_node = self.fdt.next_node_skip_subnodes(self.offset, depth)?;
         if let Some((offset, depth)) = next_node {
