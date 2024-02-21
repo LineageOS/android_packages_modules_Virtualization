@@ -21,7 +21,7 @@ AVF components:
 * [vmbase](vmbase/README.md)
 
 AVF APIs:
-* [Java API](javalib/README.md)
+* [Java API](java/framework/README.md)
 * [VM Payload API](vm_payload/README.md)
 
 How-Tos:
