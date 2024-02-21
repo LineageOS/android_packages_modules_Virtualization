@@ -153,12 +153,18 @@ def ExtractAvbPubkey(args, key, output):
                '--key', key, '--output', output])
 
 
+def is_lz4(args, path):
+    # error 44: Unrecognized header
+    result = RunCommand(args, ['lz4', '-t', path], expected_return_values={0, 44})
+    return result[1] == 0
+
+
 def AvbInfo(args, image_path):
     """Parses avbtool --info image output
 
     Args:
       args: program arguments.
-      image_path: The path to the image.
+      image_path: The path to the image, either raw or lz4 compressed
       descriptor_name: Descriptor name of interest.
 
     Returns:
@@ -168,6 +174,11 @@ def AvbInfo(args, image_path):
     """
     if not os.path.exists(image_path):
         raise ValueError(f'Failed to find image: {image_path}')
+
+    if is_lz4(args, image_path):
+        with tempfile.NamedTemporaryFile() as decompressed_image:
+            RunCommand(args, ['lz4', '-d', '-f', image_path, decompressed_image.name])
+            return AvbInfo(args, decompressed_image.name)
 
     output, ret_code = RunCommand(
         args, ['avbtool', 'info_image', '--image', image_path], expected_return_values={0, 1})
@@ -560,11 +571,7 @@ def SignVirtApex(args):
                             wait=[vbmeta_f])
 
     # Re-sign kernel. Note kernel's vbmeta contain addition descriptor from ramdisk(s)
-    def resign_kernel(kernel, initrd_normal, initrd_debug):
-        kernel_file = files[kernel]
-        initrd_normal_file = files[initrd_normal]
-        initrd_debug_file = files[initrd_debug]
-
+    def resign_decompressed_kernel(kernel_file, initrd_normal_file, initrd_debug_file):
         _, kernel_image_descriptors = AvbInfo(args, kernel_file)
         salts = extract_hash_descriptors(
             kernel_image_descriptors, lambda descriptor: descriptor['Salt'])
@@ -579,6 +586,27 @@ def SignVirtApex(args):
         return Async(AddHashFooter, args, key, kernel_file,
               additional_images=[initrd_normal_hashdesc, initrd_debug_hashdesc],
               wait=[initrd_n_f, initrd_d_f])
+
+    def resign_compressed_kernel(kernel_file, initrd_normal_file, initrd_debug_file):
+        # decompress, re-sign, compress again
+        with tempfile.TemporaryDirectory() as work_dir:
+            decompressed_kernel_file = os.path.join(work_dir, os.path.basename(kernel_file))
+            RunCommand(args, ['lz4', '-d', kernel_file, decompressed_kernel_file])
+            resign_decompressed_kernel(decompressed_kernel_file, initrd_normal_file,
+                                       initrd_debug_file).result()
+            RunCommand(args, ['lz4', '-9', '-f', decompressed_kernel_file, kernel_file])
+
+    def resign_kernel(kernel, initrd_normal, initrd_debug):
+        kernel_file = files[kernel]
+        initrd_normal_file = files[initrd_normal]
+        initrd_debug_file = files[initrd_debug]
+
+        # kernel may be compressed with lz4.
+        if is_lz4(args, kernel_file):
+            return Async(resign_compressed_kernel, kernel_file, initrd_normal_file,
+                         initrd_debug_file)
+        else:
+            return resign_decompressed_kernel(kernel_file, initrd_normal_file, initrd_debug_file)
 
     _, original_kernel_descriptors = AvbInfo(args, files['kernel'])
     resign_kernel_task = resign_kernel('kernel', 'initrd_normal.img', 'initrd_debuggable.img')

@@ -255,6 +255,7 @@ python_binary_host {
         "initrd_bootconfig",
         "lpmake",
         "lpunpack",
+        "lz4",
         "simg2img",
     ],
 }
@@ -275,6 +276,7 @@ sh_test_host {
         "initrd_bootconfig",
         "lpmake",
         "lpunpack",
+        "lz4",
         "sign_virt_apex",
         "simg2img",
     ],
