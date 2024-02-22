@@ -40,7 +40,7 @@ import com.android.virt.vm_attestation.testservice.IAttestationService;
 @RunWith(Parameterized.class)
 public class VmAttestationTests extends MicrodroidDeviceTestBase {
     private static final String TAG = "VmAttestationTest";
-    private static final String DEFAULT_CONFIG = "assets/config.json";
+    private static final String VM_PAYLOAD_PATH = "libvm_attestation_test_payload.so";
 
     @Parameterized.Parameter(0)
     public String mGki;
@@ -71,7 +71,7 @@ public class VmAttestationTests extends MicrodroidDeviceTestBase {
         assumeFeatureEnabled(VirtualMachineManager.FEATURE_REMOTE_ATTESTATION);
 
         VirtualMachineConfig.Builder builder =
-                newVmConfigBuilderWithPayloadConfig(DEFAULT_CONFIG)
+                newVmConfigBuilderWithPayloadBinary(VM_PAYLOAD_PATH)
                         .setDebugLevel(DEBUG_LEVEL_FULL)
                         .setVmOutputCaptured(true);
         VirtualMachineConfig config = builder.build();
