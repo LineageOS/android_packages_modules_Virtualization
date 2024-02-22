@@ -9,13 +9,19 @@ python_binary_host {
 
 genrule {
     name: "microdroid_kernel_hashes_rs",
-    srcs: [":microdroid_kernel"],
+    srcs: [
+        ":microdroid_kernel",
+        ":microdroid_gki-android14-6.1_kernel",
+    ],
     out: ["lib.rs"],
     tools: [
         "extract_microdroid_kernel_hashes",
         "avbtool",
     ],
-    cmd: "$(location extract_microdroid_kernel_hashes) $(location avbtool) $(in) > $(out)",
+    cmd: "$(location extract_microdroid_kernel_hashes) --avbtool $(location avbtool) " +
+        "--kernel $(location :microdroid_kernel) " +
+        "$(location :microdroid_gki-android14-6.1_kernel) " +
+        "> $(out)",
 }
 
 rust_library_rlib {

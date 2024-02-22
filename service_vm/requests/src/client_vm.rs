@@ -29,7 +29,7 @@ use coset::{AsCborValue, CborSerializable, CoseSign, CoseSign1};
 use der::{Decode, Encode};
 use diced_open_dice::{DiceArtifacts, HASH_SIZE};
 use log::{error, info};
-use microdroid_kernel_hashes::{INITRD_DEBUG_HASH, INITRD_NORMAL_HASH, KERNEL_HASH};
+use microdroid_kernel_hashes::{HASH_SIZE as KERNEL_HASH_SIZE, OS_HASHES};
 use service_vm_comm::{ClientVmAttestationParams, Csr, CsrPayload, RequestProcessingError};
 use x509_cert::{certificate::Certificate, name::Name};
 
@@ -159,10 +159,10 @@ fn validate_kernel_authority_hash(
 /// embedded during the build time.
 fn validate_kernel_code_hash(dice_chain: &ClientVmDiceChain) -> Result<()> {
     let kernel = dice_chain.microdroid_kernel();
-    if expected_kernel_code_hash_normal()? == kernel.code_hash {
+    if matches_any_kernel_code_hash(&kernel.code_hash, /* is_debug= */ false)? {
         return Ok(());
     }
-    if expected_kernel_code_hash_debug()? == kernel.code_hash {
+    if matches_any_kernel_code_hash(&kernel.code_hash, /* is_debug= */ true)? {
         if dice_chain.all_entries_are_secure() {
             error!("The Microdroid kernel has debug initrd but the DICE chain is secure");
             return Err(RequestProcessingError::InvalidDiceChain);
@@ -173,18 +173,20 @@ fn validate_kernel_code_hash(dice_chain: &ClientVmDiceChain) -> Result<()> {
     Err(RequestProcessingError::InvalidDiceChain)
 }
 
-fn expected_kernel_code_hash_normal() -> bssl_avf::Result<Vec<u8>> {
-    let mut code_hash = [0u8; 64];
-    code_hash[0..32].copy_from_slice(KERNEL_HASH);
-    code_hash[32..].copy_from_slice(INITRD_NORMAL_HASH);
-    Digester::sha512().digest(&code_hash)
-}
-
-fn expected_kernel_code_hash_debug() -> bssl_avf::Result<Vec<u8>> {
-    let mut code_hash = [0u8; 64];
-    code_hash[0..32].copy_from_slice(KERNEL_HASH);
-    code_hash[32..].copy_from_slice(INITRD_DEBUG_HASH);
-    Digester::sha512().digest(&code_hash)
+fn matches_any_kernel_code_hash(actual_code_hash: &[u8], is_debug: bool) -> bssl_avf::Result<bool> {
+    for os_hash in OS_HASHES {
+        let mut code_hash = [0u8; KERNEL_HASH_SIZE * 2];
+        code_hash[0..KERNEL_HASH_SIZE].copy_from_slice(&os_hash.kernel);
+        if is_debug {
+            code_hash[KERNEL_HASH_SIZE..].copy_from_slice(&os_hash.initrd_debug);
+        } else {
+            code_hash[KERNEL_HASH_SIZE..].copy_from_slice(&os_hash.initrd_normal);
+        }
+        if Digester::sha512().digest(&code_hash)? == actual_code_hash {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn expected_kernel_authority_hash(service_vm_entry: &Value) -> Result<[u8; HASH_SIZE]> {
