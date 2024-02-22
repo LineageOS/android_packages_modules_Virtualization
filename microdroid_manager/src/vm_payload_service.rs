@@ -73,7 +73,6 @@ impl IVmPayloadService for VmPayloadService {
         challenge: &[u8],
         test_mode: bool,
     ) -> binder::Result<AttestationResult> {
-        self.check_restricted_apis_allowed()?;
         let ClientVmAttestationData { private_key, csr } =
             generate_attestation_key_and_csr(challenge, self.secret.dice_artifacts())
                 .map_err(|e| {
