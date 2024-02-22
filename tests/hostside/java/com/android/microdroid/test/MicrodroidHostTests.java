@@ -553,7 +553,8 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         mMicrodroidDevice.enableAdbRoot();
 
         CommandRunner microdroid = new CommandRunner(mMicrodroidDevice);
-        microdroid.run(crashCommand);
+        // can crash in the middle of crashCommand; fail is ok
+        microdroid.tryRun(crashCommand);
 
         // check until microdroid is shut down
         waitForCrosvmExit(android, testStartTime);
