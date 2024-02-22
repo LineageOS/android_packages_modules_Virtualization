@@ -107,7 +107,6 @@ pub struct CrosvmConfig {
     pub memory_mib: Option<NonZeroU32>,
     pub cpus: Option<NonZeroU32>,
     pub host_cpu_topology: bool,
-    pub task_profiles: Vec<String>,
     pub console_out_fd: Option<File>,
     pub console_in_fd: Option<File>,
     pub log_fd: Option<File>,
@@ -822,10 +821,6 @@ fn run_vm(
         } else {
             bail!("Could not determine the number of CPUs in the system");
         }
-    }
-
-    if !config.task_profiles.is_empty() {
-        command.arg("--task-profiles").arg(config.task_profiles.join(","));
     }
 
     if let Some(gdb_port) = config.gdb_port {

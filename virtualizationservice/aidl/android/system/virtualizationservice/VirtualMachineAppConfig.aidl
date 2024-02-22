@@ -101,11 +101,6 @@ parcelable VirtualMachineAppConfig {
          */
         int gdbPort = 0;
 
-        /**
-         * List of task profile names to apply for the VM
-         */
-        String[] taskProfiles;
-
         /** A disk image containing vendor specific modules. */
         @nullable ParcelFileDescriptor vendorImage;
 

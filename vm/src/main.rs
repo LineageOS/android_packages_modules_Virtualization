@@ -45,10 +45,6 @@ pub struct CommonConfig {
     #[arg(long, default_value = "one_cpu", value_parser = parse_cpu_topology)]
     cpu_topology: CpuTopology,
 
-    /// Comma separated list of task profile names to apply to the VM
-    #[arg(long)]
-    task_profiles: Vec<String>,
-
     /// Memory size (in MiB) of the VM. If unspecified, defaults to the value of `memory_mib`
     /// in the VM config file.
     #[arg(short, long)]

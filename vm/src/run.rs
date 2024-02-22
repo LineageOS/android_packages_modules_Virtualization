@@ -136,7 +136,6 @@ pub fn command_run_app(config: RunAppConfig) -> Result<(), Error> {
     let custom_config = CustomConfig {
         customKernelImage: None,
         gdbPort: config.debug.gdb.map(u16::from).unwrap_or(0) as i32, // 0 means no gdb
-        taskProfiles: config.common.task_profiles,
         vendorImage: vendor,
         devices: config
             .microdroid
@@ -235,7 +234,6 @@ pub fn command_run(config: RunCustomVmConfig) -> Result<(), Error> {
         vm_config.gdbPort = gdb.get() as i32;
     }
     vm_config.cpuTopology = config.common.cpu_topology;
-    vm_config.taskProfiles = config.common.task_profiles;
     run(
         get_service()?.as_ref(),
         &VirtualMachineConfig::RawConfig(vm_config),
