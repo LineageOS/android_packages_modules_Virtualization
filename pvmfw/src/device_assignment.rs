@@ -715,7 +715,7 @@ impl DeviceAssignmentInfo {
     }
 
     fn patch_pviommus(&self, fdt: &mut Fdt) -> Result<BTreeMap<PvIommu, Phandle>> {
-        let mut compatible = fdt.root_mut()?.next_compatible(Self::PVIOMMU_COMPATIBLE)?;
+        let mut compatible = fdt.root_mut().next_compatible(Self::PVIOMMU_COMPATIBLE)?;
         let mut pviommu_phandles = BTreeMap::new();
 
         for pviommu in &self.pviommus {
