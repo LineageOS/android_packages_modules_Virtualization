@@ -81,7 +81,7 @@ fn node_name() {
     let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
 
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     assert_eq!(root.name(), Ok(cstr!("")));
 
     let chosen = fdt.chosen().unwrap().unwrap();
@@ -96,7 +96,7 @@ fn node_name() {
 fn node_subnodes() {
     let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let expected = [Ok(cstr!("cpus")), Ok(cstr!("randomnode")), Ok(cstr!("chosen"))];
 
     let root_subnodes = root.subnodes().unwrap();
@@ -108,7 +108,7 @@ fn node_subnodes() {
 fn node_properties() {
     let data = fs::read(TEST_TREE_WITH_NO_MEMORY_NODE_PATH).unwrap();
     let fdt = Fdt::from_slice(&data).unwrap();
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let one_be = 0x1_u32.to_be_bytes();
     type Result<T> = core::result::Result<T, FdtError>;
     let expected: Vec<(Result<&CStr>, Result<&[u8]>)> = vec![
@@ -290,7 +290,7 @@ fn node_subnode() {
     let fdt = Fdt::from_slice(&data).unwrap();
 
     let name = cstr!("node_a");
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let node = root.subnode(name).unwrap();
     assert_ne!(None, node);
     let node = node.unwrap();
@@ -304,7 +304,7 @@ fn node_subnode_with_name_bytes() {
     let fdt = Fdt::from_slice(&data).unwrap();
 
     let name = b"node_aaaaa";
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let node = root.subnode_with_name_bytes(&name[0..6]).unwrap();
     assert_ne!(None, node);
     let node = node.unwrap();
@@ -319,7 +319,7 @@ fn node_subnode_borrow_checker() {
 
     let name = cstr!("node_a");
     let node = {
-        let root = fdt.root().unwrap();
+        let root = fdt.root();
         root.subnode(name).unwrap().unwrap()
     };
 
@@ -378,7 +378,7 @@ fn node_mut_delete_and_next_subnode() {
     let mut data = fs::read(TEST_TREE_PHANDLE_PATH).unwrap();
     let fdt = Fdt::from_mut_slice(&mut data).unwrap();
 
-    let root = fdt.root_mut().unwrap();
+    let root = fdt.root_mut();
     let mut subnode_iter = root.first_subnode().unwrap();
 
     while let Some(subnode) = subnode_iter {
@@ -389,7 +389,7 @@ fn node_mut_delete_and_next_subnode() {
         }
     }
 
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let expected_names = vec![
         Ok(cstr!("node_a")),
         Ok(cstr!("node_b")),
@@ -416,7 +416,7 @@ fn node_mut_delete_and_next_node() {
     ];
 
     let mut expected_nodes_iter = expected_nodes.iter();
-    let mut iter = fdt.root_mut().unwrap().next_node(0).unwrap();
+    let mut iter = fdt.root_mut().next_node(0).unwrap();
     while let Some((node, depth)) = iter {
         let node_name = node.as_node().name();
         if node_name == Ok(cstr!("node_a")) || node_name == Ok(cstr!("node_zz")) {
@@ -431,7 +431,7 @@ fn node_mut_delete_and_next_node() {
     }
     assert_eq!(None, expected_nodes_iter.next());
 
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let all_descendants: Vec<_> =
         root.descendants().map(|(node, depth)| (node.name(), depth)).collect();
     assert_eq!(expected_nodes, all_descendants);
@@ -442,12 +442,12 @@ fn node_mut_delete_and_next_node_with_last_node() {
     let mut data = fs::read(TEST_TREE_WITH_EMPTY_MEMORY_RANGE_PATH).unwrap();
     let fdt = Fdt::from_mut_slice(&mut data).unwrap();
 
-    let mut iter = fdt.root_mut().unwrap().next_node(0).unwrap();
+    let mut iter = fdt.root_mut().next_node(0).unwrap();
     while let Some((node, depth)) = iter {
         iter = node.delete_and_next_node(depth).unwrap();
     }
 
-    let root = fdt.root().unwrap();
+    let root = fdt.root();
     let all_descendants: Vec<_> =
         root.descendants().map(|(node, depth)| (node.name(), depth)).collect();
     assert!(all_descendants.is_empty(), "{all_descendants:?}");
@@ -460,7 +460,7 @@ fn node_name_lifetime() {
     let fdt = Fdt::from_slice(&data).unwrap();
 
     let name = {
-        let root = fdt.root().unwrap();
+        let root = fdt.root();
         root.name()
         // Make root to be dropped
     };
@@ -472,12 +472,12 @@ fn node_mut_add_subnodes() {
     let mut data = vec![0_u8; 1000];
     let fdt = Fdt::create_empty_tree(&mut data).unwrap();
 
-    let root = fdt.root_mut().unwrap();
+    let root = fdt.root_mut();
     let names = [cstr!("a"), cstr!("b")];
     root.add_subnodes(&names).unwrap();
 
     let expected: HashSet<_> = names.into_iter().collect();
-    let subnodes = fdt.root().unwrap().subnodes().unwrap();
+    let subnodes = fdt.root().subnodes().unwrap();
     let names: HashSet<_> = subnodes.map(|node| node.name().unwrap()).collect();
 
     assert_eq!(expected, names);
@@ -491,7 +491,7 @@ fn node_subnode_lifetime() {
 
     let name = {
         let node_a = {
-            let root = fdt.root().unwrap();
+            let root = fdt.root();
             root.subnode(cstr!("node_a")).unwrap()
             // Make root to be dropped
         };
@@ -511,7 +511,7 @@ fn node_subnodess_lifetime() {
     let first_subnode_name = {
         let first_subnode = {
             let mut subnodes_iter = {
-                let root = fdt.root().unwrap();
+                let root = fdt.root();
                 root.subnodes().unwrap()
                 // Make root to be dropped
             };
@@ -533,7 +533,7 @@ fn node_descendants_lifetime() {
     let first_descendant_name = {
         let (first_descendant, _) = {
             let mut descendants_iter = {
-                let root = fdt.root().unwrap();
+                let root = fdt.root();
                 root.descendants()
                 // Make root to be dropped
             };
