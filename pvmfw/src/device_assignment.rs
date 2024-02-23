@@ -705,7 +705,6 @@ impl DeviceAssignmentInfo {
 
         // Clean up any nodes that wouldn't be overlaid but may contain reference to filtered nodes.
         // Otherwise, `fdt_apply_overlay()` would fail because of missing phandle reference.
-        filtered_dtbo_paths.push(CString::new("/__symbols__").unwrap());
         // TODO(b/277993056): Also filter other unused nodes/props in __local_fixups__
         filtered_dtbo_paths.push(CString::new("/__local_fixups__/host").unwrap());
 
@@ -718,7 +717,6 @@ impl DeviceAssignmentInfo {
     /// Filters VM DTBO to only contain necessary information for booting pVM
     /// In detail, this will remove followings by setting nop node / nop property.
     ///   - Removes unassigned devices
-    ///   - Removes /__symbols__ node
     // TODO(b/277993056): remove unused dependencies in VM DTBO.
     // TODO(b/277993056): remove supernodes' properties.
     // TODO(b/277993056): remove unused alises.
@@ -731,7 +729,7 @@ impl DeviceAssignmentInfo {
             node.nop()?;
         }
 
-        Ok(())
+        filter_dangling_symbols(vm_dtbo)
     }
 
     fn patch_pviommus(&self, fdt: &mut Fdt) -> Result<BTreeMap<PvIommu, Phandle>> {
@@ -972,21 +970,28 @@ mod tests {
 
         let vm_dtbo = vm_dtbo.as_mut();
 
+        let symbols = vm_dtbo.symbols().unwrap().unwrap();
+
         let rng = vm_dtbo.node(cstr!("/fragment@rng/__overlay__/rng")).unwrap();
         assert_ne!(rng, None);
+        let rng_symbol = symbols.getprop_str(cstr!("rng")).unwrap();
+        assert_eq!(Some(cstr!("/fragment@rng/__overlay__/rng")), rng_symbol);
 
         let light = vm_dtbo.node(cstr!("/fragment@rng/__overlay__/light")).unwrap();
         assert_eq!(light, None);
+        let light_symbol = symbols.getprop_str(cstr!("light")).unwrap();
+        assert_eq!(None, light_symbol);
 
         let led = vm_dtbo.node(cstr!("/fragment@led/__overlay__/led")).unwrap();
         assert_eq!(led, None);
+        let led_symbol = symbols.getprop_str(cstr!("led")).unwrap();
+        assert_eq!(None, led_symbol);
 
         let backlight =
             vm_dtbo.node(cstr!("/fragment@backlight/__overlay__/bus0/backlight")).unwrap();
         assert_eq!(backlight, None);
-
-        let symbols_node = vm_dtbo.symbols().unwrap();
-        assert_eq!(symbols_node, None);
+        let backlight_symbol = symbols.getprop_str(cstr!("backlight")).unwrap();
+        assert_eq!(None, backlight_symbol);
     }
 
     #[test]
