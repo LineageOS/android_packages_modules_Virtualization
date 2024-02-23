@@ -595,6 +595,35 @@ impl Rss {
     }
 }
 
+// Get Cpus_allowed mask
+fn check_if_all_cpus_allowed() -> Result<bool> {
+    let file = read_to_string("/proc/self/status")?;
+    let lines: Vec<_> = file.split('\n').collect();
+
+    for line in lines {
+        if line.contains("Cpus_allowed_list") {
+            let prop: Vec<_> = line.split_whitespace().collect();
+            if prop.len() != 2 {
+                return Ok(false);
+            }
+            let cpu_list: Vec<_> = prop[1].split('-').collect();
+            //Only contiguous Cpu list allowed
+            if cpu_list.len() != 2 {
+                return Ok(false);
+            }
+            if let Some(cpus) = get_num_cpus() {
+                let max_cpu = cpu_list[1].parse::<usize>()?;
+                if max_cpu == cpus - 1 {
+                    return Ok(true);
+                } else {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 // Get guest time from /proc/[crosvm pid]/stat
 fn get_guest_time(pid: u32) -> Result<i64> {
     let file = read_to_string(format!("/proc/{}/stat", pid))?;
@@ -809,7 +838,7 @@ fn run_vm(
     }
 
     if config.host_cpu_topology {
-        if cfg!(virt_cpufreq) {
+        if cfg!(virt_cpufreq) && check_if_all_cpus_allowed()? {
             command.arg("--host-cpu-topology");
             cfg_if::cfg_if! {
                 if #[cfg(any(target_arch = "aarch64"))] {
