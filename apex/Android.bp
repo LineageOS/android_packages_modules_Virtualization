@@ -139,6 +139,7 @@ avf_flag_aware_apex_defaults {
         "microdroid_initrd_normal",
         "microdroid.json",
         "microdroid_kernel",
+        "com.android.virt.init.rc",
     ],
     host_required: [
         "vm_shell",
@@ -172,13 +173,9 @@ avf_flag_aware_apex_defaults {
             ],
         },
         release_avf_enable_remote_attestation: {
-            prebuilts: ["com.android.virt.init_attestation_enabled.rc"],
             vintf_fragments: [
                 "virtualizationservice.xml",
             ],
-            conditions_default: {
-                prebuilts: ["com.android.virt.init.rc"],
-            },
         },
     },
 }
@@ -200,16 +197,35 @@ android_app_certificate {
     certificate: "com.android.virt",
 }
 
-prebuilt_etc {
-    name: "com.android.virt.init.rc",
-    src: "virtualizationservice.rc",
-    filename: "virtualizationservice.rc",
-    installable: false,
+soong_config_module_type {
+    name: "avf_flag_aware_genrule",
+    module_type: "genrule",
+    config_namespace: "ANDROID",
+    bool_variables: [
+        "release_avf_enable_llpvm_changes",
+        "release_avf_enable_remote_attestation",
+    ],
+    properties: ["srcs"],
+}
+
+avf_flag_aware_genrule {
+    name: "virtualizationservice_rc_combined",
+    srcs: ["virtualizationservice.rc.base"],
+    soong_config_variables: {
+        release_avf_enable_llpvm_changes: {
+            srcs: ["virtualizationservice.rc.llpvm"],
+        },
+        release_avf_enable_remote_attestation: {
+            srcs: ["virtualizationservice.rc.ra"],
+        },
+    },
+    out: ["virtualizationservice.rc"],
+    cmd: "cat $(in) > $(out)",
 }
 
 prebuilt_etc {
-    name: "com.android.virt.init_attestation_enabled.rc",
-    src: "virtualizationservice_attestation_enabled.rc",
+    name: "com.android.virt.init.rc",
+    src: ":virtualizationservice_rc_combined",
     filename: "virtualizationservice.rc",
     installable: false,
 }
