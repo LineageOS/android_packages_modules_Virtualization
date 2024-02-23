@@ -127,6 +127,7 @@ public abstract class MicrodroidDeviceTestBase {
     public VirtualMachineConfig.Builder newVmConfigBuilderWithPayloadConfig(String configPath) {
         return new VirtualMachineConfig.Builder(mCtx)
                 .setProtectedVm(mProtectedVm)
+                .setOs(os())
                 .setPayloadConfigPath(configPath);
     }
 

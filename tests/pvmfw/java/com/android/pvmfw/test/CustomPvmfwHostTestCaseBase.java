@@ -47,8 +47,7 @@ public class CustomPvmfwHostTestCaseBase extends MicrodroidHostTestCaseBase {
     @NonNull public static final String MICRODROID_DEBUG_FULL = "full";
     @NonNull public static final String MICRODROID_DEBUG_NONE = "none";
 
-    @NonNull
-    public static final String MICRODROID_CONFIG_PATH = "assets/microdroid/vm_config_apex.json";
+    @NonNull public static final String MICRODROID_CONFIG_PATH = "assets/vm_config_apex.json";
 
     @NonNull public static final String MICRODROID_LOG_PATH = TEST_ROOT + "log.txt";
     public static final int BOOT_COMPLETE_TIMEOUT_MS = 30000; // 30 seconds
