@@ -16,6 +16,6 @@ service virtualizationservice /apex/com.android.virt/bin/virtualizationservice
     class main
     user system
     group system
-    interface aidl android.system.virtualizationservice
     disabled
     oneshot
+    interface aidl android.system.virtualizationservice

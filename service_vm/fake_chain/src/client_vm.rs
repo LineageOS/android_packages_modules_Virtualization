@@ -29,7 +29,7 @@ use diced_open_dice::{
     HIDDEN_SIZE,
 };
 use log::error;
-use microdroid_kernel_hashes::{INITRD_DEBUG_HASH, KERNEL_HASH};
+use microdroid_kernel_hashes::OS_HASHES;
 
 type CborResult<T> = result::Result<T, ciborium::value::Error>;
 
@@ -176,6 +176,7 @@ pub fn fake_sub_components() -> Vec<SubComponent> {
 }
 
 fn kernel_code_hash() -> Result<[u8; HASH_SIZE]> {
-    let code_hash = [KERNEL_HASH, INITRD_DEBUG_HASH].concat();
+    let os_hashes = &OS_HASHES[0];
+    let code_hash = [os_hashes.kernel, os_hashes.initrd_debug].concat();
     hash(&code_hash)
 }
