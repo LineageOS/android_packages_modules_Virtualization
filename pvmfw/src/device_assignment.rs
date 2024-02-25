@@ -167,9 +167,7 @@ impl VmDtbo {
     //           rng { ... };      // Actual device node is here. If overlaid, path would be "/rng"
     //         };
     //       };
-    //       __symbols__ {         // List of assignable devices
-    //         // Each property describes an assigned device device information.
-    //         // property name is the device label, and property value is the path in the VM DTBO.
+    //       __symbols__ {         // Contains list of assignable devices
     //         rng = "/fragment@rng/__overlay__/rng";
     //       };
     //    };
@@ -581,10 +579,13 @@ impl AssignedDeviceInfo {
 
         let Some(node) = fdt.node(&node_path)? else { return Ok(None) };
 
-        // Note: Currently can only assign devices backed by physical devices.
+        // Currently can only assign devices backed by physical devices.
         let phandle = dtbo_node.get_phandle()?.ok_or(DeviceAssignmentError::InvalidDtbo)?;
-        let physical_device =
-            physical_devices.get(&phandle).ok_or(DeviceAssignmentError::InvalidDtbo)?;
+        let Some(physical_device) = physical_devices.get(&phandle) else {
+            // If labeled DT node isn't backed by physical device node, then just return None.
+            // It's not an error because such node can be a dependency of assignable device nodes.
+            return Ok(None);
+        };
 
         let reg = parse_node_reg(&node)?;
         Self::validate_reg(&reg, &physical_device.reg, hypervisor)?;
