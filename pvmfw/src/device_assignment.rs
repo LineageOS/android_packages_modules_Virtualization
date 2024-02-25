@@ -922,7 +922,7 @@ mod tests {
 
         let expected = [AssignedDeviceInfo {
             node_path: CString::new("/bus0/backlight").unwrap(),
-            dtbo_node_path: cstr!("/fragment@backlight/__overlay__/bus0/backlight").into(),
+            dtbo_node_path: cstr!("/fragment@0/__overlay__/bus0/backlight").into(),
             reg: vec![[0x9, 0xFF].into()],
             interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
             iommus: vec![],
@@ -946,7 +946,7 @@ mod tests {
 
         let expected = [AssignedDeviceInfo {
             node_path: CString::new("/rng").unwrap(),
-            dtbo_node_path: cstr!("/fragment@rng/__overlay__/rng").into(),
+            dtbo_node_path: cstr!("/fragment@0/__overlay__/rng").into(),
             reg: vec![[0x9, 0xFF].into()],
             interrupts: into_fdt_prop(vec![0x0, 0xF, 0x4]),
             iommus: vec![(PvIommu { id: 0x4 }, Vsid(0xFF0))],
@@ -973,23 +973,22 @@ mod tests {
 
         let symbols = vm_dtbo.symbols().unwrap().unwrap();
 
-        let rng = vm_dtbo.node(cstr!("/fragment@rng/__overlay__/rng")).unwrap();
+        let rng = vm_dtbo.node(cstr!("/fragment@0/__overlay__/rng")).unwrap();
         assert_ne!(rng, None);
         let rng_symbol = symbols.getprop_str(cstr!("rng")).unwrap();
-        assert_eq!(Some(cstr!("/fragment@rng/__overlay__/rng")), rng_symbol);
+        assert_eq!(Some(cstr!("/fragment@0/__overlay__/rng")), rng_symbol);
 
-        let light = vm_dtbo.node(cstr!("/fragment@rng/__overlay__/light")).unwrap();
+        let light = vm_dtbo.node(cstr!("/fragment@0/__overlay__/light")).unwrap();
         assert_eq!(light, None);
         let light_symbol = symbols.getprop_str(cstr!("light")).unwrap();
         assert_eq!(None, light_symbol);
 
-        let led = vm_dtbo.node(cstr!("/fragment@led/__overlay__/led")).unwrap();
+        let led = vm_dtbo.node(cstr!("/fragment@0/__overlay__/led")).unwrap();
         assert_eq!(led, None);
         let led_symbol = symbols.getprop_str(cstr!("led")).unwrap();
         assert_eq!(None, led_symbol);
 
-        let backlight =
-            vm_dtbo.node(cstr!("/fragment@backlight/__overlay__/bus0/backlight")).unwrap();
+        let backlight = vm_dtbo.node(cstr!("/fragment@0/__overlay__/bus0/backlight")).unwrap();
         assert_eq!(backlight, None);
         let backlight_symbol = symbols.getprop_str(cstr!("backlight")).unwrap();
         assert_eq!(None, backlight_symbol);
