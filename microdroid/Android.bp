@@ -599,3 +599,37 @@ avb_gen_vbmeta_image {
     defaults: ["microdroid_initrd_debug_defaults"],
     src: ":microdroid_gki-android14-6.1_initrd_debuggable",
 }
+
+python_binary_host {
+    name: "extract_microdroid_kernel_hashes",
+    srcs: ["extract_microdroid_kernel_hashes.py"],
+}
+
+genrule {
+    name: "microdroid_kernel_hashes_rs",
+    srcs: [
+        ":microdroid_kernel",
+        ":microdroid_gki-android14-6.1_kernel",
+    ],
+    out: ["lib.rs"],
+    tools: [
+        "extract_microdroid_kernel_hashes",
+        "avbtool",
+    ],
+    cmd: "$(location extract_microdroid_kernel_hashes) --avbtool $(location avbtool) " +
+        "--kernel $(location :microdroid_kernel) " +
+        "$(location :microdroid_gki-android14-6.1_kernel) " +
+        "> $(out)",
+}
+
+rust_library_rlib {
+    name: "libmicrodroid_kernel_hashes",
+    srcs: [":microdroid_kernel_hashes_rs"],
+    crate_name: "microdroid_kernel_hashes",
+    prefer_rlib: true,
+    no_stdlibs: true,
+    stdlibs: [
+        "libcompiler_builtins.rust_sysroot",
+        "libcore.rust_sysroot",
+    ],
+}
