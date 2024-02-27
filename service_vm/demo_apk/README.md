@@ -42,7 +42,9 @@ TEST_ROOT=/data/local/tmp/virt && adb shell /apex/com.android.virt/bin/vm run-ap
   --config-path assets/config.json --debug full \
   $(adb shell pm path com.android.virt.vm_attestation.demo | cut -c 9-) \
   $TEST_ROOT/VmAttestationDemoApp.apk.idsig \
-  $TEST_ROOT/instance.vm_attestation.debug.img --protected
+  $TEST_ROOT/instance.vm_attestation.debug.img \
+  --instance-id-file $TEST_ROOT/instance_id \
+  --protected
 ```
 
 Please note that remote attestation is only available for protected VMs.

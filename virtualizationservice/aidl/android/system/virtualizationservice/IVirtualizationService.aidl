@@ -41,6 +41,11 @@ interface IVirtualizationService {
             in @nullable ParcelFileDescriptor osLogFd);
 
     /**
+     * Allocate an instance_id to the (newly created) VM.
+     */
+    byte[64] allocateInstanceId();
+
+    /**
      * Initialise an empty partition image of the given size to be used as a writable partition.
      *
      * The file must be open with both read and write permissions, and should be a new empty file.
