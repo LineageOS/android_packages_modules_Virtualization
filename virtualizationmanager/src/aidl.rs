@@ -109,9 +109,8 @@ const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
 
 const MICRODROID_OS_NAME: &str = "microdroid";
 
-// TODO(b/291213394): Use 'default' instance for secretkeeper instead of 'nonsecure'
 const SECRETKEEPER_IDENTIFIER: &str =
-    "android.hardware.security.secretkeeper.ISecretkeeper/nonsecure";
+    "android.hardware.security.secretkeeper.ISecretkeeper/default";
 
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
