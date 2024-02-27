@@ -39,6 +39,9 @@ pub const CURRENT_INSTANCE_DIR: &str = "current";
 /// tests.
 pub const TEST_INSTANCE_DIR: &str = "test";
 
+/// The file that holds the instance_id of CompOS instance.
+pub const INSTANCE_ID_FILE: &str = "instance_id";
+
 /// The file that holds the instance image for a CompOS instance.
 pub const INSTANCE_IMAGE_FILE: &str = "instance.img";
 

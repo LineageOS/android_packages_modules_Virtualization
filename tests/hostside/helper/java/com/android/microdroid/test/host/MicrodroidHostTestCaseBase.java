@@ -52,6 +52,7 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     private static final int TEST_VM_ADB_PORT = 8000;
     private static final String MICRODROID_SERIAL = "localhost:" + TEST_VM_ADB_PORT;
     private static final String INSTANCE_IMG = "instance.img";
+    protected static final String VIRT_APEX = "/apex/com.android.virt/";
 
     private static final long MICRODROID_ADB_CONNECT_TIMEOUT_MINUTES = 5;
     protected static final long MICRODROID_COMMAND_TIMEOUT_MILLIS = 30000;
@@ -184,6 +185,12 @@ public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
             break;
         }
         return ret;
+    }
+
+    public boolean isFeatureEnabled(String feature) throws Exception {
+        CommandRunner android = new CommandRunner(getDevice());
+        String result = android.run(VIRT_APEX + "bin/vm", "check-feature-enabled", feature);
+        return result.contains("enabled");
     }
 
     public List<String> getAssignableDevices() throws Exception {

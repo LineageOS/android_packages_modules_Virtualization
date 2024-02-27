@@ -20,13 +20,13 @@
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
     IVirtualizationService::IVirtualizationService, PartitionType::PartitionType,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use binder::{LazyServiceGuard, ParcelFileDescriptor, Strong};
 use compos_aidl_interface::aidl::com::android::compos::ICompOsService::ICompOsService;
 use compos_common::compos_client::{ComposClient, VmParameters};
 use compos_common::{
     COMPOS_DATA_ROOT, IDSIG_FILE, IDSIG_MANIFEST_APK_FILE, IDSIG_MANIFEST_EXT_APK_FILE,
-    INSTANCE_IMAGE_FILE,
+    INSTANCE_ID_FILE, INSTANCE_IMAGE_FILE,
 };
 use log::info;
 use std::fs;
@@ -66,6 +66,7 @@ impl CompOsInstance {
 pub struct InstanceStarter {
     instance_name: String,
     instance_root: PathBuf,
+    instance_id_file: PathBuf,
     instance_image: PathBuf,
     idsig: PathBuf,
     idsig_manifest_apk: PathBuf,
@@ -77,6 +78,7 @@ impl InstanceStarter {
     pub fn new(instance_name: &str, vm_parameters: VmParameters) -> Self {
         let instance_root = Path::new(COMPOS_DATA_ROOT).join(instance_name);
         let instance_root_path = instance_root.as_path();
+        let instance_id_file = instance_root_path.join(INSTANCE_ID_FILE);
         let instance_image = instance_root_path.join(INSTANCE_IMAGE_FILE);
         let idsig = instance_root_path.join(IDSIG_FILE);
         let idsig_manifest_apk = instance_root_path.join(IDSIG_MANIFEST_APK_FILE);
@@ -84,6 +86,7 @@ impl InstanceStarter {
         Self {
             instance_name: instance_name.to_owned(),
             instance_root,
+            instance_id_file,
             instance_image,
             idsig,
             idsig_manifest_apk,
@@ -103,7 +106,10 @@ impl InstanceStarter {
         // Overwrite any existing instance - it's unlikely to be valid with the current set
         // of APEXes, and finding out it isn't is much more expensive than creating a new one.
         self.create_instance_image(virtualization_service)?;
-
+        // TODO(b/294177871): Ping VS to delete the old instance's secret.
+        if cfg!(llpvm_changes) {
+            self.allocate_instance_id(virtualization_service)?;
+        }
         // Delete existing idsig files. Ignore error in case idsig doesn't exist.
         let _ignored1 = fs::remove_file(&self.idsig);
         let _ignored2 = fs::remove_file(&self.idsig_manifest_apk);
@@ -122,6 +128,14 @@ impl InstanceStarter {
         &self,
         virtualization_service: &dyn IVirtualizationService,
     ) -> Result<CompOsInstance> {
+        let instance_id: [u8; 64] = if cfg!(llpvm_changes) {
+            fs::read(&self.instance_id_file)?
+                .try_into()
+                .map_err(|_| anyhow!("Failed to get instance_id"))?
+        } else {
+            [0u8; 64]
+        };
+
         let instance_image = fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -129,6 +143,7 @@ impl InstanceStarter {
             .context("Failed to open instance image")?;
         let vm_instance = ComposClient::start(
             virtualization_service,
+            instance_id,
             instance_image,
             &self.idsig,
             &self.idsig_manifest_apk,
@@ -162,6 +177,15 @@ impl InstanceStarter {
         virtualization_service
             .initializeWritablePartition(&instance_image, size, PartitionType::ANDROID_VM_INSTANCE)
             .context("Writing instance image file")?;
+        Ok(())
+    }
+
+    fn allocate_instance_id(
+        &self,
+        virtualization_service: &dyn IVirtualizationService,
+    ) -> Result<()> {
+        let id = virtualization_service.allocateInstanceId().context("Allocating Instance Id")?;
+        fs::write(&self.instance_id_file, id)?;
         Ok(())
     }
 }

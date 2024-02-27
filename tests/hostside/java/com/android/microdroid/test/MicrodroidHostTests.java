@@ -617,6 +617,7 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         final String apkPath = getPathForPackage(PACKAGE_NAME);
         final String idsigPath = TEST_ROOT + "idsig";
         final String instanceImgPath = TEST_ROOT + "instance.img";
+        final String instanceIdPath = TEST_ROOT + "instance_id";
         List<String> cmd =
                 new ArrayList<>(
                         Arrays.asList(
@@ -627,6 +628,11 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                                 apkPath,
                                 idsigPath,
                                 instanceImgPath));
+        if (isFeatureEnabled("com.android.kvm.LLPVM_CHANGES")) {
+            cmd.add("--instance-id-file");
+            cmd.add(instanceIdPath);
+        }
+        ;
         if (protectedVm) {
             cmd.add("--protected");
         }
@@ -887,7 +893,6 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         final String apkPath = getPathForPackage(PACKAGE_NAME);
         final String idSigPath = TEST_ROOT + "idsig";
         android.run(VIRT_APEX + "bin/vm", "create-idsig", apkPath, idSigPath);
-
         // Create the instance image for the VM
         final String instanceImgPath = TEST_ROOT + "instance.img";
         android.run(
@@ -897,17 +902,22 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
                 instanceImgPath,
                 Integer.toString(10 * 1024 * 1024));
 
-        final String ret =
-                android.runForResult(
+        List<String> cmd =
+                new ArrayList<>(
+                        Arrays.asList(
                                 VIRT_APEX + "bin/vm",
                                 "run-app",
                                 "--payload-binary-name",
                                 "./MicrodroidTestNativeLib.so",
                                 apkPath,
                                 idSigPath,
-                                instanceImgPath)
-                        .getStderr()
-                        .trim();
+                                instanceImgPath));
+        if (isFeatureEnabled("com.android.kvm.LLPVM_CHANGES")) {
+            cmd.add("--instance-id-file");
+            cmd.add(TEST_ROOT + "instance_id");
+        }
+
+        final String ret = android.runForResult(String.join(" ", cmd)).getStderr().trim();
 
         assertThat(ret).contains("Payload binary name must not specify a path");
     }
