@@ -83,7 +83,7 @@ use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Seek, SeekFrom, Write};
 use std::iter;
 use std::num::{NonZeroU16, NonZeroU32};
-use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 use std::os::unix::raw::pid_t;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
@@ -488,6 +488,11 @@ impl VirtualizationService {
             .try_for_each(check_label_for_partition)
             .or_service_specific_exception(-1)?;
 
+        // Check if files for payloads and bases are NOT coming from /vendor and /odm, as they may
+        // have unstable interfaces.
+        // TODO(b/316431494): remove once Treble interfaces are stabilized.
+        check_partitions_for_files(config).or_service_specific_exception(-1)?;
+
         let kernel = maybe_clone_file(&config.kernel)?;
         let initrd = maybe_clone_file(&config.initrd)?;
 
@@ -857,6 +862,38 @@ fn load_app_config(
     )?;
 
     Ok(vm_config)
+}
+
+fn check_partition_for_file(fd: &ParcelFileDescriptor) -> Result<()> {
+    let path = format!("/proc/self/fd/{}", fd.as_raw_fd());
+    let link = fs::read_link(&path).context(format!("can't read_link {path}"))?;
+
+    // microdroid vendor image is OK
+    if cfg!(vendor_modules) && link == Path::new("/vendor/etc/avf/microdroid/microdroid_vendor.img")
+    {
+        return Ok(());
+    }
+
+    if link.starts_with("/vendor") || link.starts_with("/odm") {
+        bail!("vendor or odm file {} can't be used for VM", link.display());
+    }
+
+    Ok(())
+}
+
+fn check_partitions_for_files(config: &VirtualMachineRawConfig) -> Result<()> {
+    config
+        .disks
+        .iter()
+        .flat_map(|disk| disk.partitions.iter())
+        .filter_map(|partition| partition.image.as_ref())
+        .try_for_each(check_partition_for_file)?;
+
+    config.kernel.as_ref().map_or(Ok(()), check_partition_for_file)?;
+    config.initrd.as_ref().map_or(Ok(()), check_partition_for_file)?;
+    config.bootloader.as_ref().map_or(Ok(()), check_partition_for_file)?;
+
+    Ok(())
 }
 
 fn load_vm_payload_config_from_file(apk_file: &File, config_path: &str) -> Result<VmPayloadConfig> {
