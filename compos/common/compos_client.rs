@@ -72,6 +72,7 @@ impl ComposClient {
     /// Start a new CompOS VM instance using the specified instance image file and parameters.
     pub fn start(
         service: &dyn IVirtualizationService,
+        instance_id: [u8; 64],
         instance_image: File,
         idsig: &Path,
         idsig_manifest_apk: &Path,
@@ -121,6 +122,7 @@ impl ComposClient {
             name: parameters.name.clone(),
             apk: Some(apk_fd),
             idsig: Some(idsig_fd),
+            instanceId: instance_id,
             instanceImage: Some(instance_fd),
             encryptedStorageImage: None,
             payload: Payload::ConfigPath(config_path),

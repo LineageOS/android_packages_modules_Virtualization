@@ -91,4 +91,9 @@ interface IVirtualizationServiceInternal {
 
     /** Returns a read-only file descriptor of the VM DTBO file. */
     ParcelFileDescriptor getDtboFile();
+
+    /**
+     * Allocate an instance_id to the (newly created) VM.
+     */
+    byte[64] allocateInstanceId();
 }
