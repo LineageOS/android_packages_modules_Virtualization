@@ -41,6 +41,7 @@ rust_test {
     defaults: ["libfsfdt_default"],
     data: ["testdata/**/*"],
     data_bins: ["dtc_static"],
-    rustlibs: ["libtempfile"],
+    prefer_rlib: true,
+    rustlibs: ["libdts"],
     compile_multilib: "first",
 }
