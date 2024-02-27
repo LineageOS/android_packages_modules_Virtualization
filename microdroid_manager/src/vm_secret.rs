@@ -101,7 +101,7 @@ impl VmSecret {
         let policy = sealing_policy(explicit_dice_chain).map_err(anyhow_err)?;
 
         // Start a new session with Secretkeeper!
-        let mut session = SkSession::new(sk_service, &explicit_dice)?;
+        let mut session = SkSession::new(sk_service, &explicit_dice, None)?;
         let mut skp_secret = Zeroizing::new([0u8; SECRET_SIZE]);
         if super::is_strict_boot() {
             if super::is_new_instance() {
