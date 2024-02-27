@@ -81,7 +81,6 @@ avf_flag_aware_apex_defaults {
     // TODO(b/295593640) Unfortunately these are added to the apex even though they are unused.
     // Once the build system is fixed, remove this.
     unwanted_transitive_deps: [
-        "libdrm",
         "libsso",
         "libutils",
     ],
