@@ -83,7 +83,7 @@ use std::fs::{canonicalize, read_dir, remove_file, File, OpenOptions};
 use std::io::{BufRead, BufReader, Error, ErrorKind, Seek, SeekFrom, Write};
 use std::iter;
 use std::num::{NonZeroU16, NonZeroU32};
-use std::os::unix::io::{FromRawFd, IntoRawFd};
+use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 use std::os::unix::raw::pid_t;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, Weak};
@@ -109,9 +109,8 @@ const ANDROID_VM_INSTANCE_VERSION: u16 = 1;
 
 const MICRODROID_OS_NAME: &str = "microdroid";
 
-// TODO(b/291213394): Use 'default' instance for secretkeeper instead of 'nonsecure'
 const SECRETKEEPER_IDENTIFIER: &str =
-    "android.hardware.security.secretkeeper.ISecretkeeper/nonsecure";
+    "android.hardware.security.secretkeeper.ISecretkeeper/default";
 
 const UNFORMATTED_STORAGE_MAGIC: &str = "UNFORMATTED-STORAGE";
 
@@ -228,6 +227,11 @@ impl IVirtualizationService for VirtualizationService {
         );
         write_vm_creation_stats(config, is_protected, &ret);
         ret
+    }
+
+    /// Allocate a new instance_id to the VM
+    fn allocateInstanceId(&self) -> binder::Result<[u8; 64]> {
+        GLOBAL_SERVICE.allocateInstanceId()
     }
 
     /// Initialise an empty partition image of the given size to be used as a writable partition.
@@ -399,9 +403,9 @@ impl VirtualizationService {
             vec![]
         };
 
+        let instance_id;
         let untrusted_props = if cfg!(llpvm_changes) {
-            // TODO(b/291213394): Replace this with a per-VM instance Id.
-            let instance_id = b"sixtyfourbyteslonghardcoded_indeed_sixtyfourbyteslonghardcoded_h";
+            instance_id = extract_instance_id(config);
             vec![(cstr!("instance-id"), &instance_id[..])]
         } else {
             vec![]
@@ -483,6 +487,11 @@ impl VirtualizationService {
             })
             .try_for_each(check_label_for_partition)
             .or_service_specific_exception(-1)?;
+
+        // Check if files for payloads and bases are NOT coming from /vendor and /odm, as they may
+        // have unstable interfaces.
+        // TODO(b/316431494): remove once Treble interfaces are stabilized.
+        check_partitions_for_files(config).or_service_specific_exception(-1)?;
 
         let kernel = maybe_clone_file(&config.kernel)?;
         let initrd = maybe_clone_file(&config.initrd)?;
@@ -853,6 +862,38 @@ fn load_app_config(
     )?;
 
     Ok(vm_config)
+}
+
+fn check_partition_for_file(fd: &ParcelFileDescriptor) -> Result<()> {
+    let path = format!("/proc/self/fd/{}", fd.as_raw_fd());
+    let link = fs::read_link(&path).context(format!("can't read_link {path}"))?;
+
+    // microdroid vendor image is OK
+    if cfg!(vendor_modules) && link == Path::new("/vendor/etc/avf/microdroid/microdroid_vendor.img")
+    {
+        return Ok(());
+    }
+
+    if link.starts_with("/vendor") || link.starts_with("/odm") {
+        bail!("vendor or odm file {} can't be used for VM", link.display());
+    }
+
+    Ok(())
+}
+
+fn check_partitions_for_files(config: &VirtualMachineRawConfig) -> Result<()> {
+    config
+        .disks
+        .iter()
+        .flat_map(|disk| disk.partitions.iter())
+        .filter_map(|partition| partition.image.as_ref())
+        .try_for_each(check_partition_for_file)?;
+
+    config.kernel.as_ref().map_or(Ok(()), check_partition_for_file)?;
+    config.initrd.as_ref().map_or(Ok(()), check_partition_for_file)?;
+    config.bootloader.as_ref().map_or(Ok(()), check_partition_for_file)?;
+
+    Ok(())
 }
 
 fn load_vm_payload_config_from_file(apk_file: &File, config_path: &str) -> Result<VmPayloadConfig> {
@@ -1266,6 +1307,13 @@ fn check_gdb_allowed(config: &VirtualMachineConfig) -> binder::Result<()> {
                 Ok(())
             }
         }
+    }
+}
+
+fn extract_instance_id(config: &VirtualMachineConfig) -> [u8; 64] {
+    match config {
+        VirtualMachineConfig::RawConfig(config) => config.instanceId,
+        VirtualMachineConfig::AppConfig(config) => config.instanceId,
     }
 }
 

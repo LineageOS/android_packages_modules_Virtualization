@@ -12,6 +12,9 @@
       "name": "MicrodroidTestApp"
     },
     {
+      "name": "MicrodroidTestAppNoPerm"
+    },
+    {
       "name": "VmAttestationTestApp"
     },
     {
@@ -43,9 +46,6 @@
     }
   ],
   "avf-postsubmit": [
-    {
-      "name": "odsign_e2e_tests_full"
-    },
     {
       "name": "MicrodroidBenchmarkApp"
     },
