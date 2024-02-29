@@ -119,7 +119,6 @@ impl VmIdDb {
     }
 
     /// Add the given VM ID into the database.
-    #[allow(dead_code)] // TODO(b/294177871): connect this up
     pub fn add_vm_id(&mut self, vm_id: &VmId, user_id: i32, app_id: i32) -> Result<()> {
         let _rows = self
             .conn
