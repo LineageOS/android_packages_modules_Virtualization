@@ -318,6 +318,14 @@ impl IVirtualizationService for VirtualizationService {
         check_manage_access()?;
         GLOBAL_SERVICE.isRemoteAttestationSupported()
     }
+
+    fn isUpdatableVmSupported(&self) -> binder::Result<bool> {
+        // The response is specific to Microdroid. Updatable VMs are only possible if device
+        // supports Secretkeeper. Guest OS needs to use Secretkeeper based secrets. Microdroid does
+        // this, however other guest OSes may do things differently.
+        check_manage_access()?;
+        Ok(is_secretkeeper_supported())
+    }
 }
 
 impl VirtualizationService {
