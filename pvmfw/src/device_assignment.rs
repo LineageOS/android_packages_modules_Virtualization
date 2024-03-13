@@ -527,7 +527,7 @@ impl AssignedDeviceInfo {
         // PV reg and physical reg should have 1:1 match in order.
         for (reg, phys_reg) in device_reg.iter().zip(physical_device_reg.iter()) {
             let addr = hypervisor.get_phys_mmio_token(reg.addr, reg.size).map_err(|e| {
-                error!("Failed to validate device <reg>, error={e:?}, reg={reg:x?}");
+                error!("Hypervisor error while requesting MMIO token: {e}");
                 DeviceAssignmentError::InvalidReg
             })?;
             // Only check address because hypervisor guaranatees size match when success.
@@ -592,11 +592,11 @@ impl AssignedDeviceInfo {
         // So we need to mark what's matched or not.
         let mut physical_device_iommu = physical_device_iommu.to_vec();
         for (pviommu, vsid) in iommus {
-            let (id, sid) = hypervisor.get_phys_iommu_token(pviommu.id.into(), vsid.0.into())
-            .map_err(|e| {
-                error!("Failed to validate device <iommus>, error={e:?}, pviommu={pviommu:?}, vsid={vsid:?}");
-                DeviceAssignmentError::InvalidIommus
-            })?;
+            let (id, sid) =
+                hypervisor.get_phys_iommu_token(pviommu.id.into(), vsid.0.into()).map_err(|e| {
+                    error!("Hypervisor error while requesting IOMMU token ({pviommu:?}, {vsid:?}): {e}");
+                    DeviceAssignmentError::InvalidIommus
+                })?;
 
             let pos = physical_device_iommu
                 .iter()
