@@ -55,8 +55,10 @@ pub enum DeviceAssignmentError {
     InvalidSymbols,
     /// Malformed <reg>. Can't parse.
     MalformedReg,
-    /// Invalid <reg>. Failed to validate with HVC.
-    InvalidReg,
+    /// Invalid physical <reg> of assigned device.
+    InvalidPhysReg(u64, u64),
+    /// Invalid virtual <reg> of assigned device.
+    InvalidReg(u64, u64),
     /// Invalid <interrupts>
     InvalidInterrupts,
     /// Malformed <iommus>
@@ -104,7 +106,12 @@ impl fmt::Display for DeviceAssignmentError {
                 "Invalid property in /__symbols__. Must point to valid assignable device node."
             ),
             Self::MalformedReg => write!(f, "Malformed <reg>. Can't parse"),
-            Self::InvalidReg => write!(f, "Invalid <reg>. Failed to validate with hypervisor"),
+            Self::InvalidReg(addr, size) => {
+                write!(f, "Invalid guest MMIO region (addr: {addr:#x}, size: {size:#x})")
+            }
+            Self::InvalidPhysReg(addr, size) => {
+                write!(f, "Invalid physical MMIO region (addr: {addr:#x}, size: {size:#x})")
+            }
             Self::InvalidInterrupts => write!(f, "Invalid <interrupts>"),
             Self::MalformedIommus => write!(f, "Malformed <iommus>. Can't parse."),
             Self::InvalidIommus => {
@@ -521,21 +528,29 @@ impl AssignedDeviceInfo {
         physical_device_reg: &[DeviceReg],
         hypervisor: &dyn DeviceAssigningHypervisor,
     ) -> Result<()> {
-        if device_reg.len() != physical_device_reg.len() {
-            return Err(DeviceAssignmentError::InvalidReg);
-        }
+        let mut virt_regs = device_reg.iter();
+        let mut phys_regs = physical_device_reg.iter();
         // PV reg and physical reg should have 1:1 match in order.
-        for (reg, phys_reg) in device_reg.iter().zip(physical_device_reg.iter()) {
+        for (reg, phys_reg) in virt_regs.by_ref().zip(phys_regs.by_ref()) {
             let addr = hypervisor.get_phys_mmio_token(reg.addr, reg.size).map_err(|e| {
                 error!("Hypervisor error while requesting MMIO token: {e}");
-                DeviceAssignmentError::InvalidReg
+                DeviceAssignmentError::InvalidReg(reg.addr, reg.size)
             })?;
             // Only check address because hypervisor guaranatees size match when success.
             if phys_reg.addr != addr {
-                error!("Failed to validate device <reg>. No matching phys reg for reg={reg:x?}");
-                return Err(DeviceAssignmentError::InvalidReg);
+                error!("Assigned device {reg:x?} has unexpected physical address");
+                return Err(DeviceAssignmentError::InvalidPhysReg(addr, reg.size));
             }
         }
+
+        if let Some(DeviceReg { addr, size }) = virt_regs.next() {
+            return Err(DeviceAssignmentError::InvalidReg(*addr, *size));
+        }
+
+        if let Some(DeviceReg { addr, size }) = phys_regs.next() {
+            return Err(DeviceAssignmentError::InvalidPhysReg(*addr, *size));
+        }
+
         Ok(())
     }
 
@@ -1308,7 +1323,7 @@ mod tests {
         };
         let device_info = DeviceAssignmentInfo::parse(fdt, vm_dtbo, &hypervisor);
 
-        assert_eq!(device_info, Err(DeviceAssignmentError::InvalidReg));
+        assert_eq!(device_info, Err(DeviceAssignmentError::InvalidReg(0x9, 0xFF)));
     }
 
     #[test]
@@ -1324,7 +1339,7 @@ mod tests {
         };
         let device_info = DeviceAssignmentInfo::parse(fdt, vm_dtbo, &hypervisor);
 
-        assert_eq!(device_info, Err(DeviceAssignmentError::InvalidReg));
+        assert_eq!(device_info, Err(DeviceAssignmentError::InvalidPhysReg(0xF10000, 0x1000)));
     }
 
     #[test]
