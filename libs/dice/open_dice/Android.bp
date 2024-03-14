@@ -39,12 +39,15 @@ rust_library {
     rustlibs: [
         "libopen_dice_android_bindgen",
         "libopen_dice_cbor_bindgen",
+        "libserde",
         "libzeroize",
     ],
     features: [
         "alloc",
+        "serde_derive",
         "std",
     ],
+    proc_macros: ["libserde_derive"],
     shared_libs: [
         "libcrypto",
     ],
