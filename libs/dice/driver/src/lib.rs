@@ -32,12 +32,18 @@ use std::slice;
 
 /// Artifacts that are mapped into the process address space from the driver.
 pub enum DiceDriver<'a> {
+    /// Real implementation
     Real {
+        /// Path to the driver character device (e.g. /dev/open-dice0).
         driver_path: PathBuf,
+        /// Address of the memory to mmap driver to.
         mmap_addr: *mut c_void,
+        /// Size of the mmap.
         mmap_size: usize,
+        /// BCC handover.
         bcc_handover: BccHandover<'a>,
     },
+    /// Fake implementation used in tests and non-protected VMs.
     Fake(OwnedDiceArtifacts),
 }
 
@@ -49,10 +55,11 @@ impl DiceDriver<'_> {
         }
     }
 
-    pub fn new(driver_path: &Path) -> Result<Self> {
+    /// Creates a new dice driver from the given driver_path.
+    pub fn new(driver_path: &Path, is_strict_boot: bool) -> Result<Self> {
         if driver_path.exists() {
             log::info!("Using DICE values from driver");
-        } else if super::is_strict_boot() {
+        } else if is_strict_boot {
             bail!("Strict boot requires DICE value from driver but none were found");
         } else {
             log::warn!("Using sample DICE values");
@@ -101,6 +108,7 @@ impl DiceDriver<'_> {
         Ok(key)
     }
 
+    /// Derives a new dice chain.
     pub fn derive(
         self,
         code_hash: Hash,
