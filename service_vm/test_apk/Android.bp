@@ -5,5 +5,12 @@ package {
 rust_ffi {
     name: "libvm_attestation_test_payload",
     crate_name: "vm_attestation_test_payload",
-    srcs: [":empty_file"],
+    srcs: [":empty_rust_lib_rs"],
+}
+
+// Generates an empty file for rust crate.
+genrule {
+    name: "empty_rust_lib_rs",
+    out: ["empty_file"],
+    cmd: "echo '#![allow(missing_docs)]' > $(out)",
 }

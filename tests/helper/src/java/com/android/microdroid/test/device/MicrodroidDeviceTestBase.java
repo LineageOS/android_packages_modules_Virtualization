@@ -46,7 +46,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,6 +59,9 @@ public abstract class MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidDeviceTestBase";
     private final String MAX_PERFORMANCE_TASK_PROFILE = "CPUSET_SP_TOP_APP";
     protected static final String KERNEL_VERSION = SystemProperties.get("ro.kernel.version");
+
+    protected static final Set<String> SUPPORTED_GKI_VERSIONS =
+            Collections.unmodifiableSet(new HashSet());
 
     public static boolean isCuttlefish() {
         return getDeviceProperties().isCuttlefish();
@@ -113,6 +119,13 @@ public abstract class MicrodroidDeviceTestBase {
         return new VirtualMachineConfig.Builder(mCtx).setProtectedVm(mProtectedVm);
     }
 
+    /**
+     * Placeholder method to make AvfRkpdVmAttestationAppTests compile on branch udc-mainline-prod.
+     */
+    public VirtualMachineConfig.Builder newVmConfigBuilderWithPayloadBinary(String binaryPath) {
+        return newVmConfigBuilder();
+    }
+
     protected final boolean isProtectedVm() {
         return mProtectedVm;
     }
@@ -129,6 +142,10 @@ public abstract class MicrodroidDeviceTestBase {
             vmm.delete(name);
         }
         return vmm.create(name, config);
+    }
+
+    public void prepareTestSetup(boolean protectedVm, String gki) {
+        prepareTestSetup(protectedVm);
     }
 
     public void prepareTestSetup(boolean protectedVm) {

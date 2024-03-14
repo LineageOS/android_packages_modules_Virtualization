@@ -18,6 +18,8 @@ package com.android.virt.vm_attestation.testservice;
 
 /** {@hide} */
 interface IAttestationService {
+    const int PORT = 5679;
+
     /**
      * The result of signing a message with the attested key.
      */
