@@ -2,8 +2,8 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-rust_library {
-    name: "libdice_driver",
+rust_defaults {
+    name: "libdice_driver_defaults",
     crate_name: "dice_driver",
     defaults: [
         "avf_build_flags_rust",
@@ -25,10 +25,26 @@ rust_library {
         "libonce_cell",
         "libopenssl",
         "libthiserror",
+        "libserde_cbor",
     ],
     multilib: {
         lib32: {
             enabled: false,
         },
     },
+}
+
+rust_library {
+    name: "libdice_driver",
+    defaults: ["libdice_driver_defaults"],
+}
+
+rust_test {
+    name: "libdice_driver_test",
+    defaults: ["libdice_driver_defaults"],
+    test_suites: ["general-tests"],
+    rustlibs: [
+        "libhex",
+        "libtempfile",
+    ],
 }
