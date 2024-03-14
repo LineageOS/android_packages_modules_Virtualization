@@ -32,7 +32,7 @@ use std::slice;
 
 /// Artifacts that are mapped into the process address space from the driver.
 pub enum DiceDriver<'a> {
-    /// Real implementation
+    /// Implementation that reads bcc handover from the dice driver.
     Real {
         /// Path to the driver character device (e.g. /dev/open-dice0).
         driver_path: PathBuf,
@@ -45,6 +45,13 @@ pub enum DiceDriver<'a> {
     },
     /// Fake implementation used in tests and non-protected VMs.
     Fake(OwnedDiceArtifacts),
+    /// Implementation that reads bcc handover from the file.
+    FromFile {
+        /// Path to the file to read dice chain from,
+        file_path: PathBuf,
+        /// Dice artifacts read from file_path,
+        dice_artifacts: OwnedDiceArtifacts,
+    },
 }
 
 impl DiceDriver<'_> {
@@ -52,6 +59,7 @@ impl DiceDriver<'_> {
         match self {
             Self::Real { bcc_handover, .. } => bcc_handover,
             Self::Fake(owned_dice_artifacts) => owned_dice_artifacts,
+            Self::FromFile { dice_artifacts, .. } => dice_artifacts,
         }
     }
 
@@ -95,6 +103,15 @@ impl DiceDriver<'_> {
             mmap_size,
             bcc_handover,
         })
+    }
+
+    /// Create a new dice driver that reads dice_artifacts from the given file.
+    pub fn from_file(file_path: &Path) -> Result<Self> {
+        let file =
+            fs::File::open(file_path).map_err(|error| Error::new(error).context("open file"))?;
+        let dice_artifacts = serde_cbor::from_reader(file)
+            .map_err(|error| Error::new(error).context("read file"))?;
+        Ok(Self::FromFile { file_path: file_path.to_path_buf(), dice_artifacts })
     }
 
     /// Derives a sealing key of `key_length` bytes from the DICE sealing CDI.
@@ -153,5 +170,38 @@ impl Drop for DiceDriver<'_> {
                 log::warn!("Failed to munmap ({})", ret);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_eq_bytes(expected: &[u8], actual: &[u8]) {
+        assert_eq!(
+            expected,
+            actual,
+            "Expected {}, got {}",
+            hex::encode(expected),
+            hex::encode(actual)
+        )
+    }
+
+    #[test]
+    fn test_write_bcc_to_file_read_from_file() -> Result<()> {
+        let dice_artifacts = diced_sample_inputs::make_sample_bcc_and_cdis()?;
+
+        let test_file = tempfile::NamedTempFile::new()?;
+        serde_cbor::to_writer(test_file.as_file(), &dice_artifacts)?;
+        test_file.as_file().sync_all()?;
+
+        let dice = DiceDriver::from_file(test_file.as_ref())?;
+
+        let dice_artifacts2 = dice.dice_artifacts();
+        assert_eq_bytes(dice_artifacts.cdi_attest(), dice_artifacts2.cdi_attest());
+        assert_eq_bytes(dice_artifacts.cdi_seal(), dice_artifacts2.cdi_seal());
+        assert_eq_bytes(dice_artifacts.bcc().expect("bcc"), dice_artifacts2.bcc().expect("bcc"));
+
+        Ok(())
     }
 }
