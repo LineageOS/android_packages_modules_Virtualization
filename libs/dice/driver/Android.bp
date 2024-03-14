@@ -1,0 +1,34 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+rust_library {
+    name: "libdice_driver",
+    crate_name: "dice_driver",
+    defaults: [
+        "avf_build_flags_rust",
+    ],
+    srcs: ["src/lib.rs"],
+    edition: "2021",
+    prefer_rlib: true,
+    rustlibs: [
+        "libanyhow",
+        "libbyteorder",
+        "libcoset",
+        "libdice_policy_builder",
+        "libdiced_open_dice",
+        "libdiced_sample_inputs",
+        "libkeystore2_crypto_rust",
+        "liblibc",
+        "liblog_rust",
+        "libnix",
+        "libonce_cell",
+        "libopenssl",
+        "libthiserror",
+    ],
+    multilib: {
+        lib32: {
+            enabled: false,
+        },
+    },
+}
