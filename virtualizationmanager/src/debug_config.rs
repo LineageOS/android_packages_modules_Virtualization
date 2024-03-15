@@ -15,17 +15,17 @@
 //! Functions for AVF debug policy and debug level
 
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice::{
-    VirtualMachineAppConfig::DebugLevel::DebugLevel,
+    VirtualMachineAppConfig::DebugLevel::DebugLevel, VirtualMachineConfig::VirtualMachineConfig,
 };
 use anyhow::{anyhow, Context, Error, Result};
+use lazy_static::lazy_static;
+use libfdt::{Fdt, FdtError};
+use log::{info, warn};
+use rustutils::system_properties;
+use std::ffi::{CString, NulError};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::ffi::{CString, NulError};
-use log::{warn, info};
-use rustutils::system_properties;
-use libfdt::{Fdt, FdtError};
-use lazy_static::lazy_static;
 
 const CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP: &str =
     "hypervisor.virtualizationmanager.debug_policy.path";
@@ -156,7 +156,12 @@ pub struct DebugConfig {
 }
 
 impl DebugConfig {
-    pub fn new(debug_level: DebugLevel) -> Self {
+    pub fn new(config: &VirtualMachineConfig) -> Self {
+        let debug_level = match config {
+            VirtualMachineConfig::AppConfig(config) => config.debugLevel,
+            _ => DebugLevel::NONE,
+        };
+
         match system_properties::read(CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP).unwrap_or_default() {
             Some(path) if !path.is_empty() => {
                 match Self::from_custom_debug_overlay_policy(debug_level, Path::new(&path)) {
@@ -179,6 +184,11 @@ impl DebugConfig {
         }
 
         info!("Debug policy is disabled");
+        Self::new_with_debug_level(debug_level)
+    }
+
+    /// Creates a new DebugConfig with debug level. Only use this for test purpose.
+    pub fn new_with_debug_level(debug_level: DebugLevel) -> Self {
         Self {
             debug_level,
             debug_policy_log: false,
