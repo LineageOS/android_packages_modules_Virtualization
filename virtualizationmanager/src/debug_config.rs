@@ -203,7 +203,6 @@ impl DebugConfig {
         self.debug_level != DebugLevel::NONE || self.debug_policy_ramdump
     }
 
-    // TODO: Remove this code path in user build for removing libfdt depenency.
     fn from_custom_debug_overlay_policy(debug_level: DebugLevel, path: &Path) -> Result<Self> {
         match OwnedFdt::from_overlay_onto_new_fdt(path) {
             Ok(fdt) => Ok(Self {
