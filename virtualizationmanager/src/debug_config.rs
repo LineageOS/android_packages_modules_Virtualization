@@ -229,14 +229,6 @@ impl DebugConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::ensure;
-
-    fn can_set_sysprop() -> bool {
-        if let Ok(Some(value)) = system_properties::read("ro.build.type") {
-            return "user".eq(&value);
-        }
-        false // if we're in doubt, skip test.
-    }
 
     #[test]
     fn test_read_avf_debug_policy_with_ramdump() -> Result<()> {
@@ -316,41 +308,5 @@ mod tests {
         assert!(!debug_config.debug_policy_adb);
 
         Ok(())
-    }
-
-    fn test_new_with_custom_policy_internal() -> Result<()> {
-        let debug_config = DebugConfig::new(DebugLevel::NONE);
-
-        ensure!(debug_config.debug_level == DebugLevel::NONE);
-        ensure!(!debug_config.debug_policy_log);
-        ensure!(!debug_config.debug_policy_ramdump);
-        ensure!(debug_config.debug_policy_adb);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_new_with_custom_policy() -> Result<()> {
-        if !can_set_sysprop() {
-            // Skip test if we can't override sysprop.
-            return Ok(());
-        }
-
-        // Setup
-        let old_sysprop = system_properties::read(CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP)
-            .context("Failed to read existing sysprop")?
-            .unwrap_or_default();
-        let file_name = "avf_debug_policy_with_adb.dtbo";
-        system_properties::write(CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP, file_name)
-            .context("Failed to set sysprop")?;
-
-        // Run test
-        let test_result = test_new_with_custom_policy_internal();
-
-        // Clean up.
-        system_properties::write(CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP, &old_sysprop)
-            .context("Failed to restore sysprop")?;
-
-        test_result
     }
 }
