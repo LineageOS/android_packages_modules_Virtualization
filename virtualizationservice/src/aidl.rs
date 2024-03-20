@@ -299,6 +299,13 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             ))
             .with_log();
         }
+        if !remotely_provisioned_component_service_exists()? {
+            return Err(Status::new_exception_str(
+                ExceptionCode::UNSUPPORTED_OPERATION,
+                Some("AVF remotely provisioned component service is not declared"),
+            ))
+            .with_log();
+        }
         info!("Received csr. Requestting attestation...");
         let (key_blob, certificate_chain) = if test_mode {
             check_use_custom_virtual_machine()?;
@@ -761,6 +768,10 @@ fn handle_tombstone(stream: &mut VsockStream) -> Result<()> {
     info!("Received {} bytes from guest & wrote to tombstone file", num_bytes_read);
     tb_connection.notify_completion()?;
     Ok(())
+}
+
+fn remotely_provisioned_component_service_exists() -> binder::Result<bool> {
+    Ok(binder::is_declared(REMOTELY_PROVISIONED_COMPONENT_SERVICE_NAME)?)
 }
 
 /// Checks whether the caller has a specific permission
