@@ -1009,23 +1009,43 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
         VirtualMachineConfig normalConfig = builder.build();
         assertThat(tryBootVmWithConfig(normalConfig, "test_vm").payloadStarted).isTrue();
 
-        // Try to run the VM again with the previous instance.img
+        // Try to run the VM again with the previous instance
         // We need to make sure that no changes on config don't invalidate the identity, to compare
         // the result with the below "different debug level" test.
+        File vmInstanceBackup = null, vmIdBackup = null;
         File vmInstance = getVmFile("test_vm", "instance.img");
-        File vmInstanceBackup = File.createTempFile("instance", ".img");
-        Files.copy(vmInstance.toPath(), vmInstanceBackup.toPath(), REPLACE_EXISTING);
+        File vmId = getVmFile("test_vm", "instance_id");
+        if (vmInstance.exists()) {
+            vmInstanceBackup = File.createTempFile("instance", ".img");
+            Files.copy(vmInstance.toPath(), vmInstanceBackup.toPath(), REPLACE_EXISTING);
+        }
+        if (vmId.exists()) {
+            vmIdBackup = File.createTempFile("instance_id", "backup");
+            Files.copy(vmId.toPath(), vmIdBackup.toPath(), REPLACE_EXISTING);
+        }
+
         forceCreateNewVirtualMachine("test_vm", normalConfig);
-        Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
+
+        if (vmInstanceBackup != null) {
+            Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
+        }
+        if (vmIdBackup != null) {
+            Files.copy(vmIdBackup.toPath(), vmId.toPath(), REPLACE_EXISTING);
+        }
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isTrue();
 
         // Launch the same VM with a different debug level. The Java API prohibits this
         // (thankfully).
-        // For testing, we do that by creating a new VM with debug level, and copy the old instance
-        // image to the new VM instance image.
+        // For testing, we do that by creating a new VM with debug level, and overwriting the old
+        // instance data to the new VM instance data.
         VirtualMachineConfig debugConfig = builder.setDebugLevel(toLevel).build();
         forceCreateNewVirtualMachine("test_vm", debugConfig);
-        Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
+        if (vmInstanceBackup != null) {
+            Files.copy(vmInstanceBackup.toPath(), vmInstance.toPath(), REPLACE_EXISTING);
+        }
+        if (vmIdBackup != null) {
+            Files.copy(vmIdBackup.toPath(), vmId.toPath(), REPLACE_EXISTING);
+        }
         assertThat(tryBootVm(TAG, "test_vm").payloadStarted).isFalse();
     }
 
