@@ -269,6 +269,13 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             .context("Failed to generate ECDSA P-256 key pair for testing")
             .with_log()
             .or_service_specific_exception(-1)?;
+        // Wait until the service VM shuts down, so that the Service VM will be restarted when
+        // the key generated in the current session will be used for attestation.
+        // This ensures that different Service VM sessions have the same KEK for the key blob.
+        service_vm_manager::wait_until_service_vm_shuts_down()
+            .context("Failed to wait until the service VM shuts down")
+            .with_log()
+            .or_service_specific_exception(-1)?;
         match res {
             Response::GenerateEcdsaP256KeyPair(key_pair) => {
                 FAKE_PROVISIONED_KEY_BLOB_FOR_TESTING
