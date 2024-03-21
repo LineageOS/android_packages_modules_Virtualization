@@ -214,6 +214,34 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
 
     @Test
     @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
+    public void vmAttestationWhenRemoteAttestationIsNotSupported() throws Exception {
+        // pVM remote attestation is only supported on protected VMs.
+        assumeProtectedVM();
+        assumeFeatureEnabled(VirtualMachineManager.FEATURE_REMOTE_ATTESTATION);
+        assume().withMessage(
+                        "This test does not apply to a device that supports Remote Attestation")
+                .that(getVirtualMachineManager().isRemoteAttestationSupported())
+                .isFalse();
+        VirtualMachineConfig config =
+                newVmConfigBuilderWithPayloadBinary(VM_ATTESTATION_PAYLOAD_PATH)
+                        .setProtectedVm(mProtectedVm)
+                        .setDebugLevel(DEBUG_LEVEL_FULL)
+                        .build();
+        VirtualMachine vm =
+                forceCreateNewVirtualMachine("cts_attestation_with_rkpd_unsupported", config);
+        byte[] challenge = new byte[32];
+        Arrays.fill(challenge, (byte) 0xcc);
+
+        // Act.
+        SigningResult signingResult =
+                runVmAttestationService(TAG, vm, challenge, VM_ATTESTATION_MESSAGE.getBytes());
+
+        // Assert.
+        assertThat(signingResult.status).isEqualTo(AttestationStatus.ATTESTATION_ERROR_UNSUPPORTED);
+    }
+
+    @Test
+    @CddTest(requirements = {"9.17/C-1-1", "9.17/C-2-1"})
     public void vmAttestationWhenRemoteAttestationIsSupported() throws Exception {
         // pVM remote attestation is only supported on protected VMs.
         assumeProtectedVM();
