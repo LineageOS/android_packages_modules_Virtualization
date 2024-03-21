@@ -399,7 +399,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         if let Some(sk_state) = &mut state.sk_state {
             let user_id = multiuser_get_user_id(uid);
             let app_id = multiuser_get_app_id(uid);
-            info!("Recording potential existence of state for (user_id={user_id}, app_id={app_id}");
+            info!("Recording possible existence of state for (user_id={user_id}, app_id={app_id})");
             if let Err(e) = sk_state.add_id(&id, user_id, app_id) {
                 error!("Failed to record the instance_id: {e:?}");
             }
@@ -445,10 +445,16 @@ impl IVirtualizationMaintenance for VirtualizationServiceInternal {
 
     fn performReconciliation(
         &self,
-        _callback: &Strong<dyn IVirtualizationReconciliationCallback>,
+        callback: &Strong<dyn IVirtualizationReconciliationCallback>,
     ) -> binder::Result<()> {
-        Err(anyhow!("performReconciliation not supported"))
-            .or_binder_exception(ExceptionCode::UNSUPPORTED_OPERATION)
+        let state = &mut *self.state.lock().unwrap();
+        if let Some(sk_state) = &mut state.sk_state {
+            info!("performReconciliation()");
+            sk_state.reconcile(callback).or_service_specific_exception(-1)?;
+        } else {
+            info!("ignoring performReconciliation()");
+        }
+        Ok(())
     }
 }
 
