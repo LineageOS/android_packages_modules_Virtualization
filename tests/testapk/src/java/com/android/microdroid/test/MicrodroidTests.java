@@ -69,6 +69,7 @@ import com.android.microdroid.test.vmshare.IVmShareTestService;
 import com.android.microdroid.testservice.IAppCallback;
 import com.android.microdroid.testservice.ITestService;
 import com.android.microdroid.testservice.IVmCallback;
+import com.android.virt.vm_attestation.util.X509Utils;
 
 import com.google.common.base.Strings;
 import com.google.common.truth.BooleanSubject;
@@ -96,6 +97,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -117,6 +119,7 @@ import co.nstant.in.cbor.model.MajorType;
 @RunWith(Parameterized.class)
 public class MicrodroidTests extends MicrodroidDeviceTestBase {
     private static final String TAG = "MicrodroidTests";
+    private static final String TEST_APP_PACKAGE_NAME = "com.android.microdroid.test";
     private static final String VM_ATTESTATION_PAYLOAD_PATH = "libvm_attestation_test_payload.so";
     private static final String VM_ATTESTATION_MESSAGE = "Hello RKP from AVF!";
 
@@ -277,8 +280,13 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
                 .isAnyOf(
                         AttestationStatus.ATTESTATION_OK,
                         AttestationStatus.ATTESTATION_ERROR_ATTESTATION_FAILED);
-        // TODO(b/330662600): Check the certificate chain and the signature after refactoring the
-        // x509 util method in RkpdVmAttestationTest.
+        if (signingResult.status == AttestationStatus.ATTESTATION_OK) {
+            X509Certificate[] certs =
+                    X509Utils.validateAndParseX509CertChain(signingResult.certificateChain);
+            X509Utils.verifyAvfRelatedCerts(certs, challenge, TEST_APP_PACKAGE_NAME);
+            X509Utils.verifySignature(
+                    certs[0], VM_ATTESTATION_MESSAGE.getBytes(), signingResult.signature);
+        }
     }
 
     @Test
