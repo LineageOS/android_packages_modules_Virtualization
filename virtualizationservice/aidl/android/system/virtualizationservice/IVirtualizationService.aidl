@@ -86,4 +86,9 @@ interface IVirtualizationService {
      * associated to the fake key pair when the VM requests attestation in testing mode.
      */
     void enableTestAttestation();
+
+    /**
+     * Returns {@code true} if the pVM remote attestation feature is supported
+     */
+    boolean isRemoteAttestationSupported();
 }

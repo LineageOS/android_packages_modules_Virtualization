@@ -313,6 +313,11 @@ impl IVirtualizationService for VirtualizationService {
     fn enableTestAttestation(&self) -> binder::Result<()> {
         GLOBAL_SERVICE.enableTestAttestation()
     }
+
+    fn isRemoteAttestationSupported(&self) -> binder::Result<bool> {
+        check_manage_access()?;
+        GLOBAL_SERVICE.isRemoteAttestationSupported()
+    }
 }
 
 impl VirtualizationService {
