@@ -1324,6 +1324,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void bootFailsWhenMicrodroidDataIsCompromised() throws Exception {
+        // If Updatable VM is supported => No instance.img required
+        assumeNoUpdatableVmSupport();
         assertThatBootFailsAfterCompromisingPartition(MICRODROID_PARTITION_UUID);
     }
 
@@ -1333,6 +1335,8 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             "9.17/C-2-7"
     })
     public void bootFailsWhenPvmFwDataIsCompromised() throws Exception {
+        // If Updatable VM is supported => No instance.img required
+        assumeNoUpdatableVmSupport();
         if (mProtectedVm) {
             assertThatBootFailsAfterCompromisingPartition(PVM_FW_PARTITION_UUID);
         } else {
