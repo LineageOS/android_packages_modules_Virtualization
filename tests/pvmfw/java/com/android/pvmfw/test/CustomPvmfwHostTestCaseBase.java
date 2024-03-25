@@ -58,7 +58,10 @@ public class CustomPvmfwHostTestCaseBase extends MicrodroidHostTestCaseBase {
 
     @NonNull public static final String CUSTOM_PVMFW_FILE_PREFIX = "pvmfw";
     @NonNull public static final String CUSTOM_PVMFW_FILE_SUFFIX = ".bin";
-    @NonNull public static final String CUSTOM_PVMFW_IMG_PATH = TEST_ROOT + PVMFW_FILE_NAME;
+
+    @NonNull
+    public static final String CUSTOM_PVMFW_IMG_PATH = TRADEFED_TEST_ROOT + PVMFW_FILE_NAME;
+
     @NonNull public static final String CUSTOM_PVMFW_IMG_PATH_PROP = "hypervisor.pvmfw.path";
 
     @Nullable private File mPvmfwBinFileOnHost;
