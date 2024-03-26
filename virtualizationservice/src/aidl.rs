@@ -372,7 +372,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         Ok(get_assignable_devices()?
             .device
             .into_iter()
-            .map(|x| AssignableDevice { node: x.sysfs_path, kind: x.kind })
+            .map(|x| AssignableDevice { node: x.sysfs_path, dtbo_label: x.dtbo_label })
             .collect::<Vec<_>>())
     }
 
@@ -476,10 +476,8 @@ impl IVirtualizationMaintenance for VirtualizationServiceInternal {
     }
 }
 
-// KEEP IN SYNC WITH assignable_devices.xsd
 #[derive(Debug, Deserialize)]
 struct Device {
-    kind: String,
     dtbo_label: String,
     sysfs_path: String,
 }
