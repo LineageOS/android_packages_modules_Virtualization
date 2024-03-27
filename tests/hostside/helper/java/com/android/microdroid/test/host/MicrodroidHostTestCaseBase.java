@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 
 public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
     protected static final String TEST_ROOT = "/data/local/tmp/virt/";
-    private static final String TRADEFED_TEST_ROOT = "/data/local/tmp/virt/tradefed/";
+    protected static final String TRADEFED_TEST_ROOT = "/data/local/tmp/virt/tradefed/";
     protected static final String LOG_PATH = TEST_ROOT + "log.txt";
     protected static final String CONSOLE_PATH = TEST_ROOT + "console.txt";
     protected static final String TRADEFED_CONSOLE_PATH = TRADEFED_TEST_ROOT + "console.txt";
