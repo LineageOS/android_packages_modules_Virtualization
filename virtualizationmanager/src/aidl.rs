@@ -328,6 +328,11 @@ impl IVirtualizationService for VirtualizationService {
         Ok(is_secretkeeper_supported())
     }
 
+    fn removeVmInstance(&self, instance_id: &[u8; 64]) -> binder::Result<()> {
+        check_manage_access()?;
+        GLOBAL_SERVICE.removeVmInstance(instance_id)
+    }
+
     fn claimVmInstance(&self, instance_id: &[u8; 64]) -> binder::Result<()> {
         check_manage_access()?;
         GLOBAL_SERVICE.claimVmInstance(instance_id)
