@@ -38,7 +38,7 @@ import java.io.FileNotFoundException;
 import java.util.Arrays;
 
 public abstract class MicrodroidHostTestCaseBase extends BaseHostJUnit4Test {
-    protected static final String TEST_ROOT = "/data/local/tmp/virt/tradefed";
+    protected static final String TEST_ROOT = "/data/local/tmp/virt/tradefed/";
     protected static final String LOG_PATH = TEST_ROOT + "log.txt";
     protected static final String CONSOLE_PATH = TEST_ROOT + "console.txt";
     private static final int TEST_VM_ADB_PORT = 8000;
