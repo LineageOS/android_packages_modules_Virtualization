@@ -119,5 +119,6 @@ interface IVirtualizationServiceInternal {
 
     // TODO(b/330257000): Remove these functions when a display service is running with binder RPC.
     void setDisplayService(IBinder ibinder);
+    void clearDisplayService();
     IBinder waitDisplayService();
 }

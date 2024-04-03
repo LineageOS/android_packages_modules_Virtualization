@@ -205,6 +205,15 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         Ok(())
     }
 
+    fn clearDisplayService(&self) -> std::result::Result<(), binder::Status> {
+        check_manage_access()?;
+        check_use_custom_virtual_machine()?;
+        let state = &mut *self.state.lock().unwrap();
+        state.display_service = None;
+        self.display_service_set.notify_all();
+        Ok(())
+    }
+
     fn waitDisplayService(&self) -> std::result::Result<binder::SpIBinder, binder::Status> {
         check_manage_access()?;
         check_use_custom_virtual_machine()?;
