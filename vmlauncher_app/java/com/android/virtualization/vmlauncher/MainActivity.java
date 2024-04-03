@@ -19,23 +19,28 @@ package com.android.virtualization.vmlauncher;
 import static android.system.virtualmachine.VirtualMachineConfig.CPU_TOPOLOGY_MATCH_HOST;
 
 import android.app.Activity;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.crosvm.ICrosvmAndroidDisplayService;
 import android.system.virtualizationservice_internal.IVirtualizationServiceInternal;
 import android.system.virtualmachine.VirtualMachineCustomImageConfig;
+import android.system.virtualmachine.VirtualMachineCustomImageConfig.DisplayConfig;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
+import android.view.Display;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.WindowManager;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowMetrics;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -106,6 +111,21 @@ public class MainActivity extends Activity {
             }
 
             configBuilder.setMemoryBytes(8L * 1024 * 1024 * 1024 /* 8 GB */);
+            WindowMetrics windowMetrics = getWindowManager().getCurrentWindowMetrics();
+            Rect windowSize = windowMetrics.getBounds();
+            int dpi = (int) (DisplayMetrics.DENSITY_DEFAULT * windowMetrics.getDensity());
+            DisplayConfig.Builder displayConfigBuilder = new DisplayConfig.Builder();
+            displayConfigBuilder.setWidth(windowSize.right);
+            displayConfigBuilder.setHeight(windowSize.bottom);
+            displayConfigBuilder.setHorizontalDpi(dpi);
+            displayConfigBuilder.setVerticalDpi(dpi);
+
+            Display display = getDisplay();
+            if (display != null) {
+                displayConfigBuilder.setRefreshRate((int) display.getRefreshRate());
+            }
+
+            customImageConfigBuilder.setDisplayConfig(displayConfigBuilder.build());
             configBuilder.setCustomImageConfig(customImageConfigBuilder.build());
 
         } catch (JSONException | IOException e) {
