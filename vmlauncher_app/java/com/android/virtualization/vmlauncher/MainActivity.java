@@ -20,6 +20,10 @@ import static android.system.virtualmachine.VirtualMachineConfig.CPU_TOPOLOGY_MA
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.RemoteException;
+import android.os.ServiceManager;
+import android.crosvm.ICrosvmAndroidDisplayService;
+import android.system.virtualizationservice_internal.IVirtualizationServiceInternal;
 import android.system.virtualmachine.VirtualMachineCustomImageConfig;
 import android.util.Log;
 import android.system.virtualmachine.VirtualMachine;
@@ -27,6 +31,11 @@ import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.WindowManager;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -108,6 +117,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setDecorFitsSystemWindows(false);
         setContentView(R.layout.activity_main);
         VirtualMachineCallback callback =
                 new VirtualMachineCallback() {
@@ -183,6 +193,70 @@ public class MainActivity extends Activity {
             }
         } catch (VirtualMachineException e) {
             throw new RuntimeException(e);
+        }
+
+        SurfaceView surfaceView = findViewById(R.id.surface_view);
+        surfaceView
+                .getHolder()
+                .addCallback(
+                        // TODO(b/331708504): it should be handled in AVF framework.
+                        new SurfaceHolder.Callback() {
+                            @Override
+                            public void surfaceCreated(SurfaceHolder holder) {
+                                Log.d(
+                                        TAG,
+                                        "surface size: "
+                                                + holder.getSurfaceFrame().flattenToString());
+                                Log.d(
+                                        TAG,
+                                        "ICrosvmAndroidDisplayService.setSurface("
+                                                + holder.getSurface()
+                                                + ")");
+                                runWithDisplayService(
+                                        (service) -> service.setSurface(holder.getSurface()));
+                            }
+
+                            @Override
+                            public void surfaceChanged(
+                                    SurfaceHolder holder, int format, int width, int height) {
+                                Log.d(TAG, "width: " + width + ", height: " + height);
+                            }
+
+                            @Override
+                            public void surfaceDestroyed(SurfaceHolder holder) {
+                                Log.d(TAG, "ICrosvmAndroidDisplayService.removeSurface()");
+                                runWithDisplayService((service) -> service.removeSurface());
+                            }
+                        });
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        // Fullscreen:
+        WindowInsetsController windowInsetsController = surfaceView.getWindowInsetsController();
+        windowInsetsController.setSystemBarsBehavior(
+                WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        windowInsetsController.hide(WindowInsets.Type.systemBars());
+    }
+
+    @FunctionalInterface
+    public interface RemoteExceptionCheckedFunction<T> {
+        void apply(T t) throws RemoteException;
+    }
+
+    private void runWithDisplayService(
+            RemoteExceptionCheckedFunction<ICrosvmAndroidDisplayService> func) {
+        IVirtualizationServiceInternal vs =
+                IVirtualizationServiceInternal.Stub.asInterface(
+                        ServiceManager.getService("android.system.virtualizationservice"));
+        try {
+            assert vs != null;
+            Log.d(TAG, "wait for the service");
+            ICrosvmAndroidDisplayService service =
+                    ICrosvmAndroidDisplayService.Stub.asInterface(vs.waitDisplayService());
+            assert service != null;
+            func.apply(service);
+            Log.d(TAG, "job done");
+        } catch (Exception e) {
+            Log.d(TAG, "error", e);
         }
     }
 
