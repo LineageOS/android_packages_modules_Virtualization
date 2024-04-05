@@ -457,8 +457,8 @@ public class VirtualMachine implements AutoCloseable {
         } catch (VirtualMachineException | RuntimeException e) {
             // If anything goes wrong, delete any files created so far and the VM's directory
             try {
-                deleteRecursively(vmDir);
-            } catch (IOException innerException) {
+                vmInstanceCleanup(context, name);
+            } catch (Exception innerException) {
                 e.addSuppressed(innerException);
             }
             throw e;
@@ -544,8 +544,8 @@ public class VirtualMachine implements AutoCloseable {
         } catch (VirtualMachineException | RuntimeException e) {
             // If anything goes wrong, delete any files created so far and the VM's directory
             try {
-                deleteRecursively(vmDir);
-            } catch (IOException innerException) {
+                vmInstanceCleanup(context, name);
+            } catch (Exception innerException) {
                 e.addSuppressed(innerException);
             }
             throw e;
@@ -587,15 +587,32 @@ public class VirtualMachine implements AutoCloseable {
             // if a new VM is created with the same name (and files) that's unrelated.
             mWasDeleted = true;
         }
-        // TODO(b/294177871): Request deletion of VM secrets.
-        deleteVmDirectory(context, name);
+        vmInstanceCleanup(context, name);
     }
 
-    static void deleteVmDirectory(Context context, String name) throws VirtualMachineException {
+    // Delete the full VM directory and notify VirtualizationService to remove this
+    // VM instance for housekeeping.
+    @GuardedBy("VirtualMachineManager.sCreateLock")
+    static void vmInstanceCleanup(Context context, String name) throws VirtualMachineException {
+        File vmDir = getVmDir(context, name);
+        notifyInstanceRemoval(vmDir, VirtualizationService.getInstance());
         try {
-            deleteRecursively(getVmDir(context, name));
+            deleteRecursively(vmDir);
         } catch (IOException e) {
             throw new VirtualMachineException(e);
+        }
+    }
+
+    private static void notifyInstanceRemoval(
+            File vmDirectory, @NonNull VirtualizationService service) {
+        File instanceIdFile = new File(vmDirectory, INSTANCE_ID_FILE);
+        try {
+            byte[] instanceId = Files.readAllBytes(instanceIdFile.toPath());
+            service.getBinder().removeVmInstance(instanceId);
+        } catch (Exception e) {
+            // Deliberately ignoring error in removing VM instance. This potentially leads to
+            // unaccounted instances in the VS' database. But, nothing much can be done by caller.
+            Log.w(TAG, "Failed to notify VS to remove the VM instance", e);
         }
     }
 
