@@ -117,6 +117,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        try {
+            // To ensure that the previous display service is removed.
+            IVirtualizationServiceInternal.Stub.asInterface(
+                            ServiceManager.waitForService("android.system.virtualizationservice"))
+                    .clearDisplayService();
+        } catch (RemoteException e) {
+            Log.d(TAG, "failed to clearDisplayService");
+        }
         getWindow().setDecorFitsSystemWindows(false);
         setContentView(R.layout.activity_main);
         VirtualMachineCallback callback =
@@ -246,10 +254,9 @@ public class MainActivity extends Activity {
             RemoteExceptionCheckedFunction<ICrosvmAndroidDisplayService> func) {
         IVirtualizationServiceInternal vs =
                 IVirtualizationServiceInternal.Stub.asInterface(
-                        ServiceManager.getService("android.system.virtualizationservice"));
+                        ServiceManager.waitForService("android.system.virtualizationservice"));
         try {
-            assert vs != null;
-            Log.d(TAG, "wait for the service");
+            Log.d(TAG, "wait for the display service");
             ICrosvmAndroidDisplayService service =
                     ICrosvmAndroidDisplayService.Stub.asInterface(vs.waitDisplayService());
             assert service != null;
