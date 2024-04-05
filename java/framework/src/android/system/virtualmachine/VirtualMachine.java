@@ -433,6 +433,7 @@ public class VirtualMachine implements AutoCloseable {
                 config.serialize(vm.mConfigFilePath);
                 if (vm.mInstanceIdPath != null) {
                     vm.importInstanceIdFrom(vmDescriptor.getInstanceIdFd());
+                    vm.claimInstance();
                 }
 
                 try {
@@ -595,6 +596,23 @@ public class VirtualMachine implements AutoCloseable {
             deleteRecursively(getVmDir(context, name));
         } catch (IOException e) {
             throw new VirtualMachineException(e);
+        }
+    }
+
+    // Claim the instance. This notifies the global VS about the ownership of this
+    // instance_id for housekeeping purpose.
+    void claimInstance() throws VirtualMachineException {
+        if (mInstanceIdPath != null) {
+            IVirtualizationService service = mVirtualizationService.getBinder();
+            try {
+                byte[] instanceId = Files.readAllBytes(mInstanceIdPath.toPath());
+                service.claimVmInstance(instanceId);
+            }
+            catch (IOException e) {
+                throw new VirtualMachineException("failed to read instance_id", e);
+            } catch (RemoteException e) {
+                throw e.rethrowAsRuntimeException();
+            }
         }
     }
 
