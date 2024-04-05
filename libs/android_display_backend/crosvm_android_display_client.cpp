@@ -134,6 +134,16 @@ struct android_display_context* create_android_display_context(
 LIBEXPORT
 void destroy_android_display_context(android_display_log_callback_type error_callback,
                                      struct android_display_context* ctx) {
+    auto service = ::ndk::SharedRefBase::make<DisplayService>();
+    ::ndk::SpAIBinder binder(
+            AServiceManager_waitForService("android.system.virtualizationservice"));
+    auto virt_service = IVirtualizationServiceInternal::fromBinder(binder);
+    if (virt_service != nullptr) {
+        auto status = virt_service->clearDisplayService();
+    } else {
+        ErrorF(error_callback, "Failed to find android.system.virtualizationservice");
+    }
+
     if (!ctx) {
         ErrorF(error_callback, "Invalid context.");
         return;
