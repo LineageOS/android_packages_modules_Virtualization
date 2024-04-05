@@ -116,4 +116,8 @@ interface IVirtualizationServiceInternal {
      * @param instanceId The ID for the VM.
      */
     void claimVmInstance(in byte[64] instanceId);
+
+    // TODO(b/330257000): Remove these functions when a display service is running with binder RPC.
+    void setDisplayService(IBinder ibinder);
+    IBinder waitDisplayService();
 }

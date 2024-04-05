@@ -37,11 +37,12 @@ cc_library_static {
     srcs: [
         "crosvm_android_display_client.cpp",
     ],
-    stl: "libc++_static",
     whole_static_libs: [
         "libcrosvm_android_display_service-ndk",
+        "android.system.virtualizationservice_internal-ndk",
+        "android.system.virtualizationcommon-ndk",
+        "android.system.virtualizationservice-ndk",
         "libyuv",
-        "libc++_static",
     ],
     shared_libs: [
         "libbinder_ndk",
