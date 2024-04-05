@@ -15,6 +15,7 @@
  */
 
 #include <aidl/android/crosvm/BnCrosvmAndroidDisplayService.h>
+#include <aidl/android/system/virtualizationservice_internal/IVirtualizationServiceInternal.h>
 #include <android/binder_manager.h>
 #include <android/binder_process.h>
 #include <android/native_window.h>
@@ -27,6 +28,8 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+
+using aidl::android::system::virtualizationservice_internal::IVirtualizationServiceInternal;
 
 #define LIBEXPORT __attribute__((visibility("default"))) extern "C"
 
@@ -104,9 +107,16 @@ struct android_display_context* create_android_display_context(
                strlen(name));
         return nullptr;
     }
+    ::ndk::SpAIBinder binder(
+            AServiceManager_waitForService("android.system.virtualizationservice"));
 
-    auto status = AServiceManager_addService(service->asBinder().get(), name);
-    if (status != STATUS_OK) {
+    auto virt_service = IVirtualizationServiceInternal::fromBinder(binder);
+    if (virt_service == nullptr) {
+        ErrorF(error_callback, "Failed to find android.system.virtualizationservice");
+        return nullptr;
+    }
+    auto status = virt_service->setDisplayService(service->asBinder());
+    if (!status.isOk()) {
         ErrorF(error_callback, "Failed to register %s",
                aidl::android::crosvm::ICrosvmAndroidDisplayService::descriptor);
         return nullptr;
