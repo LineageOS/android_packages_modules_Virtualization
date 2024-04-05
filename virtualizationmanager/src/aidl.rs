@@ -231,6 +231,7 @@ impl IVirtualizationService for VirtualizationService {
 
     /// Allocate a new instance_id to the VM
     fn allocateInstanceId(&self) -> binder::Result<[u8; 64]> {
+        check_manage_access()?;
         GLOBAL_SERVICE.allocateInstanceId()
     }
 
@@ -325,6 +326,11 @@ impl IVirtualizationService for VirtualizationService {
         // this, however other guest OSes may do things differently.
         check_manage_access()?;
         Ok(is_secretkeeper_supported())
+    }
+
+    fn claimVmInstance(&self, instance_id: &[u8; 64]) -> binder::Result<()> {
+        check_manage_access()?;
+        GLOBAL_SERVICE.claimVmInstance(instance_id)
     }
 }
 
