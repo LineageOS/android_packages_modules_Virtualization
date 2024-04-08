@@ -34,7 +34,7 @@ use std::fs::{read_to_string, File};
 use std::io::{self, Read};
 use std::mem;
 use std::num::{NonZeroU16, NonZeroU32};
-use std::os::unix::io::{AsRawFd, RawFd, FromRawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
@@ -1041,10 +1041,6 @@ fn format_serial_out_arg(preserved_fds: &mut Vec<RawFd>, file: &Option<File>) ->
 
 /// Creates a new pipe with the `O_CLOEXEC` flag set, and returns the read side and write side.
 fn create_pipe() -> Result<(File, File), Error> {
-    let (raw_read, raw_write) = pipe2(OFlag::O_CLOEXEC)?;
-    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
-    let read_fd = unsafe { File::from_raw_fd(raw_read) };
-    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
-    let write_fd = unsafe { File::from_raw_fd(raw_write) };
-    Ok((read_fd, write_fd))
+    let (read_fd, write_fd) = pipe2(OFlag::O_CLOEXEC)?;
+    Ok((read_fd.into(), write_fd.into()))
 }
