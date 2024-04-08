@@ -1555,7 +1555,6 @@ public class MicrodroidTests extends MicrodroidDeviceTestBase {
             assertFileContentsAreEqualInTwoVms("storage.img", vmNameOrig, vmNameImport);
         }
         assertThat(vmImport).isNotEqualTo(vmOrig);
-        vmm.delete(vmNameOrig);
         assertThat(vmImport).isEqualTo(vmm.get(vmNameImport));
         TestResults testResults =
                 runVmTestService(
