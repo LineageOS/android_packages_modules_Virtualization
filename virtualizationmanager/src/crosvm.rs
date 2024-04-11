@@ -955,12 +955,15 @@ fn run_vm(
     if let Some(dt_overlay) = &config.device_tree_overlay {
         command.arg("--device-tree-overlay").arg(add_preserved_fd(&mut preserved_fds, dt_overlay));
     }
-    if let Some(display_config) = &config.display_config {
-        command.arg("--gpu")
-        // TODO(b/331708504): support backend config as well
-        .arg("backend=virglrenderer,context-types=virgl2,egl=true,surfaceless=true,glx=false,gles=true")
-        .arg(format!("--gpu-display=mode=windowed[{},{}],dpi=[{},{}],refresh-rate={}", display_config.width, display_config.height, display_config.horizontal_dpi, display_config.vertical_dpi, display_config.refresh_rate))
-        .arg(format!("--android-display-service={}", config.name));
+
+    if cfg!(paravirtualized_devices) {
+        if let Some(display_config) = &config.display_config {
+            command.arg("--gpu")
+            // TODO(b/331708504): support backend config as well
+            .arg("backend=virglrenderer,context-types=virgl2,egl=true,surfaceless=true,glx=false,gles=true")
+            .arg(format!("--gpu-display=mode=windowed[{},{}],dpi=[{},{}],refresh-rate={}", display_config.width, display_config.height, display_config.horizontal_dpi, display_config.vertical_dpi, display_config.refresh_rate))
+            .arg(format!("--android-display-service={}", config.name));
+        }
     }
 
     append_platform_devices(&mut command, &mut preserved_fds, &config)?;

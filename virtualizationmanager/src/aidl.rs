@@ -581,13 +581,16 @@ impl VirtualizationService {
         } else {
             (vec![], None)
         };
-
-        let display_config = config
-            .displayConfig
-            .as_ref()
-            .map(DisplayConfig::new)
-            .transpose()
-            .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT)?;
+        let display_config = if cfg!(paravirtualized_devices) {
+            config
+                .displayConfig
+                .as_ref()
+                .map(DisplayConfig::new)
+                .transpose()
+                .or_binder_exception(ExceptionCode::ILLEGAL_ARGUMENT)?
+        } else {
+            None
+        };
 
         // Actually start the VM.
         let crosvm_config = CrosvmConfig {
