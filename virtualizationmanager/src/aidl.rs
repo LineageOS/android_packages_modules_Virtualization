@@ -1443,13 +1443,11 @@ fn clone_or_prepare_logger_fd(
         return Ok(None);
     };
 
-    let (raw_read_fd, raw_write_fd) =
+    let (read_fd, write_fd) =
         pipe().context("Failed to create pipe").or_service_specific_exception(-1)?;
 
-    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
-    let mut reader = BufReader::new(unsafe { File::from_raw_fd(raw_read_fd) });
-    // SAFETY: We are the sole owner of this FD as we just created it, and it is valid and open.
-    let write_fd = unsafe { File::from_raw_fd(raw_write_fd) };
+    let mut reader = BufReader::new(File::from(read_fd));
+    let write_fd = File::from(write_fd);
 
     std::thread::spawn(move || loop {
         let mut buf = vec![];
