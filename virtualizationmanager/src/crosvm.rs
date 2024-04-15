@@ -977,6 +977,15 @@ fn run_vm(
     }
 
     if cfg!(paravirtualized_devices) {
+        // TODO(b/325929096): Need to set up network from the config
+        if rustutils::system_properties::read_bool("ro.crosvm.network.setup.done", false)
+            .unwrap_or(false)
+        {
+            command.arg("--net").arg("tap-name=crosvm_tap");
+        }
+    }
+
+    if cfg!(paravirtualized_devices) {
         for input_device_option in config.input_device_options.iter() {
             command.arg("--input");
             command.arg(match input_device_option {
