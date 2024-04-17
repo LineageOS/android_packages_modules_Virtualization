@@ -214,15 +214,15 @@ impl DebugConfig {
     }
 
     fn from_custom_debug_overlay_policy(debug_level: DebugLevel, path: &Path) -> Result<Self> {
-        match OwnedFdt::from_overlay_onto_new_fdt(path) {
-            Ok(fdt) => Ok(Self {
-                debug_level,
-                debug_policy_log: get_fdt_prop_bool(fdt.as_fdt(), &DP_LOG_PATH)?,
-                debug_policy_ramdump: get_fdt_prop_bool(fdt.as_fdt(), &DP_RAMDUMP_PATH)?,
-                debug_policy_adb: get_fdt_prop_bool(fdt.as_fdt(), &DP_ADB_PATH)?,
-            }),
-            Err(err) => Err(err),
-        }
+        let owned_fdt = OwnedFdt::from_overlay_onto_new_fdt(path)?;
+        let fdt = owned_fdt.as_fdt();
+
+        Ok(Self {
+            debug_level,
+            debug_policy_log: get_fdt_prop_bool(fdt, &DP_LOG_PATH)?,
+            debug_policy_ramdump: get_fdt_prop_bool(fdt, &DP_RAMDUMP_PATH)?,
+            debug_policy_adb: get_fdt_prop_bool(fdt, &DP_ADB_PATH)?,
+        })
     }
 
     fn from_host(debug_level: DebugLevel) -> Result<Self> {
