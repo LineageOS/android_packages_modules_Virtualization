@@ -162,7 +162,13 @@ impl DebugConfig {
             _ => DebugLevel::NONE,
         };
 
-        match system_properties::read(CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP).unwrap_or_default() {
+        let dp_sysprop = system_properties::read(CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP);
+        let custom_dp = dp_sysprop.unwrap_or_else(|e| {
+            warn!("Failed to read sysprop {CUSTOM_DEBUG_POLICY_OVERLAY_SYSPROP}: {e}");
+            Default::default()
+        });
+
+        match custom_dp {
             Some(path) if !path.is_empty() => {
                 match Self::from_custom_debug_overlay_policy(debug_level, Path::new(&path)) {
                     Ok(debug_config) => {
