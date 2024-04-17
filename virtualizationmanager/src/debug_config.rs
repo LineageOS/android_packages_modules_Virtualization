@@ -147,7 +147,7 @@ impl OwnedFdt {
 }
 
 /// Debug configurations for both debug level and debug policy
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DebugConfig {
     pub debug_level: DebugLevel,
     debug_policy_log: bool,
@@ -190,17 +190,18 @@ impl DebugConfig {
         }
 
         info!("Debug policy is disabled");
-        Self::new_with_debug_level(debug_level)
-    }
-
-    /// Creates a new DebugConfig with debug level. Only use this for test purpose.
-    pub fn new_with_debug_level(debug_level: DebugLevel) -> Self {
         Self {
             debug_level,
             debug_policy_log: false,
             debug_policy_ramdump: false,
             debug_policy_adb: false,
         }
+    }
+
+    #[cfg(test)]
+    /// Creates a new DebugConfig with debug level. Only use this for test purpose.
+    pub(crate) fn new_with_debug_level(debug_level: DebugLevel) -> Self {
+        Self { debug_level, ..Default::default() }
     }
 
     /// Get whether console output should be configred for VM to leave console and adb log.
@@ -321,6 +322,20 @@ mod tests {
         assert!(!debug_config.debug_policy_log);
         assert!(!debug_config.debug_policy_ramdump);
         assert!(!debug_config.debug_policy_adb);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_new_with_debug_level() -> Result<()> {
+        assert_eq!(
+            DebugConfig::new_with_debug_level(DebugLevel::NONE).debug_level,
+            DebugLevel::NONE
+        );
+        assert_eq!(
+            DebugConfig::new_with_debug_level(DebugLevel::FULL).debug_level,
+            DebugLevel::FULL
+        );
 
         Ok(())
     }
