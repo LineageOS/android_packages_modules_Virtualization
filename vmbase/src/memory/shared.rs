@@ -20,6 +20,7 @@ use super::page_table::{PageTable, MMIO_LAZY_MAP_FLAG};
 use super::util::{page_4kb_of, virt_to_phys};
 use crate::dsb;
 use crate::exceptions::HandleExceptionError;
+use crate::hyp::{self, get_mem_sharer, get_mmio_guard, MMIO_GUARD_GRANULE_SIZE};
 use crate::util::RangeExt as _;
 use aarch64_paging::paging::{
     Attributes, Descriptor, MemoryRegion as VaRange, VirtualAddress, BITS_PER_LEVEL, PAGE_SIZE,
@@ -35,7 +36,6 @@ use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::ptr::NonNull;
 use core::result;
-use hyp::{get_mem_sharer, get_mmio_guard, MMIO_GUARD_GRANULE_SIZE};
 use log::{debug, error, trace};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;

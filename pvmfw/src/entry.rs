@@ -23,7 +23,6 @@ use core::mem::{drop, size_of};
 use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::slice;
-use hyp::{get_mem_sharer, get_mmio_guard};
 use log::debug;
 use log::error;
 use log::info;
@@ -32,6 +31,7 @@ use log::LevelFilter;
 use vmbase::util::RangeExt as _;
 use vmbase::{
     configure_heap, console,
+    hyp::{get_mem_sharer, get_mmio_guard},
     layout::{self, crosvm},
     main,
     memory::{min_dcache_line_size, MemoryTracker, MEMORY, SIZE_128KB, SIZE_4KB},

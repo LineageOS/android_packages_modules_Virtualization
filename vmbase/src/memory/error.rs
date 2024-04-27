@@ -16,6 +16,8 @@
 
 use core::fmt;
 
+use crate::hyp;
+
 /// Errors for MemoryTracker operations.
 #[derive(Debug, Clone)]
 pub enum MemoryTrackerError {

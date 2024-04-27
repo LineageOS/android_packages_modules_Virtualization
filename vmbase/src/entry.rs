@@ -15,17 +15,16 @@
 //! Rust entry point.
 
 use crate::{
-    bionic, console, heap, logger,
+    bionic, console, heap, hyp, logger,
     power::{reboot, shutdown},
     rand,
 };
 use core::mem::size_of;
-use hyp::{self, get_mmio_guard};
 
 fn try_console_init() -> Result<(), hyp::Error> {
     console::init();
 
-    if let Some(mmio_guard) = get_mmio_guard() {
+    if let Some(mmio_guard) = hyp::get_mmio_guard() {
         mmio_guard.enroll()?;
         mmio_guard.validate_granule()?;
         mmio_guard.map(console::BASE_ADDRESS)?;
