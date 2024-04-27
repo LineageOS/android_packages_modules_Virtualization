@@ -14,9 +14,9 @@
 
 //! Error and Result types for hypervisor.
 
-use crate::GeniezoneError;
-use crate::KvmError;
 use core::{fmt, result};
+
+use super::hypervisor::{GeniezoneError, KvmError};
 use uuid::Uuid;
 
 /// Result type with hypervisor error.

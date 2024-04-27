@@ -14,14 +14,12 @@
 
 //! Wrappers around hypervisor back-ends.
 
-extern crate alloc;
-
 mod common;
 mod geniezone;
 mod gunyah;
 mod kvm;
 
-use crate::error::{Error, Result};
+use super::{Error, Result};
 use alloc::boxed::Box;
 use common::Hypervisor;
 pub use common::{

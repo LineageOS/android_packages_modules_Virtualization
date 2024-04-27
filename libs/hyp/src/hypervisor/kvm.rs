@@ -14,12 +14,11 @@
 
 //! Wrappers around calls to the KVM hypervisor.
 
-use super::common::{
-    DeviceAssigningHypervisor, Hypervisor, MemSharingHypervisor, MmioGuardedHypervisor,
-};
-use crate::error::{Error, Result};
-use crate::util::page_address;
 use core::fmt::{self, Display, Formatter};
+
+use super::{DeviceAssigningHypervisor, Hypervisor, MemSharingHypervisor, MmioGuardedHypervisor};
+use crate::{util::page_address, Error, Result};
+
 use smccc::{
     error::{positive_or_error_64, success_or_error_32, success_or_error_64},
     hvc64,
