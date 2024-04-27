@@ -14,7 +14,10 @@
 
 //! This module regroups some common traits shared by all the hypervisors.
 
-use crate::hyp::{util::SIZE_4KB, Error, Result};
+use crate::{
+    hyp::{Error, Result},
+    memory::SIZE_4KB,
+};
 
 /// Expected MMIO guard granule size, validated during MMIO guard initialization.
 pub const MMIO_GUARD_GRANULE_SIZE: usize = SIZE_4KB;

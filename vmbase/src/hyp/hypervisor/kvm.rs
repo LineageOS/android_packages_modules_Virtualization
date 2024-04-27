@@ -17,7 +17,10 @@
 use core::fmt::{self, Display, Formatter};
 
 use super::{DeviceAssigningHypervisor, Hypervisor, MemSharingHypervisor, MmioGuardedHypervisor};
-use crate::hyp::{util::page_address, Error, Result};
+use crate::{
+    hyp::{Error, Result},
+    memory::page_4kb_of,
+};
 
 use smccc::{
     error::{positive_or_error_64, success_or_error_32, success_or_error_64},
@@ -112,7 +115,7 @@ impl MmioGuardedHypervisor for ProtectedKvmHypervisor {
 
     fn map(&self, addr: usize) -> Result<()> {
         let mut args = [0u64; 17];
-        args[0] = page_address(addr);
+        args[0] = page_4kb_of(addr).try_into().unwrap();
 
         // TODO(b/277859415): pKVM returns a i32 instead of a i64 in T.
         // Drop this hack once T reaches EoL.
@@ -122,7 +125,7 @@ impl MmioGuardedHypervisor for ProtectedKvmHypervisor {
 
     fn unmap(&self, addr: usize) -> Result<()> {
         let mut args = [0u64; 17];
-        args[0] = page_address(addr);
+        args[0] = page_4kb_of(addr).try_into().unwrap();
 
         // TODO(b/277860860): pKVM returns NOT_SUPPORTED for SUCCESS in T.
         // Drop this hack once T reaches EoL.

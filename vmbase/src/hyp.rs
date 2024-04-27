@@ -16,7 +16,6 @@
 
 mod error;
 mod hypervisor;
-mod util;
 
 pub use error::{Error, Result};
 pub use hypervisor::{
