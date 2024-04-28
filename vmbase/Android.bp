@@ -93,7 +93,9 @@ rust_library_rlib {
     whole_static_libs: [
         "librust_baremetal",
     ],
+    // TODO(b/277859415, b/277860860): Drop "compat_android_13".
     features: [
+        "compat_android_13",
         "cpu_feat_hafdbs",
     ],
 }
