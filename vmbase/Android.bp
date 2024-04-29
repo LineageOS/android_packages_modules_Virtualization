@@ -84,6 +84,7 @@ rust_library_rlib {
         "libonce_cell_nostd",
         "libsmccc",
         "libspin_nostd",
+        "libstatic_assertions",
         "libtinyvec_nostd",
         "libuuid_nostd",
         "libvirtio_drivers",

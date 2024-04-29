@@ -249,7 +249,7 @@ fn main_wrapper(
     config_entries.bcc.zeroize();
 
     info!("Expecting a bug making MMIO_GUARD_UNMAP return NOT_SUPPORTED on success");
-    MEMORY.lock().as_mut().unwrap().mmio_unmap_all().map_err(|e| {
+    MEMORY.lock().as_mut().unwrap().unshare_all_mmio().map_err(|e| {
         error!("Failed to unshare MMIO ranges: {e}");
         RebootReason::InternalError
     })?;
