@@ -49,6 +49,8 @@ pub enum MemoryTrackerError {
     FlushRegionFailed,
     /// Failed to set PTE dirty state.
     SetPteDirtyFailed,
+    /// Attempting to MMIO_GUARD_MAP more than once the same region.
+    DuplicateMmioShare(usize),
 }
 
 impl fmt::Display for MemoryTrackerError {
@@ -68,6 +70,9 @@ impl fmt::Display for MemoryTrackerError {
             Self::InvalidPte => write!(f, "Page table entry is not valid"),
             Self::FlushRegionFailed => write!(f, "Failed to flush memory region"),
             Self::SetPteDirtyFailed => write!(f, "Failed to set PTE dirty state"),
+            Self::DuplicateMmioShare(addr) => {
+                write!(f, "Attempted to share the same MMIO region at {addr:#x} twice")
+            }
         }
     }
 }
