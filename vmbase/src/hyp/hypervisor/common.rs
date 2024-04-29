@@ -14,10 +14,7 @@
 
 //! This module regroups some common traits shared by all the hypervisors.
 
-use crate::{
-    hyp::{Error, Result},
-    memory::SIZE_4KB,
-};
+use crate::{hyp::Result, memory::SIZE_4KB};
 
 /// Expected MMIO guard granule size, validated during MMIO guard initialization.
 pub const MMIO_GUARD_GRANULE_SIZE: usize = SIZE_4KB;
@@ -55,15 +52,6 @@ pub trait MmioGuardedHypervisor {
 
     /// Returns the MMIO guard granule size in bytes.
     fn granule(&self) -> Result<usize>;
-
-    // TODO(ptosi): Fully move granule validation to client code.
-    /// Validates the MMIO guard granule size.
-    fn validate_granule(&self) -> Result<()> {
-        match self.granule()? {
-            MMIO_GUARD_GRANULE_SIZE => Ok(()),
-            granule => Err(Error::UnsupportedMmioGuardGranule(granule)),
-        }
-    }
 }
 
 pub trait MemSharingHypervisor {

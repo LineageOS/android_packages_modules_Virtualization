@@ -51,6 +51,8 @@ pub enum MemoryTrackerError {
     SetPteDirtyFailed,
     /// Attempting to MMIO_GUARD_MAP more than once the same region.
     DuplicateMmioShare(usize),
+    /// The MMIO_GUARD granule used by the hypervisor is not supported.
+    UnsupportedMmioGuardGranule(usize),
 }
 
 impl fmt::Display for MemoryTrackerError {
@@ -72,6 +74,9 @@ impl fmt::Display for MemoryTrackerError {
             Self::SetPteDirtyFailed => write!(f, "Failed to set PTE dirty state"),
             Self::DuplicateMmioShare(addr) => {
                 write!(f, "Attempted to share the same MMIO region at {addr:#x} twice")
+            }
+            Self::UnsupportedMmioGuardGranule(g) => {
+                write!(f, "Unsupported MMIO guard granule: {g}")
             }
         }
     }

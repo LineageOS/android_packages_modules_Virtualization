@@ -386,14 +386,24 @@ struct MmioSharer {
 
 impl MmioSharer {
     fn new() -> Result<Self> {
-        let granule = MMIO_GUARD_GRANULE_SIZE;
-        const_assert_eq!(MMIO_GUARD_GRANULE_SIZE, PAGE_SIZE); // For good measure.
+        let granule = Self::get_granule()?;
         let frames = BTreeSet::new();
 
         // Allows safely calling util::unchecked_align_down().
         assert!(granule.is_power_of_two());
 
         Ok(Self { granule, frames })
+    }
+
+    fn get_granule() -> Result<usize> {
+        const_assert_eq!(MMIO_GUARD_GRANULE_SIZE, PAGE_SIZE); // For good measure.
+        let Some(mmio_guard) = get_mmio_guard() else {
+            return Ok(PAGE_SIZE);
+        };
+        match mmio_guard.granule()? {
+            MMIO_GUARD_GRANULE_SIZE => Ok(MMIO_GUARD_GRANULE_SIZE),
+            granule => Err(MemoryTrackerError::UnsupportedMmioGuardGranule(granule)),
+        }
     }
 
     /// Share the MMIO region aligned to the granule size containing addr (not validated as MMIO).

@@ -15,7 +15,9 @@
 //! Rust entry point.
 
 use crate::{
-    bionic, console, heap, hyp, logger,
+    bionic, console, heap,
+    hyp::{self, MMIO_GUARD_GRANULE_SIZE},
+    logger,
     power::{reboot, shutdown},
     rand,
 };
@@ -26,7 +28,11 @@ fn try_console_init() -> Result<(), hyp::Error> {
 
     if let Some(mmio_guard) = hyp::get_mmio_guard() {
         mmio_guard.enroll()?;
-        mmio_guard.validate_granule()?;
+
+        // TODO(ptosi): Use MmioSharer::share() to properly track this MMIO_GUARD_MAP.
+        //
+        // MmioSharer only supports MMIO_GUARD_GRANULE_SIZE so fail early here if needed.
+        assert_eq!(mmio_guard.granule()?, MMIO_GUARD_GRANULE_SIZE);
         mmio_guard.map(console::BASE_ADDRESS)?;
     }
 
