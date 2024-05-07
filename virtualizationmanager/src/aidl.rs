@@ -434,7 +434,8 @@ impl VirtualizationService {
         if cfg!(llpvm_changes) {
             instance_id = extract_instance_id(config);
             untrusted_props.push((cstr!("instance-id"), &instance_id[..]));
-            if is_secretkeeper_supported() {
+            let want_updatable = extract_want_updatable(config);
+            if want_updatable && is_secretkeeper_supported() {
                 // Let guest know that it can defer rollback protection to Secretkeeper by setting
                 // an empty property in untrusted node in DT. This enables Updatable VMs.
                 untrusted_props.push((cstr!("defer-rollback-protection"), &[]))
@@ -1371,6 +1372,16 @@ fn extract_instance_id(config: &VirtualMachineConfig) -> [u8; 64] {
     match config {
         VirtualMachineConfig::RawConfig(config) => config.instanceId,
         VirtualMachineConfig::AppConfig(config) => config.instanceId,
+    }
+}
+
+fn extract_want_updatable(config: &VirtualMachineConfig) -> bool {
+    match config {
+        VirtualMachineConfig::RawConfig(_) => true,
+        VirtualMachineConfig::AppConfig(config) => {
+            let Some(custom) = &config.customConfig else { return true };
+            custom.wantUpdatable
+        }
     }
 }
 
