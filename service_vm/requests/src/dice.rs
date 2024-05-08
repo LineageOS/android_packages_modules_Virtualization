@@ -210,7 +210,12 @@ impl TryFrom<CoseKey> for PublicKey {
     type Error = RequestProcessingError;
 
     fn try_from(key: CoseKey) -> Result<Self> {
-        if !key.key_ops.contains(&KeyOperation::Assigned(iana::KeyOperation::Verify)) {
+        // The public key must allow use for verification.
+        // Note that an empty key_ops set implicitly allows everything.
+        let key_ops = &key.key_ops;
+        if !key_ops.is_empty()
+            && !key_ops.contains(&KeyOperation::Assigned(iana::KeyOperation::Verify))
+        {
             error!("Public key does not support verification");
             return Err(RequestProcessingError::InvalidDiceChain);
         }
