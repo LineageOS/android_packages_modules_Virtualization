@@ -120,7 +120,7 @@ pub(super) fn request_attestation(
 fn ecdsa_verify(key: &EcKey, signature: &[u8], message: &[u8]) -> bssl_avf::Result<()> {
     // The message was signed with ECDSA with curve P-256 and SHA-256 at the signature generation.
     let digest = sha256(message)?;
-    key.ecdsa_verify(signature, &digest)
+    key.ecdsa_verify_der(signature, &digest)
 }
 
 fn ecdsa_sign(key: &EcKey, message: &[u8]) -> bssl_avf::Result<Vec<u8>> {
