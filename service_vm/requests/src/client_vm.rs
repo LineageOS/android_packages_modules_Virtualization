@@ -123,7 +123,7 @@ fn ecdsa_verify(key: &EcKey, signature: &[u8], message: &[u8]) -> bssl_avf::Resu
 
 fn ecdsa_sign(key: &EcKey, message: &[u8]) -> bssl_avf::Result<Vec<u8>> {
     let digest = sha256(message)?;
-    key.ecdsa_sign(&digest)
+    key.ecdsa_sign_der(&digest)
 }
 
 fn validate_service_vm_dice_chain_length(service_vm_dice_chain: &[Value]) -> Result<()> {

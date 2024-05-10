@@ -249,7 +249,7 @@ impl PublicKey {
                     }
                 };
                 let digest = digester.digest(message)?;
-                Ok(public_key.ecdsa_verify_nist(signature, &digest)?)
+                Ok(public_key.ecdsa_verify_cose(signature, &digest)?)
             }
             KeyType::Assigned(iana::KeyType::OKP) => {
                 let curve_type =
