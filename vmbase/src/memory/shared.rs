@@ -17,7 +17,8 @@
 use super::dbm::{flush_dirty_range, mark_dirty_block, set_dbm_enabled};
 use super::error::MemoryTrackerError;
 use super::page_table::{PageTable, MMIO_LAZY_MAP_FLAG};
-use super::util::virt_to_phys;
+use super::util::{page_4kb_of, virt_to_phys};
+use crate::console;
 use crate::dsb;
 use crate::exceptions::HandleExceptionError;
 use crate::hyp::{self, get_mem_sharer, get_mmio_guard, MMIO_GUARD_GRANULE_SIZE};
@@ -412,7 +413,8 @@ impl MmioSharer {
         let phys = addr.0;
         let base = unchecked_align_down(phys, self.granule);
 
-        if self.frames.contains(&base) {
+        // TODO(ptosi): Share the UART using this method and remove the hardcoded check.
+        if self.frames.contains(&base) || base == page_4kb_of(console::BASE_ADDRESS) {
             return Err(MemoryTrackerError::DuplicateMmioShare(base));
         }
 
