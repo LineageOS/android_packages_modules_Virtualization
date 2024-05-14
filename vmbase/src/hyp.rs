@@ -20,5 +20,4 @@ mod hypervisor;
 pub use error::{Error, Result};
 pub use hypervisor::{
     get_device_assigner, get_mem_sharer, get_mmio_guard, DeviceAssigningHypervisor, KvmError,
-    MMIO_GUARD_GRANULE_SIZE,
 };

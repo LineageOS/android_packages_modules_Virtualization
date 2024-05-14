@@ -21,7 +21,7 @@ use super::util::{page_4kb_of, virt_to_phys};
 use crate::console;
 use crate::dsb;
 use crate::exceptions::HandleExceptionError;
-use crate::hyp::{self, get_mem_sharer, get_mmio_guard, MMIO_GUARD_GRANULE_SIZE};
+use crate::hyp::{self, get_mem_sharer, get_mmio_guard};
 use crate::util::unchecked_align_down;
 use crate::util::RangeExt as _;
 use aarch64_paging::paging::{
@@ -42,7 +42,6 @@ use core::result;
 use log::{debug, error, trace};
 use once_cell::race::OnceBox;
 use spin::mutex::SpinMutex;
-use static_assertions::const_assert_eq;
 use tinyvec::ArrayVec;
 
 /// A global static variable representing the system memory tracker, protected by a spin mutex.
@@ -397,12 +396,11 @@ impl MmioSharer {
     }
 
     fn get_granule() -> Result<usize> {
-        const_assert_eq!(MMIO_GUARD_GRANULE_SIZE, PAGE_SIZE); // For good measure.
         let Some(mmio_guard) = get_mmio_guard() else {
             return Ok(PAGE_SIZE);
         };
         match mmio_guard.granule()? {
-            MMIO_GUARD_GRANULE_SIZE => Ok(MMIO_GUARD_GRANULE_SIZE),
+            granule if granule % PAGE_SIZE == 0 => Ok(granule), // For good measure.
             granule => Err(MemoryTrackerError::UnsupportedMmioGuardGranule(granule)),
         }
     }
