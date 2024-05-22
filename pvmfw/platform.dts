@@ -8,6 +8,19 @@
 #define PLACEHOLDER2	PLACEHOLDER PLACEHOLDER
 #define PLACEHOLDER4	PLACEHOLDER2 PLACEHOLDER2
 
+#define PLACEHOLDER_CPU_MAP_CORE(n) core##n { cpu = <PLACEHOLDER>; };
+#define PLACEHOLDER_CPU_MAP_CLUSTER \
+	PLACEHOLDER_CPU_MAP_CORE(0) \
+	PLACEHOLDER_CPU_MAP_CORE(1) \
+	PLACEHOLDER_CPU_MAP_CORE(2) \
+	PLACEHOLDER_CPU_MAP_CORE(3) \
+	PLACEHOLDER_CPU_MAP_CORE(4) \
+	PLACEHOLDER_CPU_MAP_CORE(5) \
+	PLACEHOLDER_CPU_MAP_CORE(6) \
+	PLACEHOLDER_CPU_MAP_CORE(7) \
+	PLACEHOLDER_CPU_MAP_CORE(8) \
+	PLACEHOLDER_CPU_MAP_CORE(9)
+
 #define PLACEHOLDER_OPP_TABLE_ENTRY(n) opp##n { opp-hz = <PLACEHOLDER2>; };
 #define PLACEHOLDER_OPP_TABLE \
 	PLACEHOLDER_OPP_TABLE_ENTRY(1) \
@@ -77,42 +90,9 @@
 		#size-cells = <0>;
 
 		cpu-map {
-			cluster0 {
-				core0 { cpu = <PLACEHOLDER>; };
-				core1 { cpu = <PLACEHOLDER>; };
-				core2 { cpu = <PLACEHOLDER>; };
-				core3 { cpu = <PLACEHOLDER>; };
-				core4 { cpu = <PLACEHOLDER>; };
-				core5 { cpu = <PLACEHOLDER>; };
-				core6 { cpu = <PLACEHOLDER>; };
-				core7 { cpu = <PLACEHOLDER>; };
-				core8 { cpu = <PLACEHOLDER>; };
-				core9 { cpu = <PLACEHOLDER>; };
-			};
-			cluster1 {
-				core0 { cpu = <PLACEHOLDER>; };
-				core1 { cpu = <PLACEHOLDER>; };
-				core2 { cpu = <PLACEHOLDER>; };
-				core3 { cpu = <PLACEHOLDER>; };
-				core4 { cpu = <PLACEHOLDER>; };
-				core5 { cpu = <PLACEHOLDER>; };
-				core6 { cpu = <PLACEHOLDER>; };
-				core7 { cpu = <PLACEHOLDER>; };
-				core8 { cpu = <PLACEHOLDER>; };
-				core9 { cpu = <PLACEHOLDER>; };
-			};
-			cluster2 {
-				core0 { cpu = <PLACEHOLDER>; };
-				core1 { cpu = <PLACEHOLDER>; };
-				core2 { cpu = <PLACEHOLDER>; };
-				core3 { cpu = <PLACEHOLDER>; };
-				core4 { cpu = <PLACEHOLDER>; };
-				core5 { cpu = <PLACEHOLDER>; };
-				core6 { cpu = <PLACEHOLDER>; };
-				core7 { cpu = <PLACEHOLDER>; };
-				core8 { cpu = <PLACEHOLDER>; };
-				core9 { cpu = <PLACEHOLDER>; };
-			};
+			cluster0 { PLACEHOLDER_CPU_MAP_CLUSTER };
+			cluster1 { PLACEHOLDER_CPU_MAP_CLUSTER };
+			cluster2 { PLACEHOLDER_CPU_MAP_CLUSTER };
 		};
 
 		cpu0: cpu@0 {
