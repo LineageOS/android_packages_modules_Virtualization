@@ -207,11 +207,15 @@ public abstract class MicrodroidDeviceTestBase {
         assume().withMessage("Device doesn't support AVF")
                 .that(mCtx.getPackageManager().hasSystemFeature(FEATURE_VIRTUALIZATION_FRAMEWORK))
                 .isTrue();
-        int vendorApiLevel = SystemProperties.getInt("ro.vendor.api_level", 0);
+        int vendorApiLevel = getVendorApiLevel();
         boolean isGsi = new File("/system/system_ext/etc/init/init.gsi.rc").exists();
         assume().withMessage("GSI with vendor API level < 202404 may not support AVF")
                 .that(isGsi && vendorApiLevel < 202404)
                 .isFalse();
+    }
+
+    protected static int getVendorApiLevel() {
+        return SystemProperties.getInt("ro.vendor.api_level", 0);
     }
 
     protected void assumeSupportedDevice() {
