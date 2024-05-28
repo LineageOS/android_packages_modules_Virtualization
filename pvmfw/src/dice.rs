@@ -71,6 +71,7 @@ fn to_dice_hash(verified_boot_data: &VerifiedBootData) -> Result<Hash> {
     Ok(hash(&digests)?)
 }
 
+#[derive(Clone)]
 pub struct PartialInputs {
     pub code_hash: Hash,
     pub auth_hash: Hash,
@@ -190,9 +191,20 @@ unsafe extern "C" fn DiceClearMemory(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{
+        Hash, PartialInputs, COMPONENT_NAME_KEY, INSTANCE_HASH_KEY, RKP_VM_MARKER_KEY,
+        SECURITY_VERSION_KEY,
+    };
     use ciborium::Value;
+    use diced_open_dice::DiceArtifacts;
+    use diced_open_dice::DiceMode;
+    use diced_open_dice::HIDDEN_SIZE;
+    use pvmfw_avb::Capability;
+    use pvmfw_avb::DebugLevel;
+    use pvmfw_avb::Digest;
+    use pvmfw_avb::VerifiedBootData;
     use std::collections::HashMap;
+    use std::mem::size_of;
     use std::vec;
 
     const COMPONENT_VERSION_KEY: i64 = -70003;
@@ -297,5 +309,68 @@ mod tests {
             .into_iter()
             .map(|(k, v)| ((k.into_integer().unwrap().try_into().unwrap()), v))
             .collect()
+    }
+
+    #[test]
+    fn changing_deferred_rpb_changes_secrets() {
+        let vb_data = VerifiedBootData { debug_level: DebugLevel::Full, ..BASE_VB_DATA };
+        let inputs = PartialInputs::new(&vb_data).unwrap();
+        let mut buffer_without_defer = [0; 4096];
+        let mut buffer_with_defer = [0; 4096];
+        let mut buffer_without_defer_retry = [0; 4096];
+
+        let sample_dice_input: &[u8] = &[
+            0xa3, // CDI attest
+            0x01, 0x58, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // CDI seal
+            0x02, 0x58, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // DICE chain
+            0x03, 0x82, 0xa6, 0x01, 0x02, 0x03, 0x27, 0x04, 0x02, 0x20, 0x01, 0x21, 0x40, 0x22,
+            0x40, 0x84, 0x40, 0xa0, 0x40, 0x40,
+            // 8-bytes of trailing data that aren't part of the DICE chain.
+            0x84, 0x41, 0x55, 0xa0, 0x42, 0x11, 0x22, 0x40,
+        ];
+
+        inputs
+            .clone()
+            .write_next_bcc(
+                sample_dice_input,
+                &[0u8; HIDDEN_SIZE],
+                Some([0u8; 64]),
+                false,
+                &mut buffer_without_defer,
+            )
+            .unwrap();
+        let bcc_handover1 = diced_open_dice::bcc_handover_parse(&buffer_without_defer).unwrap();
+
+        inputs
+            .clone()
+            .write_next_bcc(
+                sample_dice_input,
+                &[0u8; HIDDEN_SIZE],
+                Some([0u8; 64]),
+                true,
+                &mut buffer_with_defer,
+            )
+            .unwrap();
+        let bcc_handover2 = diced_open_dice::bcc_handover_parse(&buffer_with_defer).unwrap();
+
+        inputs
+            .clone()
+            .write_next_bcc(
+                sample_dice_input,
+                &[0u8; HIDDEN_SIZE],
+                Some([0u8; 64]),
+                false,
+                &mut buffer_without_defer_retry,
+            )
+            .unwrap();
+        let bcc_handover3 =
+            diced_open_dice::bcc_handover_parse(&buffer_without_defer_retry).unwrap();
+
+        assert_ne!(bcc_handover1.cdi_seal(), bcc_handover2.cdi_seal());
+        assert_eq!(bcc_handover1.cdi_seal(), bcc_handover3.cdi_seal());
     }
 }
