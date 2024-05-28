@@ -871,10 +871,13 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         assertWithMessage("Incorrect ABI list").that(abis).hasLength(1);
 
         // Check that no denials have happened so far
-        String logText =
-                getDevice().pullFileContents(CONSOLE_PATH) + getDevice().pullFileContents(LOG_PATH);
+        String consoleText = getDevice().pullFileContents(TRADEFED_CONSOLE_PATH);
+        assertWithMessage("Console output shouldn't be empty").that(consoleText).isNotEmpty();
+        String logText = getDevice().pullFileContents(TRADEFED_LOG_PATH);
+        assertWithMessage("Log output shouldn't be empty").that(logText).isNotEmpty();
+
         assertWithMessage("Unexpected denials during VM boot")
-                .that(logText)
+                .that(consoleText + logText)
                 .doesNotContainMatch("avc:\\s+denied");
 
         assertThat(getDeviceNumCpus(microdroid)).isEqualTo(getDeviceNumCpus(android));
