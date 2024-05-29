@@ -1174,6 +1174,40 @@ public class MicrodroidHostTests extends MicrodroidHostTestCaseBase {
         }
     }
 
+    @Test
+    public void testHugePages() throws Exception {
+        ITestDevice device = getDevice();
+        boolean disableRoot = !device.isAdbRoot();
+        CommandRunner android = new CommandRunner(device);
+
+        final String SHMEM_ENABLED_PATH = "/sys/kernel/mm/transparent_hugepage/shmem_enabled";
+        String thpShmemStr = android.run("cat", SHMEM_ENABLED_PATH);
+
+        assumeFalse("shmem already enabled, skip", thpShmemStr.contains("[advise]"));
+        assumeTrue("Unsupported shmem, skip", thpShmemStr.contains("[never]"));
+
+        device.enableAdbRoot();
+        assumeTrue("adb root is not enabled", device.isAdbRoot());
+        android.run("echo advise > " + SHMEM_ENABLED_PATH);
+
+        final String configPath = "assets/vm_config.json";
+        mMicrodroidDevice =
+                MicrodroidBuilder.fromDevicePath(getPathForPackage(PACKAGE_NAME), configPath)
+                        .debugLevel("full")
+                        .memoryMib(minMemorySize())
+                        .cpuTopology("match_host")
+                        .protectedVm(mProtectedVm)
+                        .gki(mGki)
+                        .hugePages(true)
+                        .build(getAndroidDevice());
+        mMicrodroidDevice.waitForBootComplete(BOOT_COMPLETE_TIMEOUT);
+
+        android.run("echo never >" + SHMEM_ENABLED_PATH);
+        if (disableRoot) {
+            device.disableAdbRoot();
+        }
+    }
+
     @Before
     public void setUp() throws Exception {
         assumeDeviceIsCapable(getDevice());
