@@ -19,40 +19,43 @@ package com.android.virtualization.vmlauncher;
 import static android.system.virtualmachine.VirtualMachineConfig.CPU_TOPOLOGY_MATCH_HOST;
 
 import android.app.Activity;
+import android.crosvm.ICrosvmAndroidDisplayService;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.crosvm.ICrosvmAndroidDisplayService;
 import android.system.virtualizationservice_internal.IVirtualizationServiceInternal;
-import android.system.virtualmachine.VirtualMachineCustomImageConfig;
-import android.system.virtualmachine.VirtualMachineCustomImageConfig.DisplayConfig;
-import android.util.DisplayMetrics;
-import android.util.Log;
 import android.system.virtualmachine.VirtualMachine;
 import android.system.virtualmachine.VirtualMachineCallback;
 import android.system.virtualmachine.VirtualMachineConfig;
+import android.system.virtualmachine.VirtualMachineCustomImageConfig;
+import android.system.virtualmachine.VirtualMachineCustomImageConfig.DisplayConfig;
 import android.system.virtualmachine.VirtualMachineException;
 import android.system.virtualmachine.VirtualMachineManager;
+import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.Display;
 import android.view.InputDevice;
+import android.view.KeyEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.KeyEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.view.WindowMetrics;
+
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -63,7 +66,7 @@ public class MainActivity extends Activity {
     private static final String TAG = "VmLauncherApp";
     private static final String VM_NAME = "my_custom_vm";
     private static final boolean DEBUG = true;
-    private final ExecutorService mExecutorService = Executors.newFixedThreadPool(4);
+    private ExecutorService mExecutorService;
     private VirtualMachine mVirtualMachine;
 
     private VirtualMachineConfig createVirtualMachineConfig(String jsonPath) {
@@ -75,6 +78,7 @@ public class MainActivity extends Activity {
         if (DEBUG) {
             configBuilder.setDebugLevel(VirtualMachineConfig.DEBUG_LEVEL_FULL);
             configBuilder.setVmOutputCaptured(true);
+            configBuilder.setConnectVmConsole(true);
         }
         VirtualMachineCustomImageConfig.Builder customImageConfigBuilder =
                 new VirtualMachineCustomImageConfig.Builder();
@@ -160,6 +164,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mExecutorService = Executors.newCachedThreadPool();
         try {
             // To ensure that the previous display service is removed.
             IVirtualizationServiceInternal.Stub.asInterface(
@@ -239,10 +244,13 @@ public class MainActivity extends Activity {
             if (DEBUG) {
                 InputStream console = mVirtualMachine.getConsoleOutput();
                 InputStream log = mVirtualMachine.getLogOutput();
-                mExecutorService.execute(new Reader("console", console));
+                OutputStream consoleLogFile =
+                        new LineBufferedOutputStream(
+                                getApplicationContext().openFileOutput("console.log", 0));
+                mExecutorService.execute(new CopyStreamTask("console", console, consoleLogFile));
                 mExecutorService.execute(new Reader("log", log));
             }
-        } catch (VirtualMachineException e) {
+        } catch (VirtualMachineException | IOException e) {
             throw new RuntimeException(e);
         }
 
@@ -305,6 +313,15 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (mExecutorService != null) {
+            mExecutorService.shutdownNow();
+        }
+        Log.d(TAG, "destroyed");
+    }
+
+    @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
@@ -356,6 +373,51 @@ public class MainActivity extends Activity {
                 }
             } catch (IOException e) {
                 Log.e(TAG, "Exception while posting " + mName + " output: " + e.getMessage());
+            }
+        }
+    }
+
+    private static class CopyStreamTask implements Runnable {
+        private final String mName;
+        private final InputStream mIn;
+        private final OutputStream mOut;
+
+        CopyStreamTask(String name, InputStream in, OutputStream out) {
+            mName = name;
+            mIn = in;
+            mOut = out;
+        }
+
+        @Override
+        public void run() {
+            try {
+                byte[] buffer = new byte[2048];
+                while (!Thread.interrupted()) {
+                    int len = mIn.read(buffer);
+                    if (len < 0) {
+                        break;
+                    }
+                    mOut.write(buffer, 0, len);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Exception while posting " + mName, e);
+            }
+        }
+    }
+
+    private static class LineBufferedOutputStream extends BufferedOutputStream {
+        LineBufferedOutputStream(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void write(byte[] buf, int off, int len) throws IOException {
+            super.write(buf, off, len);
+            for (int i = 0; i < len; ++i) {
+                if (buf[off + i] == '\n') {
+                    flush();
+                    break;
+                }
             }
         }
     }
