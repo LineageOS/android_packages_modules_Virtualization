@@ -267,7 +267,7 @@ mod tests {
             VerifiedBootData { capabilities: vec![Capability::RemoteAttest], ..BASE_VB_DATA };
         let inputs = PartialInputs::new(&vb_data).unwrap();
         let config_map = decode_config_descriptor(&inputs, None);
-        assert!(config_map.get(&INSTANCE_HASH_KEY).is_none());
+        assert!(!config_map.contains_key(&INSTANCE_HASH_KEY));
     }
 
     fn decode_config_descriptor(
