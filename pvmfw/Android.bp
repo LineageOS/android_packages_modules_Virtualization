@@ -117,9 +117,10 @@ rust_test {
     rustlibs: [
         "libcbor_util",
         "libciborium",
-        "libdiced_open_dice_nostd",
+        "libdiced_open_dice",
         "libpvmfw_avb_nostd",
         "libzerocopy_nostd",
+        "libhex",
     ],
 }
 
