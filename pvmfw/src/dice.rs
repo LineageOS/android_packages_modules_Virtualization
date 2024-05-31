@@ -96,6 +96,7 @@ impl PartialInputs {
         current_bcc_handover: &[u8],
         salt: &[u8; HIDDEN_SIZE],
         instance_hash: Option<Hash>,
+        deferred_rollback_protection: bool,
         next_bcc: &mut [u8],
     ) -> Result<()> {
         let config = self
@@ -107,16 +108,23 @@ impl PartialInputs {
             Config::Descriptor(&config),
             self.auth_hash,
             self.mode,
-            self.make_hidden(salt)?,
+            self.make_hidden(salt, deferred_rollback_protection)?,
         );
         let _ = bcc_handover_main_flow(current_bcc_handover, &dice_inputs, next_bcc)?;
         Ok(())
     }
 
-    fn make_hidden(&self, salt: &[u8; HIDDEN_SIZE]) -> Result<[u8; HIDDEN_SIZE]> {
+    fn make_hidden(
+        &self,
+        salt: &[u8; HIDDEN_SIZE],
+        deferred_rollback_protection: bool,
+    ) -> diced_open_dice::Result<[u8; HIDDEN_SIZE]> {
         // We want to make sure we get a different sealing CDI for:
         // - VMs with different salt values
         // - An RKP VM and any other VM (regardless of salt)
+        // - depending on whether rollback protection has been deferred to payload. This ensures the
+        //   adversary cannot leak the secrets by using old images & setting
+        //   `deferred_rollback_protection` to true.
         // The hidden input for DICE affects the sealing CDI (but the values in the config
         // descriptor do not).
         // Since the hidden input has to be a fixed size, create it as a hash of the values we
@@ -126,10 +134,16 @@ impl PartialInputs {
         struct HiddenInput {
             rkp_vm_marker: bool,
             salt: [u8; HIDDEN_SIZE],
+            deferred_rollback_protection: bool,
         }
-        // TODO(b/291213394): Include `defer_rollback_protection` flag in the Hidden Input to
-        // differentiate the secrets in both cases.
-        Ok(hash(HiddenInput { rkp_vm_marker: self.rkp_vm_marker, salt: *salt }.as_bytes())?)
+        hash(
+            HiddenInput {
+                rkp_vm_marker: self.rkp_vm_marker,
+                salt: *salt,
+                deferred_rollback_protection,
+            }
+            .as_bytes(),
+        )
     }
 
     fn generate_config_descriptor(&self, instance_hash: Option<Hash>) -> Result<Vec<u8>> {
