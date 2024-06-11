@@ -510,6 +510,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
     }
 
     fn createTapInterface(&self, iface_name_suffix: &str) -> binder::Result<ParcelFileDescriptor> {
+        check_internet_permission()?;
         check_use_custom_virtual_machine()?;
         if !cfg!(network) {
             return Err(Status::new_exception_str(
@@ -909,6 +910,12 @@ fn check_manage_access() -> binder::Result<()> {
 /// Check whether the caller of the current Binder method is allowed to use custom VMs
 fn check_use_custom_virtual_machine() -> binder::Result<()> {
     check_permission("android.permission.USE_CUSTOM_VIRTUAL_MACHINE")
+}
+
+/// Check whether the caller of the current Binder method is allowed to create socket and
+/// establish connection between the VM and the Internet.
+fn check_internet_permission() -> binder::Result<()> {
+    check_permission("android.permission.INTERNET")
 }
 
 #[cfg(test)]

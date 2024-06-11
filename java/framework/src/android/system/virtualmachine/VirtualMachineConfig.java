@@ -22,6 +22,7 @@ import static android.os.ParcelFileDescriptor.MODE_READ_WRITE;
 
 import static java.util.Objects.requireNonNull;
 
+import android.Manifest;
 import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.IntRange;
@@ -79,7 +80,8 @@ public final class VirtualMachineConfig {
     private static String[] EMPTY_STRING_ARRAY = {};
 
     // These define the schema of the config file persisted on disk.
-    private static final int VERSION = 8;
+    // Please bump up the version number when adding a new key.
+    private static final int VERSION = 9;
     private static final String KEY_VERSION = "version";
     private static final String KEY_PACKAGENAME = "packageName";
     private static final String KEY_APKPATH = "apkPath";
@@ -98,6 +100,7 @@ public final class VirtualMachineConfig {
     private static final String KEY_VENDOR_DISK_IMAGE_PATH = "vendorDiskImagePath";
     private static final String KEY_OS = "os";
     private static final String KEY_EXTRA_APKS = "extraApks";
+    private static final String KEY_NETWORK_SUPPORTED = "networkSupported";
 
     /** @hide */
     @Retention(RetentionPolicy.SOURCE)
@@ -205,6 +208,9 @@ public final class VirtualMachineConfig {
     /** OS name of the VM using payload binaries. */
     @NonNull @OsName private final String mOs;
 
+    /** Whether to run the VM with supporting network feature or not. */
+    private final boolean mNetworkSupported;
+
     @Retention(RetentionPolicy.SOURCE)
     @StringDef(
             prefix = "MICRODROID",
@@ -239,7 +245,8 @@ public final class VirtualMachineConfig {
             boolean vmConsoleInputSupported,
             boolean connectVmConsole,
             @Nullable File vendorDiskImage,
-            @NonNull @OsName String os) {
+            @NonNull @OsName String os,
+            boolean networkSupported) {
         // This is only called from Builder.build(); the builder handles parameter validation.
         mPackageName = packageName;
         mApkPath = apkPath;
@@ -262,6 +269,7 @@ public final class VirtualMachineConfig {
         mConnectVmConsole = connectVmConsole;
         mVendorDiskImage = vendorDiskImage;
         mOs = os;
+        mNetworkSupported = networkSupported;
     }
 
     /** Loads a config from a file. */
@@ -362,6 +370,8 @@ public final class VirtualMachineConfig {
             }
         }
 
+        builder.setNetworkSupported(b.getBoolean(KEY_NETWORK_SUPPORTED));
+
         return builder.build();
     }
 
@@ -412,6 +422,7 @@ public final class VirtualMachineConfig {
             String[] extraApks = mExtraApks.toArray(new String[0]);
             b.putStringArray(KEY_EXTRA_APKS, extraApks);
         }
+        b.putBoolean(KEY_NETWORK_SUPPORTED, mNetworkSupported);
         b.writeToStream(output);
     }
 
@@ -588,6 +599,16 @@ public final class VirtualMachineConfig {
     }
 
     /**
+     * Returns whether the network feature is supported to the VM or not.
+     *
+     * @hide
+     */
+    @TestApi
+    public boolean isNetworkSupported() {
+        return mNetworkSupported;
+    }
+
+    /**
      * Tests if this config is compatible with other config. Being compatible means that the configs
      * can be interchangeably used for the same virtual machine; they do not change the VM identity
      * or secrets. Such changes include varying the number of CPUs or the size of the RAM. Changes
@@ -682,6 +703,7 @@ public final class VirtualMachineConfig {
         config.cpuTopology = (byte) this.mCpuTopology;
         config.consoleInputDevice = mConsoleInputDevice;
         config.devices = EMPTY_STRING_ARRAY;
+        config.networkSupported = this.mNetworkSupported;
         config.platformVersion = "~1.0";
         return config;
     }
@@ -733,18 +755,23 @@ public final class VirtualMachineConfig {
                 vsConfig.cpuTopology = android.system.virtualizationservice.CpuTopology.ONE_CPU;
                 break;
         }
-        if (mVendorDiskImage != null) {
+
+        if (mVendorDiskImage != null || mNetworkSupported) {
             VirtualMachineAppConfig.CustomConfig customConfig =
                     new VirtualMachineAppConfig.CustomConfig();
             customConfig.devices = EMPTY_STRING_ARRAY;
-            try {
-                customConfig.vendorImage =
-                        ParcelFileDescriptor.open(mVendorDiskImage, MODE_READ_ONLY);
-            } catch (FileNotFoundException e) {
-                throw new VirtualMachineException(
-                        "Failed to open vendor disk image " + mVendorDiskImage.getAbsolutePath(),
-                        e);
+            if (mVendorDiskImage != null) {
+                try {
+                    customConfig.vendorImage =
+                            ParcelFileDescriptor.open(mVendorDiskImage, MODE_READ_ONLY);
+                } catch (FileNotFoundException e) {
+                    throw new VirtualMachineException(
+                            "Failed to open vendor disk image "
+                                    + mVendorDiskImage.getAbsolutePath(),
+                            e);
+                }
             }
+            customConfig.networkSupported = mNetworkSupported;
             vsConfig.customConfig = customConfig;
         }
         return vsConfig;
@@ -826,6 +853,7 @@ public final class VirtualMachineConfig {
         private boolean mConnectVmConsole = false;
         @Nullable private File mVendorDiskImage;
         @NonNull @OsName private String mOs = DEFAULT_OS;
+        private boolean mNetworkSupported;
 
         /**
          * Creates a builder for the given context.
@@ -902,6 +930,10 @@ public final class VirtualMachineConfig {
                         "debug level must be FULL to connect to the console");
             }
 
+            if (mNetworkSupported && mProtectedVm) {
+                throw new IllegalStateException("network is not supported on pVM");
+            }
+
             return new VirtualMachineConfig(
                     packageName,
                     apkPath,
@@ -919,7 +951,8 @@ public final class VirtualMachineConfig {
                     mVmConsoleInputSupported,
                     mConnectVmConsole,
                     mVendorDiskImage,
-                    mOs);
+                    mOs,
+                    mNetworkSupported);
         }
 
         /**
@@ -1222,6 +1255,23 @@ public final class VirtualMachineConfig {
         @NonNull
         public Builder setOs(@NonNull @OsName String os) {
             mOs = requireNonNull(os, "os must not be null");
+            return this;
+        }
+
+        /**
+         * Sets whether to support network feature to VM. Default is {@code false}.
+         *
+         * @hide
+         */
+        @TestApi
+        @RequiresPermission(
+                allOf = {
+                    VirtualMachine.USE_CUSTOM_VIRTUAL_MACHINE_PERMISSION,
+                    Manifest.permission.INTERNET
+                })
+        @NonNull
+        public Builder setNetworkSupported(boolean networkSupported) {
+            mNetworkSupported = networkSupported;
             return this;
         }
     }
