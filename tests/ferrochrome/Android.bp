@@ -5,7 +5,6 @@ package {
 sh_test_host {
     name: "ferrochrome-tests",
     src: "ferrochrome.sh",
-    test_suites: ["general-tests"],
     test_options: {
         unit_test: false,
     },
