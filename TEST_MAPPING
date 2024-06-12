@@ -64,9 +64,6 @@
     {
       "name": "AvfRkpdAppGoogleIntegrationTests",
       "keywords": ["internal"]
-    },
-    {
-      "name": "ferrochrome-tests"
     }
   ],
   "postsubmit": [
