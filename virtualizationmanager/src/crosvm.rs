@@ -132,6 +132,7 @@ pub struct CrosvmConfig {
     pub tap: Option<File>,
     pub virtio_snd_backend: Option<String>,
     pub console_input_device: Option<String>,
+    pub boost_uclamp: bool,
 }
 
 #[derive(Debug)]
@@ -1052,6 +1053,10 @@ fn run_vm(
 
     if config.hugepages {
         command.arg("--hugepages");
+    }
+
+    if config.boost_uclamp {
+        command.arg("--boost-uclamp");
     }
 
     append_platform_devices(&mut command, &mut preserved_fds, &config)?;
