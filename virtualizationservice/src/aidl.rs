@@ -521,6 +521,19 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
         }
         NETWORK_SERVICE.createTapInterface(iface_name_suffix)
     }
+
+    fn deleteTapInterface(&self, tap_fd: &ParcelFileDescriptor) -> binder::Result<()> {
+        check_internet_permission()?;
+        check_use_custom_virtual_machine()?;
+        if !cfg!(network) {
+            return Err(Status::new_exception_str(
+                ExceptionCode::UNSUPPORTED_OPERATION,
+                Some("deleteTapInterface is not supported with the network feature disabled"),
+            ))
+            .with_log();
+        }
+        NETWORK_SERVICE.deleteTapInterface(tap_fd)
+    }
 }
 
 impl IVirtualizationMaintenance for VirtualizationServiceInternal {
