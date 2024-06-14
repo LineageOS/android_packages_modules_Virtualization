@@ -26,7 +26,6 @@ import android.os.IBinder;
 import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.system.virtualizationmaintenance.IVirtualizationMaintenance;
-import android.system.vmtethering.IVmTethering;
 import android.util.Log;
 
 import com.android.internal.os.BackgroundThread;
@@ -41,19 +40,17 @@ import com.android.server.SystemService;
  */
 public class VirtualizationSystemService extends SystemService {
     private static final String TAG = VirtualizationSystemService.class.getName();
-    private static final String MAINTENANCE_SERVICE_NAME =
-            "android.system.virtualizationmaintenance";
+    private static final String SERVICE_NAME = "android.system.virtualizationmaintenance";
     private Handler mHandler;
-    private final TetheringService mTetheringService;
 
     public VirtualizationSystemService(Context context) {
         super(context);
-        mTetheringService = new TetheringService();
     }
 
     @Override
     public void onStart() {
-        publishBinderService(IVmTethering.DESCRIPTOR, mTetheringService);
+        // Nothing needed here - we don't expose any binder service. The binder service we use is
+        // exposed as a lazy service by the virtualizationservice native binary.
     }
 
     @Override
@@ -85,11 +82,11 @@ public class VirtualizationSystemService extends SystemService {
     }
 
     static IVirtualizationMaintenance connectToMaintenanceService() {
-        IBinder binder = ServiceManager.waitForService(MAINTENANCE_SERVICE_NAME);
+        IBinder binder = ServiceManager.waitForService(SERVICE_NAME);
         IVirtualizationMaintenance maintenance =
                 IVirtualizationMaintenance.Stub.asInterface(binder);
         if (maintenance == null) {
-            throw new IllegalStateException("Failed to connect to " + MAINTENANCE_SERVICE_NAME);
+            throw new IllegalStateException("Failed to connect to " + SERVICE_NAME);
         }
         return maintenance;
     }
@@ -137,13 +134,6 @@ public class VirtualizationSystemService extends SystemService {
             if (uid != -1) {
                 mHandler.post(() -> notifyAppRemoved(uid));
             }
-        }
-    }
-
-    private static final class TetheringService extends IVmTethering.Stub {
-        @Override
-        public void enableVmTethering() throws UnsupportedOperationException {
-            throw new UnsupportedOperationException("VM tethering is not supported yet");
         }
     }
 }
