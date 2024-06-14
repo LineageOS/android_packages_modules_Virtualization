@@ -25,7 +25,6 @@ use android_system_virtualizationmaintenance::aidl::android::system::virtualizat
 use android_system_virtualizationservice::aidl::android::system::virtualizationservice;
 use android_system_virtualizationservice_internal as android_vs_internal;
 use android_system_virtualmachineservice::aidl::android::system::virtualmachineservice;
-use android_system_vmtethering::aidl::android::system::vmtethering;
 use android_vs_internal::aidl::android::system::virtualizationservice_internal;
 use anyhow::{anyhow, ensure, Context, Result};
 use avflog::LogResult;
@@ -74,7 +73,6 @@ use virtualizationservice_internal::{
     IVmnic::{BpVmnic, IVmnic},
 };
 use virtualmachineservice::IVirtualMachineService::VM_TOMBSTONES_SERVICE_PORT;
-use vmtethering::IVmTethering::{BpVmTethering, IVmTethering};
 use vsock::{VsockListener, VsockStream};
 
 /// The unique ID of a VM used (together with a port number) for vsock communication.
@@ -165,9 +163,6 @@ lazy_static! {
     static ref NETWORK_SERVICE: Strong<dyn IVmnic> =
         wait_for_interface(<BpVmnic as IVmnic>::get_descriptor())
             .expect("Could not connect to Vmnic");
-    static ref TETHERING_SERVICE: Strong<dyn IVmTethering> =
-        wait_for_interface(<BpVmTethering as IVmTethering>::get_descriptor())
-            .expect("Could not connect to VmTethering");
 }
 
 fn is_valid_guest_cid(cid: Cid) -> bool {
@@ -524,19 +519,7 @@ impl IVirtualizationServiceInternal for VirtualizationServiceInternal {
             ))
             .with_log();
         }
-        let tap_fd = NETWORK_SERVICE.createTapInterface(iface_name_suffix)?;
-
-        // TODO(340377643): Enabling tethering should be for bridge interface, not TAP interface.
-        let ret = TETHERING_SERVICE.enableVmTethering();
-        if let Err(e) = ret {
-            if e.exception_code() == ExceptionCode::UNSUPPORTED_OPERATION {
-                warn!("{}", e.get_description());
-            } else {
-                return Err(e);
-            }
-        }
-
-        Ok(tap_fd)
+        NETWORK_SERVICE.createTapInterface(iface_name_suffix)
     }
 
     fn deleteTapInterface(&self, tap_fd: &ParcelFileDescriptor) -> binder::Result<()> {
