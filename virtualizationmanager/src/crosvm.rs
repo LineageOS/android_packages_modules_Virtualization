@@ -855,6 +855,8 @@ fn run_vm(
         command.arg("--no-balloon");
     }
 
+    let mut memory_mib = config.memory_mib;
+
     if config.protected {
         match system_properties::read(SYSPROP_CUSTOM_PVMFW_PATH)? {
             Some(pvmfw_path) if !pvmfw_path.is_empty() => {
@@ -869,6 +871,12 @@ fn run_vm(
         // enough.
         let swiotlb_size_mib = 2 * virtio_pci_device_count as u32;
         command.arg("--swiotlb").arg(swiotlb_size_mib.to_string());
+
+        // b/346770542 for consistent "usable" memory across protected and non-protected VMs under
+        // pKVM.
+        if hypervisor_props::is_pkvm()? {
+            memory_mib = memory_mib.map(|m| m.saturating_add(swiotlb_size_mib));
+        }
 
         // Workaround to keep crash_dump from trying to read protected guest memory.
         // Context in b/238324526.
@@ -891,7 +899,7 @@ fn run_vm(
         command.arg("--params").arg("console=hvc0");
     }
 
-    if let Some(memory_mib) = config.memory_mib {
+    if let Some(memory_mib) = memory_mib {
         command.arg("--mem").arg(memory_mib.to_string());
     }
 
