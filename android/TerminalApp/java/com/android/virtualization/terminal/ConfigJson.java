@@ -197,7 +197,7 @@ class ConfigJson {
                 if (sharedPath.contains("emulated")) {
                     if (Environment.isExternalStorageManager()) {
                         int currentUserId = context.getUserId();
-                        String path = sharedPath + "/" + currentUserId + "/Download";
+                        String path = sharedPath + "/" + currentUserId;
                         return new SharedPath(
                                 path,
                                 terminalUid,
