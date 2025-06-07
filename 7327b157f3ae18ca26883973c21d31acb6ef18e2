@@ -16,6 +16,24 @@
       "message": "Submitting this as I find this useful since this lets me access my internal storage from anywhere via tailscale on the debian VM.\n\nLet me know if this seems useful",
       "revId": "7327b157f3ae18ca26883973c21d31acb6ef18e2",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "8f193bf9_409e9815",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 17945
+      },
+      "writtenOn": "2025-06-07T12:17:44Z",
+      "side": 1,
+      "message": "This also kinda replicates termux behavior `storage/shared`",
+      "parentUuid": "d8f97145_a84681b3",
+      "revId": "7327b157f3ae18ca26883973c21d31acb6ef18e2",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
