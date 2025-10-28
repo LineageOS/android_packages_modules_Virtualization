@@ -46,7 +46,7 @@ pub(crate) fn flush_region(start: usize, size: usize) {
             let start = crate::util::unchecked_align_down(start, line_size);
 
             for line in (start..end).step_by(line_size) {
-                crate::dc!("cvau", line);
+                crate::dc!("cvac", line);
             }
         } else {
             compile_error!("Unsupported target_arch")
